@@ -1713,6 +1713,12 @@
                     cardIdCounter,
                     updatedAt: serverTimestamp()
                 };
+                
+                // Debug: log what's being saved for the current card
+                if (currentEditingCard && payload.cards[currentEditingCard]) {
+                    console.log('Firestore save - card:', currentEditingCard, 'description:', payload.cards[currentEditingCard].description);
+                }
+                
                 await setDoc(boardDocRef, payload);
                 setSyncState('synced', { syncedAt: new Date() });
             } catch (error) {
@@ -1727,8 +1733,13 @@
             if (currentEditingCard && currentEditingCardData) {
                 const titleInput = document.getElementById('modal-card-title');
                 const descriptionInput = document.getElementById('modal-description');
-                if (titleInput) currentEditingCardData.title = titleInput.value;
-                if (descriptionInput) currentEditingCardData.description = descriptionInput.value;
+                const titleVal = titleInput ? titleInput.value : '';
+                const descVal = descriptionInput ? descriptionInput.value : '';
+                
+                console.log('Saving - Title:', titleVal, 'Description:', descVal);
+                
+                currentEditingCardData.title = titleVal;
+                currentEditingCardData.description = descVal;
                 
                 // Also get contact fields
                 const contactFields = ['contactName', 'email', 'phone', 'phone2', 'businessName'];
