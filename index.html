@@ -1884,7 +1884,9 @@
             };
             descriptionInput.oninput = (event) => {
                 currentEditingCardData.description = event.target.value;
-                queueSaveBoardState();
+                // Save immediately for reliability
+                clearTimeout(saveTimeout);
+                saveBoardState();
             };
             document.getElementById('modal-list-name').textContent = boardConfig.find(l => l.id === currentEditingCardData.listId)?.title || 'List';
             const createdTime = timeAgo(new Date(currentEditingCardData.createdAt));
@@ -1923,7 +1925,9 @@
                     titleInput.oninput = null;
                     descriptionInput.oninput = null;
                     renderCard(currentEditingCardData);
-                    queueSaveBoardState();
+                    // Save immediately when closing
+                    clearTimeout(saveTimeout);
+                    saveBoardState();
                     updateFlowMap();
                 }
                 document.getElementById('card-modal').classList.remove('active');
@@ -2111,7 +2115,9 @@
             const value = document.getElementById('modal-' + field).value;
             currentEditingCardData[field] = value;
             addActivity(`updated ${field}: ${value || '(empty)'}`);
-            queueSaveBoardState();
+            // Save immediately for reliability
+            clearTimeout(saveTimeout);
+            saveBoardState();
             renderCard(currentEditingCardData);
         }
 
