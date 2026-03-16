@@ -1990,22 +1990,28 @@
 
         // Command Palette
         const commands = [
-            { id: 'add-card', title: 'Add New Card', desc: 'Create a new card in a list', icon: '➕', action: () => document.getElementById('add-list-btn')?.click() },
-            { id: 'add-list', title: 'Add New List', desc: 'Create a new list/column', icon: '📋', action: () => showAddListForm() },
-            { id: 'search', title: 'Search Cards', desc: 'Search through all cards', icon: '🔍', action: () => document.getElementById('filter-search')?.focus() },
-            { id: 'profile', title: 'Switch Profile', desc: 'Change your profile', icon: '👤', action: () => openProfileModal() },
-            { id: 'refresh', title: 'Refresh Board', desc: 'Reload data from Firestore', icon: '🔄', action: () => loadBoardData() },
-            { id: 'flow-map', title: 'View Flow Map', desc: 'See the board overview', icon: '🗺', action: () => document.getElementById('flow-map')?.scrollIntoView({ behavior: 'smooth' }) },
+            { id: 'add-card', title: 'Add New Card', desc: 'Create a new card', icon: '➕', action: function() { showAddCardForm('discovery'); } },
+            { id: 'add-list', title: 'Add New List', desc: 'Create a new column', icon: '📋', action: function() { showAddListForm(); } },
+            { id: 'search', title: 'Search Cards', desc: 'Search all cards', icon: '🔍', action: function() { document.getElementById('filter-search').focus(); } },
+            { id: 'profile', title: 'Switch Profile', desc: 'Change user', icon: '👤', action: function() { openProfileModal(); } },
+            { id: 'refresh', title: 'Refresh Board', desc: 'Reload data', icon: '🔄', action: function() { location.reload(); } },
         ];
 
-        let selectedCommandIndex = 0;
-
         function openCommandPalette() {
-            document.getElementById('command-palette-modal').classList.add('active');
+            console.log('Opening command palette');
+            window.selectedCommandIndex = 0;
+            const modal = document.getElementById('command-palette-modal');
+            if (!modal) {
+                console.error('Modal not found!');
+                return;
+            }
+            modal.classList.add('active');
             document.getElementById('command-palette-input').value = '';
-            selectedCommandIndex = 0;
             renderCommands('');
-            document.getElementById('command-palette-input').focus();
+            setupCommandPaletteListeners();
+            setTimeout(() => {
+                document.getElementById('command-palette-input').focus();
+            }, 100);
         }
 
         function closeCommandPalette(event) {
@@ -2022,7 +2028,7 @@
             );
             
             container.innerHTML = filtered.map((c, i) => `
-                <div class="command-item ${i === selectedCommandIndex ? 'selected' : ''}" onclick="executeCommand('${c.id}')">
+                <div class="command-item ${i === window.selectedCommandIndex ? 'selected' : ''}" onclick="executeCommand('${c.id}')">
                     <div class="command-item-icon">${c.icon}</div>
                     <div class="command-item-text">
                         <div class="command-item-title">${c.title}</div>
@@ -2048,33 +2054,44 @@
             }
         });
 
-        // Command palette input handler
-        document.getElementById('command-palette-input')?.addEventListener('input', (e) => {
-            renderCommands(e.target.value);
-        });
-
-        document.getElementById('command-palette-input')?.addEventListener('keydown', (e) => {
-            const items = document.querySelectorAll('.command-item');
-            if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                selectedCommandIndex = Math.min(selectedCommandIndex + 1, items.length - 1);
-                renderCommands(document.getElementById('command-palette-input').value);
-            } else if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                selectedCommandIndex = Math.max(selectedCommandIndex - 1, 0);
-                renderCommands(document.getElementById('command-palette-input').value);
-            } else if (e.key === 'Enter') {
-                e.preventDefault();
-                const filtered = commands.filter(c => 
-                    c.title.toLowerCase().includes(document.getElementById('command-palette-input').value.toLowerCase())
-                );
-                if (filtered[selectedCommandIndex]) {
-                    executeCommand(filtered[selectedCommandIndex].id);
+        // Add event listeners when command palette opens
+        function setupCommandPaletteListeners() {
+            const input = document.getElementById('command-palette-input');
+            if (!input) return;
+            
+            // Remove old listeners to avoid duplicates
+            const newInput = input.cloneNode(true);
+            input.parentNode.replaceChild(newInput, input);
+            
+            newInput.addEventListener('input', (e) => {
+                renderCommands(e.target.value);
+            });
+            
+            newInput.addEventListener('keydown', (e) => {
+                const items = document.querySelectorAll('.command-item');
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    window.selectedCommandIndex = Math.min(window.selectedCommandIndex + 1, items.length - 1);
+                    renderCommands(newInput.value);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    window.selectedCommandIndex = Math.max(window.selectedCommandIndex - 1, 0);
+                    renderCommands(newInput.value);
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    executeCommandFromInput(newInput.value);
+                } else if (e.key === 'Escape') {
+                    closeCommandPalette();
                 }
-            } else if (e.key === 'Escape') {
-                closeCommandPalette();
+            });
+        }
+
+        function executeCommandFromInput(filter) {
+            const filtered = commands.filter(c => c.title.toLowerCase().includes(filter.toLowerCase()));
+            if (filtered[window.selectedCommandIndex]) {
+                executeCommand(filtered[window.selectedCommandIndex].id);
             }
-        });
+        }
 
         // Profiles
         function openProfileModal() {
