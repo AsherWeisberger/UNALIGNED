@@ -2619,8 +2619,8 @@
             currentEditingCardData[field] = value;
             addActivity(`updated ${field}: ${value || '(empty)'}`);
             // Save immediately for reliability
-            clearTimeout(saveTimeout);
-            saveBoardState();
+            window.justSaved = Date.now();
+            saveBoardStateNow();
             renderCard(currentEditingCardData);
         }
 
@@ -3158,6 +3158,7 @@
         window.toggleChecklistItem = toggleChecklistItem;
         window.sendCardToFlowAI = sendCardToFlowAI;
         window.quickAddLead = quickAddLead;
+        window.updateContactField = updateContactField;
     </script>
     </div>
 </body>
