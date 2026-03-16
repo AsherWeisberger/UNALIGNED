@@ -2200,11 +2200,41 @@
                 return;
             }
             modal.classList.add('active');
-            document.getElementById('command-palette-input').value = '';
+            const input = document.getElementById('command-palette-input');
+            input.value = '';
             renderCommands('');
-            setupCommandPaletteListeners();
+            
+            // Remove old event listeners and add fresh ones
+            const newInput = input.cloneNode(true);
+            input.parentNode.replaceChild(newInput, input);
+            
+            newInput.addEventListener('input', function(e) {
+                renderCommands(e.target.value);
+            });
+            
+            newInput.addEventListener('keydown', function(e) {
+                const items = document.querySelectorAll('.command-item');
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    window.selectedCommandIndex = Math.min(window.selectedCommandIndex + 1, items.length - 1);
+                    renderCommands(newInput.value);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    window.selectedCommandIndex = Math.max(window.selectedCommandIndex - 1, 0);
+                    renderCommands(newInput.value);
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const filtered = commands.filter(c => c.title.toLowerCase().includes(newInput.value.toLowerCase()));
+                    if (filtered[window.selectedCommandIndex]) {
+                        executeCommand(filtered[window.selectedCommandIndex].id);
+                    }
+                } else if (e.key === 'Escape') {
+                    closeCommandPalette();
+                }
+            });
+            
             setTimeout(() => {
-                document.getElementById('command-palette-input').focus();
+                newInput.focus();
             }, 100);
         }
 
@@ -2243,6 +2273,10 @@
                 closeCommandPalette();
             }
         }
+
+        // Make command palette functions global
+        window.renderCommands = renderCommands;
+        window.executeCommand = executeCommand;
 
         // Listen for Ctrl+K / Cmd+K
         document.addEventListener('keydown', (e) => {
@@ -2540,6 +2574,7 @@
                 document.getElementById('profile-modal').classList.remove('active');
                 document.getElementById('label-modal').classList.remove('active');
                 document.getElementById('assignee-modal').classList.remove('active');
+                document.getElementById('command-palette-modal')?.classList.remove('active');
                 closeCardModal();
             }
             if (e.key === 'Enter' && e.target.id === 'checklist-input') {
