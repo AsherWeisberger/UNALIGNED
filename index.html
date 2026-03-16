@@ -2038,6 +2038,12 @@
                     return;
                 }
                 
+                // Also skip if we just saved (give it a moment to settle)
+                if (window.justSaved && Date.now() - window.justSaved < 2000) {
+                    console.log('Skipping Firestore update - just saved');
+                    return;
+                }
+                
                 isApplyingRemoteUpdate = true;
                 try {
                     if (!docSnap.exists()) {
@@ -2390,6 +2396,7 @@
                 currentEditingCardData.priority = document.getElementById('modal-priority').value;
                 
                 renderCard(currentEditingCardData);
+                window.justSaved = Date.now();
                 saveBoardStateNow();
                 updateFlowMap();
             }
@@ -2422,6 +2429,7 @@
                     descriptionInput.oninput = null;
                     renderCard(currentEditingCardData);
                     // Save immediately when closing - use fresh data
+                    window.justSaved = Date.now();
                     saveBoardStateNow();
                     updateFlowMap();
                 }
