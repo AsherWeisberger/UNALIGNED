@@ -3368,39 +3368,87 @@
         function generateChatResponse(message) {
             const msg = message.toLowerCase();
             const allCards = Object.values(cardsData);
+            const userName = currentUser || 'there';
             
-            if (msg.includes('in progress') || msg.includes('doing')) {
+            // Fun greetings
+            if (msg.includes('hi') || msg.includes('hey') || msg.includes('hello')) {
+                const greetings = [
+                    `Hey there! 👋 I'm Hubble! Ask me anything about your board!`,
+                    `Woof! 🐕 Hi ${userName}! How can I help?`,
+                    `Hello! 🐾 Great to meet you!`
+                ];
+                return greetings[Math.floor(Math.random() * greetings.length)];
+            }
+            
+            // Who are you
+            if (msg.includes('who are you') || msg.includes('what are you')) {
+                return `I'm Hubble! 🐕 A virtual dog assistant. I'm here to help you manage your leads and workflow. I can answer questions about your board but won't make any changes - that's your job!`;
+            }
+            
+            // Check what's in progress
+            if (msg.includes('in progress') || msg.includes('doing') || msg.includes('working on')) {
                 const inProgress = allCards.filter(c => c.listId === 'build');
-                if (inProgress.length === 0) return "Nothing is currently in IN PROGRESS.";
-                return "Currently in IN PROGRESS:\n" + inProgress.map(c => 
-                    `- ${c.title} (${c.assignee || 'unassigned'})`
+                if (inProgress.length === 0) return "Nothing in IN PROGRESS right now! 🏖️";
+                return "Currently working on:\n" + inProgress.map(c => 
+                    `📋 ${c.title} (${c.assignee || 'unassigned'})`
                 ).join('\n');
             }
             
-            if (msg.includes('lead') || msg.includes('new')) {
+            // Lead info
+            if (msg.includes('lead') || msg.includes('new') || msg.includes('prospect')) {
                 const leads = allCards.filter(c => c.listId === 'discovery');
-                return `You have ${leads.length} leads in LEAD IN:\n` + 
-                    (leads.length ? leads.map(l => `- ${l.title}`).join('\n') : 'No leads yet!');
+                if (leads.length === 0) return "No leads in LEAD IN right now! Add some! 🎯";
+                return `🎯 You have ${leads.length} lead${leads.length !== 1 ? 's' : ''} in LEAD IN:\n\n` + 
+                    leads.map(l => {
+                        let info = `• ${l.title}`;
+                        if (l.priority) info += ` ${l.priority === 'hot' ? '🔥' : l.priority === 'warm' ? '🌡️' : '❄️'}`;
+                        if (l.estimatedValue) info += ` $${l.estimatedValue}`;
+                        return info;
+                    }).join('\n');
             }
             
-            if (msg.includes('how many') || msg.includes('total')) {
+            // Card counts
+            if (msg.includes('how many') || msg.includes('total') || msg.includes('stats') || msg.includes('summary')) {
                 const counts = {};
                 allCards.forEach(c => {
                     counts[c.listId] = (counts[c.listId] || 0) + 1;
                 });
-                return `Your board has ${allCards.length} cards total.\n\n` +
-                    boardConfig.map(l => `- ${l.title}: ${counts[l.id] || 0}`).join('\n');
+                return `📊 Your board has ${allCards.length} cards:\n\n` +
+                    boardConfig.map(l => `${l.title}: ${counts[l.id] || 0}`).join('\n');
             }
             
+            // Who is logged in / me
+            if (msg.includes('who am i') || msg.includes('my name') || msg.includes('logged in')) {
+                return `You're logged in as ${userName}! 🐾`;
+            }
+            
+            // Help
             if (msg.includes('help') || msg.includes('what can')) {
-                return "I can tell you about:\n" +
-                    "- Leads in LEAD IN\n" +
-                    "- What's in IN PROGRESS\n" +
-                    "- Card counts per column\n\n" +
-                    "Note: I won't make changes through this chat. Use the board for edits!";
+                return `I can help you with:\n\n` +
+                    `🎯 Leads in LEAD IN\n` +
+                    `📋 What's in IN PROGRESS\n` +
+                    `📊 Card counts\n` +
+                    `❓ General questions\n\n` +
+                    `I won't make changes - use the board for that!`;
             }
             
-            return "I'm Hubble! Ask me about leads, what's in progress, or card counts. I won't make changes here - use the main board for that!";
+            // Fun easter eggs
+            if (msg.includes('good boy') || msg.includes('good girl') || msg.includes('good dog')) {
+                return `🐕 *wags tail* Thank you! I'm a good boy!`;
+            }
+            
+            if (msg.includes('treat') || msg.includes('cookie') || msg.includes('snack')) {
+                return `🐕🍪 I love treats! But I work for belly rubs...`;
+            }
+            
+            // Default fun response
+            const defaults = [
+                `I'm Hubble! 🐕 Ask me about your leads or what's in progress!`,
+                `Woof! 🐾 I can tell you about your board! Try asking about leads or progress.`,
+                `I'm here to help! 🐕 Ask me anything about your workflow!`,
+                `🐕 *tilts head* Could you rephrase that? I can tell you about leads, progress, or card counts!`
+            ];
+            return defaults[Math.floor(Math.random() * defaults.length)];
         }
 
         window.openChatModal = openChatModal;
