@@ -1259,6 +1259,11 @@
             }
         }
 
+        // Make login functions global so HTML onclick works
+        window.selectLoginUser = selectLoginUser;
+        window.checkLogin = checkLogin;
+        window.attemptLogin = attemptLogin;
+
         // Only load app content after login - wrap the rest in a check
         let appReady = false;
 
@@ -2204,6 +2209,10 @@
             }
         }
 
+        // Make command palette functions global
+        window.openCommandPalette = openCommandPalette;
+        window.closeCommandPalette = closeCommandPalette;
+
         function renderCommands(filter) {
             const container = document.getElementById('command-palette-results');
             const filtered = commands.filter(c => 
@@ -2532,6 +2541,30 @@
                 addChecklistItem();
             }
         });
+
+        // Make all functions global for HTML onclick handlers
+        window.openProfileModal = openProfileModal;
+        window.closeProfileModal = closeProfileModal;
+        window.openLabelPicker = openLabelPicker;
+        window.closeLabelModal = closeLabelModal;
+        window.toggleLabel = toggleLabel;
+        window.updateDueDate = updateDueDate;
+        window.changeAssignee = changeAssignee;
+        window.removeDueDate = removeDueDate;
+        window.deleteCard = deleteCard;
+        window.addChecklistItem = addChecklistItem;
+        window.openCardModal = openCardModal;
+        window.closeCardModal = closeCardModal;
+        window.addCard = addCard;
+        window.addList = addList;
+        window.cancelAddCard = cancelAddCard;
+        window.cancelAddList = cancelAddList;
+        window.renameList = renameList;
+        window.deleteList = deleteList;
+        window.showAddCardForm = showAddCardForm;
+        window.showAddListForm = showAddListForm;
+        window.toggleChecklistItem = toggleChecklistItem;
+        window.sendCardToFlowAI = sendCardToFlowAI;
     </script>
     </div>
 </body>
