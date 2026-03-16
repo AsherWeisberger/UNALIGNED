@@ -1,0 +1,13 @@
+{
+  "name": "scoble-lead-extractor",
+  "version": "1.0.0",
+  "description": "Extract leads from Robert Scoble's online presence for UNALIGNED Kanban board",
+  "main": "index.js",
+  "scripts": {
+    "extract": "node extractor/scrape-leads.js",
+    "test": "node extractor/test-extract.js"
+  },
+  "dependencies": {
+    "jsdom": "^24.0.0"
+  }
+}
