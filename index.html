@@ -1,0 +1,2336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FLOW AI BOARD</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg-primary: #05060c;
+            --bg-secondary: rgba(255, 255, 255, 0.05);
+            --panel: #111524;
+            --panel-light: #f7fafc;
+            --text-subtle: #8b949e;
+            --accent: #7dd3fc;
+            --radius: 14px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: radial-gradient(circle at top, #0e1629, #05060c 55%);
+            min-height: 100vh;
+            color: #fff;
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px clamp(16px, 5vw, 40px) 12px;
+        }
+
+        .logo {
+            font-size: 20px;
+            letter-spacing: 0.4px;
+        }
+
+        .header-left {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .subtitle {
+            font-size: 13px;
+            color: var(--text-subtle);
+        }
+
+        .stats {
+            display: flex;
+            gap: 18px;
+            font-size: 13px;
+            color: var(--text-subtle);
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .sync-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 12px;
+            background: rgba(255, 255, 255, 0.08);
+            color: #f8fafc;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+        }
+
+        .sync-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: #a3a3a3;
+            box-shadow: 0 0 12px rgba(255, 255, 255, 0.35);
+        }
+
+        .sync-indicator.sync-connecting .sync-dot {
+            background: #9ca3af;
+        }
+
+        .sync-indicator.sync-saving {
+            background: rgba(250, 204, 21, 0.15);
+            border-color: rgba(250, 204, 21, 0.3);
+            color: #facc15;
+        }
+
+        .sync-indicator.sync-saving .sync-dot {
+            background: #facc15;
+        }
+
+        .sync-indicator.sync-synced {
+            background: rgba(14, 165, 233, 0.18);
+            border-color: rgba(14, 165, 233, 0.4);
+            color: #7dd3fc;
+        }
+
+        .sync-indicator.sync-synced .sync-dot {
+            background: #38bdf8;
+        }
+
+        .sync-indicator.sync-error {
+            background: rgba(248, 113, 113, 0.18);
+            border-color: rgba(248, 113, 113, 0.5);
+            color: #fecaca;
+        }
+
+        .sync-indicator.sync-error .sync-dot {
+            background: #f87171;
+            box-shadow: 0 0 14px rgba(248, 113, 113, 0.5);
+        }
+
+        .sync-warning {
+            display: none;
+            margin: 0 clamp(16px, 5vw, 40px);
+            margin-top: 6px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(248, 113, 113, 0.5);
+            background: rgba(248, 113, 113, 0.15);
+            color: #fecaca;
+            font-size: 13px;
+        }
+
+        .sync-warning.visible {
+            display: block;
+        }
+
+        .sync-indicator-floating {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 2000;
+            box-shadow: 0 12px 28px rgba(5, 6, 12, 0.45);
+            pointer-events: none;
+        }
+
+        @media (max-width: 640px) {
+            .sync-indicator-floating {
+                left: 50%;
+                right: auto;
+                transform: translateX(-50%);
+                bottom: 16px;
+            }
+        }
+
+
+        .profile-btn, .menu-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: none;
+            cursor: pointer;
+            background: var(--bg-secondary);
+            color: inherit;
+            font-size: 13px;
+        }
+
+        .profile-btn:hover, .menu-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: grid;
+            place-items: center;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        main {
+            padding: 0 clamp(16px, 5vw, 40px) 120px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        body.board-loading .board {
+            pointer-events: none;
+            opacity: 0.25;
+        }
+
+        .loading-state {
+            display: none;
+            align-items: center;
+            gap: 10px;
+            color: var(--text-subtle);
+            font-size: 14px;
+            padding: 6px 0;
+        }
+
+        .loading-state::before {
+            content: '';
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            border-top-color: var(--accent);
+            animation: spin 0.9s linear infinite;
+        }
+
+        body.board-loading .loading-state {
+            display: flex;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Flow map */
+        .flow-map {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            overflow-x: auto;
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: var(--radius);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .flow-node {
+            min-width: 140px;
+            background: #0f172a;
+            border-radius: var(--radius);
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            border: 1px solid transparent;
+            position: relative;
+        }
+
+        .flow-node.overloaded {
+            border-color: #f87171;
+            box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.15);
+        }
+
+        .flow-node h4 {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .flow-node span {
+            font-size: 12px;
+            color: var(--text-subtle);
+        }
+
+        .flow-node strong {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .flow-connector {
+            height: 2px;
+            width: 36px;
+            background: linear-gradient(90deg, transparent, #38bdf8, transparent);
+            flex-shrink: 0;
+        }
+
+        .filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: var(--radius);
+            padding: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .filters input, .filters select {
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+            border-radius: 10px;
+            border: 1px solid transparent;
+            padding: 10px 14px;
+            font-size: 13px;
+            min-width: 160px;
+        }
+
+        .filters input:focus, .filters select:focus {
+            outline: none;
+            border-color: #38bdf8;
+        }
+
+        .filter-toggle {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            color: var(--text-subtle);
+            margin-left: auto;
+        }
+
+        .board {
+            display: flex;
+            gap: 16px;
+            overflow-x: auto;
+            align-items: flex-start;
+        }
+
+        .board-lists {
+            display: flex;
+            gap: 16px;
+        }
+
+        .list {
+            min-width: 280px;
+            max-width: 280px;
+            background: #f8fafc;
+            color: #111827;
+            border-radius: var(--radius);
+            padding: 14px;
+        }
+
+        .list-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+
+        .list-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .list-menu-btn {
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-size: 16px;
+            color: #6b7280;
+            padding: 4px;
+            border-radius: 6px;
+        }
+
+        .list-menu-btn:hover {
+            background: rgba(15, 23, 42, 0.08);
+            color: #111827;
+        }
+
+        .list-menu-btn.danger:hover {
+            color: #b91c1c;
+        }
+
+        .list-meta {
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        .cards-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 24px;
+        }
+
+        .cards-container.drag-over {
+            background: rgba(59, 130, 246, 0.12);
+            border-radius: 10px;
+            padding: 6px;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 12px;
+            padding: 14px;
+            cursor: grab;
+            box-shadow: 0 12px 25px rgba(15, 23, 42, 0.08);
+            transition: transform 0.18s, box-shadow 0.18s;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 16px 30px rgba(15, 23, 42, 0.15);
+        }
+
+        .card.dragging {
+            opacity: 0.5;
+            transform: rotate(2deg);
+        }
+
+        .card-labels {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+
+        .card-label-text {
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .label-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 500;
+            color: #fff;
+            margin-right: 8px;
+            margin-bottom: 8px;
+        }
+
+        .label-tag .remove-label {
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .label-tag .remove-label:hover {
+            opacity: 0.8;
+        }
+
+        .card-content {
+            font-size: 14px;
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 10px;
+            line-height: 1.4;
+        }
+
+        .card-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        .card-label-text.red, .label-tag.red, .label-color.red { background: #ef4444; }
+        .card-label-text.blue, .label-tag.blue, .label-color.blue { background: #3b82f6; }
+        .card-label-text.green, .label-tag.green, .label-color.green { background: #22c55e; }
+        .card-label-text.yellow, .label-tag.yellow, .label-color.yellow { background: #facc15; color: #111827; }
+        .card-label-text.purple, .label-tag.purple, .label-color.purple { background: #a855f7; }
+        .card-label-text.orange, .label-tag.orange, .label-color.orange { background: #f97316; }
+        .card-label-text.pink, .label-tag.pink, .label-color.pink { background: #ec4899; }
+
+        .card-meta {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .card-assignee {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .add-card-btn, .add-list-btn {
+            border: 1px dashed rgba(255, 255, 255, 0.4);
+            background: transparent;
+            color: #fff;
+            padding: 12px 18px;
+            border-radius: var(--radius);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .add-card-btn {
+            width: 100%;
+            border: 1px dashed rgba(15, 23, 42, 0.2);
+            color: #0f172a;
+            justify-content: center;
+            margin-top: 10px;
+        }
+
+        .add-card-btn:hover, .add-list-btn:hover {
+            border-color: #38bdf8;
+        }
+
+        .add-list-btn {
+            align-self: flex-start;
+        }
+
+        /* Forms */
+        .new-card-form, .new-list-form {
+            background: #fff;
+            border-radius: 12px;
+            padding: 12px;
+            margin-top: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .new-card-input, .new-list-input {
+            border: 1px solid #d1d5db;
+            border-radius: 10px;
+            padding: 10px;
+            font-size: 14px;
+            resize: none;
+        }
+
+        .new-card-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-start;
+        }
+
+        .btn-primary {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            background: #2563eb;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        .btn-cancel {
+            border: none;
+            background: transparent;
+            font-size: 18px;
+            cursor: pointer;
+            color: #6b7280;
+        }
+
+        /* Modal styles retained from previous version */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(5, 6, 12, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .command-palette {
+            background: #1a1f35;
+            border-radius: 16px;
+            width: min(500px, 90vw);
+            max-height: 60vh;
+            overflow: hidden;
+            border: 1px solid #2d3748;
+        }
+
+        .command-palette-input {
+            width: 100%;
+            padding: 16px 20px;
+            border: none;
+            border-bottom: 1px solid #2d3748;
+            background: transparent;
+            color: #f1f5f9;
+            font-size: 16px;
+            outline: none;
+        }
+
+        .command-palette-input::placeholder {
+            color: #6b7280;
+        }
+
+        .command-palette-results {
+            max-height: calc(60vh - 60px);
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .command-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            color: #e2e8f0;
+        }
+
+        .command-item:hover, .command-item.selected {
+            background: #2d3748;
+        }
+
+        .command-item-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #374151;
+            font-size: 14px;
+        }
+
+        .command-item-text {
+            flex: 1;
+        }
+
+        .command-item-title {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .command-item-desc {
+            font-size: 12px;
+            color: #9ca3af;
+        }
+
+        .card-modal {
+            background: #0b1220;
+            border-radius: 16px;
+            width: min(900px, 100%);
+            max-height: 95vh;
+            overflow-y: auto;
+            color: #f1f5f9;
+            box-shadow: 0 25px 80px rgba(5, 6, 12, 0.6);
+        }
+
+        .card-modal-header {
+            padding: 24px 24px 0;
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .card-modal-close {
+            width: 40px;
+            height: 40px;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.4);
+            background: rgba(15, 23, 42, 0.35);
+            color: #e2e8f0;
+            font-size: 18px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+        }
+
+        .card-modal-close:hover {
+            background: rgba(56, 189, 248, 0.18);
+            border-color: rgba(56, 189, 248, 0.45);
+            color: #7dd3fc;
+            transform: translateY(-1px);
+        }
+
+        .card-modal-close:focus-visible {
+            outline: 2px solid #7dd3fc;
+            outline-offset: 2px;
+        }
+
+        .card-modal-title {
+            border: none;
+            font-size: 24px;
+            font-weight: 600;
+            width: 100%;
+            background: transparent;
+            color: #f8fafc;
+        }
+
+        .card-modal-subtitle {
+            color: #94a3b8;
+        }
+
+        .card-modal-title:focus {
+            outline: 2px solid #2563eb;
+        }
+
+        .card-modal-body {
+            padding: 24px;
+            display: flex;
+            gap: 24px;
+            border-top: 1px solid #162033;
+        }
+
+        .card-modal-main {
+            flex: 1;
+        }
+
+        .card-modal-sidebar {
+            width: 220px;
+        }
+
+        .sidebar-section {
+            margin-bottom: 22px;
+        }
+
+        .sidebar-section-title {
+            font-size: 11px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            font-weight: 600;
+            color: #94a3b8;
+            margin-bottom: 10px;
+        }
+
+        .modal-section {
+            margin-bottom: 24px;
+        }
+
+        .modal-section-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #cbd5f5;
+        }
+
+        textarea.description-textarea {
+            width: 100%;
+            min-height: 120px;
+            border-radius: 12px;
+            padding: 12px;
+            border: 1px solid #1f2937;
+            background: #111827;
+            color: #f1f5f9;
+            font-size: 14px;
+            resize: vertical;
+        }
+
+        .contact-fields {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .contact-input {
+            width: 100%;
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1px solid #1f2937;
+            background: #111827;
+            color: #f1f5f9;
+            font-size: 14px;
+        }
+
+        .contact-input::placeholder {
+            color: #6b7280;
+        }
+
+        .contact-input:focus {
+            outline: none;
+            border-color: #7dd3fc;
+        }
+
+        .checklist-input,
+        input[type="date"] {
+            width: 100%;
+            border: 1px solid #1f2937;
+            border-radius: 10px;
+            padding: 10px;
+            background: #111827;
+            color: #f1f5f9;
+        }
+
+        .activity-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .activity-item {
+            display: flex;
+            gap: 12px;
+            color: #e2e8f0;
+        }
+
+        .activity-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            color: #fff;
+            font-weight: 600;
+            font-size: 12px;
+        }
+
+        .sidebar-btn {
+            width: 100%;
+            border: none;
+            border-radius: 10px;
+            padding: 10px;
+            background: #1f2937;
+            color: #e2e8f0;
+            cursor: pointer;
+            font-size: 13px;
+            margin-top: 8px;
+        }
+
+        .sidebar-btn.danger {
+            background: #3f1f1f;
+            color: #fca5a5;
+        }
+
+        .profile-modal, .label-picker {
+            background: #fff;
+            border-radius: 16px;
+            padding: 20px;
+            width: min(340px, 90vw);
+            color: #111827;
+        }
+
+        .profile-option {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+
+        .profile-option:hover {
+            background: #f1f5f9;
+        }
+
+        .profile-option.active {
+            background: #dbeafe;
+        }
+
+        .label-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+        }
+
+        .label-color {
+            flex: 1;
+            padding: 6px 12px;
+            border-radius: 999px;
+            color: #fff;
+            font-size: 12px;
+            text-align: center;
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            border: 0;
+        }
+
+        @media (max-width: 960px) {
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+
+            .card-modal-body {
+                flex-direction: column;
+            }
+
+            .card-modal-sidebar {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <div>
+                <h1 class="logo">FLOW AI</h1>
+                <p class="subtitle">A flow-oriented Kanban that adapts to how you actually work.</p>
+            </div>
+            <div class="stats">
+                <span id="total-cards">0 cards</span>
+                <span id="assigned-count">0 assigned to you</span>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="sync-indicator sync-connecting" id="sync-indicator" data-sync-indicator title="Connecting to Firestore…">
+                <span class="sync-dot" aria-hidden="true"></span>
+                <span data-sync-text>Connecting…</span>
+            </div>
+            <button class="profile-btn" id="profile-btn" onclick="openProfileModal()">
+                <span class="avatar" id="current-avatar">SL</span>
+                <span id="current-profile-name">Sam L</span>
+            </button>
+            <button class="menu-btn" onclick="openCommandPalette()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 5v14M5 12h14" />
+                </svg>
+                Command Palette
+            </button>
+        </div>
+    </header>
+    <div class="sync-warning" id="sync-warning" role="alert" aria-live="polite"></div>
+    <div class="sync-indicator sync-connecting sync-indicator-floating" id="sync-indicator-floating" data-sync-indicator title="Connecting to Firestore…">
+        <span class="sync-dot" aria-hidden="true"></span>
+        <span data-sync-text>Connecting…</span>
+    </div>
+
+    <main>
+        <section class="flow-map" id="flow-map" aria-label="Flow snapshot"></section>
+
+        <section class="filters">
+            <input type="search" id="filter-search" placeholder="Search card titles, notes, or labels" aria-label="Search cards">
+            <select id="filter-label" aria-label="Label filter">
+                <option value="all">All labels</option>
+            </select>
+            <select id="filter-assignee" aria-label="Assignee filter">
+                <option value="all">All assignees</option>
+            </select>
+            <label class="filter-toggle">
+                <input type="checkbox" id="filter-mine">
+                Show only mine
+            </label>
+        </section>
+
+        <div id="board-loading" class="loading-state" role="status" aria-live="polite">Loading board…</div>
+
+        <section class="board" aria-label="Kanban board">
+            <div class="board-lists" id="board-lists"></div>
+            <button class="add-list-btn" id="add-list-btn" onclick="showAddListForm()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 5v14M5 12h14" />
+                </svg>
+                Add another list
+            </button>
+        </section>
+    </main>
+
+    <!-- Card Modal -->
+    <div class="modal-overlay" id="card-modal" onclick="closeCardModal(event)">
+        <div class="card-modal" onclick="event.stopPropagation()">
+            <div class="card-modal-header">
+                <div class="card-modal-title-section">
+                    <input type="text" class="card-modal-title" id="modal-card-title">
+                    <div class="card-modal-subtitle">in list <span id="modal-list-name">To Do</span> <span id="modal-created-info"></span></div>
+                </div>
+                <button class="card-modal-close" onclick="closeCardModal()">×</button>
+            </div>
+            <div class="card-modal-body">
+                <div class="card-modal-main">
+                    <div class="modal-section">
+                        <div class="modal-section-title">Labels</div>
+                        <div class="labels-list" id="modal-labels"></div>
+                    </div>
+                    <div class="modal-section">
+                        <div class="modal-section-title">Contact Info</div>
+                        <div class="contact-fields">
+                            <input type="text" class="contact-input" id="modal-contact-name" placeholder="Contact Name" onchange="updateContactField('contactName')">
+                            <input type="email" class="contact-input" id="modal-email" placeholder="Email" onchange="updateContactField('email')">
+                            <input type="tel" class="contact-input" id="modal-phone" placeholder="Phone" onchange="updateContactField('phone')">
+                            <input type="tel" class="contact-input" id="modal-phone2" placeholder="Secondary Phone" onchange="updateContactField('phone2')">
+                            <input type="text" class="contact-input" id="modal-business-name" placeholder="Business Name" onchange="updateContactField('businessName')">
+                        </div>
+                    </div>
+                    <div class="modal-section">
+                        <div class="modal-section-title">Description</div>
+                        <textarea class="description-textarea" id="modal-description" placeholder="Add a more detailed description..."></textarea>
+                    </div>
+                    <div class="modal-section">
+                        <div class="modal-section-title">Checklist</div>
+                        <div class="checklist-items" id="modal-checklist"></div>
+                        <div class="checklist-add">
+                            <input type="text" class="checklist-input" id="checklist-input" placeholder="Add an item...">
+                            <button class="btn-add-item" onclick="addChecklistItem()">Add</button>
+                        </div>
+                    </div>
+                    <div class="modal-section">
+                        <div class="modal-section-title">Activity</div>
+                        <div class="activity-list" id="modal-activity"></div>
+                    </div>
+                </div>
+                <div class="card-modal-sidebar">
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">Assigned To</div>
+                        <div class="assignee-display" id="modal-assignee">Flow AI</div>
+                        <button class="sidebar-btn" onclick="changeAssignee()">Change</button>
+                    </div>
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">Due Date</div>
+                        <div class="due-date-display" id="modal-due-date">
+                            <input type="date" id="due-date-input" onchange="updateDueDate()">
+                        </div>
+                        <button class="sidebar-btn" onclick="removeDueDate()">Remove date</button>
+                    </div>
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">Labels</div>
+                        <button class="sidebar-btn" onclick="openLabelPicker()">Add label</button>
+                    </div>
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">Flow AI</div>
+                        <button class="sidebar-btn" onclick="sendCardToFlowAI()">Send to Flow AI</button>
+                    </div>
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">Danger</div>
+                        <button class="sidebar-btn danger" onclick="deleteCard()">Delete card</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Command Palette Modal -->
+    <div class="modal-overlay" id="command-palette-modal" onclick="closeCommandPalette(event)">
+        <div class="command-palette" onclick="event.stopPropagation()">
+            <input type="text" class="command-palette-input" id="command-palette-input" placeholder="Type a command or search...">
+            <div class="command-palette-results" id="command-palette-results"></div>
+        </div>
+    </div>
+
+    <!-- Profile Modal -->
+    <div class="modal-overlay" id="profile-modal" onclick="closeProfileModal(event)">
+        <div class="profile-modal" onclick="event.stopPropagation()">
+            <h2 class="profile-modal-title">Select Profile</h2>
+            <div class="profile-list">
+                <div class="profile-option active" onclick="selectProfile('Sam L', 'SL', this)">
+                    <span class="avatar" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">SL</span>
+                    <div class="profile-info">
+                        <span class="profile-name">Sam L</span>
+                    </div>
+                </div>
+                <div class="profile-option" onclick="selectProfile('Robert S', 'RS', this)">
+                    <span class="avatar" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">RS</span>
+                    <div class="profile-info">
+                        <span class="profile-name">Robert S</span>
+                    </div>
+                </div>
+                <div class="profile-option" onclick="selectProfile('Asher W', 'AW', this)">
+                    <span class="avatar" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">AW</span>
+                    <div class="profile-info">
+                        <span class="profile-name">Asher W</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Label Picker Modal -->
+    <div class="modal-overlay" id="label-modal" onclick="closeLabelModal(event)">
+        <div class="label-picker" onclick="event.stopPropagation()">
+            <h3 class="label-picker-title">Labels</h3>
+            <div id="label-options"></div>
+        </div>
+    </div>
+
+    <!-- Assignee Picker Modal -->
+    <div class="modal-overlay" id="assignee-modal" onclick="closeAssigneeModal(event)">
+        <div class="profile-modal" onclick="event.stopPropagation()">
+            <h2 class="profile-modal-title">Change Assignee</h2>
+            <div class="profile-list" id="assignee-options"></div>
+        </div>
+    </div>
+
+    <div class="sr-only" id="live-region" aria-live="polite"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
+        import { getFirestore, doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBaSETzAzXCDC_RHntmNKeM9nO4pcA6VRA",
+            authDomain: "unaligned-fc556.firebaseapp.com",
+            projectId: "unaligned-fc556",
+            storageBucket: "unaligned-fc556.firebasestorage.app",
+            messagingSenderId: "720311168962",
+            appId: "1:720311168962:web:18d9f60626671a6e13f05b"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const boardDocRef = doc(db, 'boards', 'shared-board');
+
+        let currentProfile = { name: 'Sam L', initials: 'SL' };
+        let draggedCard = null;
+        let cardsData = {};
+        let cardIdCounter = 1;
+        let currentEditingCard = null;
+        let currentEditingCardData = null;
+        let isApplyingRemoteUpdate = false;
+        let saveTimeout = null;
+        let hasLoadedInitialState = false;
+
+        const syncState = {
+            status: 'connecting',
+            lastSyncedAt: null,
+            errorMessage: ''
+        };
+
+        function setSyncState(status, { errorMessage = '', syncedAt = null } = {}) {
+            syncState.status = status;
+            if (status === 'synced') {
+                const timestamp = syncedAt instanceof Date ? syncedAt : (syncedAt ? new Date(syncedAt) : new Date());
+                syncState.lastSyncedAt = timestamp.toISOString();
+                syncState.errorMessage = '';
+            } else if (status === 'error') {
+                syncState.errorMessage = errorMessage || 'Offline – changes stay on this device until sync resumes.';
+            }
+            requestAnimationFrame(renderSyncState);
+        }
+
+        function renderSyncState() {
+            const indicators = document.querySelectorAll('[data-sync-indicator]');
+            const warning = document.getElementById('sync-warning');
+            const classList = ['sync-connecting', 'sync-saving', 'sync-synced', 'sync-error'];
+            const classMap = {
+                connecting: 'sync-connecting',
+                saving: 'sync-saving',
+                synced: 'sync-synced',
+                error: 'sync-error'
+            };
+            const labelMap = {
+                connecting: 'Connecting…',
+                saving: 'Saving…',
+                synced: 'Synced',
+                error: 'Offline (not saving)'
+            };
+            const tooltip = buildSyncTooltip();
+            indicators.forEach((indicator) => {
+                classList.forEach(cls => indicator.classList.remove(cls));
+                indicator.classList.add(classMap[syncState.status] || 'sync-connecting');
+                const textEl = indicator.querySelector('[data-sync-text]');
+                if (textEl) {
+                    textEl.textContent = labelMap[syncState.status] || 'Connecting…';
+                }
+                indicator.title = tooltip;
+            });
+            if (!warning) return;
+            if (syncState.status === 'error') {
+                warning.textContent = syncState.errorMessage || 'Offline – changes stay on this device until sync resumes.';
+                warning.classList.add('visible');
+            } else {
+                warning.classList.remove('visible');
+                warning.textContent = '';
+            }
+        }
+
+        function buildSyncTooltip() {
+            if (syncState.status === 'synced' && syncState.lastSyncedAt) {
+                const syncedDate = new Date(syncState.lastSyncedAt);
+                const relative = typeof timeAgo === 'function' ? timeAgo(syncedDate) : 'just now';
+                return `Synced ${relative} (${syncedDate.toLocaleString()})`;
+            }
+            if (syncState.status === 'saving') return 'Saving latest changes to Firestore…';
+            if (syncState.status === 'error') return syncState.errorMessage || 'Offline – changes are not syncing yet.';
+            return 'Connecting to Firestore…';
+        }
+
+        const profiles = {
+            'Sam L': { initials: 'SL', gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
+            'Robert S': { initials: 'RS', gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' },
+            'Asher W': { initials: 'AW', gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' }
+        };
+
+        const labelColors = {
+            'Important': 'red',
+            'In Progress': 'blue',
+            'Done': 'green',
+            'Review': 'yellow',
+            'Bug': 'purple',
+            'Feature': 'orange',
+            'Blocked': 'pink'
+        };
+
+        const labelPalette = {
+            red: '#ef4444',
+            blue: '#3b82f6',
+            green: '#22c55e',
+            yellow: '#facc15',
+            purple: '#a855f7',
+            orange: '#f97316',
+            pink: '#ec4899'
+        };
+
+        const defaultBoardConfig = [
+            { id: 'backlog', title: 'Backlog', description: 'New intake + triage', color: '#c084fc', wip: 12 },
+            { id: 'discovery', title: 'Discovery', description: 'Clarify problem / success', color: '#22d3ee', wip: 6 },
+            { id: 'build', title: 'Build', description: 'Heads-down execution', color: '#38bdf8', wip: 5 },
+            { id: 'review', title: 'Review', description: 'QA, design sign-off', color: '#fbbf24', wip: 4 },
+            { id: 'launch', title: 'Launch Prep', description: 'Comms + rollout', color: '#f97316', wip: 3 },
+            { id: 'done', title: 'Shipped', description: 'Celebrate + learn', color: '#34d399' }
+        ];
+        let boardConfig = JSON.parse(JSON.stringify(defaultBoardConfig));
+
+        const sampleCards = [
+            {
+                id: 1,
+                title: 'Map the onboarding narrative',
+                listId: 'discovery',
+                labels: [{ name: 'Important', color: 'red' }, { name: 'Feature', color: 'orange' }],
+                description: 'Draft intentional onboarding moments for FLOW AI beta.',
+                checklist: [
+                    { text: 'Interview 3 power users', checked: true },
+                    { text: 'Prototype guided quest', checked: false }
+                ],
+                assignee: 'Asher W',
+                dueDate: new Date().toISOString().split('T')[0],
+                createdBy: 'Sam L',
+                createdAt: new Date(Date.now() - 7200000).toISOString(),
+                activity: [
+                    { user: 'Sam L', initials: 'SL', action: 'created this card', time: new Date(Date.now() - 7200000).toISOString() },
+                    { user: 'Asher W', initials: 'AW', action: 'moved from Backlog to Discovery', time: new Date(Date.now() - 3600000).toISOString() }
+                ]
+            },
+            {
+                id: 2,
+                title: 'Flow canvas UI polish',
+                listId: 'build',
+                labels: [{ name: 'In Progress', color: 'blue' }],
+                description: 'Tighten typography, lighten cards, add motion cues.',
+                checklist: [],
+                assignee: 'Robert S',
+                dueDate: '',
+                createdBy: 'Robert S',
+                createdAt: new Date(Date.now() - 5400000).toISOString(),
+                activity: [
+                    { user: 'Robert S', initials: 'RS', action: 'created this card', time: new Date(Date.now() - 5400000).toISOString() }
+                ]
+            },
+            {
+                id: 3,
+                title: 'Partner ops dry run',
+                listId: 'launch',
+                labels: [{ name: 'Important', color: 'green' }, { name: 'Review', color: 'yellow' }],
+                description: '',
+                checklist: [],
+                assignee: '',
+                dueDate: '',
+                createdBy: 'Sam L',
+                createdAt: new Date(Date.now() - 4000000).toISOString(),
+                activity: [
+                    { user: 'Sam L', initials: 'SL', action: 'created this card', time: new Date(Date.now() - 4000000).toISOString() }
+                ]
+            }
+        ];
+
+        const defaultCardsData = sampleCards.reduce((acc, card) => {
+            acc[card.id] = card;
+            return acc;
+        }, {});
+        cardsData = JSON.parse(JSON.stringify(defaultCardsData));
+        cardIdCounter = deriveNextCardId(cardsData);
+
+        function normalizeBoardConfig(lists = []) {
+            const source = Array.isArray(lists) && lists.length ? lists : defaultBoardConfig;
+            return source.map((list, index) => ({
+                id: list.id || `list-${index}`,
+                title: list.title || `List ${index + 1}`,
+                description: list.description || '',
+                color: list.color || '#94a3b8',
+                ...(list.wip ? { wip: Number(list.wip) } : {})
+            }));
+        }
+
+        function normalizeActivityEntry(entry = {}) {
+            const initials = entry.initials || (entry.user ? entry.user.split(' ').map(part => part[0]).join('').slice(0, 2).toUpperCase() : '?');
+            return {
+                user: entry.user || 'Unknown',
+                initials,
+                action: entry.action || '',
+                time: entry.time || new Date().toISOString()
+            };
+        }
+
+        function normalizeCardShape(card = {}, fallbackId) {
+            const normalizedLabels = Array.isArray(card.labels)
+                ? card.labels.filter(Boolean).map(label => ({
+                    name: label?.name || 'Label',
+                    color: label?.color || 'blue'
+                }))
+                : [];
+
+            const normalizedChecklist = Array.isArray(card.checklist)
+                ? card.checklist.filter(Boolean).map(item => ({
+                    text: item?.text || '',
+                    checked: Boolean(item?.checked)
+                }))
+                : [];
+
+            const normalizedActivity = Array.isArray(card.activity)
+                ? card.activity.filter(Boolean).map(normalizeActivityEntry)
+                : [];
+
+            return {
+                id: Number.isFinite(Number(card.id)) ? Number(card.id) : fallbackId ?? deriveNextCardId(cardsData),
+                title: card.title || 'Untitled card',
+                listId: card.listId || defaultBoardConfig[0].id,
+                labels: normalizedLabels,
+                description: card.description || '',
+                checklist: normalizedChecklist,
+                assignee: card.assignee || '',
+                dueDate: card.dueDate || '',
+                createdBy: card.createdBy || currentProfile.name,
+                createdAt: card.createdAt || new Date().toISOString(),
+                activity: normalizedActivity
+            };
+        }
+
+        function normalizeCardsMap(rawCards = {}, lists = defaultBoardConfig) {
+            const listIds = new Set(lists.map(list => list.id));
+            const normalized = {};
+            Object.entries(rawCards).forEach(([key, value]) => {
+                const fallbackId = Number.isFinite(Number(value?.id)) ? Number(value.id) : Number(key);
+                const card = normalizeCardShape(value || {}, fallbackId);
+                if (!listIds.has(card.listId)) {
+                    card.listId = lists[0]?.id || card.listId;
+                }
+                normalized[card.id] = card;
+            });
+            return normalized;
+        }
+
+        // Filters
+        const filters = {
+            search: '',
+            label: 'all',
+            assignee: 'all',
+            mineOnly: false
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.body.classList.add('board-loading');
+            renderSyncState();
+            hydrateFilters();
+            hydrateAssigneeModal();
+            hydrateLabelModal();
+            attachFilterListeners();
+            loadState();
+        });
+
+        function hydrateFilters() {
+            const labelSelect = document.getElementById('filter-label');
+            Object.keys(labelColors).forEach(label => {
+                const opt = document.createElement('option');
+                opt.value = label;
+                opt.textContent = label;
+                labelSelect.appendChild(opt);
+            });
+
+            const assigneeSelect = document.getElementById('filter-assignee');
+            Object.keys(profiles).forEach(name => {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                assigneeSelect.appendChild(opt);
+            }, (error) => {
+                console.error('Realtime board listener failed', error);
+                setSyncState('error', { errorMessage: 'Lost connection to Firestore. Changes stay on this device until sync resumes.' });
+            });
+        }
+
+        function hydrateAssigneeModal() {
+            const container = document.getElementById('assignee-options');
+            container.innerHTML = '';
+            Object.entries(profiles).forEach(([name, profile]) => {
+                const option = document.createElement('div');
+                option.className = 'profile-option';
+                option.innerHTML = `
+                    <span class="avatar" style="background:${profile.gradient};">${profile.initials}</span>
+                    <div class="profile-info"><span class="profile-name">${name}</span></div>
+                `;
+                option.onclick = () => setAssignee(name, profile.initials);
+                container.appendChild(option);
+            });
+
+            const unassigned = document.createElement('div');
+            unassigned.className = 'profile-option';
+            unassigned.innerHTML = `
+                <span class="avatar" style="background:#9ca3af;">–</span>
+                <div class="profile-info"><span class="profile-name">Flow AI</span></div>
+            `;
+            unassigned.onclick = () => setAssignee('', '');
+            container.appendChild(unassigned);
+        }
+
+        function hydrateLabelModal() {
+            const labelOptions = document.getElementById('label-options');
+            labelOptions.innerHTML = '';
+            Object.entries(labelColors).forEach(([name, color]) => {
+                const label = document.createElement('label');
+                label.className = 'label-option';
+                const bg = labelPalette[color] || '#111827';
+                label.innerHTML = `
+                    <input type="checkbox" data-label="${name}" data-color="${color}" onchange="toggleLabel(this)">
+                    <span class="label-color" style="background:${bg};${color === 'yellow' ? 'color:#111827;' : ''}">${name}</span>
+                `;
+                labelOptions.appendChild(label);
+            });
+        }
+
+        function initBoardStructure() {
+            const boardLists = document.getElementById('board-lists');
+            boardLists.innerHTML = '';
+            boardConfig.forEach(stage => {
+                const list = document.createElement('div');
+                list.className = 'list';
+                list.dataset.listId = stage.id;
+                list.innerHTML = `
+                    <div class="list-header">
+                        <div>
+                            <h3 class="list-title">${stage.title}</h3>
+                            <div class="list-meta" style="color:${stage.color};">${stage.description}${stage.wip ? ` • WIP ${stage.wip}` : ''}</div>
+                        </div>
+                        <div class="list-actions">
+                            <button class="list-menu-btn" title="Rename list" onclick="renameList('${stage.id}')">✎</button>
+                            <button class="list-menu-btn danger" title="Delete list" onclick="deleteList('${stage.id}')">🗑</button>
+                        </div>
+                    </div>
+                    <div class="cards-container" id="${stage.id}-cards" data-list="${stage.id}" ondrop="drop(event)" ondragover="allowDrop(event)" ondragleave="dragLeave(event)"></div>
+                    <button class="add-card-btn" onclick="showAddCardForm('${stage.id}')">+ Add card</button>
+                `;
+                boardLists.appendChild(list);
+            });
+        }
+
+        function renderAllCards() {
+            document.querySelectorAll('.cards-container').forEach(container => container.innerHTML = '');
+            Object.values(cardsData)
+                .sort((a, b) => {
+                    const aTime = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
+                    const bTime = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
+                    return aTime - bTime;
+                })
+                .forEach(renderCard);
+            applyFilters();
+        }
+
+        function loadState() {
+            onSnapshot(boardDocRef, async (docSnap) => {
+                if (docSnap.metadata?.hasPendingWrites) return;
+                isApplyingRemoteUpdate = true;
+                try {
+                    if (!docSnap.exists()) {
+                        if (docSnap.metadata?.fromCache) {
+                            return;
+                        }
+                        cardsData = JSON.parse(JSON.stringify(defaultCardsData));
+                        cardIdCounter = deriveNextCardId(cardsData);
+                        boardConfig = JSON.parse(JSON.stringify(defaultBoardConfig));
+                        await saveBoardState(true);
+                        refreshBoard();
+                        markBoardReady();
+                        setSyncState('synced', { syncedAt: new Date() });
+                        return;
+                    }
+                    const payload = docSnap.data() || {};
+                    boardConfig = normalizeBoardConfig(payload.lists);
+                    cardsData = normalizeCardsMap(payload.cards, boardConfig);
+                    cardIdCounter = payload.cardIdCounter || deriveNextCardId(cardsData);
+                    refreshBoard();
+                    markBoardReady();
+                    setSyncState('synced', { syncedAt: new Date() });
+                } finally {
+                    isApplyingRemoteUpdate = false;
+                }
+            });
+        }
+
+        function markBoardReady() {
+            if (hasLoadedInitialState) return;
+            hasLoadedInitialState = true;
+            document.body.classList.remove('board-loading');
+            const loadingEl = document.getElementById('board-loading');
+            if (loadingEl) loadingEl.remove();
+        }
+
+        function queueSaveBoardState() {
+            if (isApplyingRemoteUpdate) return;
+            if (syncState.status !== 'error') {
+                setSyncState('saving');
+            }
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(() => saveBoardState(), 600);
+        }
+
+        async function saveBoardState(force = false) {
+            if (!force && isApplyingRemoteUpdate) return;
+            if (syncState.status !== 'error') {
+                setSyncState('saving');
+            }
+            try {
+                const payload = {
+                    cards: JSON.parse(JSON.stringify(cardsData || {})),
+                    lists: boardConfig,
+                    cardIdCounter,
+                    updatedAt: serverTimestamp()
+                };
+                await setDoc(boardDocRef, payload);
+                setSyncState('synced', { syncedAt: new Date() });
+            } catch (error) {
+                console.error('Failed to save board state', error);
+                setSyncState('error', { errorMessage: 'Failed to save to Firestore. Changes stay on this device until sync resumes.' });
+            }
+        }
+
+        function refreshBoard() {
+            initBoardStructure();
+            renderAllCards();
+            updateCardCount();
+            updateFlowMap();
+        }
+
+        function renderCard(cardData) {
+            const container = document.getElementById(cardData.listId + '-cards');
+            if (!container) return;
+
+            const existing = document.getElementById('card-' + cardData.id);
+            if (existing) existing.remove();
+
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.draggable = true;
+            card.dataset.cardId = cardData.id;
+            card.id = 'card-' + cardData.id;
+
+            const labelsHtml = (cardData.labels || []).map(label => `<span class="card-label-text ${label.color}">${label.name}</span>`).join('');
+
+            let checklistHtml = '';
+            if (cardData.checklist?.length) {
+                const checked = cardData.checklist.filter(i => i.checked).length;
+                checklistHtml = `<span class="card-meta-item">☑︎ ${checked}/${cardData.checklist.length}</span>`;
+            }
+
+            let dueDateHtml = '';
+            if (cardData.dueDate) {
+                const date = new Date(cardData.dueDate);
+                dueDateHtml = `<span class="card-meta-item">⏱ ${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>`;
+            }
+
+            let assigneeHtml = '';
+            if (cardData.assignee && profiles[cardData.assignee]) {
+                const profile = profiles[cardData.assignee];
+                assigneeHtml = `
+                    <div class="card-assignee">
+                        <span class="avatar" style="width:22px;height:22px;font-size:10px;background:${profile.gradient};">${profile.initials}</span>
+                    </div>`;
+            }
+
+            card.innerHTML = `
+                <div class="card-labels">${labelsHtml}</div>
+                <div class="card-content">${escapeHtml(cardData.title)}</div>
+                <div class="card-footer">
+                    <div class="card-meta">${checklistHtml}${dueDateHtml}</div>
+                    ${assigneeHtml}
+                </div>
+            `;
+
+            card.addEventListener('dragstart', drag);
+            card.addEventListener('dragend', dragEnd);
+            card.addEventListener('click', () => openCardModal(cardData.id));
+
+            container.appendChild(card);
+        }
+
+        // Drag and drop
+        function drag(ev) {
+            draggedCard = ev.currentTarget;
+            draggedCard.classList.add('dragging');
+            ev.dataTransfer.effectAllowed = 'move';
+            ev.dataTransfer.setData('text/plain', draggedCard.dataset.cardId);
+        }
+
+        function dragEnd(ev) {
+            ev.currentTarget.classList.remove('dragging');
+            document.querySelectorAll('.cards-container').forEach(c => c.classList.remove('drag-over'));
+            draggedCard = null;
+        }
+
+        function allowDrop(ev) {
+            ev.preventDefault();
+            const container = ev.target.closest('.cards-container');
+            if (container) container.classList.add('drag-over');
+        }
+
+        function dragLeave(ev) {
+            const container = ev.target.closest('.cards-container');
+            if (container && !container.contains(ev.relatedTarget)) {
+                container.classList.remove('drag-over');
+            }
+        }
+
+        function drop(ev) {
+            ev.preventDefault();
+            const container = ev.target.closest('.cards-container');
+            if (!container || !draggedCard) return;
+
+            container.classList.remove('drag-over');
+            container.appendChild(draggedCard);
+
+            const cardId = parseInt(draggedCard.dataset.cardId, 10);
+            const targetCard = cardsData[cardId];
+            if (!targetCard) return;
+
+            const newListId = container.dataset.list;
+            const oldListId = targetCard.listId;
+            targetCard.listId = newListId;
+
+            const newListName = boardConfig.find(l => l.id === newListId)?.title || newListId;
+            const oldListName = boardConfig.find(l => l.id === oldListId)?.title || oldListId;
+            targetCard.activity = Array.isArray(targetCard.activity) ? targetCard.activity : [];
+            targetCard.activity.unshift({
+                user: currentProfile.name,
+                initials: currentProfile.initials,
+                action: `moved from ${oldListName} to ${newListName}`,
+                time: new Date().toISOString()
+            });
+
+            updateCardCount();
+            updateFlowMap();
+            queueSaveBoardState();
+        }
+
+        // Filters
+        function attachFilterListeners() {
+            document.getElementById('filter-search').addEventListener('input', (e) => {
+                filters.search = e.target.value.toLowerCase();
+                applyFilters();
+            });
+            document.getElementById('filter-label').addEventListener('change', (e) => {
+                filters.label = e.target.value;
+                applyFilters();
+            });
+            document.getElementById('filter-assignee').addEventListener('change', (e) => {
+                filters.assignee = e.target.value;
+                applyFilters();
+            });
+            document.getElementById('filter-mine').addEventListener('change', (e) => {
+                filters.mineOnly = e.target.checked;
+                applyFilters();
+            });
+        }
+
+        function applyFilters() {
+            Object.values(cardsData).forEach(card => {
+                const el = document.getElementById('card-' + card.id);
+                if (!el) return;
+                let visible = true;
+
+                if (filters.search) {
+                    const haystack = `${card.title} ${card.description} ${(card.labels || []).map(l => l.name).join(' ')}`.toLowerCase();
+                    visible = haystack.includes(filters.search);
+                }
+
+                if (visible && filters.label !== 'all') {
+                    visible = card.labels?.some(l => l.name === filters.label);
+                }
+
+                if (visible && filters.assignee !== 'all') {
+                    visible = card.assignee === filters.assignee;
+                }
+
+                if (visible && filters.mineOnly) {
+                    visible = card.assignee === currentProfile.name;
+                }
+
+                el.style.display = visible ? '' : 'none';
+            });
+        }
+
+        // Card modal
+        function openCardModal(cardId) {
+            currentEditingCard = cardId;
+            currentEditingCardData = cardsData[cardId];
+            const titleInput = document.getElementById('modal-card-title');
+            const descriptionInput = document.getElementById('modal-description');
+            titleInput.value = currentEditingCardData.title;
+            descriptionInput.value = currentEditingCardData.description || '';
+            titleInput.oninput = (event) => {
+                currentEditingCardData.title = event.target.value;
+                renderCard(currentEditingCardData);
+                queueSaveBoardState();
+                updateFlowMap();
+            };
+            descriptionInput.oninput = (event) => {
+                currentEditingCardData.description = event.target.value;
+                queueSaveBoardState();
+            };
+            document.getElementById('modal-list-name').textContent = boardConfig.find(l => l.id === currentEditingCardData.listId)?.title || 'List';
+            const createdTime = timeAgo(new Date(currentEditingCardData.createdAt));
+            document.getElementById('modal-created-info').textContent = `• Created by ${currentEditingCardData.createdBy} • ${createdTime}`;
+            document.getElementById('due-date-input').value = currentEditingCardData.dueDate || '';
+            
+            // Populate contact fields
+            document.getElementById('modal-contact-name').value = currentEditingCardData.contactName || '';
+            document.getElementById('modal-email').value = currentEditingCardData.email || '';
+            document.getElementById('modal-phone').value = currentEditingCardData.phone || '';
+            document.getElementById('modal-phone2').value = currentEditingCardData.phone2 || '';
+            document.getElementById('modal-business-name').value = currentEditingCardData.businessName || '';
+            
+            renderModalLabels();
+            renderChecklist();
+            renderActivity();
+            renderAssignee();
+            document.getElementById('card-modal').classList.add('active');
+        }
+
+        function closeCardModal(event) {
+            if (!event || event.target === document.getElementById('card-modal') || event.target.classList.contains('card-modal-close')) {
+                if (currentEditingCardData) {
+                    const titleInput = document.getElementById('modal-card-title');
+                    const descriptionInput = document.getElementById('modal-description');
+                    currentEditingCardData.title = titleInput.value;
+                    currentEditingCardData.description = descriptionInput.value;
+                    
+                    // Save contact fields
+                    currentEditingCardData.contactName = document.getElementById('modal-contact-name').value;
+                    currentEditingCardData.email = document.getElementById('modal-email').value;
+                    currentEditingCardData.phone = document.getElementById('modal-phone').value;
+                    currentEditingCardData.phone2 = document.getElementById('modal-phone2').value;
+                    currentEditingCardData.businessName = document.getElementById('modal-business-name').value;
+                    
+                    titleInput.oninput = null;
+                    descriptionInput.oninput = null;
+                    renderCard(currentEditingCardData);
+                    queueSaveBoardState();
+                    updateFlowMap();
+                }
+                document.getElementById('card-modal').classList.remove('active');
+                currentEditingCard = null;
+                currentEditingCardData = null;
+            }
+        }
+
+        function renderModalLabels() {
+            const container = document.getElementById('modal-labels');
+            if (!currentEditingCardData.labels?.length) {
+                container.innerHTML = '<span style="color:#9ca3af;font-size:13px;">No labels</span> <button class="sidebar-btn" style="margin-top:8px;" onclick="openLabelPicker()">Add</button>';
+                return;
+            }
+            container.innerHTML = currentEditingCardData.labels.map(label => `
+                <span class="label-tag ${label.color}">${label.name} <span class="remove-label" onclick="removeLabel('${label.name}')">×</span></span>
+            `).join('');
+        }
+
+        function renderChecklist() {
+            const container = document.getElementById('modal-checklist');
+            if (!currentEditingCardData.checklist?.length) {
+                container.innerHTML = '<span style="color:#9ca3af;font-size:13px;">No items yet</span>';
+                return;
+            }
+            container.innerHTML = currentEditingCardData.checklist.map((item, index) => `
+                <div class="checklist-item ${item.checked ? 'checked' : ''}">
+                    <input type="checkbox" ${item.checked ? 'checked' : ''} onchange="toggleChecklistItem(${index})">
+                    <span class="checklist-item-text">${escapeHtml(item.text)}</span>
+                </div>
+            `).join('');
+        }
+
+        function renderActivity() {
+            const container = document.getElementById('modal-activity');
+            if (!currentEditingCardData.activity?.length) {
+                container.innerHTML = '<span style="color:#9ca3af;font-size:13px;">Nothing to show yet</span>';
+                return;
+            }
+            container.innerHTML = currentEditingCardData.activity.map(act => {
+                const profile = profiles[act.user] || { gradient: '#9ca3af', initials: act.initials || '?' };
+                return `
+                    <div class="activity-item">
+                        <span class="activity-avatar" style="background:${profile.gradient};">${act.initials || '?'} </span>
+                        <div>
+                            <div class="activity-text"><strong>${act.user}</strong> ${act.action}</div>
+                            <div class="activity-time">${timeAgo(new Date(act.time))}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderAssignee() {
+            const container = document.getElementById('modal-assignee');
+            if (!currentEditingCardData?.assignee) {
+                container.innerHTML = '<span style="color:#9ca3af;font-size:13px;">Flow AI</span>';
+                return;
+            }
+            const profile = profiles[currentEditingCardData.assignee];
+            if (!profile) {
+                container.innerHTML = `<span>${currentEditingCardData.assignee}</span>`;
+                return;
+            }
+            container.innerHTML = `
+                <span class="avatar avatar-large" style="background:${profile.gradient};">${profile.initials}</span>
+                <span>${currentEditingCardData.assignee}</span>
+            `;
+        }
+
+        async function sendCardToFlowAI() {
+            if (!currentEditingCardData) return;
+            const listName = boardConfig.find(l => l.id === currentEditingCardData.listId)?.title || currentEditingCardData.listId;
+            const labels = (currentEditingCardData.labels || []).map(label => label.name).join(', ') || 'None';
+            const checklist = (currentEditingCardData.checklist || []).map(item => `- [${item.checked ? 'x' : ' '}] ${item.text}`).join('\n') || 'None';
+            const due = currentEditingCardData.dueDate || 'None';
+            const assignee = currentEditingCardData.assignee || 'Flow AI';
+            const description = currentEditingCardData.description?.trim() || 'None';
+            const summary = `Flow AI Request\nTitle: ${currentEditingCardData.title}\nList: ${listName}\nAssignee: ${assignee}\nDue: ${due}\nLabels: ${labels}\n\nDescription:\n${description}\n\nChecklist:\n${checklist}\n\nPaste this summary into the Flow AI chat to delegate the card.`;
+            const copied = await copyTextToClipboard(summary);
+            if (copied) {
+                announce('Copied Flow AI handoff to clipboard');
+            } else {
+                window.prompt('Copy this Flow AI summary:', summary);
+            }
+        }
+
+        async function copyTextToClipboard(text) {
+            try {
+                if (navigator.clipboard?.writeText) {
+                    await navigator.clipboard.writeText(text);
+                    return true;
+                }
+            } catch (error) {
+                console.warn('Clipboard write failed', error);
+            }
+            const helper = document.createElement('textarea');
+            helper.value = text;
+            helper.style.position = 'fixed';
+            helper.style.opacity = '0';
+            document.body.appendChild(helper);
+            helper.focus();
+            helper.select();
+            let copied = false;
+            try {
+                copied = document.execCommand('copy');
+            } catch (error) {
+                console.warn('execCommand copy failed', error);
+            }
+            helper.remove();
+            return copied;
+        }
+
+        function announce(message) {
+            const region = document.getElementById('live-region');
+            if (!region) return;
+            region.textContent = message;
+            setTimeout(() => {
+                region.textContent = '';
+            }, 1500);
+        }
+
+        // Checklist
+        function addChecklistItem() {
+            const input = document.getElementById('checklist-input');
+            const text = input.value.trim();
+            if (!text) return;
+            currentEditingCardData.checklist = currentEditingCardData.checklist || [];
+            currentEditingCardData.checklist.push({ text, checked: false });
+            input.value = '';
+            renderChecklist();
+            addActivity(`added checklist item "${text}"`);
+            queueSaveBoardState();
+        }
+
+        function toggleChecklistItem(index) {
+            if (!currentEditingCardData?.checklist?.[index]) return;
+            currentEditingCardData.checklist[index].checked = !currentEditingCardData.checklist[index].checked;
+            renderChecklist();
+            queueSaveBoardState();
+        }
+
+        function addActivity(action) {
+            if (!currentEditingCardData) return;
+            currentEditingCardData.activity = Array.isArray(currentEditingCardData.activity) ? currentEditingCardData.activity : [];
+            currentEditingCardData.activity.unshift({
+                user: currentProfile.name,
+                initials: currentProfile.initials,
+                action,
+                time: new Date().toISOString()
+            });
+            renderActivity();
+        }
+
+        function changeAssignee() {
+            document.getElementById('assignee-modal').classList.add('active');
+        }
+
+        function setAssignee(name) {
+            if (!currentEditingCardData) return;
+            currentEditingCardData.assignee = name;
+            renderAssignee();
+            addActivity(name ? `assigned to ${name}` : 'removed assignee');
+            document.getElementById('assignee-modal').classList.remove('active');
+            queueSaveBoardState();
+            updateCardCount();
+            updateFlowMap();
+        }
+
+        function closeAssigneeModal(event) {
+            if (event.target === document.getElementById('assignee-modal')) {
+                document.getElementById('assignee-modal').classList.remove('active');
+            }
+        }
+
+        function updateDueDate() {
+            const date = document.getElementById('due-date-input').value;
+            currentEditingCardData.dueDate = date;
+            addActivity(date ? `set due date to ${date}` : 'removed due date');
+            queueSaveBoardState();
+            renderCard(currentEditingCardData);
+        }
+
+        function updateContactField(field) {
+            const value = document.getElementById('modal-' + field).value;
+            currentEditingCardData[field] = value;
+            addActivity(`updated ${field}: ${value || '(empty)'}`);
+            queueSaveBoardState();
+            renderCard(currentEditingCardData);
+        }
+
+        function removeDueDate() {
+            document.getElementById('due-date-input').value = '';
+            currentEditingCardData.dueDate = '';
+            addActivity('removed due date');
+            queueSaveBoardState();
+            renderCard(currentEditingCardData);
+        }
+
+        function openLabelPicker() {
+            document.querySelectorAll('#label-options input[type="checkbox"]').forEach(cb => {
+                cb.checked = currentEditingCardData.labels?.some(l => l.name === cb.dataset.label) || false;
+            });
+            document.getElementById('label-modal').classList.add('active');
+        }
+
+        function closeLabelModal(event) {
+            if (event.target === document.getElementById('label-modal')) {
+                document.getElementById('label-modal').classList.remove('active');
+            }
+        }
+
+        function toggleLabel(checkbox) {
+            const labelName = checkbox.dataset.label;
+            const labelColor = checkbox.dataset.color;
+            currentEditingCardData.labels = currentEditingCardData.labels || [];
+            if (checkbox.checked) {
+                if (!currentEditingCardData.labels.some(l => l.name === labelName)) {
+                    currentEditingCardData.labels.push({ name: labelName, color: labelColor });
+                    addActivity(`added label "${labelName}"`);
+                }
+            } else {
+                currentEditingCardData.labels = currentEditingCardData.labels.filter(l => l.name !== labelName);
+                addActivity(`removed label "${labelName}"`);
+            }
+            renderModalLabels();
+            renderCard(currentEditingCardData);
+            queueSaveBoardState();
+        }
+
+        function removeLabel(labelName) {
+            currentEditingCardData.labels = currentEditingCardData.labels.filter(l => l.name !== labelName);
+            addActivity(`removed label "${labelName}"`);
+            renderModalLabels();
+            renderCard(currentEditingCardData);
+            queueSaveBoardState();
+        }
+
+        function deleteCard() {
+            if (confirm('Delete this card? This cannot be undone.')) {
+                const cardEl = document.getElementById('card-' + currentEditingCard);
+                if (cardEl) cardEl.remove();
+                delete cardsData[currentEditingCard];
+                document.getElementById('card-modal').classList.remove('active');
+                currentEditingCard = null;
+                currentEditingCardData = null;
+                updateCardCount();
+                updateFlowMap();
+                queueSaveBoardState();
+            }
+        }
+
+        // Command Palette
+        const commands = [
+            { id: 'add-card', title: 'Add New Card', desc: 'Create a new card in a list', icon: '➕', action: () => document.getElementById('add-list-btn')?.click() },
+            { id: 'add-list', title: 'Add New List', desc: 'Create a new list/column', icon: '📋', action: () => showAddListForm() },
+            { id: 'search', title: 'Search Cards', desc: 'Search through all cards', icon: '🔍', action: () => document.getElementById('filter-search')?.focus() },
+            { id: 'profile', title: 'Switch Profile', desc: 'Change your profile', icon: '👤', action: () => openProfileModal() },
+            { id: 'refresh', title: 'Refresh Board', desc: 'Reload data from Firestore', icon: '🔄', action: () => loadBoardData() },
+            { id: 'flow-map', title: 'View Flow Map', desc: 'See the board overview', icon: '🗺', action: () => document.getElementById('flow-map')?.scrollIntoView({ behavior: 'smooth' }) },
+        ];
+
+        let selectedCommandIndex = 0;
+
+        function openCommandPalette() {
+            document.getElementById('command-palette-modal').classList.add('active');
+            document.getElementById('command-palette-input').value = '';
+            selectedCommandIndex = 0;
+            renderCommands('');
+            document.getElementById('command-palette-input').focus();
+        }
+
+        function closeCommandPalette(event) {
+            if (!event || event.target === document.getElementById('command-palette-modal')) {
+                document.getElementById('command-palette-modal').classList.remove('active');
+            }
+        }
+
+        function renderCommands(filter) {
+            const container = document.getElementById('command-palette-results');
+            const filtered = commands.filter(c => 
+                c.title.toLowerCase().includes(filter.toLowerCase()) || 
+                c.desc.toLowerCase().includes(filter.toLowerCase())
+            );
+            
+            container.innerHTML = filtered.map((c, i) => `
+                <div class="command-item ${i === selectedCommandIndex ? 'selected' : ''}" onclick="executeCommand('${c.id}')">
+                    <div class="command-item-icon">${c.icon}</div>
+                    <div class="command-item-text">
+                        <div class="command-item-title">${c.title}</div>
+                        <div class="command-item-desc">${c.desc}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function executeCommand(id) {
+            const cmd = commands.find(c => c.id === id);
+            if (cmd) {
+                cmd.action();
+                closeCommandPalette();
+            }
+        }
+
+        // Listen for Ctrl+K / Cmd+K
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                openCommandPalette();
+            }
+        });
+
+        // Command palette input handler
+        document.getElementById('command-palette-input')?.addEventListener('input', (e) => {
+            renderCommands(e.target.value);
+        });
+
+        document.getElementById('command-palette-input')?.addEventListener('keydown', (e) => {
+            const items = document.querySelectorAll('.command-item');
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                selectedCommandIndex = Math.min(selectedCommandIndex + 1, items.length - 1);
+                renderCommands(document.getElementById('command-palette-input').value);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                selectedCommandIndex = Math.max(selectedCommandIndex - 1, 0);
+                renderCommands(document.getElementById('command-palette-input').value);
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                const filtered = commands.filter(c => 
+                    c.title.toLowerCase().includes(document.getElementById('command-palette-input').value.toLowerCase())
+                );
+                if (filtered[selectedCommandIndex]) {
+                    executeCommand(filtered[selectedCommandIndex].id);
+                }
+            } else if (e.key === 'Escape') {
+                closeCommandPalette();
+            }
+        });
+
+        // Profiles
+        function openProfileModal() {
+            document.getElementById('profile-modal').classList.add('active');
+        }
+
+        function closeProfileModal(event) {
+            if (event.target === document.getElementById('profile-modal')) {
+                document.getElementById('profile-modal').classList.remove('active');
+            }
+        }
+
+        function selectProfile(name, initials, element) {
+            currentProfile = { name, initials };
+            document.getElementById('current-avatar').textContent = initials;
+            document.getElementById('current-profile-name').textContent = name;
+            document.querySelectorAll('.profile-option').forEach(opt => opt.classList.remove('active'));
+            element.classList.add('active');
+            document.getElementById('profile-modal').classList.remove('active');
+            updateAssignedCount();
+            applyFilters();
+        }
+
+        // Add card/list
+        function showAddCardForm(listId) {
+            const container = document.getElementById(listId + '-cards');
+            if (!container || container.querySelector('.new-card-form')) return;
+            const form = document.createElement('div');
+            form.className = 'new-card-form';
+            form.innerHTML = `
+                <textarea class="new-card-input" placeholder="Enter a title for this card..." rows="3"></textarea>
+                <div class="new-card-actions">
+                    <button class="btn-primary" onclick="addCard('${listId}')">Add card</button>
+                    <button class="btn-cancel" onclick="cancelAddCard(this)">×</button>
+                </div>
+            `;
+            container.appendChild(form);
+            form.querySelector('textarea').focus();
+        }
+
+        function addCard(listId) {
+            const container = document.getElementById(listId + '-cards');
+            const form = container.querySelector('.new-card-form');
+            if (!form) return;
+            const textarea = form.querySelector('textarea');
+            const content = textarea.value.trim();
+            if (content) {
+                const newCardId = cardIdCounter++;
+                const newCard = normalizeCardShape({
+                    id: newCardId,
+                    title: content,
+                    listId,
+                    labels: [],
+                    description: '',
+                    checklist: [],
+                    assignee: '',
+                    dueDate: '',
+                    createdBy: currentProfile.name,
+                    createdAt: new Date().toISOString(),
+                    activity: [{
+                        user: currentProfile.name,
+                        initials: currentProfile.initials,
+                        action: 'created this card',
+                        time: new Date().toISOString()
+                    }]
+                }, newCardId);
+                cardsData[newCard.id] = newCard;
+                renderCard(newCard);
+                updateCardCount();
+                updateFlowMap();
+                queueSaveBoardState();
+            }
+            form.remove();
+        }
+
+        function cancelAddCard(btn) {
+            btn.closest('.new-card-form').remove();
+        }
+
+        function showAddListForm() {
+            const btn = document.getElementById('add-list-btn');
+            if (document.querySelector('.new-list-form')) return;
+            const form = document.createElement('div');
+            form.className = 'new-list-form';
+            form.innerHTML = `
+                <input type="text" class="new-list-input" placeholder="Enter list title...">
+                <div class="new-card-actions">
+                    <button class="btn-primary" onclick="addList(this)">Add list</button>
+                    <button class="btn-cancel" onclick="cancelAddList(this)">×</button>
+                </div>
+            `;
+            btn.parentNode.insertBefore(form, btn);
+            btn.style.display = 'none';
+            form.querySelector('input').focus();
+        }
+
+        function addList(btn) {
+            const form = btn.closest('.new-list-form');
+            const input = form.querySelector('input');
+            const title = input.value.trim();
+            if (title) {
+                const id = `list-${Date.now()}`;
+                boardConfig.splice(boardConfig.length - 1, 0, { id, title, description: 'Custom lane', color: '#94a3b8' });
+                initBoardStructure();
+                Object.values(cardsData).forEach(renderCard);
+                updateFlowMap();
+                queueSaveBoardState();
+            }
+            cancelAddList(btn);
+        }
+
+        function cancelAddList(btn) {
+            const form = btn.closest('.new-list-form');
+            form.remove();
+            document.getElementById('add-list-btn').style.display = 'flex';
+        }
+
+        function renameList(listId) {
+            const target = boardConfig.find(list => list.id === listId);
+            if (!target) return;
+            const nextTitle = prompt('Rename list', target.title);
+            if (!nextTitle) return;
+            const trimmed = nextTitle.trim();
+            if (!trimmed) return;
+            target.title = trimmed;
+            refreshBoard();
+            queueSaveBoardState();
+        }
+
+        function deleteList(listId) {
+            if (boardConfig.length <= 1) {
+                alert('You need at least one list on the board.');
+                return;
+            }
+            const target = boardConfig.find(list => list.id === listId);
+            if (!target) return;
+            const cardsInList = Object.values(cardsData).filter(card => card.listId === listId);
+            if (cardsInList.length) {
+                alert('Please move or delete the cards in this list before removing it.');
+                return;
+            }
+            if (!confirm(`Delete the "${target.title}" list?`)) return;
+            boardConfig = boardConfig.filter(list => list.id !== listId);
+            refreshBoard();
+            queueSaveBoardState();
+        }
+
+        // Metrics
+        function updateCardCount() {
+            const cards = Object.keys(cardsData).length;
+            document.getElementById('total-cards').textContent = `${cards} card${cards === 1 ? '' : 's'}`;
+            updateAssignedCount();
+            queueSaveBoardState();
+        }
+
+        function updateAssignedCount() {
+            let assigned = 0;
+            Object.values(cardsData).forEach(card => {
+                if (card.assignee === currentProfile.name) assigned++;
+            });
+            const assignedTarget = document.getElementById('assigned-count');
+            if (assignedTarget) {
+                assignedTarget.textContent = `${assigned} assigned to you`;
+            }
+        }
+
+        function updateFlowMap() {
+            const map = document.getElementById('flow-map');
+            map.innerHTML = '';
+            boardConfig.forEach((stage, index) => {
+                const count = countCardsInList(stage.id);
+                const node = document.createElement('div');
+                node.className = 'flow-node' + (stage.wip && count > stage.wip ? ' overloaded' : '');
+                node.innerHTML = `
+                    <h4>${stage.title}</h4>
+                    <span>${stage.description}</span>
+                    <strong>${count}</strong>
+                    ${stage.wip ? `<span>WIP ${count}/${stage.wip}</span>` : ''}
+                `;
+                map.appendChild(node);
+                if (index < boardConfig.length - 1) {
+                    const connector = document.createElement('div');
+                    connector.className = 'flow-connector';
+                    map.appendChild(connector);
+                }
+            });
+        }
+
+        function countCardsInList(listId) {
+            return Object.values(cardsData).filter(card => card.listId === listId).length;
+        }
+
+        // Utilities
+        function escapeHtml(text = '') {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function timeAgo(date) {
+            const seconds = Math.floor((new Date() - date) / 1000);
+            if (seconds < 60) return 'just now';
+            const minutes = Math.floor(seconds / 60);
+            if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+            const hours = Math.floor(minutes / 60);
+            if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+            const days = Math.floor(hours / 24);
+            return `${days} day${days === 1 ? '' : 's'} ago`;
+        }
+
+        function deriveNextCardId(data = cardsData) {
+            const ids = Object.keys(data || {}).map(id => Number(id)).filter(Number.isFinite);
+            return ids.length ? Math.max(...ids) + 1 : 1;
+        }
+
+        Object.assign(window, {
+            addCard,
+            addChecklistItem,
+            addList,
+            allowDrop,
+            cancelAddCard,
+            cancelAddList,
+            changeAssignee,
+            closeAssigneeModal,
+            closeCardModal,
+            closeLabelModal,
+            closeProfileModal,
+            deleteCard,
+            deleteList,
+            drop,
+            dragLeave,
+            openLabelPicker,
+            openProfileModal,
+            removeDueDate,
+            removeLabel,
+            renameList,
+            selectProfile,
+            sendCardToFlowAI,
+            showAddCardForm,
+            showAddListForm,
+            toggleChecklistItem,
+            toggleLabel,
+            updateDueDate
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                document.getElementById('profile-modal').classList.remove('active');
+                document.getElementById('label-modal').classList.remove('active');
+                document.getElementById('assignee-modal').classList.remove('active');
+                closeCardModal();
+            }
+            if (e.key === 'Enter' && e.target.id === 'checklist-input') {
+                addChecklistItem();
+            }
+        });
+    </script>
+</body>
+</html> 
