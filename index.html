@@ -1704,6 +1704,27 @@
             }
         }
 
+        // Save immediately with fresh data from DOM
+        async function saveBoardStateNow() {
+            // Update cardsData from current editing card first
+            if (currentEditingCard && currentEditingCardData) {
+                const titleInput = document.getElementById('modal-card-title');
+                const descriptionInput = document.getElementById('modal-description');
+                if (titleInput) currentEditingCardData.title = titleInput.value;
+                if (descriptionInput) currentEditingCardData.description = descriptionInput.value;
+                
+                // Also get contact fields
+                const contactFields = ['contactName', 'email', 'phone', 'phone2', 'businessName'];
+                contactFields.forEach(field => {
+                    const el = document.getElementById('modal-' + field);
+                    if (el) currentEditingCardData[field] = el.value;
+                });
+            }
+            
+            clearTimeout(saveTimeout);
+            await saveBoardState(true);
+        }
+
         function refreshBoard() {
             initBoardStructure();
             renderAllCards();
@@ -1884,9 +1905,8 @@
             };
             descriptionInput.oninput = (event) => {
                 currentEditingCardData.description = event.target.value;
-                // Save immediately for reliability
-                clearTimeout(saveTimeout);
-                saveBoardState();
+                // Save immediately for reliability - always read fresh from input
+                saveBoardStateNow();
             };
             document.getElementById('modal-list-name').textContent = boardConfig.find(l => l.id === currentEditingCardData.listId)?.title || 'List';
             const createdTime = timeAgo(new Date(currentEditingCardData.createdAt));
@@ -1925,9 +1945,8 @@
                     titleInput.oninput = null;
                     descriptionInput.oninput = null;
                     renderCard(currentEditingCardData);
-                    // Save immediately when closing
-                    clearTimeout(saveTimeout);
-                    saveBoardState();
+                    // Save immediately when closing - use fresh data
+                    saveBoardStateNow();
                     updateFlowMap();
                 }
                 document.getElementById('card-modal').classList.remove('active');
