@@ -1940,14 +1940,11 @@
             titleInput.oninput = (event) => {
                 currentEditingCardData.title = event.target.value;
                 renderCard(currentEditingCardData);
-                queueSaveBoardState();
                 updateFlowMap();
             };
-            descriptionInput.oninput = (event) => {
-                currentEditingCardData.description = event.target.value;
-                // Save immediately for reliability - always read fresh from input
-                saveBoardStateNow();
-            };
+            // Don't auto-save on typing - only save when clicking Save button
+            // This prevents Firestore listener conflicts
+            
             document.getElementById('modal-list-name').textContent = boardConfig.find(l => l.id === currentEditingCardData.listId)?.title || 'List';
             const createdTime = timeAgo(new Date(currentEditingCardData.createdAt));
             document.getElementById('modal-created-info').textContent = `• Created by ${currentEditingCardData.createdBy} • ${createdTime}`;
