@@ -1656,6 +1656,13 @@
         function loadState() {
             onSnapshot(boardDocRef, async (docSnap) => {
                 if (docSnap.metadata?.hasPendingWrites) return;
+                
+                // Don't update from Firestore while editing a card - it will overwrite local changes!
+                if (currentEditingCard !== null) {
+                    console.log('Skipping Firestore update while editing card');
+                    return;
+                }
+                
                 isApplyingRemoteUpdate = true;
                 try {
                     if (!docSnap.exists()) {
