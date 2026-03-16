@@ -1707,6 +1707,11 @@
                 setSyncState('saving');
             }
             try {
+                // Debug: log the exact description being saved
+                const cardData = cardsData[currentEditingCard];
+                console.log('cardsData[8] description:', cardData ? cardData.description : 'not found');
+                console.log('currentEditingCard:', currentEditingCard, 'type:', typeof currentEditingCard);
+                
                 const payload = {
                     cards: JSON.parse(JSON.stringify(cardsData || {})),
                     lists: boardConfig,
@@ -1714,7 +1719,7 @@
                     updatedAt: serverTimestamp()
                 };
                 
-                // Debug: log what's being saved for the current card
+                // Debug: log what's in payload after stringify
                 if (currentEditingCard && payload.cards[currentEditingCard]) {
                     console.log('Firestore save - card:', currentEditingCard, 'description:', payload.cards[currentEditingCard].description);
                 }
