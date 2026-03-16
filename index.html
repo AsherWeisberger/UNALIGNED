@@ -2,7 +2,29 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        /* Prevent pull-to-refresh and overscroll on mobile */
+        html, body {
+            overscroll-behavior: none;
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* Prevent text selection zoom */
+        * {
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+        }
+        
+        /* Ensure main content is scrollable but not the whole page */
+        body {
+            overflow: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+    </style>
     <title>FLOW</title>
     <style>
         :root {
@@ -2387,7 +2409,53 @@
             card.addEventListener('dragend', dragEnd);
             card.addEventListener('click', () => openCardModal(cardData.id));
 
+            // Touch/swipe support for mobile
+            let touchStartX = 0;
+            let touchStartY = 0;
+            card.addEventListener('touchstart', (e) => {
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+            }, { passive: true });
+            
+            card.addEventListener('touchend', (e) => {
+                const touchEndX = e.changedTouches[0].clientX;
+                const touchEndY = e.changedTouches[0].clientY;
+                const diffX = touchEndX - touchStartX;
+                const diffY = touchEndY - touchStartY;
+                
+                // Only handle horizontal swipes (not taps or scrolls)
+                if (Math.abs(diffX) > 50 && Math.abs(diffX) > Math.abs(diffY)) {
+                    const cardId = cardData.id;
+                    const currentListId = cardData.listId;
+                    const currentIndex = boardConfig.findIndex(l => l.id === currentListId);
+                    
+                    if (diffX < 0 && currentIndex < boardConfig.length - 1) {
+                        // Swipe left - move to next list
+                        moveCardToList(cardId, boardConfig[currentIndex + 1].id);
+                    } else if (diffX > 0 && currentIndex > 0) {
+                        // Swipe right - move to previous list
+                        moveCardToList(cardId, boardConfig[currentIndex - 1].id);
+                    }
+                }
+            }, { passive: true });
+
             container.appendChild(card);
+        }
+
+        function moveCardToList(cardId, newListId) {
+            const card = cardsData[cardId];
+            if (!card) return;
+            
+            const oldListId = card.listId;
+            card.listId = newListId;
+            
+            addActivity(`moved from ${boardConfig.find(l => l.id === oldListId)?.title || oldListId} to ${boardConfig.find(l => l.id === newListId)?.title || newListId}`);
+            
+            renderCard(card);
+            renderAllCards();
+            updateCardCount();
+            updateFlowMap();
+            saveBoardStateNow();
         }
 
         // Drag and drop
