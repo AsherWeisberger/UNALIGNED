@@ -3413,26 +3413,30 @@
             
             // Weather check
             if (msg.includes('weather') || msg.includes('temperature') || msg.includes('hot') || msg.includes('cold') || msg.includes('warm') || msg.includes('outside')) {
-                const weather = await fetchWeather();
-                if (!weather) return "I couldn't fetch the weather right now! 🐕";
-                
-                const temp = parseInt(weather.temp);
-                const feels = parseInt(weather.feels);
-                
-                let dogResponse = '';
-                if (temp < 32) {
-                    dogResponse = "🥶 Brrr! Noooo I don't want to go out! It's too cold! 🐕❄️ Let's stay inside where it's warm!";
-                } else if (temp < 50) {
-                    dogResponse = "🧥 It's kinda chilly... might need my sweater. But I could do a quick walk! 🐕";
-                } else if (temp < 75) {
-                    dogResponse = "🐕 Perfect tail-waggin' weather! Let's go outside and play!";
-                } else if (temp < 90) {
-                    dogResponse = "☀️ Nice weather! A little warm but still good for adventures! 🐾";
-                } else {
-                    dogResponse = "🥵 Whoooo it's hot! Too hot for this dog! 🐕🔥 Let's stay inside with the AC!";
+                try {
+                    const weather = await fetchWeather();
+                    if (!weather) return "I couldn't fetch the weather right now! 🐕";
+                    
+                    const temp = parseInt(weather.temp);
+                    const feels = parseInt(weather.feels);
+                    
+                    let dogResponse = '';
+                    if (temp < 32) {
+                        dogResponse = "🥶 Brrr! Noooo I don't want to go out! It's too cold! 🐕❄️ Let's stay inside where it's warm!";
+                    } else if (temp < 50) {
+                        dogResponse = "🧥 It's kinda chilly... might need my sweater. But I could do a quick walk! 🐕";
+                    } else if (temp < 75) {
+                        dogResponse = "🐕 Perfect tail-waggin' weather! Let's go outside and play!";
+                    } else if (temp < 90) {
+                        dogResponse = "☀️ Nice weather! A little warm but still good for adventures! 🐾";
+                    } else {
+                        dogResponse = "🥵 Whoooo it's hot! Too hot for this dog! 🐕🔥 Let's stay inside with the AC!";
+                    }
+                    
+                    return `Current weather in Indy: ${weather.condition}, ${temp}°F (feels like ${feels}°F)\n\n${dogResponse}`;
+                } catch(e) {
+                    return "I couldn't fetch the weather right now! 🐕";
                 }
-                
-                return `Current weather in Indy: ${weather.condition}, ${temp}°F (feels like ${feels}°F)\n\n${dogResponse}`;
             }
             
             // Check what's in progress
