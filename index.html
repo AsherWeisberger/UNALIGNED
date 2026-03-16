@@ -29,6 +29,115 @@
             color: #fff;
         }
 
+        .login-container {
+            background: #111827;
+            border-radius: 20px;
+            padding: 40px;
+            width: 360px;
+            text-align: center;
+            border: 1px solid #1f2937;
+        }
+
+        .login-title {
+            font-size: 28px;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, #7dd3fc, #38ef7d);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .login-subtitle {
+            color: #9ca3af;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+
+        .login-users {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-bottom: 24px;
+        }
+
+        .login-user {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            padding: 12px;
+            border-radius: 12px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+            opacity: 0.6;
+        }
+
+        .login-user:hover {
+            opacity: 0.8;
+        }
+
+        .login-user.selected {
+            border-color: #7dd3fc;
+            background: rgba(125, 211, 252, 0.1);
+            opacity: 1;
+        }
+
+        .login-user .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+        }
+
+        .login-user span:last-child {
+            font-size: 12px;
+            color: #e2e8f0;
+        }
+
+        .login-input {
+            width: 100%;
+            padding: 14px 16px;
+            border-radius: 10px;
+            border: 1px solid #374151;
+            background: #1f2937;
+            color: #f1f5f9;
+            font-size: 16px;
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .login-input:focus {
+            outline: none;
+            border-color: #7dd3fc;
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 14px;
+            border-radius: 10px;
+            border: none;
+            background: linear-gradient(135deg, #7dd3fc, #38ef7d);
+            color: #0f172a;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .login-btn:hover {
+            transform: scale(1.02);
+        }
+
+        .login-error {
+            color: #f87171;
+            font-size: 13px;
+            margin-top: 12px;
+            min-height: 18px;
+        }
+
         header {
             display: flex;
             align-items: center;
@@ -887,33 +996,61 @@
     </style>
 </head>
 <body>
-    <header>
-        <div class="header-left">
-            <div>
-                <h1 class="logo">FLOW AI</h1>
-                <p class="subtitle">A flow-oriented Kanban that adapts to how you actually work.</p>
+    <!-- Login Modal -->
+    <div class="modal-overlay active" id="login-modal">
+        <div class="login-container">
+            <h2 class="login-title">FLOW AI</h2>
+            <p class="login-subtitle">Enter your password to continue</p>
+            <div class="login-users">
+                <div class="login-user" data-user="Sam L" data-password="2" onclick="selectLoginUser(this)">
+                    <span class="avatar" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">SL</span>
+                    <span>Sam L</span>
+                </div>
+                <div class="login-user" data-user="Robert S" data-password="1" onclick="selectLoginUser(this)">
+                    <span class="avatar" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">RS</span>
+                    <span>Robert S</span>
+                </div>
+                <div class="login-user selected" data-user="Asher W" data-password="3" onclick="selectLoginUser(this)">
+                    <span class="avatar" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">AW</span>
+                    <span>Asher W</span>
+                </div>
             </div>
-            <div class="stats">
-                <span id="total-cards">0 cards</span>
-                <span id="assigned-count">0 assigned to you</span>
-            </div>
+            <input type="password" class="login-input" id="login-password" placeholder="Enter password" onkeydown="checkLogin(event)">
+            <button class="login-btn" onclick="attemptLogin()">Enter</button>
+            <p class="login-error" id="login-error"></p>
         </div>
-        <div class="header-right">
-            <div class="sync-indicator sync-connecting" id="sync-indicator" data-sync-indicator title="Connecting to Firestore…">
-                <span class="sync-dot" aria-hidden="true"></span>
-                <span data-sync-text>Connecting…</span>
+    </div>
+
+    <!-- Main App (hidden until logged in) -->
+    <div id="main-app" style="display: none;">
+        <header>
+            <div class="header-left">
+                <div>
+                    <h1 class="logo">FLOW AI</h1>
+                    <p class="subtitle">A flow-oriented Kanban that adapts to how you actually work.</p>
+                </div>
+                <div class="stats">
+                    <span id="total-cards">0 cards</span>
+                    <span id="assigned-count">0 assigned to you</span>
+                </div>
             </div>
-            <button class="profile-btn" id="profile-btn" onclick="openProfileModal()">
-                <span class="avatar" id="current-avatar">SL</span>
-                <span id="current-profile-name">Sam L</span>
-            </button>
-            <button class="menu-btn" onclick="openCommandPalette()">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 5v14M5 12h14" />
-                </svg>
-                Command Palette
-            </button>
-        </div>
+            <div class="header-right">
+                <div class="sync-indicator sync-connecting" id="sync-indicator" data-sync-indicator title="Connecting to Firestore…">
+                    <span class="sync-dot" aria-hidden="true"></span>
+                    <span data-sync-text>Connecting…</span>
+                </div>
+                <button class="profile-btn" id="profile-btn" onclick="openProfileModal()">
+                    <span class="avatar" id="current-avatar">AW</span>
+                    <span id="current-profile-name">Asher W</span>
+                </button>
+                <button class="menu-btn" onclick="openCommandPalette()">
+="14" height                    <svg width="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 5v14M5 12h14" />
+                    </svg>
+                    Command Palette
+                </button>
+            </div>
+        </header>
     </header>
     <div class="sync-warning" id="sync-warning" role="alert" aria-live="polite"></div>
     <div class="sync-indicator sync-connecting sync-indicator-floating" id="sync-indicator-floating" data-sync-indicator title="Connecting to Firestore…">
@@ -1081,6 +1218,50 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
         import { getFirestore, doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
 
+        // Login system
+        let selectedUser = { name: 'Asher W', initials: 'AW', password: '3' };
+        let isLoggedIn = false;
+
+        function selectLoginUser(el) {
+            document.querySelectorAll('.login-user').forEach(u => u.classList.remove('selected'));
+            el.classList.add('selected');
+            selectedUser = {
+                name: el.dataset.user,
+                initials: el.dataset.user.split(' ').map(n => n[0]).join(''),
+                password: el.dataset.password
+            };
+            document.getElementById('login-password').value = '';
+            document.getElementById('login-error').textContent = '';
+        }
+
+        function checkLogin(event) {
+            if (event.key === 'Enter') {
+                attemptLogin();
+            }
+        }
+
+        function attemptLogin() {
+            const entered = document.getElementById('login-password').value;
+            if (entered === selectedUser.password) {
+                isLoggedIn = true;
+                document.getElementById('login-modal').classList.remove('active');
+                document.getElementById('login-modal').style.display = 'none';
+                document.getElementById('main-app').style.display = 'block';
+                // Set current user profile
+                currentUser = selectedUser.name;
+                currentInitials = selectedUser.initials;
+                document.getElementById('current-avatar').textContent = currentInitials;
+                document.getElementById('current-profile-name').textContent = currentUser;
+                // Load board after login
+                loadState();
+            } else {
+                document.getElementById('login-error').textContent = 'Incorrect password';
+            }
+        }
+
+        // Only load app content after login - wrap the rest in a check
+        let appReady = false;
+
         const firebaseConfig = {
             apiKey: "AIzaSyBaSETzAzXCDC_RHntmNKeM9nO4pcA6VRA",
             authDomain: "unaligned-fc556.firebaseapp.com",
@@ -1095,6 +1276,8 @@
         const boardDocRef = doc(db, 'boards', 'shared-board');
 
         let currentProfile = { name: 'Sam L', initials: 'SL' };
+        let currentUser = 'Asher W';
+        let currentInitials = 'AW';
         let draggedCard = null;
         let cardsData = {};
         let cardIdCounter = 1;
@@ -1348,7 +1531,8 @@
             hydrateAssigneeModal();
             hydrateLabelModal();
             attachFilterListeners();
-            loadState();
+            // Only load board if logged in (otherwise wait for login)
+            // loadState() is called in attemptLogin() instead
         });
 
         function hydrateFilters() {
@@ -2349,5 +2533,6 @@
             }
         });
     </script>
+    </div>
 </body>
 </html> 
