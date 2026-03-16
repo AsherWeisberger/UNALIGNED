@@ -1232,15 +1232,15 @@
                 width: 90vw;
                 padding: 24px 20px;
             }
-            
+
             .login-users {
                 flex-wrap: wrap;
             }
-            
+
             .login-user {
                 padding: 8px;
             }
-            
+
             .login-user .avatar {
                 width: 36px;
                 height: 36px;
@@ -1251,24 +1251,24 @@
                 padding: 12px;
                 flex-wrap: wrap;
             }
-            
+
             .logo {
                 font-size: 18px;
             }
-            
+
             .subtitle {
                 font-size: 11px;
             }
-            
+
             .header-left {
                 width: 100%;
             }
-            
+
             .header-right {
                 width: 100%;
                 justify-content: space-between;
             }
-            
+
             .stats {
                 display: none;
             }
@@ -1278,7 +1278,7 @@
                 padding: 10px 12px;
                 font-size: 12px;
             }
-            
+
             .profile-btn .avatar {
                 width: 24px;
                 height: 24px;
@@ -1298,8 +1298,8 @@
                 flex-wrap: wrap;
                 gap: 8px;
             }
-            
-            .filters input, 
+
+            .filters input,
             .filters select {
                 width: 100%;
                 font-size: 14px;
@@ -1312,15 +1312,15 @@
                 max-width: 280px;
                 margin-right: 12px;
             }
-            
+
             .list-header {
                 padding: 10px 12px;
             }
-            
+
             .list-title {
                 font-size: 14px;
             }
-            
+
             .list-wip {
                 font-size: 11px;
             }
@@ -1329,19 +1329,19 @@
             .card {
                 padding: 10px;
             }
-            
+
             .card-content {
                 font-size: 13px;
             }
-            
+
             .card-footer {
                 margin-top: 8px;
             }
-            
+
             .card-meta-item {
                 font-size: 10px;
             }
-            
+
             .card-assignee .avatar {
                 width: 20px;
                 height: 20px;
@@ -1364,45 +1364,45 @@
                 display: flex;
                 flex-direction: column;
             }
-            
+
             .card-modal-header {
                 padding: 12px;
                 flex-shrink: 0;
             }
-            
+
             .card-modal-title {
                 font-size: 18px;
                 width: 100%;
             }
-            
+
             .card-modal-close,
             .card-modal-save {
                 padding: 8px 12px;
                 font-size: 14px;
             }
-            
+
             .card-modal-body {
                 flex: 1;
                 overflow-y: auto;
                 padding: 12px;
             }
-            
+
             .card-modal-main,
             .card-modal-sidebar {
                 width: 100%;
             }
-            
+
             .card-modal-sidebar {
                 margin-top: 20px;
                 padding-top: 20px;
                 border-top: 1px solid #2d3748;
             }
-            
+
             .description-textarea {
                 min-height: 100px;
                 font-size: 14px;
             }
-            
+
             .sidebar-btn {
                 padding: 12px;
                 font-size: 14px;
@@ -1419,12 +1419,12 @@
                 width: 95vw;
                 margin: 10px;
             }
-            
+
             .command-palette-input {
                 padding: 14px;
                 font-size: 16px;
             }
-            
+
             .command-item {
                 padding: 14px 12px;
             }
@@ -1454,7 +1454,7 @@
                 min-width: 260px;
                 max-width: 260px;
             }
-            
+
             .card-modal-title {
                 font-size: 16px;
             }
@@ -1842,7 +1842,7 @@
                 syncState.lastSyncedAt = timestamp.toISOString();
                 syncState.errorMessage = '';
             } else if (status === 'error') {
-                syncState.errorMessage = errorMessage || 'Offline – changes stay on this device until sync resumes.';
+                syncState.errorMessage = errorMessage || 'Offline - changes stay on this device until sync resumes.';
             }
             requestAnimationFrame(renderSyncState);
         }
@@ -1875,7 +1875,7 @@
             });
             if (!warning) return;
             if (syncState.status === 'error') {
-                warning.textContent = syncState.errorMessage || 'Offline – changes stay on this device until sync resumes.';
+                warning.textContent = syncState.errorMessage || 'Offline - changes stay on this device until sync resumes.';
                 warning.classList.add('visible');
             } else {
                 warning.classList.remove('visible');
@@ -1890,7 +1890,7 @@
                 return `Synced ${relative} (${syncedDate.toLocaleString()})`;
             }
             if (syncState.status === 'saving') return 'Saving latest changes to Firestore…';
-            if (syncState.status === 'error') return syncState.errorMessage || 'Offline – changes are not syncing yet.';
+            if (syncState.status === 'error') return syncState.errorMessage || 'Offline - changes are not syncing yet.';
             return 'Connecting to Firestore…';
         }
 
@@ -2117,7 +2117,7 @@
             const unassigned = document.createElement('div');
             unassigned.className = 'profile-option';
             unassigned.innerHTML = `
-                <span class="avatar" style="background:#9ca3af;">–</span>
+                <span class="avatar" style="background:#9ca3af;">-</span>
                 <div class="profile-info"><span class="profile-name">Flow AI</span></div>
             `;
             unassigned.onclick = () => setAssignee('', '');
@@ -2179,19 +2179,19 @@
         function loadState() {
             onSnapshot(boardDocRef, async (docSnap) => {
                 if (docSnap.metadata?.hasPendingWrites) return;
-                
+
                 // Don't update from Firestore while editing a card - it will overwrite local changes!
                 if (currentEditingCard !== null) {
                     console.log('Skipping Firestore update while editing card');
                     return;
                 }
-                
+
                 // Also skip if we just saved (give it a moment to settle)
                 if (window.justSaved && Date.now() - window.justSaved < 2000) {
                     console.log('Skipping Firestore update - just saved');
                     return;
                 }
-                
+
                 isApplyingRemoteUpdate = true;
                 try {
                     if (!docSnap.exists()) {
@@ -2247,19 +2247,19 @@
                 const cardData = cardsData[currentEditingCard];
                 console.log('cardsData[8] description:', cardData ? cardData.description : 'not found');
                 console.log('currentEditingCard:', currentEditingCard, 'type:', typeof currentEditingCard);
-                
+
                 const payload = {
                     cards: JSON.parse(JSON.stringify(cardsData || {})),
                     lists: boardConfig,
                     cardIdCounter,
                     updatedAt: serverTimestamp()
                 };
-                
+
                 // Debug: log what's in payload after stringify
                 if (currentEditingCard && payload.cards[currentEditingCard]) {
                     console.log('Firestore save - card:', currentEditingCard, 'description:', payload.cards[currentEditingCard].description);
                 }
-                
+
                 await setDoc(boardDocRef, payload);
                 setSyncState('synced', { syncedAt: new Date() });
             } catch (error) {
@@ -2276,12 +2276,12 @@
                 const descriptionInput = document.getElementById('modal-description');
                 const titleVal = titleInput ? titleInput.value : '';
                 const descVal = descriptionInput ? descriptionInput.value : '';
-                
+
                 console.log('Saving - Title:', titleVal, 'Description:', descVal);
-                
+
                 currentEditingCardData.title = titleVal;
                 currentEditingCardData.description = descVal;
-                
+
                 // Also get contact fields
                 const contactFields = ['contactName', 'email', 'phone', 'phone2', 'businessName', 'leadSource', 'estimatedValue', 'priority'];
                 contactFields.forEach(field => {
@@ -2289,7 +2289,7 @@
                     if (el) currentEditingCardData[field] = el.value;
                 });
             }
-            
+
             clearTimeout(saveTimeout);
             await saveBoardState(true);
         }
@@ -2499,24 +2499,24 @@
             };
             // Don't auto-save on typing - only save when clicking Save button
             // This prevents Firestore listener conflicts
-            
+
             document.getElementById('modal-list-name').textContent = boardConfig.find(l => l.id === currentEditingCardData.listId)?.title || 'List';
             const createdTime = timeAgo(new Date(currentEditingCardData.createdAt));
             document.getElementById('modal-created-info').textContent = `• Created by ${currentEditingCardData.createdBy} • ${createdTime}`;
             document.getElementById('due-date-input').value = currentEditingCardData.dueDate || '';
-            
+
             // Populate contact fields
             document.getElementById('modal-contact-name').value = currentEditingCardData.contactName || '';
             document.getElementById('modal-email').value = currentEditingCardData.email || '';
             document.getElementById('modal-phone').value = currentEditingCardData.phone || '';
             document.getElementById('modal-phone2').value = currentEditingCardData.phone2 || '';
             document.getElementById('modal-business-name').value = currentEditingCardData.businessName || '';
-            
+
             // New lead fields
             document.getElementById('modal-lead-source').value = currentEditingCardData.leadSource || '';
             document.getElementById('modal-estimated-value').value = currentEditingCardData.estimatedValue || '';
             document.getElementById('modal-priority').value = currentEditingCardData.priority || '';
-            
+
             renderModalLabels();
             renderChecklist();
             renderActivity();
@@ -2530,19 +2530,19 @@
                 const descriptionInput = document.getElementById('modal-description');
                 currentEditingCardData.title = titleInput.value;
                 currentEditingCardData.description = descriptionInput.value;
-                
+
                 // Save contact fields
                 currentEditingCardData.contactName = document.getElementById('modal-contact-name').value;
                 currentEditingCardData.email = document.getElementById('modal-email').value;
                 currentEditingCardData.phone = document.getElementById('modal-phone').value;
                 currentEditingCardData.phone2 = document.getElementById('modal-phone2').value;
                 currentEditingCardData.businessName = document.getElementById('modal-business-name').value;
-                
+
                 // Save lead fields
                 currentEditingCardData.leadSource = document.getElementById('modal-lead-source').value;
                 currentEditingCardData.estimatedValue = document.getElementById('modal-estimated-value').value;
                 currentEditingCardData.priority = document.getElementById('modal-priority').value;
-                
+
                 renderCard(currentEditingCardData);
                 window.justSaved = Date.now();
                 saveBoardStateNow();
@@ -2560,19 +2560,19 @@
                     const descriptionInput = document.getElementById('modal-description');
                     currentEditingCardData.title = titleInput.value;
                     currentEditingCardData.description = descriptionInput.value;
-                    
+
                     // Save contact fields
                     currentEditingCardData.contactName = document.getElementById('modal-contact-name').value;
                     currentEditingCardData.email = document.getElementById('modal-email').value;
                     currentEditingCardData.phone = document.getElementById('modal-phone').value;
                     currentEditingCardData.phone2 = document.getElementById('modal-phone2').value;
                     currentEditingCardData.businessName = document.getElementById('modal-business-name').value;
-                    
+
                     // Save lead fields
                     currentEditingCardData.leadSource = document.getElementById('modal-lead-source').value;
                     currentEditingCardData.estimatedValue = document.getElementById('modal-estimated-value').value;
                     currentEditingCardData.priority = document.getElementById('modal-priority').value;
-                    
+
                     titleInput.oninput = null;
                     descriptionInput.oninput = null;
                     renderCard(currentEditingCardData);
@@ -2837,7 +2837,7 @@
         function quickAddLead() {
             const title = prompt('Lead Name / Company:');
             if (!title) return;
-            
+
             const contactName = prompt('Contact Name (optional):') || '';
             const email = prompt('Email (optional):') || '';
             const phone = prompt('Phone (optional):') || '';
@@ -2845,7 +2845,7 @@
             const leadSource = prompt('Lead Source (website, referral, cold-call, social, advertisement, other):') || '';
             const estimatedValue = prompt('Estimated Value ($):') || '';
             const priority = prompt('Priority (hot, warm, cold):') || '';
-            
+
             const newCard = {
                 id: cardIdCounter++,
                 title: title,
@@ -2872,7 +2872,7 @@
                 estimatedValue: estimatedValue,
                 priority: priority
             };
-            
+
             cardsData[newCard.id] = newCard;
             renderCard(newCard);
             updateCardCount();
@@ -2902,15 +2902,15 @@
             const input = document.getElementById('command-palette-input');
             input.value = '';
             renderCommands('');
-            
+
             // Remove old event listeners and add fresh ones
             const newInput = input.cloneNode(true);
             input.parentNode.replaceChild(newInput, input);
-            
+
             newInput.addEventListener('input', function(e) {
                 renderCommands(e.target.value);
             });
-            
+
             newInput.addEventListener('keydown', function(e) {
                 const items = document.querySelectorAll('.command-item');
                 if (e.key === 'ArrowDown') {
@@ -2931,7 +2931,7 @@
                     closeCommandPalette();
                 }
             });
-            
+
             setTimeout(() => {
                 newInput.focus();
             }, 100);
@@ -2949,11 +2949,11 @@
 
         function renderCommands(filter) {
             const container = document.getElementById('command-palette-results');
-            const filtered = commands.filter(c => 
-                c.title.toLowerCase().includes(filter.toLowerCase()) || 
+            const filtered = commands.filter(c =>
+                c.title.toLowerCase().includes(filter.toLowerCase()) ||
                 c.desc.toLowerCase().includes(filter.toLowerCase())
             );
-            
+
             container.innerHTML = filtered.map((c, i) => `
                 <div class="command-item ${i === window.selectedCommandIndex ? 'selected' : ''}" onclick="executeCommand('${c.id}')">
                     <div class="command-item-icon">${c.icon}</div>
@@ -2989,15 +2989,15 @@
         function setupCommandPaletteListeners() {
             const input = document.getElementById('command-palette-input');
             if (!input) return;
-            
+
             // Remove old listeners to avoid duplicates
             const newInput = input.cloneNode(true);
             input.parentNode.replaceChild(newInput, input);
-            
+
             newInput.addEventListener('input', (e) => {
                 renderCommands(e.target.value);
             });
-            
+
             newInput.addEventListener('keydown', (e) => {
                 const items = document.querySelectorAll('.command-item');
                 if (e.key === 'ArrowDown') {
@@ -3325,6 +3325,29 @@
             }
         }
 
+        let cachedWeather = null;
+        let lastWeatherFetch = 0;
+
+        async function fetchWeather() {
+            const now = Date.now();
+            if (cachedWeather && now - lastWeatherFetch < 300000) return cachedWeather;
+
+            try {
+                const response = await fetch('https://wttr.in/Indianapolis?format=j1');
+                const data = await response.json();
+                cachedWeather = {
+                    temp: data.current_condition[0].temp_F,
+                    feels: data.current_condition[0].FeelsLikeF,
+                    condition: data.current_condition[0].weatherDesc[0].value,
+                    humidity: data.current_condition[0].humidity
+                };
+                lastWeatherFetch = now;
+                return cachedWeather;
+            } catch (e) {
+                return null;
+            }
+        }
+
         function sendChatMessage() {
             const input = document.getElementById('chat-input');
             const message = input.value.trim();
@@ -3334,9 +3357,12 @@
             input.value = '';
             showTypingIndicator();
 
-            setTimeout(() => {
+            setTimeout(async () => {
                 removeTypingIndicator();
-                const response = generateChatResponse(message);
+                const response = await generateChatResponse(message);
+                addChatMessage(response, 'hubble');
+            }, 500);
+        }
                 addChatMessage(response, 'hubble');
             }, 500);
         }
@@ -3365,11 +3391,11 @@
             if (el) el.remove();
         }
 
-        function generateChatResponse(message) {
+        async function generateChatResponse(message) {
             const msg = message.toLowerCase();
             const allCards = Object.values(cardsData);
             const userName = currentUser || 'there';
-            
+
             // Fun greetings
             if (msg.includes('hi') || msg.includes('hey') || msg.includes('hello')) {
                 const greetings = [
@@ -3379,26 +3405,50 @@
                 ];
                 return greetings[Math.floor(Math.random() * greetings.length)];
             }
-            
+
             // Who are you
             if (msg.includes('who are you') || msg.includes('what are you')) {
                 return `I'm Hubble! 🐕 A virtual dog assistant. I'm here to help you manage your leads and workflow. I can answer questions about your board but won't make any changes - that's your job!`;
+            }
+            
+            // Weather check
+            if (msg.includes('weather') || msg.includes('temperature') || msg.includes('hot') || msg.includes('cold') || msg.includes('warm') || msg.includes('outside')) {
+                const weather = await fetchWeather();
+                if (!weather) return "I couldn't fetch the weather right now! 🐕";
+                
+                const temp = parseInt(weather.temp);
+                const feels = parseInt(weather.feels);
+                
+                let dogResponse = '';
+                if (temp < 32) {
+                    dogResponse = "🥶 Brrr! Noooo I don't want to go out! It's too cold! 🐕❄️ Let's stay inside where it's warm!";
+                } else if (temp < 50) {
+                    dogResponse = "🧥 It's kinda chilly... might need my sweater. But I could do a quick walk! 🐕";
+                } else if (temp < 75) {
+                    dogResponse = "🐕 Perfect tail-waggin' weather! Let's go outside and play!";
+                } else if (temp < 90) {
+                    dogResponse = "☀️ Nice weather! A little warm but still good for adventures! 🐾";
+                } else {
+                    dogResponse = "🥵 Whoooo it's hot! Too hot for this dog! 🐕🔥 Let's stay inside with the AC!";
+                }
+                
+                return `Current weather in Indy: ${weather.condition}, ${temp}°F (feels like ${feels}°F)\n\n${dogResponse}`;
             }
             
             // Check what's in progress
             if (msg.includes('in progress') || msg.includes('doing') || msg.includes('working on')) {
                 const inProgress = allCards.filter(c => c.listId === 'build');
                 if (inProgress.length === 0) return "Nothing in IN PROGRESS right now! 🏖️";
-                return "Currently working on:\n" + inProgress.map(c => 
+                return "Currently working on:\n" + inProgress.map(c =>
                     `📋 ${c.title} (${c.assignee || 'unassigned'})`
                 ).join('\n');
             }
-            
+
             // Lead info
             if (msg.includes('lead') || msg.includes('new') || msg.includes('prospect')) {
                 const leads = allCards.filter(c => c.listId === 'discovery');
                 if (leads.length === 0) return "No leads in LEAD IN right now! Add some! 🎯";
-                return `🎯 You have ${leads.length} lead${leads.length !== 1 ? 's' : ''} in LEAD IN:\n\n` + 
+                return `🎯 You have ${leads.length} lead${leads.length !== 1 ? 's' : ''} in LEAD IN:\n\n` +
                     leads.map(l => {
                         let info = `• ${l.title}`;
                         if (l.priority) info += ` ${l.priority === 'hot' ? '🔥' : l.priority === 'warm' ? '🌡️' : '❄️'}`;
@@ -3406,7 +3456,7 @@
                         return info;
                     }).join('\n');
             }
-            
+
             // Card counts
             if (msg.includes('how many') || msg.includes('total') || msg.includes('stats') || msg.includes('summary')) {
                 const counts = {};
@@ -3416,12 +3466,12 @@
                 return `📊 Your board has ${allCards.length} cards:\n\n` +
                     boardConfig.map(l => `${l.title}: ${counts[l.id] || 0}`).join('\n');
             }
-            
+
             // Who is logged in / me
             if (msg.includes('who am i') || msg.includes('my name') || msg.includes('logged in')) {
                 return `You're logged in as ${userName}! 🐾`;
             }
-            
+
             // Help
             if (msg.includes('help') || msg.includes('what can')) {
                 return `I can help you with:\n\n` +
@@ -3431,16 +3481,16 @@
                     `❓ General questions\n\n` +
                     `I won't make changes - use the board for that!`;
             }
-            
+
             // Fun easter eggs
             if (msg.includes('good boy') || msg.includes('good girl') || msg.includes('good dog')) {
                 return `🐕 *wags tail* Thank you! I'm a good boy!`;
             }
-            
+
             if (msg.includes('treat') || msg.includes('cookie') || msg.includes('snack')) {
                 return `🐕🍪 I love treats! But I work for belly rubs...`;
             }
-            
+
             // Default fun response
             const defaults = [
                 `I'm Hubble! 🐕 Ask me about your leads or what's in progress!`,
@@ -3458,4 +3508,4 @@
     </script>
     </div>
 </body>
-</html> 
+</html>
