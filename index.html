@@ -275,6 +275,25 @@
             cursor: pointer;
             background: var(--bg-secondary);
             color: inherit;
+        }
+
+        .quick-add-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            border: none;
+            cursor: pointer;
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: white;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .quick-add-btn:hover {
+            background: linear-gradient(135deg, #16a34a, #22c55e);
+        }
             font-size: 13px;
         }
 
@@ -894,6 +913,81 @@
             border-color: #7dd3fc;
         }
 
+        .lead-fields {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .priority-select {
+            cursor: pointer;
+        }
+
+        .priority-select option[value="hot"] {
+            background: #dc2626;
+            color: white;
+        }
+
+        .priority-select option[value="warm"] {
+            background: #f59e0b;
+            color: black;
+        }
+
+        .priority-select option[value="cold"] {
+            background: #3b82f6;
+            color: white;
+        }
+
+        /* Priority labels on cards */
+        .card-priority {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            margin-right: 4px;
+        }
+
+        .card-priority.hot {
+            background: rgba(220, 38, 38, 0.3);
+            color: #fca5a5;
+        }
+
+        .card-priority.warm {
+            background: rgba(245, 158, 11, 0.3);
+            color: #fcd34d;
+        }
+
+        .card-priority.cold {
+            background: rgba(59, 130, 246, 0.3);
+            color: #93c5fd;
+        }
+
+        /* Source badges */
+        .card-source {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            background: rgba(139, 92, 246, 0.3);
+            color: #c4b5fd;
+            margin-right: 4px;
+        }
+
+        /* Value display on card */
+        .card-value {
+            font-size: 11px;
+            color: #34d399;
+            font-weight: 600;
+        }
+
+        .card-lead-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin: 4px 0;
+        }
+
         .checklist-input,
         input[type="date"] {
             width: 100%;
@@ -1296,6 +1390,12 @@
                     <span class="avatar" id="current-avatar">AW</span>
                     <span id="current-profile-name">Asher W</span>
                 </button>
+                <button class="quick-add-btn" onclick="quickAddLead()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 5v14M5 12h14" />
+                    </svg>
+                    Add Lead
+                </button>
                 <button class="menu-btn" onclick="openCommandPalette()">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M12 5v14M5 12h14" />
@@ -1317,6 +1417,21 @@
             <input type="search" id="filter-search" placeholder="Search card titles, notes, or labels" aria-label="Search cards">
             <select id="filter-label" aria-label="Label filter">
                 <option value="all">All labels</option>
+            </select>
+            <select id="filter-priority" aria-label="Priority filter">
+                <option value="all">All priorities</option>
+                <option value="hot">🔥 Hot</option>
+                <option value="warm">🌡️ Warm</option>
+                <option value="cold">❄️ Cold</option>
+            </select>
+            <select id="filter-source" aria-label="Source filter">
+                <option value="all">All sources</option>
+                <option value="website">Website</option>
+                <option value="referral">Referral</option>
+                <option value="cold-call">Cold Call</option>
+                <option value="social">Social Media</option>
+                <option value="advertisement">Advertisement</option>
+                <option value="other">Other</option>
             </select>
             <select id="filter-assignee" aria-label="Assignee filter">
                 <option value="all">All assignees</option>
@@ -1358,13 +1473,34 @@
                         <div class="labels-list" id="modal-labels"></div>
                     </div>
                     <div class="modal-section">
-                        <div class="modal-section-title">Contact Info</div>
+                        <div class="modal-section-title">Lead Info</div>
                         <div class="contact-fields">
                             <input type="text" class="contact-input" id="modal-contact-name" placeholder="Contact Name" onchange="updateContactField('contactName')">
                             <input type="email" class="contact-input" id="modal-email" placeholder="Email" onchange="updateContactField('email')">
                             <input type="tel" class="contact-input" id="modal-phone" placeholder="Phone" onchange="updateContactField('phone')">
                             <input type="tel" class="contact-input" id="modal-phone2" placeholder="Secondary Phone" onchange="updateContactField('phone2')">
                             <input type="text" class="contact-input" id="modal-business-name" placeholder="Business Name" onchange="updateContactField('businessName')">
+                        </div>
+                    </div>
+                    <div class="modal-section">
+                        <div class="modal-section-title">Lead Details</div>
+                        <div class="lead-fields">
+                            <select class="contact-input" id="modal-lead-source" onchange="updateContactField('leadSource')">
+                                <option value="">Lead Source</option>
+                                <option value="website">Website</option>
+                                <option value="referral">Referral</option>
+                                <option value="cold-call">Cold Call</option>
+                                <option value="social">Social Media</option>
+                                <option value="advertisement">Advertisement</option>
+                                <option value="other">Other</option>
+                            </select>
+                            <input type="text" class="contact-input" id="modal-estimated-value" placeholder="Estimated Value ($)" onchange="updateContactField('estimatedValue')">
+                            <select class="contact-input priority-select" id="modal-priority" onchange="updateContactField('priority')">
+                                <option value="">Priority</option>
+                                <option value="hot">🔥 Hot</option>
+                                <option value="warm">🌡️ Warm</option>
+                                <option value="cold">❄️ Cold</option>
+                            </select>
                         </div>
                     </div>
                     <div class="modal-section">
@@ -1778,6 +1914,8 @@
         const filters = {
             search: '',
             label: 'all',
+            priority: 'all',
+            source: 'all',
             assignee: 'all',
             mineOnly: false
         };
@@ -1991,7 +2129,7 @@
                 currentEditingCardData.description = descVal;
                 
                 // Also get contact fields
-                const contactFields = ['contactName', 'email', 'phone', 'phone2', 'businessName'];
+                const contactFields = ['contactName', 'email', 'phone', 'phone2', 'businessName', 'leadSource', 'estimatedValue', 'priority'];
                 contactFields.forEach(field => {
                     const el = document.getElementById('modal-' + field);
                     if (el) currentEditingCardData[field] = el.value;
@@ -2045,8 +2183,18 @@
                     </div>`;
             }
 
+            // Priority, source, and value badges
+            let leadMetaHtml = '';
+            if (cardData.priority || cardData.leadSource || cardData.estimatedValue) {
+                const priorityHtml = cardData.priority ? `<span class="card-priority ${cardData.priority}">${cardData.priority === 'hot' ? '🔥' : cardData.priority === 'warm' ? '🌡️' : '❄️'}</span>` : '';
+                const sourceHtml = cardData.leadSource ? `<span class="card-source">${cardData.leadSource}</span>` : '';
+                const valueHtml = cardData.estimatedValue ? `<span class="card-value">$${cardData.estimatedValue}</span>` : '';
+                leadMetaHtml = `<div class="card-lead-meta">${priorityHtml}${sourceHtml}${valueHtml}</div>`;
+            }
+
             card.innerHTML = `
                 <div class="card-labels">${labelsHtml}</div>
+                ${leadMetaHtml}
                 <div class="card-content">${escapeHtml(cardData.title)}</div>
                 <div class="card-footer">
                     <div class="card-meta">${checklistHtml}${dueDateHtml}</div>
@@ -2133,6 +2281,14 @@
                 filters.assignee = e.target.value;
                 applyFilters();
             });
+            document.getElementById('filter-priority').addEventListener('change', (e) => {
+                filters.priority = e.target.value;
+                applyFilters();
+            });
+            document.getElementById('filter-source').addEventListener('change', (e) => {
+                filters.source = e.target.value;
+                applyFilters();
+            });
             document.getElementById('filter-mine').addEventListener('change', (e) => {
                 filters.mineOnly = e.target.checked;
                 applyFilters();
@@ -2146,12 +2302,20 @@
                 let visible = true;
 
                 if (filters.search) {
-                    const haystack = `${card.title} ${card.description} ${(card.labels || []).map(l => l.name).join(' ')}`.toLowerCase();
+                    const haystack = `${card.title} ${card.description} ${card.contactName || ''} ${card.businessName || ''} ${(card.labels || []).map(l => l.name).join(' ')}`.toLowerCase();
                     visible = haystack.includes(filters.search);
                 }
 
                 if (visible && filters.label !== 'all') {
                     visible = card.labels?.some(l => l.name === filters.label);
+                }
+
+                if (visible && filters.priority !== 'all') {
+                    visible = card.priority === filters.priority;
+                }
+
+                if (visible && filters.source !== 'all') {
+                    visible = card.leadSource === filters.source;
                 }
 
                 if (visible && filters.assignee !== 'all') {
@@ -2194,6 +2358,11 @@
             document.getElementById('modal-phone2').value = currentEditingCardData.phone2 || '';
             document.getElementById('modal-business-name').value = currentEditingCardData.businessName || '';
             
+            // New lead fields
+            document.getElementById('modal-lead-source').value = currentEditingCardData.leadSource || '';
+            document.getElementById('modal-estimated-value').value = currentEditingCardData.estimatedValue || '';
+            document.getElementById('modal-priority').value = currentEditingCardData.priority || '';
+            
             renderModalLabels();
             renderChecklist();
             renderActivity();
@@ -2214,6 +2383,11 @@
                 currentEditingCardData.phone = document.getElementById('modal-phone').value;
                 currentEditingCardData.phone2 = document.getElementById('modal-phone2').value;
                 currentEditingCardData.businessName = document.getElementById('modal-business-name').value;
+                
+                // Save lead fields
+                currentEditingCardData.leadSource = document.getElementById('modal-lead-source').value;
+                currentEditingCardData.estimatedValue = document.getElementById('modal-estimated-value').value;
+                currentEditingCardData.priority = document.getElementById('modal-priority').value;
                 
                 renderCard(currentEditingCardData);
                 saveBoardStateNow();
@@ -2238,6 +2412,11 @@
                     currentEditingCardData.phone = document.getElementById('modal-phone').value;
                     currentEditingCardData.phone2 = document.getElementById('modal-phone2').value;
                     currentEditingCardData.businessName = document.getElementById('modal-business-name').value;
+                    
+                    // Save lead fields
+                    currentEditingCardData.leadSource = document.getElementById('modal-lead-source').value;
+                    currentEditingCardData.estimatedValue = document.getElementById('modal-estimated-value').value;
+                    currentEditingCardData.priority = document.getElementById('modal-priority').value;
                     
                     titleInput.oninput = null;
                     descriptionInput.oninput = null;
@@ -2496,6 +2675,54 @@
                 updateFlowMap();
                 queueSaveBoardState();
             }
+        }
+
+        // Quick Add Lead
+        function quickAddLead() {
+            const title = prompt('Lead Name / Company:');
+            if (!title) return;
+            
+            const contactName = prompt('Contact Name (optional):') || '';
+            const email = prompt('Email (optional):') || '';
+            const phone = prompt('Phone (optional):') || '';
+            const businessName = prompt('Business Name (optional):') || '';
+            const leadSource = prompt('Lead Source (website, referral, cold-call, social, advertisement, other):') || '';
+            const estimatedValue = prompt('Estimated Value ($):') || '';
+            const priority = prompt('Priority (hot, warm, cold):') || '';
+            
+            const newCard = {
+                id: cardIdCounter++,
+                title: title,
+                listId: 'discovery',
+                labels: [],
+                description: '',
+                checklist: [],
+                assignee: '',
+                dueDate: '',
+                createdBy: currentUser,
+                createdAt: new Date().toISOString(),
+                activity: [{
+                    user: currentUser,
+                    initials: currentInitials,
+                    action: 'created this lead',
+                    time: new Date().toISOString()
+                }],
+                contactName: contactName,
+                email: email,
+                phone: phone,
+                phone2: '',
+                businessName: businessName,
+                leadSource: leadSource,
+                estimatedValue: estimatedValue,
+                priority: priority
+            };
+            
+            cardsData[newCard.id] = newCard;
+            renderCard(newCard);
+            updateCardCount();
+            updateFlowMap();
+            saveBoardStateNow();
+            addActivity(`added lead: ${title}`);
         }
 
         // Command Palette
@@ -2922,6 +3149,7 @@
         window.showAddListForm = showAddListForm;
         window.toggleChecklistItem = toggleChecklistItem;
         window.sendCardToFlowAI = sendCardToFlowAI;
+        window.quickAddLead = quickAddLead;
     </script>
     </div>
 </body>
