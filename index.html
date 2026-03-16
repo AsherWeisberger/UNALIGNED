@@ -783,6 +783,22 @@
             outline-offset: 2px;
         }
 
+        .card-modal-save {
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: none;
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-right: 8px;
+        }
+
+        .card-modal-save:hover {
+            background: linear-gradient(135deg, #16a34a, #22c55e);
+        }
+
         .card-modal-title {
             border: none;
             font-size: 24px;
@@ -1095,6 +1111,7 @@
                     <input type="text" class="card-modal-title" id="modal-card-title">
                     <div class="card-modal-subtitle">in list <span id="modal-list-name">To Do</span> <span id="modal-created-info"></span></div>
                 </div>
+                <button class="card-modal-save" onclick="saveCardAndClose()">Save</button>
                 <button class="card-modal-close" onclick="closeCardModal()">×</button>
             </div>
             <div class="card-modal-body">
@@ -1927,6 +1944,29 @@
             document.getElementById('card-modal').classList.add('active');
         }
 
+        function saveCardAndClose() {
+            if (currentEditingCardData) {
+                const titleInput = document.getElementById('modal-card-title');
+                const descriptionInput = document.getElementById('modal-description');
+                currentEditingCardData.title = titleInput.value;
+                currentEditingCardData.description = descriptionInput.value;
+                
+                // Save contact fields
+                currentEditingCardData.contactName = document.getElementById('modal-contact-name').value;
+                currentEditingCardData.email = document.getElementById('modal-email').value;
+                currentEditingCardData.phone = document.getElementById('modal-phone').value;
+                currentEditingCardData.phone2 = document.getElementById('modal-phone2').value;
+                currentEditingCardData.businessName = document.getElementById('modal-business-name').value;
+                
+                renderCard(currentEditingCardData);
+                saveBoardStateNow();
+                updateFlowMap();
+            }
+            document.getElementById('card-modal').classList.remove('active');
+            currentEditingCard = null;
+            currentEditingCardData = null;
+        }
+
         function closeCardModal(event) {
             if (!event || event.target === document.getElementById('card-modal') || event.target.classList.contains('card-modal-close')) {
                 if (currentEditingCardData) {
@@ -2614,6 +2654,7 @@
         window.addChecklistItem = addChecklistItem;
         window.openCardModal = openCardModal;
         window.closeCardModal = closeCardModal;
+        window.saveCardAndClose = saveCardAndClose;
         window.addCard = addCard;
         window.addList = addList;
         window.cancelAddCard = cancelAddCard;
