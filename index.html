@@ -2002,7 +2002,7 @@
                     <div class="list-header">
                         <div>
                             <h3 class="list-title">${stage.title}</h3>
-                            <div class="list-meta" style="color:${stage.color};">${stage.description}${stage.wip ? ` • WIP ${stage.wip}` : ''}</div>
+                            <div class="list-meta" style="color:${stage.color};">${stage.description}</div>
                         </div>
                         <div class="list-actions">
                             <button class="list-menu-btn" title="Rename list" onclick="renameList('${stage.id}')">✎</button>
@@ -3047,12 +3047,11 @@
             boardConfig.forEach((stage, index) => {
                 const count = countCardsInList(stage.id);
                 const node = document.createElement('div');
-                node.className = 'flow-node' + (stage.wip && count > stage.wip ? ' overloaded' : '');
+                node.className = 'flow-node';
                 node.innerHTML = `
                     <h4>${stage.title}</h4>
                     <span>${stage.description}</span>
                     <strong>${count}</strong>
-                    ${stage.wip ? `<span>WIP ${count}/${stage.wip}</span>` : ''}
                 `;
                 map.appendChild(node);
                 if (index < boardConfig.length - 1) {
