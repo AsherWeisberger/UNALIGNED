@@ -1306,32 +1306,50 @@
                 padding: 10px;
             }
 
-            /* Lists/Columns */
+            /* Lists/Columns - full screen width */
             .list {
-                min-width: 280px;
-                max-width: 280px;
-                margin-right: 12px;
+                min-width: calc(100vw - 36px) !important;
+                max-width: calc(100vw - 36px) !important;
+                margin-right: 0;
             }
 
             .list-header {
-                padding: 10px 12px;
+                padding: 12px 14px;
             }
 
             .list-title {
-                font-size: 14px;
+                font-size: 16px;
             }
 
             .list-wip {
-                font-size: 11px;
+                font-size: 12px;
             }
 
-            /* Cards */
+            .cards-container {
+                padding: 8px;
+                min-height: 80px;
+            }
+
+            /* Cards - full width */
+            .board-lists {
+                display: flex;
+                gap: 12px;
+                padding: 0 12px;
+            }
+
+            .list {
+                min-width: calc(100vw - 36px) !important;
+                max-width: calc(100vw - 36px) !important;
+                margin-right: 0;
+            }
+
             .card {
-                padding: 10px;
+                padding: 12px;
+                width: 100%;
             }
 
             .card-content {
-                font-size: 13px;
+                font-size: 14px;
             }
 
             .card-footer {
@@ -1339,19 +1357,28 @@
             }
 
             .card-meta-item {
-                font-size: 10px;
+                font-size: 11px;
+            }
+
+            .card-lead-meta {
+                margin: 6px 0;
+            }
+
+            .card-priority, .card-source {
+                font-size: 11px;
+                padding: 3px 8px;
             }
 
             .card-assignee .avatar {
-                width: 20px;
-                height: 20px;
-                font-size: 9px;
+                width: 24px;
+                height: 24px;
+                font-size: 10px;
             }
 
             /* Add card button */
             .add-card-btn {
-                padding: 10px;
-                font-size: 13px;
+                padding: 12px;
+                font-size: 14px;
             }
 
             /* Card Modal - full screen on mobile */
@@ -1539,7 +1566,7 @@
         <section class="flow-map" id="flow-map" aria-label="Flow snapshot"></section>
 
         <section class="filters">
-            <input type="search" id="filter-search" placeholder="Search card titles, notes, or labels" aria-label="Search cards">
+            <input type="search" id="filter-search" placeholder="🔍 Search cards or ask Hubble..." aria-label="Search cards or ask Hubble" onkeydown="handleSearchKey(event)">
             <select id="filter-label" aria-label="Label filter">
                 <option value="all">All labels</option>
             </select>
@@ -2422,6 +2449,35 @@
         }
 
         // Filters
+        function handleSearchKey(event) {
+            if (event.key === 'Enter') {
+                const query = event.target.value.trim();
+                if (!query) return;
+                
+                // Check if asking Hubble (starts with "ask" or "hubble" or "?")
+                const lowerQuery = query.toLowerCase();
+                if (lowerQuery.startsWith('ask ') || lowerQuery.startsWith('hubble ') || lowerQuery.startsWith('?') || lowerQuery.endsWith('?')) {
+                    event.target.value = '';
+                    openChatModalWithMessage(query.replace(/^(ask |hubble |\?)\s*/i, ''));
+                } else {
+                    // Regular search - just let it filter
+                }
+            }
+        }
+
+        function openChatModalWithMessage(msg) {
+            document.getElementById('chat-modal').classList.add('active');
+            const input = document.getElementById('chat-input');
+            if (msg) {
+                input.value = msg;
+                sendChatMessage();
+            } else {
+                input.focus();
+            }
+        }
+
+        window.openChatModalWithMessage = openChatModalWithMessage;
+
         function attachFilterListeners() {
             document.getElementById('filter-search').addEventListener('input', (e) => {
                 filters.search = e.target.value.toLowerCase();
