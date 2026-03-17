@@ -2962,23 +2962,7 @@
             card.addEventListener('dragstart', drag);
             card.addEventListener('dragend', dragEnd);
             card.onclick = function(e) {
-                // In list view, clicking expands the card instead of opening modal
-                const board = document.getElementById('board');
-                if (board.classList.contains('list-view')) {
-                    // Toggle expanded state
-                    const wasExpanded = card.classList.contains('expanded');
-                    // Close all other expanded cards first
-                    document.querySelectorAll('.board.list-view .card.expanded').forEach(c => {
-                        c.classList.remove('expanded');
-                    });
-                    // Toggle this card (only expand if it wasn't already expanded)
-                    if (!wasExpanded) {
-                        card.classList.add('expanded');
-                    }
-                    return;
-                }
-                
-                // Normal behavior - open modal
+                // In list view, also open the modal like normal
                 console.log('Card clicked:', cardData.id);
                 try {
                     openCardModal(cardData.id);
@@ -3947,21 +3931,15 @@
         }
 
         // View Mode Toggle for Mobile
-        let currentViewMode = 'cards'; // cards, compact, list
+        let currentViewMode = 'cards'; // cards, list only now
 
         function toggleViewMode() {
             const board = document.getElementById('board');
             const toggleIcon = document.getElementById('view-icon');
             const toggleLabel = document.getElementById('view-label');
             
-            // Cycle through: cards -> compact -> list -> cards
+            // Cycle through: cards -> list -> cards
             if (currentViewMode === 'cards') {
-                currentViewMode = 'compact';
-                board.classList.add('compact-view');
-                board.classList.remove('list-view');
-                toggleIcon.textContent = '▤';
-                toggleLabel.textContent = 'Compact';
-            } else if (currentViewMode === 'compact') {
                 currentViewMode = 'list';
                 board.classList.remove('compact-view');
                 board.classList.add('list-view');
