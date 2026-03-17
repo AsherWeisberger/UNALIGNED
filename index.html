@@ -2646,7 +2646,7 @@
                 currentEditingCardData.description = descVal;
 
                 // Also get contact fields
-                const contactFields = ['contactName', 'email', 'phone', 'phone2', 'businessName', 'leadSource', 'estimatedValue', 'priority'];
+                const contactFields = ['contactName', 'email', 'phone', 'businessName', 'leadSource', 'estimatedValue', 'priority'];
                 contactFields.forEach(field => {
                     const el = document.getElementById('modal-' + field);
                     if (el) currentEditingCardData[field] = el.value;
@@ -2976,14 +2976,12 @@
 
             document.getElementById('modal-list-name').textContent = boardConfig.find(l => l.id === currentEditingCardData.listId)?.title || 'List';
             const createdTime = timeAgo(new Date(currentEditingCardData.createdAt));
-            document.getElementById('modal-created-info').textContent = `• Created by ${currentEditingCardData.createdBy} • ${createdTime}`;
-            document.getElementById('due-date-input').value = currentEditingCardData.dueDate || '';
+            document.getElementById('modal-created-info').textContent = `Created by ${currentEditingCardData.createdBy} • ${createdTime}`;
 
             // Populate contact fields
             document.getElementById('modal-contact-name').value = currentEditingCardData.contactName || '';
             document.getElementById('modal-email').value = currentEditingCardData.email || '';
             document.getElementById('modal-phone').value = currentEditingCardData.phone || '';
-            document.getElementById('modal-phone2').value = currentEditingCardData.phone2 || '';
             document.getElementById('modal-business-name').value = currentEditingCardData.businessName || '';
 
             // New lead fields
@@ -2991,10 +2989,8 @@
             document.getElementById('modal-estimated-value').value = currentEditingCardData.estimatedValue || '';
             document.getElementById('modal-priority').value = currentEditingCardData.priority || '';
 
-            renderModalLabels();
             renderChecklist();
             renderActivity();
-            renderAssignee();
             document.getElementById('card-modal-overlay').classList.add('active');
         }
 
@@ -3009,7 +3005,6 @@
                 currentEditingCardData.contactName = document.getElementById('modal-contact-name').value;
                 currentEditingCardData.email = document.getElementById('modal-email').value;
                 currentEditingCardData.phone = document.getElementById('modal-phone').value;
-                currentEditingCardData.phone2 = document.getElementById('modal-phone2').value;
                 currentEditingCardData.businessName = document.getElementById('modal-business-name').value;
 
                 // Save lead fields
