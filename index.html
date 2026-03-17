@@ -4057,20 +4057,23 @@
                 }
             }
 
-            // Weather check
-            if (msg.includes('weather') || msg.includes('temperature') || msg.includes('hot') || msg.includes('cold')) {
+            // Weather check - prioritize this
+            if (msg.includes('weather') || msg.includes('temperature') || msg.includes('hot') || msg.includes('cold') || msg.includes('warm') || msg.includes('sunny') || msg.includes('rain')) {
                 try {
                     const weather = await fetchWeather();
                     if (weather) {
-                        return `Current weather: ${weather.condition}, ${weather.temp}°F (feels like ${weather.feels}°F)`;
+                        return `Current weather in Indianapolis: ${weather.condition}, ${weather.temp}°F (feels like ${weather.feels}°F). humidity: ${weather.humidity}%`;
                     }
-                } catch(e) { /* ignore */ }
+                    return "I couldn't fetch the weather right now.";
+                } catch(e) {
+                    return "I couldn't fetch the weather. Error: " + e.message;
+                }
             }
 
             // Date/Time
-            if (msg.includes('date') || msg.includes('time') || msg.includes('day')) {
+            if (msg.includes('date') || msg.includes('time') || msg.includes('day') || msg.includes('today')) {
                 const now = new Date();
-                return `📅 ${now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}\n⏰ ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+                return `📅 Today is ${now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}\n⏰ Time: ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
             }
 
             // Math operations
@@ -4088,47 +4091,52 @@
             }
 
             // Who are you
-            if (msg.includes('who are you') || msg.includes('what are you') || msg.includes('what can you do')) {
-                return `I'm an AI assistant for this website. I can help you with:\n\n• Finding cards and leads on your board\n• Checking board stats and progress\n• Weather information\n• Math calculations\n• General questions - I'll search the web when needed\n• And much more!\n\nWhat would you like to know?`;
+            if (msg.includes('who are you') || msg.includes('what are you') || msg.includes('what can you do') || msg.includes('your name')) {
+                return `I'm an AI assistant for this website. I can help you with:\n\n• Finding cards and leads on your board\n• Checking board stats and progress\n• Weather information\n• Math calculations\n• Answering general questions\n\nWhat would you like to know?`;
             }
 
             // Greetings
-            if (msg.includes('hi') || msg.includes('hey') || msg.includes('hello') || msg.includes('hey there')) {
-                return `Hey there! 👋 I'm your AI assistant. I can help you with your board, answer questions, search the web, and more! What can I help you with?`;
+            if (msg.includes('hi') || msg.includes('hey') || msg.includes('hello')) {
+                return `Hey there! 👋 I'm your AI assistant. I can help you with your board, weather, math, and more! What can I do for you?`;
             }
 
             // Help
-            if (msg.includes('help') || msg.includes('what can you do')) {
-                return `I can help you with:\n\n📊 **Board**: "show leads", "how many tasks", "in progress"\n🔍 **Find cards**: "find [name]" or "search [term]"\n🌤️ **Weather**: "how's the weather"\n🧮 **Math**: "42 + 17"\n📅 **Date**: "what's the date"\n🌐 **Web search**: Ask me anything!\n\nJust ask!`;
+            if (msg.includes('help')) {
+                return `I can help you with:\n\n📊 **Board**: "show leads", "how many tasks"\n🔍 **Find**: "find [name]"\n🌤️ **Weather**: "how's the weather"\n🧮 **Math**: "42 + 17"\n📅 **Date**: "what's the date"\n\nWhat would you like to try?`;
             }
 
-            // Default - try web search
+            // Try web search for other questions
             try {
                 const results = await webSearchAPI(message);
                 if (results && results.length > 0) {
                     return `Here's what I found:\n\n${results.slice(0, 3).map((r, i) => `${i+1}. **${r.title}**\n   ${r.url}`).join('\n\n')}`;
                 }
-            } catch(e) { /* ignore */ }
+            } catch(e) {
+                console.log('Search error:', e);
+            }
 
             // Fallback responses
             const responses = [
-                `Interesting question! I'm not sure I have that information. Try asking about your board, the weather, or something specific!`,
-                `That's a great question! I can help with your task board, web searches, weather, math, and more. What else can I do for you?`,
-                `I'm your AI assistant! Ask me about your cards, leads, board stats, or anything else - I'll help if I can!`
+                `That's a great question! I can help you find cards on your board, check the weather, do math, and more. Try asking me about your leads or the weather!`,
+                `Interesting! I can help with your task board, weather, math, and general questions. What would you like to know?`,
+                `I'm your assistant! Ask me about your board, the weather in Indianapolis, or try a math problem like "25 + 17"!`
             ];
             return responses[Math.floor(Math.random() * responses.length)];
         }
 
-        // Web search helper
+        // Web search helper - use ddg API (no CORS issues)
         async function webSearchAPI(query) {
             try {
-                const response = await fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=5`, {
-                    headers: {
-                        'Authorization': 'Bearer BSAPwRK3JSghITJy_e_7On3HSOP4wT0'
-                    }
-                });
+                // Use DuckDuckGo Instant Answer API
+                const response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1`);
                 const data = await response.json();
-                return data.web ? data.web.results : [];
+                if (data.RelatedTopics && data.RelatedTopics.length > 0) {
+                    return data.RelatedTopics.slice(0, 3).map(r => ({
+                        title: r.Text || '',
+                        url: r.FirstURL || ''
+                    }));
+                }
+                return null;
             } catch(e) {
                 console.log('Search error:', e);
                 return null;
