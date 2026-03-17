@@ -961,13 +961,13 @@
         }
 
         .card-modal {
-            background: #0b1220;
+            background: #1e293b;
             border-radius: 16px;
-            width: min(900px, 100%);
-            max-height: 95vh;
+            width: min(700px, 95%);
+            max-height: 90vh;
             overflow-y: auto;
             color: #f1f5f9;
-            box-shadow: 0 25px 80px rgba(5, 6, 12, 0.6);
+            box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5);
             display: none;
             z-index: 1001;
             position: relative;
@@ -975,162 +975,174 @@
 
         .modal-overlay.active {
             display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding-top: 40px;
+            padding-bottom: 40px;
         }
 
         .card-modal.active {
-            display: flex !important;
+            display: block !important;
         }
 
         .card-modal-header {
-            padding: 24px 24px 0;
+            padding: 20px 24px;
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
-            gap: 12px;
-            flex-wrap: wrap;
+            align-items: center;
+            border-bottom: 1px solid #334155;
+            position: sticky;
+            top: 0;
+            background: #1e293b;
+            z-index: 10;
+        }
+
+        .card-modal-title-section {
+            flex: 1;
+            min-width: 0;
         }
 
         .card-modal-close {
-            width: 40px;
-            height: 40px;
-            border-radius: 999px;
-            border: 1px solid rgba(148, 163, 184, 0.4);
-            background: rgba(15, 23, 42, 0.35);
-            color: #e2e8f0;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            border: none;
+            background: #334155;
+            color: #94a3b8;
             font-size: 18px;
-            line-height: 1;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+            transition: all 0.2s;
+            flex-shrink: 0;
+            margin-left: 12px;
         }
 
         .card-modal-close:hover {
-            background: rgba(56, 189, 248, 0.18);
-            border-color: rgba(56, 189, 248, 0.45);
-            color: #7dd3fc;
-            transform: translateY(-1px);
-        }
-
-        .card-modal-close:focus-visible {
-            outline: 2px solid #7dd3fc;
-            outline-offset: 2px;
+            background: #ef4444;
+            color: white;
         }
 
         .card-modal-save {
-            padding: 6px 14px;
-            border-radius: 6px;
+            padding: 8px 20px;
+            border-radius: 8px;
             border: none;
             background: linear-gradient(135deg, #22c55e, #16a34a);
             color: white;
-            font-size: 13px;
+            font-size: 14px;
             font-weight: 600;
             cursor: pointer;
-            margin-right: 8px;
             flex-shrink: 0;
         }
 
         .card-modal-save:hover {
-            background: linear-gradient(135deg, #16a34a, #22c55e);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
         }
 
         .card-modal-title {
             border: none;
-            font-size: 24px;
+            font-size: 20px;
             font-weight: 600;
             width: 100%;
             background: transparent;
             color: #f8fafc;
+            padding: 0;
         }
 
         .card-modal-subtitle {
-            color: #94a3b8;
+            color: #64748b;
+            font-size: 13px;
+            margin-top: 4px;
         }
 
         .card-modal-title:focus {
-            outline: 2px solid #2563eb;
+            outline: none;
+            box-shadow: 0 0 0 2px #3b82f6;
+            border-radius: 4px;
         }
 
         .card-modal-body {
-            padding: 24px;
+            padding: 20px 24px;
             display: flex;
-            gap: 24px;
-            border-top: 1px solid #162033;
+            flex-direction: column;
+            gap: 20px;
         }
 
         .card-modal-main {
             flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
         }
 
         .card-modal-sidebar {
-            width: 220px;
-        }
-
-        .sidebar-section {
-            margin-bottom: 22px;
-        }
-
-        .sidebar-section-title {
-            font-size: 11px;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-            font-weight: 600;
-            color: #94a3b8;
-            margin-bottom: 10px;
+            display: none;
         }
 
         .modal-section {
-            margin-bottom: 24px;
+            background: #0f172a;
+            border-radius: 12px;
+            padding: 16px;
         }
 
         .modal-section-title {
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 600;
             margin-bottom: 12px;
-            color: #cbd5f5;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
 
         textarea.description-textarea {
             width: 100%;
-            min-height: 120px;
-            border-radius: 12px;
+            min-height: 100px;
+            border-radius: 8px;
             padding: 12px;
-            border: 1px solid #1f2937;
-            background: #111827;
+            border: 1px solid #334155;
+            background: #1e293b;
             color: #f1f5f9;
             font-size: 14px;
             resize: vertical;
+            font-family: inherit;
+        }
+
+        textarea.description-textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
         }
 
         .contact-fields {
-            display: flex;
-            flex-direction: column;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
             gap: 10px;
         }
 
         .contact-input {
             width: 100%;
             padding: 10px 14px;
-            border-radius: 10px;
-            border: 1px solid #1f2937;
-            background: #111827;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            background: #1e293b;
             color: #f1f5f9;
             font-size: 14px;
         }
 
         .contact-input::placeholder {
-            color: #6b7280;
+            color: #64748b;
         }
 
         .contact-input:focus {
             outline: none;
-            border-color: #7dd3fc;
+            border-color: #3b82f6;
         }
 
         .lead-fields {
-            display: flex;
-            flex-direction: column;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
             gap: 10px;
         }
 
@@ -1206,11 +1218,33 @@
         .checklist-input,
         input[type="date"] {
             width: 100%;
-            border: 1px solid #1f2937;
-            border-radius: 10px;
+            border: 1px solid #334155;
+            border-radius: 8px;
             padding: 10px;
-            background: #111827;
+            background: #1e293b;
             color: #f1f5f9;
+            font-size: 14px;
+        }
+
+        .checklist-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            background: #1e293b;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+
+        .checklist-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .checklist-item.checked .checklist-item-text {
+            text-decoration: line-through;
+            color: #64748b;
         }
 
         .activity-list {
@@ -1222,12 +1256,13 @@
         .activity-item {
             display: flex;
             gap: 12px;
-            color: #e2e8f0;
+            color: #94a3b8;
+            font-size: 13px;
         }
 
         .activity-avatar {
-            width: 32px;
-            height: 32px;
+            width: 24px;
+            height: 24px;
             border-radius: 50%;
             display: grid;
             place-items: center;
@@ -1936,38 +1971,41 @@
         <div class="card-modal" id="card-modal" onclick="event.stopPropagation()">
             <div class="card-modal-header">
                 <div class="card-modal-title-section">
-                    <input type="text" class="card-modal-title" id="modal-card-title">
-                    <div class="card-modal-subtitle">in list <span id="modal-list-name">To Do</span> <span id="modal-created-info"></span></div>
+                    <input type="text" class="card-modal-title" id="modal-card-title" placeholder="Card title...">
+                    <div class="card-modal-subtitle">in <span id="modal-list-name">list</span> • <span id="modal-created-info"></span></div>
                 </div>
                 <button class="card-modal-save" onclick="saveCardAndClose()">Save</button>
                 <button class="card-modal-close" onclick="closeCardModal()">×</button>
             </div>
             <div class="card-modal-body">
                 <div class="card-modal-main">
-                    <!-- Priority at the top -->
+                    <!-- Priority -->
                     <div class="modal-section">
                         <div class="modal-section-title">Priority</div>
-                        <select class="contact-input priority-select" id="modal-priority" onchange="updateContactField('priority')">
+                        <select class="contact-input" id="modal-priority" style="width: 100%;">
                             <option value="">None</option>
-                            <option value="hot">🔥 Hot (Red)</option>
-                            <option value="warm">🌡️ Warm (Yellow)</option>
-                            <option value="cold">❄️ Cold (Blue)</option>
+                            <option value="hot">🔥 Hot</option>
+                            <option value="warm">🌡️ Warm</option>
+                            <option value="cold">❄️ Cold</option>
                         </select>
                     </div>
+
+                    <!-- Contact Info -->
                     <div class="modal-section">
-                        <div class="modal-section-title">Lead Info</div>
+                        <div class="modal-section-title">Contact</div>
                         <div class="contact-fields">
-                            <input type="text" class="contact-input" id="modal-contact-name" placeholder="Contact Name" onchange="updateContactField('contactName')">
-                            <input type="email" class="contact-input" id="modal-email" placeholder="Email" onchange="updateContactField('email')">
-                            <input type="tel" class="contact-input" id="modal-phone" placeholder="Phone" onchange="updateContactField('phone')">
-                            <input type="tel" class="contact-input" id="modal-phone2" placeholder="Secondary Phone" onchange="updateContactField('phone2')">
-                            <input type="text" class="contact-input" id="modal-business-name" placeholder="Business Name" onchange="updateContactField('businessName')">
+                            <input type="text" class="contact-input" id="modal-contact-name" placeholder="Contact Name">
+                            <input type="text" class="contact-input" id="modal-business-name" placeholder="Business Name">
+                            <input type="email" class="contact-input" id="modal-email" placeholder="Email">
+                            <input type="tel" class="contact-input" id="modal-phone" placeholder="Phone">
                         </div>
                     </div>
+
+                    <!-- Lead Details -->
                     <div class="modal-section">
                         <div class="modal-section-title">Lead Details</div>
                         <div class="lead-fields">
-                            <select class="contact-input" id="modal-lead-source" onchange="updateContactField('leadSource')">
+                            <select class="contact-input" id="modal-lead-source">
                                 <option value="">Lead Source</option>
                                 <option value="website">Website</option>
                                 <option value="referral">Referral</option>
@@ -1976,50 +2014,24 @@
                                 <option value="advertisement">Advertisement</option>
                                 <option value="other">Other</option>
                             </select>
-                            <input type="text" class="contact-input" id="modal-estimated-value" placeholder="Estimated Value ($)" onchange="updateContactField('estimatedValue')">
+                            <input type="text" class="contact-input" id="modal-estimated-value" placeholder="Estimated Value ($)">
                         </div>
                     </div>
+
+                    <!-- Description -->
                     <div class="modal-section">
                         <div class="modal-section-title">Description</div>
-                        <textarea class="description-textarea" id="modal-description" placeholder="Add a more detailed description..."></textarea>
+                        <textarea class="description-textarea" id="modal-description" placeholder="Add details..."></textarea>
                     </div>
+
+                    <!-- Checklist -->
                     <div class="modal-section">
                         <div class="modal-section-title">Checklist</div>
                         <div class="checklist-items" id="modal-checklist"></div>
-                        <div class="checklist-add">
-                            <input type="text" class="checklist-input" id="checklist-input" placeholder="Add an item...">
-                            <button class="btn-add-item" onclick="addChecklistItem()">Add</button>
+                        <div style="display: flex; gap: 8px; margin-top: 12px;">
+                            <input type="text" class="contact-input" id="checklist-input" placeholder="Add item..." style="flex: 1;">
+                            <button class="card-modal-save" onclick="addChecklistItem()" style="padding: 8px 16px;">Add</button>
                         </div>
-                    </div>
-                    <div class="modal-section">
-                        <div class="modal-section-title">Activity</div>
-                        <div class="activity-list" id="modal-activity"></div>
-                    </div>
-                </div>
-                <div class="card-modal-sidebar">
-                    <div class="sidebar-section">
-                        <div class="sidebar-section-title">Assigned To</div>
-                        <div class="assignee-display" id="modal-assignee">Flow AI</div>
-                        <button class="sidebar-btn" onclick="changeAssignee()">Change</button>
-                    </div>
-                    <div class="sidebar-section">
-                        <div class="sidebar-section-title">Due Date</div>
-                        <div class="due-date-display" id="modal-due-date">
-                            <input type="date" id="due-date-input" onchange="updateDueDate()">
-                        </div>
-                        <button class="sidebar-btn" onclick="removeDueDate()">Remove date</button>
-                    </div>
-                    <div class="sidebar-section">
-                        <div class="sidebar-section-title">Labels</div>
-                        <button class="sidebar-btn" onclick="openLabelPicker()">Add label</button>
-                    </div>
-                    <div class="sidebar-section">
-                        <div class="sidebar-section-title">Flow AI</div>
-                        <button class="sidebar-btn" onclick="sendCardToFlowAI()">Send to Flow AI</button>
-                    </div>
-                    <div class="sidebar-section">
-                        <div class="sidebar-section-title">Danger</div>
-                        <button class="sidebar-btn danger" onclick="deleteCard()">Delete card</button>
                     </div>
                 </div>
             </div>
