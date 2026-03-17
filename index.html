@@ -1667,172 +1667,59 @@
             margin: 4px 0;
         }
 
-        /* List View - Cards stacked vertically, same styling as card view */
+        /* List View - Just stack cards vertically, same as card view */
         @media (max-width: 768px) {
             .board.list-view {
-                flex-direction: column !important;
-                padding: 12px !important;
-                gap: 24px !important;
-                overflow-y: auto !important;
-                overflow-x: hidden !important;
-                -webkit-overflow-scrolling: touch;
-                height: auto !important;
-                min-height: calc(100vh - 140px) !important;
-                width: 100% !important;
-                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                padding: 12px;
+                gap: 0;
             }
 
             .board.list-view .board-lists {
-                display: flex !important;
-                flex-direction: column !important;
-                width: 100% !important;
-                gap: 24px !important;
-                padding: 0 !important;
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+                width: 100%;
             }
 
             .board.list-view .list {
-                width: 100% !important;
-                max-width: 100% !important;
-                min-width: 100% !important;
-                background: transparent !important;
-                padding: 0 !important;
+                display: flex;
+                flex-direction: column;
+                width: 100%;
+                min-width: 100%;
+                max-width: 100%;
+                background: transparent;
+                padding: 0;
+                margin: 0;
             }
 
             .board.list-view .list-header {
-                display: none !important;
+                display: none;
             }
 
             .board.list-view .cards-container {
-                display: flex !important;
-                flex-direction: column !important;
-                gap: 16px !important;
-                padding: 0 4px !important;
-                width: 100% !important;
-                box-sizing: border-box;
-            }
-
-            /* Use exact same card styling as card view */
-            .board.list-view .card {
-                background: #fff !important;
-                border-radius: 12px !important;
-                padding: 14px !important;
-                cursor: pointer;
-                box-shadow: 0 12px 25px rgba(15, 23, 42, 0.08) !important;
-                transition: transform 0.18s, box-shadow 0.18s;
-                width: 100% !important;
-                box-sizing: border-box;
-                margin: 0 !important;
-            }
-
-            .board.list-view .card:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 16px 30px rgba(15, 23, 42, 0.15) !important;
-            }
-
-            .board.list-view .card-lead-meta {
-                display: flex !important;
-                gap: 8px;
-                flex-wrap: wrap;
-                margin-bottom: 8px;
-                font-size: 11px;
-                color: #6b7280;
-            }
-
-            .board.list-view .card-lead-meta,
-            .board.list-view .card-labels,
-            .board.list-view .card-footer,
-            .board.list-view .card-meta {
-                display: block !important;
-                visibility: visible !important;
-                opacity: 1 !important;
-            }
-
-            .board.list-view .card-labels {
-                display: flex !important;
-                gap: 6px;
-                flex-wrap: wrap;
-                margin-bottom: 10px;
-            }
-
-            .board.list-view .card-label-text {
-                padding: 2px 8px;
-                border-radius: 999px;
-                font-size: 11px;
-                font-weight: 600;
-                color: #fff;
-            }
-
-            .board.list-view .card-content {
-                font-size: 14px !important;
-                font-weight: 600 !important;
-                color: #111827 !important;
-                margin-bottom: 10px !important;
-                line-height: 1.4;
-                display: block !important;
-            }
-
-            .board.list-view .card-footer {
-                display: flex !important;
-                justify-content: space-between;
-                align-items: center;
-                gap: 10px;
-                flex-wrap: wrap;
-            }
-
-            .board.list-view .card-meta {
-                display: flex !important;
-                align-items: center;
+                display: flex;
+                flex-direction: column;
                 gap: 12px;
-                flex-wrap: wrap;
+                padding: 0;
+                width: 100%;
             }
 
-            .board.list-view .card-meta-item {
-                display: flex !important;
-                align-items: center;
-                gap: 4px;
-                font-size: 12px;
-                color: #6b7280;
-            }
-
-            .board.list-view .card-assignee {
-                display: flex !important;
-                align-items: center;
-            }
-
-            .board.list-view .card-assignee .avatar {
-                width: 24px;
-                height: 24px;
-                font-size: 10px;
-                border-radius: 50%;
-            }
-
-            .board.list-view .quick-info {
-                display: none !important;
+            .board.list-view .card {
+                background: #fff;
+                border-radius: 12px;
+                padding: 14px;
+                cursor: pointer;
+                box-shadow: 0 12px 25px rgba(15, 23, 42, 0.08);
+                width: 100%;
+                box-sizing: border-box;
+                margin: 0;
             }
 
             .board.list-view .add-card-btn,
             .board.list-view .add-list-btn {
-                display: none !important;
-            }
-        }
-
-        /* Even smaller screens */
-        @media (max-width: 480px) {
-            .board.list-view {
-                padding: 10px !important;
-                gap: 20px !important;
-            }
-
-            .board.list-view .board-lists {
-                gap: 20px !important;
-            }
-
-            .board.list-view .cards-container {
-                gap: 12px !important;
-            }
-
-            .board.list-view .card {
-                padding: 12px !important;
+                display: none;
             }
         }
 
