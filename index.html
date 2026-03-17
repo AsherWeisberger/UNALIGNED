@@ -2703,7 +2703,7 @@
 
             card.addEventListener('dragstart', drag);
             card.addEventListener('dragend', dragEnd);
-            card.addEventListener('click', () => openCardModal(cardData.id));
+            card.onclick = function() { openCardModal(cardData.id); };
 
             // Touch/swipe support for mobile
             let touchStartX = 0;
