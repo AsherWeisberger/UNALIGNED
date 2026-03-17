@@ -2709,7 +2709,14 @@
 
             card.addEventListener('dragstart', drag);
             card.addEventListener('dragend', dragEnd);
-            card.onclick = function() { console.log('Card clicked:', cardData.id); openCardModal(cardData.id); };
+            card.onclick = function() { 
+                console.log('Card clicked:', cardData.id); 
+                try {
+                    openCardModal(cardData.id); 
+                } catch(e) {
+                    console.error('Error opening card:', e);
+                }
+            };
 
             // Touch/swipe support for mobile
             let touchStartX = 0;
