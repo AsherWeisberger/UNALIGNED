@@ -2913,8 +2913,15 @@
 
         // Card modal
         function openCardModal(cardId) {
+            console.log('Opening card modal for:', cardId);
             currentEditingCard = cardId;
             currentEditingCardData = cardsData[cardId];
+            
+            // Debug: check modal elements
+            const modal = document.getElementById('card-modal-overlay');
+            console.log('Modal element:', modal);
+            console.log('Modal class before:', modal.className);
+            
             const titleInput = document.getElementById('modal-card-title');
             const descriptionInput = document.getElementById('modal-description');
             titleInput.value = currentEditingCardData.title;
