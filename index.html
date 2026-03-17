@@ -1673,6 +1673,9 @@
                 flex-direction: column;
                 padding: 10px;
                 gap: 16px;
+                overflow-y: auto;
+                overflow-x: hidden;
+                height: calc(100vh - 160px);
             }
 
             .board.list-view .board-lists {
@@ -1680,33 +1683,34 @@
                 flex-direction: column;
                 width: 100%;
                 gap: 20px;
+                flex: 1;
             }
 
             .board.list-view .list {
                 min-width: 100% !important;
                 max-width: 100% !important;
-                background: rgba(15, 23, 42, 0.4);
+                background: #f8fafc;
                 border-radius: 12px;
-                border: 1px solid rgba(255, 255, 255, 0.1);
+                border: 1px solid #e2e8f0;
                 overflow: hidden;
             }
 
             .board.list-view .list-header {
-                background: linear-gradient(135deg, rgba(125, 211, 252, 0.2), rgba(56, 239, 125, 0.1));
+                background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
                 padding: 12px 14px;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                border-bottom: 1px solid #cbd5e1;
             }
 
             .board.list-view .list-header h3 {
                 font-size: 15px;
                 font-weight: 700;
-                color: #fff;
+                color: #0f172a;
                 margin: 0;
             }
 
             .board.list-view .list-header .list-meta {
                 font-size: 11px;
-                color: #94a3b8;
+                color: #64748b;
             }
 
             .board.list-view .cards-container {
@@ -1717,15 +1721,17 @@
 
             .board.list-view .card {
                 padding: 12px;
-                background: #1e293b;
+                background: #fff;
                 border-radius: 8px;
+                border: 1px solid #e2e8f0;
                 cursor: pointer;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             }
 
             .board.list-view .card-content {
                 font-size: 14px;
                 font-weight: 600;
-                color: #fff;
+                color: #0f172a;
                 margin: 0;
             }
 
@@ -1738,7 +1744,7 @@
                 gap: 10px;
                 margin-top: 8px;
                 font-size: 11px;
-                color: #94a3b8;
+                color: #64748b;
             }
 
             .board.list-view .add-card-btn,
