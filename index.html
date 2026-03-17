@@ -41,6 +41,43 @@
             flex-shrink: 0;
         }
 
+        /* Mobile Ask Hubble */
+        .filters-mobile {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .filters-mobile {
+                display: block;
+                padding: 12px;
+                background: rgba(0,0,0,0.3);
+            }
+            
+            .ask-hubble-mobile-input {
+                width: 100%;
+                background: rgba(255, 255, 255, 0.1);
+                color: #fff;
+                border: 2px solid rgba(11, 147, 246, 0.4);
+                border-radius: 20px;
+                padding: 12px 16px;
+                font-size: 15px;
+            }
+            
+            .ask-hubble-mobile-input:focus {
+                outline: none;
+                border-color: #0b93f6;
+            }
+            
+            .ask-hubble-mobile-input::placeholder {
+                color: rgba(255,255,255,0.5);
+            }
+            
+            /* Hide desktop Ask Hubble on mobile */
+            .ask-hubble-section {
+                display: none;
+            }
+        }
+
         .ask-hubble-wrapper {
             max-width: 700px;
             margin: 0 auto;
@@ -1489,25 +1526,27 @@
             /* Header */
             header {
                 padding: 12px;
-                flex-wrap: nowrap;
-                overflow-x: auto;
-                -webkit-overflow-scrolling: touch;
+                flex-wrap: wrap;
+                justify-content: center;
                 gap: 8px;
+                text-align: center;
+            }
+
+            .header-left {
+                width: 100%;
+                text-align: center;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
             }
 
             .logo {
-                font-size: 18px;
+                font-size: 28px;
                 flex-shrink: 0;
             }
 
             .subtitle {
                 font-size: 11px;
-                flex-shrink: 0;
-            }
-
-            .header-left {
-                display: flex;
-                flex-direction: column;
                 flex-shrink: 0;
             }
 
@@ -1815,12 +1854,6 @@
                     </svg>
                     Command Palette
                 </button>
-                <button class="menu-btn" onclick="openChatModal()">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                    </svg>
-                    Ask Hubble
-                </button>
             </div>
         </header>
     <div class="sync-warning" id="sync-warning" role="alert" aria-live="polite"></div>
@@ -1829,18 +1862,15 @@
         <span data-sync-text>Connecting…</span>
     </div>
 
-    <!-- ASK HUBBLE SECTION - Always Visible -->
-    <section class="ask-hubble-section">
-        <div class="ask-hubble-wrapper">
-            <input type="search" class="ask-hubble-main-input" id="filter-search" placeholder="💬 Ask Hubble anything... (math, weather, your data)" aria-label="Ask Hubble" onkeydown="handleSearchKey(event)">
-            <button class="ask-hubble-main-btn" onclick="handleAskHubbleClick()">Ask</button>
-        </div>
-    </section>
-
     <main style="flex:1; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch;">
         <section class="flow-map" id="flow-map" aria-label="Flow snapshot"></section>
 
-        <!-- Hidden filters on desktop - Ask Hubble is main now -->
+        <!-- Ask Hubble Search + Filters -->
+        <section class="filters-mobile">
+            <input type="search" class="ask-hubble-mobile-input" id="filter-search" placeholder="💬 Ask Hubble..." aria-label="Ask Hubble" onkeydown="handleSearchKey(event)">
+        </section>
+
+        <!-- Hidden filters on desktop -->
         <section class="filters filters-compact" style="display:none">
                 <input type="checkbox" id="filter-mine">
                 Show only mine
