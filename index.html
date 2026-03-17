@@ -3019,10 +3019,23 @@
 
                 renderCard(currentEditingCardData);
                 window.justSaved = Date.now();
-                saveBoardStateNow();
+                
+                // Save to Firestore
+                saveBoardStateNow().then(() => {
+                    console.log('Saved to Firestore successfully');
+                }).catch(err => {
+                    console.error('Save failed:', err);
+                });
+                
                 updateFlowMap();
             }
-            document.getElementById('card-modal-overlay').classList.remove('active');
+            
+            // Close modal properly
+            const overlay = document.getElementById('card-modal-overlay');
+            overlay.classList.remove('active');
+            overlay.style.display = 'none';
+            document.getElementById('card-modal').style.display = 'none';
+            
             currentEditingCard = null;
             currentEditingCardData = null;
         }
@@ -3032,6 +3045,8 @@
                 document.getElementById('card-modal-overlay').classList.remove('active');
                 document.getElementById('card-modal-overlay').style.display = 'none';
                 document.getElementById('card-modal').style.display = 'none';
+                currentEditingCard = null;
+                currentEditingCardData = null;
             }
         }
 
