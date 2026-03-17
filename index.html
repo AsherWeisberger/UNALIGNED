@@ -1691,23 +1691,40 @@
                 flex-direction: column !important;
                 overflow-y: scroll !important;
                 overflow-x: hidden !important;
-                height: 100% !important;
+                height: auto !important;
+                min-height: 100vh !important;
                 padding: 10px !important;
                 box-sizing: border-box !important;
+                width: 100% !important;
+                margin: 0 !important;
             }
             .board.list-view .board-lists {
                 display: flex !important;
                 flex-direction: column !important;
                 gap: 20px !important;
                 width: 100% !important;
+                max-width: 100% !important;
+                margin: 0 auto !important;
             }
             .board.list-view .list {
                 width: 100% !important;
                 max-width: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
             }
             .board.list-view .list-header {
                 display: flex !important;
                 margin-bottom: 10px !important;
+            }
+            .board.list-view .cards-container {
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+            .board.list-view .card {
+                width: 100% !important;
+                max-width: 100% !important;
+                margin: 0 0 10px 0 !important;
+                box-sizing: border-box !important;
             }
         }
 
