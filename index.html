@@ -1334,6 +1334,22 @@
             border-radius: 24px 24px 0 0;
         }
 
+        .chat-agent-select {
+            background: #2c2c2e;
+            color: #fff;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .chat-agent-select option {
+            background: #2c2c2e;
+            color: #fff;
+        }
+
         .chat-title {
             display: flex;
             align-items: center;
@@ -2179,13 +2195,17 @@
             <div class="chat-header">
                 <div class="chat-title">
                     <span class="avatar" style="background: linear-gradient(135deg, #11998e, #38ef7d);">HB</span>
-                    <span>Ask Hubble</span>
+                    <span id="chat-agent-name">Hubble</span>
                 </div>
+                <select class="chat-agent-select" id="agent-select" onchange="changeAgent(this.value)">
+                    <option value="general">General</option>
+                    <option value="sales">Sales Agent</option>
+                </select>
                 <button class="card-modal-close" onclick="closeChatModal()">×</button>
             </div>
             <div class="chat-messages" id="chat-messages">
                 <div class="chat-message hubble">
-                    <div class="chat-bubble">Hi! I'm Hubble. Ask me anything about your board, leads, or workflow. I can check things but won't make any changes unless you ask.</div>
+                    <div class="chat-bubble">Hi! I'm Hubble. Use the dropdown above to switch between:\n\n🤖 General - helps with everything\n💼 Sales Agent - contacts your leads\n\nWhat would you like to know?</div>
                 </div>
             </div>
             <div class="chat-input-area">
@@ -3955,7 +3975,12 @@
 
             setTimeout(async () => {
                 removeTypingIndicator();
-                const response = await generateChatResponse(message);
+                let response;
+                if (currentAgent === 'sales') {
+                    response = await generateSalesResponse(message);
+                } else {
+                    response = await generateChatResponse(message);
+                }
                 addChatMessage(response, 'hubble');
             }, 500);
         }
@@ -3967,6 +3992,124 @@
             div.innerHTML = `<div class="chat-bubble">${escapeHtml(text)}</div>`;
             container.appendChild(div);
             container.scrollTop = container.scrollHeight;
+        }
+
+        // Agent system
+        let currentAgent = 'general';
+        
+        function changeAgent(agent) {
+            currentAgent = agent;
+            const nameEl = document.getElementById('chat-agent-name');
+            
+            if (agent === 'sales') {
+                nameEl.textContent = 'Sales Agent';
+                addChatMessage("👋 Hi! I'm your Sales Agent. I can help you:\n\n🎯 Find and manage leads\n📞 Get contact info (email, phone)\n📧 Open email to contact leads\n📊 Check your pipeline\n\nJust tell me which lead you want to contact!", 'hubble');
+            } else {
+                nameEl.textContent = 'Hubble';
+                addChatMessage("Hi! I'm Hubble, your general assistant. I can help with your board, weather, math, and more!", 'hubble');
+            }
+        }
+
+        window.changeAgent = changeAgent;
+
+        // SALES AGENT - Generate response for sales-focused tasks
+        async function generateSalesResponse(message) {
+            const msg = message.toLowerCase();
+            const allCards = Object.values(cardsData);
+            
+            // Show all leads in discovery
+            if (msg.includes('show') || msg.includes('list') || msg.includes('leads') || msg.includes('all') || msg.includes('pipeline')) {
+                const leads = allCards.filter(c => c.listId === 'discovery');
+                if (leads.length === 0) return "No leads in Discovery! Time to get some! 🎯";
+                
+                return `🎯 Your ${leads.length} Lead(s) in Discovery:\n\n` +
+                    leads.map((l, i) => `${i+1}. **${l.title}**\n   Business: ${l.businessName || 'N/A'}\n   Contact: ${l.contactName || 'N/A'}\n   Email: ${l.email || 'N/A'}\n   Phone: ${l.phone || 'N/A'}\n   Value: $${l.estimatedValue || '0'}\n   Priority: ${l.priority || 'medium'}`).join('\n\n') +
+                    `\n\n💡 Tell me a number (like "1" or "2") to contact that lead!`;
+            }
+            
+            // Get specific lead by name or number
+            const leadNum = message.match(/^(\d+)$/);
+            const leads = allCards.filter(c => c.listId === 'discovery');
+            
+            if (leadNum && leads[parseInt(leadNum[1]) - 1]) {
+                const lead = leads[parseInt(leadNum[1]) - 1];
+                let response = `📋 **${lead.title}**\n\n`;
+                if (lead.businessName) response += `🏢 Business: ${lead.businessName}\n`;
+                if (lead.contactName) response += `👤 Contact: ${lead.contactName}\n`;
+                if (lead.email) response += `📧 Email: ${lead.email}\n`;
+                if (lead.phone) response += `📱 Phone: ${lead.phone}\n`;
+                if (lead.estimatedValue) response += `💰 Value: $${lead.estimatedValue}\n`;
+                if (lead.priority) response += `🔥 Priority: ${lead.priority}\n`;
+                
+                response += `\n\nWhat would you like to do?`;
+                return response;
+            }
+            
+            // Search for a specific lead
+            const searchTerms = message.toLowerCase();
+            const matches = leads.filter(l => {
+                const searchable = [l.title, l.businessName, l.contactName, l.email].join(' ').toLowerCase();
+                return searchable.includes(searchTerms);
+            });
+            
+            if (matches.length > 0) {
+                const lead = matches[0];
+                let response = `Found: **${lead.title}**\n\n`;
+                if (lead.email) response += `📧 Email: ${lead.email}\n`;
+                if (lead.phone) response += `📱 Phone: ${lead.phone}\n`;
+                if (lead.businessName) response += `🏢 Business: ${lead.businessName}\n`;
+                return response + `\n\nWould you like me to open an email to contact them?`;
+            }
+            
+            // Contact lead - open email
+            if (msg.includes('contact') || msg.includes('email') || msg.includes('send') || msg.includes('write')) {
+                let targetLead = null;
+                const numMatch = message.match(/(\d+)/);
+                if (numMatch && leads[parseInt(numMatch[1]) - 1]) {
+                    targetLead = leads[parseInt(numMatch[1]) - 1];
+                }
+                
+                if (!targetLead) {
+                    const searchTerms = message.replace(/contact|email|send|write|to|the/gi, '').trim();
+                    const matches = leads.filter(l => 
+                        l.title.toLowerCase().includes(searchTerms) ||
+                        (l.businessName && l.businessName.toLowerCase().includes(searchTerms))
+                    );
+                    if (matches.length > 0) targetLead = matches[0];
+                }
+                
+                if (!targetLead && leads.length > 0) {
+                    targetLead = leads[0];
+                }
+                
+                if (targetLead) {
+                    const subject = encodeURIComponent(`Following up on our conversation`);
+                    const body = encodeURIComponent(`Hi${targetLead.contactName ? ' ' + targetLead.contactName : ''},\n\nI wanted to reach out regarding ${targetLead.title}. Let's schedule a time to discuss how we can help.\n\nBest regards`);
+                    
+                    if (targetLead.email) {
+                        window.open(`mailto:${targetLead.email}?subject=${subject}&body=${body}`, '_blank');
+                        return `📧 Opened email to ${targetLead.email}! Let me know if you need to customize the message.`;
+                    } else {
+                        return `That lead doesn't have an email on file. Would you like me to call them instead? Phone: ${targetLead.phone || 'Not available'}`;
+                    }
+                }
+                return "I couldn't find a lead to contact. Try asking me to show leads first!";
+            }
+            
+            // Stats
+            if (msg.includes('stats') || msg.includes('how many') || msg.includes('count')) {
+                const counts = {};
+                allCards.forEach(c => { counts[c.listId] = (counts[c.listId] || 0) + 1; });
+                const total = allCards.length;
+                return `📊 Pipeline Stats:\n\n🎯 Leads: ${counts['discovery'] || 0}\n⚡ In Progress: ${counts['build'] || 0}\n✅ Closed: ${counts['done'] || 0}\n📦 Total: ${total}`;
+            }
+            
+            // Help
+            if (msg.includes('help') || msg.includes('what can you do')) {
+                return `🎯 **Sales Agent Commands:**\n\n• "show leads" - List all leads in pipeline\n• "show lead 1" - Get details of lead #1\n• "contact lead 1" - Open email to contact them\n• "search [name]" - Find a specific lead\n• "stats" - Pipeline overview\n\n💡 Just say which lead you want to contact!`;
+            }
+            
+            return "I'm your Sales Agent! Try \"show leads\" to see your pipeline, or tell me which lead you want to contact!";
         }
 
         function showTypingIndicator() {
@@ -4092,7 +4235,7 @@
 
             // Who are you
             if (msg.includes('who are you') || msg.includes('what are you') || msg.includes('what can you do') || msg.includes('your name')) {
-                return `I'm an AI assistant for this website. I can help you with:\n\n• Finding cards and leads on your board\n• Checking board stats and progress\n• Weather information\n• Math calculations\n• Answering general questions\n\nWhat would you like to know?`;
+                return `I'm an AI assistant for this website. You can switch between different agents using the dropdown above:\n\n🤖 **General** - Me! I can help with your board, weather, math, and general questions\n\n💼 **Sales Agent** - Specializes in leads, pipeline, and contacting prospects\n\nWhat would you like to know?`;
             }
 
             // Greetings
