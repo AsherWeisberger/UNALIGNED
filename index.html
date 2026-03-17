@@ -1670,61 +1670,63 @@
         /* List View - Cards stacked vertically, same styling as card view */
         @media (max-width: 768px) {
             .board.list-view {
-                flex-direction: column;
-                padding: 12px;
-                gap: 24px;
-                overflow-y: scroll;
-                overflow-x: hidden;
+                flex-direction: column !important;
+                padding: 12px !important;
+                gap: 24px !important;
+                overflow-y: auto !important;
+                overflow-x: hidden !important;
                 -webkit-overflow-scrolling: touch;
-                height: auto;
-                min-height: calc(100vh - 140px);
-                width: 100%;
+                height: auto !important;
+                min-height: calc(100vh - 140px) !important;
+                width: 100% !important;
                 box-sizing: border-box;
             }
 
             .board.list-view .board-lists {
-                display: flex;
-                flex-direction: column;
-                width: 100%;
-                gap: 24px;
-                padding: 0;
+                display: flex !important;
+                flex-direction: column !important;
+                width: 100% !important;
+                gap: 24px !important;
+                padding: 0 !important;
             }
 
             .board.list-view .list {
-                width: 100%;
-                max-width: 100%;
-                background: transparent;
-                padding: 0;
+                width: 100% !important;
+                max-width: 100% !important;
+                min-width: 100% !important;
+                background: transparent !important;
+                padding: 0 !important;
             }
 
             .board.list-view .list-header {
-                display: none;
+                display: none !important;
             }
 
             .board.list-view .cards-container {
-                display: flex;
-                flex-direction: column;
-                gap: 16px;
-                padding: 0 4px;
-                width: 100%;
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 16px !important;
+                padding: 0 4px !important;
+                width: 100% !important;
                 box-sizing: border-box;
             }
 
             /* Use exact same card styling as card view */
             .board.list-view .card {
-                background: #fff;
-                border-radius: 12px;
-                padding: 14px;
+                background: #fff !important;
+                border-radius: 12px !important;
+                padding: 14px !important;
                 cursor: pointer;
-                box-shadow: 0 12px 25px rgba(15, 23, 42, 0.08);
+                box-shadow: 0 12px 25px rgba(15, 23, 42, 0.08) !important;
                 transition: transform 0.18s, box-shadow 0.18s;
-                width: 100%;
+                width: 100% !important;
                 box-sizing: border-box;
+                margin: 0 !important;
             }
 
             .board.list-view .card:hover {
                 transform: translateY(-2px);
-                box-shadow: 0 16px 30px rgba(15, 23, 42, 0.15);
+                box-shadow: 0 16px 30px rgba(15, 23, 42, 0.15) !important;
             }
 
             .board.list-view .card-labels {
@@ -1787,41 +1789,31 @@
 
             .board.list-view .add-card-btn,
             .board.list-view .add-list-btn {
-                display: none;
+                display: none !important;
+            }
+        }
+
+        /* Even smaller screens */
+        @media (max-width: 480px) {
+            .board.list-view {
+                padding: 10px !important;
+                gap: 20px !important;
+            }
+
+            .board.list-view .board-lists {
+                gap: 20px !important;
+            }
+
+            .board.list-view .cards-container {
+                gap: 12px !important;
+            }
+
+            .board.list-view .card {
+                padding: 12px !important;
             }
         }
 
         /* Quick info shown in collapsed list view */
-        .board.list-view .card::after {
-            content: '';
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .board.list-view .card .quick-info {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            margin-left: auto;
-            font-size: 11px;
-            color: #6b7280;
-        }
-
-        .board.list-view .card .quick-info span {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-
-        .board.list-view .card.expanded::after {
-            display: none;
-        }
-
-        .board.list-view .card:not(.expanded) .card-assignee {
-            display: none;
-        }
-
         @media (max-width: 480px) {
             /* Login modal */
             .login-container {
