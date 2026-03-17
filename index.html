@@ -1687,11 +1687,12 @@
                 gap: 16px;
                 flex: 1;
                 box-sizing: border-box;
+                padding: 0 12px;
             }
 
             .board.list-view .list {
-                width: 100%;
-                box-sizing: border-box;
+                width: calc(100vw - 36px) !important;
+                max-width: calc(100vw - 36px) !important;
                 background: #f8fafc;
                 border-radius: 12px;
                 border: 1px solid #e2e8f0;
@@ -1726,7 +1727,7 @@
             }
 
             .board.list-view .card {
-                width: 100%;
+                width: calc(100vw - 60px) !important;
                 box-sizing: border-box;
                 padding: 12px;
                 background: #fff;
