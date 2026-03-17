@@ -1676,19 +1676,22 @@
                 overflow-y: auto;
                 overflow-x: hidden;
                 height: calc(100vh - 160px);
+                box-sizing: border-box;
+                width: 100%;
             }
 
             .board.list-view .board-lists {
                 display: flex;
                 flex-direction: column;
                 width: 100%;
-                gap: 20px;
+                gap: 16px;
                 flex: 1;
+                box-sizing: border-box;
             }
 
             .board.list-view .list {
-                min-width: 100% !important;
-                max-width: 100% !important;
+                width: 100%;
+                box-sizing: border-box;
                 background: #f8fafc;
                 border-radius: 12px;
                 border: 1px solid #e2e8f0;
@@ -1699,6 +1702,7 @@
                 background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
                 padding: 12px 14px;
                 border-bottom: 1px solid #cbd5e1;
+                box-sizing: border-box;
             }
 
             .board.list-view .list-header h3 {
@@ -1717,9 +1721,13 @@
                 flex-direction: column;
                 gap: 8px;
                 padding: 12px;
+                box-sizing: border-box;
+                width: 100%;
             }
 
             .board.list-view .card {
+                width: 100%;
+                box-sizing: border-box;
                 padding: 12px;
                 background: #fff;
                 border-radius: 8px;
@@ -1733,6 +1741,8 @@
                 font-weight: 600;
                 color: #0f172a;
                 margin: 0;
+                word-wrap: break-word;
+                overflow-wrap: break-word;
             }
 
             .board.list-view .card-labels {
@@ -1745,6 +1755,7 @@
                 margin-top: 8px;
                 font-size: 11px;
                 color: #64748b;
+                flex-wrap: wrap;
             }
 
             .board.list-view .add-card-btn,
