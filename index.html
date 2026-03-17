@@ -1041,6 +1041,24 @@
             box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
         }
 
+        .delete-card-btn {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #ef4444;
+            background: transparent;
+            color: #ef4444;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .delete-card-btn:hover {
+            background: #ef4444;
+            color: white;
+        }
+
         .card-modal-title {
             border: none;
             font-size: 20px;
@@ -2032,6 +2050,11 @@
                             <input type="text" class="contact-input" id="checklist-input" placeholder="Add item..." style="flex: 1;">
                             <button class="card-modal-save" onclick="addChecklistItem()" style="padding: 8px 16px;">Add</button>
                         </div>
+                    </div>
+
+                    <!-- Delete Card -->
+                    <div class="modal-section" style="margin-top: 20px; border-top: 1px solid #334155; padding-top: 16px;">
+                        <button class="delete-card-btn" onclick="deleteCard()">🗑 Delete Card</button>
                     </div>
                 </div>
             </div>
