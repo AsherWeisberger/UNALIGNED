@@ -9,7 +9,7 @@
             overscroll-behavior: none;
             height: 100%;
         }
-        
+
         body {
             height: 100%;
             overflow: hidden;
@@ -52,7 +52,7 @@
                 padding: 12px;
                 background: rgba(0,0,0,0.3);
             }
-            
+
             .ask-hubble-mobile-input {
                 width: 100%;
                 background: rgba(255, 255, 255, 0.1);
@@ -62,16 +62,16 @@
                 padding: 12px 16px;
                 font-size: 15px;
             }
-            
+
             .ask-hubble-mobile-input:focus {
                 outline: none;
                 border-color: #0b93f6;
             }
-            
+
             .ask-hubble-mobile-input::placeholder {
                 color: rgba(255,255,255,0.5);
             }
-            
+
             /* Hide desktop Ask Hubble on mobile */
             .ask-hubble-section {
                 display: none;
@@ -696,17 +696,17 @@
             background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
             border-left: 4px solid #ef4444;
         }
-        
+
         .card.priority-warm {
             background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
             border-left: 4px solid #f59e0b;
         }
-        
+
         .card.priority-cold {
             background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
             border-left: 4px solid #3b82f6;
         }
-        
+
         .card.priority-done {
             background: linear-gradient(135deg, #bbf7d0 0%, #86efac 100%);
             border-left: 4px solid #22c55e;
@@ -1633,7 +1633,7 @@
                 gap: 8px;
             }
 
-            .filters input, 
+            .filters input,
             .filters select {
                 flex-shrink: 0;
                 width: 160px;
@@ -2712,10 +2712,10 @@
 
             card.addEventListener('dragstart', drag);
             card.addEventListener('dragend', dragEnd);
-            card.onclick = function() { 
-                console.log('Card clicked:', cardData.id); 
+            card.onclick = function() {
+                console.log('Card clicked:', cardData.id);
                 try {
-                    openCardModal(cardData.id); 
+                    openCardModal(cardData.id);
                 } catch(e) {
                     console.error('Error opening card:', e);
                 }
@@ -2728,19 +2728,19 @@
                 touchStartX = e.touches[0].clientX;
                 touchStartY = e.touches[0].clientY;
             }, { passive: true });
-            
+
             card.addEventListener('touchend', (e) => {
                 const touchEndX = e.changedTouches[0].clientX;
                 const touchEndY = e.changedTouches[0].clientY;
                 const diffX = touchEndX - touchStartX;
                 const diffY = touchEndY - touchStartY;
-                
+
                 // Only handle horizontal swipes (not taps or scrolls)
                 if (Math.abs(diffX) > 50 && Math.abs(diffX) > Math.abs(diffY)) {
                     const cardId = cardData.id;
                     const currentListId = cardData.listId;
                     const currentIndex = boardConfig.findIndex(l => l.id === currentListId);
-                    
+
                     if (diffX < 0 && currentIndex < boardConfig.length - 1) {
                         // Swipe left - move to next list
                         moveCardToList(cardId, boardConfig[currentIndex + 1].id);
@@ -2757,12 +2757,12 @@
         function moveCardToList(cardId, newListId) {
             const card = cardsData[cardId];
             if (!card) return;
-            
+
             const oldListId = card.listId;
             card.listId = newListId;
-            
+
             addActivity(`moved from ${boardConfig.find(l => l.id === oldListId)?.title || oldListId} to ${boardConfig.find(l => l.id === newListId)?.title || newListId}`);
-            
+
             renderCard(card);
             renderAllCards();
             updateCardCount();
@@ -2926,21 +2926,21 @@
             console.log('Opening card modal for:', cardId);
             currentEditingCard = cardId;
             currentEditingCardData = cardsData[cardId];
-            
+
             // Debug: check modal elements
             const modal = document.getElementById('card-modal-overlay');
             console.log('Modal element:', modal);
             console.log('Modal class before:', modal ? modal.className : 'NOT FOUND');
-            
+
             if (!currentEditingCardData) {
                 console.error('No card data!');
                 return;
             }
-            
+
             modal.style.display = 'flex';
             document.getElementById('card-modal').style.display = 'flex';
             console.log('Modal class after:', modal.className);
-            
+
             const titleInput = document.getElementById('modal-card-title');
             const descriptionInput = document.getElementById('modal-description');
             titleInput.value = currentEditingCardData.title;
@@ -3007,36 +3007,9 @@
         }
 
         function closeCardModal(event) {
-            if (!event || event.target === document.getElementById('card-modal-overlay') || event.target.classList.contains('card-modal-close')) {
-                if (currentEditingCardData) {
-                    const titleInput = document.getElementById('modal-card-title');
-                    const descriptionInput = document.getElementById('modal-description');
-                    currentEditingCardData.title = titleInput.value;
-                    currentEditingCardData.description = descriptionInput.value;
-
-                    // Save contact fields
-                    currentEditingCardData.contactName = document.getElementById('modal-contact-name').value;
-                    currentEditingCardData.email = document.getElementById('modal-email').value;
-                    currentEditingCardData.phone = document.getElementById('modal-phone').value;
-                    currentEditingCardData.phone2 = document.getElementById('modal-phone2').value;
-                    currentEditingCardData.businessName = document.getElementById('modal-business-name').value;
-
-                    // Save lead fields
-                    currentEditingCardData.leadSource = document.getElementById('modal-lead-source').value;
-                    currentEditingCardData.estimatedValue = document.getElementById('modal-estimated-value').value;
-                    currentEditingCardData.priority = document.getElementById('modal-priority').value;
-
-                    titleInput.oninput = null;
-                    descriptionInput.oninput = null;
-                    renderCard(currentEditingCardData);
-                    // Save immediately when closing - use fresh data
-                    window.justSaved = Date.now();
-                    saveBoardStateNow();
-                    updateFlowMap();
-                }
-                document.getElementById('card-modal-overlay').classList.remove('active');
-                currentEditingCard = null;
-                currentEditingCardData = null;
+            if (!event || event.target === document.getElementById('card-modal-overlay')) {
+                document.getElementById('card-modal-overlay').style.display = 'none';
+                document.getElementById('card-modal').style.display = 'none';
             }
         }
 
@@ -3856,7 +3829,7 @@
                     .replace(/card(s)?/gi, '')
                     .trim()
                     .toLowerCase();
-                
+
                 if (searchTerms.length > 2) {
                     const matches = allCards.filter(card => {
                         const searchable = [
@@ -3867,10 +3840,10 @@
                             card.email || '',
                             (card.labels || []).map(l => l.name).join(' ')
                         ].join(' ').toLowerCase();
-                        
+
                         return searchable.includes(searchTerms);
                     });
-                    
+
                     if (matches.length > 0) {
                         return `🔍 Found ${matches.length} card${matches.length > 1 ? 's' : ''} matching "${searchTerms}":\n\n` +
                             matches.slice(0, 10).map(c => {
@@ -3901,7 +3874,7 @@
                         .replace(/sqrt\((\d+)\)/gi, 'Math.sqrt($1)')
                         .replace(/(\d+)%\s*of\s*(\d+)/gi, '($1 * $2 / 100)')
                         .replace(/[^0-9+\-*/.()Mathsqrt ]/g, '');
-                    
+
                     // Only evaluate if it looks like valid math
                     if (/^[\d+\-*/.() ]+$/.test(expr) && /[+\-*\/]/.test(expr)) {
                         const result = Function('"use strict";return (' + expr + ')')();
@@ -3973,16 +3946,16 @@
             if (msg.includes('who are you') || msg.includes('what are you') || msg.includes('what can you do')) {
                 return `I'm Hubble! 🐕 Your super smart AI assistant!\n\nI can:\n🧮 Solve math problems\n🌐 Search the web\n📊 Check your Kanban board\n🎯 Find your leads\n💬 Have conversations\n🌤️ Tell you the weather\n📅 Give you the date/time\n💰 Do conversions\n\nWhat would you like to try?`;
             }
-            
+
             // Weather check
             if (msg.includes('weather') || msg.includes('temperature') || msg.includes('hot') || msg.includes('cold') || msg.includes('warm') || msg.includes('outside') || msg.includes('sunny') || msg.includes('rain')) {
                 try {
                     const weather = await fetchWeather();
                     if (!weather) return "I couldn't fetch the weather right now! 🐕";
-                    
+
                     const temp = parseInt(weather.temp);
                     const feels = parseInt(weather.feels);
-                    
+
                     let dogResponse = '';
                     if (temp < 32) {
                         dogResponse = "🥶 Brrr! Noooo I don't want to go out! It's too cold! 🐕❄️";
@@ -3995,13 +3968,13 @@
                     } else {
                         dogResponse = "🥵 Whoooo it's hot! Too hot for this dog! 🐕🔥";
                     }
-                    
+
                     return `Current weather in Indy: ${weather.condition}, ${temp}°F (feels like ${feels}°F)\n\n${dogResponse}`;
                 } catch(e) {
                     return "I couldn't fetch the weather right now! 🐕";
                 }
             }
-            
+
             // Check what's in progress
             if (msg.includes('in progress') || msg.includes('doing') || msg.includes('working on') || msg.includes('tasks')) {
                 const inProgress = allCards.filter(c => c.listId === 'build');
@@ -4015,7 +3988,7 @@
             if (msg.includes('lead') || msg.includes('new') || msg.includes('prospect') || msg.includes('opportunity')) {
                 const leads = allCards.filter(c => c.listId === 'discovery');
                 if (leads.length === 0) return "No leads in LEAD IN! Time to get some! 🎯";
-                
+
                 return `🎯 ${leads.length} LEAD${leads.length !== 1 ? 'S' : ''} in LEAD IN:\n\n` +
                     leads.map(l => {
                         let info = `📋 **${l.title}**`;
@@ -4051,7 +4024,7 @@
                 const done = counts['done'] || 0;
                 const progress = counts['build'] || 0;
                 const leads = counts['discovery'] || 0;
-                
+
                 return `📊 Board Overview:\n\n🎯 Leads: ${leads}\n⚡ In Progress: ${progress}\n✅ Done: ${done}\n📦 Total: ${total}\n\n🎉 ${Math.round(done/total*100)}% complete!`;
             }
 
