@@ -691,6 +691,27 @@
             padding: 6px;
         }
 
+        /* Card Priority Colors */
+        .card.priority-hot {
+            background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
+            border-left: 4px solid #ef4444;
+        }
+        
+        .card.priority-warm {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-left: 4px solid #f59e0b;
+        }
+        
+        .card.priority-cold {
+            background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+            border-left: 4px solid #3b82f6;
+        }
+        
+        .card.priority-done {
+            background: linear-gradient(135deg, #bbf7d0 0%, #86efac 100%);
+            border-left: 4px solid #22c55e;
+        }
+
         .card {
             background: #fff;
             border-radius: 12px;
@@ -1910,9 +1931,15 @@
             </div>
             <div class="card-modal-body">
                 <div class="card-modal-main">
+                    <!-- Priority at the top -->
                     <div class="modal-section">
-                        <div class="modal-section-title">Labels</div>
-                        <div class="labels-list" id="modal-labels"></div>
+                        <div class="modal-section-title">Priority</div>
+                        <select class="contact-input priority-select" id="modal-priority" onchange="updateContactField('priority')">
+                            <option value="">None</option>
+                            <option value="hot">🔥 Hot (Red)</option>
+                            <option value="warm">🌡️ Warm (Yellow)</option>
+                            <option value="cold">❄️ Cold (Blue)</option>
+                        </select>
                     </div>
                     <div class="modal-section">
                         <div class="modal-section-title">Lead Info</div>
@@ -2626,7 +2653,14 @@
             if (existing) existing.remove();
 
             const card = document.createElement('div');
-            card.className = 'card';
+            // Add priority class for colors
+            let priorityClass = 'card';
+            if (cardData.listId === 'done') {
+                priorityClass = 'card priority-done';
+            } else if (cardData.priority) {
+                priorityClass = 'card priority-' + cardData.priority;
+            }
+            card.className = priorityClass;
             card.draggable = true;
             card.dataset.cardId = cardData.id;
             card.id = 'card-' + cardData.id;
@@ -3136,7 +3170,7 @@
             renderAssignee();
             addActivity(name ? `assigned to ${name}` : 'removed assignee');
             document.getElementById('assignee-modal').classList.remove('active');
-            queueSaveBoardState();
+            saveBoardStateNow();
             updateCardCount();
             updateFlowMap();
         }
