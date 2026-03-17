@@ -691,10 +691,7 @@
             padding: 6px;
         }
 
-        /* OLD BROKEN CSS - DISABLED */
-        .card-modal, .card-modal.active, .card-modal-header, .card-modal-body, .card-modal-main, .card-modal-sidebar, .card-modal-title, .card-modal-close, .card-modal-save, .modal-section {
-            display: none !important;
-        }
+
             background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
             border-left: 4px solid #ef4444;
         }
@@ -972,6 +969,8 @@
             color: #f1f5f9;
             box-shadow: 0 25px 80px rgba(5, 6, 12, 0.6);
             display: none;
+            z-index: 1001;
+            position: relative;
         }
 
         .modal-overlay.active {
@@ -2939,8 +2938,13 @@
                 return;
             }
 
+            modal.classList.add('active');
             modal.style.display = 'flex';
-            document.getElementById('card-modal').style.display = 'flex';
+            const cardModal = document.getElementById('card-modal');
+            console.log('cardModal found:', !!cardModal);
+            cardModal.classList.add('active');
+            cardModal.style.display = 'flex';
+            console.log('cardModal after:', cardModal.className, cardModal.style.cssText);
             console.log('Modal class after:', modal.className);
 
             const titleInput = document.getElementById('modal-card-title');
@@ -3010,6 +3014,7 @@
 
         function closeCardModal(event) {
             if (!event || event.target === document.getElementById('card-modal-overlay')) {
+                document.getElementById('card-modal-overlay').classList.remove('active');
                 document.getElementById('card-modal-overlay').style.display = 'none';
                 document.getElementById('card-modal').style.display = 'none';
             }
