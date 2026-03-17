@@ -985,7 +985,9 @@
             padding: 24px 24px 0;
             display: flex;
             justify-content: space-between;
-            gap: 16px;
+            align-items: flex-start;
+            gap: 12px;
+            flex-wrap: wrap;
         }
 
         .card-modal-close {
@@ -1017,15 +1019,16 @@
         }
 
         .card-modal-save {
-            padding: 8px 16px;
-            border-radius: 8px;
+            padding: 6px 14px;
+            border-radius: 6px;
             border: none;
             background: linear-gradient(135deg, #22c55e, #16a34a);
             color: white;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             cursor: pointer;
             margin-right: 8px;
+            flex-shrink: 0;
         }
 
         .card-modal-save:hover {
