@@ -1667,70 +1667,64 @@
             margin: 4px 0;
         }
 
-        /* List View - Vertical stack for mobile */
+        /* List View - Simple vertical list for mobile */
         @media (max-width: 768px) {
             .board.list-view {
                 flex-direction: column;
-                gap: 20px;
-                padding: 12px;
+                padding: 10px;
             }
 
             .board.list-view .board-lists {
-                display: flex;
                 flex-direction: column;
-                gap: 20px;
                 width: 100%;
+                gap: 16px;
             }
 
             .board.list-view .list {
                 min-width: 100% !important;
                 max-width: 100% !important;
-                background: rgba(15, 23, 42, 0.5);
-                border-radius: 12px;
+                padding: 0;
+                background: transparent;
+            }
+
+            .board.list-view .list-header {
+                display: none;
             }
 
             .board.list-view .cards-container {
-                padding: 10px;
+                flex-direction: column;
                 gap: 8px;
+                padding: 0;
             }
 
             .board.list-view .card {
-                padding: 14px;
-                display: flex;
-                flex-direction: column;
-                gap: 8px;
+                padding: 14px 10px;
                 background: #1e293b;
-                border-radius: 10px;
-            }
-
-            .board.list-view .card.expanded {
-                background: #fff;
-                color: #111827;
+                border-radius: 8px;
+                cursor: pointer;
             }
 
             .board.list-view .card-content {
-                font-size: 15px;
+                font-size: 14px;
                 font-weight: 600;
+                color: #fff;
+                margin: 0;
             }
 
             .board.list-view .card-labels {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 6px;
+                margin-bottom: 8px;
             }
 
             .board.list-view .card-footer {
                 display: flex;
-                justify-content: space-between;
-                font-size: 12px;
-            }
-
-            .board.list-view .card-meta {
-                display: flex;
                 gap: 10px;
+                margin-top: 8px;
+                font-size: 11px;
+                color: #94a3b8;
             }
 
-            .board.list-view .add-card-btn {
+            .board.list-view .add-card-btn,
+            .board.list-view .add-list-btn {
                 display: none;
             }
         }
