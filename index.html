@@ -1684,8 +1684,43 @@
             margin: 4px 0;
         }
 
-        /* List View - Super simple vertical stack */
-        @media (max-width: 768px) {
+        /* All cards list view */
+        .all-cards-list {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            padding: 12px;
+            width: 100%;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .all-cards-list .list-section {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 14px;
+        }
+
+        .all-cards-list .section-header {
+            font-size: 16px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .all-cards-list .card {
+            background: #fff;
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 10px;
+            box-shadow: 0 12px 25px rgba(15, 23, 42, 0.08);
+        }
+
+        .all-cards-list .card:last-child {
+            margin-bottom: 0;
+        }
             body main {
                 overflow-y: scroll !important;
                 overflow-x: hidden !important;
@@ -3923,16 +3958,79 @@
                 board.classList.add('list-view');
                 toggleIcon.textContent = '☰';
                 toggleLabel.textContent = 'List';
+                rebuildListView();
             } else {
                 currentViewMode = 'cards';
                 board.classList.remove('compact-view');
                 board.classList.remove('list-view');
                 toggleIcon.textContent = '▦';
                 toggleLabel.textContent = 'Cards';
+                rebuildCardView();
             }
             
             // Save preference
             localStorage.setItem('flow-view-mode', currentViewMode);
+        }
+
+        // Rebuild board as a single vertical list
+        function rebuildListView() {
+            const boardLists = document.getElementById('board-lists');
+            const lists = boardLists.querySelectorAll('.list');
+            
+            // Create a single container for all cards
+            let allCardsContainer = document.getElementById('all-cards-list');
+            if (!allCardsContainer) {
+                allCardsContainer = document.createElement('div');
+                allCardsContainer.id = 'all-cards-list';
+                allCardsContainer.className = 'all-cards-list';
+            }
+            allCardsContainer.innerHTML = '';
+            
+            // Move all cards to the single container
+            lists.forEach(list => {
+                const listHeader = list.querySelector('.list-header');
+                const headerTitle = listHeader ? listHeader.querySelector('h3').textContent : list.title;
+                
+                // Create a section for this list's cards
+                const section = document.createElement('div');
+                section.className = 'list-section';
+                section.innerHTML = '<div class="section-header">' + headerTitle + '</div>';
+                
+                const cardsContainer = list.querySelector('.cards-container');
+                const cards = cardsContainer.querySelectorAll('.card');
+                cards.forEach(card => {
+                    section.appendChild(card);
+                });
+                
+                allCardsContainer.appendChild(section);
+            });
+            
+            // Hide board-lists, show all-cards-list
+            boardLists.style.display = 'none';
+            boardLists.insertAdjacentElement('afterend', allCardsContainer);
+        }
+
+        // Rebuild board as columns
+        function rebuildCardView() {
+            const boardLists = document.getElementById('board-lists');
+            const allCardsContainer = document.getElementById('all-cards-list');
+            
+            if (allCardsContainer) {
+                const sections = allCardsContainer.querySelectorAll('.list-section');
+                const lists = boardLists.querySelectorAll('.list');
+                
+                sections.forEach((section, index) => {
+                    const cardsContainer = lists[index].querySelector('.cards-container');
+                    const cards = section.querySelectorAll('.card');
+                    cards.forEach(card => {
+                        cardsContainer.appendChild(card);
+                    });
+                });
+                
+                allCardsContainer.remove();
+            }
+            
+            boardLists.style.display = 'flex';
         }
 
         // Load saved view preference
