@@ -1848,14 +1848,17 @@
                     </svg>
                     Add Lead
                 </button>
-                <button class="menu-btn" onclick="openCommandPalette()">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 5v14M5 12h14" />
-                    </svg>
-                    Command Palette
-                </button>
             </div>
         </header>
+
+    <!-- ASK HUBBLE - Always Visible -->
+    <section class="ask-hubble-section">
+        <div class="ask-hubble-wrapper">
+            <input type="search" class="ask-hubble-main-input" id="filter-search" placeholder="💬 Ask Hubble anything... (math, weather, your data)" aria-label="Ask Hubble" onkeydown="handleSearchKey(event)">
+            <button class="ask-hubble-main-btn" onclick="handleAskHubbleClick()">Ask</button>
+        </div>
+    </section>
+
     <div class="sync-warning" id="sync-warning" role="alert" aria-live="polite"></div>
     <div class="sync-indicator sync-connecting sync-indicator-floating" id="sync-indicator-floating" data-sync-indicator title="Connecting to Firestore…">
         <span class="sync-dot" aria-hidden="true"></span>
