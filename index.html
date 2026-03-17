@@ -1667,38 +1667,56 @@
             margin: 4px 0;
         }
 
-        /* List View - Simple vertical list for mobile */
+        /* List View - Each list as a vertical section */
         @media (max-width: 768px) {
             .board.list-view {
                 flex-direction: column;
                 padding: 10px;
+                gap: 16px;
             }
 
             .board.list-view .board-lists {
+                display: flex;
                 flex-direction: column;
                 width: 100%;
-                gap: 16px;
+                gap: 20px;
             }
 
             .board.list-view .list {
                 min-width: 100% !important;
                 max-width: 100% !important;
-                padding: 0;
-                background: transparent;
+                background: rgba(15, 23, 42, 0.4);
+                border-radius: 12px;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                overflow: hidden;
             }
 
             .board.list-view .list-header {
-                display: none;
+                background: linear-gradient(135deg, rgba(125, 211, 252, 0.2), rgba(56, 239, 125, 0.1));
+                padding: 12px 14px;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            }
+
+            .board.list-view .list-header h3 {
+                font-size: 15px;
+                font-weight: 700;
+                color: #fff;
+                margin: 0;
+            }
+
+            .board.list-view .list-header .list-meta {
+                font-size: 11px;
+                color: #94a3b8;
             }
 
             .board.list-view .cards-container {
                 flex-direction: column;
                 gap: 8px;
-                padding: 0;
+                padding: 12px;
             }
 
             .board.list-view .card {
-                padding: 14px 10px;
+                padding: 12px;
                 background: #1e293b;
                 border-radius: 8px;
                 cursor: pointer;
