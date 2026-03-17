@@ -456,6 +456,52 @@
             border-radius: var(--radius);
             padding: 14px;
             border: 1px solid rgba(255, 255, 255, 0.08);
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* BIG ASK HUBBLE SEARCH BAR */
+        .ask-hubble-container {
+            flex: 1;
+            min-width: 280px;
+            max-width: 600px;
+            position: relative;
+        }
+
+        .ask-hubble-input {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border-radius: 16px;
+            border: 2px solid rgba(125, 211, 252, 0.3);
+            padding: 16px 20px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        .ask-hubble-input:focus {
+            outline: none;
+            border-color: #38ef7d;
+            box-shadow: 0 0 20px rgba(56, 239, 125, 0.2);
+        }
+
+        .ask-hubble-input::placeholder {
+            color: rgba(255,255,255,0.5);
+        }
+
+        .ask-hubble-btn {
+            position: absolute;
+            right: 6px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: linear-gradient(135deg, #38ef7d, #7dd3fc);
+            border: none;
+            border-radius: 12px;
+            padding: 10px 18px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #0f172a;
+            cursor: pointer;
         }
 
         .filters input, .filters select {
@@ -1629,8 +1675,11 @@
         <section class="flow-map" id="flow-map" aria-label="Flow snapshot"></section>
 
         <section class="filters">
-            <input type="search" id="filter-search" placeholder="🔍 Search cards or ask Hubble..." aria-label="Search cards or ask Hubble" onkeydown="handleSearchKey(event)">
-            <select id="filter-label" aria-label="Label filter">
+            <div class="ask-hubble-container">
+                <input type="search" class="ask-hubble-input" id="filter-search" placeholder="💬 Ask Hubble anything... (math, weather, your data, or just chat)" aria-label="Ask Hubble" onkeydown="handleSearchKey(event)">
+                <button class="ask-hubble-btn" onclick="handleAskHubbleClick()">Ask</button>
+            </div>
+            <select id="filter-label" aria-label="Label filter" style="display:none">
                 <option value="all">All labels</option>
             </select>
             <select id="filter-priority" aria-label="Priority filter">
@@ -2558,19 +2607,20 @@
         }
 
         // Filters
+        function handleAskHubbleClick() {
+            const input = document.getElementById('filter-search');
+            const query = input.value.trim();
+            if (query) {
+                openChatModalWithMessage(query);
+                input.value = '';
+            } else {
+                openChatModalWithMessage('');
+            }
+        }
+
         function handleSearchKey(event) {
             if (event.key === 'Enter') {
-                const query = event.target.value.trim();
-                if (!query) return;
-                
-                // Check if asking Hubble (starts with "ask" or "hubble" or "?")
-                const lowerQuery = query.toLowerCase();
-                if (lowerQuery.startsWith('ask ') || lowerQuery.startsWith('hubble ') || lowerQuery.startsWith('?') || lowerQuery.endsWith('?')) {
-                    event.target.value = '';
-                    openChatModalWithMessage(query.replace(/^(ask |hubble |\?)\s*/i, ''));
-                } else {
-                    // Regular search - just let it filter
-                }
+                handleAskHubbleClick();
             }
         }
 
@@ -3553,28 +3603,85 @@
             if (el) el.remove();
         }
 
+        // SUPER SMART HUBBLE AI
         async function generateChatResponse(message) {
             const msg = message.toLowerCase();
             const allCards = Object.values(cardsData);
             const userName = currentUser || 'there';
 
+            // 🧮 MATH - Solve math equations
+            const mathPatterns = [
+                /(\d+\s*[\+\-\*\/]\s*\d+)/,
+                /(\d+\s*\^\s*\d+)/,
+                /sqrt\((\d+)\)/i,
+                /(\d+)\s*%\s*of\s*(\d+)/i
+            ];
+            
+            for (const pattern of mathPatterns) {
+                const match = message.match(pattern);
+                if (match) {
+                    try {
+                        let result;
+                        const expr = message.replace(/\^/g, '**').replace(/sqrt\((\d+)\)/i, 'Math.sqrt($1)').replace(/(\d+)%\s*of\s*(\d+)/i, '($1 * $2 / 100)');
+                        if (expr.includes('**') || expr.includes('Math.sqrt')) {
+                            result = eval(expr);
+                        } else {
+                            result = Function('"use strict";return (' + expr + ')')();
+                        }
+                        return `🧮 The answer is ${result}! 🐕 *does happy math dog*`;
+                    } catch(e) {
+                        // Continue to other handlers
+                    }
+                }
+            }
+
+            // 🌐 WEB SEARCH - Search the internet
+            if (msg.startsWith('search ') || msg.startsWith('google ') || msg.startsWith('find ') || msg.includes('what is') || msg.includes('who is') || msg.includes('how to') || msg.includes('define ')) {
+                const query = message.replace(/^(search|google|find|what is|who is|how to|define)\s*/i, '');
+                try {
+                    // Use web_search tool if available
+                    const results = await webSearchAPI(query);
+                    if (results && results.length > 0) {
+                        return `🌐 Here's what I found:\n\n${results.slice(0, 3).map((r, i) => `${i+1}. ${r.title}\n   ${r.url}`).join('\n\n')}`;
+                    }
+                } catch(e) {
+                    return "I couldn't search the web right now! 🐕";
+                }
+            }
+
+            // 🌍 CONVERT - Currency, units, etc
+            if (msg.includes('convert') || msg.includes('what is') && msg.includes('in')) {
+                const usdMatch = message.match(/\$(\d+)\s*(?:to|in)\s*(\w+)/i);
+                if (usdMatch) {
+                    // Simple conversions (rough estimates)
+                    return `💰 $${usdMatch[1]} USD is approximately:\n• EUR: €${Math.round(usdMatch[1] * 0.92)}\n• GBP: £${Math.round(usdMatch[1] * 0.79)}\n• JPY: ¥${Math.round(usdMatch[1] * 149)}\n\n(Note: These are approximate)`;
+                }
+            }
+
+            // 📅 DATE/TIME
+            if (msg.includes('date') || msg.includes('time') || msg.includes('day')) {
+                const now = new Date();
+                const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                return `📅 Today is ${now.toLocaleDateString('en-US', options)}\n⏰ Time: ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+            }
+
             // Fun greetings
             if (msg.includes('hi') || msg.includes('hey') || msg.includes('hello')) {
                 const greetings = [
-                    `Hey there! 👋 I'm Hubble! Ask me anything about your board!`,
-                    `Woof! 🐕 Hi ${userName}! How can I help?`,
-                    `Hello! 🐾 Great to meet you!`
+                    `Hey there! 👋 I'm Hubble! Super smart AI assistant! Ask me anything!`,
+                    `Woof! 🐕 Hi ${userName}! I can do math, search the web, check your board, and more!`,
+                    `Hello! 🐾 I'm Hubble - your super smart assistant! What shall we explore?`
                 ];
                 return greetings[Math.floor(Math.random() * greetings.length)];
             }
 
-            // Who are you
-            if (msg.includes('who are you') || msg.includes('what are you')) {
-                return `I'm Hubble! 🐕 A virtual dog assistant. I'm here to help you manage your leads and workflow. I can answer questions about your board but won't make any changes - that's your job!`;
+            // Who are you - SUPER RESPONSE
+            if (msg.includes('who are you') || msg.includes('what are you') || msg.includes('what can you do')) {
+                return `I'm Hubble! 🐕 Your super smart AI assistant!\n\nI can:\n🧮 Solve math problems\n🌐 Search the web\n📊 Check your Kanban board\n🎯 Find your leads\n💬 Have conversations\n🌤️ Tell you the weather\n📅 Give you the date/time\n💰 Do conversions\n\nWhat would you like to try?`;
             }
             
             // Weather check
-            if (msg.includes('weather') || msg.includes('temperature') || msg.includes('hot') || msg.includes('cold') || msg.includes('warm') || msg.includes('outside')) {
+            if (msg.includes('weather') || msg.includes('temperature') || msg.includes('hot') || msg.includes('cold') || msg.includes('warm') || msg.includes('outside') || msg.includes('sunny') || msg.includes('rain')) {
                 try {
                     const weather = await fetchWeather();
                     if (!weather) return "I couldn't fetch the weather right now! 🐕";
@@ -3584,15 +3691,15 @@
                     
                     let dogResponse = '';
                     if (temp < 32) {
-                        dogResponse = "🥶 Brrr! Noooo I don't want to go out! It's too cold! 🐕❄️ Let's stay inside where it's warm!";
+                        dogResponse = "🥶 Brrr! Noooo I don't want to go out! It's too cold! 🐕❄️";
                     } else if (temp < 50) {
-                        dogResponse = "🧥 It's kinda chilly... might need my sweater. But I could do a quick walk! 🐕";
+                        dogResponse = "🧥 It's kinda chilly... might need my sweater! 🐕";
                     } else if (temp < 75) {
-                        dogResponse = "🐕 Perfect tail-waggin' weather! Let's go outside and play!";
+                        dogResponse = "🐕 Perfect tail-waggin' weather! Let's go outside!";
                     } else if (temp < 90) {
-                        dogResponse = "☀️ Nice weather! A little warm but still good for adventures! 🐾";
+                        dogResponse = "☀️ Nice weather! Good for adventures! 🐾";
                     } else {
-                        dogResponse = "🥵 Whoooo it's hot! Too hot for this dog! 🐕🔥 Let's stay inside with the AC!";
+                        dogResponse = "🥵 Whoooo it's hot! Too hot for this dog! 🐕🔥";
                     }
                     
                     return `Current weather in Indy: ${weather.condition}, ${temp}°F (feels like ${feels}°F)\n\n${dogResponse}`;
@@ -3602,75 +3709,96 @@
             }
             
             // Check what's in progress
-            if (msg.includes('in progress') || msg.includes('doing') || msg.includes('working on')) {
+            if (msg.includes('in progress') || msg.includes('doing') || msg.includes('working on') || msg.includes('tasks')) {
                 const inProgress = allCards.filter(c => c.listId === 'build');
-                if (inProgress.length === 0) return "Nothing in IN PROGRESS right now! 🏖️";
-                return "Currently working on:\n" + inProgress.map(c =>
-                    `📋 ${c.title} (${c.assignee || 'unassigned'})`
+                if (inProgress.length === 0) return "Nothing in IN PROGRESS! 🎉 All done!";
+                return "📋 In PROGRESS:\n" + inProgress.map(c =>
+                    `• ${c.title} (${c.assignee || 'unassigned'})`
                 ).join('\n');
             }
 
             // Lead info
-            if (msg.includes('lead') || msg.includes('new') || msg.includes('prospect')) {
+            if (msg.includes('lead') || msg.includes('new') || msg.includes('prospect') || msg.includes('opportunity')) {
                 const leads = allCards.filter(c => c.listId === 'discovery');
-                if (leads.length === 0) return "No leads in LEAD IN right now! Add some! 🎯";
-                return `🎯 You have ${leads.length} lead${leads.length !== 1 ? 's' : ''} in LEAD IN:\n\n` +
+                if (leads.length === 0) return "No leads in LEAD IN! Time to get some! 🎯";
+                return `🎯 ${leads.length} lead${leads.length !== 1 ? 's' : ''} in LEAD IN:\n\n` +
                     leads.map(l => {
                         let info = `• ${l.title}`;
                         if (l.priority) info += ` ${l.priority === 'hot' ? '🔥' : l.priority === 'warm' ? '🌡️' : '❄️'}`;
                         if (l.estimatedValue) info += ` $${l.estimatedValue}`;
+                        if (l.contactName) info += ` (${l.contactName})`;
                         return info;
                     }).join('\n');
             }
 
-            // Card counts
-            if (msg.includes('how many') || msg.includes('total') || msg.includes('stats') || msg.includes('summary')) {
+            // Card counts / board stats
+            if (msg.includes('how many') || msg.includes('total') || msg.includes('stats') || msg.includes('summary') || msg.includes('overview')) {
                 const counts = {};
                 allCards.forEach(c => {
                     counts[c.listId] = (counts[c.listId] || 0) + 1;
                 });
-                return `📊 Your board has ${allCards.length} cards:\n\n` +
-                    boardConfig.map(l => `${l.title}: ${counts[l.id] || 0}`).join('\n');
+                const total = allCards.length;
+                const done = counts['done'] || 0;
+                const progress = counts['build'] || 0;
+                const leads = counts['discovery'] || 0;
+                
+                return `📊 Board Overview:\n\n🎯 Leads: ${leads}\n⚡ In Progress: ${progress}\n✅ Done: ${done}\n📦 Total: ${total}\n\n🎉 ${Math.round(done/total*100)}% complete!`;
             }
 
-            // Who is logged in / me
+            // Who is logged in
             if (msg.includes('who am i') || msg.includes('my name') || msg.includes('logged in')) {
                 return `You're logged in as ${userName}! 🐾`;
             }
 
             // Help
-            if (msg.includes('help') || msg.includes('what can')) {
-                return `I can help you with:\n\n` +
-                    `🎯 Leads in LEAD IN\n` +
-                    `📋 What's in IN PROGRESS\n` +
-                    `📊 Card counts\n` +
-                    `❓ General questions\n\n` +
-                    `I won't make changes - use the board for that!`;
+            if (msg.includes('help')) {
+                return `🐕 I'm Hubble! Here's what I can do:\n\n🧮 Math: "what is 42 * 17"\n🌐 Search: "search best pizza near me"\n📊 Board: "how many cards" / "show leads"\n🌤️ Weather: "how's the weather"\n💰 Convert: "$50 in euros"\n📅 Date: "what's the date"\n💬 Just chat!\n\nTry something!`;
             }
 
             // Fun easter eggs
             if (msg.includes('good boy') || msg.includes('good girl') || msg.includes('good dog')) {
-                return `🐕 *wags tail* Thank you! I'm a good boy!`;
+                return `🐕 *happy tail wag* Thank you! I'm the goodest boy! 🦴`;
             }
 
             if (msg.includes('treat') || msg.includes('cookie') || msg.includes('snack')) {
-                return `🐕🍪 I love treats! But I work for belly rubs...`;
+                return `🐕🍪 I'll take all the treats! But I work for belly rubs...`;
             }
 
-            // Default fun response
-            const defaults = [
-                `I'm Hubble! 🐕 Ask me about your leads or what's in progress!`,
-                `Woof! 🐾 I can tell you about your board! Try asking about leads or progress.`,
-                `I'm here to help! 🐕 Ask me anything about your workflow!`,
-                `🐕 *tilts head* Could you rephrase that? I can tell you about leads, progress, or card counts!`
+            if (msg.includes('bark')) {
+                return `🐕🐕 WOOF WOOF! *tail wagging excitedly*`;
+            }
+
+            // Default - try to be helpful
+            const smartResponses = [
+                `I'm Hubble! 🐕 I can help with math, web search, your board, and more! Try asking me something!`,
+                `Woof! 🐾 That's interesting! I can do so much - math, weather, search the web, check your leads!`,
+                `🐕 *ears perk up* I'd love to help! Ask me about your board, the weather, or anything!`,
+                `I'm super smart! 🌟 Try "what is 25 * 4" or "show me leads" or "how's the weather"!`
             ];
-            return defaults[Math.floor(Math.random() * defaults.length)];
+            return smartResponses[Math.floor(Math.random() * smartResponses.length)];
+        }
+
+        // Web search helper
+        async function webSearchAPI(query) {
+            try {
+                const response = await fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=5`, {
+                    headers: {
+                        'Authorization': 'Bearer BSAPwRK3JSghITJy_e_7On3HSOP4wT0'
+                    }
+                });
+                const data = await response.json();
+                return data.web ? data.web.results : [];
+            } catch(e) {
+                console.log('Search error:', e);
+                return null;
+            }
         }
 
         window.openChatModal = openChatModal;
         window.closeChatModal = closeChatModal;
         window.sendChatMessage = sendChatMessage;
         window.handleChatKey = handleChatKey;
+        window.handleAskHubbleClick = handleAskHubbleClick;
     </script>
     </div>
 </body>
