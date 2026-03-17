@@ -2934,8 +2934,8 @@
                 return;
             }
             
-            modal.classList.add('active');
-            document.getElementById('card-modal').classList.add('active');
+            modal.style.display = 'flex';
+            document.getElementById('card-modal').style.display = 'flex';
             console.log('Modal class after:', modal.className);
             
             const titleInput = document.getElementById('modal-card-title');
