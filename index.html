@@ -2054,18 +2054,29 @@
 
             /* View toggle */
             .view-toggle {
-                position: fixed;
-                top: 70px;
-                right: 12px;
-                z-index: 100;
-                background: rgba(15, 23, 42, 0.9);
-                backdrop-filter: blur(8px);
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 6px 10px;
+                background: rgba(15, 23, 42, 0.95);
+                border-radius: 16px;
+                border: 1px solid rgba(125, 211, 252, 0.3);
+                cursor: pointer;
+                font-size: 12px;
+                color: #7dd3fc;
+                white-space: nowrap;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            }
+
+            .view-toggle:hover {
+                background: rgba(15, 23, 42, 1);
+                border-color: #7dd3fc;
             }
 
             /* Ensure board has room for toggle */
             .board {
                 padding-top: 8px;
+                flex-wrap: wrap;
             }
         }
 
