@@ -33,6 +33,60 @@
             flex-shrink: 0;
         }
 
+        /* ASK HUBBLE SECTION - Fixed at top */
+        .ask-hubble-section {
+            background: linear-gradient(180deg, rgba(11, 147, 246, 0.1) 0%, transparent 100%);
+            padding: 16px clamp(16px, 5vw, 40px);
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            flex-shrink: 0;
+        }
+
+        .ask-hubble-wrapper {
+            max-width: 700px;
+            margin: 0 auto;
+            display: flex;
+            gap: 10px;
+        }
+
+        .ask-hubble-main-input {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border: 2px solid rgba(11, 147, 246, 0.4);
+            border-radius: 24px;
+            padding: 14px 20px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        .ask-hubble-main-input:focus {
+            outline: none;
+            border-color: #0b93f6;
+            box-shadow: 0 0 20px rgba(11, 147, 246, 0.3);
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .ask-hubble-main-input::placeholder {
+            color: rgba(255,255,255,0.5);
+        }
+
+        .ask-hubble-main-btn {
+            background: linear-gradient(135deg, #0b93f6, #0a84ff);
+            border: none;
+            border-radius: 24px;
+            padding: 14px 28px;
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+            cursor: pointer;
+            transition: transform 0.2s;
+            white-space: nowrap;
+        }
+
+        .ask-hubble-main-btn:hover {
+            transform: scale(1.05);
+        }
+
         main {
             flex: 1;
             overflow: auto;
@@ -1775,36 +1829,19 @@
         <span data-sync-text>Connecting…</span>
     </div>
 
+    <!-- ASK HUBBLE SECTION - Always Visible -->
+    <section class="ask-hubble-section">
+        <div class="ask-hubble-wrapper">
+            <input type="search" class="ask-hubble-main-input" id="filter-search" placeholder="💬 Ask Hubble anything... (math, weather, your data)" aria-label="Ask Hubble" onkeydown="handleSearchKey(event)">
+            <button class="ask-hubble-main-btn" onclick="handleAskHubbleClick()">Ask</button>
+        </div>
+    </section>
+
     <main style="flex:1; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch;">
         <section class="flow-map" id="flow-map" aria-label="Flow snapshot"></section>
 
-        <section class="filters">
-            <div class="ask-hubble-container">
-                <input type="search" class="ask-hubble-input" id="filter-search" placeholder="💬 Ask Hubble anything... (math, weather, your data, or just chat)" aria-label="Ask Hubble" onkeydown="handleSearchKey(event)">
-                <button class="ask-hubble-btn" onclick="handleAskHubbleClick()">Ask</button>
-            </div>
-            <select id="filter-label" aria-label="Label filter" style="display:none">
-                <option value="all">All labels</option>
-            </select>
-            <select id="filter-priority" aria-label="Priority filter">
-                <option value="all">All priorities</option>
-                <option value="hot">🔥 Hot</option>
-                <option value="warm">🌡️ Warm</option>
-                <option value="cold">❄️ Cold</option>
-            </select>
-            <select id="filter-source" aria-label="Source filter">
-                <option value="all">All sources</option>
-                <option value="website">Website</option>
-                <option value="referral">Referral</option>
-                <option value="cold-call">Cold Call</option>
-                <option value="social">Social Media</option>
-                <option value="advertisement">Advertisement</option>
-                <option value="other">Other</option>
-            </select>
-            <select id="filter-assignee" aria-label="Assignee filter">
-                <option value="all">All assignees</option>
-            </select>
-            <label class="filter-toggle">
+        <!-- Hidden filters on desktop - Ask Hubble is main now -->
+        <section class="filters filters-compact" style="display:none">
                 <input type="checkbox" id="filter-mine">
                 Show only mine
             </label>
