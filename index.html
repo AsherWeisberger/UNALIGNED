@@ -3990,38 +3990,134 @@
             const allCards = Object.values(cardsData);
             const userName = currentUser || 'there';
 
-            // 🔍 FIND CARD - Search for specific card
-            if (msg.includes('find') || msg.includes('search') || msg.includes('look for') || msg.includes('where') || msg.includes('show me') || msg.includes('get') || msg.includes('card')) {
-                // Extract search terms from the message
-                const searchTerms = message
-                    .replace(/^(find|search|look for|show me|get)\s*/i, '')
-                    .replace(/card(s)?/gi, '')
-                    .trim()
-                    .toLowerCase();
+            // Check if question is about the website/board
+            const boardKeywords = ['card', 'lead', 'task', 'board', 'list', 'build', 'done', 'discovery', 'pipeline', 'assignee', 'priority', 'value', 'deal', 'opportunity'];
+            const isBoardQuestion = boardKeywords.some(kw => msg.includes(kw));
 
-                if (searchTerms.length > 2) {
-                    const matches = allCards.filter(card => {
-                        const searchable = [
-                            card.title || '',
-                            card.description || '',
-                            card.contactName || '',
-                            card.businessName || '',
-                            card.email || '',
-                            (card.labels || []).map(l => l.name).join(' ')
-                        ].join(' ').toLowerCase();
+            // If about the board, search internal data first
+            if (isBoardQuestion) {
+                // Search cards
+                const searchTerms = message.toLowerCase();
+                const matches = allCards.filter(card => {
+                    const searchable = [
+                        card.title || '',
+                        card.description || '',
+                        card.contactName || '',
+                        card.businessName || '',
+                        card.email || '',
+                        (card.labels || []).map(l => l.name).join(' ')
+                    ].join(' ').toLowerCase();
+                    return searchable.includes(searchTerms.replace(/card|lead|task|board|list|show|find|search|get/g, '').trim());
+                });
 
-                        return searchable.includes(searchTerms);
-                    });
+                if (matches.length > 0) {
+                    return `Found ${matches.length} card(s):\n\n` +
+                        matches.slice(0, 5).map(c => {
+                            let info = `📋 **${c.title}**`;
+                            const list = boardConfig.find(l => l.id === c.listId);
+                            if (list) info += ` (${list.title})`;
+                            if (c.assignee) info += `\n   Assigned: ${c.assignee}`;
+                            if (c.priority) info += `\n   Priority: ${c.priority}`;
+                            if (c.estimatedValue) info += `\n   Value: $${c.estimatedValue}`;
+                            return info;
+                        }).join('\n\n');
+                }
 
-                    if (matches.length > 0) {
-                        return `🔍 Found ${matches.length} card${matches.length > 1 ? 's' : ''} matching "${searchTerms}":\n\n` +
-                            matches.slice(0, 10).map(c => {
-                                let info = `📋 **${c.title}**`;
-                                const list = boardConfig.find(l => l.id === c.listId);
-                                if (list) info += ` (${list.title})`;
-                                if (c.assignee) info += `\n   Assigned to: ${c.assignee}`;
-                                if (c.priority) info += `\n   Priority: ${c.priority}`;
-                                if (c.estimatedValue) info += `\n   Value: $${c.estimatedValue}`;
+                // Show leads in discovery
+                if (msg.includes('lead') || msg.includes('new') || msg.includes('prospect')) {
+                    const leads = allCards.filter(c => c.listId === 'discovery');
+                    if (leads.length > 0) {
+                        return `🎯 ${leads.length} Lead(s) in Discovery:\n\n` +
+                            leads.map(l => {
+                                let info = `📋 **${l.title}**`;
+                                if (l.businessName) info += `\n🏢 ${l.businessName}`;
+                                if (l.contactName) info += `\n👤 ${l.contactName}`;
+                                if (l.email) info += `\n📧 ${l.email}`;
+                                if (l.estimatedValue) info += `\n💰 $${l.estimatedValue}`;
+                                return info;
+                            }).join('\n\n');
+                    }
+                }
+
+                // Show in-progress
+                if (msg.includes('progress') || msg.includes('doing') || msg.includes('working')) {
+                    const inProgress = allCards.filter(c => c.listId === 'build');
+                    if (inProgress.length > 0) {
+                        return `⚡ In Progress:\n` + inProgress.map(c =>
+                            `• ${c.title}${c.assignee ? ` [${c.assignee}]` : ''}`
+                        ).join('\n');
+                    }
+                }
+
+                // Board stats
+                if (msg.includes('how many') || msg.includes('total') || msg.includes('stats') || msg.includes('summary')) {
+                    const counts = {};
+                    allCards.forEach(c => { counts[c.listId] = (counts[c.listId] || 0) + 1; });
+                    return `📊 Board: ${allCards.length} total\n🎯 Leads: ${counts['discovery'] || 0}\n⚡ In Progress: ${counts['build'] || 0}\n✅ Done: ${counts['done'] || 0}`;
+                }
+            }
+
+            // Weather check
+            if (msg.includes('weather') || msg.includes('temperature') || msg.includes('hot') || msg.includes('cold')) {
+                try {
+                    const weather = await fetchWeather();
+                    if (weather) {
+                        return `Current weather: ${weather.condition}, ${weather.temp}°F (feels like ${weather.feels}°F)`;
+                    }
+                } catch(e) { /* ignore */ }
+            }
+
+            // Date/Time
+            if (msg.includes('date') || msg.includes('time') || msg.includes('day')) {
+                const now = new Date();
+                return `📅 ${now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}\n⏰ ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
+            }
+
+            // Math operations
+            const mathMatch = message.match(/(\d+\.?\d*)\s*([\+\-\*\/])\s*(\d+\.?\d*)/);
+            if (mathMatch) {
+                const a = parseFloat(mathMatch[1]);
+                const b = parseFloat(mathMatch[3]);
+                const op = mathMatch[2];
+                let result;
+                if (op === '+') result = a + b;
+                else if (op === '-') result = a - b;
+                else if (op === '*') result = a * b;
+                else if (op === '/') result = b !== 0 ? a / b : 'undefined';
+                return `🧮 ${a} ${op} ${b} = ${typeof result === 'number' ? (Number.isInteger(result) ? result : result.toFixed(2)) : result}`;
+            }
+
+            // Who are you
+            if (msg.includes('who are you') || msg.includes('what are you') || msg.includes('what can you do')) {
+                return `I'm an AI assistant for this website. I can help you with:\n\n• Finding cards and leads on your board\n• Checking board stats and progress\n• Weather information\n• Math calculations\n• General questions - I'll search the web when needed\n• And much more!\n\nWhat would you like to know?`;
+            }
+
+            // Greetings
+            if (msg.includes('hi') || msg.includes('hey') || msg.includes('hello') || msg.includes('hey there')) {
+                return `Hey there! 👋 I'm your AI assistant. I can help you with your board, answer questions, search the web, and more! What can I help you with?`;
+            }
+
+            // Help
+            if (msg.includes('help') || msg.includes('what can you do')) {
+                return `I can help you with:\n\n📊 **Board**: "show leads", "how many tasks", "in progress"\n🔍 **Find cards**: "find [name]" or "search [term]"\n🌤️ **Weather**: "how's the weather"\n🧮 **Math**: "42 + 17"\n📅 **Date**: "what's the date"\n🌐 **Web search**: Ask me anything!\n\nJust ask!`;
+            }
+
+            // Default - try web search
+            try {
+                const results = await webSearchAPI(message);
+                if (results && results.length > 0) {
+                    return `Here's what I found:\n\n${results.slice(0, 3).map((r, i) => `${i+1}. **${r.title}**\n   ${r.url}`).join('\n\n')}`;
+                }
+            } catch(e) { /* ignore */ }
+
+            // Fallback responses
+            const responses = [
+                `Interesting question! I'm not sure I have that information. Try asking about your board, the weather, or something specific!`,
+                `That's a great question! I can help with your task board, web searches, weather, math, and more. What else can I do for you?`,
+                `I'm your AI assistant! Ask me about your cards, leads, board stats, or anything else - I'll help if I can!`
+            ];
+            return responses[Math.floor(Math.random() * responses.length)];
+        }
                                 return info;
                             }).join('\n\n');
                     } else {
