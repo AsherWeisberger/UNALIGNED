@@ -2927,7 +2927,16 @@
             // Debug: check modal elements
             const modal = document.getElementById('card-modal-overlay');
             console.log('Modal element:', modal);
-            console.log('Modal class before:', modal.className);
+            console.log('Modal class before:', modal ? modal.className : 'NOT FOUND');
+            
+            if (!currentEditingCardData) {
+                console.error('No card data!');
+                return;
+            }
+            
+            modal.classList.add('active');
+            document.getElementById('card-modal').classList.add('active');
+            console.log('Modal class after:', modal.className);
             
             const titleInput = document.getElementById('modal-card-title');
             const descriptionInput = document.getElementById('modal-description');
