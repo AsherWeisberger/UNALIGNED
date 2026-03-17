@@ -1729,8 +1729,26 @@
                 box-shadow: 0 16px 30px rgba(15, 23, 42, 0.15) !important;
             }
 
+            .board.list-view .card-lead-meta {
+                display: flex !important;
+                gap: 8px;
+                flex-wrap: wrap;
+                margin-bottom: 8px;
+                font-size: 11px;
+                color: #6b7280;
+            }
+
+            .board.list-view .card-lead-meta,
+            .board.list-view .card-labels,
+            .board.list-view .card-footer,
+            .board.list-view .card-meta {
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+            }
+
             .board.list-view .card-labels {
-                display: flex;
+                display: flex !important;
                 gap: 6px;
                 flex-wrap: wrap;
                 margin-bottom: 10px;
@@ -1745,15 +1763,16 @@
             }
 
             .board.list-view .card-content {
-                font-size: 14px;
-                font-weight: 600;
-                color: #111827;
-                margin-bottom: 10px;
+                font-size: 14px !important;
+                font-weight: 600 !important;
+                color: #111827 !important;
+                margin-bottom: 10px !important;
                 line-height: 1.4;
+                display: block !important;
             }
 
             .board.list-view .card-footer {
-                display: flex;
+                display: flex !important;
                 justify-content: space-between;
                 align-items: center;
                 gap: 10px;
@@ -1761,14 +1780,14 @@
             }
 
             .board.list-view .card-meta {
-                display: flex;
+                display: flex !important;
                 align-items: center;
                 gap: 12px;
                 flex-wrap: wrap;
             }
 
             .board.list-view .card-meta-item {
-                display: flex;
+                display: flex !important;
                 align-items: center;
                 gap: 4px;
                 font-size: 12px;
@@ -1776,7 +1795,7 @@
             }
 
             .board.list-view .card-assignee {
-                display: flex;
+                display: flex !important;
                 align-items: center;
             }
 
@@ -1785,6 +1804,10 @@
                 height: 24px;
                 font-size: 10px;
                 border-radius: 50%;
+            }
+
+            .board.list-view .quick-info {
+                display: none !important;
             }
 
             .board.list-view .add-card-btn,
