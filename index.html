@@ -3016,6 +3016,7 @@
 
         function renderModalLabels() {
             const container = document.getElementById('modal-labels');
+            if (!container) return; // Labels section removed
             if (!currentEditingCardData.labels?.length) {
                 container.innerHTML = '<span style="color:#9ca3af;font-size:13px;">No labels</span> <button class="sidebar-btn" style="margin-top:8px;" onclick="openLabelPicker()">Add</button>';
                 return;
