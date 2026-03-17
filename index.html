@@ -3750,6 +3750,46 @@
             const allCards = Object.values(cardsData);
             const userName = currentUser || 'there';
 
+            // 🔍 FIND CARD - Search for specific card
+            if (msg.includes('find') || msg.includes('search') || msg.includes('look for') || msg.includes('where') || msg.includes('show me') || msg.includes('get') || msg.includes('card')) {
+                // Extract search terms from the message
+                const searchTerms = message
+                    .replace(/^(find|search|look for|show me|get)\s*/i, '')
+                    .replace(/card(s)?/gi, '')
+                    .trim()
+                    .toLowerCase();
+                
+                if (searchTerms.length > 2) {
+                    const matches = allCards.filter(card => {
+                        const searchable = [
+                            card.title || '',
+                            card.description || '',
+                            card.contactName || '',
+                            card.businessName || '',
+                            card.email || '',
+                            (card.labels || []).map(l => l.name).join(' ')
+                        ].join(' ').toLowerCase();
+                        
+                        return searchable.includes(searchTerms);
+                    });
+                    
+                    if (matches.length > 0) {
+                        return `🔍 Found ${matches.length} card${matches.length > 1 ? 's' : ''} matching "${searchTerms}":\n\n` +
+                            matches.slice(0, 10).map(c => {
+                                let info = `📋 **${c.title}**`;
+                                const list = boardConfig.find(l => l.id === c.listId);
+                                if (list) info += ` (${list.title})`;
+                                if (c.assignee) info += `\n   Assigned to: ${c.assignee}`;
+                                if (c.priority) info += `\n   Priority: ${c.priority}`;
+                                if (c.estimatedValue) info += `\n   Value: $${c.estimatedValue}`;
+                                return info;
+                            }).join('\n\n');
+                    } else {
+                        return `🔍 No cards found matching "${searchTerms}"\n\nTry a different search term!`;
+                    }
+                }
+            }
+
             // 🧮 MATH - Solve math equations
             const mathPatterns = [
                 /(\d+\s*[\+\-\*\/]\s*\d+)/,
@@ -3858,18 +3898,34 @@
                 ).join('\n');
             }
 
-            // Lead info
+            // Lead info - Show ALL details
             if (msg.includes('lead') || msg.includes('new') || msg.includes('prospect') || msg.includes('opportunity')) {
                 const leads = allCards.filter(c => c.listId === 'discovery');
                 if (leads.length === 0) return "No leads in LEAD IN! Time to get some! 🎯";
-                return `🎯 ${leads.length} lead${leads.length !== 1 ? 's' : ''} in LEAD IN:\n\n` +
+                
+                return `🎯 ${leads.length} LEAD${leads.length !== 1 ? 'S' : ''} in LEAD IN:\n\n` +
                     leads.map(l => {
-                        let info = `• ${l.title}`;
-                        if (l.priority) info += ` ${l.priority === 'hot' ? '🔥' : l.priority === 'warm' ? '🌡️' : '❄️'}`;
-                        if (l.estimatedValue) info += ` $${l.estimatedValue}`;
-                        if (l.contactName) info += ` (${l.contactName})`;
+                        let info = `📋 **${l.title}**`;
+                        if (l.businessName) info += `\n🏢 Business: ${l.businessName}`;
+                        if (l.contactName) info += `\n👤 Contact: ${l.contactName}`;
+                        if (l.email) info += `\n📧 Email: ${l.email}`;
+                        if (l.phone) info += `\n📱 Phone: ${l.phone}`;
+                        if (l.estimatedValue) info += `\n💰 Value: $${l.estimatedValue}`;
+                        if (l.priority) info += `\n${l.priority === 'hot' ? '🔥' : l.priority === 'warm' ? '🌡️' : '❄️'} Priority: ${l.priority}`;
+                        if (l.leadSource) info += `\n📬 Source: ${l.leadSource}`;
                         return info;
-                    }).join('\n');
+                    }).join('\n\n');
+            }
+
+            // Show ALL cards
+            if (msg.includes('show') && (msg.includes('all') || msg.includes('every') || msg.includes('list'))) {
+                return `📋 ALL ${allCards.length} CARDS:\n\n` +
+                    boardConfig.map(list => {
+                        const listCards = allCards.filter(c => c.listId === list.id);
+                        if (listCards.length === 0) return '';
+                        return `**${list.title}** (${listCards.length}):\n` +
+                            listCards.map(c => `• ${c.title}${c.assignee ? ` [${c.assignee}]` : ''}`).join('\n');
+                    }).filter(s => s).join('\n\n');
             }
 
             // Card counts / board stats
