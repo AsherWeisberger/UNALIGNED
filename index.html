@@ -969,6 +969,12 @@
             overflow-y: auto;
             color: #f1f5f9;
             box-shadow: 0 25px 80px rgba(5, 6, 12, 0.6);
+            display: none;
+        }
+
+        .card-modal.active {
+            display: flex;
+            flex-direction: column;
         }
 
         .card-modal-header {
@@ -1919,8 +1925,8 @@
     </main>
 
     <!-- Card Modal -->
-    <div class="modal-overlay" id="card-modal" onclick="closeCardModal(event)">
-        <div class="card-modal" id="card-modal" onclick="event.stopPropagation()">
+    <div class="modal-overlay" id="card-modal-overlay" onclick="closeCardModal(event)">
+        <div class="card-modal" onclick="event.stopPropagation()">
             <div class="card-modal-header">
                 <div class="card-modal-title-section">
                     <input type="text" class="card-modal-title" id="modal-card-title">
@@ -2942,7 +2948,7 @@
             renderChecklist();
             renderActivity();
             renderAssignee();
-            document.getElementById('card-modal').classList.add('active');
+            document.getElementById('card-modal-overlay').classList.add('active');
         }
 
         function saveCardAndClose() {
@@ -2969,13 +2975,13 @@
                 saveBoardStateNow();
                 updateFlowMap();
             }
-            document.getElementById('card-modal').classList.remove('active');
+            document.getElementById('card-modal-overlay').classList.remove('active');
             currentEditingCard = null;
             currentEditingCardData = null;
         }
 
         function closeCardModal(event) {
-            if (!event || event.target === document.getElementById('card-modal') || event.target.classList.contains('card-modal-close')) {
+            if (!event || event.target === document.getElementById('card-modal-overlay') || event.target.classList.contains('card-modal-close')) {
                 if (currentEditingCardData) {
                     const titleInput = document.getElementById('modal-card-title');
                     const descriptionInput = document.getElementById('modal-description');
@@ -3002,7 +3008,7 @@
                     saveBoardStateNow();
                     updateFlowMap();
                 }
-                document.getElementById('card-modal').classList.remove('active');
+                document.getElementById('card-modal-overlay').classList.remove('active');
                 currentEditingCard = null;
                 currentEditingCardData = null;
             }
@@ -3245,7 +3251,7 @@
                 const cardEl = document.getElementById('card-' + currentEditingCard);
                 if (cardEl) cardEl.remove();
                 delete cardsData[currentEditingCard];
-                document.getElementById('card-modal').classList.remove('active');
+                document.getElementById('card-modal-overlay').classList.remove('active');
                 currentEditingCard = null;
                 currentEditingCardData = null;
                 updateCardCount();
