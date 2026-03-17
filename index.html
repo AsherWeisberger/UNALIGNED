@@ -3820,30 +3820,45 @@
                 }
             }
 
-            // 🧮 MATH - Solve math equations
-            const mathPatterns = [
-                /(\d+\s*[\+\-\*\/]\s*\d+)/,
-                /(\d+\s*\^\s*\d+)/,
-                /sqrt\((\d+)\)/i,
-                /(\d+)\s*%\s*of\s*(\d+)/i
-            ];
-            
-            for (const pattern of mathPatterns) {
-                const match = message.match(pattern);
-                if (match) {
-                    try {
-                        let result;
-                        const expr = message.replace(/\^/g, '**').replace(/sqrt\((\d+)\)/i, 'Math.sqrt($1)').replace(/(\d+)%\s*of\s*(\d+)/i, '($1 * $2 / 100)');
-                        if (expr.includes('**') || expr.includes('Math.sqrt')) {
-                            result = eval(expr);
-                        } else {
-                            result = Function('"use strict";return (' + expr + ')')();
+            // 🧮 MATH - Solve math equations - SIMPLE & ROBUST
+            // Extract math expressions like "42 + 17", "100 * 5", "25 / 5", "10 - 3", "2^8", "sqrt(16)", "15% of 200"
+            const mathExprMatch = message.match(/(\d+\.?\d*)\s*([\+\-\*\/]|\^|sqrt|%)\s*(\d+\.?\d*|\(\d+\.?\d*\))/);
+            if (mathExprMatch || msg.includes('calculate') || msg.includes('what is') && /\d/.test(msg)) {
+                try {
+                    // Extract just the numbers and operators from the message
+                    let expr = message
+                        .replace(/what is\s*/i, '')
+                        .replace(/calculate\s*/i, '')
+                        .replace(/\s*\^\s*/g, '**')
+                        .replace(/sqrt\((\d+)\)/gi, 'Math.sqrt($1)')
+                        .replace(/(\d+)%\s*of\s*(\d+)/gi, '($1 * $2 / 100)')
+                        .replace(/[^0-9+\-*/.()Mathsqrt ]/g, '');
+                    
+                    // Only evaluate if it looks like valid math
+                    if (/^[\d+\-*/.() ]+$/.test(expr) && /[+\-*\/]/.test(expr)) {
+                        const result = Function('"use strict";return (' + expr + ')')();
+                        if (!isNaN(result) && isFinite(result)) {
+                            return `🧮 ${expr.replace(/\*\*/g, '^').replace(/Math\.sqrt/g, '√')} = ${Number.isInteger(result) ? result : result.toFixed(2)}! 🐕`;
                         }
-                        return `🧮 The answer is ${result}! 🐕 *does happy math dog*`;
-                    } catch(e) {
-                        // Continue to other handlers
                     }
+                } catch(e) {
+                    // Math didn't work, continue
                 }
+            }
+
+            // Handle simple "what is X plus/minus/times/divide Y"
+            const simpleMath = message.match(/what is (\d+) (plus|minus|times|divided by) (\d+)/i);
+            if (simpleMath) {
+                const a = parseFloat(simpleMath[1]);
+                const b = parseFloat(simpleMath[3]);
+                let result;
+                switch(simpleMath[2].toLowerCase()) {
+                    case 'plus': result = a + b; break;
+                    case 'minus': result = a - b; break;
+                    case 'times': result = a * b; break;
+                    case 'divided by': result = a / b; break;
+                }
+                return `🧮 ${a} ${simpleMath[2]} ${b} = ${result}! 🐕`;
             }
 
             // 🌐 WEB SEARCH - Search the internet
