@@ -1278,6 +1278,12 @@ async function saveBoardStateNow() {
 
 function refreshBoard() { initBoardStructure(); renderAllCards(); updateCardCount(); updateFlowMap(); }
 
+// Delegated click on board — opens card modal when any card is clicked
+document.addEventListener('click', e => {
+    const card = e.target.closest('.card');
+    if (card && card.dataset.cardId) { e.stopPropagation(); openCardModal(card.dataset.cardId); }
+});
+
 // ── Render Card ────────────────────────────────────
 function renderCard(cardData) {
     const container = document.getElementById(cardData.listId+'-cards');
