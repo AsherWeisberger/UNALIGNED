@@ -476,6 +476,17 @@
         }
         .delete-card-btn:hover { background: #ef4444; color: #fff; border-color: #ef4444; }
 
+        .draft-badge {
+            font-size: 11px; font-family: var(--font-mono);
+            padding: 2px 8px; border-radius: 20px;
+        }
+        .draft-badge.pending    { background: rgba(255,255,255,0.08); color: var(--muted2); }
+        .draft-badge.drafted   { background: rgba(251,191,36,0.15); color: #fbbf24; }
+        .draft-badge.approved   { background: rgba(52,211,153,0.15); color: #34d399; }
+        .draft-badge.sent      { background: rgba(52,211,153,0.25); color: #34d399; }
+
+        #draft-reply-section { border-color: rgba(91,140,255,0.2); }
+
         /* Checklist */
         .checklist-item { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
         .checklist-item input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--green); }
@@ -817,6 +828,30 @@
                         <div class="activity-list" id="modal-activity"></div>
                     </div>
 
+                    <div class="modal-section" id="draft-reply-section">
+                        <div class="modal-section-title" style="display:flex;align-items:center;gap:8px;">
+                            ✉️ AI Reply Draft
+                            <span id="draft-status-badge" class="draft-badge" style="display:none;"></span>
+                        </div>
+                        <div id="draft-loading" style="color:var(--muted);font-size:12px;font-family:var(--font-mono);display:none;">Generating…</div>
+                        <div id="draft-empty" style="color:var(--muted);font-size:12px;font-family:var(--font-mono);">No draft reply yet.</div>
+                        <div id="draft-content" style="display:none;">
+                            <input type="text" class="contact-input" id="modal-draft-subject" placeholder="Subject line…" style="margin-bottom:8px;">
+                            <textarea class="description-textarea" id="modal-draft-body" placeholder="Draft reply body…" style="min-height:140px;resize:vertical;"></textarea>
+                            <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+                                <button class="sidebar-btn" onclick="regenerateDraft()" id="btn-regen" style="font-size:12px;">🔄 Regenerate</button>
+                                <button class="sidebar-btn" onclick="copyDraft()" style="font-size:12px;">📋 Copy</button>
+                                <select class="contact-input" id="modal-draft-status" style="font-size:12px;padding:6px 10px;">
+                                    <option value="pending">Pending</option>
+                                    <option value="drafted">Drafted</option>
+                                    <option value="approved">Approved</option>
+                                    <option value="sent">Sent</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="draft-error" style="display:none;color:#f87171;font-size:12px;font-family:var(--font-mono);"></div>
+                    </div>
+
                     <div class="modal-section" style="border-color:rgba(248,113,113,0.2);">
                         <button class="delete-card-btn" onclick="deleteCard()">🗑 Delete Card</button>
                     </div>
@@ -957,6 +992,13 @@ const firebaseConfig = {
     messagingSenderId: "720311168962",
     appId: "1:720311168962:web:18d9f60626671a6e13f05b"
 };
+
+const twitterConfig = {
+    apiKey: "tbOiHjZfaq0xKlTOARGkHsP4U",
+    apiSecret: "l0IjZrYDoH0N90fAf0OWHV6UE1l0yfHvZjV0LBervSSH3BFWCM",
+    accessToken: "13348-xT9k3AmEVcOgjJheJ1KnUC8TGMj8f7fdBe7r71AS1hGM",
+    accessSecret: "DVRM9owSm6z25EueJ5iZDmS6lf1Sad9mat9dfJ5vcXXfh"
+};
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 const boardDocRef = doc(db, 'boards', 'shared-board');
@@ -1011,12 +1053,12 @@ const labelPalette = { red:'#ef4444',blue:'#3b82f6',green:'#22c55e',yellow:'#fac
 
 // ── Board Config ───────────────────────────────────
 const defaultBoardConfig = [
-    { id:'backlog',    title:'Backlog',      description:'New intake + triage',       color:'#c084fc', wip:12 },
-    { id:'discovery',  title:'Discovery',    description:'Clarify problem / success',  color:'#22d3ee', wip:6  },
-    { id:'build',      title:'Build',        description:'Heads-down execution',       color:'#38bdf8', wip:5  },
-    { id:'review',     title:'Review',       description:'QA, design sign-off',        color:'#fbbf24', wip:4  },
-    { id:'launch',     title:'Launch Prep',  description:'Comms + rollout',            color:'#f97316', wip:3  },
-    { id:'done',       title:'Shipped',      description:'Celebrate + learn',          color:'#34d399'         }
+    { id:'discovery',        title:'LEAD IN',        description:'', color:'#94a3b8' },
+    { id:'build',            title:'IN PROGRESS',    description:'', color:'#3b82f6' },
+    { id:'review',           title:'REVIEW',          description:'', color:'#fbbf24' },
+    { id:'done',             title:'DONE',            description:'', color:'#34d399' },
+    { id:'paid-out',         title:'PAID OUT',        description:'Custom lane', color:'#a855f7' },
+    { id:'anything-else',    title:'ANYTHING ELSE',   description:'', color:'#6b7280' }
 ];
 let boardConfig = JSON.parse(JSON.stringify(defaultBoardConfig));
 
@@ -1059,7 +1101,9 @@ function normalizeCardShape(card={}, fallbackId) {
         ...(card.businessName !== undefined ? {businessName:card.businessName} : {}),
         ...(card.leadSource !== undefined ? {leadSource:card.leadSource} : {}),
         ...(card.estimatedValue !== undefined ? {estimatedValue:card.estimatedValue} : {}),
-        ...(card.priority !== undefined ? {priority:card.priority} : {})
+        ...(card.priority !== undefined ? {priority:card.priority} : {}),
+        ...(card.draft_reply !== undefined ? {draft_reply:card.draft_reply} : {}),
+        ...(card.draft_reply_status !== undefined ? {draft_reply_status:card.draft_reply_status} : {})
     };
 }
 
@@ -1222,6 +1266,11 @@ async function saveBoardStateNow() {
             const el = document.getElementById('modal-'+field);
             if (el) currentEditingCardData[field] = el.value;
         });
+        currentEditingCardData.draft_reply = {
+            subject: document.getElementById('modal-draft-subject')?.value || '',
+            body: document.getElementById('modal-draft-body')?.value || ''
+        };
+        currentEditingCardData.draft_reply_status = document.getElementById('modal-draft-status')?.value || 'drafted';
     }
     clearTimeout(saveTimeout);
     await saveBoardState(true);
@@ -1232,7 +1281,7 @@ function refreshBoard() { initBoardStructure(); renderAllCards(); updateCardCoun
 // ── Render Card ────────────────────────────────────
 function renderCard(cardData) {
     const container = document.getElementById(cardData.listId+'-cards');
-    if (!container) return;
+    if (!container) { console.warn('No container for list:', cardData.listId); return; }
     const existing = document.getElementById('card-'+cardData.id);
     if (existing) existing.remove();
 
@@ -1398,6 +1447,7 @@ function openCardModal(cardId) {
     document.getElementById('modal-priority').value = currentEditingCardData.priority||'';
     document.getElementById('due-date-input').value = currentEditingCardData.dueDate||'';
     renderChecklist(); renderActivity(); renderAssignee();
+    renderDraftReply();
     overlay.classList.add('active');
 }
 
@@ -1412,6 +1462,11 @@ function saveCardAndClose() {
         currentEditingCardData.leadSource = document.getElementById('modal-lead-source').value;
         currentEditingCardData.estimatedValue = document.getElementById('modal-estimated-value').value;
         currentEditingCardData.priority = document.getElementById('modal-priority').value;
+        currentEditingCardData.draft_reply = {
+            subject: document.getElementById('modal-draft-subject').value,
+            body: document.getElementById('modal-draft-body').value
+        };
+        currentEditingCardData.draft_reply_status = document.getElementById('modal-draft-status').value;
         renderCard(currentEditingCardData); window.justSaved=Date.now();
         saveBoardStateNow(); updateFlowMap();
     }
@@ -1457,6 +1512,108 @@ function renderActivity() {
             <div><div class="activity-text"><strong>${act.user}</strong> ${act.action}</div><div class="activity-time">${timeAgo(new Date(act.time))}</div></div>
         </div>`;
     }).join('');
+}
+
+// ── Draft Reply ─────────────────────────────────────
+function renderDraftReply() {
+    const d = currentEditingCardData;
+    const badge = document.getElementById('draft-status-badge');
+    const empty = document.getElementById('draft-empty');
+    const content = document.getElementById('draft-content');
+    const error = document.getElementById('draft-error');
+
+    empty.style.display = 'none';
+    content.style.display = 'none';
+    error.style.display = 'none';
+    badge.style.display = 'none';
+
+    const draft = d.draftReply || d.draft_reply || null;
+    const status = d.draftReplyStatus || d.draft_reply_status || null;
+    if (!draft || (!draft.subject && !draft.body)) {
+        empty.style.display = 'block';
+        return;
+    }
+
+    content.style.display = 'block';
+    document.getElementById('modal-draft-subject').value = draft.subject || '';
+    document.getElementById('modal-draft-body').value = draft.body || '';
+    const statusVal = status || 'drafted';
+    document.getElementById('modal-draft-status').value = statusVal;
+
+    badge.style.display = 'inline-block';
+    badge.className = 'draft-badge ' + statusVal;
+    badge.textContent = statusVal;
+}
+
+function copyDraft() {
+    const subject = document.getElementById('modal-draft-subject').value;
+    const body = document.getElementById('modal-draft-body').value;
+    navigator.clipboard.writeText(`Subject: ${subject}\n\n${body}`).then(() => {
+        const btn = event.target;
+        const orig = btn.textContent;
+        btn.textContent = '✅ Copied!';
+        setTimeout(() => btn.textContent = orig, 1500);
+    });
+}
+
+async function regenerateDraft() {
+    if (!currentEditingCardData) return;
+    const btn = document.getElementById('btn-regen');
+    const loading = document.getElementById('draft-loading');
+    const empty = document.getElementById('draft-empty');
+    const content = document.getElementById('draft-content');
+    const error = document.getElementById('draft-error');
+
+    btn.disabled = true; btn.textContent = '⏳…';
+    loading.style.display = 'block'; empty.style.display = 'none'; content.style.display = 'none'; error.style.display = 'none';
+
+    try {
+        const card = currentEditingCardData;
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: 'gpt-4o-mini',
+                messages: [
+                    { role: 'system', content: 'You are a professional sales assistant. Always respond with valid JSON only.' },
+                    { role: 'user', content: `Draft a first-response email reply.\n\nSENDER INFO:\n- Name: ${card.contactName || 'Unknown'}\n- Email: ${card.email || 'Unknown'}\n- Business: ${card.businessName || 'Unknown'}\n- Source: ${card.leadSource || 'unknown'}\n- Priority: ${card.priority || 'warm'}\n\nCONTACT MESSAGE:\n${card.description || '(No description)'}\n\nRespond ONLY with JSON:\n{"subject": "email subject line", "body": "email body text", "status": "drafted"}\n\nRequirements:\n- Subject: concise, professional reply subject\n- Body: warm, personalized opening acknowledging their message; 2-3 short paragraphs; natural sign-off\n- No placeholders — write as if you know the person\n- Do NOT include any text outside the JSON.` }
+                ],
+                temperature: 0.7,
+                max_tokens: 600
+            })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error?.message || 'API error');
+
+        let text = data.choices[0].message.content;
+        if ("```json" in text) text = text.split("```json")[1].split("```")[0];
+        else if ("```" in text) text = text.split("```")[1].split("```")[0];
+        const reply = JSON.parse(text.trim());
+
+        currentEditingCardData.draft_reply = { subject: reply.subject, body: reply.body };
+        currentEditingCardData.draft_reply_status = 'drafted';
+        document.getElementById('modal-draft-subject').value = reply.subject;
+        document.getElementById('modal-draft-body').value = reply.body;
+        document.getElementById('modal-draft-status').value = 'drafted';
+
+        const badge = document.getElementById('draft-status-badge');
+        badge.style.display = 'inline-block';
+        badge.className = 'draft-badge drafted';
+        badge.textContent = 'drafted';
+
+        saveBoardStateNow();
+        content.style.display = 'block';
+    } catch (e) {
+        error.textContent = '⚠️ ' + e.message;
+        error.style.display = 'block';
+        if (!currentEditingCardData.draftReply) empty.style.display = 'block';
+    } finally {
+        btn.disabled = false; btn.textContent = '🔄 Regenerate';
+        loading.style.display = 'none';
+    }
 }
 
 function renderAssignee() {
@@ -1617,7 +1774,7 @@ document.addEventListener('keydown', e=>{
 // ── Add Card/List ──────────────────────────────────
 function showAddCardForm(listId) {
     const container=document.getElementById(listId+'-cards');
-    if(document.querySelector('.new-card-form')) return;
+    if(!container || document.querySelector('.new-card-form')) return;
     const form=document.createElement('div'); form.className='new-card-form';
     form.innerHTML=`<textarea class="new-card-input" rows="3" placeholder="Card title…"></textarea><div class="new-card-actions"><button class="btn-primary" onclick="addCard(this,'${listId}')">Add card</button><button class="btn-cancel" onclick="cancelAddCard(this)">×</button></div>`;
     container.parentNode.insertBefore(form,container.nextSibling);
