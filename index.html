@@ -834,7 +834,10 @@
                             <span id="draft-status-badge" class="draft-badge" style="display:none;"></span>
                         </div>
                         <div id="draft-loading" style="color:var(--muted);font-size:12px;font-family:var(--font-mono);display:none;">Generating…</div>
-                        <div id="draft-empty" style="color:var(--muted);font-size:12px;font-family:var(--font-mono);">No draft reply yet.</div>
+                        <div id="draft-empty" style="color:var(--muted);font-size:12px;font-family:var(--font-mono);">
+                            No draft reply yet.
+                            <button class="sidebar-btn" onclick="regenerateDraft()" style="margin-top:10px;font-size:12px;display:block;">✨ Generate Draft</button>
+                        </div>
                         <div id="draft-content" style="display:none;">
                             <input type="text" class="contact-input" id="modal-draft-subject" placeholder="Subject line…" style="margin-bottom:8px;">
                             <textarea class="description-textarea" id="modal-draft-body" placeholder="Draft reply body…" style="min-height:140px;resize:vertical;"></textarea>
