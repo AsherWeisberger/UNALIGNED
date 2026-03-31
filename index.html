@@ -1472,8 +1472,14 @@ function openCardModal(cardId) {
     overlay.classList.add('active');
     // Scroll modal body to bottom so draft section is visible
     requestAnimationFrame(() => {
-        const body = document.querySelector('.card-modal-body');
-        if (body) body.scrollTop = body.scrollHeight;
+        requestAnimationFrame(() => {
+            const body = document.querySelector('.card-modal-body');
+            if (body) {
+                body.scrollTop = body.scrollHeight;
+                // Double scroll to ensure button is in viewport
+                setTimeout(() => { body.scrollTop = body.scrollHeight; }, 50);
+            }
+        });
     });
 }
 
