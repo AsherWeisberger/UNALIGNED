@@ -254,26 +254,31 @@
 
         /* ─── FLOW MAP ────────────────────────────────────── */
         .flow-map {
-            display: flex; align-items: center; gap: 10px;
-            overflow-x: auto; padding: 14px 16px;
+            display: flex; align-items: center; gap: 6px;
+            padding: 10px 16px;
             background: var(--surface); border-radius: var(--radius);
             border: 1px solid var(--border);
             margin-top: 16px;
+            overflow-x: auto;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
         }
+        .flow-map::-webkit-scrollbar { display: none; }
 
         .flow-node {
-            min-width: 120px; background: var(--bg2);
-            border-radius: 10px; padding: 12px 14px;
-            display: flex; flex-direction: column; gap: 3px;
+            background: var(--bg2);
+            border-radius: 8px; padding: 8px 12px;
+            display: flex; flex-direction: column; gap: 1px;
             border: 1px solid var(--border); flex-shrink: 0;
+            min-width: 80px;
         }
-        .flow-node h4 { font-size: 11px; font-weight: 600; font-family: var(--font-mono); color: var(--muted2); text-transform: uppercase; letter-spacing: 0.05em; }
-        .flow-node span { font-size: 11px; color: var(--muted); }
-        .flow-node strong { font-size: 22px; font-weight: 700; font-family: var(--font-display); color: var(--text); }
+        .flow-node h4 { font-size: 10px; font-weight: 600; font-family: var(--font-mono); color: var(--muted2); text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+        .flow-node span { font-size: 10px; color: var(--muted); white-space: nowrap; }
+        .flow-node strong { font-size: 18px; font-weight: 700; font-family: var(--font-display); color: var(--text); }
         .flow-node.overloaded { border-color: #f87171; }
 
         .flow-connector {
-            height: 1px; width: 24px;
+            height: 1px; width: 16px;
             background: linear-gradient(90deg, transparent, var(--border2), transparent);
             flex-shrink: 0;
         }
@@ -613,6 +618,10 @@
 
             .stats { display: none; }
             header { flex-wrap: wrap; gap: 10px; }
+
+            /* Flow map: wrap gracefully on tablet/small screens */
+            .flow-map { flex-wrap: wrap; gap: 6px; overflow-x: visible; }
+            .flow-connector { display: none; }
         }
 
         @media (max-width: 480px) {
