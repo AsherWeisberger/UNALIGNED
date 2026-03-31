@@ -1441,7 +1441,7 @@ function openCardModal(cardId) {
     const overlay = document.getElementById('card-modal-overlay');
     const modal = document.getElementById('card-modal');
     overlay.classList.add('active'); overlay.style.display='flex';
-    modal.classList.add('active'); modal.style.display='block';
+    modal.classList.add('active'); modal.style.display='flex';
 
     document.getElementById('modal-card-title').value = currentEditingCardData.title;
     document.getElementById('modal-description').value = currentEditingCardData.description||'';
@@ -1483,6 +1483,7 @@ function saveCardAndClose() {
     const overlay = document.getElementById('card-modal-overlay');
     overlay.classList.remove('active'); overlay.style.display='none';
     document.getElementById('card-modal').style.display='none';
+    document.getElementById('card-modal').classList.remove('active');
     currentEditingCard=null; currentEditingCardData=null;
 }
 
@@ -1491,6 +1492,7 @@ function closeCardModal(event) {
         document.getElementById('card-modal-overlay').classList.remove('active');
         document.getElementById('card-modal-overlay').style.display='none';
         document.getElementById('card-modal').style.display='none';
+        document.getElementById('card-modal').classList.remove('active');
         currentEditingCard=null; currentEditingCardData=null;
     }
 }
