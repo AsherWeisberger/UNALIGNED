@@ -1630,15 +1630,29 @@ async function regenerateDraft() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error?.message || 'API error');
 
-        let text = data.choices[0].message.content;
-        if ("```json" in text) text = text.split("```json")[1].split("```")[0];
-        else if ("```" in text) text = text.split("```")[1].split("```")[0];
-        const reply = JSON.parse(text.trim());
+        const msg = data.choices[0].message;
+        let reply;
 
-        currentEditingCardData.draft_reply = { subject: reply.subject, body: reply.body };
+        if (typeof msg.content === 'string') {
+            // Plain text response — try to parse as JSON
+            let text = msg.content;
+            if (text.includes("```json")) text = text.split("```json")[1].split("```")[0];
+            else if (text.includes("```")) text = text.split("```")[1].split("```")[0];
+            try { reply = JSON.parse(text.trim()); } catch { reply = { subject: '', body: text.trim() }; }
+        } else {
+            // Structured response — content may be an object
+            reply = msg.content || msg;
+        }
+
+        // Fallback: if reply is still not an object, try parsing the whole message
+        if (typeof reply !== 'object' || reply === null) {
+            try { reply = JSON.parse(msg.content || msg); } catch { reply = { subject: '', body: String(msg.content || msg) }; }
+        }
+
+        currentEditingCardData.draft_reply = { subject: reply.subject || '', body: reply.body || '' };
         currentEditingCardData.draft_reply_status = 'drafted';
-        document.getElementById('modal-draft-subject').value = reply.subject;
-        document.getElementById('modal-draft-body').value = reply.body;
+        document.getElementById('modal-draft-subject').value = reply.subject || '';
+        document.getElementById('modal-draft-body').value = reply.body || '';
         document.getElementById('modal-draft-status').value = 'drafted';
 
         const badge = document.getElementById('draft-status-badge');
