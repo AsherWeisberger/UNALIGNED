@@ -945,9 +945,10 @@ What would you like to know?</div>
 
 </div><!-- /#app -->
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
-import { getFirestore, doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
+<script>
+(async () => {
+const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js");
+const { getFirestore, doc, onSnapshot, setDoc, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js");
 
 // ── Login ──────────────────────────────────────────
 let selectedUser = { name: 'Asher W', initials: 'AW', password: '3' };
@@ -2032,6 +2033,36 @@ window.sendChatMessage=sendChatMessage;
 window.handleChatKey=handleChatKey;
 window.handleAskHubbleClick=handleAskHubbleClick;
 window.changeAgent=changeAgent;
+window.regenerateDraft=regenerateDraft;
+window.openCardModal=openCardModal;
+window.getOpenAIKey=getOpenAIKey;
+window.renderDraftReply=renderDraftReply;
+window.copyDraft=copyDraft;
+window.saveCardAndClose=saveCardAndClose;
+window.deleteCard=deleteCard;
+window.quickAddLead=quickAddLead;
+window.addCard=addCard;
+window.changeAssignee=changeAssignee;
+window.closeAssigneeModal=closeAssigneeModal;
+window.closeLabelModal=closeLabelModal;
+window.openLabelPicker=openLabelPicker;
+window.removeLabel=removeLabel;
+window.addList=addList;
+window.showAddCardForm=showAddCardForm;
+window.showAddListForm=showAddListForm;
+window.toggleViewMode=toggleViewMode;
+window.addChecklistItem=addChecklistItem;
+window.openProfileModal=openProfileModal;
+window.closeProfileModal=closeProfileModal;
+window.cancelAddCard=cancelAddCard;
+window.cancelAddList=cancelAddList;
+window.renameList=renameList;
+window.deleteList=deleteList;
+window.closeCommandPalette=closeCommandPalette;
+window.executeCommand=executeCommand;
+window.selectLoginUser=selectLoginUser;
+window.closeCardModal=closeCardModal;
+})();
 </script>
 </body>
 </html>
