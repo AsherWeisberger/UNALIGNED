@@ -1135,6 +1135,9 @@ function getOpenAIKey() {
     return key || '';
 }
 
+// ── Filters ────────────────────────────────────────
+const filters = { search:'', label:'all', priority:'all', source:'all', assignee:'all', mineOnly:false };
+
 document.addEventListener('DOMContentLoaded', () => {
     document.body.classList.add('board-loading');
     renderSyncState();
