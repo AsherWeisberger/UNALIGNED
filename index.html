@@ -350,6 +350,7 @@
         .card-lead-meta { display: flex; gap: 6px; align-items: center; margin: 5px 0; flex-wrap: wrap; }
         .card-priority { padding: 2px 7px; border-radius: 6px; font-size: 10px; font-weight: 600; font-family: var(--font-mono); background: rgba(0,0,0,0.06); }
         .card-source { padding: 2px 7px; border-radius: 6px; font-size: 10px; background: rgba(0,0,0,0.06); color: #374151; }
+        .source-badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; margin-left: 8px; vertical-align: middle; white-space: nowrap; }
         .card-value { padding: 2px 7px; border-radius: 6px; font-size: 10px; font-weight: 600; color: #059669; background: rgba(5,150,105,0.1); font-family: var(--font-mono); }
 
         /* ─── LABEL COLORS ────────────────────────────────── */
@@ -774,7 +775,10 @@
                     </div>
 
                     <div class="modal-section">
-                        <div class="modal-section-title">Contact</div>
+                        <div class="modal-section-title">
+                            Contact
+                            <span id="modal-source-badge" class="source-badge" style="display:none;"></span>
+                        </div>
                         <div class="contact-fields">
                             <input type="text" class="contact-input" id="modal-contact-name" placeholder="Contact Name">
                             <input type="text" class="contact-input" id="modal-business-name" placeholder="Business Name">
@@ -786,14 +790,18 @@
                     <div class="modal-section">
                         <div class="modal-section-title">Lead Details</div>
                         <div class="lead-fields">
-                            <select class="contact-input" id="modal-lead-source">
+                            <select class="contact-input" id="modal-lead-source" onchange="updateSourceBadge()">
                                 <option value="">Lead Source</option>
-                                <option value="website">Website</option>
-                                <option value="referral">Referral</option>
-                                <option value="cold-call">Cold Call</option>
-                                <option value="social">Social Media</option>
-                                <option value="advertisement">Advertisement</option>
-                                <option value="other">Other</option>
+                                <option value="GMAIL">📧 Gmail</option>
+                                <option value="LINKEDIN">💼 LinkedIn</option>
+                                <option value="WHATSAPP">💬 WhatsApp</option>
+                                <option value="X">🐦 X (Twitter)</option>
+                                <option value="REFERRAL">🤝 Referral</option>
+                                <option value="COLD_OUTREACH">📞 Cold Outreach</option>
+                                <option value="INBOUND">📥 Inbound</option>
+                                <option value="WEBSITE">🌐 Website</option>
+                                <option value="PARTNERSHIP">🤝 Partnership</option>
+                                <option value="OTHER">📌 Other</option>
                             </select>
                             <input type="text" class="contact-input" id="modal-estimated-value" placeholder="Estimated Value ($)" style="margin-bottom:0;">
                         </div>
@@ -1337,7 +1345,14 @@ function renderCard(cardData) {
     let leadMetaHtml = '';
     if (cardData.priority || cardData.leadSource || cardData.estimatedValue) {
         const pHtml = cardData.priority ? `<span class="card-priority">${cardData.priority==='hot'?'🔥':cardData.priority==='warm'?'🌡️':'❄️'} ${cardData.priority}</span>` : '';
-        const sHtml = cardData.leadSource ? `<span class="card-source">${cardData.leadSource}</span>` : '';
+        const sourceColors = {
+            GMAIL:'#dbeafe:#1e40af', LINKEDIN:'#d0f0ff:#0369a1', WHATSAPP:'#dcfce7:#15803d',
+            X:'#f3e8ff:#7e22ce', REFERRAL:'#fef9c3:#a16207', COLD_OUTREACH:'#fee2e2:#991b1b',
+            INBOUND:'#f0fdf4:#166534', WEBSITE:'#e0e7ff:#3730a3', PARTNERSHIP:'#fef9c3:#a16207'
+        };
+        const sc = sourceColors[cardData.leadSource] || 'rgba(0,0,0,0.06):#374151';
+        const sParts = sc.split(':');
+        const sHtml = cardData.leadSource ? `<span class="card-source" style="background:${sParts[0]};color:${sParts[1]}">${cardData.leadSource}</span>` : '';
         const vHtml = cardData.estimatedValue ? `<span class="card-value">$${cardData.estimatedValue}</span>` : '';
         leadMetaHtml = `<div class="card-lead-meta">${pHtml}${sHtml}${vHtml}</div>`;
     }
@@ -1465,6 +1480,7 @@ function openCardModal(cardId) {
     document.getElementById('modal-phone').value = currentEditingCardData.phone||'';
     document.getElementById('modal-business-name').value = currentEditingCardData.businessName||'';
     document.getElementById('modal-lead-source').value = currentEditingCardData.leadSource||'';
+    updateSourceBadge();
     document.getElementById('modal-estimated-value').value = currentEditingCardData.estimatedValue||'';
     document.getElementById('modal-priority').value = currentEditingCardData.priority||'';
     document.getElementById('due-date-input').value = currentEditingCardData.dueDate||'';
@@ -1669,6 +1685,33 @@ async function regenerateDraft() {
     } finally {
         btn.disabled = false; btn.textContent = '🔄 Regenerate';
         loading.style.display = 'none';
+    }
+}
+
+function updateSourceBadge() {
+    const source = document.getElementById('modal-lead-source')?.value || currentEditingCardData?.leadSource || '';
+    const badge = document.getElementById('modal-source-badge');
+    if (!badge) return;
+    const sourceMeta = {
+        GMAIL:    { label:'📧 Gmail',        bg:'#dbeafe', color:'#1e40af' },
+        LINKEDIN: { label:'💼 LinkedIn',     bg:'#d0f0ff', color:'#0369a1' },
+        WHATSAPP: { label:'💬 WhatsApp',     bg:'#dcfce7', color:'#15803d' },
+        X:        { label:'🐦 X (Twitter)',  bg:'#f3e8ff', color:'#7e22ce' },
+        REFERRAL: { label:'🤝 Referral',      bg:'#fef9c3', color:'#a16207' },
+        COLD_OUTREACH: { label:'📞 Cold Outreach', bg:'#fee2e2', color:'#991b1b' },
+        INBOUND:  { label:'📥 Inbound',       bg:'#f0fdf4', color:'#166534' },
+        WEBSITE:  { label:'🌐 Website',       bg:'#e0e7ff', color:'#3730a3' },
+        PARTNERSHIP: { label:'🤝 Partnership', bg:'#fef9c3', color:'#a16207' },
+        OTHER:    { label:'📌 Other',         bg:'#f1f5f9', color:'#475569' }
+    };
+    const meta = sourceMeta[source] || null;
+    if (meta) {
+        badge.textContent = meta.label;
+        badge.style.display = 'inline-flex';
+        badge.style.background = meta.bg;
+        badge.style.color = meta.color;
+    } else {
+        badge.style.display = 'none';
     }
 }
 
@@ -2075,6 +2118,7 @@ window.deleteList=deleteList;
 window.closeCommandPalette=closeCommandPalette;
 window.executeCommand=executeCommand;
 window.selectLoginUser=selectLoginUser;
+window.updateSourceBadge=updateSourceBadge;
 window.closeCardModal=closeCardModal;
 })();
 </script>
