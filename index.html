@@ -1123,10 +1123,21 @@ function normalizeCardsMap(rawCards={}, lists=defaultBoardConfig) {
     return normalized;
 }
 
-// ── Filters ────────────────────────────────────────
-const filters = { search:'', label:'all', priority:'all', source:'all', assignee:'all', mineOnly:false };
+// ── Config ───────────────────────────────────────────
+// OpenAI API key stored in localStorage (never committed to git)
+// On first use, enter it once and it persists in your browser
+function getOpenAIKey() {
+    let key = localStorage.getItem('unaligned_openai_key');
+    if (!key) {
+        key = prompt('Enter your OpenAI API key (stored locally, never sent anywhere but OpenAI):');
+        if (key) localStorage.setItem('unaligned_openai_key', key);
+    }
+    return key || '';
+}
 
-// ── DOM init ───────────────────────────────────────
+const firebaseConfig = {
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     document.body.classList.add('board-loading');
     renderSyncState();
@@ -1575,6 +1586,13 @@ function copyDraft() {
 
 async function regenerateDraft() {
     if (!currentEditingCardData) return;
+    const key = getOpenAIKey();
+    if (!key) {
+        const err = document.getElementById('draft-error');
+        err.textContent = '⚠️ No API key set. Enter it when prompted on load.';
+        err.style.display = 'block';
+        return;
+    }
     const btn = document.getElementById('btn-regen');
     const loading = document.getElementById('draft-loading');
     const empty = document.getElementById('draft-empty');
@@ -1589,7 +1607,7 @@ async function regenerateDraft() {
         const res = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                'Authorization': `Bearer ${getOpenAIKey()}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
