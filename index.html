@@ -400,12 +400,13 @@
         .card-modal {
             background: var(--surface);
             border-radius: var(--radius-lg);
-            width: min(680px, 95%); max-height: 90vh; overflow-y: auto;
+            width: min(680px, 95%); max-height: 90vh;
             color: var(--text); box-shadow: var(--shadow-lg);
             border: 1px solid var(--border2);
             display: none; position: relative;
+            flex-direction: column;
         }
-        .card-modal.active { display: block !important; }
+        .card-modal.active { display: flex !important; }
 
         .card-modal-header {
             padding: 20px 24px; display: flex; justify-content: space-between;
@@ -438,7 +439,7 @@
         }
         .card-modal-close:hover { background: #ef4444; color: #fff; }
 
-        .card-modal-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+        .card-modal-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; flex: 1; }
         .card-modal-main { display: flex; flex-direction: column; gap: 16px; }
 
         .modal-section {
