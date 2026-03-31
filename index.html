@@ -929,7 +929,24 @@ What would you like to know?</div>
                     <span class="avatar" style="background:linear-gradient(135deg,#4facfe,#00f2fe);">AW</span>
                     <div class="profile-info"><span class="profile-name">Asher W</span></div>
                 </div>
+                <button onclick="openApiKeyModal()" style="margin-top:12px;width:100%;padding:10px;border-radius:8px;background:var(--surface2);color:var(--text);border:1px solid var(--border2);cursor:pointer;font-size:13px">⚙️ API Keys</button>
             </div>
+        </div>
+    </div>
+
+    <!-- ─── API KEY SETTINGS ──────────────────────────────── -->
+    <div class="modal-overlay" id="apikey-modal" onclick="closeApiKeyModal(event)">
+        <div class="profile-modal" onclick="event.stopPropagation()">
+            <h2 class="profile-modal-title">⚙️ API Keys</h2>
+            <div style="margin-bottom:16px">
+                <label style="font-size:13px;color:var(--muted2);display:block;margin-bottom:6px">OpenAI API Key</label>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <input type="password" id="apikey-openai-input" placeholder="sk-..." style="flex:1;padding:10px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-family:var(--font-mono);font-size:12px" />
+                    <button onclick="saveApiKey()" style="padding:10px 16px;border-radius:8px;background:var(--accent);color:white;border:none;cursor:pointer;font-weight:600;font-size:13px">Save</button>
+                </div>
+                <p id="apikey-status" style="font-size:12px;color:#22c55e;margin-top:6px;display:none">✓ Saved to cloud — syncs across all devices</p>
+            </div>
+            <p style="font-size:11px;color:var(--muted2)">Your key is stored in Firestore and syncs automatically to all your devices.</p>
         </div>
     </div>
 
@@ -956,7 +973,7 @@ What would you like to know?</div>
 <script>
 (async () => {
 const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js");
-const { getFirestore, doc, onSnapshot, setDoc, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js");
+const { getFirestore, doc, getDoc, onSnapshot, setDoc, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js");
 
 // ── Login ──────────────────────────────────────────
 let selectedUser = { name: 'Asher W', initials: 'AW', password: '3' };
@@ -986,6 +1003,10 @@ function attemptLogin() {
         currentInitials = selectedUser.initials;
         document.getElementById('current-avatar').textContent = currentInitials;
         document.getElementById('current-profile-name').textContent = currentUser;
+        // Load API key from Firestore for this user
+        const uidMap = { 'Sam L':'sl', 'Robert S':'rs', 'Asher W':'aw' };
+        const uid = uidMap[currentUser] || currentUser.toLowerCase().replace(/\s+/g,'').slice(0,2);
+        loadApiKeyForUser(uid);
         loadState();
     } else {
         document.getElementById('login-error').textContent = 'Incorrect password';
@@ -1133,15 +1154,62 @@ function normalizeCardsMap(rawCards={}, lists=defaultBoardConfig) {
 }
 
 // ── Config ───────────────────────────────────────────
-// OpenAI API key stored in localStorage (never committed to git)
-// On first use, enter it once and it persists in your browser
+// OpenAI API key synced to Firestore per user — available on all devices
+const userDocRef = (uid) => doc(db, 'users', uid);
+let cachedOpenAIKey = null;
+let currentUserId = null;
+
 function getOpenAIKey() {
-    let key = localStorage.getItem('unaligned_openai_key');
-    if (!key) {
-        key = prompt('Enter your OpenAI API key (stored locally, never sent anywhere but OpenAI):');
-        if (key) localStorage.setItem('unaligned_openai_key', key);
-    }
-    return key || '';
+    // Return cached if available
+    if (cachedOpenAIKey) return cachedOpenAIKey;
+    // Fallback to localStorage for existing sessions
+    const lsKey = localStorage.getItem('unaligned_openai_key');
+    if (lsKey) { cachedOpenAIKey = lsKey; return lsKey; }
+    return '';
+}
+
+// Fetch API key from Firestore after login
+async function loadApiKeyForUser(userId) {
+    currentUserId = userId;
+    cachedOpenAIKey = null;
+    try {
+        const snap = await getDoc(userDocRef(userId));
+        if (snap.exists() && snap.data().openai_api_key) {
+            cachedOpenAIKey = snap.data().openai_api_key;
+            // Mirror to localStorage for offline fallback
+            localStorage.setItem('unaligned_openai_key', cachedOpenAIKey);
+        }
+    } catch(e) { console.warn('Could not load API key from Firestore:', e); }
+}
+
+// Save API key to Firestore
+async function saveApiKey() {
+    const input = document.getElementById('apikey-openai-input');
+    const status = document.getElementById('apikey-status');
+    const key = input.value.trim();
+    if (!key) { alert('Please enter a valid API key'); return; }
+    if (!currentUserId) { alert('Not logged in'); return; }
+    try {
+        await setDoc(userDocRef(currentUserId), { openai_api_key: key }, { merge: true });
+        cachedOpenAIKey = key;
+        localStorage.setItem('unaligned_openai_key', key);
+        status.style.display = 'block';
+        status.style.color = '#22c55e';
+        status.textContent = '✓ Saved to cloud — syncs across all devices';
+        setTimeout(() => { status.style.display = 'none'; }, 3000);
+    } catch(e) { status.style.display = 'block'; status.style.color = '#ef4444'; status.textContent = '✗ Save failed: ' + e.message; }
+}
+
+// Modal functions for API key
+function openApiKeyModal() {
+    closeProfileModal();
+    const input = document.getElementById('apikey-openai-input');
+    input.value = cachedOpenAIKey || '';
+    document.getElementById('apikey-modal').classList.add('active');
+}
+function closeApiKeyModal(event) {
+    if (!event || event.target === document.getElementById('apikey-modal'))
+        document.getElementById('apikey-modal').classList.remove('active');
 }
 
 // ── Filters ────────────────────────────────────────
@@ -2110,6 +2178,7 @@ window.showAddListForm=showAddListForm;
 window.toggleViewMode=toggleViewMode;
 window.addChecklistItem=addChecklistItem;
 window.openProfileModal=openProfileModal;
+window.openApiKeyModal=openApiKeyModal;window.closeApiKeyModal=closeApiKeyModal;
 window.closeProfileModal=closeProfileModal;
 window.cancelAddCard=cancelAddCard;
 window.cancelAddList=cancelAddList;
