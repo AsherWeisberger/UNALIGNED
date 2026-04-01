@@ -283,6 +283,88 @@
         /* ─── BOARD ───────────────────────────────────────── */
         .board { display: flex; gap: 14px; overflow-x: auto; align-items: flex-start; padding-top: 4px; padding-bottom: 8px; }
         .board-lists { display: flex; gap: 14px; flex: 1; }
+        .board.hidden { display: none; }
+
+        /* ─── LIST VIEW ──────────────────────────────────── */
+        .list-view {
+            display: none;
+            flex-direction: column;
+            gap: 0;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            background: var(--surface);
+        }
+        .list-view.active { display: flex; }
+
+        .list-view-header, .list-view-row {
+            display: grid;
+            grid-template-columns: 40px 2fr 1fr 1fr 1fr 100px 90px;
+            gap: 0;
+            align-items: center;
+        }
+        .list-view-header {
+            background: var(--bg2);
+            border-bottom: 1px solid var(--border);
+            padding: 10px 12px;
+            font-size: 11px;
+            font-family: var(--font-mono);
+            font-weight: 600;
+            color: var(--muted2);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            position: sticky;
+            top: 0;
+            z-index: 5;
+        }
+        .list-view-header span { cursor: pointer; user-select: none; }
+        .list-view-header span:hover { color: var(--accent); }
+        .list-view-header span.sorted { color: var(--accent); }
+
+        .list-view-row {
+            padding: 9px 12px;
+            border-bottom: 1px solid var(--border2);
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+        .list-view-row:last-child { border-bottom: none; }
+        .list-view-row:hover { background: var(--bg2); }
+        .list-view-row:active { background: var(--bg3); }
+
+        .list-view-row .lv-score {
+            font-size: 11px; font-family: var(--font-mono); font-weight: 600;
+            padding: 2px 6px; border-radius: 4px; display: inline-block;
+        }
+        .list-view-row .lv-labels { display: flex; flex-wrap: wrap; gap: 3px; }
+        .list-view-row .lv-label { font-size: 10px; padding: 1px 5px; border-radius: 3px; }
+        .list-view-row .lv-title { font-weight: 500; }
+        .list-view-row .lv-name { font-weight: 500; }
+        .list-view-row .lv-contact { color: var(--muted); font-size: 12px; }
+        .list-view-row .lv-list { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
+        .list-view-row .lv-time { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
+        .list-view-row .lv-draft { font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: 500; }
+        .list-view-row .lv-draft.has-draft { background: rgba(52,211,153,0.15); color: #34d399; }
+        .list-view-row .lv-draft.no-draft { background: rgba(255,255,255,0.05); color: var(--muted2); }
+
+        .list-view-row .lv-list-dot {
+            display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+            margin-right: 5px; vertical-align: middle; flex-shrink: 0;
+        }
+
+        .list-view-empty {
+            padding: 40px; text-align: center; color: var(--muted);
+            font-size: 14px;
+        }
+        .list-view-footer {
+            padding: 8px 12px;
+            background: var(--bg2);
+            border-top: 1px solid var(--border);
+            font-size: 11px;
+            color: var(--muted2);
+            font-family: var(--font-mono);
+            text-align: right;
+        }
 
         .loading-state {
             display: none; align-items: center; gap: 10px;
@@ -697,6 +779,7 @@
                     <span data-sync-text>Connecting…</span>
                 </div>
                 <button class="view-toggle" id="view-toggle-btn" onclick="toggleViewMode()">⊞ Compact</button>
+                <button class="view-toggle" id="table-toggle-btn" onclick="toggleListView()">≡ Table</button>
                 <button class="profile-btn" id="profile-btn" onclick="openProfileModal()">
                     <span class="avatar" id="current-avatar">AW</span>
                     <span id="current-profile-name">Asher W</span>
@@ -748,6 +831,20 @@
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
                         Add list
                     </button>
+                </section>
+
+                <!-- List / Table View -->
+                <section class="list-view" id="list-view">
+                    <div class="list-view-header" id="list-view-header">
+                        <span>Score</span>
+                        <span>Lead</span>
+                        <span>Contact</span>
+                        <span>List</span>
+                        <span>Labels</span>
+                        <span>Draft</span>
+                        <span>Added</span>
+                    </div>
+                    <div id="list-view-body"></div>
                 </section>
             </div>
         </main>
@@ -1350,7 +1447,7 @@ async function saveBoardStateNow() {
     await saveBoardState(true);
 }
 
-function refreshBoard() { initBoardStructure(); renderAllCards(); updateCardCount(); updateFlowMap(); }
+function refreshBoard() { initBoardStructure(); renderAllCards(); updateCardCount(); updateFlowMap(); if (isListView) renderListView(); }
 
 // Delegated click on board — opens card modal when any card is clicked
 document.addEventListener('click', e => {
@@ -1441,7 +1538,7 @@ function moveCardToList(cardId,newListId) {
     const oldListId = card.listId;
     card.listId = newListId;
     addActivity(`moved from ${boardConfig.find(l=>l.id===oldListId)?.title||oldListId} to ${boardConfig.find(l=>l.id===newListId)?.title||newListId}`);
-    renderAllCards(); updateCardCount(); updateFlowMap(); saveBoardStateNow();
+    renderAllCards(); updateCardCount(); updateFlowMap(); if(isListView)renderListView(); saveBoardStateNow(); }
 }
 
 // ── Drag & Drop ────────────────────────────────────
@@ -1465,7 +1562,7 @@ function drop(ev) {
     const oLN = boardConfig.find(l=>l.id===oldListId)?.title||oldListId;
     targetCard.activity = Array.isArray(targetCard.activity)?targetCard.activity:[];
     targetCard.activity.unshift({user:currentProfile.name,initials:currentProfile.initials,action:`moved from ${oLN} to ${nLN}`,time:new Date().toISOString()});
-    updateCardCount(); updateFlowMap(); queueSaveBoardState();
+    updateCardCount(); updateFlowMap(); if(isListView)renderListView(); queueSaveBoardState(); }
 }
 
 // ── Filters ────────────────────────────────────────
@@ -1822,7 +1919,7 @@ function setAssignee(name,initials) {
     currentEditingCardData.assignee=name; renderAssignee();
     addActivity(name?`assigned to ${name}`:'removed assignee');
     document.getElementById('assignee-modal').classList.remove('active');
-    saveBoardStateNow(); updateCardCount(); updateFlowMap();
+    saveBoardStateNow(); updateCardCount(); updateFlowMap(); if(isListView)renderListView(); }
 }
 function closeAssigneeModal(event) { if(event.target===document.getElementById('assignee-modal')) document.getElementById('assignee-modal').classList.remove('active'); }
 
@@ -1858,7 +1955,7 @@ function deleteCard() {
         delete cardsData[currentEditingCard];
         document.getElementById('card-modal-overlay').classList.remove('active');
         currentEditingCard=null; currentEditingCardData=null;
-        updateCardCount(); updateFlowMap(); queueSaveBoardState();
+        updateCardCount(); updateFlowMap(); if(isListView)renderListView(); queueSaveBoardState();
     }
 }
 
@@ -1935,7 +2032,7 @@ function addCard(btn,listId) {
     if(title) {
         const newCardId=cardIdCounter++;
         const newCard={id:newCardId,title,listId,labels:[],description:'',checklist:[],assignee:'',dueDate:'',createdBy:currentProfile.name,createdAt:new Date().toISOString(),activity:[{user:currentProfile.name,initials:currentProfile.initials,action:'created this card',time:new Date().toISOString()}]};
-        cardsData[newCard.id]=newCard; renderCard(newCard); updateCardCount(); updateFlowMap(); queueSaveBoardState();
+        cardsData[newCard.id]=newCard; renderCard(newCard); updateCardCount(); updateFlowMap(); if(isListView)renderListView(); queueSaveBoardState();
     }
     form.remove();
 }
@@ -2012,6 +2109,159 @@ function updateFlowMap() {
     });
 }
 
+// ── List / Table View ──────────────────────────────
+let isListView = false;
+let listSortCol = 'score';
+let listSortAsc = false;
+
+function toggleListView() {
+    isListView = !isListView;
+    const board = document.getElementById('board');
+    const listView = document.getElementById('list-view');
+    const btn = document.getElementById('table-toggle-btn');
+    if (isListView) {
+        board.classList.add('hidden');
+        listView.classList.add('active');
+        btn.textContent = '⊞ Board';
+        btn.style.background = 'var(--accent2, #a78bfa)';
+        btn.style.color = 'white';
+        renderListView();
+    } else {
+        board.classList.remove('hidden');
+        listView.classList.remove('active');
+        btn.textContent = '≡ Table';
+        btn.style.background = '';
+        btn.style.color = '';
+    }
+}
+
+function getScoreColor(score) {
+    if (!score || score === '—') return 'rgba(255,255,255,0.05)';
+    const s = Number(score);
+    if (s >= 70) return 'rgba(239,68,68,0.2)';
+    if (s >= 50) return 'rgba(251,146,60,0.2)';
+    if (s >= 30) return 'rgba(250,204,21,0.2)';
+    return 'rgba(255,255,255,0.05)';
+}
+function getScoreTextColor(score) {
+    if (!score || score === '—') return 'var(--muted2)';
+    const s = Number(score);
+    if (s >= 70) return '#f87171';
+    if (s >= 50) return '#fb923c';
+    if (s >= 30) return '#fbbf24';
+    return 'var(--muted2)';
+}
+
+function renderListView() {
+    const body = document.getElementById('list-view-body');
+    if (!body) return;
+
+    // Get list config for list name + color
+    const listMap = {};
+    boardConfig.forEach(l => { listMap[l.id] = l; });
+
+    // Gather all cards
+    const rows = Object.values(cardsData).map(card => {
+        // Extract score from description
+        let score = '—';
+        const scoreMatch = card.description ? card.description.match(/Score[\s:]*(\d+)/i) : null;
+        if (scoreMatch) score = Number(scoreMatch[1]);
+        // Extract draft
+        const hasDraft = !!(card.draft_reply || card.aiDraft);
+        // Get list info
+        const list = listMap[card.listId] || {};
+        // Time ago
+        const time = card.createdAt ? timeAgo(new Date(card.createdAt)) : '—';
+        // Labels
+        const labelList = Array.isArray(card.labels) ? card.labels : [];
+
+        return { card, score, hasDraft, list, time, labelList };
+    });
+
+    // Sort
+    rows.sort((a, b) => {
+        let av, bv;
+        switch (listSortCol) {
+            case 'score': av = a.score === '—' ? -1 : a.score; bv = b.score === '—' ? -1 : b.score; break;
+            case 'lead': av = (a.card.title || '').toLowerCase(); bv = (b.card.title || '').toLowerCase(); break;
+            case 'contact': av = (a.card.contactName || '').toLowerCase(); bv = (b.card.contactName || '').toLowerCase(); break;
+            case 'list': av = (a.list.title || '').toLowerCase(); bv = (b.list.title || '').toLowerCase(); break;
+            case 'draft': av = a.hasDraft ? 1 : 0; bv = b.hasDraft ? 1 : 0; break;
+            case 'added': av = a.card.createdAt || ''; bv = b.card.createdAt || ''; break;
+            default: av = 0; bv = 0;
+        }
+        if (av < bv) return listSortAsc ? -1 : 1;
+        if (av > bv) return listSortAsc ? 1 : -1;
+        return 0;
+    });
+
+    // Render header with sort indicators
+    const header = document.getElementById('list-view-header');
+    if (header) {
+        header.innerHTML = [
+            { col: 'score', label: 'Score' },
+            { col: 'lead', label: 'Lead' },
+            { col: 'contact', label: 'Contact' },
+            { col: 'list', label: 'List' },
+            { col: 'labels', label: 'Labels' },
+            { col: 'draft', label: 'Draft' },
+            { col: 'added', label: 'Added' },
+        ].map(h => `<span class="${listSortCol === h.col ? 'sorted' : ''}" onclick="sortListView('${h.col}')">${h.label}${listSortCol === h.col ? (listSortAsc ? ' ↑' : ' ↓') : ''}</span>`).join('');
+    }
+
+    if (rows.length === 0) {
+        body.innerHTML = '<div class="list-view-empty">No leads yet. Add one!</div>';
+        return;
+    }
+
+    body.innerHTML = rows.map(({ card, score, hasDraft, list, time, labelList }) => {
+        const scoreColor = getScoreColor(score);
+        const scoreTextColor = getScoreTextColor(score);
+        const scoreLabel = score === '—' ? '—' : score;
+        const listColor = list.color || 'var(--muted2)';
+        const labelHtml = labelList.map(l => {
+            const lc = labelColors[l] || '#888';
+            return `<span class="lv-label" style="background:${lc}22;color:${lc};border:1px solid ${lc}44">${l}</span>`;
+        }).join('');
+        const labelsHtml = labelList.length ? labelList.map(l => {
+            const lc = labelColors[l] || '#888';
+            return `<span class="lv-label" style="background:${lc}22;color:${lc};border:1px solid ${lc}44">${l}</span>`;
+        }).join('') : '<span style="color:var(--muted2);font-size:11px">—</span>';
+        const draftHtml = hasDraft
+            ? '<span class="lv-draft has-draft">✓</span>'
+            : '<span class="lv-draft no-draft">—</span>';
+
+        return `<div class="list-view-row" onclick="openCardModal(${card.id})">
+            <div><span class="lv-score" style="background:${scoreColor};color:${scoreTextColor}">${scoreLabel}</span></div>
+            <div class="lv-title">${escapeHtml(card.title || 'Untitled')}</div>
+            <div>
+                <div class="lv-name">${escapeHtml(card.contactName || '—')}</div>
+                <div class="lv-contact">${escapeHtml(card.contactEmail || card.contactPhone || '')}</div>
+            </div>
+            <div><span class="lv-list-dot" style="background:${listColor}"></span><span class="lv-list">${escapeHtml(list.title || '—')}</span></div>
+            <div class="lv-labels">${labelsHtml}</div>
+            <div>${draftHtml}</div>
+            <div class="lv-time">${time}</div>
+        </div>`;
+    }).join('');
+
+    // Footer
+    const footer = document.createElement('div');
+    footer.className = 'list-view-footer';
+    footer.textContent = `${rows.length} leads · Click any row to open the card`;
+    body.appendChild(footer);
+}
+
+function sortListView(col) {
+    if (listSortCol === col) {
+        listSortAsc = !listSortAsc;
+    } else {
+        listSortCol = col;
+        listSortAsc = false;
+    }
+    renderListView();
+}
+
 // ── View Mode ──────────────────────────────────────
 let isCompactView = false;
 function toggleViewMode() {
@@ -2043,7 +2293,8 @@ Object.assign(window,{
     drop,dragLeave,openLabelPicker,openProfileModal,removeDueDate,removeLabel,renameList,
     selectProfile,sendCardToFlowAI,showAddCardForm,showAddListForm,toggleChecklistItem,
     toggleLabel,updateDueDate,quickAddLead,updateContactField,openCommandPalette,closeCommandPalette,
-    renderCommands,executeCommand,toggleViewMode,handleAskHubbleClick,handleSearchKey,
+    renderCommands,executeCommand,toggleViewMode,toggleListView,renderListView,sortListView,
+    handleAskHubbleClick,handleSearchKey,
 });
 
 // ── Chat ───────────────────────────────────────────
