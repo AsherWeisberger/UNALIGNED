@@ -1,2040 +1,586 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FLOW</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-    <style>
-        /* ─── RESET & TOKENS ──────────────────────────────── */
-        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
-
-        :root {
-            color-scheme: dark;
-            --bg:          #07080f;
-            --bg2:         #0d0f1c;
-            --surface:     #111422;
-            --surface2:    #181b2e;
-            --border:      rgba(255,255,255,0.07);
-            --border2:     rgba(255,255,255,0.12);
-            --text:        #f0f2ff;
-            --muted:       #6b7280;
-            --muted2:      #9ca3af;
-            --accent:      #5b8cff;
-            --accent-glow: rgba(91,140,255,0.25);
-            --green:       #34d399;
-            --green-glow:  rgba(52,211,153,0.2);
-            --radius:      12px;
-            --radius-lg:   18px;
-            --shadow:      0 4px 24px rgba(0,0,0,0.4);
-            --shadow-lg:   0 12px 48px rgba(0,0,0,0.6);
-            --font-display: 'Syne', sans-serif;
-            --font-body:    'DM Sans', sans-serif;
-            --font-mono:    'DM Mono', monospace;
-        }
-
-        html { overscroll-behavior: none; height: 100%; }
-
-        body {
-            font-family: var(--font-body);
-            background: var(--bg);
-            min-height: 100vh;
-            height: 100%;
-            color: var(--text);
-            overflow: hidden;
-        }
-
-        #app { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
-
-        /* ─── SCROLLBAR ───────────────────────────────────── */
-        ::-webkit-scrollbar { width: 5px; height: 5px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
-
-        /* ─── LOGIN ───────────────────────────────────────── */
-        .modal-overlay {
-            position: fixed; inset: 0;
-            background: rgba(7,8,15,0.85);
-            backdrop-filter: blur(12px);
-            display: none; align-items: center; justify-content: center;
-            z-index: 1000; padding: 20px; overflow-y: auto;
-        }
-        .modal-overlay.active { display: flex; }
-
-        .login-container {
-            background: var(--surface);
-            border-radius: var(--radius-lg);
-            padding: 44px 40px;
-            width: 360px;
-            text-align: center;
-            border: 1px solid var(--border2);
-            box-shadow: var(--shadow-lg);
-            animation: fadeUp 0.4s ease;
-        }
-
-        @keyframes fadeUp {
-            from { opacity: 0; transform: translateY(16px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
-
-        .login-logo {
-            font-family: var(--font-display);
-            font-size: 48px;
-            font-weight: 800;
-            letter-spacing: -1px;
-            background: linear-gradient(135deg, #5b8cff 0%, #34d399 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 4px;
-        }
-
-        .login-subtitle {
-            color: var(--muted);
-            font-size: 13px;
-            margin-bottom: 28px;
-            font-family: var(--font-mono);
-        }
-
-        .login-users {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-            margin-bottom: 20px;
-        }
-
-        .login-user {
-            display: flex; flex-direction: column; align-items: center; gap: 6px;
-            padding: 12px 10px; border-radius: 10px; cursor: pointer;
-            border: 2px solid transparent; transition: all 0.2s; opacity: 0.55;
-        }
-        .login-user:hover { opacity: 0.8; }
-        .login-user.selected { border-color: var(--accent); background: rgba(91,140,255,0.1); opacity: 1; }
-        .login-user .avatar { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
-        .login-user span:last-child { font-size: 11px; color: var(--muted2); font-family: var(--font-mono); }
-
-        .login-input {
-            width: 100%; padding: 13px 16px; border-radius: 10px;
-            border: 1px solid var(--border2); background: var(--surface2);
-            color: var(--text); font-size: 15px; text-align: center;
-            margin-bottom: 14px; font-family: var(--font-body);
-            transition: border-color 0.2s;
-        }
-        .login-input:focus { outline: none; border-color: var(--accent); }
-
-        .login-btn {
-            width: 100%; padding: 13px; border-radius: 10px; border: none;
-            background: linear-gradient(135deg, var(--accent), #34d399);
-            color: #07080f; font-size: 15px; font-weight: 700; cursor: pointer;
-            font-family: var(--font-display); letter-spacing: 0.02em;
-            transition: opacity 0.2s, transform 0.1s;
-        }
-        .login-btn:hover { opacity: 0.92; transform: translateY(-1px); }
-        .login-error { color: #f87171; font-size: 12px; margin-top: 10px; min-height: 16px; font-family: var(--font-mono); }
-
-        /* ─── HEADER ──────────────────────────────────────── */
-        header {
-            flex-shrink: 0;
-            display: flex; align-items: center; justify-content: space-between;
-            padding: max(18px, env(safe-area-inset-top)) clamp(16px,4vw,40px) 14px;
-            border-bottom: 1px solid var(--border);
-            background: var(--bg);
-        }
-
-        .header-left { display: flex; flex-direction: column; gap: 2px; }
-
-        .logo {
-            font-family: var(--font-display);
-            font-size: 28px; font-weight: 800; letter-spacing: -0.5px;
-            background: linear-gradient(135deg, #5b8cff, #34d399);
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        }
-
-        .subtitle { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
-
-        .stats { display: flex; gap: 16px; font-size: 12px; color: var(--muted2); font-family: var(--font-mono); margin-top: 2px; }
-
-        .header-right { display: flex; align-items: center; gap: 8px; }
-
-        .sync-indicator {
-            display: flex; align-items: center; gap: 6px;
-            padding: 5px 12px; border-radius: 999px; font-size: 11px;
-            background: rgba(255,255,255,0.05); border: 1px solid var(--border);
-            color: var(--muted2); font-family: var(--font-mono);
-            transition: all 0.3s;
-        }
-        .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
-
-        .sync-indicator.sync-saving { background: rgba(250,204,21,0.1); border-color: rgba(250,204,21,0.3); color: #facc15; }
-        .sync-indicator.sync-saving .sync-dot { background: #facc15; box-shadow: 0 0 8px rgba(250,204,21,0.5); animation: pulse 1s infinite; }
-        .sync-indicator.sync-synced { background: rgba(52,211,153,0.1); border-color: rgba(52,211,153,0.3); color: var(--green); }
-        .sync-indicator.sync-synced .sync-dot { background: var(--green); }
-        .sync-indicator.sync-error { background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.4); color: #fca5a5; }
-        .sync-indicator.sync-error .sync-dot { background: #f87171; box-shadow: 0 0 8px rgba(248,113,113,0.5); }
-
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-
-        .sync-warning {
-            display: none; margin: 0 clamp(16px,4vw,40px); margin-top: 4px;
-            padding: 8px 14px; border-radius: 8px;
-            border: 1px solid rgba(248,113,113,0.4); background: rgba(248,113,113,0.08);
-            color: #fca5a5; font-size: 12px; font-family: var(--font-mono);
-        }
-        .sync-warning.visible { display: block; }
-
-        .sync-indicator-floating {
-            position: fixed; bottom: 20px; right: 20px; z-index: 2000;
-            box-shadow: var(--shadow); pointer-events: none;
-        }
-
-        .profile-btn {
-            display: flex; align-items: center; gap: 8px;
-            padding: 7px 14px; border-radius: 999px; border: 1px solid var(--border2);
-            cursor: pointer; background: var(--surface); color: var(--text);
-            font-size: 13px; transition: background 0.2s; font-family: var(--font-body);
-        }
-        .profile-btn:hover { background: var(--surface2); }
-
-        .quick-add-btn {
-            display: flex; align-items: center; gap: 7px;
-            padding: 7px 16px; border-radius: 999px; border: none;
-            cursor: pointer; background: var(--green); color: #07080f;
-            font-size: 13px; font-weight: 700; font-family: var(--font-display);
-            letter-spacing: 0.01em; transition: opacity 0.2s, transform 0.1s;
-        }
-        .quick-add-btn:hover { opacity: 0.88; transform: translateY(-1px); }
-
-        .avatar {
-            width: 28px; height: 28px; border-radius: 50%;
-            display: grid; place-items: center;
-            font-size: 11px; font-weight: 700; font-family: var(--font-display);
-        }
-
-        /* ─── ASK HUBBLE BAR ──────────────────────────────── */
-        .ask-hubble-section {
-            flex-shrink: 0;
-            padding: 12px clamp(16px,4vw,40px);
-            background: linear-gradient(180deg, rgba(91,140,255,0.06) 0%, transparent 100%);
-            border-bottom: 1px solid var(--border);
-        }
-
-        .ask-hubble-wrapper { max-width: 680px; margin: 0 auto; display: flex; gap: 8px; }
-
-        .ask-hubble-main-input {
-            flex: 1; background: var(--surface);
-            color: var(--text); border: 1px solid var(--border2);
-            border-radius: 999px; padding: 11px 20px;
-            font-size: 14px; font-family: var(--font-body);
-            transition: all 0.25s;
-        }
-        .ask-hubble-main-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); background: var(--surface2); }
-        .ask-hubble-main-input::placeholder { color: var(--muted); }
-
-        .ask-hubble-main-btn {
-            background: var(--accent); border: none; border-radius: 999px;
-            padding: 11px 22px; font-size: 13px; font-weight: 700; color: #fff;
-            cursor: pointer; font-family: var(--font-display); letter-spacing: 0.02em;
-            transition: opacity 0.2s; white-space: nowrap;
-        }
-        .ask-hubble-main-btn:hover { opacity: 0.85; }
-
-        /* ─── MAIN ────────────────────────────────────────── */
-        main {
-            flex: 1; overflow: hidden;
-            display: flex; flex-direction: column;
-        }
-
-        .main-scroll {
-            flex: 1; overflow-y: auto; overflow-x: hidden;
-            padding: 0 clamp(16px,4vw,40px) 80px;
-            display: flex; flex-direction: column; gap: 16px;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        /* ─── FLOW MAP ────────────────────────────────────── */
-        .flow-map {
-            display: flex; align-items: center; gap: 10px;
-            padding: 14px 16px;
-            background: var(--surface); border-radius: var(--radius);
-            border: 1px solid var(--border);
-            margin-top: 16px;
-            width: max-content;
-            min-height: 60px;
-        }
-
-        .flow-node {
-            min-width: 120px; background: var(--bg2);
-            border-radius: 10px; padding: 12px 14px;
-            display: flex; flex-direction: column; gap: 3px;
-            border: 1px solid var(--border); flex-shrink: 0;
-            height: auto;
-        }
-        .flow-node h4 { font-size: 11px; font-weight: 600; font-family: var(--font-mono); color: var(--muted2); text-transform: uppercase; letter-spacing: 0.05em; }
-        .flow-node span { font-size: 11px; color: var(--muted); }
-        .flow-node strong { font-size: 22px; font-weight: 700; font-family: var(--font-display); color: var(--text); }
-        .flow-node.overloaded { border-color: #f87171; }
-
-        .flow-connector {
-            height: 1px; width: 24px;
-            background: linear-gradient(90deg, transparent, var(--border2), transparent);
-            flex-shrink: 0;
-        }
-
-        /* ─── BOARD ───────────────────────────────────────── */
-        .board { display: flex; gap: 14px; overflow-x: auto; align-items: flex-start; padding-top: 4px; padding-bottom: 8px; }
-        .board-lists { display: flex; gap: 14px; flex: 1; }
-
-        .loading-state {
-            display: none; align-items: center; gap: 10px;
-            color: var(--muted); font-size: 13px; padding: 8px 0;
-            font-family: var(--font-mono);
-        }
-        .loading-state::before {
-            content: ''; width: 14px; height: 14px; border-radius: 50%;
-            border: 2px solid rgba(255,255,255,0.1); border-top-color: var(--accent);
-            animation: spin 0.8s linear infinite;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        body.board-loading .board { pointer-events: none; opacity: 0.3; }
-        body.board-loading .loading-state { display: flex; }
-
-        /* ─── LIST ────────────────────────────────────────── */
-        .list {
-            min-width: 272px; max-width: 272px;
-            background: var(--surface); color: var(--text);
-            border-radius: var(--radius-lg); padding: 14px;
-            border: 1px solid var(--border);
-        }
-
-        .list-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
-        .list-title { font-size: 14px; font-weight: 700; font-family: var(--font-display); letter-spacing: 0.01em; }
-        .list-meta { font-size: 11px; color: var(--muted); margin-top: 2px; font-family: var(--font-mono); }
-
-        .list-actions { display: flex; align-items: center; gap: 4px; }
-        .list-menu-btn {
-            border: none; background: transparent; cursor: pointer;
-            font-size: 13px; color: var(--muted); padding: 4px 6px;
-            border-radius: 6px; transition: all 0.15s;
-        }
-        .list-menu-btn:hover { background: rgba(255,255,255,0.08); color: var(--text); }
-        .list-menu-btn.danger:hover { color: #f87171; background: rgba(248,113,113,0.1); }
-
-        .cards-container { display: flex; flex-direction: column; gap: 8px; min-height: 20px; }
-        .cards-container.drag-over { background: rgba(91,140,255,0.08); border-radius: 8px; padding: 4px; }
-
-        /* ─── CARD ────────────────────────────────────────── */
-        .card {
-            background: #fff; border-radius: 10px; padding: 13px;
-            cursor: grab; box-shadow: 0 2px 8px rgba(15,23,42,0.1);
-            transition: transform 0.15s, box-shadow 0.15s;
-            border-left: 3px solid transparent;
-        }
-        .card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(15,23,42,0.15); }
-        .card.dragging { opacity: 0.45; transform: rotate(1.5deg); }
-
-        .card.priority-hot { background: linear-gradient(135deg, #fef2f2, #fee2e2); border-left-color: #ef4444; }
-        .card.priority-warm { background: linear-gradient(135deg, #fffbeb, #fef3c7); border-left-color: #f59e0b; }
-        .card.priority-cold { background: linear-gradient(135deg, #eff6ff, #dbeafe); border-left-color: #3b82f6; }
-        .card.priority-done { background: linear-gradient(135deg, #f0fdf4, #dcfce7); border-left-color: #22c55e; }
-
-        .card-labels { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 8px; }
-        .card-label-text {
-            padding: 2px 8px; border-radius: 999px;
-            font-size: 10px; font-weight: 600; color: #fff;
-            font-family: var(--font-mono);
-        }
-        .card-content { font-size: 13px; font-weight: 600; color: #111827; margin-bottom: 9px; line-height: 1.4; }
-        .card-footer { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #6b7280; }
-        .card-meta { display: flex; gap: 6px; align-items: center; font-family: var(--font-mono); }
-        .card-meta-item { display: flex; align-items: center; gap: 3px; }
-        .card-assignee { display: flex; align-items: center; gap: 5px; }
-
-        .card-lead-meta { display: flex; gap: 6px; align-items: center; margin: 5px 0; flex-wrap: wrap; }
-        .card-priority { padding: 2px 7px; border-radius: 6px; font-size: 10px; font-weight: 600; font-family: var(--font-mono); background: rgba(0,0,0,0.06); }
-        .card-source { padding: 2px 7px; border-radius: 6px; font-size: 10px; background: rgba(0,0,0,0.06); color: #374151; }
-        .card-value { padding: 2px 7px; border-radius: 6px; font-size: 10px; font-weight: 600; color: #059669; background: rgba(5,150,105,0.1); font-family: var(--font-mono); }
-
-        /* ─── LABEL COLORS ────────────────────────────────── */
-        .card-label-text.red, .label-tag.red, .label-color.red { background: #ef4444; }
-        .card-label-text.blue, .label-tag.blue, .label-color.blue { background: #3b82f6; }
-        .card-label-text.green, .label-tag.green, .label-color.green { background: #22c55e; }
-        .card-label-text.yellow, .label-tag.yellow, .label-color.yellow { background: #facc15; color: #111827; }
-        .card-label-text.purple, .label-tag.purple, .label-color.purple { background: #a855f7; }
-        .card-label-text.orange, .label-tag.orange, .label-color.orange { background: #f97316; }
-        .card-label-text.pink, .label-tag.pink, .label-color.pink { background: #ec4899; }
-
-        /* ─── ADD CARD/LIST BUTTONS ───────────────────────── */
-        .add-card-btn {
-            width: 100%; border: 1px dashed rgba(0,0,0,0.15); background: transparent;
-            color: #6b7280; padding: 10px; border-radius: 8px;
-            cursor: pointer; font-size: 12px; display: flex; align-items: center;
-            justify-content: center; gap: 5px; margin-top: 8px; transition: all 0.15s;
-        }
-        .add-card-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(91,140,255,0.05); }
-
-        .add-list-btn {
-            display: flex; align-items: center; gap: 7px;
-            border: 1px dashed rgba(255,255,255,0.15); background: transparent;
-            color: var(--muted); padding: 12px 18px; border-radius: var(--radius-lg);
-            cursor: pointer; font-size: 13px; min-width: 200px; flex-shrink: 0;
-            align-self: flex-start; transition: all 0.15s;
-        }
-        .add-list-btn:hover { border-color: var(--accent); color: var(--accent); }
-
-        /* ─── NEW CARD/LIST FORMS ─────────────────────────── */
-        .new-card-form, .new-list-form {
-            background: #fff; border-radius: 10px; padding: 10px;
-            margin-top: 8px; display: flex; flex-direction: column; gap: 8px;
-        }
-        .new-card-input, .new-list-input {
-            border: 1px solid #e5e7eb; border-radius: 8px;
-            padding: 10px; font-size: 13px; resize: none; width: 100%;
-            font-family: var(--font-body);
-        }
-        .new-card-input:focus, .new-list-input:focus { outline: none; border-color: var(--accent); }
-        .new-card-actions { display: flex; gap: 6px; }
-        .btn-primary { padding: 8px 14px; border: none; border-radius: 7px; background: #2563eb; color: #fff; cursor: pointer; font-size: 13px; }
-        .btn-cancel { border: none; background: transparent; font-size: 18px; cursor: pointer; color: #9ca3af; }
-
-        /* ─── CARD MODAL ──────────────────────────────────── */
-        .modal-overlay.active { align-items: flex-start; justify-content: center; padding-top: 40px; padding-bottom: 40px; }
-
-        .card-modal {
-            background: var(--surface);
-            border-radius: var(--radius-lg);
-            width: min(680px, 95%); max-height: 90vh;
-            color: var(--text); box-shadow: var(--shadow-lg);
-            border: 1px solid var(--border2);
-            display: none; position: relative;
-            flex-direction: column;
-        }
-        .card-modal.active { display: flex !important; }
-
-        .card-modal-header {
-            padding: 20px 24px; display: flex; justify-content: space-between;
-            align-items: center; border-bottom: 1px solid var(--border);
-            position: sticky; top: 0; background: var(--surface); z-index: 10;
-        }
-        .card-modal-title-section { flex: 1; min-width: 0; }
-        .card-modal-title {
-            border: none; font-size: 19px; font-weight: 700;
-            width: 100%; background: transparent; color: var(--text);
-            padding: 0; font-family: var(--font-display);
-        }
-        .card-modal-title:focus { outline: none; }
-        .card-modal-subtitle { color: var(--muted); font-size: 12px; margin-top: 3px; font-family: var(--font-mono); }
-
-        .card-modal-save {
-            padding: 8px 18px; border-radius: 8px; border: none;
-            background: var(--green); color: #07080f;
-            font-size: 13px; font-weight: 700; cursor: pointer;
-            font-family: var(--font-display); flex-shrink: 0;
-            transition: opacity 0.2s;
-        }
-        .card-modal-save:hover { opacity: 0.85; }
-
-        .card-modal-close {
-            width: 32px; height: 32px; border-radius: 8px; border: none;
-            background: rgba(255,255,255,0.08); color: var(--muted2);
-            font-size: 18px; display: flex; align-items: center; justify-content: center;
-            cursor: pointer; transition: all 0.2s; flex-shrink: 0; margin-left: 10px;
-        }
-        .card-modal-close:hover { background: #ef4444; color: #fff; }
-
-        .card-modal-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; flex: 1; }
-        .card-modal-main { display: flex; flex-direction: column; gap: 16px; }
-
-        .modal-section {
-            background: var(--surface2); border-radius: 10px; padding: 16px;
-            border: 1px solid var(--border);
-        }
-        .modal-section-title {
-            font-size: 11px; font-weight: 600; margin-bottom: 10px;
-            color: var(--muted2); text-transform: uppercase; letter-spacing: 0.06em;
-            font-family: var(--font-mono);
-        }
-
-        .contact-input {
-            width: 100%; padding: 10px 13px; border-radius: 8px;
-            border: 1px solid rgba(255,255,255,0.1); background: var(--surface);
-            color: var(--text); font-size: 13px; font-family: var(--font-body);
-            margin-bottom: 8px; transition: border-color 0.2s;
-        }
-        .contact-input:last-child { margin-bottom: 0; }
-        .contact-input:focus { outline: none; border-color: var(--accent); }
-        .contact-input option { background: var(--surface); }
-
-        textarea.description-textarea {
-            width: 100%; min-height: 90px; border-radius: 8px; padding: 10px 13px;
-            border: 1px solid rgba(255,255,255,0.1); background: var(--surface);
-            color: var(--text); font-size: 13px; resize: vertical; font-family: var(--font-body);
-        }
-        textarea.description-textarea:focus { outline: none; border-color: var(--accent); }
-
-        .delete-card-btn {
-            width: 100%; padding: 11px; border-radius: 8px;
-            border: 1px solid rgba(248,113,113,0.4); background: transparent;
-            color: #f87171; font-size: 13px; font-weight: 600; cursor: pointer;
-            transition: all 0.2s;
-        }
-        .delete-card-btn:hover { background: #ef4444; color: #fff; border-color: #ef4444; }
-
-        .draft-badge {
-            font-size: 11px; font-family: var(--font-mono);
-            padding: 2px 8px; border-radius: 20px;
-        }
-        .draft-badge.pending    { background: rgba(255,255,255,0.08); color: var(--muted2); }
-        .draft-badge.drafted   { background: rgba(251,191,36,0.15); color: #fbbf24; }
-        .draft-badge.approved   { background: rgba(52,211,153,0.15); color: #34d399; }
-        .draft-badge.sent      { background: rgba(52,211,153,0.25); color: #34d399; }
-
-        #draft-reply-section { border-color: rgba(91,140,255,0.2); }
-
-        /* Checklist */
-        .checklist-item { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
-        .checklist-item input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--green); }
-        .checklist-item-text { font-size: 13px; color: var(--text); }
-        .checklist-item.checked .checklist-item-text { text-decoration: line-through; color: var(--muted); }
-
-        /* Activity */
-        .activity-list { display: flex; flex-direction: column; gap: 10px; }
-        .activity-item { display: flex; gap: 10px; color: var(--muted2); font-size: 12px; font-family: var(--font-mono); }
-        .activity-avatar { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 10px; flex-shrink: 0; }
-        .activity-text strong { color: var(--text); }
-        .activity-time { font-size: 11px; color: var(--muted); margin-top: 2px; }
-
-        /* Assignee */
-        .modal-assignee-display { display: flex; align-items: center; gap: 10px; }
-        .avatar-large { width: 36px; height: 36px; font-size: 13px; }
-        .sidebar-btn {
-            width: 100%; border: none; border-radius: 8px; padding: 9px;
-            background: rgba(255,255,255,0.06); color: var(--text);
-            cursor: pointer; font-size: 12px; margin-top: 8px;
-            font-family: var(--font-body); transition: background 0.15s;
-        }
-        .sidebar-btn:hover { background: rgba(255,255,255,0.1); }
-        .sidebar-btn.danger { background: rgba(248,113,113,0.08); color: #fca5a5; }
-
-        /* Due date */
-        input[type="date"].contact-input { cursor: pointer; }
-        input[type="date"].contact-input::-webkit-calendar-picker-indicator { filter: invert(0.6); cursor: pointer; }
-
-        /* Label tags in modal */
-        .label-tag { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; color: #fff; margin-right: 6px; margin-bottom: 6px; }
-        .label-tag .remove-label { cursor: pointer; opacity: 0.7; }
-        .label-tag .remove-label:hover { opacity: 1; }
-
-        /* ─── COMMAND PALETTE ─────────────────────────────── */
-        .command-palette {
-            background: var(--surface2); border-radius: 14px;
-            width: min(480px, 90vw); max-height: 60vh; overflow: hidden;
-            border: 1px solid var(--border2); box-shadow: var(--shadow-lg);
-        }
-        .command-palette-input {
-            width: 100%; padding: 16px 20px; border: none;
-            border-bottom: 1px solid var(--border); background: transparent;
-            color: var(--text); font-size: 15px; outline: none;
-            font-family: var(--font-body);
-        }
-        .command-palette-input::placeholder { color: var(--muted); }
-        .command-palette-results { max-height: calc(60vh - 60px); overflow-y: auto; padding: 8px; }
-        .command-item { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-radius: 8px; cursor: pointer; color: var(--text); }
-        .command-item:hover, .command-item.selected { background: rgba(255,255,255,0.07); }
-        .command-item-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.07); font-size: 14px; }
-        .command-item-title { font-size: 14px; font-weight: 500; }
-        .command-item-desc { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
-
-        /* ─── CHAT MODAL ──────────────────────────────────── */
-        .chat-modal {
-            background: #0d0d0d; border-radius: 20px;
-            width: min(400px, 90vw); height: min(580px, 80vh);
-            display: flex; flex-direction: column;
-            border: 1px solid #2a2a2a; box-shadow: var(--shadow-lg);
-        }
-        .chat-header {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 13px 16px; border-bottom: 1px solid #222; background: #161616;
-            border-radius: 20px 20px 0 0;
-        }
-        .chat-title { display: flex; align-items: center; gap: 9px; font-weight: 600; font-size: 16px; color: #fff; font-family: var(--font-display); }
-        .chat-agent-select { background: #2a2a2a; color: #fff; border: none; padding: 5px 10px; border-radius: 7px; font-size: 12px; cursor: pointer; font-family: var(--font-mono); }
-        .chat-messages {
-            flex: 1; overflow-y: auto; padding: 14px; display: flex;
-            flex-direction: column; gap: 8px; background: #0d0d0d;
-        }
-        .chat-message { display: flex; flex-direction: column; margin: 3px 0; }
-        .chat-message.hubble { align-items: flex-start; }
-        .chat-message.user { align-items: flex-end; }
-        .chat-bubble { max-width: 82%; padding: 10px 14px; border-radius: 18px; font-size: 15px; line-height: 1.4; word-wrap: break-word; white-space: pre-wrap; }
-        .chat-message.hubble .chat-bubble { background: #2a2a2a; color: #fff; border-bottom-left-radius: 5px; margin-right: 36px; }
-        .chat-message.user .chat-bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 5px; margin-left: 36px; }
-        .chat-input-area { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid #222; background: #161616; border-radius: 0 0 20px 20px; }
-        .chat-input {
-            flex: 1; padding: 10px 14px; border-radius: 20px; border: none;
-            background: #2a2a2a; color: #fff; font-size: 15px; font-family: var(--font-body);
-        }
-        .chat-input::placeholder { color: #666; }
-        .chat-input:focus { outline: none; background: #333; }
-        .chat-send-btn { padding: 10px 16px; border-radius: 20px; border: none; background: var(--accent); color: #fff; font-weight: 700; font-size: 15px; cursor: pointer; font-family: var(--font-display); }
-        .chat-note { display: none; }
-
-        /* ─── PROFILE & LABEL MODALS ──────────────────────── */
-        .profile-modal, .label-picker {
-            background: var(--surface2); border-radius: 14px; padding: 20px;
-            width: min(320px, 90vw); border: 1px solid var(--border2);
-        }
-        .profile-modal-title, .label-picker-title { font-size: 15px; font-weight: 700; margin-bottom: 14px; font-family: var(--font-display); }
-        .profile-option { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 8px; cursor: pointer; transition: background 0.15s; }
-        .profile-option:hover { background: rgba(255,255,255,0.06); }
-        .profile-option.active { background: rgba(91,140,255,0.12); }
-        .profile-info .profile-name { font-size: 14px; font-weight: 500; }
-
-        .label-option { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
-        .label-color { flex: 1; padding: 6px 12px; border-radius: 999px; color: #fff; font-size: 12px; text-align: center; font-family: var(--font-mono); }
-        .label-option input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px; }
-
-        /* ─── MOBILE FILTERS BAR ──────────────────────────── */
-        .filters-mobile { display: none; }
-        .filters { display: none; } /* hidden by default, only used for filter-label etc. selects */
-
-        /* Hidden filter selects still need to exist for JS */
-        #filter-label, #filter-assignee, #filter-priority, #filter-source, #filter-mine { display: none !important; }
-
-        /* ─── MOBILE ──────────────────────────────────────── */
-        @media (max-width: 768px) {
-            .ask-hubble-section { display: none; }
-            .filters-mobile { display: block; padding: 10px 14px; background: rgba(0,0,0,0.2); }
-            .ask-hubble-mobile-input {
-                width: 100%; background: var(--surface); color: var(--text);
-                border: 1px solid var(--border2); border-radius: 999px;
-                padding: 11px 18px; font-size: 14px; font-family: var(--font-body);
-            }
-            .ask-hubble-mobile-input:focus { outline: none; border-color: var(--accent); }
-            .ask-hubble-mobile-input::placeholder { color: var(--muted); }
-
-            .stats { display: none; }
-            header { flex-wrap: wrap; gap: 10px; }
-        }
-
-        @media (max-width: 480px) {
-            .list { min-width: calc(100vw - 48px) !important; max-width: calc(100vw - 48px) !important; }
-            main { padding-bottom: 40px; }
-            .card-modal { width: 100%; height: 100%; max-width: 100%; max-height: 100%; border-radius: 0; }
-            .flow-map { display: none; }
-            .sync-indicator-floating { left: 50%; right: auto; transform: translateX(-50%); bottom: 14px; }
-            header { padding: 12px; }
-            .logo { font-size: 24px; }
-        }
-
-        /* ─── COMPACT VIEW ────────────────────────────────── */
-        .board.compact-view .card { padding: 9px; }
-        .board.compact-view .card-content { font-size: 12px; margin-bottom: 5px; -webkit-line-clamp: 2; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
-        .board.compact-view .card-labels { margin-bottom: 5px; }
-        .board.compact-view .card-label-text { font-size: 9px; padding: 1px 5px; }
-
-        /* ─── VIEW TOGGLE ─────────────────────────────────── */
-        .view-toggle {
-            display: flex; align-items: center; gap: 7px;
-            padding: 7px 12px; background: var(--surface);
-            border-radius: 20px; border: 1px solid var(--border2);
-            cursor: pointer; font-size: 12px; color: var(--muted2);
-            flex-shrink: 0; transition: all 0.15s; font-family: var(--font-mono);
-        }
-        .view-toggle:hover { background: var(--surface2); color: var(--text); }
-
-        /* ─── MISC UTILS ──────────────────────────────────── */
-        .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
-
-        .contact-fields, .lead-fields { display: flex; flex-direction: column; gap: 0; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FLOW — Table View</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0f1117;
+    color: #e2e8f0;
+    min-height: 100vh;
+  }
+
+  /* ── Toolbar ─────────────────────────────── */
+  .toolbar {
+    position: sticky; top: 0; z-index: 100;
+    background: #1a1d27;
+    border-bottom: 1px solid #2d3139;
+    padding: 10px 20px;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+
+  .toolbar h1 {
+    font-size: 16px; font-weight: 700; color: #4facfe;
+    margin-right: 10px; white-space: nowrap;
+  }
+
+  .toolbar input[type="text"],
+  .toolbar select {
+    background: #252836;
+    border: 1px solid #3d4251;
+    color: #e2e8f0;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+    outline: none;
+  }
+
+  .toolbar input[type="text"]:focus,
+  .toolbar select:focus {
+    border-color: #4facfe;
+  }
+
+  .search-input {
+    flex: 1; min-width: 200px; max-width: 350px;
+  }
+
+  .toolbar select { cursor: pointer; }
+
+  .btn {
+    background: #252836;
+    border: 1px solid #3d4251;
+    color: #e2e8f0;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: nowrap;
+  }
+  .btn:hover { background: #2d3141; }
+  .btn.active { background: #4facfe; color: #0f1117; border-color: #4facfe; }
+
+  .toolbar-right {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12px; color: #6b7280;
+  }
+
+  .row-count {
+    font-size: 12px; color: #6b7280;
+    white-space: nowrap;
+  }
+
+  /* ── Table ───────────────────────────────── */
+  .table-wrap {
+    padding: 0 20px 40px;
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    min-width: 1100px;
+  }
+
+  thead tr {
+    position: sticky; top: 52px;
+    background: #1a1d27;
+    z-index: 50;
+  }
+
+  th {
+    padding: 8px 12px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6b7280;
+    border-bottom: 1px solid #2d3139;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+  }
+  th:hover { color: #e2e8f0; }
+  th.sorted { color: #4facfe; }
+
+  .sort-arrow { margin-left: 4px; font-size: 9px; }
+
+  td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #1f2330;
+    vertical-align: top;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  tr:hover td { background: #1a1d27; }
+
+  /* Stage badge */
+  .stage {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+
+  /* Temperature */
+  .temp {
+    font-weight: 700; font-size: 12px;
+  }
+  .temp-cold { color: #60a5fa; }
+  .temp-warm { color: #fbbf24; }
+  .temp-hot { color: #f87171; }
+
+  /* Priority dot */
+  .priority { font-size: 11px; font-weight: 600; }
+  .priority-high { color: #f87171; }
+  .priority-med   { color: #fbbf24; }
+  .priority-low   { color: #34d399; }
+
+  /* Labels */
+  .labels { display: flex; gap: 4px; flex-wrap: wrap; }
+  .label-tag {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 600;
+    background: #252836;
+    border: 1px solid #3d4251;
+  }
+
+  /* Value */
+  .value { font-weight: 600; color: #34d399; }
+
+  /* Source badge */
+  .source { font-size: 11px; color: #6b7280; }
+
+  /* Description preview */
+  .desc { color: #9ca3af; font-size: 12px; max-width: 200px; }
+
+  /* Assignee */
+  .assignee {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px;
+  }
+  .avatar-sm {
+    width: 22px; height: 22px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 700; color: #fff;
+    flex-shrink: 0;
+  }
+
+  /* Due date */
+  .due { font-size: 11px; color: #6b7280; }
+  .due.overdue { color: #f87171; }
+
+  /* Contact info */
+  .contact-name { font-weight: 600; color: #e2e8f0; }
+  .contact-email { font-size: 11px; color: #4facfe; text-decoration: none; }
+  .contact-email:hover { text-decoration: underline; }
+  .contact-phone { font-size: 11px; color: #9ca3af; }
+  .contact-business { font-size: 11px; color: #6b7280; }
+
+  /* Activity */
+  .activity { font-size: 11px; color: #6b7280; max-width: 160px; }
+
+  /* Loading */
+  #loading {
+    padding: 60px 20px;
+    text-align: center;
+    color: #6b7280;
+    font-size: 14px;
+  }
+
+  #loading::after {
+    content: '';
+    display: inline-block;
+    width: 20px; height: 20px;
+    border: 2px solid #3d4251;
+    border-top-color: #4facfe;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-left: 10px;
+    vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Error */
+  #error {
+    padding: 40px 20px;
+    text-align: center;
+    color: #f87171;
+    font-size: 14px;
+  }
+
+  /* Scroll hint */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: #0f1117; }
+  ::-webkit-scrollbar-thumb { background: #2d3139; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3d4251; }
+</style>
 </head>
 <body>
-<div id="app">
 
-    <!-- ─── LOGIN MODAL ─────────────────────────────────── -->
-    <div class="modal-overlay active" id="login-modal">
-        <div class="login-container">
-            <h2 class="login-logo">FLOW</h2>
-            <p class="login-subtitle">// enter your password to continue</p>
-            <div class="login-users">
-                <div class="login-user" data-user="Sam L" data-password="2" onclick="selectLoginUser(this)">
-                    <span class="avatar" style="background: linear-gradient(135deg, #667eea, #764ba2);">SL</span>
-                    <span>Sam L</span>
-                </div>
-                <div class="login-user" data-user="Robert S" data-password="1" onclick="selectLoginUser(this)">
-                    <span class="avatar" style="background: linear-gradient(135deg, #f093fb, #f5576c);">RS</span>
-                    <span>Robert S</span>
-                </div>
-                <div class="login-user selected" data-user="Asher W" data-password="3" onclick="selectLoginUser(this)">
-                    <span class="avatar" style="background: linear-gradient(135deg, #11998e, #38ef7d);">AW</span>
-                    <span>Asher W</span>
-                </div>
-            </div>
-            <input type="password" class="login-input" id="login-password" placeholder="Password" onkeydown="checkLogin(event)">
-            <button class="login-btn" onclick="attemptLogin()">Enter</button>
-            <p class="login-error" id="login-error"></p>
-        </div>
-    </div>
+<div class="toolbar">
+  <h1>FLOW — Table View</h1>
 
-    <!-- ─── MAIN APP ─────────────────────────────────────── -->
-    <div id="main-app" style="display:none; height:100%; display:none; flex-direction:column; overflow:hidden;">
+  <input type="text" class="search-input" id="search"
+    placeholder="Search name, email, business, notes..."
+    autocomplete="off">
 
-        <header>
-            <div class="header-left">
-                <div>
-                    <h1 class="logo">FLOW</h1>
-                    <p class="subtitle">// by Asher Weisberger</p>
-                </div>
-                <div class="stats">
-                    <span id="total-cards">0 cards</span>
-                    <span id="assigned-count">0 assigned to you</span>
-                </div>
-            </div>
-            <div class="header-right">
-                <div class="sync-indicator sync-connecting" id="sync-indicator" data-sync-indicator title="Connecting…">
-                    <span class="sync-dot"></span>
-                    <span data-sync-text>Connecting…</span>
-                </div>
-                <button class="view-toggle" id="view-toggle-btn" onclick="toggleViewMode()">⊞ Compact</button>
-                <button class="profile-btn" id="profile-btn" onclick="openProfileModal()">
-                    <span class="avatar" id="current-avatar">AW</span>
-                    <span id="current-profile-name">Asher W</span>
-                </button>
-                <button class="quick-add-btn" onclick="quickAddLead()">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-                    Add Lead
-                </button>
-            </div>
-        </header>
+  <select id="filter-stage">
+    <option value="">All Stages</option>
+    <option value="discovery">Lead In</option>
+    <option value="build">In Progress</option>
+    <option value="review">Review</option>
+    <option value="done">Done</option>
+    <option value="paid-out">Paid Out</option>
+    <option value="anything-else">Anything Else</option>
+  </select>
 
-        <!-- Ask Hubble — Desktop -->
-        <section class="ask-hubble-section">
-            <div class="ask-hubble-wrapper">
-                <input type="search" class="ask-hubble-main-input" id="filter-search" placeholder="💬 Ask Hubble anything — weather, your data, math…" aria-label="Ask Hubble" onkeydown="handleSearchKey(event)">
-                <button class="ask-hubble-main-btn" onclick="handleAskHubbleClick()">Ask</button>
-            </div>
-        </section>
+  <select id="filter-temp">
+    <option value="">All Temps</option>
+    <option value="hot">Hot 🔴</option>
+    <option value="warm">Warm 🟡</option>
+    <option value="cold">Cold 🔵</option>
+    <option value="unscored">Unscored</option>
+  </select>
 
-        <div class="sync-warning" id="sync-warning" role="alert" aria-live="polite"></div>
-        <div class="sync-indicator sync-connecting sync-indicator-floating" id="sync-indicator-floating" data-sync-indicator title="Connecting…">
-            <span class="sync-dot"></span>
-            <span data-sync-text>Connecting…</span>
-        </div>
+  <select id="filter-priority">
+    <option value="">All Priority</option>
+    <option value="high">High</option>
+    <option value="medium">Medium</option>
+    <option value="low">Low</option>
+  </select>
 
-        <main>
-            <div class="main-scroll">
-                <!-- Ask Hubble — Mobile -->
-                <section class="filters-mobile">
-                    <input type="search" class="ask-hubble-mobile-input" id="filter-search-mobile" placeholder="💬 Ask Hubble…" aria-label="Ask Hubble" onkeydown="handleSearchKey(event)">
-                </section>
+  <select id="filter-assignee">
+    <option value="">All Assignees</option>
+    <option value="Asher W">Asher W</option>
+    <option value="Robert S">Robert S</option>
+    <option value="Sam L">Sam L</option>
+  </select>
 
-                <!-- Hidden filter selects (used by JS) -->
-                <section class="filters" style="display:none;" aria-hidden="true">
-                    <select id="filter-label"><option value="all">All Labels</option></select>
-                    <select id="filter-assignee"><option value="all">All Assignees</option></select>
-                    <select id="filter-priority"><option value="all">All Priorities</option></select>
-                    <select id="filter-source"><option value="all">All Sources</option></select>
-                    <label><input type="checkbox" id="filter-mine"> Mine only</label>
-                </section>
+  <button class="btn" id="btn-export">Export CSV</button>
 
-                <div id="board-loading" class="loading-state" role="status" aria-live="polite">Loading board…</div>
+  <div class="toolbar-right">
+    <span class="row-count" id="row-count"></span>
+  </div>
+</div>
 
-                <section class="flow-map" id="flow-map" aria-label="Flow snapshot"></section>
+<div id="loading">Loading leads...</div>
+<div id="error" style="display:none"></div>
 
-                <section class="board" id="board" aria-label="Kanban board">
-                    <div class="board-lists" id="board-lists"></div>
-                    <button class="add-list-btn" id="add-list-btn" onclick="showAddListForm()">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-                        Add list
-                    </button>
-                </section>
-            </div>
-        </main>
-    </div>
+<div class="table-wrap" style="display:none" id="table-wrap">
+  <table id="table">
+    <thead id="thead"></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
 
-    <!-- ─── CARD MODAL ───────────────────────────────────── -->
-    <div class="modal-overlay" id="card-modal-overlay" onclick="closeCardModal(event)">
-        <div class="card-modal" id="card-modal" onclick="event.stopPropagation()">
-            <div class="card-modal-header">
-                <div class="card-modal-title-section">
-                    <input type="text" class="card-modal-title" id="modal-card-title" placeholder="Card title…">
-                    <div class="card-modal-subtitle">in <span id="modal-list-name">list</span> &bull; <span id="modal-created-info"></span></div>
-                </div>
-                <button class="card-modal-save" onclick="saveCardAndClose()">Save</button>
-                <button class="card-modal-close" onclick="closeCardModal()">×</button>
-            </div>
-            <div class="card-modal-body">
-                <div class="card-modal-main">
-                    <div class="modal-section">
-                        <div class="modal-section-title">Priority</div>
-                        <select class="contact-input" id="modal-priority" style="width:100%;margin-bottom:0;">
-                            <option value="">None</option>
-                            <option value="hot">🔥 Hot</option>
-                            <option value="warm">🌡️ Warm</option>
-                            <option value="cold">❄️ Cold</option>
-                        </select>
-                    </div>
-
-                    <div class="modal-section">
-                        <div class="modal-section-title">Contact</div>
-                        <div class="contact-fields">
-                            <input type="text" class="contact-input" id="modal-contact-name" placeholder="Contact Name">
-                            <input type="text" class="contact-input" id="modal-business-name" placeholder="Business Name">
-                            <input type="email" class="contact-input" id="modal-email" placeholder="Email">
-                            <input type="tel" class="contact-input" id="modal-phone" placeholder="Phone" style="margin-bottom:0;">
-                        </div>
-                    </div>
-
-                    <div class="modal-section">
-                        <div class="modal-section-title">Lead Details</div>
-                        <div class="lead-fields">
-                            <select class="contact-input" id="modal-lead-source">
-                                <option value="">Lead Source</option>
-                                <option value="website">Website</option>
-                                <option value="referral">Referral</option>
-                                <option value="cold-call">Cold Call</option>
-                                <option value="social">Social Media</option>
-                                <option value="advertisement">Advertisement</option>
-                                <option value="other">Other</option>
-                            </select>
-                            <input type="text" class="contact-input" id="modal-estimated-value" placeholder="Estimated Value ($)" style="margin-bottom:0;">
-                        </div>
-                    </div>
-
-                    <div class="modal-section">
-                        <div class="modal-section-title">Description</div>
-                        <textarea class="description-textarea" id="modal-description" placeholder="Add details…"></textarea>
-                    </div>
-
-                    <div class="modal-section">
-                        <div class="modal-section-title">Checklist</div>
-                        <div class="checklist-items" id="modal-checklist"></div>
-                        <div style="display:flex;gap:8px;margin-top:10px;">
-                            <input type="text" class="contact-input" id="checklist-input" placeholder="Add item…" style="flex:1;margin-bottom:0;">
-                            <button class="card-modal-save" onclick="addChecklistItem()" style="padding:8px 14px;">Add</button>
-                        </div>
-                    </div>
-
-                    <div class="modal-section">
-                        <div class="modal-section-title">Assignee</div>
-                        <div class="modal-assignee-display" id="modal-assignee"></div>
-                        <button class="sidebar-btn" onclick="changeAssignee()">Change assignee</button>
-                    </div>
-
-                    <div class="modal-section">
-                        <div class="modal-section-title">Due Date</div>
-                        <input type="date" class="contact-input" id="due-date-input" onchange="updateDueDate()" style="margin-bottom:0;">
-                    </div>
-
-                    <div class="modal-section">
-                        <div class="modal-section-title">Activity</div>
-                        <div class="activity-list" id="modal-activity"></div>
-                    </div>
-
-                    <div class="modal-section" id="draft-reply-section">
-                        <div class="modal-section-title" style="display:flex;align-items:center;gap:8px;">
-                            ✉️ AI Reply Draft
-                            <span id="draft-status-badge" class="draft-badge" style="display:none;"></span>
-                        </div>
-                        <div id="draft-loading" style="color:var(--muted);font-size:12px;font-family:var(--font-mono);display:none;">Generating…</div>
-                        <div id="draft-empty" style="color:var(--muted);font-size:12px;font-family:var(--font-mono);">
-                            No draft reply yet.
-                            <button class="sidebar-btn" onclick="regenerateDraft()" style="margin-top:10px;font-size:12px;display:block;">✨ Generate Draft</button>
-                        </div>
-                        <div id="draft-content" style="display:none;">
-                            <input type="text" class="contact-input" id="modal-draft-subject" placeholder="Subject line…" style="margin-bottom:8px;">
-                            <textarea class="description-textarea" id="modal-draft-body" placeholder="Draft reply body…" style="min-height:140px;resize:vertical;"></textarea>
-                            <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
-                                <button class="sidebar-btn" onclick="regenerateDraft()" id="btn-regen" style="font-size:12px;">🔄 Regenerate</button>
-                                <button class="sidebar-btn" onclick="copyDraft()" style="font-size:12px;">📋 Copy</button>
-                                <select class="contact-input" id="modal-draft-status" style="font-size:12px;padding:6px 10px;">
-                                    <option value="pending">Pending</option>
-                                    <option value="drafted">Drafted</option>
-                                    <option value="approved">Approved</option>
-                                    <option value="sent">Sent</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div id="draft-error" style="display:none;color:#f87171;font-size:12px;font-family:var(--font-mono);"></div>
-                    </div>
-
-                    <div class="modal-section" style="border-color:rgba(248,113,113,0.2);">
-                        <button class="delete-card-btn" onclick="deleteCard()">🗑 Delete Card</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ─── COMMAND PALETTE ──────────────────────────────── -->
-    <div class="modal-overlay" id="command-palette-modal" onclick="closeCommandPalette(event)">
-        <div class="command-palette" onclick="event.stopPropagation()">
-            <input type="text" class="command-palette-input" id="command-palette-input" placeholder="Type a command…">
-            <div class="command-palette-results" id="command-palette-results"></div>
-        </div>
-    </div>
-
-    <!-- ─── HUBBLE CHAT MODAL ────────────────────────────── -->
-    <div class="modal-overlay" id="chat-modal" onclick="closeChatModal(event)">
-        <div class="chat-modal" onclick="event.stopPropagation()">
-            <div class="chat-header">
-                <div class="chat-title">
-                    <span class="avatar" style="background:linear-gradient(135deg,#11998e,#38ef7d);width:32px;height:32px;font-size:12px;">HB</span>
-                    <span id="chat-agent-name">Hubble</span>
-                </div>
-                <select class="chat-agent-select" id="agent-select" onchange="changeAgent(this.value)">
-                    <option value="general">General</option>
-                    <option value="sales">Sales Agent</option>
-                </select>
-                <button class="card-modal-close" onclick="closeChatModal()">×</button>
-            </div>
-            <div class="chat-messages" id="chat-messages">
-                <div class="chat-message hubble">
-                    <div class="chat-bubble">Hi! I'm Hubble. Use the dropdown to switch between:
-
-🤖 General — helps with everything
-💼 Sales Agent — contacts your leads
-
-What would you like to know?</div>
-                </div>
-            </div>
-            <div class="chat-input-area">
-                <input type="text" class="chat-input" id="chat-input" placeholder="Ask me something…" onkeydown="handleChatKey(event)">
-                <button class="chat-send-btn" onclick="sendChatMessage()">↑</button>
-            </div>
-            <div class="chat-note"></div>
-        </div>
-    </div>
-
-    <!-- ─── PROFILE MODAL ────────────────────────────────── -->
-    <div class="modal-overlay" id="profile-modal" onclick="closeProfileModal(event)">
-        <div class="profile-modal" onclick="event.stopPropagation()">
-            <h2 class="profile-modal-title">Select Profile</h2>
-            <div class="profile-list">
-                <div class="profile-option active" onclick="selectProfile('Sam L','SL',this)">
-                    <span class="avatar" style="background:linear-gradient(135deg,#667eea,#764ba2);">SL</span>
-                    <div class="profile-info"><span class="profile-name">Sam L</span></div>
-                </div>
-                <div class="profile-option" onclick="selectProfile('Robert S','RS',this)">
-                    <span class="avatar" style="background:linear-gradient(135deg,#f093fb,#f5576c);">RS</span>
-                    <div class="profile-info"><span class="profile-name">Robert S</span></div>
-                </div>
-                <div class="profile-option" onclick="selectProfile('Asher W','AW',this)">
-                    <span class="avatar" style="background:linear-gradient(135deg,#4facfe,#00f2fe);">AW</span>
-                    <div class="profile-info"><span class="profile-name">Asher W</span></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ─── LABEL PICKER ─────────────────────────────────── -->
-    <div class="modal-overlay" id="label-modal" onclick="closeLabelModal(event)">
-        <div class="label-picker" onclick="event.stopPropagation()">
-            <h3 class="label-picker-title">Labels</h3>
-            <div id="label-options"></div>
-        </div>
-    </div>
-
-    <!-- ─── ASSIGNEE PICKER ──────────────────────────────── -->
-    <div class="modal-overlay" id="assignee-modal" onclick="closeAssigneeModal(event)">
-        <div class="profile-modal" onclick="event.stopPropagation()">
-            <h2 class="profile-modal-title">Change Assignee</h2>
-            <div class="profile-list" id="assignee-options"></div>
-        </div>
-    </div>
-
-    <div class="sr-only" id="live-region" aria-live="polite"></div>
-
-</div><!-- /#app -->
-
+<!-- Firebase static imports (same as working local file) -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
-import { getFirestore, doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
+import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
 
-// ── Login ──────────────────────────────────────────
-let selectedUser = { name: 'Asher W', initials: 'AW', password: '3' };
-let isLoggedIn = false;
-
-function selectLoginUser(el) {
-    document.querySelectorAll('.login-user').forEach(u => u.classList.remove('selected'));
-    el.classList.add('selected');
-    selectedUser = { name: el.dataset.user, initials: el.dataset.user.split(' ').map(n=>n[0]).join(''), password: el.dataset.password };
-    document.getElementById('login-password').value = '';
-    document.getElementById('login-error').textContent = '';
-}
-
-function checkLogin(event) { if (event.key === 'Enter') attemptLogin(); }
-
-function attemptLogin() {
-    if (document.getElementById('login-password').value === selectedUser.password) {
-        isLoggedIn = true;
-        document.getElementById('login-modal').classList.remove('active');
-        document.getElementById('login-modal').style.display = 'none';
-        const app = document.getElementById('main-app');
-        app.style.display = 'flex';
-        app.style.flexDirection = 'column';
-        app.style.height = '100%';
-        app.style.overflow = 'hidden';
-        currentUser = selectedUser.name;
-        currentInitials = selectedUser.initials;
-        document.getElementById('current-avatar').textContent = currentInitials;
-        document.getElementById('current-profile-name').textContent = currentUser;
-        loadState();
-    } else {
-        document.getElementById('login-error').textContent = 'Incorrect password';
-    }
-}
-
-window.selectLoginUser = selectLoginUser;
-window.checkLogin = checkLogin;
-window.attemptLogin = attemptLogin;
-
-// ── Firebase ───────────────────────────────────────
 const firebaseConfig = {
-    apiKey: "AIzaSyBaSETzAzXCDC_RHntmNKeM9nO4pcA6VRA",
-    authDomain: "unaligned-fc556.firebaseapp.com",
-    projectId: "unaligned-fc556",
-    storageBucket: "unaligned-fc556.firebasestorage.app",
-    messagingSenderId: "720311168962",
-    appId: "1:720311168962:web:18d9f60626671a6e13f05b"
+  apiKey: "AIzaSy...6VRA",
+  authDomain: "unaligned-fc556.firebaseapp.com",
+  projectId: "unaligned-fc556",
+  storageBucket: "unaligned-fc556.firebasestorage.app",
+  messagingSenderId: "720311168962",
+  appId: "1:720311168962:web:18d9f60626671a6e13f05b"
 };
 
-const twitterConfig = {
-    apiKey: "tbOiHjZfaq0xKlTOARGkHsP4U",
-    apiSecret: "l0IjZrYDoH0N90fAf0OWHV6UE1l0yfHvZjV0LBervSSH3BFWCM",
-    accessToken: "13348-xT9k3AmEVcOgjJheJ1KnUC8TGMj8f7fdBe7r71AS1hGM",
-    accessSecret: "DVRM9owSm6z25EueJ5iZDmS6lf1Sad9mat9dfJ5vcXXfh"
-};
-const firebaseApp = initializeApp(firebaseConfig);
-const db = getFirestore(firebaseApp);
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 const boardDocRef = doc(db, 'boards', 'shared-board');
 
-// ── State ──────────────────────────────────────────
-let currentProfile = { name: 'Sam L', initials: 'SL' };
-let currentUser = 'Asher W';
-let currentInitials = 'AW';
-let draggedCard = null;
-let cardsData = {};
-let cardIdCounter = 1;
-let currentEditingCard = null;
-let currentEditingCardData = null;
-let isApplyingRemoteUpdate = false;
-let saveTimeout = null;
-let hasLoadedInitialState = false;
-
-const syncState = { status: 'synced', lastSyncedAt: null, errorMessage: '' };
-
-function setSyncState(status, { errorMessage = '', syncedAt = null } = {}) {
-    syncState.status = status;
-    if (status === 'synced') { syncState.lastSyncedAt = (syncedAt instanceof Date ? syncedAt : new Date()).toISOString(); syncState.errorMessage = ''; }
-    else if (status === 'error') { syncState.errorMessage = errorMessage || 'Offline'; }
-    requestAnimationFrame(renderSyncState);
-}
-
-function renderSyncState() {
-    const indicators = document.querySelectorAll('[data-sync-indicator]');
-    const warning = document.getElementById('sync-warning');
-    const classMap = { connecting:'sync-connecting', saving:'sync-saving', synced:'sync-synced', error:'sync-error' };
-    const labelMap = { connecting:'Connecting…', saving:'Saving…', synced:'Synced', error:'Offline' };
-    indicators.forEach(el => {
-        ['sync-connecting','sync-saving','sync-synced','sync-error'].forEach(c => el.classList.remove(c));
-        el.classList.add(classMap[syncState.status] || 'sync-connecting');
-        const textEl = el.querySelector('[data-sync-text]');
-        if (textEl) textEl.textContent = labelMap[syncState.status] || 'Connecting…';
-    });
-    if (!warning) return;
-    if (syncState.status === 'error') { warning.textContent = syncState.errorMessage; warning.classList.add('visible'); }
-    else warning.classList.remove('visible');
-}
-
-// ── Profiles ───────────────────────────────────────
-const profiles = {
-    'Sam L':    { initials:'SL', gradient:'linear-gradient(135deg,#667eea,#764ba2)' },
-    'Robert S': { initials:'RS', gradient:'linear-gradient(135deg,#f093fb,#f5576c)' },
-    'Asher W':  { initials:'AW', gradient:'linear-gradient(135deg,#4facfe,#00f2fe)' }
+// ── Helpers ──────────────────────────────────────────────────
+const stageMap = {
+  'discovery':     { label: 'LEAD IN',     color: '#94a3b8' },
+  'build':         { label: 'IN PROGRESS', color: '#3b82f6' },
+  'review':        { label: 'REVIEW',       color: '#fbbf24' },
+  'done':          { label: 'DONE',         color: '#34d399' },
+  'paid-out':      { label: 'PAID OUT',     color: '#a855f7' },
+  'anything-else': { label: 'ANYTHING ELSE', color: '#6b7280' }
 };
 
-const labelColors = { 'Important':'red','In Progress':'blue','Done':'green','Review':'yellow','Bug':'purple','Feature':'orange','Blocked':'pink' };
-const labelPalette = { red:'#ef4444',blue:'#3b82f6',green:'#22c55e',yellow:'#facc15',purple:'#a855f7',orange:'#f97316',pink:'#ec4899' };
+const avatarGradients = {
+  'Asher W':  'linear-gradient(135deg,#4facfe,#00f2fe)',
+  'Robert S': 'linear-gradient(135deg,#f093fb,#f5576c)',
+  'Sam L':    'linear-gradient(135deg,#667eea,#764ba2)'
+};
 
-// ── Board Config ───────────────────────────────────
-const defaultBoardConfig = [
-    { id:'discovery',        title:'LEAD IN',        description:'', color:'#94a3b8' },
-    { id:'build',            title:'IN PROGRESS',    description:'', color:'#3b82f6' },
-    { id:'review',           title:'REVIEW',          description:'', color:'#fbbf24' },
-    { id:'done',             title:'DONE',            description:'', color:'#34d399' },
-    { id:'paid-out',         title:'PAID OUT',        description:'Custom lane', color:'#a855f7' },
-    { id:'anything-else',    title:'ANYTHING ELSE',   description:'', color:'#6b7280' }
+function getInitials(name) {
+  if (!name) return '?';
+  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+}
+
+function getAvatarGradient(name) {
+  return avatarGradients[name] || 'linear-gradient(135deg,#6b7280,#4b5563)';
+}
+
+function formatDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now - d;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function parseTemp(score) {
+  score = Number(score);
+  if (isNaN(score)) return { label: '—', cls: '', level: 'unscored' };
+  if (score >= 60) return { label: `${score} Hot`, cls: 'temp-hot', level: 'hot' };
+  if (score >= 40) return { label: `${score} Warm`, cls: 'temp-warm', level: 'warm' };
+  return { label: `${score} Cold`, cls: 'temp-cold', level: 'cold' };
+}
+
+function getLastActivity(card) {
+  if (!card.activity || card.activity.length === 0) return 'No activity';
+  const last = card.activity[card.activity.length - 1];
+  return `${last.user}: ${last.action} (${formatDate(last.time)})`;
+}
+
+// ── CSV Export ──────────────────────────────────────────────
+function exportCSV(cards) {
+  const headers = ['Contact Name','Business','Email','Phone','Stage','Temperature','Score','Deal Value','Priority','Assignee','Source','Due Date','Title','Notes','Last Activity'];
+  const rows = cards.map(c => [
+    c.contactName || c.title || '',
+    c.businessName || '',
+    c.email || '',
+    c.phone || '',
+    stageMap[c.listId]?.label || c.listId || '',
+    parseTemp(c.score || c.temperature)?.level || '',
+    c.score || c.temperature || '',
+    c.estimatedValue || '',
+    c.priority || '',
+    c.assignee || '',
+    c.leadSource || '',
+    c.dueDate || '',
+    (c.title || '').replace(/"/g, '""'),
+    (c.description || '').replace(/"/g, '""'),
+    getLastActivity(c).replace(/"/g, '""')
+  ]);
+
+  const csv = [headers, ...rows]
+    .map(r => r.map(v => `"${v}"`).join(','))
+    .join('\n');
+
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `flow-leads-${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Rendering ────────────────────────────────────────────────
+const THEAD = [
+  { key: 'contactName',    label: 'Name',           width: 160 },
+  { key: 'businessName',  label: 'Business',        width: 150 },
+  { key: 'email',          label: 'Email',           width: 200 },
+  { key: 'phone',          label: 'Phone',           width: 130 },
+  { key: 'listId',         label: 'Stage',           width: 120 },
+  { key: 'score',          label: 'Temp',            width: 80  },
+  { key: 'estimatedValue', label: 'Deal Value',     width: 100 },
+  { key: 'priority',       label: 'Priority',        width: 80  },
+  { key: 'assignee',       label: 'Assignee',        width: 110 },
+  { key: 'leadSource',     label: 'Source',          width: 100 },
+  { key: 'dueDate',        label: 'Due',             width: 90  },
+  { key: 'title',          label: 'Title',           width: 200 },
+  { key: 'description',     label: 'Notes',           width: 220 },
+  { key: '_activity',      label: 'Last Activity',  width: 180 },
+  { key: '_labels',        label: 'Labels',          width: 140 },
 ];
-let boardConfig = JSON.parse(JSON.stringify(defaultBoardConfig));
 
-const sampleCards = [
-    { id:999, title:'NEW LEAD CARD', listId:'discovery', labels:[], description:'', checklist:[], assignee:'', dueDate:'', createdBy:'Here Here', createdAt:new Date().toISOString(), activity:[], contactName:'', email:'', phone:'', businessName:'', leadSource:'website', estimatedValue:'500', priority:'high' },
+let allCards = [];
+let sortKey = 'contactName';
+let sortAsc = true;
 
-    { id:1, title:'Map the onboarding narrative', listId:'discovery', labels:[{name:'Important',color:'red'},{name:'Feature',color:'orange'}], description:'Draft intentional onboarding moments for FLOW AI beta.', checklist:[{text:'Interview 3 power users',checked:true},{text:'Prototype guided quest',checked:false}], assignee:'Asher W', dueDate:new Date().toISOString().split('T')[0], createdBy:'Sam L', createdAt:new Date(Date.now()-7200000).toISOString(), activity:[{user:'Sam L',initials:'SL',action:'created this card',time:new Date(Date.now()-7200000).toISOString()},{user:'Asher W',initials:'AW',action:'moved from Backlog to Discovery',time:new Date(Date.now()-3600000).toISOString()}] },
-    { id:2, title:'Flow canvas UI polish', listId:'build', labels:[{name:'In Progress',color:'blue'}], description:'Tighten typography, lighten cards, add motion cues.', checklist:[], assignee:'Robert S', dueDate:'', createdBy:'Robert S', createdAt:new Date(Date.now()-5400000).toISOString(), activity:[{user:'Robert S',initials:'RS',action:'created this card',time:new Date(Date.now()-5400000).toISOString()}] },
-    { id:3, title:'Partner ops dry run', listId:'launch', labels:[{name:'Important',color:'green'},{name:'Review',color:'yellow'}], description:'', checklist:[], assignee:'', dueDate:'', createdBy:'Sam L', createdAt:new Date(Date.now()-4000000).toISOString(), activity:[{user:'Sam L',initials:'SL',action:'created this card',time:new Date(Date.now()-4000000).toISOString()}] }
-];
+function renderThead() {
+  const thead = document.getElementById('thead');
+  thead.innerHTML = THEAD.map(col => {
+    const sorted = sortKey === col.key;
+    const arrow = sorted ? (sortAsc ? '▲' : '▼') : '';
+    return `<th data-key="${col.key}" class="${sorted ? 'sorted' : ''}" style="min-width:${col.width}px">
+      ${col.label}<span class="sort-arrow">${arrow}</span>
+    </th>`;
+  }).join('');
 
-const defaultCardsData = sampleCards.reduce((acc,card) => { acc[card.id]=card; return acc; }, {});
-cardsData = JSON.parse(JSON.stringify(defaultCardsData));
-cardIdCounter = deriveNextCardId(cardsData);
-
-// ── Normalization ──────────────────────────────────
-function normalizeBoardConfig(lists=[]) {
-    const source = Array.isArray(lists) && lists.length ? lists : defaultBoardConfig;
-    return source.map((list,i) => ({ id:list.id||`list-${i}`, title:list.title||`List ${i+1}`, description:list.description||'', color:list.color||'#94a3b8', ...(list.wip?{wip:Number(list.wip)}:{}) }));
-}
-
-function normalizeActivityEntry(entry={}) {
-    const initials = entry.initials || (entry.user ? entry.user.split(' ').map(p=>p[0]).join('').slice(0,2).toUpperCase() : '?');
-    return { user:entry.user||'Unknown', initials, action:entry.action||'', time:entry.time||new Date().toISOString() };
-}
-
-function normalizeCardShape(card={}, fallbackId) {
-    return {
-        id: Number.isFinite(Number(card.id)) ? Number(card.id) : fallbackId ?? deriveNextCardId(cardsData),
-        title: card.title||'Untitled card', listId:card.listId||defaultBoardConfig[0].id,
-        labels: Array.isArray(card.labels)?card.labels.filter(Boolean).map(l=>({name:l?.name||'Label',color:l?.color||'blue'})):[],
-        description:card.description||'',
-        checklist:Array.isArray(card.checklist)?card.checklist.filter(Boolean).map(i=>({text:i?.text||'',checked:Boolean(i?.checked)})):[],
-        activity:Array.isArray(card.activity)?card.activity.filter(Boolean).map(normalizeActivityEntry):[],
-        assignee:card.assignee||'', dueDate:card.dueDate||'',
-        createdBy:card.createdBy||currentProfile.name, createdAt:card.createdAt||new Date().toISOString(),
-        ...(card.contactName !== undefined ? {contactName:card.contactName} : {}),
-        ...(card.email !== undefined ? {email:card.email} : {}),
-        ...(card.phone !== undefined ? {phone:card.phone} : {}),
-        ...(card.businessName !== undefined ? {businessName:card.businessName} : {}),
-        ...(card.leadSource !== undefined ? {leadSource:card.leadSource} : {}),
-        ...(card.estimatedValue !== undefined ? {estimatedValue:card.estimatedValue} : {}),
-        ...(card.priority !== undefined ? {priority:card.priority} : {}),
-        ...(card.draft_reply !== undefined ? {draft_reply:card.draft_reply} : {}),
-        ...(card.draft_reply_status !== undefined ? {draft_reply_status:card.draft_reply_status} : {})
-    };
-}
-
-function normalizeCardsMap(rawCards={}, lists=defaultBoardConfig) {
-    const listIds = new Set(lists.map(l=>l.id));
-    const normalized = {};
-    Object.entries(rawCards).forEach(([key,value]) => {
-        const fallbackId = Number.isFinite(Number(value?.id)) ? Number(value.id) : Number(key);
-        const card = normalizeCardShape(value||{}, fallbackId);
-        if (!listIds.has(card.listId)) card.listId = lists[0]?.id || card.listId;
-        normalized[card.id] = card;
+  thead.querySelectorAll('th').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.key;
+      if (sortKey === key) sortAsc = !sortAsc;
+      else { sortKey = key; sortAsc = true; }
+      renderTable();
     });
-    return normalized;
+  });
 }
 
-// ── Config ───────────────────────────────────────────
-// OpenAI API key stored in localStorage (never committed to git)
-// On first use, enter it once and it persists in your browser
-function getOpenAIKey() {
-    let key = localStorage.getItem('unaligned_openai_key');
-    if (!key) {
-        key = prompt('Enter your OpenAI API key (stored locally, never sent anywhere but OpenAI):');
-        if (key) localStorage.setItem('unaligned_openai_key', key);
+function renderTable() {
+  const filtered = getFiltered();
+  const sorted = [...filtered].sort((a, b) => {
+    let av = a[sortKey] ?? '';
+    let bv = b[sortKey] ?? '';
+    if (sortKey === 'score' || sortKey === 'estimatedValue') {
+      av = Number(av) || 0;
+      bv = Number(bv) || 0;
     }
-    return key || '';
-}
-
-// ── Filters ────────────────────────────────────────
-const filters = { search:'', label:'all', priority:'all', source:'all', assignee:'all', mineOnly:false };
-
-document.addEventListener('DOMContentLoaded', () => {
-    document.body.classList.add('board-loading');
-    renderSyncState();
-    hydrateFilters();
-    hydrateAssigneeModal();
-    hydrateLabelModal();
-    attachFilterListeners();
-});
-
-function hydrateFilters() {
-    const labelSelect = document.getElementById('filter-label');
-    Object.keys(labelColors).forEach(label => { const o=document.createElement('option'); o.value=label; o.textContent=label; labelSelect.appendChild(o); });
-    const assigneeSelect = document.getElementById('filter-assignee');
-    Object.keys(profiles).forEach(name => { const o=document.createElement('option'); o.value=name; o.textContent=name; assigneeSelect.appendChild(o); });
-}
-
-function hydrateAssigneeModal() {
-    const container = document.getElementById('assignee-options');
-    container.innerHTML = '';
-    Object.entries(profiles).forEach(([name,profile]) => {
-        const opt = document.createElement('div');
-        opt.className = 'profile-option';
-        opt.innerHTML = `<span class="avatar" style="background:${profile.gradient};">${profile.initials}</span><div class="profile-info"><span class="profile-name">${name}</span></div>`;
-        opt.onclick = () => setAssignee(name, profile.initials);
-        container.appendChild(opt);
-    });
-    const unassigned = document.createElement('div');
-    unassigned.className = 'profile-option';
-    unassigned.innerHTML = `<span class="avatar" style="background:#4b5563;">–</span><div class="profile-info"><span class="profile-name">Flow AI (unassigned)</span></div>`;
-    unassigned.onclick = () => setAssignee('','');
-    container.appendChild(unassigned);
-}
-
-function hydrateLabelModal() {
-    const container = document.getElementById('label-options');
-    container.innerHTML = '';
-    Object.entries(labelColors).forEach(([name,color]) => {
-        const label = document.createElement('label');
-        label.className = 'label-option';
-        const bg = labelPalette[color] || '#111827';
-        label.innerHTML = `<input type="checkbox" data-label="${name}" data-color="${color}" onchange="toggleLabel(this)"><span class="label-color" style="background:${bg};${color==='yellow'?'color:#111827;':''}">${name}</span>`;
-        container.appendChild(label);
-    });
-}
-
-function initBoardStructure() {
-    const boardLists = document.getElementById('board-lists');
-    boardLists.innerHTML = '';
-    boardConfig.forEach(stage => {
-        const list = document.createElement('div');
-        list.className = 'list';
-        list.dataset.listId = stage.id;
-        list.innerHTML = `
-            <div class="list-header">
-                <div>
-                    <h3 class="list-title" style="color:${stage.color};">${stage.title}</h3>
-                    <div class="list-meta">${stage.description}</div>
-                </div>
-                <div class="list-actions">
-                    <button class="list-menu-btn" title="Rename" onclick="renameList('${stage.id}')">✎</button>
-                    <button class="list-menu-btn danger" title="Delete" onclick="deleteList('${stage.id}')">✕</button>
-                </div>
-            </div>
-            <div class="cards-container" id="${stage.id}-cards" data-list="${stage.id}" ondrop="drop(event)" ondragover="allowDrop(event)" ondragleave="dragLeave(event)"></div>
-            <button class="add-card-btn" onclick="showAddCardForm('${stage.id}')">+ Add card</button>
-        `;
-        boardLists.appendChild(list);
-    });
-}
-
-function renderAllCards() {
-    document.querySelectorAll('.cards-container').forEach(c => c.innerHTML='');
-    Object.values(cardsData).sort((a,b)=>{
-        const at=a?.createdAt?new Date(a.createdAt).getTime():0;
-        const bt=b?.createdAt?new Date(b.createdAt).getTime():0;
-        return at-bt;
-    }).forEach(renderCard);
-    applyFilters();
-}
-
-function loadState() {
-    onSnapshot(boardDocRef, async (docSnap) => {
-        if (docSnap.metadata?.hasPendingWrites) return;
-        if (currentEditingCard !== null) return;
-        if (window.justSaved && Date.now() - window.justSaved < 2000) return;
-        isApplyingRemoteUpdate = true;
-        try {
-            if (!docSnap.exists()) {
-                if (docSnap.metadata?.fromCache) return;
-                cardsData = JSON.parse(JSON.stringify(defaultCardsData));
-                cardIdCounter = deriveNextCardId(cardsData);
-                boardConfig = JSON.parse(JSON.stringify(defaultBoardConfig));
-                await saveBoardState(true);
-                refreshBoard(); markBoardReady(); setSyncState('synced',{syncedAt:new Date()});
-                return;
-            }
-            const payload = docSnap.data() || {};
-            boardConfig = normalizeBoardConfig(payload.lists);
-            cardsData = normalizeCardsMap(payload.cards, boardConfig);
-            cardIdCounter = payload.cardIdCounter || deriveNextCardId(cardsData);
-            refreshBoard(); markBoardReady(); setSyncState('synced',{syncedAt:new Date()});
-        } finally { isApplyingRemoteUpdate = false; }
-    });
-}
-
-function markBoardReady() {
-    if (hasLoadedInitialState) return;
-    hasLoadedInitialState = true;
-    document.body.classList.remove('board-loading');
-    const el = document.getElementById('board-loading');
-    if (el) el.remove();
-    loadViewMode();
-}
-
-function queueSaveBoardState() {
-    if (isApplyingRemoteUpdate) return;
-    if (syncState.status !== 'error') setSyncState('saving');
-    clearTimeout(saveTimeout);
-    saveTimeout = setTimeout(() => saveBoardState(), 600);
-}
-
-async function saveBoardState(force=false) {
-    if (!force && isApplyingRemoteUpdate) return;
-    if (syncState.status !== 'error') setSyncState('saving');
-    try {
-        await setDoc(boardDocRef, { cards:JSON.parse(JSON.stringify(cardsData||{})), lists:boardConfig, cardIdCounter, updatedAt:serverTimestamp() });
-        setSyncState('synced',{syncedAt:new Date()});
-    } catch(error) {
-        console.error('Failed to save',error);
-        setSyncState('error',{errorMessage:'Failed to save. Changes stay on this device until sync resumes.'});
+    if (sortKey === 'listId') {
+      av = stageMap[av]?.label || av;
+      bv = stageMap[bv]?.label || bv;
     }
-}
+    if (typeof av === 'string') av = av.toLowerCase();
+    if (typeof bv === 'string') bv = bv.toLowerCase();
+    if (av < bv) return sortAsc ? -1 : 1;
+    if (av > bv) return sortAsc ? 1 : -1;
+    return 0;
+  });
 
-async function saveBoardStateNow() {
-    if (currentEditingCard && currentEditingCardData) {
-        const titleInput = document.getElementById('modal-card-title');
-        const descInput = document.getElementById('modal-description');
-        currentEditingCardData.title = titleInput?.value || '';
-        currentEditingCardData.description = descInput?.value || '';
-        ['contactName','email','phone','businessName','leadSource','estimatedValue','priority'].forEach(field => {
-            const el = document.getElementById('modal-'+field);
-            if (el) currentEditingCardData[field] = el.value;
-        });
-        currentEditingCardData.draft_reply = {
-            subject: document.getElementById('modal-draft-subject')?.value || '',
-            body: document.getElementById('modal-draft-body')?.value || ''
-        };
-        currentEditingCardData.draft_reply_status = document.getElementById('modal-draft-status')?.value || 'drafted';
-    }
-    clearTimeout(saveTimeout);
-    await saveBoardState(true);
-}
+  document.getElementById('row-count').textContent = `${sorted.length} / ${allCards.length} leads`;
 
-function refreshBoard() { initBoardStructure(); renderAllCards(); updateCardCount(); updateFlowMap(); }
+  const tbody = document.getElementById('tbody');
+  if (sorted.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="${THEAD.length}" style="text-align:center;padding:40px;color:#6b7280">
+      No leads match your filters
+    </td></tr>`;
+    return;
+  }
 
-// Delegated click on board — opens card modal when any card is clicked
-document.addEventListener('click', e => {
-    const card = e.target.closest('.card');
-    if (card && card.dataset.cardId) { e.stopPropagation(); openCardModal(card.dataset.cardId); }
-});
+  tbody.innerHTML = sorted.map(card => {
+    const temp = parseTemp(card.score || card.temperature);
+    const stage = stageMap[card.listId] || { label: card.listId || '—', color: '#6b7280' };
+    const initials = getInitials(card.assignee);
+    const gradient = getAvatarGradient(card.assignee);
+    const lastAct = getLastActivity(card);
+    const isOverdue = card.dueDate && new Date(card.dueDate) < new Date();
 
-// ── Render Card ────────────────────────────────────
-function renderCard(cardData) {
-    const container = document.getElementById(cardData.listId+'-cards');
-    if (!container) { console.warn('No container for list:', cardData.listId); return; }
-    const existing = document.getElementById('card-'+cardData.id);
-    if (existing) existing.remove();
-
-    const card = document.createElement('div');
-    let priorityClass = 'card';
-    if (cardData.listId === 'done') priorityClass = 'card priority-done';
-    else if (cardData.priority) priorityClass = 'card priority-'+cardData.priority;
-    card.className = priorityClass;
-    card.draggable = true; card.dataset.cardId = cardData.id; card.id = 'card-'+cardData.id;
-
-    const labelsHtml = (cardData.labels||[]).map(l=>`<span class="card-label-text ${l.color}">${l.name}</span>`).join('');
-
-    let checklistHtml = '';
-    if (cardData.checklist?.length) {
-        const checked = cardData.checklist.filter(i=>i.checked).length;
-        checklistHtml = `<span class="card-meta-item">☑ ${checked}/${cardData.checklist.length}</span>`;
-    }
-
-    let dueDateHtml = '';
-    if (cardData.dueDate) {
-        const date = new Date(cardData.dueDate);
-        dueDateHtml = `<span class="card-meta-item">⏱ ${date.toLocaleDateString('en-US',{month:'short',day:'numeric'})}</span>`;
-    }
-
-    let assigneeHtml = '';
-    if (cardData.assignee && profiles[cardData.assignee]) {
-        const p = profiles[cardData.assignee];
-        assigneeHtml = `<div class="card-assignee"><span class="avatar" style="width:22px;height:22px;font-size:10px;background:${p.gradient};">${p.initials}</span></div>`;
-    }
-
-    let leadMetaHtml = '';
-    if (cardData.priority || cardData.leadSource || cardData.estimatedValue) {
-        const pHtml = cardData.priority ? `<span class="card-priority">${cardData.priority==='hot'?'🔥':cardData.priority==='warm'?'🌡️':'❄️'} ${cardData.priority}</span>` : '';
-        const sHtml = cardData.leadSource ? `<span class="card-source">${cardData.leadSource}</span>` : '';
-        const vHtml = cardData.estimatedValue ? `<span class="card-value">$${cardData.estimatedValue}</span>` : '';
-        leadMetaHtml = `<div class="card-lead-meta">${pHtml}${sHtml}${vHtml}</div>`;
-    }
-
-    card.innerHTML = `
-        <div class="card-labels">${labelsHtml}</div>
-        ${leadMetaHtml}
-        <div class="card-content">${escapeHtml(cardData.title)}</div>
-        <div class="card-footer">
-            <div class="card-meta">${checklistHtml}${dueDateHtml}</div>
-            ${assigneeHtml}
+    return `<tr>
+      <td><span class="contact-name">${card.contactName || card.title || '—'}</span></td>
+      <td><span class="contact-business">${card.businessName || '—'}</span></td>
+      <td>${card.email ? `<a class="contact-email" href="mailto:${card.email}">${card.email}</a>` : '—'}</td>
+      <td><span class="contact-phone">${card.phone || '—'}</span></td>
+      <td>
+        <span class="stage" style="background:${stage.color}22;color:${stage.color};border:1px solid ${stage.color}44">
+          ${stage.label}
+        </span>
+      </td>
+      <td><span class="temp ${temp.cls}">${temp.label}</span></td>
+      <td><span class="value">$${Number(card.estimatedValue || 0).toLocaleString()}</span></td>
+      <td>
+        <span class="priority priority-${card.priority || 'low'}">
+          ${(card.priority || 'none').toUpperCase()}
+        </span>
+      </td>
+      <td>
+        ${card.assignee ? `
+        <span class="assignee">
+          <span class="avatar-sm" style="background:${gradient}">${initials}</span>
+          ${card.assignee}
+        </span>` : '—'}
+      </td>
+      <td><span class="source">${card.leadSource || '—'}</span></td>
+      <td>
+        <span class="due ${isOverdue ? 'overdue' : ''}">
+          ${card.dueDate || '—'}
+        </span>
+      </td>
+      <td>${card.title || '—'}</td>
+      <td><span class="desc">${card.description || '—'}</span></td>
+      <td><span class="activity">${lastAct}</span></td>
+      <td>
+        <div class="labels">
+          ${(card.labels || []).map(l => `<span class="label-tag">${l.name}</span>`).join('')}
+          ${(card.labels || []).length === 0 ? '—' : ''}
         </div>
-    `;
-
-    card.addEventListener('dragstart', drag);
-    card.addEventListener('dragend', dragEnd);
-    card.onclick = () => openCardModal(cardData.id);
-
-    let tX=0, tY=0;
-    card.addEventListener('touchstart', e=>{tX=e.touches[0].clientX;tY=e.touches[0].clientY;},{passive:true});
-    card.addEventListener('touchend', e=>{
-        const dx=e.changedTouches[0].clientX-tX, dy=e.changedTouches[0].clientY-tY;
-        if (Math.abs(dx)>50 && Math.abs(dx)>Math.abs(dy)) {
-            const idx=boardConfig.findIndex(l=>l.id===cardData.listId);
-            if (dx<0&&idx<boardConfig.length-1) moveCardToList(cardData.id,boardConfig[idx+1].id);
-            else if (dx>0&&idx>0) moveCardToList(cardData.id,boardConfig[idx-1].id);
-        }
-    },{passive:true});
-
-    container.appendChild(card);
+      </td>
+    </tr>`;
+  }).join('');
 }
 
-function moveCardToList(cardId,newListId) {
-    const card = cardsData[cardId];
-    if (!card) return;
-    const oldListId = card.listId;
-    card.listId = newListId;
-    addActivity(`moved from ${boardConfig.find(l=>l.id===oldListId)?.title||oldListId} to ${boardConfig.find(l=>l.id===newListId)?.title||newListId}`);
-    renderAllCards(); updateCardCount(); updateFlowMap(); saveBoardStateNow();
-}
+function getFiltered() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const stage = document.getElementById('filter-stage').value;
+  const temp = document.getElementById('filter-temp').value;
+  const priority = document.getElementById('filter-priority').value;
+  const assignee = document.getElementById('filter-assignee').value;
 
-// ── Drag & Drop ────────────────────────────────────
-function drag(ev) { draggedCard=ev.currentTarget; draggedCard.classList.add('dragging'); ev.dataTransfer.effectAllowed='move'; ev.dataTransfer.setData('text/plain',draggedCard.dataset.cardId); }
-function dragEnd(ev) { ev.currentTarget.classList.remove('dragging'); document.querySelectorAll('.cards-container').forEach(c=>c.classList.remove('drag-over')); draggedCard=null; }
-function allowDrop(ev) { ev.preventDefault(); const c=ev.target.closest('.cards-container'); if(c) c.classList.add('drag-over'); }
-function dragLeave(ev) { const c=ev.target.closest('.cards-container'); if(c&&!c.contains(ev.relatedTarget)) c.classList.remove('drag-over'); }
-function drop(ev) {
-    ev.preventDefault();
-    const container = ev.target.closest('.cards-container');
-    if (!container || !draggedCard) return;
-    container.classList.remove('drag-over');
-    container.appendChild(draggedCard);
-    const cardId = parseInt(draggedCard.dataset.cardId,10);
-    const targetCard = cardsData[cardId];
-    if (!targetCard) return;
-    const newListId = container.dataset.list;
-    const oldListId = targetCard.listId;
-    targetCard.listId = newListId;
-    const nLN = boardConfig.find(l=>l.id===newListId)?.title||newListId;
-    const oLN = boardConfig.find(l=>l.id===oldListId)?.title||oldListId;
-    targetCard.activity = Array.isArray(targetCard.activity)?targetCard.activity:[];
-    targetCard.activity.unshift({user:currentProfile.name,initials:currentProfile.initials,action:`moved from ${oLN} to ${nLN}`,time:new Date().toISOString()});
-    updateCardCount(); updateFlowMap(); queueSaveBoardState();
-}
-
-// ── Filters ────────────────────────────────────────
-function handleAskHubbleClick() {
-    const input = document.getElementById('filter-search');
-    const query = input.value.trim();
-    openChatModalWithMessage(query);
-    input.value = '';
-}
-
-function handleSearchKey(event) { if (event.key==='Enter') handleAskHubbleClick(); }
-
-function openChatModalWithMessage(msg) {
-    const chatOverlay = document.getElementById('chat-modal');
-    chatOverlay.classList.add('active');
-    if (msg) { document.getElementById('chat-input').value=msg; sendChatMessage(); }
-    else document.getElementById('chat-input').focus();
-}
-window.openChatModalWithMessage = openChatModalWithMessage;
-
-function attachFilterListeners() {
-    document.getElementById('filter-search').addEventListener('input', e=>{filters.search=e.target.value.toLowerCase();applyFilters();});
-    document.getElementById('filter-label').addEventListener('change', e=>{filters.label=e.target.value;applyFilters();});
-    document.getElementById('filter-assignee').addEventListener('change', e=>{filters.assignee=e.target.value;applyFilters();});
-    document.getElementById('filter-priority').addEventListener('change', e=>{filters.priority=e.target.value;applyFilters();});
-    document.getElementById('filter-source').addEventListener('change', e=>{filters.source=e.target.value;applyFilters();});
-    document.getElementById('filter-mine').addEventListener('change', e=>{filters.mineOnly=e.target.checked;applyFilters();});
-}
-
-function applyFilters() {
-    Object.values(cardsData).forEach(card => {
-        const el = document.getElementById('card-'+card.id);
-        if (!el) return;
-        let v = true;
-        if (filters.search) v = `${card.title} ${card.description} ${card.contactName||''} ${card.businessName||''} ${(card.labels||[]).map(l=>l.name).join(' ')}`.toLowerCase().includes(filters.search);
-        if (v && filters.label!=='all') v = card.labels?.some(l=>l.name===filters.label);
-        if (v && filters.priority!=='all') v = card.priority===filters.priority;
-        if (v && filters.source!=='all') v = card.leadSource===filters.source;
-        if (v && filters.assignee!=='all') v = card.assignee===filters.assignee;
-        if (v && filters.mineOnly) v = card.assignee===currentProfile.name;
-        el.style.display = v?'':'none';
-    });
-}
-
-// ── Card Modal ─────────────────────────────────────
-function openCardModal(cardId) {
-    currentEditingCard = cardId;
-    currentEditingCardData = cardsData[cardId];
-    if (!currentEditingCardData) return;
-    const overlay = document.getElementById('card-modal-overlay');
-    const modal = document.getElementById('card-modal');
-    overlay.classList.add('active'); overlay.style.display='flex';
-    modal.classList.add('active'); modal.style.display='flex';
-
-    document.getElementById('modal-card-title').value = currentEditingCardData.title;
-    document.getElementById('modal-description').value = currentEditingCardData.description||'';
-    document.getElementById('modal-card-title').oninput = e=>{currentEditingCardData.title=e.target.value;renderCard(currentEditingCardData);updateFlowMap();};
-    document.getElementById('modal-list-name').textContent = boardConfig.find(l=>l.id===currentEditingCardData.listId)?.title||'List';
-    document.getElementById('modal-created-info').textContent = `Created by ${currentEditingCardData.createdBy} · ${timeAgo(new Date(currentEditingCardData.createdAt))}`;
-    document.getElementById('modal-contact-name').value = currentEditingCardData.contactName||'';
-    document.getElementById('modal-email').value = currentEditingCardData.email||'';
-    document.getElementById('modal-phone').value = currentEditingCardData.phone||'';
-    document.getElementById('modal-business-name').value = currentEditingCardData.businessName||'';
-    document.getElementById('modal-lead-source').value = currentEditingCardData.leadSource||'';
-    document.getElementById('modal-estimated-value').value = currentEditingCardData.estimatedValue||'';
-    document.getElementById('modal-priority').value = currentEditingCardData.priority||'';
-    document.getElementById('due-date-input').value = currentEditingCardData.dueDate||'';
-    renderChecklist(); renderActivity(); renderAssignee();
-    renderDraftReply();
-    overlay.classList.add('active');
-    // Scroll modal body to bottom so draft section is visible
-    requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-            const body = document.querySelector('.card-modal-body');
-            if (body) {
-                body.scrollTop = body.scrollHeight;
-                // Double scroll to ensure button is in viewport
-                setTimeout(() => { body.scrollTop = body.scrollHeight; }, 50);
-            }
-        });
-    });
-}
-
-function saveCardAndClose() {
-    if (currentEditingCardData) {
-        currentEditingCardData.title = document.getElementById('modal-card-title').value;
-        currentEditingCardData.description = document.getElementById('modal-description').value;
-        currentEditingCardData.contactName = document.getElementById('modal-contact-name').value;
-        currentEditingCardData.email = document.getElementById('modal-email').value;
-        currentEditingCardData.phone = document.getElementById('modal-phone').value;
-        currentEditingCardData.businessName = document.getElementById('modal-business-name').value;
-        currentEditingCardData.leadSource = document.getElementById('modal-lead-source').value;
-        currentEditingCardData.estimatedValue = document.getElementById('modal-estimated-value').value;
-        currentEditingCardData.priority = document.getElementById('modal-priority').value;
-        currentEditingCardData.draft_reply = {
-            subject: document.getElementById('modal-draft-subject').value,
-            body: document.getElementById('modal-draft-body').value
-        };
-        currentEditingCardData.draft_reply_status = document.getElementById('modal-draft-status').value;
-        renderCard(currentEditingCardData); window.justSaved=Date.now();
-        saveBoardStateNow(); updateFlowMap();
+  return allCards.filter(card => {
+    if (q) {
+      const hay = [
+        card.contactName, card.title, card.email, card.businessName,
+        card.description, card.phone, card.assignee
+      ].filter(Boolean).join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
     }
-    const overlay = document.getElementById('card-modal-overlay');
-    overlay.classList.remove('active'); overlay.style.display='none';
-    document.getElementById('card-modal').style.display='none';
-    document.getElementById('card-modal').classList.remove('active');
-    currentEditingCard=null; currentEditingCardData=null;
-}
-
-function closeCardModal(event) {
-    if (!event || event.target===document.getElementById('card-modal-overlay')) {
-        document.getElementById('card-modal-overlay').classList.remove('active');
-        document.getElementById('card-modal-overlay').style.display='none';
-        document.getElementById('card-modal').style.display='none';
-        document.getElementById('card-modal').classList.remove('active');
-        currentEditingCard=null; currentEditingCardData=null;
+    if (stage && card.listId !== stage) return false;
+    if (priority && card.priority !== priority) return false;
+    if (assignee && card.assignee !== assignee) return false;
+    if (temp) {
+      const t = parseTemp(card.score || card.temperature);
+      if (temp === 'unscored' && (card.score || card.temperature)) return false;
+      if (temp !== 'unscored' && t.level !== temp) return false;
     }
+    return true;
+  });
 }
 
-function renderModalLabels() {
-    const c = document.getElementById('modal-labels');
-    if (!c) return;
-    if (!currentEditingCardData.labels?.length) { c.innerHTML='<span style="color:var(--muted);font-size:13px;">No labels</span> <button class="sidebar-btn" style="margin-top:8px;" onclick="openLabelPicker()">Add</button>'; return; }
-    c.innerHTML = currentEditingCardData.labels.map(l=>`<span class="label-tag ${l.color}">${l.name} <span class="remove-label" onclick="removeLabel('${l.name}')">×</span></span>`).join('');
-}
-
-function renderChecklist() {
-    const c = document.getElementById('modal-checklist');
-    if (!currentEditingCardData.checklist?.length) { c.innerHTML='<span style="color:var(--muted);font-size:12px;font-family:var(--font-mono);">No items yet</span>'; return; }
-    c.innerHTML = currentEditingCardData.checklist.map((item,i)=>`
-        <div class="checklist-item ${item.checked?'checked':''}">
-            <input type="checkbox" ${item.checked?'checked':''} onchange="toggleChecklistItem(${i})">
-            <span class="checklist-item-text">${escapeHtml(item.text)}</span>
-        </div>`).join('');
-}
-
-function renderActivity() {
-    const c = document.getElementById('modal-activity');
-    if (!currentEditingCardData.activity?.length) { c.innerHTML='<span style="color:var(--muted);font-size:12px;font-family:var(--font-mono);">Nothing yet</span>'; return; }
-    c.innerHTML = currentEditingCardData.activity.map(act=>{
-        const p = profiles[act.user]||{gradient:'#9ca3af',initials:act.initials||'?'};
-        return `<div class="activity-item">
-            <span class="activity-avatar" style="background:${p.gradient};">${act.initials||'?'}</span>
-            <div><div class="activity-text"><strong>${act.user}</strong> ${act.action}</div><div class="activity-time">${timeAgo(new Date(act.time))}</div></div>
-        </div>`;
-    }).join('');
-}
-
-// ── Draft Reply ─────────────────────────────────────
-function renderDraftReply() {
-    const d = currentEditingCardData;
-    const badge = document.getElementById('draft-status-badge');
-    const empty = document.getElementById('draft-empty');
-    const content = document.getElementById('draft-content');
-    const error = document.getElementById('draft-error');
-
-    empty.style.display = 'none';
-    content.style.display = 'none';
-    error.style.display = 'none';
-    badge.style.display = 'none';
-
-    const draft = d.draftReply || d.draft_reply || null;
-    const status = d.draftReplyStatus || d.draft_reply_status || null;
-    if (!draft || (!draft.subject && !draft.body)) {
-        empty.style.display = 'block';
-        return;
+// ── Load Firebase ───────────────────────────────────────────
+async function load() {
+  try {
+    const snap = await getDoc(boardDocRef);
+    if (!snap.exists()) {
+      document.getElementById('error').textContent = 'No data found in Firestore. Make sure the main app has synced first.';
+      document.getElementById('error').style.display = 'block';
+      document.getElementById('loading').style.display = 'none';
+      return;
     }
-
-    content.style.display = 'block';
-    document.getElementById('modal-draft-subject').value = draft.subject || '';
-    document.getElementById('modal-draft-body').value = draft.body || '';
-    const statusVal = status || 'drafted';
-    document.getElementById('modal-draft-status').value = statusVal;
-
-    badge.style.display = 'inline-block';
-    badge.className = 'draft-badge ' + statusVal;
-    badge.textContent = statusVal;
+    const data = snap.data();
+    allCards = Object.values(data.cards || {});
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('table-wrap').style.display = 'block';
+    renderThead();
+    renderTable();
+  } catch (e) {
+    document.getElementById('error').textContent = 'Failed to load: ' + e.message;
+    document.getElementById('error').style.display = 'block';
+    document.getElementById('loading').style.display = 'none';
+  }
 }
 
-function copyDraft() {
-    const subject = document.getElementById('modal-draft-subject').value;
-    const body = document.getElementById('modal-draft-body').value;
-    navigator.clipboard.writeText(`Subject: ${subject}\n\n${body}`).then(() => {
-        const btn = event.target;
-        const orig = btn.textContent;
-        btn.textContent = '✅ Copied!';
-        setTimeout(() => btn.textContent = orig, 1500);
-    });
-}
+// ── Event Listeners ─────────────────────────────────────────
+document.getElementById('search').addEventListener('input', renderTable);
+document.getElementById('filter-stage').addEventListener('change', renderTable);
+document.getElementById('filter-temp').addEventListener('change', renderTable);
+document.getElementById('filter-priority').addEventListener('change', renderTable);
+document.getElementById('filter-assignee').addEventListener('change', renderTable);
+document.getElementById('btn-export').addEventListener('click', () => exportCSV(getFiltered()));
 
-async function regenerateDraft() {
-    if (!currentEditingCardData) return;
-    const key = getOpenAIKey();
-    if (!key) {
-        const err = document.getElementById('draft-error');
-        err.textContent = '⚠️ No API key set. Enter it when prompted on load.';
-        err.style.display = 'block';
-        return;
-    }
-    const btn = document.getElementById('btn-regen');
-    const loading = document.getElementById('draft-loading');
-    const empty = document.getElementById('draft-empty');
-    const content = document.getElementById('draft-content');
-    const error = document.getElementById('draft-error');
-
-    btn.disabled = true; btn.textContent = '⏳…';
-    loading.style.display = 'block'; empty.style.display = 'none'; content.style.display = 'none'; error.style.display = 'none';
-
-    try {
-        const card = currentEditingCardData;
-        const res = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${getOpenAIKey()}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                model: 'gpt-4o-mini',
-                messages: [
-                    { role: 'system', content: 'You are a professional sales assistant. Always respond with valid JSON only.' },
-                    { role: 'user', content: `Draft a first-response email reply.\n\nSENDER INFO:\n- Name: ${card.contactName || 'Unknown'}\n- Email: ${card.email || 'Unknown'}\n- Business: ${card.businessName || 'Unknown'}\n- Source: ${card.leadSource || 'unknown'}\n- Priority: ${card.priority || 'warm'}\n\nCONTACT MESSAGE:\n${card.description || '(No description)'}\n\nRespond ONLY with JSON:\n{"subject": "email subject line", "body": "email body text", "status": "drafted"}\n\nRequirements:\n- Subject: concise, professional reply subject\n- Body: warm, personalized opening acknowledging their message; 2-3 short paragraphs; natural sign-off\n- No placeholders — write as if you know the person\n- Do NOT include any text outside the JSON.` }
-                ],
-                temperature: 0.7,
-                max_tokens: 600
-            })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error?.message || 'API error');
-
-        let text = data.choices[0].message.content;
-        if ("```json" in text) text = text.split("```json")[1].split("```")[0];
-        else if ("```" in text) text = text.split("```")[1].split("```")[0];
-        const reply = JSON.parse(text.trim());
-
-        currentEditingCardData.draft_reply = { subject: reply.subject, body: reply.body };
-        currentEditingCardData.draft_reply_status = 'drafted';
-        document.getElementById('modal-draft-subject').value = reply.subject;
-        document.getElementById('modal-draft-body').value = reply.body;
-        document.getElementById('modal-draft-status').value = 'drafted';
-
-        const badge = document.getElementById('draft-status-badge');
-        badge.style.display = 'inline-block';
-        badge.className = 'draft-badge drafted';
-        badge.textContent = 'drafted';
-
-        saveBoardStateNow();
-        content.style.display = 'block';
-    } catch (e) {
-        error.textContent = '⚠️ ' + e.message;
-        error.style.display = 'block';
-        if (!currentEditingCardData.draftReply) empty.style.display = 'block';
-    } finally {
-        btn.disabled = false; btn.textContent = '🔄 Regenerate';
-        loading.style.display = 'none';
-    }
-}
-
-function renderAssignee() {
-    const c = document.getElementById('modal-assignee');
-    if (!currentEditingCardData?.assignee) { c.innerHTML='<span style="color:var(--muted);font-size:13px;">Unassigned (Flow AI)</span>'; return; }
-    const p = profiles[currentEditingCardData.assignee];
-    if (!p) { c.innerHTML=`<span>${currentEditingCardData.assignee}</span>`; return; }
-    c.innerHTML=`<span class="avatar avatar-large" style="background:${p.gradient};">${p.initials}</span><span style="font-size:14px;">${currentEditingCardData.assignee}</span>`;
-}
-
-async function sendCardToFlowAI() {
-    if (!currentEditingCardData) return;
-    const listName = boardConfig.find(l=>l.id===currentEditingCardData.listId)?.title||currentEditingCardData.listId;
-    const labels = (currentEditingCardData.labels||[]).map(l=>l.name).join(', ')||'None';
-    const checklist = (currentEditingCardData.checklist||[]).map(i=>`- [${i.checked?'x':' '}] ${i.text}`).join('\n')||'None';
-    const summary = `Flow AI Request\nTitle: ${currentEditingCardData.title}\nList: ${listName}\nAssignee: ${currentEditingCardData.assignee||'Flow AI'}\nDue: ${currentEditingCardData.dueDate||'None'}\nLabels: ${labels}\n\nDescription:\n${currentEditingCardData.description?.trim()||'None'}\n\nChecklist:\n${checklist}`;
-    const copied = await copyTextToClipboard(summary);
-    announce(copied ? 'Copied Flow AI handoff to clipboard' : 'Copy this summary');
-}
-
-async function copyTextToClipboard(text) {
-    try { if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); return true; } } catch(e) {}
-    const t=document.createElement('textarea'); t.value=text; t.style.cssText='position:fixed;opacity:0;'; document.body.appendChild(t); t.select();
-    let ok=false; try{ok=document.execCommand('copy');}catch(e){} t.remove(); return ok;
-}
-
-function announce(message) { const r=document.getElementById('live-region'); if(!r) return; r.textContent=message; setTimeout(()=>{r.textContent='';},1500); }
-
-// ── Checklist ──────────────────────────────────────
-function addChecklistItem() {
-    const input = document.getElementById('checklist-input');
-    const text = input.value.trim();
-    if (!text) return;
-    currentEditingCardData.checklist = currentEditingCardData.checklist||[];
-    currentEditingCardData.checklist.push({text,checked:false});
-    input.value=''; renderChecklist();
-    addActivity(`added checklist item "${text}"`); queueSaveBoardState();
-}
-
-function toggleChecklistItem(index) {
-    if (!currentEditingCardData?.checklist?.[index]) return;
-    currentEditingCardData.checklist[index].checked = !currentEditingCardData.checklist[index].checked;
-    renderChecklist(); queueSaveBoardState();
-}
-
-function addActivity(action) {
-    if (!currentEditingCardData) return;
-    currentEditingCardData.activity = Array.isArray(currentEditingCardData.activity)?currentEditingCardData.activity:[];
-    currentEditingCardData.activity.unshift({user:currentProfile.name,initials:currentProfile.initials,action,time:new Date().toISOString()});
-    renderActivity();
-}
-
-// ── Assignee / Due Date / Labels ───────────────────
-function changeAssignee() { document.getElementById('assignee-modal').classList.add('active'); }
-function setAssignee(name,initials) {
-    if (!currentEditingCardData) return;
-    currentEditingCardData.assignee=name; renderAssignee();
-    addActivity(name?`assigned to ${name}`:'removed assignee');
-    document.getElementById('assignee-modal').classList.remove('active');
-    saveBoardStateNow(); updateCardCount(); updateFlowMap();
-}
-function closeAssigneeModal(event) { if(event.target===document.getElementById('assignee-modal')) document.getElementById('assignee-modal').classList.remove('active'); }
-
-function updateDueDate() { const d=document.getElementById('due-date-input').value; currentEditingCardData.dueDate=d; addActivity(d?`set due date to ${d}`:'removed due date'); queueSaveBoardState(); renderCard(currentEditingCardData); }
-function removeDueDate() { document.getElementById('due-date-input').value=''; currentEditingCardData.dueDate=''; addActivity('removed due date'); queueSaveBoardState(); renderCard(currentEditingCardData); }
-
-function updateContactField(field) {
-    const value = document.getElementById('modal-'+field).value;
-    currentEditingCardData[field]=value;
-    addActivity(`updated ${field}: ${value||'(empty)'}`);
-    window.justSaved=Date.now(); saveBoardStateNow(); renderCard(currentEditingCardData);
-}
-
-function openLabelPicker() {
-    document.querySelectorAll('#label-options input[type="checkbox"]').forEach(cb=>{
-        cb.checked = currentEditingCardData.labels?.some(l=>l.name===cb.dataset.label)||false;
-    });
-    document.getElementById('label-modal').classList.add('active');
-}
-function closeLabelModal(event) { if(event.target===document.getElementById('label-modal')) document.getElementById('label-modal').classList.remove('active'); }
-function toggleLabel(checkbox) {
-    const n=checkbox.dataset.label, c=checkbox.dataset.color;
-    currentEditingCardData.labels=currentEditingCardData.labels||[];
-    if(checkbox.checked) { if(!currentEditingCardData.labels.some(l=>l.name===n)) { currentEditingCardData.labels.push({name:n,color:c}); addActivity(`added label "${n}"`); } }
-    else { currentEditingCardData.labels=currentEditingCardData.labels.filter(l=>l.name!==n); addActivity(`removed label "${n}"`); }
-    renderModalLabels(); renderCard(currentEditingCardData); queueSaveBoardState();
-}
-function removeLabel(n) { currentEditingCardData.labels=currentEditingCardData.labels.filter(l=>l.name!==n); addActivity(`removed label "${n}"`); renderModalLabels(); renderCard(currentEditingCardData); queueSaveBoardState(); }
-
-function deleteCard() {
-    if (confirm('Delete this card? This cannot be undone.')) {
-        const el=document.getElementById('card-'+currentEditingCard); if(el) el.remove();
-        delete cardsData[currentEditingCard];
-        document.getElementById('card-modal-overlay').classList.remove('active');
-        currentEditingCard=null; currentEditingCardData=null;
-        updateCardCount(); updateFlowMap(); queueSaveBoardState();
-    }
-}
-
-// ── Quick Add ──────────────────────────────────────
-function quickAddLead() {
-    const title=prompt('Lead Name / Company:'); if(!title) return;
-    const contactName=prompt('Contact Name (optional):')||'';
-    const email=prompt('Email (optional):')||'';
-    const phone=prompt('Phone (optional):')||'';
-    const businessName=prompt('Business Name (optional):')||'';
-    const leadSource=prompt('Lead Source (website, referral, cold-call, social, advertisement, other):')||'';
-    const estimatedValue=prompt('Estimated Value ($):')||'';
-    const priority=prompt('Priority (hot, warm, cold):')||'';
-    const newCard = { id:cardIdCounter++, title, listId:'discovery', labels:[], description:'', checklist:[], assignee:'', dueDate:'', createdBy:currentUser, createdAt:new Date().toISOString(), activity:[{user:currentUser,initials:currentInitials,action:'created this lead',time:new Date().toISOString()}], contactName, email, phone, businessName, leadSource, estimatedValue, priority };
-    cardsData[newCard.id]=newCard; renderCard(newCard); updateCardCount(); updateFlowMap(); saveBoardStateNow();
-}
-
-// ── Command Palette ────────────────────────────────
-const commands = [
-    { id:'add-card',  title:'Add New Card',   desc:'Create a new card',    icon:'➕', action:()=>showAddCardForm('discovery') },
-    { id:'add-list',  title:'Add New List',   desc:'Create a new column',  icon:'📋', action:()=>showAddListForm() },
-    { id:'search',    title:'Search Cards',   desc:'Search all cards',     icon:'🔍', action:()=>document.getElementById('filter-search').focus() },
-    { id:'profile',   title:'Switch Profile', desc:'Change user',          icon:'👤', action:()=>openProfileModal() },
-    { id:'refresh',   title:'Refresh Board',  desc:'Reload data',          icon:'🔄', action:()=>location.reload() },
-];
-
-function openCommandPalette() {
-    window.selectedCommandIndex=0;
-    const modal=document.getElementById('command-palette-modal');
-    modal.classList.add('active');
-    const input=document.getElementById('command-palette-input');
-    input.value=''; renderCommands('');
-    const newInput=input.cloneNode(true);
-    input.parentNode.replaceChild(newInput,input);
-    newInput.addEventListener('input',e=>renderCommands(e.target.value));
-    newInput.addEventListener('keydown',e=>{
-        const items=document.querySelectorAll('.command-item');
-        if(e.key==='ArrowDown'){e.preventDefault();window.selectedCommandIndex=Math.min(window.selectedCommandIndex+1,items.length-1);renderCommands(newInput.value);}
-        else if(e.key==='ArrowUp'){e.preventDefault();window.selectedCommandIndex=Math.max(window.selectedCommandIndex-1,0);renderCommands(newInput.value);}
-        else if(e.key==='Enter'){e.preventDefault();const f=commands.filter(c=>c.title.toLowerCase().includes(newInput.value.toLowerCase()));if(f[window.selectedCommandIndex])executeCommand(f[window.selectedCommandIndex].id);}
-        else if(e.key==='Escape')closeCommandPalette();
-    });
-    setTimeout(()=>newInput.focus(),100);
-}
-
-function closeCommandPalette(event) { if(!event||event.target===document.getElementById('command-palette-modal')) document.getElementById('command-palette-modal').classList.remove('active'); }
-
-function renderCommands(filter) {
-    const c=document.getElementById('command-palette-results');
-    const f=commands.filter(cmd=>cmd.title.toLowerCase().includes(filter.toLowerCase())||cmd.desc.toLowerCase().includes(filter.toLowerCase()));
-    c.innerHTML=f.map((cmd,i)=>`<div class="command-item ${i===window.selectedCommandIndex?'selected':''}" onclick="executeCommand('${cmd.id}')"><div class="command-item-icon">${cmd.icon}</div><div class="command-item-text"><div class="command-item-title">${cmd.title}</div><div class="command-item-desc">${cmd.desc}</div></div></div>`).join('');
-}
-
-function executeCommand(id) { const c=commands.find(cmd=>cmd.id===id); if(c){c.action();closeCommandPalette();} }
-
-document.addEventListener('keydown', e=>{
-    if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();openCommandPalette();}
-    if(e.key==='Escape'){document.getElementById('profile-modal').classList.remove('active');document.getElementById('label-modal').classList.remove('active');document.getElementById('assignee-modal').classList.remove('active');document.getElementById('command-palette-modal')?.classList.remove('active');closeCardModal();}
-    if(e.key==='Enter'&&e.target.id==='checklist-input')addChecklistItem();
-});
-
-// ── Add Card/List ──────────────────────────────────
-function showAddCardForm(listId) {
-    const container=document.getElementById(listId+'-cards');
-    if(!container || document.querySelector('.new-card-form')) return;
-    const form=document.createElement('div'); form.className='new-card-form';
-    form.innerHTML=`<textarea class="new-card-input" rows="3" placeholder="Card title…"></textarea><div class="new-card-actions"><button class="btn-primary" onclick="addCard(this,'${listId}')">Add card</button><button class="btn-cancel" onclick="cancelAddCard(this)">×</button></div>`;
-    container.parentNode.insertBefore(form,container.nextSibling);
-    form.querySelector('textarea').focus();
-}
-
-function addCard(btn,listId) {
-    const form=btn.closest('.new-card-form'), input=form.querySelector('textarea'), title=input.value.trim();
-    if(title) {
-        const newCardId=cardIdCounter++;
-        const newCard={id:newCardId,title,listId,labels:[],description:'',checklist:[],assignee:'',dueDate:'',createdBy:currentProfile.name,createdAt:new Date().toISOString(),activity:[{user:currentProfile.name,initials:currentProfile.initials,action:'created this card',time:new Date().toISOString()}]};
-        cardsData[newCard.id]=newCard; renderCard(newCard); updateCardCount(); updateFlowMap(); queueSaveBoardState();
-    }
-    form.remove();
-}
-
-function cancelAddCard(btn) { btn.closest('.new-card-form').remove(); }
-
-function showAddListForm() {
-    const btn=document.getElementById('add-list-btn');
-    if(document.querySelector('.new-list-form')) return;
-    const form=document.createElement('div'); form.className='new-list-form';
-    form.innerHTML=`<input type="text" class="new-list-input" placeholder="Enter list title…"><div class="new-card-actions"><button class="btn-primary" onclick="addList(this)">Add list</button><button class="btn-cancel" onclick="cancelAddList(this)">×</button></div>`;
-    btn.parentNode.insertBefore(form,btn); btn.style.display='none'; form.querySelector('input').focus();
-}
-
-function addList(btn) {
-    const form=btn.closest('.new-list-form'), input=form.querySelector('input'), title=input.value.trim();
-    if(title) { const id=`list-${Date.now()}`; boardConfig.splice(boardConfig.length-1,0,{id,title,description:'Custom lane',color:'#94a3b8'}); initBoardStructure(); Object.values(cardsData).forEach(renderCard); updateFlowMap(); queueSaveBoardState(); }
-    cancelAddList(btn);
-}
-
-function cancelAddList(btn) { btn.closest('.new-list-form').remove(); document.getElementById('add-list-btn').style.display='flex'; }
-
-function renameList(listId) {
-    const target=boardConfig.find(l=>l.id===listId); if(!target) return;
-    const next=prompt('Rename list',target.title); if(!next?.trim()) return;
-    target.title=next.trim(); refreshBoard(); queueSaveBoardState();
-}
-
-function deleteList(listId) {
-    if(boardConfig.length<=1){alert('You need at least one list.');return;}
-    const target=boardConfig.find(l=>l.id===listId); if(!target) return;
-    if(Object.values(cardsData).some(c=>c.listId===listId)){alert('Move or delete the cards in this list first.');return;}
-    if(!confirm(`Delete the "${target.title}" list?`)) return;
-    boardConfig=boardConfig.filter(l=>l.id!==listId); refreshBoard(); queueSaveBoardState();
-}
-
-// ── Profile Modal ──────────────────────────────────
-function openProfileModal() { document.getElementById('profile-modal').classList.add('active'); }
-function closeProfileModal(event) { if(!event||event.target===document.getElementById('profile-modal')) document.getElementById('profile-modal').classList.remove('active'); }
-function selectProfile(name,initials,el) {
-    currentProfile={name,initials};
-    document.getElementById('current-avatar').textContent=initials;
-    document.getElementById('current-profile-name').textContent=name;
-    document.querySelectorAll('.profile-option').forEach(o=>o.classList.remove('active'));
-    el.classList.add('active');
-    updateAssignedCount(); closeProfileModal();
-}
-
-// ── Metrics ────────────────────────────────────────
-function updateCardCount() {
-    const n=Object.keys(cardsData).length;
-    document.getElementById('total-cards').textContent=`${n} card${n===1?'':'s'}`;
-    updateAssignedCount(); queueSaveBoardState();
-}
-
-function updateAssignedCount() {
-    let a=0; Object.values(cardsData).forEach(c=>{if(c.assignee===currentProfile.name)a++;});
-    const el=document.getElementById('assigned-count'); if(el) el.textContent=`${a} assigned to you`;
-}
-
-function updateFlowMap() {
-    const map=document.getElementById('flow-map'); map.innerHTML='';
-    boardConfig.forEach((stage,i)=>{
-        const count=Object.values(cardsData).filter(c=>c.listId===stage.id).length;
-        const node=document.createElement('div'); node.className='flow-node';
-        node.innerHTML=`<h4>${stage.title}</h4><span>${stage.description}</span><strong style="color:${stage.color};">${count}</strong>`;
-        map.appendChild(node);
-        if(i<boardConfig.length-1){const conn=document.createElement('div');conn.className='flow-connector';map.appendChild(conn);}
-    });
-}
-
-// ── View Mode ──────────────────────────────────────
-let isCompactView = false;
-function toggleViewMode() {
-    isCompactView=!isCompactView;
-    document.getElementById('board').classList.toggle('compact-view',isCompactView);
-    document.getElementById('view-toggle-btn').textContent=isCompactView?'⊡ Expanded':'⊞ Compact';
-    localStorage.setItem('flowViewMode',isCompactView?'compact':'expanded');
-}
-function loadViewMode() {
-    const saved=localStorage.getItem('flowViewMode');
-    if(saved==='compact'){isCompactView=true;document.getElementById('board').classList.add('compact-view');document.getElementById('view-toggle-btn').textContent='⊡ Expanded';}
-}
-
-// ── Utils ──────────────────────────────────────────
-function escapeHtml(text='') { const d=document.createElement('div'); d.textContent=text; return d.innerHTML; }
-function timeAgo(date) {
-    const s=Math.floor((new Date()-date)/1000);
-    if(s<60) return 'just now';
-    const m=Math.floor(s/60); if(m<60) return `${m}m ago`;
-    const h=Math.floor(m/60); if(h<24) return `${h}h ago`;
-    return `${Math.floor(h/24)}d ago`;
-}
-function deriveNextCardId(data=cardsData) { const ids=Object.keys(data||{}).map(Number).filter(Number.isFinite); return ids.length?Math.max(...ids)+1:1; }
-
-// ── Globals ────────────────────────────────────────
-Object.assign(window,{
-    addCard,addChecklistItem,addList,allowDrop,cancelAddCard,cancelAddList,changeAssignee,
-    closeAssigneeModal,closeCardModal,closeLabelModal,closeProfileModal,deleteCard,deleteList,
-    drop,dragLeave,openLabelPicker,openProfileModal,removeDueDate,removeLabel,renameList,
-    selectProfile,sendCardToFlowAI,showAddCardForm,showAddListForm,toggleChecklistItem,
-    toggleLabel,updateDueDate,quickAddLead,updateContactField,openCommandPalette,closeCommandPalette,
-    renderCommands,executeCommand,toggleViewMode,handleAskHubbleClick,handleSearchKey,
-});
-
-// ── Chat ───────────────────────────────────────────
-function openChatModal() { document.getElementById('chat-modal').classList.add('active'); document.getElementById('chat-input').focus(); }
-function closeChatModal(event) { if(!event||event.target===document.getElementById('chat-modal')) document.getElementById('chat-modal').classList.remove('active'); }
-function handleChatKey(event) { if(event.key==='Enter') sendChatMessage(); }
-
-let cachedWeather=null, lastWeatherFetch=0;
-async function fetchWeather() {
-    const now=Date.now();
-    if(cachedWeather&&now-lastWeatherFetch<300000) return cachedWeather;
-    try {
-        const r=await fetch('https://wttr.in/Indianapolis?format=j1');
-        const d=await r.json();
-        cachedWeather={temp:d.current_condition[0].temp_F,feels:d.current_condition[0].FeelsLikeF,condition:d.current_condition[0].weatherDesc[0].value,humidity:d.current_condition[0].humidity};
-        lastWeatherFetch=now; return cachedWeather;
-    } catch(e){return null;}
-}
-
-function sendChatMessage() {
-    const input=document.getElementById('chat-input');
-    const message=input.value.trim(); if(!message) return;
-    addChatMessage(message,'user'); input.value=''; showTypingIndicator();
-    setTimeout(async()=>{
-        removeTypingIndicator();
-        const response = currentAgent==='sales' ? await generateSalesResponse(message) : await generateChatResponse(message);
-        addChatMessage(response,'hubble');
-    },500);
-}
-
-function addChatMessage(text,sender) {
-    const c=document.getElementById('chat-messages');
-    const div=document.createElement('div'); div.className='chat-message '+sender;
-    div.innerHTML=`<div class="chat-bubble">${escapeHtml(text)}</div>`;
-    c.appendChild(div); c.scrollTop=c.scrollHeight;
-}
-
-function showTypingIndicator() {
-    const c=document.getElementById('chat-messages');
-    const div=document.createElement('div'); div.className='chat-message hubble'; div.id='typing-indicator';
-    div.innerHTML=`<div class="chat-bubble">Thinking…</div>`;
-    c.appendChild(div); c.scrollTop=c.scrollHeight;
-}
-function removeTypingIndicator() { const el=document.getElementById('typing-indicator'); if(el) el.remove(); }
-
-let currentAgent='general';
-function changeAgent(agent) {
-    currentAgent=agent;
-    const nameEl=document.getElementById('chat-agent-name');
-    if(agent==='sales'){nameEl.textContent='Sales Agent';addChatMessage("👋 I'm your Sales Agent!\n\n🎯 Find and manage leads\n📧 Get contact info\n📊 Check your pipeline\n\nTell me which lead to contact!","hubble");}
-    else{nameEl.textContent='Hubble';addChatMessage("Hi! I'm Hubble, your general assistant. I can help with your board, weather, math, and more!","hubble");}
-}
-
-async function generateChatResponse(message) {
-    const msg=message.toLowerCase(), allCards=Object.values(cardsData);
-    const boardKW=['card','lead','task','board','list','build','done','discovery','pipeline','assignee','priority','value','deal'];
-    if(boardKW.some(kw=>msg.includes(kw))) {
-        const terms=message.toLowerCase(), matches=allCards.filter(card=>[card.title||'',card.description||'',card.contactName||'',card.businessName||'',(card.labels||[]).map(l=>l.name).join(' ')].join(' ').toLowerCase().includes(terms.replace(/card|lead|task|board|list|show|find|search|get/g,'').trim()));
-        if(matches.length>0) return `Found ${matches.length} card(s):\n\n`+matches.slice(0,5).map(c=>{let info=`📋 ${c.title}`;const list=boardConfig.find(l=>l.id===c.listId);if(list)info+=` (${list.title})`;if(c.assignee)info+=`\n   Assigned: ${c.assignee}`;if(c.priority)info+=`\n   Priority: ${c.priority}`;if(c.estimatedValue)info+=`\n   Value: $${c.estimatedValue}`;return info;}).join('\n\n');
-        if(msg.includes('how many')||msg.includes('total')||msg.includes('stats')) { const counts={}; allCards.forEach(c=>{counts[c.listId]=(counts[c.listId]||0)+1;}); return `📊 Board: ${allCards.length} total\n`+boardConfig.map(l=>`${l.title}: ${counts[l.id]||0}`).join('\n'); }
-    }
-    if(msg.includes('weather')||msg.includes('temperature')||msg.includes('rain')) {
-        try { const w=await fetchWeather(); if(w) return `Weather in Indianapolis: ${w.condition}, ${w.temp}°F (feels ${w.feels}°F), humidity ${w.humidity}%`; } catch(e){}
-        return "Couldn't fetch the weather.";
-    }
-    if(msg.includes('date')||msg.includes('time')||msg.includes('today')) { const n=new Date(); return `📅 ${n.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}\n⏰ ${n.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}`; }
-    const mathMatch=message.match(/(\d+\.?\d*)\s*([\+\-\*\/])\s*(\d+\.?\d*)/);
-    if(mathMatch){const a=parseFloat(mathMatch[1]),b=parseFloat(mathMatch[3]),op=mathMatch[2];let r=op==='+'?a+b:op==='-'?a-b:op==='*'?a*b:b!==0?a/b:'undefined';return `🧮 ${a} ${op} ${b} = ${typeof r==='number'?(Number.isInteger(r)?r:r.toFixed(2)):r}`;}
-    if(msg.includes('hi')||msg.includes('hey')||msg.includes('hello')) return `Hey! 👋 I'm your AI assistant. Ask about your board, weather, math, and more!`;
-    if(msg.includes('help')) return `I can help with:\n\n📊 Board: "show leads", "how many tasks"\n🌤️ Weather: "how's the weather"\n🧮 Math: "42 + 17"\n📅 Date: "what's today"`;
-    return `I can help with your board, weather, math, and dates! Try asking about your leads or "how many tasks in Build".`;
-}
-
-async function generateSalesResponse(message) {
-    const msg=message.toLowerCase(), allCards=Object.values(cardsData);
-    const leads=allCards.filter(c=>c.listId==='discovery');
-    if(msg.includes('show')||msg.includes('list')||msg.includes('leads')||msg.includes('pipeline')) {
-        if(!leads.length) return "No leads in Discovery! Time to add some! 🎯";
-        return `🎯 ${leads.length} Lead(s):\n\n`+leads.map((l,i)=>`${i+1}. ${l.title}\n   ${l.businessName?'🏢 '+l.businessName+'\n   ':''}${l.contactName?'👤 '+l.contactName+'\n   ':''}${l.email?'📧 '+l.email+'\n   ':''}${l.estimatedValue?'💰 $'+l.estimatedValue:''}`.trim()).join('\n\n')+`\n\nSay a number to get details!`;
-    }
-    const leadNum=message.match(/^(\d+)$/);
-    if(leadNum&&leads[parseInt(leadNum[1])-1]){const l=leads[parseInt(leadNum[1])-1];let r=`📋 ${l.title}\n\n`;if(l.businessName)r+=`🏢 ${l.businessName}\n`;if(l.contactName)r+=`👤 ${l.contactName}\n`;if(l.email)r+=`📧 ${l.email}\n`;if(l.phone)r+=`📱 ${l.phone}\n`;if(l.estimatedValue)r+=`💰 $${l.estimatedValue}\n`;return r+`\nSay "contact ${leadNum[1]}" to email them!`;}
-    if(msg.includes('contact')||msg.includes('email')){
-        let t=null; const n=message.match(/(\d+)/); if(n&&leads[parseInt(n[1])-1]) t=leads[parseInt(n[1])-1]; if(!t&&leads.length>0) t=leads[0];
-        if(t&&t.email){const s=encodeURIComponent('Following up'),b=encodeURIComponent(`Hi${t.contactName?' '+t.contactName:''},\n\nI wanted to reach out about ${t.title}. Let's connect!\n\nBest`);window.open(`mailto:${t.email}?subject=${s}&body=${b}`,'_blank');return `📧 Opened email to ${t.email}!`;}
-        return t?`No email on file. Phone: ${t.phone||'N/A'}`:"Couldn't find a lead to contact. Try 'show leads' first!";
-    }
-    if(msg.includes('stats')||msg.includes('how many')){const counts={};allCards.forEach(c=>{counts[c.listId]=(counts[c.listId]||0)+1;});return `📊 Pipeline\nLeads: ${counts['discovery']||0}\nBuild: ${counts['build']||0}\nDone: ${counts['done']||0}\nTotal: ${allCards.length}`;}
-    return "I'm your Sales Agent! Say 'show leads' or a lead number to get started!";
-}
-
-async function webSearchAPI(query) {
-    try { const r=await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1`); const d=await r.json(); if(d.RelatedTopics?.length>0) return d.RelatedTopics.slice(0,3).map(r=>({title:r.Text||'',url:r.FirstURL||''})); return null; } catch(e){ return null; }
-}
-
-window.openChatModal=openChatModal;
-window.closeChatModal=closeChatModal;
-window.sendChatMessage=sendChatMessage;
-window.handleChatKey=handleChatKey;
-window.handleAskHubbleClick=handleAskHubbleClick;
-window.changeAgent=changeAgent;
+// ── Init ─────────────────────────────────────────────────────
+load();
 </script>
 </body>
 </html>
