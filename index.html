@@ -2070,6 +2070,9 @@ function exportTableCSV() {
     const csv=[hdrs,...rows].map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
     const b=new Blob([csv],{type:'text/csv'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=`flow-leads-${new Date().toISOString().split('T')[0]}.csv`;a.click();URL.revokeObjectURL(u);
 }
+window.toggleTableView = toggleTableView;
+window.renderTableView = renderTableView;
+window.exportTableCSV = exportTableCSV;
 
 // ── Utils ──────────────────────────────────────────
 function escapeHtml(text='') { const d=document.createElement('div'); d.textContent=text; return d.innerHTML; }
