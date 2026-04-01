@@ -1061,12 +1061,11 @@ What would you like to know?</div>
 
 <script>
 (async () => {
-const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js");
-const { getFirestore, doc, getDoc, onSnapshot, setDoc, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js");
 
-// ── Login ──────────────────────────────────────────
+// ── Login functions (BEFORE Firebase to avoid blocking) ──
 let selectedUser = { name: 'Asher W', initials: 'AW', password: '3' };
 let isLoggedIn = false;
+window.selectedUser = selectedUser;
 
 function selectLoginUser(el) {
     document.querySelectorAll('.login-user').forEach(u => u.classList.remove('selected'));
@@ -1075,9 +1074,6 @@ function selectLoginUser(el) {
     document.getElementById('login-password').value = '';
     document.getElementById('login-error').textContent = '';
 }
-
-function checkLogin(event) { if (event.key === 'Enter') attemptLogin(); }
-
 function attemptLogin() {
     if (document.getElementById('login-password').value === selectedUser.password) {
         isLoggedIn = true;
@@ -1092,7 +1088,6 @@ function attemptLogin() {
         currentInitials = selectedUser.initials;
         document.getElementById('current-avatar').textContent = currentInitials;
         document.getElementById('current-profile-name').textContent = currentUser;
-        // Load API key from Firestore for this user
         const uidMap = { 'Sam L':'sl', 'Robert S':'rs', 'Asher W':'aw' };
         const uid = uidMap[currentUser] || currentUser.toLowerCase().replace(/\s+/g,'').slice(0,2);
         loadApiKeyForUser(uid);
@@ -1102,12 +1097,15 @@ function attemptLogin() {
     }
 }
 
+// Expose to window IMMEDIATELY so inline onclick handlers can find them
 window.selectLoginUser = selectLoginUser;
-window.checkLogin = checkLogin;
 window.attemptLogin = attemptLogin;
+window.checkLogin = function(e) { if (e.key === 'Enter') attemptLogin(); };
+document.getElementById('login-password').addEventListener('keydown', window.checkLogin);
 
-// Programmatic Enter key listener (replaces inline onkeydown)
-document.getElementById('login-password').addEventListener('keydown', function(e) { if (e.key === 'Enter') attemptLogin(); });
+// ── Firebase (after login is ready) ───────────────────
+const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js");
+const { getFirestore, doc, getDoc, onSnapshot, setDoc, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js");
 
 // ── Firebase ───────────────────────────────────────
 const firebaseConfig = {
