@@ -1213,7 +1213,7 @@ function normalizeActivityEntry(entry={}) {
 
 function normalizeCardShape(card={}, fallbackId) {
     return {
-        id: Number.isFinite(Number(card.id)) ? Number(card.id) : fallbackId ?? deriveNextCardId(cardsData),
+        id: Number.isFinite(Number(card.id)) ? Number(card.id) : (fallbackId !== undefined ? fallbackId : deriveNextCardId(cardsData)),
         title: card.title||'Untitled card', listId:card.listId||defaultBoardConfig[0].id,
         labels: Array.isArray(card.labels)?card.labels.filter(Boolean).map(l=>({name:l?.name||'Label',color:l?.color||'blue'})):[],
         description:card.description||'',
