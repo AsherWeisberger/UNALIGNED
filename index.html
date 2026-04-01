@@ -753,8 +753,8 @@
                     <span>Asher W</span>
                 </div>
             </div>
-            <input type="password" class="login-input" id="login-password" placeholder="Password" onkeydown="checkLogin(event)">
-            <button class="login-btn" onclick="attemptLogin()">Enter</button>
+            <input type="password" class="login-input" id="login-password" placeholder="Password">
+            <button class="login-btn" id="login-enter-btn">Enter</button>
             <p class="login-error" id="login-error"></p>
         </div>
     </div>
@@ -1104,9 +1104,17 @@ function attemptLogin() {
     }
 }
 
+// Attach login events programmatically inside IIFE
+document.getElementById('login-enter-btn').addEventListener('click', attemptLogin);
+document.getElementById('login-password').addEventListener('keydown', e => { if (e.key === 'Enter') attemptLogin(); });
+
 window.selectLoginUser = selectLoginUser;
 window.checkLogin = checkLogin;
 window.attemptLogin = attemptLogin;
+
+// Attach login events programmatically (more reliable than inline handlers)
+document.getElementById('login-enter-btn').addEventListener('click', attemptLogin);
+document.getElementById('login-password').addEventListener('keydown', e => { if (e.key === 'Enter') attemptLogin(); });
 
 // ── Firebase ───────────────────────────────────────
 const firebaseConfig = {
@@ -2295,6 +2303,7 @@ Object.assign(window,{
     selectProfile,sendCardToFlowAI,showAddCardForm,showAddListForm,toggleChecklistItem,
     toggleLabel,updateDueDate,quickAddLead,updateContactField,openCommandPalette,closeCommandPalette,
     renderCommands,executeCommand,toggleViewMode,toggleListView,renderListView,sortListView,
+    attemptLogin,checkLogin,
     handleAskHubbleClick,handleSearchKey,
 });
 
