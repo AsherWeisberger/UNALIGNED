@@ -2044,7 +2044,7 @@ function renderTableView() {
         const tm=tvParseTemp(c.score||c.temperature);
         const act=tvLastAct(c);
         const isOverdue=c.dueDate&&new Date(c.dueDate)<new Date();
-        return`<tr style="border-bottom:1px solid var(--surface2);">
+        return`<tr style="border-bottom:1px solid var(--surface2);cursor:pointer;" onclick="openCardModal('${c.id}')">
           <td style="padding:7px 10px;vertical-align:top;font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(c.contactName||c.title||'—')}</td>
           <td style="padding:7px 10px;vertical-align:top;color:var(--muted);font-size:12px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(c.businessName||'—')}</td>
           <td style="padding:7px 10px;vertical-align:top;font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${c.email?`<a href="mailto:${c.email}" style="color:#4facfe;text-decoration:none;">${escapeHtml(c.email)}</a>`:'—'}</td>
