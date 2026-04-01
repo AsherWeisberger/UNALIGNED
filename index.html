@@ -246,7 +246,7 @@
         }
 
         .main-scroll {
-            flex: 1; overflow-y: auto;
+            flex: 1; overflow-y: auto; overflow-x: hidden;
             padding: 0 clamp(16px,4vw,40px) 80px;
             display: flex; flex-direction: column; gap: 16px;
             -webkit-overflow-scrolling: touch;
@@ -254,7 +254,7 @@
 
         /* ─── FLOW MAP ────────────────────────────────────── */
         .flow-map {
-            display: flex; align-items: center; gap: 10px; flex-wrap: nowrap;
+            display: flex; align-items: center; gap: 10px;
             padding: 12px 16px;
             background: var(--surface); border-radius: var(--radius);
             border: 1px solid var(--border);
@@ -267,6 +267,7 @@
             border-radius: 10px; padding: 12px 14px;
             display: flex; flex-direction: column; gap: 3px;
             border: 1px solid var(--border); flex-shrink: 0;
+            min-width: 110px;
         }
         .flow-node h4 { font-size: 11px; font-weight: 600; font-family: var(--font-mono); color: var(--muted2); text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
         .flow-node span { font-size: 11px; color: var(--muted); white-space: nowrap; }
@@ -752,7 +753,7 @@
                     <span>Asher W</span>
                 </div>
             </div>
-            <input type="password" class="login-input" id="login-password" placeholder="Password">
+            <input type="password" class="login-input" id="login-password" placeholder="Password" onkeydown="checkLogin(event)">
             <button class="login-btn" onclick="attemptLogin()">Enter</button>
             <p class="login-error" id="login-error"></p>
         </div>
@@ -1061,11 +1062,12 @@ What would you like to know?</div>
 
 <script>
 (async () => {
+const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js");
+const { getFirestore, doc, getDoc, onSnapshot, setDoc, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js");
 
-// ── Login functions (BEFORE Firebase to avoid blocking) ──
+// ── Login ──────────────────────────────────────────
 let selectedUser = { name: 'Asher W', initials: 'AW', password: '3' };
 let isLoggedIn = false;
-window.selectedUser = selectedUser;
 
 function selectLoginUser(el) {
     document.querySelectorAll('.login-user').forEach(u => u.classList.remove('selected'));
@@ -1074,6 +1076,9 @@ function selectLoginUser(el) {
     document.getElementById('login-password').value = '';
     document.getElementById('login-error').textContent = '';
 }
+
+function checkLogin(event) { if (event.key === 'Enter') attemptLogin(); }
+
 function attemptLogin() {
     if (document.getElementById('login-password').value === selectedUser.password) {
         isLoggedIn = true;
@@ -1088,6 +1093,7 @@ function attemptLogin() {
         currentInitials = selectedUser.initials;
         document.getElementById('current-avatar').textContent = currentInitials;
         document.getElementById('current-profile-name').textContent = currentUser;
+        // Load API key from Firestore for this user
         const uidMap = { 'Sam L':'sl', 'Robert S':'rs', 'Asher W':'aw' };
         const uid = uidMap[currentUser] || currentUser.toLowerCase().replace(/\s+/g,'').slice(0,2);
         loadApiKeyForUser(uid);
@@ -1097,15 +1103,9 @@ function attemptLogin() {
     }
 }
 
-// Expose to window IMMEDIATELY so inline onclick handlers can find them
 window.selectLoginUser = selectLoginUser;
+window.checkLogin = checkLogin;
 window.attemptLogin = attemptLogin;
-window.checkLogin = function(e) { if (e.key === 'Enter') attemptLogin(); };
-document.getElementById('login-password').addEventListener('keydown', window.checkLogin);
-
-// ── Firebase (after login is ready) ───────────────────
-const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js");
-const { getFirestore, doc, getDoc, onSnapshot, setDoc, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js");
 
 // ── Firebase ───────────────────────────────────────
 const firebaseConfig = {
@@ -1211,7 +1211,7 @@ function normalizeActivityEntry(entry={}) {
 
 function normalizeCardShape(card={}, fallbackId) {
     return {
-        id: Number.isFinite(Number(card.id)) ? Number(card.id) : (fallbackId !== undefined ? fallbackId : deriveNextCardId(cardsData)),
+        id: Number.isFinite(Number(card.id)) ? Number(card.id) : fallbackId ?? deriveNextCardId(cardsData),
         title: card.title||'Untitled card', listId:card.listId||defaultBoardConfig[0].id,
         labels: Array.isArray(card.labels)?card.labels.filter(Boolean).map(l=>({name:l?.name||'Label',color:l?.color||'blue'})):[],
         description:card.description||'',
