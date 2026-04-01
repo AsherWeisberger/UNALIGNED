@@ -735,6 +735,19 @@
 <!-- DEBUG: remove this -->
 <div id="debug-test" style="position:fixed;top:0;left:0;z-index:99999;background:red;color:white;padding:10px;cursor:pointer;font-size:24px" onclick="document.getElementById('debug-test').textContent='CLICK WORKS!'">TEST</div>
 <div id="debug-test2" style="position:fixed;top:50px;left:10px;z-index:99999;background:green;color:white;padding:10px;cursor:pointer;font-size:20px" onclick="document.getElementById('debug-test2').textContent='APP CLICK!'">TEST2</div>
+
+<!-- ─── SIMPLE LOGIN OVERLAY (replaces modal-overlay) ─── -->
+<div id="simple-login" style="position:fixed;inset:0;z-index:9998;background:rgba(7,8,15,0.95);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:20px;font-family:system-ui,sans-serif;">
+    <div style="display:flex;gap:10px;margin-bottom:10px;">
+        <div class="simple-user-btn" data-user="Sam L" data-password="2" style="padding:12px 16px;background:rgba(248,113,113,0.2);border:2px solid transparent;border-radius:10px;cursor:pointer;color:#f87171;font-weight:700;opacity:0.6;transition:all 0.2s;">Sam L</div>
+        <div class="simple-user-btn" data-user="Robert S" data-password="1" style="padding:12px 16px;background:rgba(129,140,248,0.2);border:2px solid transparent;border-radius:10px;cursor:pointer;color:#818cf8;font-weight:700;opacity:0.6;transition:all 0.2s;">Robert S</div>
+        <div class="simple-user-btn" data-user="Asher W" data-password="3" style="padding:12px 16px;background:rgba(52,211,153,0.2);border:2px solid #34d399;border-radius:10px;cursor:pointer;color:#34d399;font-weight:700;opacity:1;transition:all 0.2s;">Asher W</div>
+    </div>
+    <input type="password" id="simple-password" placeholder="Password" style="padding:12px 20px;font-size:16px;border-radius:10px;border:1px solid #333;background:#1a1a2e;color:white;text-align:center;width:240px;">
+    <button id="simple-login-btn" style="padding:12px 32px;font-size:16px;border-radius:10px;border:none;background:linear-gradient(135deg,#5b8cff,#34d399);color:#07080f;font-weight:700;cursor:pointer;">Enter</button>
+    <p id="simple-error" style="color:#f87171;font-size:13px;min-height:18px;"></p>
+</div>
+
 <div id="app">
 
     <!-- ─── LOGIN MODAL ─────────────────────────────────── -->
@@ -1115,6 +1128,56 @@ document.getElementById('login-password').addEventListener('keydown', e => { if 
 document.querySelectorAll('.login-user').forEach(u => {
     u.addEventListener('click', () => selectLoginUser(u));
 });
+
+// ── Simple Login (fallback overlay) ─────────────────
+let simpleSelectedUser = { name: 'Asher W', password: '3' };
+
+document.querySelectorAll('.simple-user-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.simple-user-btn').forEach(b => {
+            b.style.opacity = '0.6';
+            b.style.borderColor = 'transparent';
+        });
+        btn.style.opacity = '1';
+        btn.style.borderColor = btn.style.color || '#34d399';
+        simpleSelectedUser = {
+            name: btn.dataset.user,
+            password: btn.dataset.password
+        };
+    });
+});
+
+function doSimpleLogin() {
+    const pw = document.getElementById('simple-password').value;
+    if (pw === simpleSelectedUser.password) {
+        // Hide simple login
+        document.getElementById('simple-login').style.display = 'none';
+        // Hide original login modal too
+        const origModal = document.getElementById('login-modal');
+        if (origModal) { origModal.classList.remove('active'); origModal.style.display = 'none'; }
+        // Show main app
+        const app = document.getElementById('main-app');
+        app.style.display = 'flex';
+        app.style.flexDirection = 'column';
+        app.style.height = '100%';
+        app.style.overflow = 'hidden';
+        const currentInitials = simpleSelectedUser.name.split(' ').map(w => w[0]).join('');
+        document.getElementById('current-avatar').textContent = currentInitials;
+        document.getElementById('current-profile-name').textContent = simpleSelectedUser.name;
+        isLoggedIn = true;
+        currentUser = simpleSelectedUser.name;
+        // Load user state
+        const uidMap = { 'Sam L':'sl', 'Robert S':'rs', 'Asher W':'aw' };
+        const uid = uidMap[currentUser] || currentUser.toLowerCase().replace(/\s+/g,'').slice(0,2);
+        loadApiKeyForUser(uid);
+        loadState();
+    } else {
+        document.getElementById('simple-error').textContent = 'Incorrect password';
+    }
+}
+
+document.getElementById('simple-login-btn').addEventListener('click', doSimpleLogin);
+document.getElementById('simple-password').addEventListener('keydown', e => { if (e.key === 'Enter') doSimpleLogin(); });
 
 window.selectLoginUser = selectLoginUser;
 window.checkLogin = checkLogin;
