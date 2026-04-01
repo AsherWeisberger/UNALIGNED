@@ -697,6 +697,7 @@
                     <span data-sync-text>Connecting…</span>
                 </div>
                 <button class="view-toggle" id="view-toggle-btn" onclick="toggleViewMode()">⊞ Compact</button>
+                <button class="view-toggle" id="table-view-btn" onclick="toggleTableView()">☰ Table</button>
                 <button class="profile-btn" id="profile-btn" onclick="openProfileModal()">
                     <span class="avatar" id="current-avatar">AW</span>
                     <span id="current-profile-name">Asher W</span>
@@ -749,6 +750,44 @@
                         Add list
                     </button>
                 </section>
+
+                <!-- ── Table View ─────────────────────────── -->
+                <div id="table-view" style="display:none; overflow-x:auto; padding-bottom:40px;">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+                    <input type="text" id="tv-search" placeholder="Search name, email, business..."
+                      style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 12px;font-size:13px;outline:none;min-width:220px;"
+                      oninput="renderTableView()">
+                    <select id="tv-stage" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:13px;cursor:pointer;outline:none;" onchange="renderTableView()">
+                      <option value="">All Stages</option>
+                      <option value="discovery">Lead In</option>
+                      <option value="build">In Progress</option>
+                      <option value="review">Review</option>
+                      <option value="done">Done</option>
+                      <option value="paid-out">Paid Out</option>
+                      <option value="anything-else">Anything Else</option>
+                    </select>
+                    <select id="tv-temp" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:13px;cursor:pointer;outline:none;" onchange="renderTableView()">
+                      <option value="">All Temps</option>
+                      <option value="hot">Hot</option>
+                      <option value="warm">Warm</option>
+                      <option value="cold">Cold</option>
+                    </select>
+                    <select id="tv-priority" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:13px;cursor:pointer;outline:none;" onchange="renderTableView()">
+                      <option value="">All Priority</option>
+                      <option value="high">High</option>
+                      <option value="medium">Medium</option>
+                      <option value="low">Low</option>
+                    </select>
+                    <button onclick="exportTableCSV()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer;margin-left:auto;">Export CSV</button>
+                    <span id="tv-count" style="font-size:12px;color:var(--muted);white-space:nowrap;"></span>
+                  </div>
+                  <div style="overflow-x:auto;">
+                    <table id="tv-table" style="width:100%;border-collapse:collapse;font-size:13px;min-width:900px;">
+                      <thead id="tv-thead"></thead>
+                      <tbody id="tv-tbody"></tbody>
+                    </table>
+                  </div>
+                </div>
             </div>
         </main>
     </div>
@@ -1913,6 +1952,123 @@ function toggleViewMode() {
 function loadViewMode() {
     const saved=localStorage.getItem('flowViewMode');
     if(saved==='compact'){isCompactView=true;document.getElementById('board').classList.add('compact-view');document.getElementById('view-toggle-btn').textContent='⊡ Expanded';}
+}
+
+// ── Table View ───────────────────────────────────────────────
+let isTableView = false;
+const stageMap = { 'discovery':{label:'LEAD IN',color:'#94a3b8'},'build':{label:'IN PROGRESS',color:'#3b82f6'},'review':{label:'REVIEW',color:'#fbbf24'},'done':{label:'DONE',color:'#34d399'},'paid-out':{label:'PAID OUT',color:'#a855f7'},'anything-else':{label:'ANYTHING ELSE',color:'#6b7280'} };
+const avatarGradients = { 'Asher W':'linear-gradient(135deg,#4facfe,#00f2fe)','Robert S':'linear-gradient(135deg,#f093fb,#f5576c)','Sam L':'linear-gradient(135deg,#667eea,#764ba2)' };
+function tvInitials(n){if(!n)return'?';return n.split(' ').map(x=>x[0]).join('').toUpperCase().slice(0,2);}
+function tvGradient(n){return avatarGradients[n]||'linear-gradient(135deg,#6b7280,#4b5563)';}
+function tvParseTemp(s){s=Number(s);if(isNaN(s))return{label:'—',cls:''};if(s>=60)return{label:s+' Hot',cls:'color:#f87171'};if(s>=40)return{label:s+' Warm',cls:'color:#fbbf24'};return{label:s+' Cold',cls:'color:#60a5fa'};}
+function tvFormatDate(iso){if(!iso)return'';const d=new Date(iso);const n=new Date();const m=Math.floor((n-d)/6e4);if(m<1)return'Just now';if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';return Math.floor(h/24)+'d ago';}
+function tvLastAct(card){if(!card.activity||!card.activity.length)return'No activity';const l=card.activity[card.activity.length-1];return`${l.user}: ${l.action} (${tvFormatDate(l.time)})`;}
+
+const TV_COLS = [
+  {k:'contactName',  l:'Name',         w:150},
+  {k:'businessName', l:'Business',     w:140},
+  {k:'email',        l:'Email',        w:200},
+  {k:'phone',        l:'Phone',       w:120},
+  {k:'listId',       l:'Stage',        w:110},
+  {k:'score',        l:'Temp',         w:70},
+  {k:'estimatedValue',l:'Deal Value', w:100},
+  {k:'priority',     l:'Priority',     w:80},
+  {k:'assignee',     l:'Assignee',     w:120},
+  {k:'leadSource',   l:'Source',       w:90},
+  {k:'dueDate',      l:'Due',           w:90},
+  {k:'title',        l:'Title',         w:200},
+  {k:'description',  l:'Notes',         w:220},
+  {k:'_activity',   l:'Last Activity', w:180},
+];
+let tvSortKey='contactName', tvSortAsc=true;
+
+function toggleTableView() {
+    isTableView=!isTableView;
+    const bv=document.getElementById('board');
+    const fm=document.getElementById('flow-map');
+    const tv=document.getElementById('table-view');
+    const btn=document.getElementById('table-view-btn');
+    if(isTableView){
+        bv.style.display='none';
+        fm.style.display='none';
+        tv.style.display='block';
+        btn.textContent='⊞ Board';
+        renderTableView();
+    } else {
+        bv.style.display='';
+        fm.style.display='';
+        tv.style.display='none';
+        btn.textContent='☰ Table';
+    }
+    localStorage.setItem('flowViewMode',isTableView?'table':(isCompactView?'compact':'expanded'));
+}
+
+function tvGetFiltered() {
+    const q=(document.getElementById('tv-search')||{value:''}).value.toLowerCase();
+    const stage=(document.getElementById('tv-stage')||{value:''}).value;
+    const temp=(document.getElementById('tv-temp')||{value:''}).value;
+    const priority=(document.getElementById('tv-priority')||{value:''}).value;
+    return Object.values(cardsData||{}).filter(c=>{
+        if(q){const h=[c.contactName,c.title,c.email,c.businessName,c.description,c.phone,c.assignee].filter(Boolean).join(' ').toLowerCase();if(!h.includes(q))return false;}
+        if(stage&&c.listId!==stage)return false;
+        if(priority&&c.priority!==priority)return false;
+        if(temp){
+            const s=Number(c.score||c.temperature)||0;
+            if(temp==='hot'&&s<60)return false;
+            if(temp==='warm'&&(s<40||s>=60))return false;
+            if(temp==='cold'&&s>=40)return false;
+        }
+        return true;
+    });
+}
+
+function renderTableView() {
+    const all=tvGetFiltered();
+    const sorted=[...all].sort((a,b)=>{
+        let av=(a[tvSortKey]==null?'':a[tvSortKey]),bv=(b[tvSortKey]==null?'':b[tvSortKey]);
+        if(tvSortKey==='score'||tvSortKey==='estimatedValue'){av=Number(av)||0;bv=Number(bv)||0;}
+        if(tvSortKey==='_activity'){av=tvLastAct(a);bv=tvLastAct(b);}
+        if(typeof av==='string'){av=av.toLowerCase();bv=(bv||'').toLowerCase();}
+        if(av<bv)return tvSortAsc?-1:1;if(av>bv)return tvSortAsc?1:-1;return 0;
+    });
+    const cnt=document.getElementById('tv-count');
+    if(cnt)cnt.textContent=`${sorted.length} / ${all.length} leads`;
+    const th=document.getElementById('tv-thead');
+    const tb=document.getElementById('tv-tbody');
+    if(!th||!tb)return;
+    th.innerHTML=`<tr>${TV_COLS.map(c=>`<th data-k="${c.k}" style="min-width:${c.w}px;padding:7px 10px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;border-bottom:1px solid var(--border);cursor:pointer;white-space:nowrap;">${c.l}${tvSortKey===c.k?(tvSortAsc?' ▲':' ▼'):''}</th>`).join('')}</tr>`;
+    th.querySelectorAll('th').forEach(th2=>{th2.addEventListener('click',()=>{const k=th2.dataset.k;if(tvSortKey===k)tvSortAsc=!tvSortAsc;else{tvSortKey=k;tvSortAsc=true;}renderTableView();});});
+    if(sorted.length===0){tb.innerHTML=`<tr><td colspan="${TV_COLS.length}" style="text-align:center;padding:40px;color:var(--muted);">No leads match your filters</td></tr>`;return;}
+    tb.innerHTML=sorted.map(c=>{
+        const st=stageMap[c.listId]||{label:c.listId||'—',color:'#6b7280'};
+        const tm=tvParseTemp(c.score||c.temperature);
+        const act=tvLastAct(c);
+        const isOverdue=c.dueDate&&new Date(c.dueDate)<new Date();
+        return`<tr style="border-bottom:1px solid var(--surface2);">
+          <td style="padding:7px 10px;vertical-align:top;font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(c.contactName||c.title||'—')}</td>
+          <td style="padding:7px 10px;vertical-align:top;color:var(--muted);font-size:12px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(c.businessName||'—')}</td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${c.email?`<a href="mailto:${c.email}" style="color:#4facfe;text-decoration:none;">${escapeHtml(c.email)}</a>`:'—'}</td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:12px;color:var(--muted);">${escapeHtml(c.phone||'—')}</td>
+          <td style="padding:7px 10px;vertical-align:top;"><span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;background:${st.color}22;color:${st.color};border:1px solid ${st.color}44;">${st.label}</span></td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:12px;font-weight:700;${tm.cls};">${tm.label}</td>
+          <td style="padding:7px 10px;vertical-align:top;font-weight:600;color:#34d399;font-size:12px;">$${Number(c.estimatedValue||0).toLocaleString()}</td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:11px;font-weight:700;${c.priority==='high'?'color:#f87171':c.priority==='medium'?'color:#fbbf24':'color:#34d399'};">${(c.priority||'—').toUpperCase()}</td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:12px;"><div style="display:flex;align-items:center;gap:6px;">${c.assignee?`<span style="width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;flex-shrink:0;background:${tvGradient(c.assignee)}">${tvInitials(c.assignee)}</span><span>${escapeHtml(c.assignee)}</span>`:'—'}</div></td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:11px;color:var(--muted);">${escapeHtml(c.leadSource||'—')}</td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:11px;color:${isOverdue?'#f87171':'var(--muted)'};">${escapeHtml(c.dueDate||'—')}</td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(c.title||'—')}</td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:12px;color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(c.description||'—')}</td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:11px;color:var(--muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(act)}</td>
+        </tr>`;
+    }).join('');
+}
+
+function exportTableCSV() {
+    const cards=tvGetFiltered();
+    const hdrs=['Contact Name','Business','Email','Phone','Stage','Temperature','Score','Deal Value','Priority','Assignee','Source','Due','Title','Notes','Last Activity'];
+    const rows=cards.map(c=>[c.contactName||c.title||'',c.businessName||'',c.email||'',c.phone||'',stageMap[c.listId]?.label||c.listId||'',tvParseTemp(c.score||c.temperature).label,c.score||c.temperature||'',c.estimatedValue||'',c.priority||'',c.assignee||'',c.leadSource||'',c.dueDate||'',(c.title||'').replace(/"/g,'""'),(c.description||'').replace(/"/g,'""'),tvLastAct(c).replace(/"/g,'""')]);
+    const csv=[hdrs,...rows].map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
+    const b=new Blob([csv],{type:'text/csv'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=`flow-leads-${new Date().toISOString().split('T')[0]}.csv`;a.click();URL.revokeObjectURL(u);
 }
 
 // ── Utils ──────────────────────────────────────────
