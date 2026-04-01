@@ -753,7 +753,7 @@
                     <span>Asher W</span>
                 </div>
             </div>
-            <input type="password" class="login-input" id="login-password" placeholder="Password" onkeydown="checkLogin(event)">
+            <input type="password" class="login-input" id="login-password" placeholder="Password">
             <button class="login-btn" onclick="attemptLogin()">Enter</button>
             <p class="login-error" id="login-error"></p>
         </div>
@@ -1106,6 +1106,9 @@ function attemptLogin() {
 window.selectLoginUser = selectLoginUser;
 window.checkLogin = checkLogin;
 window.attemptLogin = attemptLogin;
+
+// Programmatic Enter key listener (replaces inline onkeydown)
+document.getElementById('login-password').addEventListener('keydown', function(e) { if (e.key === 'Enter') attemptLogin(); });
 
 // ── Firebase ───────────────────────────────────────
 const firebaseConfig = {
