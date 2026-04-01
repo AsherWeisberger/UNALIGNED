@@ -255,22 +255,20 @@
         /* ─── FLOW MAP ────────────────────────────────────── */
         .flow-map {
             display: flex; align-items: center; gap: 10px;
-            padding: 12px 16px;
+            overflow-x: auto; padding: 14px 16px;
             background: var(--surface); border-radius: var(--radius);
             border: 1px solid var(--border);
             margin-top: 16px;
-            overflow: visible;
         }
 
         .flow-node {
-            background: var(--bg2);
+            min-width: 120px; background: var(--bg2);
             border-radius: 10px; padding: 12px 14px;
             display: flex; flex-direction: column; gap: 3px;
             border: 1px solid var(--border); flex-shrink: 0;
-            min-width: 110px;
         }
-        .flow-node h4 { font-size: 11px; font-weight: 600; font-family: var(--font-mono); color: var(--muted2); text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
-        .flow-node span { font-size: 11px; color: var(--muted); white-space: nowrap; }
+        .flow-node h4 { font-size: 11px; font-weight: 600; font-family: var(--font-mono); color: var(--muted2); text-transform: uppercase; letter-spacing: 0.05em; }
+        .flow-node span { font-size: 11px; color: var(--muted); }
         .flow-node strong { font-size: 22px; font-weight: 700; font-family: var(--font-display); color: var(--text); }
         .flow-node.overloaded { border-color: #f87171; }
 
@@ -283,88 +281,6 @@
         /* ─── BOARD ───────────────────────────────────────── */
         .board { display: flex; gap: 14px; overflow-x: auto; align-items: flex-start; padding-top: 4px; padding-bottom: 8px; }
         .board-lists { display: flex; gap: 14px; flex: 1; }
-        .board.hidden { display: none; }
-
-        /* ─── LIST VIEW ──────────────────────────────────── */
-        .list-view {
-            display: none;
-            flex-direction: column;
-            gap: 0;
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            overflow: hidden;
-            background: var(--surface);
-        }
-        .list-view.active { display: flex; }
-
-        .list-view-header, .list-view-row {
-            display: grid;
-            grid-template-columns: 40px 2fr 1fr 1fr 1fr 100px 90px;
-            gap: 0;
-            align-items: center;
-        }
-        .list-view-header {
-            background: var(--bg2);
-            border-bottom: 1px solid var(--border);
-            padding: 10px 12px;
-            font-size: 11px;
-            font-family: var(--font-mono);
-            font-weight: 600;
-            color: var(--muted2);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            position: sticky;
-            top: 0;
-            z-index: 5;
-        }
-        .list-view-header span { cursor: pointer; user-select: none; }
-        .list-view-header span:hover { color: var(--accent); }
-        .list-view-header span.sorted { color: var(--accent); }
-
-        .list-view-row {
-            padding: 9px 12px;
-            border-bottom: 1px solid var(--border2);
-            font-size: 13px;
-            cursor: pointer;
-            transition: background 0.1s;
-        }
-        .list-view-row:last-child { border-bottom: none; }
-        .list-view-row:hover { background: var(--bg2); }
-        .list-view-row:active { background: var(--bg3); }
-
-        .list-view-row .lv-score {
-            font-size: 11px; font-family: var(--font-mono); font-weight: 600;
-            padding: 2px 6px; border-radius: 4px; display: inline-block;
-        }
-        .list-view-row .lv-labels { display: flex; flex-wrap: wrap; gap: 3px; }
-        .list-view-row .lv-label { font-size: 10px; padding: 1px 5px; border-radius: 3px; }
-        .list-view-row .lv-title { font-weight: 500; }
-        .list-view-row .lv-name { font-weight: 500; }
-        .list-view-row .lv-contact { color: var(--muted); font-size: 12px; }
-        .list-view-row .lv-list { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
-        .list-view-row .lv-time { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
-        .list-view-row .lv-draft { font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: 500; }
-        .list-view-row .lv-draft.has-draft { background: rgba(52,211,153,0.15); color: #34d399; }
-        .list-view-row .lv-draft.no-draft { background: rgba(255,255,255,0.05); color: var(--muted2); }
-
-        .list-view-row .lv-list-dot {
-            display: inline-block; width: 6px; height: 6px; border-radius: 50%;
-            margin-right: 5px; vertical-align: middle; flex-shrink: 0;
-        }
-
-        .list-view-empty {
-            padding: 40px; text-align: center; color: var(--muted);
-            font-size: 14px;
-        }
-        .list-view-footer {
-            padding: 8px 12px;
-            background: var(--bg2);
-            border-top: 1px solid var(--border);
-            font-size: 11px;
-            color: var(--muted2);
-            font-family: var(--font-mono);
-            text-align: right;
-        }
 
         .loading-state {
             display: none; align-items: center; gap: 10px;
@@ -434,7 +350,6 @@
         .card-lead-meta { display: flex; gap: 6px; align-items: center; margin: 5px 0; flex-wrap: wrap; }
         .card-priority { padding: 2px 7px; border-radius: 6px; font-size: 10px; font-weight: 600; font-family: var(--font-mono); background: rgba(0,0,0,0.06); }
         .card-source { padding: 2px 7px; border-radius: 6px; font-size: 10px; background: rgba(0,0,0,0.06); color: #374151; }
-        .source-badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; margin-left: 8px; vertical-align: middle; white-space: nowrap; }
         .card-value { padding: 2px 7px; border-radius: 6px; font-size: 10px; font-weight: 600; color: #059669; background: rgba(5,150,105,0.1); font-family: var(--font-mono); }
 
         /* ─── LABEL COLORS ────────────────────────────────── */
@@ -779,7 +694,6 @@
                     <span data-sync-text>Connecting…</span>
                 </div>
                 <button class="view-toggle" id="view-toggle-btn" onclick="toggleViewMode()">⊞ Compact</button>
-                <button class="view-toggle" id="table-toggle-btn" onclick="toggleListView()">≡ Table</button>
                 <button class="profile-btn" id="profile-btn" onclick="openProfileModal()">
                     <span class="avatar" id="current-avatar">AW</span>
                     <span id="current-profile-name">Asher W</span>
@@ -832,20 +746,6 @@
                         Add list
                     </button>
                 </section>
-
-                <!-- List / Table View -->
-                <section class="list-view" id="list-view">
-                    <div class="list-view-header" id="list-view-header">
-                        <span>Score</span>
-                        <span>Lead</span>
-                        <span>Contact</span>
-                        <span>List</span>
-                        <span>Labels</span>
-                        <span>Draft</span>
-                        <span>Added</span>
-                    </div>
-                    <div id="list-view-body"></div>
-                </section>
             </div>
         </main>
     </div>
@@ -874,10 +774,7 @@
                     </div>
 
                     <div class="modal-section">
-                        <div class="modal-section-title">
-                            Contact
-                            <span id="modal-source-badge" class="source-badge" style="display:none;"></span>
-                        </div>
+                        <div class="modal-section-title">Contact</div>
                         <div class="contact-fields">
                             <input type="text" class="contact-input" id="modal-contact-name" placeholder="Contact Name">
                             <input type="text" class="contact-input" id="modal-business-name" placeholder="Business Name">
@@ -889,18 +786,14 @@
                     <div class="modal-section">
                         <div class="modal-section-title">Lead Details</div>
                         <div class="lead-fields">
-                            <select class="contact-input" id="modal-lead-source" onchange="updateSourceBadge()">
+                            <select class="contact-input" id="modal-lead-source">
                                 <option value="">Lead Source</option>
-                                <option value="GMAIL">📧 Gmail</option>
-                                <option value="LINKEDIN">💼 LinkedIn</option>
-                                <option value="WHATSAPP">💬 WhatsApp</option>
-                                <option value="X">🐦 X (Twitter)</option>
-                                <option value="REFERRAL">🤝 Referral</option>
-                                <option value="COLD_OUTREACH">📞 Cold Outreach</option>
-                                <option value="INBOUND">📥 Inbound</option>
-                                <option value="WEBSITE">🌐 Website</option>
-                                <option value="PARTNERSHIP">🤝 Partnership</option>
-                                <option value="OTHER">📌 Other</option>
+                                <option value="website">Website</option>
+                                <option value="referral">Referral</option>
+                                <option value="cold-call">Cold Call</option>
+                                <option value="social">Social Media</option>
+                                <option value="advertisement">Advertisement</option>
+                                <option value="other">Other</option>
                             </select>
                             <input type="text" class="contact-input" id="modal-estimated-value" placeholder="Estimated Value ($)" style="margin-bottom:0;">
                         </div>
@@ -1028,14 +921,6 @@ What would you like to know?</div>
                     <span class="avatar" style="background:linear-gradient(135deg,#4facfe,#00f2fe);">AW</span>
                     <div class="profile-info"><span class="profile-name">Asher W</span></div>
                 </div>
-                <div style="margin-top:10px;padding:10px;background:var(--surface2);border-radius:8px;border:1px solid var(--border2)">
-                    <div style="font-size:11px;color:var(--muted2);margin-bottom:6px">OpenAI API Key (syncs to all devices)</div>
-                    <div style="display:flex;gap:6px">
-                        <input type="password" id="apikey-inline-input" placeholder="sk-..." style="flex:1;padding:7px 9px;border-radius:6px;border:1px solid var(--border2);background:var(--surface1);color:var(--text);font-family:var(--font-mono);font-size:11px" />
-                        <button onclick="saveApiKeyInline()" style="padding:7px 12px;border-radius:6px;background:var(--accent);color:white;border:none;cursor:pointer;font-weight:600;font-size:11px;white-space:nowrap">Save</button>
-                    </div>
-                    <div id="apikey-status" style="font-size:11px;color:#22c55e;margin-top:4px;display:none"></div>
-                </div>
             </div>
         </div>
     </div>
@@ -1060,10 +945,9 @@ What would you like to know?</div>
 
 </div><!-- /#app -->
 
-<script>
-(async () => {
-const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js");
-const { getFirestore, doc, getDoc, onSnapshot, setDoc, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js");
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
+import { getFirestore, doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
 
 // ── Login ──────────────────────────────────────────
 let selectedUser = { name: 'Asher W', initials: 'AW', password: '3' };
@@ -1093,10 +977,6 @@ function attemptLogin() {
         currentInitials = selectedUser.initials;
         document.getElementById('current-avatar').textContent = currentInitials;
         document.getElementById('current-profile-name').textContent = currentUser;
-        // Load API key from Firestore for this user
-        const uidMap = { 'Sam L':'sl', 'Robert S':'rs', 'Asher W':'aw' };
-        const uid = uidMap[currentUser] || currentUser.toLowerCase().replace(/\s+/g,'').slice(0,2);
-        loadApiKeyForUser(uid);
         loadState();
     } else {
         document.getElementById('login-error').textContent = 'Incorrect password';
@@ -1244,51 +1124,15 @@ function normalizeCardsMap(rawCards={}, lists=defaultBoardConfig) {
 }
 
 // ── Config ───────────────────────────────────────────
-// OpenAI API key synced to Firestore per user — available on all devices
-const userDocRef = (uid) => doc(db, 'users', uid);
-let cachedOpenAIKey = null;
-let currentUserId = null;
-
+// OpenAI API key stored in localStorage (never committed to git)
+// On first use, enter it once and it persists in your browser
 function getOpenAIKey() {
-    // Return cached if available
-    if (cachedOpenAIKey) return cachedOpenAIKey;
-    // Fallback to localStorage for existing sessions
-    const lsKey = localStorage.getItem('unaligned_openai_key');
-    if (lsKey) { cachedOpenAIKey = lsKey; return lsKey; }
-    return '';
-}
-
-// Fetch API key from Firestore after login
-async function loadApiKeyForUser(userId) {
-    currentUserId = userId;
-    cachedOpenAIKey = null;
-    try {
-        const snap = await getDoc(userDocRef(userId));
-        if (snap.exists() && snap.data().openai_api_key) {
-            cachedOpenAIKey = snap.data().openai_api_key;
-            // Mirror to localStorage for offline fallback
-            localStorage.setItem('unaligned_openai_key', cachedOpenAIKey);
-        }
-    } catch(e) { console.warn('Could not load API key from Firestore:', e); }
-}
-
-// Save API key to Firestore (inline version for profile modal)
-async function saveApiKeyInline() {
-    const input = document.getElementById('apikey-inline-input');
-    const status = document.getElementById('apikey-status');
-    if (!input) return;
-    const key = input.value.trim();
-    if (!key) { status.style.display = 'block'; status.style.color = '#ef4444'; status.textContent = 'Enter a valid API key'; return; }
-    if (!currentUserId) { status.style.display = 'block'; status.style.color = '#ef4444'; status.textContent = 'Not logged in'; return; }
-    try {
-        await setDoc(userDocRef(currentUserId), { openai_api_key: key }, { merge: true });
-        cachedOpenAIKey = key;
-        localStorage.setItem('unaligned_openai_key', key);
-        status.style.display = 'block';
-        status.style.color = '#22c55e';
-        status.textContent = '✓ Saved to cloud';
-        setTimeout(() => { status.style.display = 'none'; }, 3000);
-    } catch(e) { status.style.display = 'block'; status.style.color = '#ef4444'; status.textContent = '✗ Save failed: ' + e.message; }
+    let key = localStorage.getItem('unaligned_openai_key');
+    if (!key) {
+        key = prompt('Enter your OpenAI API key (stored locally, never sent anywhere but OpenAI):');
+        if (key) localStorage.setItem('unaligned_openai_key', key);
+    }
+    return key || '';
 }
 
 // ── Filters ────────────────────────────────────────
@@ -1447,7 +1291,7 @@ async function saveBoardStateNow() {
     await saveBoardState(true);
 }
 
-function refreshBoard() { initBoardStructure(); renderAllCards(); updateCardCount(); updateFlowMap(); if (isListView) renderListView(); }
+function refreshBoard() { initBoardStructure(); renderAllCards(); updateCardCount(); updateFlowMap(); }
 
 // Delegated click on board — opens card modal when any card is clicked
 document.addEventListener('click', e => {
@@ -1492,14 +1336,7 @@ function renderCard(cardData) {
     let leadMetaHtml = '';
     if (cardData.priority || cardData.leadSource || cardData.estimatedValue) {
         const pHtml = cardData.priority ? `<span class="card-priority">${cardData.priority==='hot'?'🔥':cardData.priority==='warm'?'🌡️':'❄️'} ${cardData.priority}</span>` : '';
-        const sourceColors = {
-            GMAIL:'#dbeafe:#1e40af', LINKEDIN:'#d0f0ff:#0369a1', WHATSAPP:'#dcfce7:#15803d',
-            X:'#f3e8ff:#7e22ce', REFERRAL:'#fef9c3:#a16207', COLD_OUTREACH:'#fee2e2:#991b1b',
-            INBOUND:'#f0fdf4:#166534', WEBSITE:'#e0e7ff:#3730a3', PARTNERSHIP:'#fef9c3:#a16207'
-        };
-        const sc = sourceColors[cardData.leadSource] || 'rgba(0,0,0,0.06):#374151';
-        const sParts = sc.split(':');
-        const sHtml = cardData.leadSource ? `<span class="card-source" style="background:${sParts[0]};color:${sParts[1]}">${cardData.leadSource}</span>` : '';
+        const sHtml = cardData.leadSource ? `<span class="card-source">${cardData.leadSource}</span>` : '';
         const vHtml = cardData.estimatedValue ? `<span class="card-value">$${cardData.estimatedValue}</span>` : '';
         leadMetaHtml = `<div class="card-lead-meta">${pHtml}${sHtml}${vHtml}</div>`;
     }
@@ -1538,7 +1375,7 @@ function moveCardToList(cardId,newListId) {
     const oldListId = card.listId;
     card.listId = newListId;
     addActivity(`moved from ${boardConfig.find(l=>l.id===oldListId)?.title||oldListId} to ${boardConfig.find(l=>l.id===newListId)?.title||newListId}`);
-    renderAllCards(); updateCardCount(); updateFlowMap(); if(isListView)renderListView(); saveBoardStateNow(); }
+    renderAllCards(); updateCardCount(); updateFlowMap(); saveBoardStateNow();
 }
 
 // ── Drag & Drop ────────────────────────────────────
@@ -1562,7 +1399,7 @@ function drop(ev) {
     const oLN = boardConfig.find(l=>l.id===oldListId)?.title||oldListId;
     targetCard.activity = Array.isArray(targetCard.activity)?targetCard.activity:[];
     targetCard.activity.unshift({user:currentProfile.name,initials:currentProfile.initials,action:`moved from ${oLN} to ${nLN}`,time:new Date().toISOString()});
-    updateCardCount(); updateFlowMap(); if(isListView)renderListView(); queueSaveBoardState(); }
+    updateCardCount(); updateFlowMap(); queueSaveBoardState();
 }
 
 // ── Filters ────────────────────────────────────────
@@ -1627,7 +1464,6 @@ function openCardModal(cardId) {
     document.getElementById('modal-phone').value = currentEditingCardData.phone||'';
     document.getElementById('modal-business-name').value = currentEditingCardData.businessName||'';
     document.getElementById('modal-lead-source').value = currentEditingCardData.leadSource||'';
-    updateSourceBadge();
     document.getElementById('modal-estimated-value').value = currentEditingCardData.estimatedValue||'';
     document.getElementById('modal-priority').value = currentEditingCardData.priority||'';
     document.getElementById('due-date-input').value = currentEditingCardData.dueDate||'';
@@ -1793,29 +1629,15 @@ async function regenerateDraft() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error?.message || 'API error');
 
-        const msg = data.choices[0].message;
-        let reply;
+        let text = data.choices[0].message.content;
+        if ("```json" in text) text = text.split("```json")[1].split("```")[0];
+        else if ("```" in text) text = text.split("```")[1].split("```")[0];
+        const reply = JSON.parse(text.trim());
 
-        if (typeof msg.content === 'string') {
-            // Plain text response — try to parse as JSON
-            let text = msg.content;
-            if (text.includes("```json")) text = text.split("```json")[1].split("```")[0];
-            else if (text.includes("```")) text = text.split("```")[1].split("```")[0];
-            try { reply = JSON.parse(text.trim()); } catch { reply = { subject: '', body: text.trim() }; }
-        } else {
-            // Structured response — content may be an object
-            reply = msg.content || msg;
-        }
-
-        // Fallback: if reply is still not an object, try parsing the whole message
-        if (typeof reply !== 'object' || reply === null) {
-            try { reply = JSON.parse(msg.content || msg); } catch { reply = { subject: '', body: String(msg.content || msg) }; }
-        }
-
-        currentEditingCardData.draft_reply = { subject: reply.subject || '', body: reply.body || '' };
+        currentEditingCardData.draft_reply = { subject: reply.subject, body: reply.body };
         currentEditingCardData.draft_reply_status = 'drafted';
-        document.getElementById('modal-draft-subject').value = reply.subject || '';
-        document.getElementById('modal-draft-body').value = reply.body || '';
+        document.getElementById('modal-draft-subject').value = reply.subject;
+        document.getElementById('modal-draft-body').value = reply.body;
         document.getElementById('modal-draft-status').value = 'drafted';
 
         const badge = document.getElementById('draft-status-badge');
@@ -1832,33 +1654,6 @@ async function regenerateDraft() {
     } finally {
         btn.disabled = false; btn.textContent = '🔄 Regenerate';
         loading.style.display = 'none';
-    }
-}
-
-function updateSourceBadge() {
-    const source = document.getElementById('modal-lead-source')?.value || currentEditingCardData?.leadSource || '';
-    const badge = document.getElementById('modal-source-badge');
-    if (!badge) return;
-    const sourceMeta = {
-        GMAIL:    { label:'📧 Gmail',        bg:'#dbeafe', color:'#1e40af' },
-        LINKEDIN: { label:'💼 LinkedIn',     bg:'#d0f0ff', color:'#0369a1' },
-        WHATSAPP: { label:'💬 WhatsApp',     bg:'#dcfce7', color:'#15803d' },
-        X:        { label:'🐦 X (Twitter)',  bg:'#f3e8ff', color:'#7e22ce' },
-        REFERRAL: { label:'🤝 Referral',      bg:'#fef9c3', color:'#a16207' },
-        COLD_OUTREACH: { label:'📞 Cold Outreach', bg:'#fee2e2', color:'#991b1b' },
-        INBOUND:  { label:'📥 Inbound',       bg:'#f0fdf4', color:'#166534' },
-        WEBSITE:  { label:'🌐 Website',       bg:'#e0e7ff', color:'#3730a3' },
-        PARTNERSHIP: { label:'🤝 Partnership', bg:'#fef9c3', color:'#a16207' },
-        OTHER:    { label:'📌 Other',         bg:'#f1f5f9', color:'#475569' }
-    };
-    const meta = sourceMeta[source] || null;
-    if (meta) {
-        badge.textContent = meta.label;
-        badge.style.display = 'inline-flex';
-        badge.style.background = meta.bg;
-        badge.style.color = meta.color;
-    } else {
-        badge.style.display = 'none';
     }
 }
 
@@ -1919,7 +1714,7 @@ function setAssignee(name,initials) {
     currentEditingCardData.assignee=name; renderAssignee();
     addActivity(name?`assigned to ${name}`:'removed assignee');
     document.getElementById('assignee-modal').classList.remove('active');
-    saveBoardStateNow(); updateCardCount(); updateFlowMap(); if(isListView)renderListView(); }
+    saveBoardStateNow(); updateCardCount(); updateFlowMap();
 }
 function closeAssigneeModal(event) { if(event.target===document.getElementById('assignee-modal')) document.getElementById('assignee-modal').classList.remove('active'); }
 
@@ -1955,7 +1750,7 @@ function deleteCard() {
         delete cardsData[currentEditingCard];
         document.getElementById('card-modal-overlay').classList.remove('active');
         currentEditingCard=null; currentEditingCardData=null;
-        updateCardCount(); updateFlowMap(); if(isListView)renderListView(); queueSaveBoardState();
+        updateCardCount(); updateFlowMap(); queueSaveBoardState();
     }
 }
 
@@ -2032,7 +1827,7 @@ function addCard(btn,listId) {
     if(title) {
         const newCardId=cardIdCounter++;
         const newCard={id:newCardId,title,listId,labels:[],description:'',checklist:[],assignee:'',dueDate:'',createdBy:currentProfile.name,createdAt:new Date().toISOString(),activity:[{user:currentProfile.name,initials:currentProfile.initials,action:'created this card',time:new Date().toISOString()}]};
-        cardsData[newCard.id]=newCard; renderCard(newCard); updateCardCount(); updateFlowMap(); if(isListView)renderListView(); queueSaveBoardState();
+        cardsData[newCard.id]=newCard; renderCard(newCard); updateCardCount(); updateFlowMap(); queueSaveBoardState();
     }
     form.remove();
 }
@@ -2070,12 +1865,7 @@ function deleteList(listId) {
 }
 
 // ── Profile Modal ──────────────────────────────────
-function openProfileModal() {
-    document.getElementById('profile-modal').classList.add('active');
-    // Pre-fill API key input if available
-    const input = document.getElementById('apikey-inline-input');
-    if (input && cachedOpenAIKey) input.value = cachedOpenAIKey;
-}
+function openProfileModal() { document.getElementById('profile-modal').classList.add('active'); }
 function closeProfileModal(event) { if(!event||event.target===document.getElementById('profile-modal')) document.getElementById('profile-modal').classList.remove('active'); }
 function selectProfile(name,initials,el) {
     currentProfile={name,initials};
@@ -2109,159 +1899,6 @@ function updateFlowMap() {
     });
 }
 
-// ── List / Table View ──────────────────────────────
-let isListView = false;
-let listSortCol = 'score';
-let listSortAsc = false;
-
-function toggleListView() {
-    isListView = !isListView;
-    const board = document.getElementById('board');
-    const listView = document.getElementById('list-view');
-    const btn = document.getElementById('table-toggle-btn');
-    if (isListView) {
-        board.classList.add('hidden');
-        listView.classList.add('active');
-        btn.textContent = '⊞ Board';
-        btn.style.background = 'var(--accent2, #a78bfa)';
-        btn.style.color = 'white';
-        renderListView();
-    } else {
-        board.classList.remove('hidden');
-        listView.classList.remove('active');
-        btn.textContent = '≡ Table';
-        btn.style.background = '';
-        btn.style.color = '';
-    }
-}
-
-function getScoreColor(score) {
-    if (!score || score === '—') return 'rgba(255,255,255,0.05)';
-    const s = Number(score);
-    if (s >= 70) return 'rgba(239,68,68,0.2)';
-    if (s >= 50) return 'rgba(251,146,60,0.2)';
-    if (s >= 30) return 'rgba(250,204,21,0.2)';
-    return 'rgba(255,255,255,0.05)';
-}
-function getScoreTextColor(score) {
-    if (!score || score === '—') return 'var(--muted2)';
-    const s = Number(score);
-    if (s >= 70) return '#f87171';
-    if (s >= 50) return '#fb923c';
-    if (s >= 30) return '#fbbf24';
-    return 'var(--muted2)';
-}
-
-function renderListView() {
-    const body = document.getElementById('list-view-body');
-    if (!body) return;
-
-    // Get list config for list name + color
-    const listMap = {};
-    boardConfig.forEach(l => { listMap[l.id] = l; });
-
-    // Gather all cards
-    const rows = Object.values(cardsData).map(card => {
-        // Extract score from description
-        let score = '—';
-        const scoreMatch = card.description ? card.description.match(/Score[\s:]*(\d+)/i) : null;
-        if (scoreMatch) score = Number(scoreMatch[1]);
-        // Extract draft
-        const hasDraft = !!(card.draft_reply || card.aiDraft);
-        // Get list info
-        const list = listMap[card.listId] || {};
-        // Time ago
-        const time = card.createdAt ? timeAgo(new Date(card.createdAt)) : '—';
-        // Labels
-        const labelList = Array.isArray(card.labels) ? card.labels : [];
-
-        return { card, score, hasDraft, list, time, labelList };
-    });
-
-    // Sort
-    rows.sort((a, b) => {
-        let av, bv;
-        switch (listSortCol) {
-            case 'score': av = a.score === '—' ? -1 : a.score; bv = b.score === '—' ? -1 : b.score; break;
-            case 'lead': av = (a.card.title || '').toLowerCase(); bv = (b.card.title || '').toLowerCase(); break;
-            case 'contact': av = (a.card.contactName || '').toLowerCase(); bv = (b.card.contactName || '').toLowerCase(); break;
-            case 'list': av = (a.list.title || '').toLowerCase(); bv = (b.list.title || '').toLowerCase(); break;
-            case 'draft': av = a.hasDraft ? 1 : 0; bv = b.hasDraft ? 1 : 0; break;
-            case 'added': av = a.card.createdAt || ''; bv = b.card.createdAt || ''; break;
-            default: av = 0; bv = 0;
-        }
-        if (av < bv) return listSortAsc ? -1 : 1;
-        if (av > bv) return listSortAsc ? 1 : -1;
-        return 0;
-    });
-
-    // Render header with sort indicators
-    const header = document.getElementById('list-view-header');
-    if (header) {
-        header.innerHTML = [
-            { col: 'score', label: 'Score' },
-            { col: 'lead', label: 'Lead' },
-            { col: 'contact', label: 'Contact' },
-            { col: 'list', label: 'List' },
-            { col: 'labels', label: 'Labels' },
-            { col: 'draft', label: 'Draft' },
-            { col: 'added', label: 'Added' },
-        ].map(h => `<span class="${listSortCol === h.col ? 'sorted' : ''}" onclick="sortListView('${h.col}')">${h.label}${listSortCol === h.col ? (listSortAsc ? ' ↑' : ' ↓') : ''}</span>`).join('');
-    }
-
-    if (rows.length === 0) {
-        body.innerHTML = '<div class="list-view-empty">No leads yet. Add one!</div>';
-        return;
-    }
-
-    body.innerHTML = rows.map(({ card, score, hasDraft, list, time, labelList }) => {
-        const scoreColor = getScoreColor(score);
-        const scoreTextColor = getScoreTextColor(score);
-        const scoreLabel = score === '—' ? '—' : score;
-        const listColor = list.color || 'var(--muted2)';
-        const labelHtml = labelList.map(l => {
-            const lc = labelColors[l] || '#888';
-            return `<span class="lv-label" style="background:${lc}22;color:${lc};border:1px solid ${lc}44">${l}</span>`;
-        }).join('');
-        const labelsHtml = labelList.length ? labelList.map(l => {
-            const lc = labelColors[l] || '#888';
-            return `<span class="lv-label" style="background:${lc}22;color:${lc};border:1px solid ${lc}44">${l}</span>`;
-        }).join('') : '<span style="color:var(--muted2);font-size:11px">—</span>';
-        const draftHtml = hasDraft
-            ? '<span class="lv-draft has-draft">✓</span>'
-            : '<span class="lv-draft no-draft">—</span>';
-
-        return `<div class="list-view-row" onclick="openCardModal(${card.id})">
-            <div><span class="lv-score" style="background:${scoreColor};color:${scoreTextColor}">${scoreLabel}</span></div>
-            <div class="lv-title">${escapeHtml(card.title || 'Untitled')}</div>
-            <div>
-                <div class="lv-name">${escapeHtml(card.contactName || '—')}</div>
-                <div class="lv-contact">${escapeHtml(card.contactEmail || card.contactPhone || '')}</div>
-            </div>
-            <div><span class="lv-list-dot" style="background:${listColor}"></span><span class="lv-list">${escapeHtml(list.title || '—')}</span></div>
-            <div class="lv-labels">${labelsHtml}</div>
-            <div>${draftHtml}</div>
-            <div class="lv-time">${time}</div>
-        </div>`;
-    }).join('');
-
-    // Footer
-    const footer = document.createElement('div');
-    footer.className = 'list-view-footer';
-    footer.textContent = `${rows.length} leads · Click any row to open the card`;
-    body.appendChild(footer);
-}
-
-function sortListView(col) {
-    if (listSortCol === col) {
-        listSortAsc = !listSortAsc;
-    } else {
-        listSortCol = col;
-        listSortAsc = false;
-    }
-    renderListView();
-}
-
 // ── View Mode ──────────────────────────────────────
 let isCompactView = false;
 function toggleViewMode() {
@@ -2293,8 +1930,7 @@ Object.assign(window,{
     drop,dragLeave,openLabelPicker,openProfileModal,removeDueDate,removeLabel,renameList,
     selectProfile,sendCardToFlowAI,showAddCardForm,showAddListForm,toggleChecklistItem,
     toggleLabel,updateDueDate,quickAddLead,updateContactField,openCommandPalette,closeCommandPalette,
-    renderCommands,executeCommand,toggleViewMode,toggleListView,renderListView,sortListView,
-    handleAskHubbleClick,handleSearchKey,
+    renderCommands,executeCommand,toggleViewMode,handleAskHubbleClick,handleSearchKey,
 });
 
 // ── Chat ───────────────────────────────────────────
@@ -2396,38 +2032,6 @@ window.sendChatMessage=sendChatMessage;
 window.handleChatKey=handleChatKey;
 window.handleAskHubbleClick=handleAskHubbleClick;
 window.changeAgent=changeAgent;
-window.regenerateDraft=regenerateDraft;
-window.openCardModal=openCardModal;
-window.getOpenAIKey=getOpenAIKey;
-window.renderDraftReply=renderDraftReply;
-window.copyDraft=copyDraft;
-window.saveCardAndClose=saveCardAndClose;
-window.deleteCard=deleteCard;
-window.quickAddLead=quickAddLead;
-window.addCard=addCard;
-window.changeAssignee=changeAssignee;
-window.closeAssigneeModal=closeAssigneeModal;
-window.closeLabelModal=closeLabelModal;
-window.openLabelPicker=openLabelPicker;
-window.removeLabel=removeLabel;
-window.addList=addList;
-window.showAddCardForm=showAddCardForm;
-window.showAddListForm=showAddListForm;
-window.toggleViewMode=toggleViewMode;
-window.addChecklistItem=addChecklistItem;
-window.openProfileModal=openProfileModal;
-window.openApiKeyModal=openApiKeyModal;window.closeApiKeyModal=closeApiKeyModal;
-window.closeProfileModal=closeProfileModal;
-window.cancelAddCard=cancelAddCard;
-window.cancelAddList=cancelAddList;
-window.renameList=renameList;
-window.deleteList=deleteList;
-window.closeCommandPalette=closeCommandPalette;
-window.executeCommand=executeCommand;
-window.selectLoginUser=selectLoginUser;
-window.updateSourceBadge=updateSourceBadge;
-window.closeCardModal=closeCardModal;
-})();
 </script>
 </body>
 </html>
