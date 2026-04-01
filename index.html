@@ -1080,6 +1080,7 @@ function selectLoginUser(el) {
 function checkLogin(event) { if (event.key === 'Enter') attemptLogin(); }
 
 function attemptLogin() {
+    // Login: check password and load user state
     if (document.getElementById('login-password').value === selectedUser.password) {
         isLoggedIn = true;
         document.getElementById('login-modal').classList.remove('active');
