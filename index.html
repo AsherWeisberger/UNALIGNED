@@ -2279,10 +2279,18 @@ async function regenerateDraft() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error?.message || 'API error');
 
-        let text = data.choices[0].message.content;
-        if ("```json" in text) text = text.split("```json")[1].split("```")[0];
-        else if ("```" in text) text = text.split("```")[1].split("```")[0];
-        const reply = JSON.parse(text.trim());
+        let text = data.choices?.[0]?.message?.content;
+        if (!text || typeof text !== 'string') throw new Error('Empty response from OpenAI');
+
+        // Strip markdown code fences
+        text = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+        let reply;
+        try {
+            reply = JSON.parse(text);
+        } catch (e) {
+            throw new Error('Invalid JSON from OpenAI: ' + text.slice(0, 100));
+        }
+        if (!reply.subject || !reply.body) throw new Error('Missing subject or body in response');
 
         currentEditingCardData.draft_reply = { subject: reply.subject, body: reply.body };
         currentEditingCardData.draft_reply_status = 'drafted';
@@ -2413,10 +2421,18 @@ async function regenerateEmailDraft() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error?.message || 'API error');
 
-        let text = data.choices[0].message.content;
-        if ("```json" in text) text = text.split("```json")[1].split("```")[0];
-        else if ("```" in text) text = text.split("```")[1].split("```")[0];
-        const reply = JSON.parse(text.trim());
+        let text = data.choices?.[0]?.message?.content;
+        if (!text || typeof text !== 'string') throw new Error('Empty response from OpenAI');
+
+        // Strip markdown code fences
+        text = text.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+        let reply;
+        try {
+            reply = JSON.parse(text);
+        } catch (e) {
+            throw new Error('Invalid JSON from OpenAI: ' + text.slice(0, 100));
+        }
+        if (!reply.subject || !reply.body) throw new Error('Missing subject or body in response');
 
         document.getElementById('email-subject').value = reply.subject;
         document.getElementById('email-body').value = reply.body;
