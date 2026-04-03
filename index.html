@@ -2449,7 +2449,7 @@ async function sendEmail() {
 
     try {
         const threadId = currentEditingCardData.threadId || null;
-        const resp = await fetch('http://127.0.0.1:5000/send', {
+        const resp = await fetch('https://installing-evaluations-makeup-list.trycloudflare.com/send', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ to, subject, body, threadId })
