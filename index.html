@@ -1990,7 +1990,7 @@ const TV_COLS = [
   {k:'score',        l:'Temp',         w:70},
   {k:'estimatedValue',l:'Deal Value', w:100},
   {k:'priority',     l:'Priority',     w:80},
-  {k:'assignee',     l:'Assignee',     w:120},
+  {k:'_assignee',   l:'Assignee',     w:120},
   {k:'leadSource',   l:'Source',       w:90},
   {k:'dueDate',      l:'Due',           w:90},
   {k:'title',        l:'Title',         w:200},
@@ -2047,6 +2047,7 @@ function renderTableView() {
         if(tvSortKey==='score'||tvSortKey==='estimatedValue'){av=Number(av)||0;bv=Number(bv)||0;}
         if(tvSortKey==='_activity'){av=tvLastAct(a);bv=tvLastAct(b);}
         if(tvSortKey==='_received'){av=tvDate(a);bv=tvDate(b);}
+        if(tvSortKey==='_assignee'){av=(a.assignee||'').toLowerCase();bv=(b.assignee||'').toLowerCase();}
         if(tvSortKey==='emailDate'){av=new Date(av||0);bv=new Date(bv||0);return tvSortAsc?(av>bv?1:av<bv?-1:0):(av<bv?1:av>bv?-1:0);}
         if(typeof av==='string'){av=av.toLowerCase();bv=(bv||'').toLowerCase();}
         if(av<bv)return tvSortAsc?-1:1;if(av>bv)return tvSortAsc?1:-1;return 0;
@@ -2064,22 +2065,23 @@ function renderTableView() {
         const tm=tvParseTemp(c.score||c.temperature);
         const act=tvLastAct(c);
         const isOverdue=c.dueDate&&new Date(c.dueDate)<new Date();
-        return`<tr style="border-bottom:1px solid var(--surface2);cursor:pointer;" onclick="openCardModal('${c.id}')">
-          <td style="padding:7px 10px;vertical-align:top;font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(c.contactName||c.title||'—')}</td>
-          <td style="padding:7px 10px;vertical-align:top;color:var(--muted);font-size:12px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(c.businessName||'—')}</td>
-          <td style="padding:7px 10px;vertical-align:top;font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${c.email?`<a href="mailto:${c.email}" style="color:#4facfe;text-decoration:none;">${escapeHtml(c.email)}</a>`:'—'}</td>
-          <td style="padding:7px 10px;vertical-align:top;font-size:12px;color:var(--muted);">${escapeHtml(c.phone||'—')}</td>
-          <td style="padding:7px 10px;vertical-align:top;"><span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;background:${st.color}22;color:${st.color};border:1px solid ${st.color}44;">${st.label}</span></td>
-          <td style="padding:7px 10px;vertical-align:top;font-size:12px;font-weight:700;${tm.cls};">${tm.label}</td>
-          <td style="padding:7px 10px;vertical-align:top;font-weight:600;color:#34d399;font-size:12px;">$${Number(c.estimatedValue||0).toLocaleString()}</td>
-          <td style="padding:7px 10px;vertical-align:top;font-size:11px;font-weight:700;${c.priority==='high'?'color:#f87171':c.priority==='medium'?'color:#fbbf24':'color:#34d399'};">${(c.priority||'—').toUpperCase()}</td>
-          <td style="padding:7px 10px;vertical-align:top;font-size:12px;"><div style="display:flex;align-items:center;gap:6px;">${c.assignee?`<span style="width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;flex-shrink:0;background:${tvGradient(c.assignee)}">${tvInitials(c.assignee)}</span><span>${escapeHtml(c.assignee)}</span>`:'—'}</div></td>
-          <td style="padding:7px 10px;vertical-align:top;font-size:11px;color:var(--muted);">${escapeHtml(c.leadSource||'—')}</td>
-          <td style="padding:7px 10px;vertical-align:top;font-size:11px;color:${isOverdue?'#f87171':'var(--muted)'};">${escapeHtml(c.dueDate||'—')}</td>
-          <td style="padding:7px 10px;vertical-align:top;font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(c.title||'—')}</td>
-          <td style="padding:7px 10px;vertical-align:top;font-size:12px;color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(c.description||'—')}</td>
-          <td style="padding:7px 10px;vertical-align:top;font-size:11px;color:var(--muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(act)}</td>
-          <td style="padding:7px 10px;vertical-align:top;font-size:11px;color:var(--muted);white-space:nowrap;">${tvDate(c)}</td>
+        const stageOpts=Object.entries(stageMap).map(([k,v])=>`<option value="${k}"${k===c.listId?' selected':''}>${v.label}</option>`).join('');
+        return`<tr style="border-bottom:1px solid var(--surface2);" data-cid="${c.id}">
+          <td style="padding:7px 10px;vertical-align:top;font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.contactName||c.title||'—')}</td>
+          <td style="padding:7px 10px;vertical-align:top;color:var(--muted);font-size:12px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.businessName||'—')}</td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${c.email?`<a href="mailto:${c.email}" style="color:#4facfe;text-decoration:none;">${escapeHtml(c.email)}</a>`:'—'}</td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:12px;color:var(--muted);cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.phone||'—')}</td>
+          <td style="padding:7px 10px;vertical-align:top;cursor:default;" onclick="event.stopPropagation()"><select onchange="moveCardToList('${c.id}',this.value);this.value='${c.listId}';" style="background:${st.color}22;color:${st.color};border:1px solid ${st.color}55;border-radius:10px;padding:2px 6px;font-size:10px;font-weight:700;text-transform:uppercase;cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;">${stageOpts}</select></td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:12px;font-weight:700;${tm.cls};cursor:pointer;" onclick="openCardModal('${c.id}')">${tm.label}</td>
+          <td style="padding:7px 10px;vertical-align:top;font-weight:600;color:#34d399;font-size:12px;cursor:pointer;" onclick="openCardModal('${c.id}')">$${Number(c.estimatedValue||0).toLocaleString()}</td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:11px;font-weight:700;${c.priority==='high'?'color:#f87171':c.priority==='medium'?'color:#fbbf24':'color:#34d399'};cursor:pointer;" onclick="openCardModal('${c.id}')">${(c.priority||'—').toUpperCase()}</td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:12px;cursor:default;" onclick="event.stopPropagation()"><div style="display:flex;align-items:center;gap:6px;">${c.assignee?`<span style="width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;flex-shrink:0;background:${tvGradient(c.assignee)}">${tvInitials(c.assignee)}</span><span>${escapeHtml(c.assignee)}</span>`:'—'}</div></td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:11px;color:var(--muted);cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.leadSource||'—')}</td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:11px;color:${isOverdue?'#f87171':'var(--muted)'};cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.dueDate||'—')}</td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.title||'—')}</td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:12px;color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.description||'—')}</td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:11px;color:var(--muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(act)}</td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:11px;color:var(--muted);white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${tvDate(c)}</td>
         </tr>`;
     }).join('');
 }
