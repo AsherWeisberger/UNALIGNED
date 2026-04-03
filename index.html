@@ -1465,7 +1465,6 @@ What would you like to know?</div>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
 import { getFirestore, doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-auth.js";
 
 // ── Login ──────────────────────────────────────────
 window.selectedUser = { name: 'Asher W', initials: 'AW', password: '3' };
@@ -1526,18 +1525,7 @@ const twitterConfig = {
 };
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
-const auth = getAuth(firebaseApp);
 const boardDocRef = doc(db, 'boards', 'shared-board');
-
-// Block Firestore ops until auth is ready
-let firebaseReady = false;
-onAuthStateChanged(auth, (user) => {
-    firebaseReady = true;
-    // If we were already subscribed, the initial load will fire now
-});
-
-// Sign in anonymously so writes are allowed
-signInAnonymously(auth).catch(err => console.warn('Anonymous auth failed:', err));
 
 // ── State ──────────────────────────────────────────
 let currentProfile = { name: 'Sam L', initials: 'SL' };
@@ -1842,7 +1830,6 @@ function queueSaveBoardState() {
 
 async function saveBoardState(force=false) {
     if (!force && isApplyingRemoteUpdate) return;
-    if (!firebaseReady) return; // wait for anonymous sign-in
     if (syncState.status !== 'error') setSyncState('saving');
     try {
         // Preserve emailDate from current Firestore state so old JS can't strip it
