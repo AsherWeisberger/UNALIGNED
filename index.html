@@ -351,7 +351,10 @@
         .card-assignee { display: flex; align-items: center; gap: 5px; }
 
         .card-lead-meta { display: flex; gap: 6px; align-items: center; margin: 5px 0; flex-wrap: wrap; }
-        .card-priority { padding: 2px 7px; border-radius: 6px; font-size: 10px; font-weight: 600; font-family: var(--font-mono); background: rgba(0,0,0,0.06); }
+        .card-priority { padding: 2px 7px; border-radius: 6px; font-size: 10px; font-weight: 600; font-family: var(--font-mono); }
+        .card-priority.hot { background: rgba(239,68,68,0.12); color: #ef4444; }
+        .card-priority.warm { background: rgba(245,158,11,0.12); color: #f59e0b; }
+        .card-priority.cold { background: rgba(59,130,246,0.12); color: #3b82f6; }
         .card-source { padding: 2px 7px; border-radius: 6px; font-size: 10px; background: rgba(0,0,0,0.06); color: #374151; }
         .card-value { padding: 2px 7px; border-radius: 6px; font-size: 10px; font-weight: 600; color: #059669; background: rgba(5,150,105,0.1); font-family: var(--font-mono); }
 
@@ -1395,7 +1398,7 @@ function renderCard(cardData) {
 
     let leadMetaHtml = '';
     if (cardData.priority || cardData.leadSource || cardData.estimatedValue) {
-        const pHtml = cardData.priority ? `<span class="card-priority">${cardData.priority==='hot'?'🔥':cardData.priority==='warm'?'🌡️':'❄️'} ${cardData.priority}</span>` : '';
+        const pHtml = cardData.priority ? `<span class="card-priority ${cardData.priority}">${cardData.priority==='hot'?'🔥':cardData.priority==='warm'?'🌡️':'❄️'} ${cardData.priority}</span>` : '';
         const sHtml = cardData.leadSource ? (cardData.emailDate ? `<span class="card-source">${cardData.leadSource} · ${fmtEmailDate(cardData.emailDate)}</span>` : `<span class="card-source">${cardData.leadSource}</span>`) : (cardData.emailDate ? `<span class="card-source">${fmtEmailDate(cardData.emailDate)}</span>` : '');
         const vHtml = cardData.estimatedValue ? `<span class="card-value">$${cardData.estimatedValue}</span>` : '';
         leadMetaHtml = `<div class="card-lead-meta">${pHtml}${sHtml}${vHtml}</div>`;
@@ -2099,7 +2102,7 @@ function renderTableView() {
           <td style="padding:7px 10px;vertical-align:top;cursor:default;" onclick="event.stopPropagation()"><select onchange="moveCardToList('${c.id}',this.value);this.value='${c.listId}';" style="background:${st.color}22;color:${st.color};border:1px solid ${st.color}55;border-radius:10px;padding:2px 6px;font-size:10px;font-weight:700;text-transform:uppercase;cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;">${stageOpts}</select></td>
           <td style="padding:7px 10px;vertical-align:top;font-size:12px;font-weight:700;${tm.cls};cursor:pointer;" onclick="openCardModal('${c.id}')">${tm.label}</td>
           <td style="padding:7px 10px;vertical-align:top;font-weight:600;color:#34d399;font-size:12px;cursor:pointer;" onclick="openCardModal('${c.id}')">$${Number(c.estimatedValue||0).toLocaleString()}</td>
-          <td style="padding:7px 10px;vertical-align:top;font-size:11px;font-weight:700;${c.priority==='high'?'color:#f87171':c.priority==='medium'?'color:#fbbf24':'color:#34d399'};cursor:pointer;" onclick="openCardModal('${c.id}')">${(c.priority||'—').toUpperCase()}</td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:11px;font-weight:700;${c.priority==='hot'?'color:#ef4444':c.priority==='warm'?'color:#f59e0b':'color:#3b82f6'};cursor:pointer;" onclick="openCardModal('${c.id}')">${(c.priority||'—').toUpperCase()}</td>
           <td style="padding:7px 10px;vertical-align:top;font-size:12px;cursor:default;" onclick="event.stopPropagation()"><div style="display:flex;align-items:center;gap:6px;">${c.assignee?`<span style="width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;flex-shrink:0;background:${tvGradient(c.assignee)}">${tvInitials(c.assignee)}</span><span>${escapeHtml(c.assignee)}</span>`:'—'}</div></td>
           <td style="padding:7px 10px;vertical-align:top;font-size:11px;color:var(--muted);cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.leadSource||'—')}</td>
           <td style="padding:7px 10px;vertical-align:top;font-size:11px;color:${isOverdue?'#f87171':'var(--muted)'};cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.dueDate||'—')}</td>
