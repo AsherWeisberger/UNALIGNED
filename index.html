@@ -2230,8 +2230,10 @@ function copyDraft() {
 }
 
 async function regenerateDraft() {
-    if (!currentEditingCardData) return;
+    console.log('regenerateDraft called, currentEditingCardData:', !!currentEditingCardData);
+    if (!currentEditingCardData) { console.log('no card data'); return; }
     const key = getOpenAIKey();
+    console.log('key present:', !!key);
     if (!key) {
         const err = document.getElementById('draft-error');
         err.textContent = '⚠️ No API key set. Enter it when prompted on load.';
@@ -2243,6 +2245,7 @@ async function regenerateDraft() {
     const empty = document.getElementById('draft-empty');
     const content = document.getElementById('draft-content');
     const error = document.getElementById('draft-error');
+    console.log('btn:', !!btn, 'loading:', !!loading, 'error:', !!error);
 
     btn.disabled = true; btn.textContent = '⏳…';
     loading.style.display = 'block'; empty.style.display = 'none'; content.style.display = 'none'; error.style.display = 'none';
@@ -2265,7 +2268,9 @@ async function regenerateDraft() {
                 max_tokens: 600
             })
         });
+        console.log('API res.ok:', res.ok, 'status:', res.status);
         const data = await res.json();
+        console.log('API data:', JSON.stringify(data).slice(0, 200));
         if (!res.ok) throw new Error(data.error?.message || 'API error');
 
         let text = data.choices[0].message.content;
@@ -2399,7 +2404,9 @@ async function regenerateEmailDraft() {
                 max_tokens: 600
             })
         });
+        console.log('API res.ok:', res.ok, 'status:', res.status);
         const data = await res.json();
+        console.log('API data:', JSON.stringify(data).slice(0, 200));
         if (!res.ok) throw new Error(data.error?.message || 'API error');
 
         let text = data.choices[0].message.content;
