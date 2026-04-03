@@ -1306,7 +1306,19 @@ async function saveBoardState(force=false) {
     if (!force && isApplyingRemoteUpdate) return;
     if (syncState.status !== 'error') setSyncState('saving');
     try {
-        await setDoc(boardDocRef, { cards:JSON.parse(JSON.stringify(cardsData||{})), lists:boardConfig, cardIdCounter, updatedAt:serverTimestamp() });
+        // Preserve emailDate from current Firestore state so old JS can't strip it
+        const snap = await boardDocRef.get();
+        const remote = snap.data()?.cards || {};
+        const toSave = {};
+        for (const [cid, card] of Object.entries(cardsData || {})) {
+            const merged = { ...card };
+            // Never let local state clobber emailDate — restore from Firestore if missing
+            if (remote[cid]?.emailDate && !merged.emailDate) {
+                merged.emailDate = remote[cid].emailDate;
+            }
+            toSave[cid] = merged;
+        }
+        await setDoc(boardDocRef, { cards:toSave, lists:boardConfig, cardIdCounter, updatedAt:serverTimestamp() });
         setSyncState('synced',{syncedAt:new Date()});
     } catch(error) {
         console.error('Failed to save',error);
