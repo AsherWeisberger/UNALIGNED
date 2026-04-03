@@ -875,8 +875,8 @@
                     <span>Asher W</span>
                 </div>
             </div>
-            <input type="password" class="login-input" id="login-password" placeholder="Password" onkeydown="checkLogin(event)">
-            <button class="login-btn" onclick="attemptLogin()">Enter</button>
+            <input type="password" class="login-input" id="login-password" placeholder="Password" onkeydown="window.loginCheck && window.loginCheck(event)">
+            <button class="login-btn" onclick="window.loginTry && window.loginTry()">Enter</button>
             <p class="login-error" id="login-error"></p>
         </div>
     </div>
@@ -2822,6 +2822,18 @@ window.changeAgent=changeAgent;
 window.openCardModal=openCardModal;
 window.saveCardAndClose=saveCardAndClose;
 window.closeCardModal=closeCardModal;
+
+
+// Expose login functions globally for inline onclick handlers
+window.loginSelectUser = selectLoginUser;
+window.loginCheck = checkLogin;
+window.loginTry = attemptLogin;
+window.loginSelectedUser = selectedUser;
+
+window.loginSelectUser = selectLoginUser;
+window.loginCheck = checkLogin;
+window.loginTry = attemptLogin;
+window.loginSelectedUser = selectedUser;
 </script>
 </body>
 </html>
