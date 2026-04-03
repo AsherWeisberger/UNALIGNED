@@ -1146,6 +1146,7 @@ function normalizeCardShape(card={}, fallbackId) {
         ...(card.phone !== undefined ? {phone:card.phone} : {}),
         ...(card.businessName !== undefined ? {businessName:card.businessName} : {}),
         ...(card.leadSource !== undefined ? {leadSource:card.leadSource} : {}),
+        ...(card.emailDate !== undefined ? {emailDate:card.emailDate} : {}),
         ...(card.estimatedValue !== undefined ? {estimatedValue:card.estimatedValue} : {}),
         ...(card.priority !== undefined ? {priority:card.priority} : {}),
         ...(card.draft_reply !== undefined ? {draft_reply:card.draft_reply} : {}),
