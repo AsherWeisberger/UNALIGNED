@@ -875,8 +875,8 @@
                     <span>Asher W</span>
                 </div>
             </div>
-            <input type="password" class="login-input" id="login-password" placeholder="Password" onkeydown="window.loginCheck && window.loginCheck(event)">
-            <button class="login-btn" onclick="window.loginTry && window.loginTry()">Enter</button>
+            <input type="password" class="login-input" id="login-password" placeholder="Password" onkeydown="if(event.key==="Enter"){var p=document.getElementById("login-password").value;if(p===window.selectedUser.password){window.isLoggedIn=true;document.getElementById("login-modal").style.display="none";var a=document.getElementById("main-app");a.style.display="flex";a.style.flexDirection="column";a.style.height="100%";a.style.overflow="hidden";document.getElementById("current-avatar").textContent=window.selectedUser.initials;document.getElementById("current-profile-name").textContent=window.selectedUser.name;if(typeof loadState==="function")loadState();}else{document.getElementById("login-error").textContent="Incorrect password";}}">
+            <button class="login-btn" onclick="var p=document.getElementById("login-password").value;if(p===window.selectedUser.password){window.isLoggedIn=true;document.getElementById("login-modal").style.display="none";var a=document.getElementById("main-app");a.style.display="flex";a.style.flexDirection="column";a.style.height="100%";a.style.overflow="hidden";document.getElementById("current-avatar").textContent=window.selectedUser.initials;document.getElementById("current-profile-name").textContent=window.selectedUser.name;if(typeof loadState==="function")loadState();}else{document.getElementById("login-error").textContent="Incorrect password";}}">Enter</button>
             <p class="login-error" id="login-error"></p>
         </div>
     </div>
@@ -1246,13 +1246,13 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/fireba
 import { getFirestore, doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
 
 // ── Login ──────────────────────────────────────────
-let selectedUser = { name: 'Asher W', initials: 'AW', password: '3' };
+window.selectedUser = { name: 'Asher W', initials: 'AW', password: '3' };
 let isLoggedIn = false;
 
 function selectLoginUser(el) {
     document.querySelectorAll('.login-user').forEach(u => u.classList.remove('selected'));
     el.classList.add('selected');
-    selectedUser = { name: el.dataset.user, initials: el.dataset.user.split(' ').map(n=>n[0]).join(''), password: el.dataset.password };
+    window.selectedUser = { name: el.dataset.user, initials: el.dataset.user.split('').map(n=>n[0]).join(''), password: el.dataset.password };
     document.getElementById('login-password').value = '';
     document.getElementById('login-error').textContent = '';
 }
@@ -1263,8 +1263,8 @@ function checkLogin(event) { if (event.key === 'Enter') attemptLogin(); }
 if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
 
 function attemptLogin() {
-    if (document.getElementById('login-password').value === selectedUser.password) {
-        isLoggedIn = true;
+    if (document.getElementById('login-password').value === window.selectedUser.password) {
+        window.isLoggedIn = true;
         document.getElementById('login-modal').classList.remove('active');
         document.getElementById('login-modal').style.display = 'none';
         const app = document.getElementById('main-app');
@@ -1272,8 +1272,8 @@ function attemptLogin() {
         app.style.flexDirection = 'column';
         app.style.height = '100%';
         app.style.overflow = 'hidden';
-        currentUser = selectedUser.name;
-        currentInitials = selectedUser.initials;
+        window.currentUser = selectedUser.name;
+        window.currentInitials = selectedUser.initials;
         document.getElementById('current-avatar').textContent = currentInitials;
         document.getElementById('current-profile-name').textContent = currentUser;
         loadState();
