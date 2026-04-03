@@ -1510,6 +1510,7 @@ function openCardModal(cardId) {
     const modal = document.getElementById('card-modal');
     overlay.classList.add('active'); overlay.style.display='flex';
     modal.classList.add('active'); modal.style.display='flex';
+    overlay.scrollTop = 0;
 
     document.getElementById('modal-card-title').value = currentEditingCardData.title;
     document.getElementById('modal-description').value = currentEditingCardData.description||'';
