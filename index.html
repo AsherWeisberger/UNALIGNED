@@ -1788,13 +1788,14 @@ function renderAllCards() {
 
 function loadState() {
     onSnapshot(boardDocRef, async (docSnap) => {
-        if (docSnap.metadata?.hasPendingWrites) return;
-        if (currentEditingCard !== null) return;
-        if (window.justSaved && Date.now() - window.justSaved < 2000) return;
-        isApplyingRemoteUpdate = true;
         try {
+            console.log('[loadState] fired — exists:', docSnap.exists, '| fromCache:', docSnap.metadata?.fromCache, '| pendingWrites:', docSnap.metadata?.hasPendingWrites);
+            if (docSnap.metadata?.hasPendingWrites) { console.log('[loadState] skipping — pending writes'); return; }
+            if (currentEditingCard !== null) { console.log('[loadState] skipping — card being edited'); return; }
+            if (window.justSaved && Date.now() - window.justSaved < 2000) { console.log('[loadState] skipping — just saved'); return; }
+            isApplyingRemoteUpdate = true;
             if (!docSnap.exists()) {
-                console.log('[loadState] doc does not exist in Firestore, using defaults');
+                console.log('[loadState] doc empty — writing defaults to Firestore');
                 cardsData = JSON.parse(JSON.stringify(defaultCardsData));
                 cardIdCounter = deriveNextCardId(cardsData);
                 boardConfig = JSON.parse(JSON.stringify(defaultBoardConfig));
@@ -1803,11 +1804,22 @@ function loadState() {
                 return;
             }
             const payload = docSnap.data() || {};
+            console.log('[loadState] got payload — cards:', Object.keys(payload.cards||{}).length, '| lists:', (payload.lists||[]).length);
             boardConfig = normalizeBoardConfig(payload.lists);
             cardsData = normalizeCardsMap(payload.cards, boardConfig);
+            console.log('[loadState] normalized — cardsData keys:', Object.keys(cardsData).length);
             cardIdCounter = payload.cardIdCounter || deriveNextCardId(cardsData);
             refreshBoard(); markBoardReady(); setSyncState('synced',{syncedAt:new Date()});
-        } finally { isApplyingRemoteUpdate = false; }
+            console.log('[loadState] done');
+        } catch(err) {
+            console.error('[loadState] ERROR:', err.message, err.stack);
+            setSyncState('error',{errorMessage: err.message});
+        } finally {
+            isApplyingRemoteUpdate = false;
+        }
+    }, (err) => {
+        console.error('[loadState] snapshot ERROR:', err.code, err.message);
+        setSyncState('error',{errorMessage: err.code+': '+err.message});
     });
 }
 
