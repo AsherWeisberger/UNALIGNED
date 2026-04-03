@@ -778,6 +778,9 @@
                       <option value="medium">Medium</option>
                       <option value="low">Low</option>
                     </select>
+                    <select id="tv-assignee" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:13px;cursor:pointer;outline:none;" onchange="renderTableView()">
+                      <option value="">All Assignees</option>
+                    </select>
                     <button onclick="exportTableCSV()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer;margin-left:auto;">Export CSV</button>
                     <span id="tv-count" style="font-size:12px;color:var(--muted);white-space:nowrap;"></span>
                   </div>
@@ -2026,10 +2029,12 @@ function tvGetFiltered() {
     const stage=(document.getElementById('tv-stage')||{value:''}).value;
     const temp=(document.getElementById('tv-temp')||{value:''}).value;
     const priority=(document.getElementById('tv-priority')||{value:''}).value;
+    const fAssignee=(document.getElementById('tv-assignee')||{value:''}).value;
     return Object.values(cardsData||{}).filter(c=>{
         if(q){const h=[c.contactName,c.title,c.email,c.businessName,c.description,c.phone,c.assignee].filter(Boolean).join(' ').toLowerCase();if(!h.includes(q))return false;}
         if(stage&&c.listId!==stage)return false;
         if(priority&&c.priority!==priority)return false;
+        if(fAssignee&&c.assignee!==fAssignee)return false;
         if(temp){
             const s=Number(c.score||c.temperature)||0;
             if(temp==='hot'&&s<60)return false;
@@ -2041,6 +2046,14 @@ function tvGetFiltered() {
 }
 
 function renderTableView() {
+    // Dynamically populate assignee dropdown from current data
+    const sel=document.getElementById('tv-assignee');
+    if(sel){
+        const cur=sel.value;
+        const names=[...new Set(Object.values(cardsData||{}).map(c=>c.assignee).filter(Boolean))].sort();
+        sel.innerHTML='<option value="">All Assignees</option>'+names.map(n=>`<option value="${n}">${n}</option>`).join('');
+        sel.value=cur;
+    }
     const all=tvGetFiltered();
     const sorted=[...all].sort((a,b)=>{
         let av=(a[tvSortKey]==null?'':a[tvSortKey]),bv=(b[tvSortKey]==null?'':b[tvSortKey]);
