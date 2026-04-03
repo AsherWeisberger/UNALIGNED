@@ -1464,7 +1464,7 @@ What would you like to know?</div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
-import { getFirestore, doc, onSnapshot, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
+import { getFirestore, doc, onSnapshot, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
 
 // ── Login ──────────────────────────────────────────
 window.selectedUser = { name: 'Asher W', initials: 'AW', password: '3' };
@@ -1689,13 +1689,23 @@ function normalizeCardsMap(rawCards={}, lists=defaultBoardConfig) {
 // ── Config ───────────────────────────────────────────
 // OpenAI API key stored in localStorage (never committed to git)
 // On first use, enter it once and it persists in your browser
-function getOpenAIKey() {
+let _openaiKeyCache = null;
+async function getOpenAIKey() {
+    if (_openaiKeyCache) return _openaiKeyCache;
+    // Try localStorage first (fallback for offline/dev)
     let key = localStorage.getItem('unaligned_openai_key');
     if (!key) {
-        key = prompt('Enter your OpenAI API key (stored locally, never sent anywhere but OpenAI):');
-        if (key) localStorage.setItem('unaligned_openai_key', key);
+        // Fetch from Firestore _secrets (Admin SDK bypasses security rules)
+        try {
+            const snap = await getDoc(doc(db, '_secrets', 'config'));
+            if (snap.exists() && snap.data().openai_key) {
+                key = snap.data().openai_key;
+                localStorage.setItem('unaligned_openai_key', key); // cache locally too
+            }
+        } catch (e) { /* Firestore unavailable */ }
     }
-    return key || '';
+    _openaiKeyCache = key || '';
+    return _openaiKeyCache;
 }
 
 // ── Filters ────────────────────────────────────────
@@ -2233,7 +2243,6 @@ async function regenerateDraft() {
     console.log('regenerateDraft called, currentEditingCardData:', !!currentEditingCardData);
     if (!currentEditingCardData) { console.log('no card data'); return; }
     const key = getOpenAIKey();
-    console.log('key present:', !!key);
     if (!key) {
         const err = document.getElementById('draft-error');
         err.textContent = '⚠️ No API key set. Enter it when prompted on load.';
@@ -2245,7 +2254,6 @@ async function regenerateDraft() {
     const empty = document.getElementById('draft-empty');
     const content = document.getElementById('draft-content');
     const error = document.getElementById('draft-error');
-    console.log('btn:', !!btn, 'loading:', !!loading, 'error:', !!error);
 
     btn.disabled = true; btn.textContent = '⏳…';
     loading.style.display = 'block'; empty.style.display = 'none'; content.style.display = 'none'; error.style.display = 'none';
@@ -2268,9 +2276,7 @@ async function regenerateDraft() {
                 max_tokens: 600
             })
         });
-        console.log('API res.ok:', res.ok, 'status:', res.status);
         const data = await res.json();
-        console.log('API data:', JSON.stringify(data).slice(0, 200));
         if (!res.ok) throw new Error(data.error?.message || 'API error');
 
         let text = data.choices[0].message.content;
@@ -2404,9 +2410,7 @@ async function regenerateEmailDraft() {
                 max_tokens: 600
             })
         });
-        console.log('API res.ok:', res.ok, 'status:', res.status);
         const data = await res.json();
-        console.log('API data:', JSON.stringify(data).slice(0, 200));
         if (!res.ok) throw new Error(data.error?.message || 'API error');
 
         let text = data.choices[0].message.content;
