@@ -650,6 +650,207 @@
         .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
 
         .contact-fields, .lead-fields { display: flex; flex-direction: column; gap: 0; }
+
+        /* ─── BULK ACTIONS ────────────────────────────────── */
+        .bulk-toolbar {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 12px 20px;
+            margin-bottom: 12px;
+            background: rgba(17,20,34,0.95);
+            border: 1px solid var(--border2);
+            border-radius: var(--radius);
+            backdrop-filter: blur(8px);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            flex-wrap: wrap;
+        }
+        .bulk-toolbar.active { display: flex; }
+        .bulk-toolbar-count {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text);
+            font-family: var(--font-mono);
+            padding: 0 4px;
+        }
+        .bulk-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 999px;
+            border: 1px solid var(--border2);
+            background: var(--surface2);
+            color: var(--text);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: var(--font-body);
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+        .bulk-btn:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); }
+        .bulk-btn.danger { border-color: rgba(248,113,113,0.4); color: #f87171; }
+        .bulk-btn.danger:hover { background: rgba(248,113,113,0.15); border-color: #f87171; }
+        .bulk-btn.select-all { border-color: rgba(91,140,255,0.4); color: var(--accent); }
+        .bulk-btn.select-all:hover { background: rgba(91,140,255,0.1); }
+        .bulk-clear {
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: none;
+            background: rgba(255,255,255,0.06);
+            color: var(--muted2);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .bulk-clear:hover { background: rgba(255,255,255,0.12); color: var(--text); }
+
+        /* Card checkbox */
+        .card-checkbox-wrap {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            z-index: 2;
+            opacity: 0;
+            transition: opacity 0.15s;
+            pointer-events: none;
+        }
+        body.bulk-mode .card-checkbox-wrap,
+        .card.selected .card-checkbox-wrap {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .card { position: relative; }
+        .card.selected {
+            outline: 2px solid var(--accent);
+            outline-offset: 1px;
+            box-shadow: 0 0 0 4px rgba(91,140,255,0.15), 0 8px 20px rgba(15,23,42,0.15);
+        }
+
+        /* ─── STALE INDICATORS ────────────────────────────── */
+        .card-stale { border-left: 3px solid #f87171 !important; }
+        .stale-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: rgba(248,113,113,0.12);
+            color: #f87171;
+            font-size: 11px;
+            font-weight: 600;
+            font-family: var(--font-mono);
+            border: 1px solid rgba(248,113,113,0.3);
+        }
+        .stale-header-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 10px;
+            border-radius: 999px;
+            background: rgba(248,113,113,0.1);
+            color: #f87171;
+            font-size: 11px;
+            font-weight: 600;
+            font-family: var(--font-mono);
+            border: 1px solid rgba(248,113,113,0.3);
+            cursor: default;
+        }
+        .stale-header-badge:hover { background: rgba(248,113,113,0.18); }
+
+        /* ─── ACTIVITY LOG IMPROVEMENTS ────────────────────── */
+        .activity-log-section {
+            background: var(--surface2);
+            border-radius: 10px;
+            padding: 14px;
+            border: 1px solid var(--border);
+        }
+        .activity-log-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--muted2);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            font-family: var(--font-mono);
+            margin-bottom: 10px;
+        }
+        .activity-log-buttons {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+        .activity-log-btn {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 10px;
+            border-radius: 999px;
+            border: 1px solid var(--border2);
+            background: var(--surface);
+            color: var(--text);
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: var(--font-body);
+            transition: all 0.15s;
+        }
+        .activity-log-btn:hover { background: rgba(91,140,255,0.1); border-color: rgba(91,140,255,0.4); color: var(--accent); }
+        .activity-log-form {
+            display: none;
+            gap: 8px;
+            align-items: center;
+        }
+        .activity-log-form.active { display: flex; }
+        .activity-log-input {
+            flex: 1;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border2);
+            background: var(--surface);
+            color: var(--text);
+            font-size: 13px;
+            font-family: var(--font-body);
+        }
+        .activity-log-input:focus { outline: none; border-color: var(--accent); }
+        .activity-log-type-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            border-radius: 999px;
+            background: rgba(91,140,255,0.12);
+            color: var(--accent);
+            font-size: 10px;
+            font-weight: 600;
+            font-family: var(--font-mono);
+            white-space: nowrap;
+        }
+        .activity-group-date {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-family: var(--font-mono);
+            padding: 4px 0 6px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 8px;
+        }
+        .activity-emoji { font-size: 13px; margin-right: 2px; }
+
+        /* ─── TABLE VIEW CHECKBOX ──────────────────────────── */
+        .tv-checkbox-cell { width: 36px; text-align: center; }
+        .tv-row-selected td { background: rgba(91,140,255,0.06) !important; }
+        .tv-th-checkbox {
+            width: 36px;
+            padding: 7px 8px !important;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -692,6 +893,7 @@
                 <div class="stats">
                     <span id="total-cards">0 cards</span>
                     <span id="assigned-count">0 assigned to you</span>
+                    <span id="stale-count-badge" class="stale-header-badge" style="display:none;">⚠️ <span id="stale-count">0</span> stale</span>
                 </div>
             </div>
             <div class="header-right">
@@ -746,6 +948,36 @@
 
                 <section class="flow-map" id="flow-map" aria-label="Flow snapshot"></section>
 
+                <!-- Bulk Actions Toolbar -->
+                <div class="bulk-toolbar" id="bulk-toolbar">
+                    <span class="bulk-toolbar-count"><span id="bulk-count">0</span> selected</span>
+                    <button class="bulk-btn select-all" onclick="selectAll()">☐ Select All</button>
+                    <button class="bulk-btn" onclick="bulkAssign()">👤 Assign</button>
+                    <button class="bulk-btn">
+                        🔥 Priority
+                        <select id="bulk-priority-select" onchange="bulkUpdatePriority(this.value);this.value='';" style="background:transparent;border:none;color:inherit;font-size:12px;font-weight:600;cursor:pointer;outline:none;margin-left:2px;">
+                            <option value="">Choose…</option>
+                            <option value="hot">🔥 Hot</option>
+                            <option value="warm">🌡️ Warm</option>
+                            <option value="cold">❄️ Cold</option>
+                        </select>
+                    </button>
+                    <button class="bulk-btn">
+                        ➡ Move to
+                        <select id="bulk-move-select" onchange="bulkMoveToList(this.value);this.value='';" style="background:transparent;border:none;color:inherit;font-size:12px;font-weight:600;cursor:pointer;outline:none;margin-left:2px;">
+                            <option value="">Choose…</option>
+                            <option value="discovery">LEAD IN</option>
+                            <option value="build">IN PROGRESS</option>
+                            <option value="review">REVIEW</option>
+                            <option value="done">DONE</option>
+                            <option value="paid-out">PAID OUT</option>
+                            <option value="anything-else">ANYTHING ELSE</option>
+                        </select>
+                    </button>
+                    <button class="bulk-btn danger" onclick="bulkDelete()">🗑 Delete</button>
+                    <button class="bulk-clear" onclick="clearSelection()">✕ Clear</button>
+                </div>
+
                 <section class="board" id="board" aria-label="Kanban board">
                     <div class="board-lists" id="board-lists"></div>
                     <button class="add-list-btn" id="add-list-btn" onclick="showAddListForm()">
@@ -778,6 +1010,10 @@
                     <select id="tv-assignee" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:13px;cursor:pointer;outline:none;" onchange="renderTableView()">
                       <option value="">All Assignees</option>
                     </select>
+                    <label style="display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer;white-space:nowrap;">
+                        <input type="checkbox" id="tv-stale-only" onchange="renderTableView()" style="accent-color:var(--accent);cursor:pointer;">
+                        ⚠️ Stale only
+                    </label>
                     <button onclick="exportTableCSV()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer;margin-left:auto;">Export CSV</button>
                     <span id="tv-count" style="font-size:12px;color:var(--muted);white-space:nowrap;"></span>
                   </div>
@@ -864,6 +1100,24 @@
                     <div class="modal-section">
                         <div class="modal-section-title">Due Date</div>
                         <input type="date" class="contact-input" id="due-date-input" onchange="updateDueDate()" style="margin-bottom:0;">
+                    </div>
+
+                    <!-- Log Activity Quick Actions -->
+                    <div class="activity-log-section" id="activity-log-section">
+                        <div class="activity-log-title">Log Activity</div>
+                        <div class="activity-log-buttons">
+                            <button class="activity-log-btn" onclick="openActivityForm('Email')">📧 Email</button>
+                            <button class="activity-log-btn" onclick="openActivityForm('Call')">📞 Call</button>
+                            <button class="activity-log-btn" onclick="openActivityForm('Note')">📝 Note</button>
+                            <button class="activity-log-btn" onclick="openActivityForm('Demo')">🎥 Demo</button>
+                            <button class="activity-log-btn" onclick="openActivityForm('Meeting')">🤝 Meeting</button>
+                            <button class="activity-log-btn" onclick="openActivityForm('Follow-up Scheduled')">📅 Follow-up Scheduled</button>
+                        </div>
+                        <div class="activity-log-form" id="activity-log-form">
+                            <span class="activity-log-type-badge" id="activity-log-type"></span>
+                            <input type="text" class="activity-log-input" id="activity-log-input" placeholder="Add a note…" onkeydown="if(event.key==='Enter')saveActivityLog()">
+                            <button class="card-modal-save" onclick="saveActivityLog()" style="padding:8px 14px;">Save</button>
+                        </div>
                     </div>
 
                     <div class="modal-section">
@@ -1064,8 +1318,43 @@ let currentEditingCardData = null;
 let isApplyingRemoteUpdate = false;
 let saveTimeout = null;
 let hasLoadedInitialState = false;
+let selectedCards = new Set();
+let isBulkMode = false;
+let currentActivityType = '';
 
 const syncState = { status: 'synced', lastSyncedAt: null, errorMessage: '' };
+
+// ── Stale Lead Detection ─────────────────────────────
+function isStaleCard(card) {
+    if (card.priority !== 'hot') return false;
+    const now = Date.now();
+    const THREE_DAYS = 3 * 24 * 60 * 60 * 1000;
+    if (card.lastActivity) {
+        const last = new Date(card.lastActivity).getTime();
+        return (now - last) > THREE_DAYS;
+    }
+    // Fallback: check emailDate as proxy for last contact
+    if (card.emailDate) {
+        const emailDate = new Date(card.emailDate).getTime();
+        return (now - emailDate) > THREE_DAYS;
+    }
+    // No activity data at all — treat as stale for hot leads
+    return false;
+}
+
+function computeStaleCount() {
+    return Object.values(cardsData).filter(isStaleCard).length;
+}
+
+function updateStaleBadge() {
+    const count = computeStaleCount();
+    const badge = document.getElementById('stale-count-badge');
+    const countEl = document.getElementById('stale-count');
+    if (badge && countEl) {
+        countEl.textContent = count;
+        badge.style.display = count > 0 ? 'inline-flex' : 'none';
+    }
+}
 
 function setSyncState(status, { errorMessage = '', syncedAt = null } = {}) {
     syncState.status = status;
@@ -1208,13 +1497,19 @@ function hydrateAssigneeModal() {
         const opt = document.createElement('div');
         opt.className = 'profile-option';
         opt.innerHTML = `<span class="avatar" style="background:${profile.gradient};">${profile.initials}</span><div class="profile-info"><span class="profile-name">${name}</span></div>`;
-        opt.onclick = () => setAssignee(name, profile.initials);
+        opt.onclick = () => {
+            if (window._bulkAssignPending) applyBulkAssign(name, profile.initials);
+            else setAssignee(name, profile.initials);
+        };
         container.appendChild(opt);
     });
     const unassigned = document.createElement('div');
     unassigned.className = 'profile-option';
     unassigned.innerHTML = `<span class="avatar" style="background:#4b5563;">–</span><div class="profile-info"><span class="profile-name">Flow AI (unassigned)</span></div>`;
-    unassigned.onclick = () => setAssignee('','');
+    unassigned.onclick = () => {
+        if (window._bulkAssignPending) applyBulkAssign('', '');
+        else setAssignee('','');
+    };
     container.appendChild(unassigned);
 }
 
@@ -1296,6 +1591,7 @@ function markBoardReady() {
     document.body.classList.remove('board-loading');
     const el = document.getElementById('board-loading');
     if (el) el.remove();
+    updateStaleBadge();
     loadViewMode();
 }
 
@@ -1351,12 +1647,12 @@ async function saveBoardStateNow() {
     await saveBoardState(true);
 }
 
-function refreshBoard() { initBoardStructure(); renderAllCards(); updateCardCount(); updateFlowMap(); }
+function refreshBoard() { initBoardStructure(); renderAllCards(); updateCardCount(); updateFlowMap(); updateStaleBadge(); }
 
-// Delegated click on board — opens card modal when any card is clicked
+// Delegated click on board — opens card modal when any card is clicked (but not checkbox)
 document.addEventListener('click', e => {
     const card = e.target.closest('.card');
-    if (card && card.dataset.cardId) { e.stopPropagation(); openCardModal(card.dataset.cardId); }
+    if (card && card.dataset.cardId && !e.target.classList.contains('card-checkbox')) { e.stopPropagation(); openCardModal(card.dataset.cardId); }
 });
 
 // ── Render Card ────────────────────────────────────
@@ -1370,6 +1666,8 @@ function renderCard(cardData) {
     let priorityClass = 'card';
     if (cardData.listId === 'done') priorityClass = 'card priority-done';
     else if (cardData.priority) priorityClass = 'card priority-'+cardData.priority;
+    // Add stale class for hot leads with no recent activity
+    if (isStaleCard(cardData)) priorityClass += ' card-stale';
     card.className = priorityClass;
     card.draggable = true; card.dataset.cardId = cardData.id; card.id = 'card-'+cardData.id;
 
@@ -1402,6 +1700,10 @@ function renderCard(cardData) {
     }
 
     card.innerHTML = `
+        <div class="card-checkbox-wrap">
+            <input type="checkbox" class="card-checkbox" data-id="${cardData.id}" onclick="handleCardCheckbox(event, '${cardData.id}')">
+        </div>
+        ${isStaleCard(cardData) ? '<span class="stale-badge" style="position:absolute;top:8px;left:8px;z-index:3;">⚠️</span>' : ''}
         <div class="card-labels">${labelsHtml}</div>
         ${leadMetaHtml}
         <div class="card-content">${escapeHtml(cardData.title)}</div>
@@ -1413,7 +1715,6 @@ function renderCard(cardData) {
 
     card.addEventListener('dragstart', drag);
     card.addEventListener('dragend', dragEnd);
-    card.onclick = () => openCardModal(cardData.id);
 
     let tX=0, tY=0;
     card.addEventListener('touchstart', e=>{tX=e.touches[0].clientX;tY=e.touches[0].clientY;},{passive:true});
@@ -1604,13 +1905,55 @@ function renderChecklist() {
 function renderActivity() {
     const c = document.getElementById('modal-activity');
     if (!currentEditingCardData.activity?.length) { c.innerHTML='<span style="color:var(--muted);font-size:12px;font-family:var(--font-mono);">Nothing yet</span>'; return; }
-    c.innerHTML = currentEditingCardData.activity.map(act=>{
+
+    // Group activities by date
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const groups = { today: [], yesterday: [], older: [] };
+    currentEditingCardData.activity.forEach(act => {
+        const d = new Date(act.time);
+        d.setHours(0,0,0,0);
+        if (d.getTime() === today.getTime()) groups.today.push(act);
+        else if (d.getTime() === yesterday.getTime()) groups.yesterday.push(act);
+        else groups.older.push(act);
+    });
+
+    const formatDateLabel = (d) => {
+        d.setHours(0,0,0,0);
+        if (d.getTime() === today.getTime()) return 'Today';
+        if (d.getTime() === yesterday.getTime()) return 'Yesterday';
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    };
+
+    const renderActivityItem = (act) => {
         const p = profiles[act.user]||{gradient:'#9ca3af',initials:act.initials||'?'};
+        // Extract emoji from action if present
+        const emojiMatch = act.action.match(/^([\u{1F300}-\u{1F9FF}])\s/);
+        const emojiHtml = emojiMatch ? `<span class="activity-emoji">${emojiMatch[0].trim()}</span>` : '';
+        const actionText = emojiMatch ? act.action.replace(/^[\u{1F300}-\u{1F9FF}]\s/, '') : act.action;
         return `<div class="activity-item">
             <span class="activity-avatar" style="background:${p.gradient};">${act.initials||'?'}</span>
-            <div><div class="activity-text"><strong>${act.user}</strong> ${act.action}</div><div class="activity-time">${timeAgo(new Date(act.time))}</div></div>
+            <div><div class="activity-text"><strong>${act.user}</strong> ${emojiHtml}${actionText}</div><div class="activity-time">${timeAgo(new Date(act.time))}</div></div>
         </div>`;
-    }).join('');
+    };
+
+    let html = '';
+    if (groups.today.length) {
+        html += `<div class="activity-group-date">Today</div>`;
+        groups.today.forEach(act => { html += renderActivityItem(act); });
+    }
+    if (groups.yesterday.length) {
+        html += `<div class="activity-group-date">Yesterday</div>`;
+        groups.yesterday.forEach(act => { html += renderActivityItem(act); });
+    }
+    if (groups.older.length) {
+        html += `<div class="activity-group-date">Older</div>`;
+        groups.older.forEach(act => { html += renderActivityItem(act); });
+    }
+    c.innerHTML = html;
 }
 
 // ── Draft Reply ─────────────────────────────────────
@@ -1769,8 +2112,49 @@ function addActivity(action) {
     if (!currentEditingCardData) return;
     currentEditingCardData.activity = Array.isArray(currentEditingCardData.activity)?currentEditingCardData.activity:[];
     currentEditingCardData.activity.unshift({user:currentProfile.name,initials:currentProfile.initials,action,time:new Date().toISOString()});
+    currentEditingCardData.lastActivity = new Date().toISOString();
     renderActivity();
 }
+
+// ── Activity Log Quick Actions ────────────────────────
+const activityEmojiMap = {
+    'Email': '📧', 'Call': '📞', 'Note': '📝', 'Demo': '🎥',
+    'Meeting': '🤝', 'Follow-up Scheduled': '📅'
+};
+
+function openActivityForm(type) {
+    currentActivityType = type;
+    const form = document.getElementById('activity-log-form');
+    const typeBadge = document.getElementById('activity-log-type');
+    const input = document.getElementById('activity-log-input');
+    if (form && typeBadge && input) {
+        typeBadge.textContent = `${activityEmojiMap[type] || '📋'} ${type}`;
+        form.classList.add('active');
+        input.value = '';
+        input.focus();
+    }
+}
+
+function saveActivityLog() {
+    if (!currentEditingCardData || !currentActivityType) return;
+    const input = document.getElementById('activity-log-input');
+    const note = input ? input.value.trim() : '';
+    const emoji = activityEmojiMap[currentActivityType] || '📋';
+    const action = note ? `${emoji} ${currentActivityType}: ${note}` : `${emoji} ${currentActivityType}`;
+    currentEditingCardData.activity = Array.isArray(currentEditingCardData.activity) ? currentEditingCardData.activity : [];
+    currentEditingCardData.activity.unshift({ user: currentProfile.name, initials: currentProfile.initials, action, time: new Date().toISOString() });
+    currentEditingCardData.lastActivity = new Date().toISOString();
+    renderActivity();
+    updateStaleBadge();
+    // Close form
+    const form = document.getElementById('activity-log-form');
+    if (form) form.classList.remove('active');
+    currentActivityType = '';
+    queueSaveBoardState();
+}
+
+window.openActivityForm = openActivityForm;
+window.saveActivityLog = saveActivityLog;
 
 // ── Assignee / Due Date / Labels ───────────────────
 function changeAssignee() { document.getElementById('assignee-modal').classList.add('active'); }
@@ -1781,6 +2165,211 @@ function setAssignee(name,initials) {
     document.getElementById('assignee-modal').classList.remove('active');
     saveBoardStateNow(); updateCardCount(); updateFlowMap();
 }
+
+// ── Bulk Actions ─────────────────────────────────────
+function handleCardCheckbox(event, cardId) {
+    event.stopPropagation();
+    toggleCardSelection(cardId);
+}
+
+function toggleCardSelection(cardId) {
+    if (selectedCards.has(cardId)) {
+        selectedCards.delete(cardId);
+    } else {
+        selectedCards.add(cardId);
+    }
+    updateBulkUI();
+}
+
+function clearSelection() {
+    selectedCards.clear();
+    updateBulkUI();
+}
+
+function selectAll() {
+    const visibleCards = Object.values(cardsData).filter(c => {
+        const el = document.getElementById('card-' + c.id);
+        return el && el.style.display !== 'none';
+    });
+    visibleCards.forEach(c => selectedCards.add(c.id));
+    updateBulkUI();
+}
+
+function updateBulkUI() {
+    const count = selectedCards.size;
+    const toolbar = document.getElementById('bulk-toolbar');
+    const countEl = document.getElementById('bulk-count');
+
+    if (countEl) countEl.textContent = count;
+    if (toolbar) {
+        if (count > 0) {
+            toolbar.classList.add('active');
+            document.body.classList.add('bulk-mode');
+        } else {
+            toolbar.classList.remove('active');
+            document.body.classList.remove('bulk-mode');
+        }
+    }
+
+    // Update Kanban card checkboxes
+    document.querySelectorAll('.card-checkbox').forEach(cb => {
+        const id = cb.dataset.id;
+        const card = document.getElementById('card-' + id);
+        if (selectedCards.has(id)) {
+            cb.checked = true;
+            if (card) card.classList.add('selected');
+        } else {
+            cb.checked = false;
+            if (card) card.classList.remove('selected');
+        }
+    });
+
+    // Update table view rows
+    if (isTableView) {
+        document.querySelectorAll('#tv-tbody tr').forEach(row => {
+            const cid = row.dataset.cid;
+            if (selectedCards.has(cid)) {
+                row.classList.add('tv-row-selected');
+                const cb = row.querySelector('.tv-row-checkbox');
+                if (cb) cb.checked = true;
+            } else {
+                row.classList.remove('tv-row-selected');
+                const cb = row.querySelector('.tv-row-checkbox');
+                if (cb) cb.checked = false;
+            }
+        });
+        // Also show/hide bulk toolbar in table view
+        if (toolbar) {
+            if (count > 0) toolbar.classList.add('active');
+            else toolbar.classList.remove('active');
+        }
+    }
+}
+
+function bulkAssign() {
+    if (selectedCards.size === 0) return;
+    // Open the existing assignee modal - it will apply to the currently open card
+    // We need a different approach: store the selected cards and apply after modal closes
+    window._bulkAssignPending = true;
+    document.getElementById('assignee-modal').classList.add('active');
+}
+
+function applyBulkAssign(name, initials) {
+    if (!window._bulkAssignPending) return;
+    window._bulkAssignPending = false;
+    document.getElementById('assignee-modal').classList.remove('active');
+
+    selectedCards.forEach(id => {
+        const card = cardsData[id];
+        if (card) {
+            card.assignee = name;
+            card.activity = Array.isArray(card.activity) ? card.activity : [];
+            card.activity.unshift({ user: currentProfile.name, initials: currentProfile.initials, action: name ? `bulk assigned to ${name}` : 'bulk removed assignee', time: new Date().toISOString() });
+        }
+    });
+    saveBoardStateNow();
+    renderKanban();
+    renderTableView();
+    updateCardCount();
+    clearSelection();
+}
+
+async function bulkUpdatePriority(priority) {
+    if (!priority || selectedCards.size === 0) return;
+    selectedCards.forEach(id => {
+        const card = cardsData[id];
+        if (card) {
+            card.priority = priority;
+            card.activity = Array.isArray(card.activity) ? card.activity : [];
+            card.activity.unshift({ user: currentProfile.name, initials: currentProfile.initials, action: `bulk priority set to ${priority}`, time: new Date().toISOString() });
+        }
+    });
+    await saveBoardState(true);
+    renderKanban();
+    renderTableView();
+    updateStaleBadge();
+    clearSelection();
+}
+
+async function bulkMoveToList(listId) {
+    if (!listId || selectedCards.size === 0) return;
+    const listName = boardConfig.find(l => l.id === listId)?.title || listId;
+    selectedCards.forEach(id => {
+        const card = cardsData[id];
+        if (card) {
+            const oldListId = card.listId;
+            card.listId = listId;
+            card.activity = Array.isArray(card.activity) ? card.activity : [];
+            card.activity.unshift({ user: currentProfile.name, initials: currentProfile.initials, action: `bulk moved from ${boardConfig.find(l=>l.id===oldListId)?.title||oldListId} to ${listName}`, time: new Date().toISOString() });
+        }
+    });
+    await saveBoardState(true);
+    renderKanban();
+    renderTableView();
+    updateFlowMap();
+    clearSelection();
+}
+
+function bulkDelete() {
+    if (selectedCards.size === 0) return;
+    const count = selectedCards.size;
+    if (!confirm(`Delete ${count} card${count > 1 ? 's' : ''}? This cannot be undone.`)) return;
+
+    selectedCards.forEach(id => {
+        delete cardsData[id];
+        const el = document.getElementById('card-' + id);
+        if (el) el.remove();
+    });
+    saveBoardStateNow();
+    renderTableView();
+    updateCardCount();
+    updateFlowMap();
+    updateStaleBadge();
+    clearSelection();
+}
+
+function renderKanban() {
+    document.querySelectorAll('.cards-container').forEach(c => c.innerHTML = '');
+    Object.values(cardsData).sort((a, b) => {
+        const at = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bt = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return at - bt;
+    }).forEach(renderCard);
+    applyFilters();
+    updateBulkUI();
+}
+
+window.toggleCardSelection = toggleCardSelection;
+window.clearSelection = clearSelection;
+window.selectAll = selectAll;
+window.bulkAssign = bulkAssign;
+window.bulkUpdatePriority = bulkUpdatePriority;
+window.bulkMoveToList = bulkMoveToList;
+window.bulkDelete = bulkDelete;
+window.handleCardCheckbox = handleCardCheckbox;
+window.applyBulkAssign = applyBulkAssign;
+window.renderKanban = renderKanban;
+
+function handleTvRowCheckbox(event, cardId) {
+    event.stopPropagation();
+    toggleCardSelection(cardId);
+}
+
+function tvSelectAll(checked) {
+    if (checked) {
+        const rows = document.querySelectorAll('#tv-tbody tr');
+        rows.forEach(row => {
+            const cid = row.dataset.cid;
+            if (cid) selectedCards.add(cid);
+        });
+    } else {
+        clearSelection();
+    }
+    updateBulkUI();
+}
+
+window.handleTvRowCheckbox = handleTvRowCheckbox;
+window.tvSelectAll = tvSelectAll;
 function closeAssigneeModal(event) { if(event.target===document.getElementById('assignee-modal')) document.getElementById('assignee-modal').classList.remove('active'); }
 
 function updateDueDate() { const d=document.getElementById('due-date-input').value; currentEditingCardData.dueDate=d; addActivity(d?`set due date to ${d}`:'removed due date'); queueSaveBoardState(); renderCard(currentEditingCardData); }
@@ -2032,11 +2621,13 @@ function tvGetFiltered() {
     const stage=(document.getElementById('tv-stage')||{value:''}).value;
     const priority=(document.getElementById('tv-priority')||{value:''}).value;
     const fAssignee=(document.getElementById('tv-assignee')||{value:''}).value;
+    const staleOnly=(document.getElementById('tv-stale-only')||{checked:false}).checked;
     return Object.values(cardsData||{}).filter(c=>{
         if(q){const h=[c.contactName,c.title,c.email,c.businessName,c.description,c.phone,c.assignee].filter(Boolean).join(' ').toLowerCase();if(!h.includes(q))return false;}
         if(stage&&c.listId!==stage)return false;
         if(priority&&c.priority!==priority)return false;
         if(fAssignee&&c.assignee!==fAssignee)return false;
+        if(staleOnly&&!isStaleCard(c))return false;
         return true;
     });
 }
@@ -2067,16 +2658,19 @@ function renderTableView() {
     const th=document.getElementById('tv-thead');
     const tb=document.getElementById('tv-tbody');
     if(!th||!tb)return;
-    th.innerHTML=`<tr>${TV_COLS.map(c=>`<th data-k="${c.k}" style="min-width:${c.w}px;padding:7px 10px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;border-bottom:1px solid var(--border);cursor:pointer;white-space:nowrap;">${c.l}${tvSortKey===c.k?(tvSortAsc?' ▲':' ▼'):''}</th>`).join('')}</tr>`;
+    th.innerHTML=`<tr><th class="tv-th-checkbox"><input type="checkbox" id="tv-select-all" onchange="tvSelectAll(this.checked)" style="accent-color:var(--accent);cursor:pointer;width:15px;height:15px;"></th>${TV_COLS.map(c=>`<th data-k="${c.k}" style="min-width:${c.w}px;padding:7px 10px;text-align:left;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#94a3b8;border-bottom:1px solid var(--border);cursor:pointer;white-space:nowrap;">${c.l}${tvSortKey===c.k?(tvSortAsc?' ▲':' ▼'):''}</th>`).join('')}</tr>`;
     th.querySelectorAll('th').forEach(th2=>{th2.addEventListener('click',()=>{const k=th2.dataset.k;if(tvSortKey===k)tvSortAsc=!tvSortAsc;else{tvSortKey=k;tvSortAsc=(k==='priority')?false:true;}renderTableView();});});
-    if(sorted.length===0){tb.innerHTML=`<tr><td colspan="${TV_COLS.length}" style="text-align:center;padding:40px;color:var(--muted);">No leads match your filters</td></tr>`;return;}
+    if(sorted.length===0){tb.innerHTML=`<tr><td colspan="${TV_COLS.length+1}" style="text-align:center;padding:40px;color:var(--muted);">No leads match your filters</td></tr>`;return;}
     tb.innerHTML=sorted.map(c=>{
         const st=stageMap[c.listId]||{label:c.listId||'—',color:'#6b7280'};
         const act=tvLastAct(c);
         const isOverdue=c.dueDate&&new Date(c.dueDate)<new Date();
         const stageOpts=Object.entries(stageMap).map(([k,v])=>`<option value="${k}"${k===c.listId?' selected':''}>${v.label}</option>`).join('');
-        return`<tr style="border-bottom:1px solid var(--surface2);" data-cid="${c.id}">
-          <td style="padding:7px 10px;vertical-align:top;font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.contactName||c.title||'—')}</td>
+        const isStale = isStaleCard(c);
+        const rowClass = isStale ? 'tv-row-stale' : '';
+        return`<tr style="border-bottom:1px solid var(--surface2);" data-cid="${c.id}" class="${rowClass}">
+          <td class="tv-checkbox-cell" style="padding:7px 4px;vertical-align:top;"><input type="checkbox" class="tv-row-checkbox" data-id="${c.id}" onclick="handleTvRowCheckbox(event,'${c.id}')" style="accent-color:var(--accent);cursor:pointer;width:15px;height:15px;"></td>
+          <td style="padding:7px 10px;vertical-align:top;font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;${isStale?'color:#f87171;':''}" onclick="openCardModal('${c.id}')">${isStale?'⚠️ ':''}${escapeHtml(c.contactName||c.title||'—')}</td>
           <td style="padding:7px 10px;vertical-align:top;color:var(--muted);font-size:12px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.businessName||'—')}</td>
           <td style="padding:7px 10px;vertical-align:top;font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${c.email?`<a href="mailto:${c.email}" style="color:#4facfe;text-decoration:none;">${escapeHtml(c.email)}</a>`:'—'}</td>
           <td style="padding:7px 10px;vertical-align:top;font-size:12px;color:var(--muted);cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.phone||'—')}</td>
