@@ -1931,9 +1931,9 @@ function renderActivity() {
     const renderActivityItem = (act) => {
         const p = profiles[act.user]||{gradient:'#9ca3af',initials:act.initials||'?'};
         // Extract emoji from action if present
-        const emojiMatch = act.action.match(/^([\u{1F300}-\u{1F9FF}])\s/);
+        const emojiMatch = act.action.match(/^([^\s]+) /);
         const emojiHtml = emojiMatch ? `<span class="activity-emoji">${emojiMatch[0].trim()}</span>` : '';
-        const actionText = emojiMatch ? act.action.replace(/^[\u{1F300}-\u{1F9FF}]\s/, '') : act.action;
+        const actionText = emojiMatch ? act.action.replace(/^[^\s]+ /, '') : act.action;
         return `<div class="activity-item">
             <span class="activity-avatar" style="background:${p.gradient};">${act.initials||'?'}</span>
             <div><div class="activity-text"><strong>${act.user}</strong> ${emojiHtml}${actionText}</div><div class="activity-time">${timeAgo(new Date(act.time))}</div></div>
