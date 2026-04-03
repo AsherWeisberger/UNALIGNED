@@ -769,12 +769,6 @@
                       <option value="paid-out">Paid Out</option>
                       <option value="anything-else">Anything Else</option>
                     </select>
-                    <select id="tv-temp" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:13px;cursor:pointer;outline:none;" onchange="renderTableView()">
-                      <option value="">All Temps</option>
-                      <option value="hot">Hot</option>
-                      <option value="warm">Warm</option>
-                      <option value="cold">Cold</option>
-                    </select>
                     <select id="tv-priority" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:13px;cursor:pointer;outline:none;" onchange="renderTableView()">
                       <option value="">All Priority</option>
                       <option value="high">High</option>
@@ -1981,19 +1975,6 @@ const stageMap = { 'discovery':{label:'LEAD IN',color:'#94a3b8'},'build':{label:
 const avatarGradients = { 'Asher W':'linear-gradient(135deg,#4facfe,#00f2fe)','Robert S':'linear-gradient(135deg,#f093fb,#f5576c)','Sam L':'linear-gradient(135deg,#667eea,#764ba2)' };
 function tvInitials(n){if(!n)return'?';return n.split(' ').map(x=>x[0]).join('').toUpperCase().slice(0,2);}
 function tvGradient(n){return avatarGradients[n]||'linear-gradient(135deg,#6b7280,#4b5563)';}
-function tvParseTemp(c){
-    const s=Number(c.score||c.temperature);
-    if(!isNaN(s)){
-        if(s>=60)return{label:s+' Hot',cls:'color:#f87171'};
-        if(s>=40)return{label:s+' Warm',cls:'color:#fbbf24'};
-        return{label:s+' Cold',cls:'color:#60a5fa'};
-    }
-    const p=(c.priority||'').toLowerCase();
-    if(p==='hot')return{label:'🔥 Hot',cls:'color:#f87171'};
-    if(p==='warm')return{label:'🌡️ Warm',cls:'color:#fbbf24'};
-    if(p==='cold')return{label:'❄️ Cold',cls:'color:#60a5fa'};
-    return{label:'—',cls:''};
-}
 function tvFormatDate(iso){if(!iso)return'';const d=new Date(iso);const n=new Date();const m=Math.floor((n-d)/6e4);if(m<1)return'Just now';if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';return Math.floor(h/24)+'d ago';}
 function fmtEmailDate(d){if(!d)return'';if(/^\d{1,2}\/\d{1,2}$/.test(d))return d;const p=d.substring(0,10).split('-');return`${p[1]}/${p[2]}`;}
 function tvLastAct(card){if(!card.activity||!card.activity.length)return'No activity';const l=card.activity[card.activity.length-1];return`${l.user}: ${l.action} (${tvFormatDate(l.time)})`;}
@@ -2005,7 +1986,6 @@ const TV_COLS = [
   {k:'email',        l:'Email',        w:200},
   {k:'phone',        l:'Phone',       w:120},
   {k:'listId',       l:'Stage',        w:110},
-  {k:'score',        l:'Temp',         w:70},
   {k:'estimatedValue',l:'Deal Value', w:100},
   {k:'priority',     l:'Priority',     w:80},
   {k:'_assignee',   l:'Assignee',     w:120},
@@ -2042,7 +2022,6 @@ function toggleTableView() {
 function tvGetFiltered() {
     const q=(document.getElementById('tv-search')||{value:''}).value.toLowerCase();
     const stage=(document.getElementById('tv-stage')||{value:''}).value;
-    const temp=(document.getElementById('tv-temp')||{value:''}).value;
     const priority=(document.getElementById('tv-priority')||{value:''}).value;
     const fAssignee=(document.getElementById('tv-assignee')||{value:''}).value;
     return Object.values(cardsData||{}).filter(c=>{
@@ -2050,12 +2029,6 @@ function tvGetFiltered() {
         if(stage&&c.listId!==stage)return false;
         if(priority&&c.priority!==priority)return false;
         if(fAssignee&&c.assignee!==fAssignee)return false;
-        if(temp){
-            const s=Number(c.score||c.temperature)||0;
-            if(temp==='hot'&&s<60)return false;
-            if(temp==='warm'&&(s<40||s>=60))return false;
-            if(temp==='cold'&&s>=40)return false;
-        }
         return true;
     });
 }
@@ -2090,7 +2063,6 @@ function renderTableView() {
     if(sorted.length===0){tb.innerHTML=`<tr><td colspan="${TV_COLS.length}" style="text-align:center;padding:40px;color:var(--muted);">No leads match your filters</td></tr>`;return;}
     tb.innerHTML=sorted.map(c=>{
         const st=stageMap[c.listId]||{label:c.listId||'—',color:'#6b7280'};
-        const tm=tvParseTemp(c);
         const act=tvLastAct(c);
         const isOverdue=c.dueDate&&new Date(c.dueDate)<new Date();
         const stageOpts=Object.entries(stageMap).map(([k,v])=>`<option value="${k}"${k===c.listId?' selected':''}>${v.label}</option>`).join('');
@@ -2100,7 +2072,6 @@ function renderTableView() {
           <td style="padding:7px 10px;vertical-align:top;font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${c.email?`<a href="mailto:${c.email}" style="color:#4facfe;text-decoration:none;">${escapeHtml(c.email)}</a>`:'—'}</td>
           <td style="padding:7px 10px;vertical-align:top;font-size:12px;color:var(--muted);cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.phone||'—')}</td>
           <td style="padding:7px 10px;vertical-align:top;cursor:default;" onclick="event.stopPropagation()"><select onchange="moveCardToList('${c.id}',this.value);this.value='${c.listId}';" style="background:${st.color}22;color:${st.color};border:1px solid ${st.color}55;border-radius:10px;padding:2px 6px;font-size:10px;font-weight:700;text-transform:uppercase;cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;">${stageOpts}</select></td>
-          <td style="padding:7px 10px;vertical-align:top;font-size:12px;font-weight:700;${tm.cls};cursor:pointer;" onclick="openCardModal('${c.id}')">${tm.label}</td>
           <td style="padding:7px 10px;vertical-align:top;font-weight:600;color:#34d399;font-size:12px;cursor:pointer;" onclick="openCardModal('${c.id}')">$${Number(c.estimatedValue||0).toLocaleString()}</td>
           <td style="padding:7px 10px;vertical-align:top;font-size:11px;font-weight:700;${c.priority==='hot'?'color:#ef4444':c.priority==='warm'?'color:#f59e0b':'color:#3b82f6'};cursor:pointer;" onclick="openCardModal('${c.id}')">${(c.priority||'—').toUpperCase()}</td>
           <td style="padding:7px 10px;vertical-align:top;font-size:12px;cursor:default;" onclick="event.stopPropagation()"><div style="display:flex;align-items:center;gap:6px;">${c.assignee?`<span style="width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;flex-shrink:0;background:${tvGradient(c.assignee)}">${tvInitials(c.assignee)}</span><span>${escapeHtml(c.assignee)}</span>`:'—'}</div></td>
@@ -2116,8 +2087,8 @@ function renderTableView() {
 
 function exportTableCSV() {
     const cards=tvGetFiltered();
-    const hdrs=['Contact Name','Business','Email','Phone','Stage','Temperature','Score','Deal Value','Priority','Assignee','Source','Due','Title','Notes','Last Activity','Received'];
-    const rows=cards.map(c=>[c.contactName||c.title||'',c.businessName||'',c.email||'',c.phone||'',stageMap[c.listId]?.label||c.listId||'',tvParseTemp(c.score||c.temperature).label,c.score||c.temperature||'',c.estimatedValue||'',c.priority||'',c.assignee||'',c.leadSource||'',c.dueDate||'',(c.title||'').replace(/"/g,'""'),(c.description||'').replace(/"/g,'""'),tvLastAct(c).replace(/"/g,'""'),tvDate(c)]);
+    const hdrs=['Contact Name','Business','Email','Phone','Stage','Deal Value','Priority','Assignee','Source','Due','Title','Notes','Last Activity','Received'];
+    const rows=cards.map(c=>[c.contactName||c.title||'',c.businessName||'',c.email||'',c.phone||'',stageMap[c.listId]?.label||c.listId||'',c.estimatedValue||'',c.priority||'',c.assignee||'',c.leadSource||'',c.dueDate||'',(c.title||'').replace(/"/g,'""'),(c.description||'').replace(/"/g,'""'),tvLastAct(c).replace(/"/g,'""'),tvDate(c)]);
     const csv=[hdrs,...rows].map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
     const b=new Blob([csv],{type:'text/csv'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=`flow-leads-${new Date().toISOString().split('T')[0]}.csv`;a.click();URL.revokeObjectURL(u);
 }
