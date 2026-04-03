@@ -1036,26 +1036,26 @@
 <div id="app">
 
     <!-- ─── LOGIN MODAL ─────────────────────────────────── -->
-    <div class="modal-overlay active" id="login-modal">
+    <div class="modal-overlay active" <div id="login-modal">
         <div class="login-container">
             <h2 class="login-logo">FLOW</h2>
             <p class="login-subtitle">// enter your password to continue</p>
             <div class="login-users">
-                <div class="login-user" data-user="Sam L" data-password="2" onclick="selectLoginUser(this)">
+                <div class="login-user" data-user="Sam L" data-password="2">
                     <span class="avatar" style="background: linear-gradient(135deg, #667eea, #764ba2);">SL</span>
                     <span>Sam L</span>
                 </div>
-                <div class="login-user" data-user="Robert S" data-password="1" onclick="selectLoginUser(this)">
+                <div class="login-user" data-user="Robert S" data-password="1">
                     <span class="avatar" style="background: linear-gradient(135deg, #f093fb, #f5576c);">RS</span>
                     <span>Robert S</span>
                 </div>
-                <div class="login-user selected" data-user="Asher W" data-password="3" onclick="selectLoginUser(this)">
+                <div class="login-user selected" data-user="Asher W" data-password="3">
                     <span class="avatar" style="background: linear-gradient(135deg, #11998e, #38ef7d);">AW</span>
                     <span>Asher W</span>
                 </div>
             </div>
-            <input type="password" class="login-input" id="login-password" placeholder="Password" onkeydown="if(event.key==='Enter'){var p=document.getElementById('login-password').value;if(p===window.selectedUser.password){window.isLoggedIn=true;document.getElementById('login-modal').style.display='none';var a=document.getElementById('main-app');a.style.display='flex';a.style.flexDirection='column';a.style.height='100%';a.style.overflow='hidden';document.getElementById('current-avatar').textContent=window.selectedUser.initials;document.getElementById('current-profile-name').textContent=window.selectedUser.name;if(typeof loadState==='function')loadState();}else{document.getElementById('login-error').textContent='Incorrect password';}}">
-            <button class="login-btn" onclick="var p=document.getElementById('login-password').value;if(p===window.selectedUser.password){window.isLoggedIn=true;document.getElementById('login-modal').style.display='none';var a=document.getElementById('main-app');a.style.display='flex';a.style.flexDirection='column';a.style.height='100%';a.style.overflow='hidden';document.getElementById('current-avatar').textContent=window.selectedUser.initials;document.getElementById('current-profile-name').textContent=window.selectedUser.name;if(typeof loadState==='function')loadState();}else{document.getElementById('login-error').textContent='Incorrect password';}}">Enter</button>
+            <input type="password" class="login-input" id="login-password" placeholder="Password">
+            <button class="login-btn" id="login-submit-btn">Enter</button>
             <p class="login-error" id="login-error"></p>
         </div>
     </div>
@@ -3267,6 +3267,16 @@ window.loginSelectUser = selectLoginUser;
 window.loginCheck = checkLogin;
 window.loginTry = attemptLogin;
 window.loginSelectedUser = selectedUser;
+
+// Set up login modal event listeners (no inline handlers needed)
+document.querySelectorAll('.login-user').forEach(el => {
+    el.addEventListener('click', () => selectLoginUser(el));
+});
+const loginInput = document.getElementById('login-password');
+const loginBtn = document.getElementById('login-submit-btn');
+if (loginInput) loginInput.addEventListener('keydown', e => checkLogin(e));
+if (loginBtn) loginBtn.addEventListener('click', () => attemptLogin());
+
 </script>
 </body>
 </html>
