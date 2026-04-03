@@ -34,7 +34,7 @@
             --font-mono:    'DM Mono', monospace;
         }
 
-        html { overscroll-behavior: none; height: 100%; }
+        html { overscroll-behavior: none; height: 100%; scroll-behavior: auto; }
 
         body {
             font-family: var(--font-body);
@@ -1005,6 +1005,9 @@ function selectLoginUser(el) {
 
 function checkLogin(event) { if (event.key === 'Enter') attemptLogin(); }
 
+// Disable browser scroll restoration so we control scroll position
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+
 function attemptLogin() {
     if (document.getElementById('login-password').value === selectedUser.password) {
         isLoggedIn = true;
@@ -1512,6 +1515,7 @@ function openCardModal(cardId) {
     modal.classList.add('active'); modal.style.display='flex';
     overlay.scrollTop = 0;
     window.scrollTo(0, 0, { behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
 
     document.getElementById('modal-card-title').value = currentEditingCardData.title;
     document.getElementById('modal-description').value = currentEditingCardData.description||'';
