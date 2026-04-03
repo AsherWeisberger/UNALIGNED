@@ -2240,9 +2240,8 @@ function copyDraft() {
 }
 
 async function regenerateDraft() {
-    console.log('regenerateDraft called, currentEditingCardData:', !!currentEditingCardData);
-    if (!currentEditingCardData) { console.log('no card data'); return; }
-    const key = getOpenAIKey();
+    if (!currentEditingCardData) return;
+    const key = await getOpenAIKey();
     if (!key) {
         const err = document.getElementById('draft-error');
         err.textContent = '⚠️ No API key set. Enter it when prompted on load.';
@@ -2260,10 +2259,11 @@ async function regenerateDraft() {
 
     try {
         const card = currentEditingCardData;
+        const key = await getOpenAIKey();
         const res = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${getOpenAIKey()}`,
+                'Authorization': `Bearer ${key}`,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
@@ -2390,7 +2390,7 @@ async function regenerateEmailDraft() {
     try {
         // Reuse regenerateDraft logic but update composer fields
         const card = currentEditingCardData;
-        const key = getOpenAIKey();
+        const key = await getOpenAIKey();
         if (!key) {
             const errEl = document.getElementById('email-server-error');
             if (errEl) { errEl.textContent = '⚠️ No API key. Enter it when prompted on load.'; errEl.style.display = 'block'; }
