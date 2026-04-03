@@ -2449,7 +2449,7 @@ async function sendEmail() {
 
     try {
         const threadId = currentEditingCardData.threadId || null;
-        const resp = await fetch('https://installing-evaluations-makeup-list.trycloudflare.com/send', {
+        const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ to, subject, body, threadId })
