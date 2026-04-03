@@ -1794,7 +1794,7 @@ function loadState() {
         isApplyingRemoteUpdate = true;
         try {
             if (!docSnap.exists()) {
-                if (docSnap.metadata?.fromCache) return;
+                console.log('[loadState] doc does not exist in Firestore, using defaults');
                 cardsData = JSON.parse(JSON.stringify(defaultCardsData));
                 cardIdCounter = deriveNextCardId(cardsData);
                 boardConfig = JSON.parse(JSON.stringify(defaultBoardConfig));
