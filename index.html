@@ -1473,7 +1473,7 @@ let isLoggedIn = false;
 function selectLoginUser(el) {
     document.querySelectorAll('.login-user').forEach(u => u.classList.remove('selected'));
     el.classList.add('selected');
-    window.selectedUser = { name: el.dataset.user, initials: el.dataset.user.split('').map(n=>n[0]).join(''), password: el.dataset.password };
+    window.selectedUser = { name: el.dataset.user, initials: el.dataset.user.split(' ').map(n=>n[0]).join(''), password: el.dataset.password };
     document.getElementById('login-password').value = '';
     document.getElementById('login-error').textContent = '';
 }
