@@ -1846,6 +1846,7 @@ async function saveBoardState(force=false) {
     if (syncState.status !== 'error') setSyncState('saving');
     try {
         // Preserve emailDate from current Firestore state so old JS can't strip it
+        console.log('saveBoardState typeof boardDocRef:', typeof boardDocRef, typeof boardDocRef?.get, boardDocRef?.constructor?.name);
         const snap = await boardDocRef.get();
         const remote = snap.data()?.cards || {};
         const toSave = {};
