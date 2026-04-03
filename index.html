@@ -1511,6 +1511,7 @@ function openCardModal(cardId) {
     overlay.classList.add('active'); overlay.style.display='flex';
     modal.classList.add('active'); modal.style.display='flex';
     overlay.scrollTop = 0;
+    window.scrollTo(0, 0, { behavior: 'instant' });
 
     document.getElementById('modal-card-title').value = currentEditingCardData.title;
     document.getElementById('modal-description').value = currentEditingCardData.description||'';
