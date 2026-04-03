@@ -1915,6 +1915,8 @@ function markBoardReady() {
     if (el) el.remove();
     updateStaleBadge();
     loadViewMode();
+    // Preload email cache for card modal
+    preloadEmailCache();
 }
 
 function queueSaveBoardState() {
@@ -2151,8 +2153,31 @@ function openCardModal(cardId) {
     document.getElementById('due-date-input').value = currentEditingCardData.dueDate||'';
     renderChecklist(); renderActivity(); renderAssignee();
     renderDraftReply();
-    renderOriginalEmail();
-    renderThread();
+
+    // Show loading state while we fetch email body from subcollection
+    const origSection = document.getElementById('original-email-section');
+    const origCard = document.getElementById('original-email-card');
+    if (origSection && origCard) {
+        // Check both inline ref AND subcollection cache
+        const hasRef = currentEditingCardData.originalEmail?.from;
+        const hasCache = window._emailCacheSet?.has(cardId);
+        if (hasRef || hasCache) {
+            origSection.style.display = 'block';
+            origCard.innerHTML = '<div class="email-body" style="color:var(--muted);font-style:italic;">Loading email...</div>';
+        } else {
+            origSection.style.display = 'none';
+        }
+    }
+
+    // Fetch email body from subcollection if cached ref OR just card ID in subcollection
+    loadOriginalEmailBody(cardId).then(enriched => {
+        if (enriched) {
+            currentEditingCardData.originalEmail = enriched;
+        }
+        renderOriginalEmail();
+        renderThread();
+    });
+
     overlay.classList.add('active');
     // Scroll modal body to top on open
     requestAnimationFrame(() => {
@@ -2163,6 +2188,66 @@ function openCardModal(cardId) {
             }
         });
     });
+}
+
+// Track which card IDs have email data in subcollection (preloaded at startup)
+let _emailCacheSet = null;
+
+// Preload the set of card IDs that have email data in subcollection
+async function preloadEmailCache() {
+    try {
+        const snap = await db.collection('boards/shared-board/_email_data').select('__name__').get();
+        _emailCacheSet = new Set();
+        snap.forEach(d => _emailCacheSet.add(d.id));
+        console.log('[emailCache] Preloaded', _emailCacheSet.size, 'email IDs');
+    } catch(e) {
+        console.warn('[emailCache] Failed to preload:', e.message);
+        _emailCacheSet = new Set();
+    }
+}
+
+// Fetch full email body from _email_data subcollection
+async function loadOriginalEmailBody(cardId) {
+    // If we already have full email data inline, return as-is
+    const card = cardsData[cardId];
+    const orig = card?.originalEmail;
+    if (orig?.body) return orig;
+
+    // If card has cached ref, try to enrich from subcollection
+    if (orig?.cached === true) {
+        try {
+            const snap = await db.collection('boards/shared-board/_email_data').doc(cardId).get();
+            if (snap.exists) {
+                return { ...orig, ...snap.data() };
+            }
+        } catch(e) {
+            console.warn('Failed to load email body for', cardId, e);
+        }
+    }
+
+    // If card has no originalEmail at all but subcollection has data, fetch it
+    if (!orig) {
+        try {
+            const snap = await db.collection('boards/shared-board/_email_data').doc(cardId).get();
+            if (snap.exists) {
+                const data = snap.data();
+                return {
+                    cached: true,
+                    from: data.from || '',
+                    email: data.email || '',
+                    subject: data.subject || '',
+                    date: data.date || '',
+                    snippet: data.snippet || '',
+                    gmail_thread_id: data.gmail_thread_id || '',
+                    body: data.body || ''
+                };
+            }
+        } catch(e) {
+            console.warn('Failed to load email for', cardId, e);
+        }
+    }
+
+    return orig || null;
 }
 
 function saveCardAndClose() {
@@ -2648,7 +2733,7 @@ function renderOriginalEmail() {
             From: <span class="email-from">${escHtml(orig.from)}</span> &nbsp;|&nbsp; ${escHtml(orig.email || '')} &nbsp;|&nbsp; ${date}
         </div>
         <div class="email-subject">${escHtml(orig.subject || '(no subject)')}</div>
-        <div class="email-body">${escHtml(orig.body || orig.snippet || '(no body)')}</div>
+        <div class="email-body">${escHtml(orig.body || orig.snippet || '(email body loading or not available)')}</div>
     `;
 }
 
