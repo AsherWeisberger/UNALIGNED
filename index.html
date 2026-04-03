@@ -548,6 +548,185 @@
         .command-item-title { font-size: 14px; font-weight: 500; }
         .command-item-desc { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
 
+        /* ─── EMAIL COMPOSE MODAL ────────────────────────── */
+        .email-compose-modal {
+            background: var(--surface);
+            border-radius: var(--radius);
+            width: 600px;
+            max-width: 95vw;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border2);
+            box-shadow: var(--shadow-lg);
+            max-height: 85vh;
+        }
+        .email-compose-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+        .email-compose-title {
+            font-family: var(--font-display);
+            font-size: 16px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .email-compose-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            font-family: var(--font-mono);
+            color: var(--muted2);
+        }
+        .email-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--muted);
+        }
+        .email-status-dot.draft { background: #9ca3af; }
+        .email-status-dot.sending { background: #fbbf24; }
+        .email-status-dot.sent { background: #34d399; }
+        .email-status-dot.error { background: #f87171; }
+        .email-compose-body {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            overflow-y: auto;
+            flex: 1;
+        }
+        .email-field-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+        }
+        .email-field-label {
+            color: var(--muted2);
+            font-family: var(--font-mono);
+            font-size: 12px;
+            min-width: 60px;
+        }
+        .email-field-input {
+            flex: 1;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: var(--surface2);
+            color: var(--text);
+            font-size: 13px;
+            font-family: var(--font-body);
+        }
+        .email-field-input:focus { outline: none; border-color: var(--accent); }
+        .email-field-input[readonly] { opacity: 0.7; cursor: default; }
+        .email-compose-body textarea {
+            width: 100%;
+            min-height: 200px;
+            border-radius: 8px;
+            padding: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: var(--surface2);
+            color: var(--text);
+            font-size: 13px;
+            resize: vertical;
+            font-family: var(--font-body);
+        }
+        .email-compose-body textarea:focus { outline: none; border-color: var(--accent); }
+        .email-compose-footer {
+            padding: 14px 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .email-compose-footer-left { display: flex; gap: 8px; }
+        .email-compose-footer-right { display: flex; gap: 8px; }
+        .email-server-error {
+            background: rgba(248,113,113,0.1);
+            border: 1px solid rgba(248,113,113,0.3);
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: #fca5a5;
+            font-size: 12px;
+            font-family: var(--font-mono);
+        }
+        .email-error-msg {
+            color: #f87171;
+            font-size: 12px;
+            font-family: var(--font-mono);
+        }
+        .email-send-btn {
+            padding: 9px 20px;
+            border-radius: 8px;
+            border: none;
+            background: linear-gradient(135deg, #34d399, #11998e);
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            font-family: var(--font-body);
+        }
+        .email-send-btn:hover:not(:disabled) { opacity: 0.9; }
+        .email-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .email-regen-btn {
+            padding: 9px 16px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.15);
+            background: transparent;
+            color: var(--text);
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-family: var(--font-body);
+        }
+        .email-regen-btn:hover:not(:disabled) { background: rgba(255,255,255,0.06); }
+        .email-regen-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .email-cancel-btn {
+            padding: 9px 16px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: transparent;
+            color: var(--muted2);
+            font-size: 13px;
+            cursor: pointer;
+            font-family: var(--font-body);
+        }
+        .email-cancel-btn:hover { background: rgba(255,255,255,0.05); }
+        /* Toast */
+        .email-toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #1a1a2e;
+            border: 1px solid #34d399;
+            border-radius: 10px;
+            padding: 12px 18px;
+            color: #34d399;
+            font-size: 13px;
+            font-weight: 500;
+            z-index: 9999;
+            animation: toastFade 3s ease forwards;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        }
+        .email-toast.error {
+            border-color: #f87171;
+            color: #f87171;
+        }
+        @keyframes toastFade {
+            0% { opacity: 0; transform: translateY(12px); }
+            10% { opacity: 1; transform: translateY(0); }
+            80% { opacity: 1; }
+            100% { opacity: 0; transform: translateY(-8px); }
+        }
+
         /* ─── CHAT MODAL ──────────────────────────────────── */
         .chat-modal {
             background: #0d0d0d; border-radius: 20px;
@@ -1133,7 +1312,8 @@
                         <div id="draft-loading" style="color:var(--muted);font-size:12px;font-family:var(--font-mono);display:none;">Generating…</div>
                         <div id="draft-empty" style="color:var(--muted);font-size:12px;font-family:var(--font-mono);">
                             No draft reply yet.
-                            <button class="sidebar-btn" onclick="regenerateDraft()" style="margin-top:10px;font-size:12px;display:block;">✨ Generate Draft</button>
+                            <button class="sidebar-btn" onclick="draftAndOpenComposer()" id="btn-draft-send" style="font-size:12px;background:rgba(52,211,153,0.12);color:#34d399;display:block;margin-top:10px;">✨ Draft &amp; Send</button>
+                            <button class="sidebar-btn" onclick="regenerateDraft()" style="margin-top:8px;font-size:12px;display:block;">✨ Generate Draft</button>
                         </div>
                         <div id="draft-content" style="display:none;">
                             <input type="text" class="contact-input" id="modal-draft-subject" placeholder="Subject line…" style="margin-bottom:8px;">
@@ -1141,6 +1321,7 @@
                             <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
                                 <button class="sidebar-btn" onclick="regenerateDraft()" id="btn-regen" style="font-size:12px;">🔄 Regenerate</button>
                                 <button class="sidebar-btn" onclick="copyDraft()" style="font-size:12px;">📋 Copy</button>
+                                <button class="sidebar-btn" onclick="openEmailComposer()" id="btn-send-email" style="font-size:12px;background:rgba(52,211,153,0.15);color:#34d399;">📤 Send Email</button>
                                 <select class="contact-input" id="modal-draft-status" style="font-size:12px;padding:6px 10px;">
                                     <option value="pending">Pending</option>
                                     <option value="drafted">Drafted</option>
@@ -1155,6 +1336,46 @@
                     <div class="modal-section" style="border-color:rgba(248,113,113,0.2);">
                         <button class="delete-card-btn" onclick="deleteCard()">🗑 Delete Card</button>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── EMAIL COMPOSE MODAL ──────────────────────────── -->
+    <div class="modal-overlay" id="email-compose-overlay" onclick="closeEmailCompose(event)">
+        <div class="email-compose-modal" id="email-compose-modal" onclick="event.stopPropagation()">
+            <div class="email-compose-header">
+                <div class="email-compose-title">
+                    ✉️ <span id="email-compose-contact"></span>
+                </div>
+                <div class="email-compose-status">
+                    <span class="email-status-dot draft" id="email-status-dot"></span>
+                    <span id="email-status-text">draft</span>
+                </div>
+            </div>
+            <div class="email-compose-body">
+                <div id="email-server-error" class="email-server-error" style="display:none;"></div>
+                <div class="email-field-row">
+                    <span class="email-field-label">To:</span>
+                    <input type="email" class="email-field-input" id="email-to" placeholder="recipient@example.com">
+                </div>
+                <div class="email-field-row">
+                    <span class="email-field-label">Subject:</span>
+                    <input type="text" class="email-field-input" id="email-subject" placeholder="Email subject…">
+                </div>
+                <div class="email-field-row" style="flex-direction:column;align-items:stretch;gap:6px;">
+                    <span class="email-field-label">Body:</span>
+                    <textarea id="email-body" placeholder="Write your email…"></textarea>
+                </div>
+                <div id="email-error-msg" class="email-error-msg" style="display:none;"></div>
+            </div>
+            <div class="email-compose-footer">
+                <div class="email-compose-footer-left">
+                    <button class="email-regen-btn" id="email-regen-btn" onclick="regenerateEmailDraft()">🔄 Regenerate</button>
+                </div>
+                <div class="email-compose-footer-right">
+                    <button class="email-cancel-btn" onclick="closeEmailCompose()">Cancel</button>
+                    <button class="email-send-btn" id="email-send-btn" onclick="sendEmail()">📤 Send Email</button>
                 </div>
             </div>
         </div>
@@ -2064,6 +2285,218 @@ async function regenerateDraft() {
         loading.style.display = 'none';
     }
 }
+
+// ── Email Composer ──────────────────────────────────
+
+let emailComposeCardId = null;
+
+function openEmailComposer() {
+    if (!currentEditingCardData) return;
+    emailComposeCardId = currentEditingCardData.id;
+    const card = currentEditingCardData;
+
+    // Pre-fill from card draft or modal fields
+    const subject = document.getElementById('modal-draft-subject')?.value || card.draft_reply?.subject || '';
+    const body = document.getElementById('modal-draft-body')?.value || card.draft_reply?.body || '';
+    const to = card.email || '';
+
+    document.getElementById('email-compose-contact').textContent = card.contactName || card.email || 'New Email';
+    document.getElementById('email-to').value = to;
+    document.getElementById('email-to').readOnly = false;
+    document.getElementById('email-subject').value = subject;
+    document.getElementById('email-body').value = body;
+
+    setEmailStatus('draft');
+    document.getElementById('email-error-msg').style.display = 'none';
+    document.getElementById('email-server-error').style.display = 'none';
+    setEmailButtonsDisabled(false);
+
+    document.getElementById('email-compose-overlay').classList.add('active');
+    document.getElementById('email-subject').focus();
+}
+
+function draftAndOpenComposer() {
+    if (!currentEditingCardData) return;
+    // If no draft exists, generate one then open composer
+    if (!currentEditingCardData.draft_reply?.subject && !currentEditingCardData.draft_reply?.body) {
+        regenerateDraft().then(() => {
+            setTimeout(openEmailComposer, 300);
+        });
+    } else {
+        openEmailComposer();
+    }
+}
+
+function closeEmailCompose(event) {
+    if (event && event.target !== event.currentTarget) return;
+    document.getElementById('email-compose-overlay').classList.remove('active');
+    emailComposeCardId = null;
+}
+
+function setEmailStatus(status) {
+    const dot = document.getElementById('email-status-dot');
+    const text = document.getElementById('email-status-text');
+    if (!dot || !text) return;
+    dot.className = 'email-status-dot ' + status;
+    const labels = { draft: 'draft', sending: 'sending…', sent: 'sent', error: 'error' };
+    text.textContent = labels[status] || status;
+}
+
+function setEmailButtonsDisabled(disabled) {
+    const sendBtn = document.getElementById('email-send-btn');
+    const regenBtn = document.getElementById('email-regen-btn');
+    if (sendBtn) sendBtn.disabled = disabled;
+    if (regenBtn) regenBtn.disabled = disabled;
+    if (sendBtn) sendBtn.textContent = disabled ? '⏳ Sending…' : '📤 Send Email';
+}
+
+function showEmailToast(message, isError) {
+    const existing = document.querySelector('.email-toast');
+    if (existing) existing.remove();
+    const toast = document.createElement('div');
+    toast.className = 'email-toast' + (isError ? ' error' : '');
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3100);
+}
+
+async function regenerateEmailDraft() {
+    if (!currentEditingCardData) return;
+    const regenBtn = document.getElementById('email-regen-btn');
+    const sendBtn = document.getElementById('email-send-btn');
+    if (regenBtn) { regenBtn.disabled = true; regenBtn.textContent = '⏳…'; }
+
+    try {
+        // Reuse regenerateDraft logic but update composer fields
+        const card = currentEditingCardData;
+        const key = getOpenAIKey();
+        if (!key) {
+            const errEl = document.getElementById('email-server-error');
+            if (errEl) { errEl.textContent = '⚠️ No API key. Enter it when prompted on load.'; errEl.style.display = 'block'; }
+            return;
+        }
+
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: 'gpt-4o-mini',
+                messages: [
+                    { role: 'system', content: 'You are a professional sales assistant. Always respond with valid JSON only.' },
+                    { role: 'user', content: `Draft a first-response email reply.\n\nSENDER INFO:\n- Name: ${card.contactName || 'Unknown'}\n- Email: ${card.email || 'Unknown'}\n- Business: ${card.businessName || 'Unknown'}\n- Source: ${card.leadSource || 'unknown'}\n- Priority: ${card.priority || 'warm'}\n\nCONTACT MESSAGE:\n${card.description || '(No description)'}\n\nRespond ONLY with JSON:\n{"subject": "email subject line", "body": "email body text"}\n\nRequirements:\n- Subject: concise, professional reply subject\n- Body: warm, personalized opening acknowledging their message; 2-3 short paragraphs; natural sign-off\n- No placeholders — write as if you know the person\n- Do NOT include any text outside the JSON.` }
+                ],
+                temperature: 0.7,
+                max_tokens: 600
+            })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error?.message || 'API error');
+
+        let text = data.choices[0].message.content;
+        if ("```json" in text) text = text.split("```json")[1].split("```")[0];
+        else if ("```" in text) text = text.split("```")[1].split("```")[0];
+        const reply = JSON.parse(text.trim());
+
+        document.getElementById('email-subject').value = reply.subject;
+        document.getElementById('email-body').value = reply.body;
+        // Also sync back to card
+        if (currentEditingCardData) {
+            currentEditingCardData.draft_reply = { subject: reply.subject, body: reply.body };
+            currentEditingCardData.draft_reply_status = 'drafted';
+        }
+        setEmailStatus('draft');
+        document.getElementById('email-error-msg').style.display = 'none';
+    } catch (e) {
+        const errEl = document.getElementById('email-error-msg');
+        if (errEl) { errEl.textContent = '⚠️ ' + e.message; errEl.style.display = 'block'; }
+        setEmailStatus('error');
+    } finally {
+        if (regenBtn) { regenBtn.disabled = false; regenBtn.textContent = '🔄 Regenerate'; }
+    }
+}
+
+async function sendEmail() {
+    if (!currentEditingCardData) return;
+    const to = document.getElementById('email-to')?.value?.trim();
+    const subject = document.getElementById('email-subject')?.value?.trim();
+    const body = document.getElementById('email-body')?.value?.trim();
+
+    if (!to) { showEmailToast('⚠️ Please enter a recipient email address.', true); return; }
+    if (!subject) { showEmailToast('⚠️ Please enter a subject.', true); return; }
+    if (!body) { showEmailToast('⚠️ Please enter a message body.', true); return; }
+
+    setEmailStatus('sending');
+    setEmailButtonsDisabled(true);
+    document.getElementById('email-error-msg').style.display = 'none';
+
+    try {
+        const threadId = currentEditingCardData.threadId || null;
+        const resp = await fetch('http://127.0.0.1:5000/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ to, subject, body, threadId })
+        });
+        const data = await resp.json();
+
+        if (data.error) {
+            throw new Error(data.error);
+        }
+
+        // Success
+        setEmailStatus('sent');
+        showEmailToast(`✅ Email sent to ${to}`);
+
+        // Update card
+        if (currentEditingCardData) {
+            if (data.messageId) currentEditingCardData.messageId = data.messageId;
+            if (data.threadId) currentEditingCardData.threadId = data.threadId;
+            currentEditingCardData.draft_reply_status = 'sent';
+
+            // Log activity
+            currentEditingCardData.activity = Array.isArray(currentEditingCardData.activity) ? currentEditingCardData.activity : [];
+            currentEditingCardData.activity.unshift({
+                user: currentProfile.name,
+                initials: currentProfile.initials,
+                action: `📧 Emailed: ${subject}`,
+                time: new Date().toISOString()
+            });
+            currentEditingCardData.lastActivity = new Date().toISOString();
+
+            // Sync draft status back to card modal
+            const modalStatus = document.getElementById('modal-draft-status');
+            if (modalStatus) modalStatus.value = 'sent';
+
+            const badge = document.getElementById('draft-status-badge');
+            if (badge) { badge.style.display = 'inline-block'; badge.className = 'draft-badge sent'; badge.textContent = 'sent'; }
+
+            queueSaveBoardState();
+        }
+
+        // Close after short delay
+        setTimeout(closeEmailCompose, 1500);
+
+    } catch (e) {
+        setEmailStatus('error');
+        const errEl = document.getElementById('email-error-msg');
+        if (errEl) {
+            if (e.message.includes('fetch') || e.message.includes('Failed') || e.message.includes('NetworkError')) {
+                errEl.innerHTML = '⚠️ Email server not running.<br>Start it with: <code style="background:rgba(255,255,255,0.1);padding:2px 6px;border-radius:4px;">python3 email_server.py</code>';
+            } else {
+                errEl.textContent = '⚠️ ' + e.message;
+            }
+            errEl.style.display = 'block';
+        }
+        setEmailButtonsDisabled(false);
+        showEmailToast('⚠️ Failed to send email: ' + e.message, true);
+    }
+}
+
+// Expose for onclick handlers
+window.openEmailComposer = openEmailComposer;
+window.closeEmailCompose = closeEmailCompose;
+window.draftAndOpenComposer = draftAndOpenComposer;
+window.regenerateEmailDraft = regenerateEmailDraft;
+window.sendEmail = sendEmail;
 
 function renderAssignee() {
     const c = document.getElementById('modal-assignee');
