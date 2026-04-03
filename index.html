@@ -2208,46 +2208,57 @@ async function preloadEmailCache() {
 
 // Fetch full email body from _email_data subcollection
 async function loadOriginalEmailBody(cardId) {
-    // If we already have full email data inline, return as-is
     const card = cardsData[cardId];
     const orig = card?.originalEmail;
+
+    // If we already have full email data inline (body present), return as-is
     if (orig?.body) return orig;
 
-    // If card has cached ref, try to enrich from subcollection
-    if (orig?.cached === true) {
-        try {
-            const snap = await db.collection('boards/shared-board/_email_data').doc(cardId).get();
-            if (snap.exists) {
-                return { ...orig, ...snap.data() };
-            }
-        } catch(e) {
-            console.warn('Failed to load email body for', cardId, e);
-        }
-    }
-
-    // If card has no originalEmail at all but subcollection has data, fetch it
-    if (!orig) {
+    // Card has originalEmail but no body — try subcollection for full data
+    if (orig) {
         try {
             const snap = await db.collection('boards/shared-board/_email_data').doc(cardId).get();
             if (snap.exists) {
                 const data = snap.data();
+                // Merge: keep existing ref fields, add body from subcollection
                 return {
                     cached: true,
-                    from: data.from || '',
-                    email: data.email || '',
-                    subject: data.subject || '',
-                    date: data.date || '',
-                    snippet: data.snippet || '',
-                    gmail_thread_id: data.gmail_thread_id || '',
+                    from: orig.from || data.from || '',
+                    email: orig.email || data.email || '',
+                    subject: orig.subject || data.subject || '',
+                    date: orig.date || data.date || '',
+                    snippet: orig.snippet || data.snippet || '',
+                    gmail_thread_id: orig.gmail_thread_id || data.gmail_thread_id || '',
                     body: data.body || ''
                 };
             }
         } catch(e) {
-            console.warn('Failed to load email for', cardId, e);
+            console.warn('Failed to load email body for', cardId, e.message);
         }
+        return orig; // return what we have if subcollection miss
     }
 
-    return orig || null;
+    // Card has no originalEmail at all — check subcollection directly
+    try {
+        const snap = await db.collection('boards/shared-board/_email_data').doc(cardId).get();
+        if (snap.exists) {
+            const data = snap.data();
+            return {
+                cached: true,
+                from: data.from || '',
+                email: data.email || '',
+                subject: data.subject || '',
+                date: data.date || '',
+                snippet: data.snippet || '',
+                gmail_thread_id: data.gmail_thread_id || '',
+                body: data.body || ''
+            };
+        }
+    } catch(e) {
+        console.warn('Failed to load email for', cardId, e.message);
+    }
+
+    return null;
 }
 
 function saveCardAndClose() {
