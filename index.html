@@ -1663,9 +1663,10 @@ function normalizeCardShape(card={}, fallbackId) {
         ...(card.estimatedValue !== undefined ? {estimatedValue:card.estimatedValue} : {}),
         ...(card.priority !== undefined ? {priority:card.priority} : {}),
         // Parse draft_reply from JSON string (pipeline saves as string) or keep as object
+        // Some cards have plain-text draft_reply — try parsing, fall back to null on error
         ...(card.draft_reply !== undefined ? {
             draft_reply: typeof card.draft_reply === 'string'
-                ? JSON.parse(card.draft_reply)
+                ? (()=>{ try{return JSON.parse(card.draft_reply);}catch(e){return null;} })()
                 : card.draft_reply
         } : {}),
         ...(card.draft_reply_status !== undefined ? {draft_reply_status:card.draft_reply_status} : {})
