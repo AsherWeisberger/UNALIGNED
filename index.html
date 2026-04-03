@@ -2270,7 +2270,7 @@ async function regenerateDraft() {
                 model: 'gpt-4o-mini',
                 messages: [
                     { role: 'system', content: 'You are a professional sales assistant. Always respond with valid JSON only.' },
-                    { role: 'user', content: `Draft a first-response email reply.\n\nSENDER INFO:\n- Name: ${card.contactName || 'Unknown'}\n- Email: ${card.email || 'Unknown'}\n- Business: ${card.businessName || 'Unknown'}\n- Source: ${card.leadSource || 'unknown'}\n- Priority: ${card.priority || 'warm'}\n\nCONTACT MESSAGE:\n${card.description || '(No description)'}\n\nRespond ONLY with JSON:\n{"subject": "email subject line", "body": "email body text", "status": "drafted"}\n\nRequirements:\n- Subject: concise, professional reply subject\n- Body: warm, personalized opening acknowledging their message; 2-3 short paragraphs; natural sign-off\n- No placeholders — write as if you know the person\n- Do NOT include any text outside the JSON.` }
+                    { role: 'user', content: `Draft a first-response email reply from Robert Scoble.\n\nSENDER INFO:\n- Name: ${card.contactName || 'Unknown'}\n- Email: ${card.email || 'Unknown'}\n- Business: ${card.businessName || 'Unknown'}\n- Source: ${card.leadSource || 'unknown'}\n- Priority: ${card.priority || 'warm'}\n\nCONTACT MESSAGE:\n${card.description || '(No description)'}\n\nRespond ONLY with JSON:\n{"subject": "email subject line", "body": "email body text", "status": "drafted"}\n\nRequirements:\n- Subject: concise, professional reply subject\n- Body: warm, personalized opening acknowledging their message; 2-3 short paragraphs; natural sign-off\n- IMPORTANT: The email body MUST end with this exact closing paragraph:\n  "I am copying my business partner, Sam Levin, on this thread as we explore opportunities together. Sam brings invaluable expertise and will be an important part of any collaboration we pursue."\n- Do NOT include any text outside the JSON.\n- No placeholders — write as if you know the person` }
                 ],
                 temperature: 0.7,
                 max_tokens: 600
@@ -2412,7 +2412,7 @@ async function regenerateEmailDraft() {
                 model: 'gpt-4o-mini',
                 messages: [
                     { role: 'system', content: 'You are a professional sales assistant. Always respond with valid JSON only.' },
-                    { role: 'user', content: `Draft a first-response email reply.\n\nSENDER INFO:\n- Name: ${card.contactName || 'Unknown'}\n- Email: ${card.email || 'Unknown'}\n- Business: ${card.businessName || 'Unknown'}\n- Source: ${card.leadSource || 'unknown'}\n- Priority: ${card.priority || 'warm'}\n\nCONTACT MESSAGE:\n${card.description || '(No description)'}\n\nRespond ONLY with JSON:\n{"subject": "email subject line", "body": "email body text"}\n\nRequirements:\n- Subject: concise, professional reply subject\n- Body: warm, personalized opening acknowledging their message; 2-3 short paragraphs; natural sign-off\n- No placeholders — write as if you know the person\n- Do NOT include any text outside the JSON.` }
+                    { role: 'user', content: `Draft a first-response email reply from Robert Scoble.\n\nSENDER INFO:\n- Name: ${card.contactName || 'Unknown'}\n- Email: ${card.email || 'Unknown'}\n- Business: ${card.businessName || 'Unknown'}\n- Source: ${card.leadSource || 'unknown'}\n- Priority: ${card.priority || 'warm'}\n\nCONTACT MESSAGE:\n${card.description || '(No description)'}\n\nRespond ONLY with JSON:\n{"subject": "email subject line", "body": "email body text"}\n\nRequirements:\n- Subject: concise, professional reply subject\n- Body: warm, personalized opening acknowledging their message; 2-3 short paragraphs; natural sign-off\n- IMPORTANT: The email body MUST end with this exact closing paragraph:\n  "I am copying my business partner, Sam Levin, on this thread as we explore opportunities together. Sam brings invaluable expertise and will be an important part of any collaboration we pursue."\n- Do NOT include any text outside the JSON.\n- No placeholders — write as if you know the person` }
                 ],
                 temperature: 0.7,
                 max_tokens: 600
@@ -2471,7 +2471,7 @@ async function sendEmail() {
         const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ to, subject, body, threadId })
+            body: JSON.stringify({ to, subject, body, threadId, cc: 'UnalignedX@gmail.com' })
         });
         const data = await resp.json();
 
