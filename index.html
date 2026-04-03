@@ -492,6 +492,38 @@
         .draft-badge.approved   { background: rgba(52,211,153,0.15); color: #34d399; }
         .draft-badge.sent      { background: rgba(52,211,153,0.25); color: #34d399; }
 
+        .original-email-card {
+            background: rgba(251,191,36,0.06);
+            border: 1px solid rgba(251,191,36,0.2);
+            border-radius: 8px;
+            padding: 12px 14px;
+            font-size: 13px;
+        }
+        .original-email-card .email-meta { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+        .original-email-card .email-from { color: #fbbf24; font-weight: 600; }
+        .original-email-card .email-subject { color: var(--text-dim); margin-bottom: 8px; font-style: italic; }
+        .original-email-card .email-body { font-size: 12px; line-height: 1.5; white-space: pre-wrap; max-height: 120px; overflow-y: auto; }
+
+        .thread-item {
+            border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+        }
+        .thread-item.from-robert { border-left: 3px solid #34d399; }
+        .thread-item.from-sam { border-left: 3px solid #63b3ed; }
+        .thread-item.from-lead { border-left: 3px solid #fbbf24; }
+        .thread-direction {
+            font-size: 10px; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.5px;
+            padding: 1px 6px; border-radius: 3px;
+        }
+        .thread-direction.robert { background: rgba(52,211,153,0.15); color: #34d399; }
+        .thread-direction.sam { background: rgba(99,179,237,0.15); color: #63b3ed; }
+        .thread-direction.lead { background: rgba(251,191,36,0.15); color: #fbbf24; }
+        .thread-time { color: var(--muted); font-size: 10px; }
+        .thread-body { white-space: pre-wrap; line-height: 1.5; max-height: 150px; overflow-y: auto; color: var(--text-dim); font-size: 11px; margin-top: 6px; }
+
         #draft-reply-section { border-color: rgba(91,140,255,0.2); }
 
         /* Checklist */
@@ -1261,6 +1293,12 @@
                         <textarea class="description-textarea" id="modal-description" placeholder="Add details…"></textarea>
                     </div>
 
+                    <!-- Original Lead Email -->
+                    <div class="modal-section" id="original-email-section" style="display:none;">
+                        <div class="modal-section-title">📥 Original Lead Email</div>
+                        <div class="original-email-card" id="original-email-card"></div>
+                    </div>
+
                     <div class="modal-section">
                         <div class="modal-section-title">Checklist</div>
                         <div class="checklist-items" id="modal-checklist"></div>
@@ -1281,6 +1319,29 @@
                         <input type="date" class="contact-input" id="due-date-input" onchange="updateDueDate()" style="margin-bottom:0;">
                     </div>
 
+                    <!-- Sam's Draft -->
+                    <div class="modal-section" id="sam-draft-section">
+                        <div class="modal-section-title" style="display:flex;align-items:center;gap:8px;">
+                            ✉️ Sam Levin's Draft
+                            <span style="font-size:11px;color:var(--muted);font-weight:400;">via UnalignedX</span>
+                            <span id="sam-draft-badge" class="draft-badge" style="display:none;"></span>
+                        </div>
+                        <div id="sam-draft-loading" style="color:var(--muted);font-size:12px;font-family:var(--font-mono);display:none;">Generating…</div>
+                        <div id="sam-draft-empty">
+                            <p style="color:var(--muted);font-size:12px;font-family:var(--font-mono);margin:0 0 10px;">Sam Levin responds after the initial outreach.</p>
+                            <button class="sidebar-btn" onclick="generateSamDraft()" style="font-size:12px;background:rgba(99,179,237,0.12);color:#63b3ed;display:block;">✨ Generate Sam's Draft</button>
+                        </div>
+                        <div id="sam-draft-content" style="display:none;">
+                            <textarea class="description-textarea" id="sam-draft-body" placeholder="Sam's reply…" style="min-height:100px;resize:vertical;"></textarea>
+                            <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+                                <button class="sidebar-btn" onclick="generateSamDraft()" style="font-size:12px;">🔄 Regenerate</button>
+                                <button class="sidebar-btn" onclick="copySamDraft()" style="font-size:12px;">📋 Copy</button>
+                                <button class="sidebar-btn" onclick="sendSamEmail()" style="font-size:12px;background:rgba(99,179,237,0.15);color:#63b3ed;">📤 Send as Sam</button>
+                            </div>
+                            <div id="sam-email-error" style="color:#fc8181;font-size:12px;display:none;margin-top:8px;"></div>
+                        </div>
+                    </div>
+
                     <!-- Log Activity Quick Actions -->
                     <div class="activity-log-section" id="activity-log-section">
                         <div class="activity-log-title">Log Activity</div>
@@ -1297,6 +1358,18 @@
                             <input type="text" class="activity-log-input" id="activity-log-input" placeholder="Add a note…" onkeydown="if(event.key==='Enter')saveActivityLog()">
                             <button class="card-modal-save" onclick="saveActivityLog()" style="padding:8px 14px;">Save</button>
                         </div>
+                    </div>
+
+                    <!-- Email Thread -->
+                    <div class="modal-section" id="thread-section" style="display:none;">
+                        <div class="modal-section-title" style="display:flex;align-items:center;gap:8px;">
+                            💬 Email Thread
+                            <span id="thread-count" style="font-size:11px;color:var(--muted);"></span>
+                        </div>
+                        <div id="thread-empty" style="color:var(--muted);font-size:12px;font-family:var(--font-mono);">
+                            No emails in thread yet. Send the first draft to start the chain.
+                        </div>
+                        <div id="thread-list"></div>
                     </div>
 
                     <div class="modal-section">
@@ -2078,6 +2151,8 @@ function openCardModal(cardId) {
     document.getElementById('due-date-input').value = currentEditingCardData.dueDate||'';
     renderChecklist(); renderActivity(); renderAssignee();
     renderDraftReply();
+    renderOriginalEmail();
+    renderThread();
     overlay.classList.add('active');
     // Scroll modal body to top on open
     requestAnimationFrame(() => {
@@ -2489,6 +2564,31 @@ async function sendEmail() {
             if (data.threadId) currentEditingCardData.threadId = data.threadId;
             currentEditingCardData.draft_reply_status = 'sent';
 
+            // Add to email thread
+            if (!currentEditingCardData.thread) currentEditingCardData.thread = [];
+            currentEditingCardData.thread.push({
+                direction: 'robert',
+                from: 'Robert Scoble',
+                to: to,
+                subject: subject,
+                body: body,
+                date: new Date().toISOString()
+            });
+
+            // Auto-move to IN PROGRESS if still in LEAD IN
+            const inProgressList = boardConfig.find(l => l.title === 'IN PROGRESS');
+            if (inProgressList && currentEditingCardData.listId !== inProgressList.id) {
+                currentEditingCardData.listId = inProgressList.id;
+                currentEditingCardData.activity = Array.isArray(currentEditingCardData.activity) ? currentEditingCardData.activity : [];
+                currentEditingCardData.activity.unshift({
+                    user: currentProfile.name,
+                    initials: currentProfile.initials,
+                    action: '🔄 Auto-moved to IN PROGRESS after sending email',
+                    time: new Date().toISOString()
+                });
+                renderBoard();
+            }
+
             // Log activity
             currentEditingCardData.activity = Array.isArray(currentEditingCardData.activity) ? currentEditingCardData.activity : [];
             currentEditingCardData.activity.unshift({
@@ -2507,6 +2607,7 @@ async function sendEmail() {
             if (badge) { badge.style.display = 'inline-block'; badge.className = 'draft-badge sent'; badge.textContent = 'sent'; }
 
             queueSaveBoardState();
+            renderThread();
         }
 
         // Close after short delay
@@ -2528,12 +2629,210 @@ async function sendEmail() {
     }
 }
 
+// ── Original Lead Email ───────────────────────────────
+function renderOriginalEmail() {
+    const section = document.getElementById('original-email-section');
+    const card = document.getElementById('original-email-card');
+    if (!section || !card || !currentEditingCardData) return;
+
+    const orig = currentEditingCardData.originalEmail;
+    if (!orig || !orig.from) {
+        section.style.display = 'none';
+        return;
+    }
+
+    section.style.display = 'block';
+    const date = orig.date ? new Date(orig.date).toLocaleString() : '';
+    card.innerHTML = `
+        <div class="email-meta">
+            From: <span class="email-from">${escHtml(orig.from)}</span> &nbsp;|&nbsp; ${escHtml(orig.email || '')} &nbsp;|&nbsp; ${date}
+        </div>
+        <div class="email-subject">${escHtml(orig.subject || '(no subject)')}</div>
+        <div class="email-body">${escHtml(orig.body || orig.snippet || '(no body)')}</div>
+    `;
+}
+
+// ── Thread ──────────────────────────────────────────
+function renderThread() {
+    const section = document.getElementById('thread-section');
+    const empty = document.getElementById('thread-empty');
+    const list = document.getElementById('thread-list');
+    const count = document.getElementById('thread-count');
+    if (!section || !list || !currentEditingCardData) return;
+
+    const thread = currentEditingCardData.thread || [];
+    if (thread.length === 0) {
+        section.style.display = 'none';
+        return;
+    }
+
+    section.style.display = 'block';
+    empty.style.display = 'none';
+    count.textContent = `${thread.length} email${thread.length !== 1 ? 's' : ''}`;
+
+    list.innerHTML = thread.map(email => {
+        const dir = email.direction; // 'robert' | 'sam' | 'lead'
+        const label = dir === 'robert' ? 'Robert Scoble' : dir === 'sam' ? 'Sam Levin' : 'Lead';
+        const date = email.date ? new Date(email.date).toLocaleString() : '';
+        return `
+            <div class="thread-item from-${dir}">
+                <div class="thread-meta">
+                    <span class="thread-direction ${dir}">${escHtml(label)}</span>
+                    <span class="thread-time">${date}</span>
+                </div>
+                <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">To: ${escHtml(email.to || '')} &nbsp;|&nbsp; Subject: ${escHtml(email.subject || '')}</div>
+                <div class="thread-body">${escHtml(email.body || '')}</div>
+            </div>
+        `;
+    }).join('');
+}
+
+function escHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;');
+}
+
+// ── Sam's Draft ─────────────────────────────────────
+async function generateSamDraft() {
+    if (!currentEditingCardData) return;
+    const key = await getOpenAIKey();
+    if (!key) {
+        const err = document.getElementById('sam-email-error');
+        if (err) { err.textContent = '⚠️ No API key set.'; err.style.display = 'block'; }
+        return;
+    }
+
+    const loading = document.getElementById('sam-draft-loading');
+    const empty = document.getElementById('sam-draft-empty');
+    const content = document.getElementById('sam-draft-content');
+    const err = document.getElementById('sam-email-error');
+    if (err) err.style.display = 'none';
+
+    loading.style.display = 'block';
+    empty.style.display = 'none';
+
+    try {
+        const card = currentEditingCardData;
+        const thread = card.thread || [];
+
+        // Build thread context for the AI
+        let threadContext = '';
+        if (thread.length > 0) {
+            threadContext = '\n\nEMAIL THREAD SO FAR:\n' + thread.map(e => {
+                const from = e.direction === 'robert' ? 'Robert Scoble' : e.direction === 'sam' ? 'Sam Levin' : (card.contactName || 'Lead');
+                return `[${from}]: ${e.body || ''}`;
+            }).join('\n\n');
+        }
+
+        const res = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: 'gpt-4o-mini',
+                messages: [
+                    { role: 'system', content: 'You are Sam Levin, business partner at Unaligned. Be warm, professional, and concise. Always respond with valid JSON only.' },
+                    { role: 'user', content: `Draft an email reply as Sam Levin from UnalignedX@gmail.com.\n\nRECIPIENT:\n- Name: ${card.contactName || 'Unknown'}\n- Email: ${card.email || 'Unknown'}\n- Business: ${card.businessName || 'Unknown'}\n\nORIGINAL MESSAGE:\n${card.description || '(No message)'}${threadContext}\n\nRespond ONLY with JSON:\n{"body": "email body text"}\n\nRequirements:\n- Body: warm and professional; 2-3 short paragraphs; natural sign-off as Sam Levin\n- Sound like a trusted business partner, not a salesperson\n- Do NOT include any text outside the JSON\n- Do NOT generate a subject line (it stays on the original thread)` }
+                ],
+                temperature: 0.7,
+                max_tokens: 600
+            })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error?.message || 'API error');
+
+        const text = data.choices?.[0]?.message?.content || '';
+        let cleaned = text.replace(/^```json\s*/i,'').replace(/^```\s*/i,'').replace(/\s*```$/i,'').trim();
+        const reply = JSON.parse(cleaned);
+
+        currentEditingCardData.sam_draft_body = reply.body;
+
+        document.getElementById('sam-draft-body').value = reply.body;
+        const badge = document.getElementById('sam-draft-badge');
+        if (badge) { badge.style.display = 'inline-block'; badge.className = 'draft-badge drafted'; badge.textContent = 'drafted'; }
+        content.style.display = 'block';
+    } catch (e) {
+        if (err) { err.textContent = '⚠️ ' + e.message; err.style.display = 'block'; }
+        empty.style.display = 'block';
+    } finally {
+        loading.style.display = 'none';
+    }
+}
+
+function copySamDraft() {
+    const body = document.getElementById('sam-draft-body')?.value || '';
+    navigator.clipboard.writeText(body).then(() => {
+        showEmailToast('📋 Sam\'s draft copied!');
+    });
+}
+
+async function sendSamEmail() {
+    if (!currentEditingCardData) return;
+    const body = document.getElementById('sam-draft-body')?.value?.trim();
+    const to = currentEditingCardData.email;
+    const err = document.getElementById('sam-email-error');
+    if (err) err.style.display = 'none';
+
+    if (!body) {
+        if (err) { err.textContent = '⚠️ Draft is empty. Generate or write a reply first.'; err.style.display = 'block'; }
+        return;
+    }
+
+    try {
+        const subject = currentEditingCardData.draft_reply?.subject || '';
+        const threadId = currentEditingCardData.threadId || null;
+
+        const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ to, subject, body, threadId, from: 'sam' })
+        });
+        const data = await resp.json();
+        if (data.error) throw new Error(data.error);
+
+        // Add to thread
+        if (!currentEditingCardData.thread) currentEditingCardData.thread = [];
+        currentEditingCardData.thread.push({
+            direction: 'sam',
+            from: 'Sam Levin <UnalignedX@gmail.com>',
+            to: to,
+            subject: subject,
+            body: body,
+            date: new Date().toISOString()
+        });
+
+        // Log activity
+        currentEditingCardData.activity = Array.isArray(currentEditingCardData.activity) ? currentEditingCardData.activity : [];
+        currentEditingCardData.activity.unshift({
+            user: 'Sam L',
+            initials: 'SL',
+            action: '📧 Sent reply as Sam Levin',
+            time: new Date().toISOString()
+        });
+
+        queueSaveBoardState();
+        renderThread();
+
+        const badge = document.getElementById('sam-draft-badge');
+        if (badge) { badge.style.display = 'inline-block'; badge.className = 'draft-badge sent'; badge.textContent = 'sent'; }
+        showEmailToast('✅ Reply sent as Sam Levin');
+    } catch (e) {
+        if (err) { err.textContent = '⚠️ ' + e.message; err.style.display = 'block'; }
+    }
+}
+
 // Expose for onclick handlers
 window.openEmailComposer = openEmailComposer;
 window.closeEmailCompose = closeEmailCompose;
 window.draftAndOpenComposer = draftAndOpenComposer;
 window.regenerateEmailDraft = regenerateEmailDraft;
 window.sendEmail = sendEmail;
+window.generateSamDraft = generateSamDraft;
+window.copySamDraft = copySamDraft;
+window.sendSamEmail = sendSamEmail;
 
 function renderAssignee() {
     const c = document.getElementById('modal-assignee');
