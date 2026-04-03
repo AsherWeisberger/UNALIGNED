@@ -1161,7 +1161,8 @@ function normalizeCardsMap(rawCards={}, lists=defaultBoardConfig) {
         const fallbackId = Number.isFinite(Number(value?.id)) ? Number(value.id) : Number(key);
         const card = normalizeCardShape(value||{}, fallbackId);
         if (!listIds.has(card.listId)) card.listId = lists[0]?.id || card.listId;
-        normalized[card.id] = card;
+        // Use string key so numeric IDs stay consistent with Firestore map keys
+        normalized[String(card.id)] = card;
     });
     return normalized;
 }
@@ -1316,7 +1317,8 @@ async function saveBoardState(force=false) {
             if (remote[cid]?.emailDate && !merged.emailDate) {
                 merged.emailDate = remote[cid].emailDate;
             }
-            toSave[cid] = merged;
+            // Use string key to stay consistent with normalizeCardsMap
+            toSave[String(cid)] = merged;
         }
         await setDoc(boardDocRef, { cards:toSave, lists:boardConfig, cardIdCounter, updatedAt:serverTimestamp() });
         setSyncState('synced',{syncedAt:new Date()});
