@@ -1293,10 +1293,16 @@
                         <textarea class="description-textarea" id="modal-description" placeholder="Add details…"></textarea>
                     </div>
 
-                    <!-- Original Lead Email -->
-                    <div class="modal-section" id="original-email-section" style="display:none;">
-                        <div class="modal-section-title">📥 Original Lead Email</div>
-                        <div class="original-email-card" id="original-email-card"></div>
+                    <!-- Email Thread (includes original lead + all replies, oldest→newest) -->
+                    <div class="modal-section" id="thread-section" style="display:none;">
+                        <div class="modal-section-title" style="display:flex;align-items:center;gap:8px;">
+                            💬 Email Conversation
+                            <span id="thread-count" style="font-size:11px;color:var(--muted);"></span>
+                        </div>
+                        <div id="thread-empty" style="color:var(--muted);font-size:12px;font-family:var(--font-mono);display:none;">
+                            No emails in thread yet. Send the first draft to start the chain.
+                        </div>
+                        <div id="thread-list"></div>
                     </div>
 
                     <div class="modal-section">
@@ -1358,18 +1364,6 @@
                             <input type="text" class="activity-log-input" id="activity-log-input" placeholder="Add a note…" onkeydown="if(event.key==='Enter')saveActivityLog()">
                             <button class="card-modal-save" onclick="saveActivityLog()" style="padding:8px 14px;">Save</button>
                         </div>
-                    </div>
-
-                    <!-- Email Thread -->
-                    <div class="modal-section" id="thread-section" style="display:none;">
-                        <div class="modal-section-title" style="display:flex;align-items:center;gap:8px;">
-                            💬 Email Thread
-                            <span id="thread-count" style="font-size:11px;color:var(--muted);"></span>
-                        </div>
-                        <div id="thread-empty" style="color:var(--muted);font-size:12px;font-family:var(--font-mono);">
-                            No emails in thread yet. Send the first draft to start the chain.
-                        </div>
-                        <div id="thread-list"></div>
                     </div>
 
                     <div class="modal-section">
@@ -1536,8 +1530,8 @@ What would you like to know?</div>
 </div><!-- /#app -->
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js?v=2";
-import { getFirestore, doc, collection, onSnapshot, setDoc, getDoc, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js?v=2";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
+import { getFirestore, doc, collection, onSnapshot, setDoc, getDoc, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
 
 // ── Login ──────────────────────────────────────────
 window.selectedUser = { name: 'Asher W', initials: 'AW', password: '3' };
@@ -2155,26 +2149,27 @@ function openCardModal(cardId) {
     renderDraftReply();
 
     // Show loading state while we fetch email body from subcollection
-    const origSection = document.getElementById('original-email-section');
-    const origCard = document.getElementById('original-email-card');
-    if (origSection && origCard) {
-        // Check both inline ref AND subcollection cache
-        const hasRef = currentEditingCardData.originalEmail?.from;
-        const hasCache = window._emailCacheSet?.has(cardId);
-        if (hasRef || hasCache) {
-            origSection.style.display = 'block';
-            origCard.innerHTML = '<div class="email-body" style="color:var(--muted);font-style:italic;">Loading email...</div>';
-        } else {
-            origSection.style.display = 'none';
+    // We now show the original email as the first entry in the thread
+    const hasOrigRef = currentEditingCardData.originalEmail?.from;
+    const hasOrigCache = window._emailCacheSet?.has(cardId);
+    if (hasOrigRef || hasOrigCache) {
+        // Show thread section with loading indicator while we fetch
+        const threadSection = document.getElementById('thread-section');
+        const threadList = document.getElementById('thread-list');
+        const threadEmpty = document.getElementById('thread-empty');
+        const threadCount = document.getElementById('thread-count');
+        if (threadSection && threadList) {
+            threadSection.style.display = 'block';
+            threadCount.textContent = '(loading…)';
+            threadList.innerHTML = '<div style="color:var(--muted);font-size:12px;font-style:italic;">Loading email conversation…</div>';
         }
     }
 
-    // Fetch email body from subcollection if cached ref OR just card ID in subcollection
+    // Fetch email body from subcollection then render unified thread
     loadOriginalEmailBody(cardId).then(enriched => {
         if (enriched) {
             currentEditingCardData.originalEmail = enriched;
         }
-        renderOriginalEmail();
         renderThread();
     });
 
@@ -2726,30 +2721,8 @@ async function sendEmail() {
     }
 }
 
-// ── Original Lead Email ───────────────────────────────
-function renderOriginalEmail() {
-    const section = document.getElementById('original-email-section');
-    const card = document.getElementById('original-email-card');
-    if (!section || !card || !currentEditingCardData) return;
-
-    const orig = currentEditingCardData.originalEmail;
-    if (!orig || !orig.from) {
-        section.style.display = 'none';
-        return;
-    }
-
-    section.style.display = 'block';
-    const date = orig.date ? new Date(orig.date).toLocaleString() : '';
-    card.innerHTML = `
-        <div class="email-meta">
-            From: <span class="email-from">${escHtml(orig.from)}</span> &nbsp;|&nbsp; ${escHtml(orig.email || '')} &nbsp;|&nbsp; ${date}
-        </div>
-        <div class="email-subject">${escHtml(orig.subject || '(no subject)')}</div>
-        <div class="email-body">${escHtml(orig.body || orig.snippet || '(email body loading or not available)')}</div>
-    `;
-}
-
-// ── Thread ──────────────────────────────────────────
+// ── Email Thread ───────────────────────────────────
+// Renders unified conversation: original lead email FIRST, then replies, oldest→newest (scroll to top = oldest)
 function renderThread() {
     const section = document.getElementById('thread-section');
     const empty = document.getElementById('thread-empty');
@@ -2757,31 +2730,73 @@ function renderThread() {
     const count = document.getElementById('thread-count');
     if (!section || !list || !currentEditingCardData) return;
 
+    const orig = currentEditingCardData.originalEmail;
     const thread = currentEditingCardData.thread || [];
-    if (thread.length === 0) {
+
+    // Build unified list: original lead email as first entry, then replies
+    const allEmails = [];
+
+    // Add original lead email if available
+    if (orig && orig.from) {
+        allEmails.push({
+            direction: 'lead',
+            from: orig.from,
+            email: orig.email || '',
+            subject: orig.subject || '',
+            date: orig.date || null,
+            body: orig.body || orig.snippet || '',
+            isOriginal: true
+        });
+    }
+
+    // Add thread replies
+    thread.forEach(email => allEmails.push(email));
+
+    if (allEmails.length === 0) {
         section.style.display = 'none';
         return;
     }
 
+    // Sort by date (oldest first), null dates go to end
+    allEmails.sort((a, b) => {
+        if (!a.date && !b.date) return 0;
+        if (!a.date) return 1;
+        if (!b.date) return -1;
+        return new Date(a.date) - new Date(b.date);
+    });
+
     section.style.display = 'block';
     empty.style.display = 'none';
-    count.textContent = `${thread.length} email${thread.length !== 1 ? 's' : ''}`;
+    count.textContent = `${allEmails.length} email${allEmails.length !== 1 ? 's' : ''} · oldest → newest`;
 
-    list.innerHTML = thread.map(email => {
-        const dir = email.direction; // 'robert' | 'sam' | 'lead'
-        const label = dir === 'robert' ? 'Robert Scoble' : dir === 'sam' ? 'Sam Levin' : 'Lead';
-        const date = email.date ? new Date(email.date).toLocaleString() : '';
+    list.innerHTML = allEmails.map((email, i) => {
+        const dir = email.direction || 'lead';
+        const label = dir === 'robert' ? 'Robert Scoble' : dir === 'sam' ? 'Sam Levin' : (email.isOriginal ? '📥 Lead' : 'Lead');
+        const dateStr = email.date ? new Date(email.date).toLocaleString() : '';
+        const subject = email.subject || (email.isOriginal ? '(original inbound email)' : '');
+        const isFirst = i === 0;
+        const isLast = i === allEmails.length - 1;
+
         return `
-            <div class="thread-item from-${dir}">
+            <div class="thread-item from-${dir}" style="margin-top:${isFirst ? 0 : '12px'};">
+                ${isFirst ? '<div style="font-size:10px;color:var(--muted);margin-bottom:8px;opacity:0.6;">▼ scroll down for newest</div>' : ''}
+                ${!isLast ? '<div style="text-align:center;font-size:10px;color:var(--muted);opacity:0.3;margin:-6px 0 6px;">▼</div>' : ''}
                 <div class="thread-meta">
-                    <span class="thread-direction ${dir}">${escHtml(label)}</span>
-                    <span class="thread-time">${date}</span>
+                    <span class="thread-direction ${dir}" style="${email.isOriginal ? 'color:#fbbf24;' : ''}">${escHtml(label)}</span>
+                    ${email.isOriginal ? '<span style="font-size:10px;color:var(--muted);background:rgba(251,191,36,0.1);padding:1px 6px;border-radius:4px;">FIRST</span>' : ''}
+                    <span class="thread-time">${dateStr}</span>
                 </div>
-                <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">To: ${escHtml(email.to || '')} &nbsp;|&nbsp; Subject: ${escHtml(email.subject || '')}</div>
+                <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">${subject ? 'Subject: ' + escHtml(subject) : ''}</div>
                 <div class="thread-body">${escHtml(email.body || '')}</div>
+                ${isLast ? '<div style="font-size:10px;color:var(--muted);margin-top:8px;opacity:0.6;">▼ latest email</div>' : ''}
             </div>
         `;
     }).join('');
+
+    // Scroll to top so oldest email is immediately visible
+    requestAnimationFrame(() => {
+        list.scrollTop = 0;
+    });
 }
 
 function escHtml(str) {
