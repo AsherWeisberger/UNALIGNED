@@ -1537,7 +1537,7 @@ What would you like to know?</div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
-import { getFirestore, doc, onSnapshot, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
+import { getFirestore, doc, collection, onSnapshot, setDoc, getDoc, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
 
 // ── Login ──────────────────────────────────────────
 window.selectedUser = { name: 'Asher W', initials: 'AW', password: '3' };
@@ -2196,7 +2196,8 @@ let _emailCacheSet = null;
 // Preload the set of card IDs that have email data in subcollection
 async function preloadEmailCache() {
     try {
-        const snap = await db.collection('boards/shared-board/_email_data').select('__name__').get();
+        const emailColl = collection(db, 'boards/shared-board/_email_data');
+        const snap = await getDocs(emailColl);
         _emailCacheSet = new Set();
         snap.forEach(d => _emailCacheSet.add(d.id));
         console.log('[emailCache] Preloaded', _emailCacheSet.size, 'email IDs');
@@ -2217,8 +2218,8 @@ async function loadOriginalEmailBody(cardId) {
     // Card has originalEmail but no body — try subcollection for full data
     if (orig) {
         try {
-            const snap = await db.collection('boards/shared-board/_email_data').doc(cardId).get();
-            if (snap.exists) {
+            const snap = await getDoc(doc(db, 'boards/shared-board/_email_data', cardId));
+            if (snap.exists()) {
                 const data = snap.data();
                 // Merge: keep existing ref fields, add body from subcollection
                 return {
@@ -2240,8 +2241,8 @@ async function loadOriginalEmailBody(cardId) {
 
     // Card has no originalEmail at all — check subcollection directly
     try {
-        const snap = await db.collection('boards/shared-board/_email_data').doc(cardId).get();
-        if (snap.exists) {
+        const snap = await getDoc(doc(db, 'boards/shared-board/_email_data', cardId));
+        if (snap.exists()) {
             const data = snap.data();
             return {
                 cached: true,
