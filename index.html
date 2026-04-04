@@ -257,10 +257,57 @@
             display: flex; align-items: center; gap: 10px;
             padding: 14px 16px;
             background: var(--surface); border-radius: var(--radius);
+        }
+
+        /* ─── PIPELINE STATS BAR ─────────────────────────── */
+        .pipeline-bar {
+            display: flex; align-items: center; gap: 12px;
+            padding: 10px 16px;
+            background: var(--surface); border-radius: var(--radius);
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+            border: 1px solid rgba(52,211,153,0.15);
+        }
+        .pipeline-bar-label {
+            font-size: 11px; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.6px;
+            color: #34d399; white-space: nowrap;
+        }
+        .pipeline-bar-total {
+            font-size: 22px; font-weight: 800;
+            color: #34d399; line-height: 1;
+            font-family: var(--font-display);
+        }
+        .pipeline-bar-sub {
+            font-size: 11px; color: var(--muted);
+            font-family: var(--font-mono);
+        }
+        .pipeline-bar-platforms {
+            display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
+        }
+        .pipeline-platform-btn {
+            font-size: 11px; font-weight: 600;
+            padding: 3px 10px; border-radius: 20px;
             border: 1px solid var(--border);
-            margin-top: 16px;
-            width: max-content;
-            min-height: 60px;
+            background: var(--surface2); color: var(--text-dim);
+            cursor: pointer; transition: all 0.15s;
+            font-family: var(--font-mono);
+        }
+        .pipeline-platform-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .pipeline-platform-btn.active {
+            background: rgba(52,211,153,0.15);
+            border-color: #34d399; color: #34d399;
+        }
+        .pipeline-bar-empty {
+            font-size: 12px; color: var(--muted);
+            font-family: var(--font-mono);
+        }
+        .pipeline-bar-time {
+            margin-left: auto; font-size: 10px; color: var(--muted);
+            font-family: var(--font-mono); white-space: nowrap;
+        }
+        .pipeline-bar-loading {
+            font-size: 12px; color: var(--muted); font-style: italic;
         }
 
         .flow-node {
@@ -492,37 +539,63 @@
         .draft-badge.approved   { background: rgba(52,211,153,0.15); color: #34d399; }
         .draft-badge.sent      { background: rgba(52,211,153,0.25); color: #34d399; }
 
-        .original-email-card {
-            background: rgba(251,191,36,0.06);
-            border: 1px solid rgba(251,191,36,0.2);
-            border-radius: 8px;
-            padding: 12px 14px;
-            font-size: 13px;
-        }
-        .original-email-card .email-meta { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
-        .original-email-card .email-from { color: #fbbf24; font-weight: 600; }
-        .original-email-card .email-subject { color: var(--text-dim); margin-bottom: 8px; font-style: italic; }
-        .original-email-card .email-body { font-size: 12px; line-height: 1.5; white-space: pre-wrap; max-height: 120px; overflow-y: auto; }
+        /* Email Thread — clean, readable conversation view */
+        #thread-list { display: flex; flex-direction: column; gap: 0; }
 
-        .thread-item {
-            border: 1px solid rgba(255,255,255,0.07);
-            border-radius: 8px;
-            padding: 10px 12px;
+        .thread-email {
+            background: var(--surface2);
+            border-radius: 10px;
+            padding: 14px 16px;
+            border: 1px solid var(--border);
+            position: relative;
+        }
+        .thread-email + .thread-email { margin-top: 10px; }
+
+        /* Colored left border by sender */
+        .thread-email.from-lead  { border-left: 3px solid #fbbf24; }
+        .thread-email.from-robert { border-left: 3px solid #34d399; }
+        .thread-email.from-sam   { border-left: 3px solid #63b3ed; }
+
+        .thread-email-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
             margin-bottom: 8px;
+            flex-wrap: wrap;
         }
-        .thread-item.from-robert { border-left: 3px solid #34d399; }
-        .thread-item.from-sam { border-left: 3px solid #63b3ed; }
-        .thread-item.from-lead { border-left: 3px solid #fbbf24; }
-        .thread-direction {
-            font-size: 10px; font-weight: 600;
-            text-transform: uppercase; letter-spacing: 0.5px;
-            padding: 1px 6px; border-radius: 3px;
+        .thread-sender {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 2px 8px;
+            border-radius: 20px;
         }
-        .thread-direction.robert { background: rgba(52,211,153,0.15); color: #34d399; }
-        .thread-direction.sam { background: rgba(99,179,237,0.15); color: #63b3ed; }
-        .thread-direction.lead { background: rgba(251,191,36,0.15); color: #fbbf24; }
-        .thread-time { color: var(--muted); font-size: 10px; }
-        .thread-body { white-space: pre-wrap; line-height: 1.5; max-height: 150px; overflow-y: auto; color: var(--text-dim); font-size: 11px; margin-top: 6px; }
+        .thread-sender.lead  { background: rgba(251,191,36,0.15); color: #fbbf24; }
+        .thread-sender.robert { background: rgba(52,211,153,0.15); color: #34d399; }
+        .thread-sender.sam   { background: rgba(99,179,237,0.15); color: #63b3ed; }
+
+        .thread-timestamp {
+            font-size: 11px;
+            color: var(--muted);
+            font-family: var(--font-mono);
+        }
+        .thread-subject {
+            font-size: 12px;
+            color: var(--text-dim);
+            font-style: italic;
+            margin-bottom: 10px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .thread-body {
+            font-size: 13px;
+            line-height: 1.65;
+            color: var(--text);
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
 
         #draft-reply-section { border-color: rgba(91,140,255,0.2); }
 
@@ -1158,6 +1231,11 @@
                 <div id="board-loading" class="loading-state" role="status" aria-live="polite">Loading board…</div>
 
                 <section class="flow-map" id="flow-map" aria-label="Flow snapshot"></section>
+
+                <!-- Pipeline Stats Bar -->
+                <div class="pipeline-bar" id="pipeline-bar">
+                    <span class="pipeline-bar-loading">Loading pipeline stats…</span>
+                </div>
 
                 <!-- Bulk Actions Toolbar -->
                 <div class="bulk-toolbar" id="bulk-toolbar">
@@ -1878,7 +1956,7 @@ function loadState() {
                 cardIdCounter = deriveNextCardId(cardsData);
                 boardConfig = JSON.parse(JSON.stringify(defaultBoardConfig));
                 await saveBoardState(true);
-                refreshBoard(); markBoardReady(); setSyncState('synced',{syncedAt:new Date()});
+                refreshBoard(); markBoardReady(); setSyncState('synced',{syncedAt:new Date()}); loadPipelineStats();
                 return;
             }
             const payload = docSnap.data() || {};
@@ -1887,7 +1965,7 @@ function loadState() {
             cardsData = normalizeCardsMap(payload.cards, boardConfig);
             console.log('[loadState] normalized — cardsData keys:', Object.keys(cardsData).length);
             cardIdCounter = payload.cardIdCounter || deriveNextCardId(cardsData);
-            refreshBoard(); markBoardReady(); setSyncState('synced',{syncedAt:new Date()});
+            refreshBoard(); markBoardReady(); setSyncState('synced',{syncedAt:new Date()}); loadPipelineStats();
             console.log('[loadState] done');
         } catch(err) {
             console.error('[loadState] ERROR:', err.message, err.stack);
@@ -2722,7 +2800,7 @@ async function sendEmail() {
 }
 
 // ── Email Thread ───────────────────────────────────
-// Renders unified conversation: original lead email FIRST, then replies, oldest→newest (scroll to top = oldest)
+// Renders unified conversation: original lead email FIRST, then replies, oldest→newest
 function renderThread() {
     const section = document.getElementById('thread-section');
     const empty = document.getElementById('thread-empty');
@@ -2733,31 +2811,19 @@ function renderThread() {
     const orig = currentEditingCardData.originalEmail;
     const thread = currentEditingCardData.thread || [];
 
-    // Build unified list: original lead email as first entry, then replies
+    // Build unified list: original lead first, then replies
     const allEmails = [];
-
-    // Add original lead email if available
     if (orig && orig.from) {
-        allEmails.push({
-            direction: 'lead',
-            from: orig.from,
-            email: orig.email || '',
-            subject: orig.subject || '',
-            date: orig.date || null,
-            body: orig.body || orig.snippet || '',
-            isOriginal: true
-        });
+        allEmails.push({ direction: 'lead', from: orig.from, subject: orig.subject || '', date: orig.date || null, body: orig.body || orig.snippet || '', isOriginal: true });
     }
-
-    // Add thread replies
-    thread.forEach(email => allEmails.push(email));
+    thread.forEach(e => allEmails.push(e));
 
     if (allEmails.length === 0) {
         section.style.display = 'none';
         return;
     }
 
-    // Sort by date (oldest first), null dates go to end
+    // Sort oldest → newest
     allEmails.sort((a, b) => {
         if (!a.date && !b.date) return 0;
         if (!a.date) return 1;
@@ -2767,36 +2833,37 @@ function renderThread() {
 
     section.style.display = 'block';
     empty.style.display = 'none';
-    count.textContent = `${allEmails.length} email${allEmails.length !== 1 ? 's' : ''} · oldest → newest`;
+    const total = allEmails.length;
+    count.textContent = `${total} email${total !== 1 ? 's' : ''}`;
 
     list.innerHTML = allEmails.map((email, i) => {
         const dir = email.direction || 'lead';
-        const label = dir === 'robert' ? 'Robert Scoble' : dir === 'sam' ? 'Sam Levin' : (email.isOriginal ? '📥 Lead' : 'Lead');
-        const dateStr = email.date ? new Date(email.date).toLocaleString() : '';
-        const subject = email.subject || (email.isOriginal ? '(original inbound email)' : '');
+        const senderLabel = dir === 'robert' ? 'Robert Scoble' : dir === 'sam' ? 'Sam Levin' : 'Lead';
+        const date = email.date ? new Date(email.date) : null;
+        // Clean timestamp: "Mar 28 · 2:30 PM"
+        const dateStr = date ? date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+        const timeStr = date ? date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+        const fullDateStr = date ? date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+        const subject = email.subject || (email.isOriginal ? '' : '');
+
         const isFirst = i === 0;
         const isLast = i === allEmails.length - 1;
 
         return `
-            <div class="thread-item from-${dir}" style="margin-top:${isFirst ? 0 : '12px'};">
-                ${isFirst ? '<div style="font-size:10px;color:var(--muted);margin-bottom:8px;opacity:0.6;">▼ scroll down for newest</div>' : ''}
-                ${!isLast ? '<div style="text-align:center;font-size:10px;color:var(--muted);opacity:0.3;margin:-6px 0 6px;">▼</div>' : ''}
-                <div class="thread-meta">
-                    <span class="thread-direction ${dir}" style="${email.isOriginal ? 'color:#fbbf24;' : ''}">${escHtml(label)}</span>
-                    ${email.isOriginal ? '<span style="font-size:10px;color:var(--muted);background:rgba(251,191,36,0.1);padding:1px 6px;border-radius:4px;">FIRST</span>' : ''}
-                    <span class="thread-time">${dateStr}</span>
+            <div class="thread-email from-${dir}" id="thread-email-${i}">
+                <div class="thread-email-header">
+                    <span class="thread-sender ${dir}">${escHtml(senderLabel)}</span>
+                    <span class="thread-timestamp" title="${escHtml(fullDateStr)}">${escHtml(dateStr)}${dateStr && timeStr ? ' · ' : ''}${escHtml(timeStr)}</span>
+                    ${isLast && !email.isOriginal ? '<span style="font-size:10px;color:var(--accent);margin-left:4px;">← latest</span>' : ''}
                 </div>
-                <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">${subject ? 'Subject: ' + escHtml(subject) : ''}</div>
+                ${subject ? `<div class="thread-subject">${escHtml(subject)}</div>` : ''}
                 <div class="thread-body">${escHtml(email.body || '')}</div>
-                ${isLast ? '<div style="font-size:10px;color:var(--muted);margin-top:8px;opacity:0.6;">▼ latest email</div>' : ''}
             </div>
         `;
     }).join('');
 
-    // Scroll to top so oldest email is immediately visible
-    requestAnimationFrame(() => {
-        list.scrollTop = 0;
-    });
+    // Scroll to top (oldest email)
+    requestAnimationFrame(() => { list.scrollTop = 0; });
 }
 
 function escHtml(str) {
@@ -3432,6 +3499,120 @@ function updateFlowMap() {
         map.appendChild(node);
         if(i<boardConfig.length-1){const conn=document.createElement('div');conn.className='flow-connector';map.appendChild(conn);}
     });
+}
+
+// ── Pipeline Stats Bar ─────────────────────────────────────
+let pipelineStats = null;
+let pipelineSourceFilter = null; // null = all
+
+async function loadPipelineStats() {
+    const bar = document.getElementById('pipeline-bar');
+    if (!bar) return;
+    bar.innerHTML = '<span class="pipeline-bar-loading">Loading pipeline stats…</span>';
+
+    try {
+        const snap = await db.doc('boards/_pipeline_stats').get();
+        if (!snap.exists) {
+            bar.innerHTML = '<span class="pipeline-bar-empty">No pipeline runs yet. Run the Gmail pipeline to populate.</span>';
+            return;
+        }
+        const data = snap.data();
+        pipelineStats = data;
+
+        const lastRun = data.last_run || (data.runs && data.runs[data.runs.length - 1]);
+        renderPipelineBar(data, lastRun);
+    } catch(e) {
+        bar.innerHTML = '<span class="pipeline-bar-empty">Pipeline stats unavailable.</span>';
+    }
+}
+
+function renderPipelineBar(data, lastRun) {
+    const bar = document.getElementById('pipeline-bar');
+    if (!bar || !lastRun) { bar.innerHTML = '<span class="pipeline-bar-empty">No data.</span>'; return; }
+
+    // Aggregate from runs
+    const platforms = {};
+    let totalLeads = 0, totalImported = 0;
+    const byPlatform = lastRun.by_platform || {};
+    for (const [src, count] of Object.entries(byPlatform)) {
+        platforms[src] = (platforms[src] || 0) + count;
+        totalLeads += count;
+    }
+    // Fallback: use new_leads
+    if (totalLeads === 0 && lastRun.new_leads !== undefined) {
+        totalLeads = lastRun.new_leads;
+        totalImported = lastRun.imported || 0;
+        if (byPlatform.GMAIL !== undefined) {
+            platforms['GMAIL'] = byPlatform.GMAIL;
+        }
+    } else {
+        totalImported = lastRun.imported || 0;
+    }
+
+    // Unique platforms seen across all runs
+    const allPlatforms = new Set(['GMAIL']);
+    if (data.runs) {
+        data.runs.forEach(r => {
+            if (r.by_platform) Object.keys(r.by_platform).forEach(k => allPlatforms.add(k));
+        });
+    }
+
+    const activePlatforms = Object.keys(platforms).length > 0 ? platforms : (byPlatform || {'GMAIL': lastRun.new_leads || 0});
+    const sortedPlatforms = Object.keys(activePlatforms).sort();
+
+    const sourceButtons = sortedPlatforms.map(src => {
+        const count = activePlatforms[src] || 0;
+        const icon = {GMAIL:'📧',LINKEDIN:'💼',X:'🐦',REFERRAL:'🤝',WEBSITE:'🌐'}[src] || '📊';
+        const active = pipelineSourceFilter === src ? ' active' : '';
+        return `<button class="pipeline-platform-btn${active}" onclick="setPipelineSourceFilter('${src}')">${icon} ${src} (${count})</button>`;
+    }).join('');
+
+    const allActive = pipelineSourceFilter === null ? ' active' : '';
+    const allCount = sortedPlatforms.reduce((s, src) => s + (activePlatforms[src] || 0), 0);
+    const allBtns = `<button class="pipeline-platform-btn${allActive}" onclick="setPipelineSourceFilter(null)">📊 All (${allCount})</button>` + sourceButtons;
+
+    const runDate = lastRun.timestamp ? new Date(lastRun.timestamp) : null;
+    const timeStr = runDate
+        ? `Last run: ${runDate.toLocaleDateString()} ${runDate.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`
+        : '';
+
+    // Stats from last run
+    const emailsScraped = lastRun.emails_scraped || 0;
+    const leadsExtracted = lastRun.leads_extracted || 0;
+
+    bar.innerHTML = `
+        <span class="pipeline-bar-label">Pipeline</span>
+        <span class="pipeline-bar-total">${allCount}</span>
+        <span class="pipeline-bar-sub">leads</span>
+        <div class="pipeline-bar-platforms">${allBtns}</div>
+        <div style="font-size:11px;color:var(--muted);font-family:var(--font-mono);">
+            ${emailsScraped} emails &rarr; ${leadsExtracted} extracted &rarr; ${totalImported} imported
+        </div>
+        ${timeStr ? `<span class="pipeline-bar-time">${timeStr}</span>` : ''}
+    `;
+}
+
+function setPipelineSourceFilter(src) {
+    pipelineSourceFilter = src;
+    // Re-render bar to update active state
+    if (pipelineStats) {
+        const lastRun = pipelineStats.last_run || (pipelineStats.runs && pipelineStats.runs[pipelineStats.runs.length - 1]);
+        renderPipelineBar(pipelineStats, lastRun);
+    }
+    // Apply filter to board (if source-based filtering exists)
+    if (src) {
+        // Show only leads with this source
+        Object.values(cardsData).forEach(card => {
+            const el = document.querySelector(`[data-card-id="${card.id}"]`);
+            if (el) el.style.display = (card.leadSource === src) ? '' : 'none';
+        });
+    } else {
+        // Show all
+        Object.values(cardsData).forEach(card => {
+            const el = document.querySelector(`[data-card-id="${card.id}"]`);
+            if (el) el.style.display = '';
+        });
+    }
 }
 
 // ── View Mode ──────────────────────────────────────
