@@ -3506,78 +3506,74 @@ let pipelineStats = null;
 let pipelineSourceFilter = null; // null = all
 
 async function loadPipelineStats() {
-    const bar = document.getElementById('pipeline-bar');
-    if (!bar) return;
+    // Primary source: count from cardsData (already loaded from Firestore)
+    // Falls back to _pipeline_stats for run metadata (emails/extract counts, timestamps)
+    renderPipelineBarFromCards();
 
+    // Also try to enrich with run metadata from _pipeline_stats
     try {
         const snap = await db.doc('boards/_pipeline_stats').get();
-        if (!snap.exists) {
-            bar.innerHTML = '<span class="pipeline-bar-empty">No pipeline runs yet. Run the Gmail pipeline to populate.</span>';
-            return;
-        }
+        if (!snap.exists) return;
         const data = snap.data();
         pipelineStats = data;
-
         const lastRun = data.last_run || (data.runs && data.runs[data.runs.length - 1]);
-        renderPipelineBar(data, lastRun);
+        if (lastRun) renderPipelineBarFromCards(lastRun);
     } catch(e) {
-        console.error('[loadPipelineStats]', e.message);
-        const el = document.getElementById('pipeline-bar');
-        if (el) el.innerHTML = '<span class="pipeline-bar-empty">Pipeline stats unavailable (check connection).</span>';
+        console.warn('[loadPipelineStats] could not load run metadata:', e.message);
     }
 }
 
-function renderPipelineBar(data, lastRun) {
+function renderPipelineBarFromCards(lastRun) {
     const bar = document.getElementById('pipeline-bar');
-    if (!bar || !lastRun) { bar.innerHTML = '<span class="pipeline-bar-empty">No data.</span>'; return; }
+    if (!bar) return;
 
-    // Aggregate ALL runs cumulatively for a meaningful total
-    const allPlatforms = new Set(['GMAIL']);
+    // Count leads by source from already-loaded cardsData
     const platforms = {};
-    let totalEmails = 0, totalExtracted = 0, totalImported = 0;
-
-    const runs = data.runs || [lastRun];
-    runs.forEach(r => {
-        totalEmails += r.emails_scraped || 0;
-        totalExtracted += r.leads_extracted || 0;
-        totalImported += r.imported || 0;
-        if (r.by_platform) {
-            Object.entries(r.by_platform).forEach(([src, count]) => {
-                platforms[src] = (platforms[src] || 0) + count;
-                allPlatforms.add(src);
-            });
-        }
+    let totalLeads = 0;
+    Object.values(cardsData).forEach(card => {
+        const src = card.leadSource || 'GMAIL';
+        platforms[src] = (platforms[src] || 0) + 1;
+        totalLeads++;
     });
 
-    // Use last run's by_platform for per-source counts if no cumulative available
-    const displayPlatforms = Object.keys(platforms).length > 0 ? platforms : (lastRun.by_platform || {'GMAIL': lastRun.new_leads || totalImported});
-    const sortedPlatforms = Object.keys(displayPlatforms).sort();
+    if (totalLeads === 0) {
+        bar.innerHTML = '<span class="pipeline-bar-empty">No leads yet. Run the Gmail pipeline to get started.</span>';
+        return;
+    }
+
+    const sortedPlatforms = Object.keys(platforms).sort();
 
     const sourceButtons = sortedPlatforms.map(src => {
-        const count = displayPlatforms[src] || 0;
+        const count = platforms[src] || 0;
         const icon = {GMAIL:'📧',LINKEDIN:'💼',X:'🐦',REFERRAL:'🤝',WEBSITE:'🌐'}[src] || '📊';
         const active = pipelineSourceFilter === src ? ' active' : '';
         return `<button class="pipeline-platform-btn${active}" onclick="setPipelineSourceFilter('${src}')">${icon} ${src} (${count})</button>`;
     }).join('');
 
     const allActive = pipelineSourceFilter === null ? ' active' : '';
-    const allCount = sortedPlatforms.reduce((s, src) => s + (displayPlatforms[src] || 0), 0);
-    const allBtns = `<button class="pipeline-platform-btn${allActive}" onclick="setPipelineSourceFilter(null)">📊 All (${allCount})</button>` + sourceButtons;
+    const allBtns = `<button class="pipeline-platform-btn${allActive}" onclick="setPipelineSourceFilter(null)">📊 All (${totalLeads})</button>` + sourceButtons;
 
-    const runDate = lastRun.timestamp ? new Date(lastRun.timestamp) : null;
-    const timeStr = runDate
-        ? `Last run: ${runDate.toLocaleDateString()} ${runDate.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`
-        : '';
+    // Enrich with run metadata if available
+    let metaStr = '';
+    if (lastRun) {
+        const emails = lastRun.emails_scraped || 0;
+        const extracted = lastRun.leads_extracted || 0;
+        const imported = lastRun.imported || 0;
+        metaStr = `${emails} emails &rarr; ${extracted} extracted &rarr; ${imported} imported (last run)`;
+        const runDate = lastRun.timestamp ? new Date(lastRun.timestamp) : null;
+        if (runDate) {
+            metaStr += ` &bull; <span class="pipeline-bar-time">${runDate.toLocaleDateString()} ${runDate.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>`;
+        }
+    } else {
+        metaStr = `<span class="pipeline-bar-empty">Run pipeline to see extraction stats</span>`;
+    }
 
     bar.innerHTML = `
         <span class="pipeline-bar-label">Pipeline</span>
-        <span class="pipeline-bar-total">${allCount}</span>
-        <span class="pipeline-bar-sub">leads imported</span>
+        <span class="pipeline-bar-total">${totalLeads}</span>
+        <span class="pipeline-bar-sub">leads</span>
         <div class="pipeline-bar-platforms">${allBtns}</div>
-        <div style="font-size:11px;color:var(--muted);font-family:var(--font-mono);">
-            ${totalEmails} emails scraped &rarr; ${totalExtracted} extracted &rarr; ${totalImported} imported total
-        </div>
-        ${timeStr ? `<span class="pipeline-bar-time">${timeStr}</span>` : ''}
+        <div style="font-size:11px;color:var(--muted);font-family:var(--font-mono);">${metaStr}</div>
     `;
 }
 
