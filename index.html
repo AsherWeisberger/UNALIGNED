@@ -3508,7 +3508,6 @@ let pipelineSourceFilter = null; // null = all
 async function loadPipelineStats() {
     const bar = document.getElementById('pipeline-bar');
     if (!bar) return;
-    bar.innerHTML = '<span class="pipeline-bar-loading">Loading pipeline stats…</span>';
 
     try {
         const snap = await db.doc('boards/_pipeline_stats').get();
@@ -3522,7 +3521,9 @@ async function loadPipelineStats() {
         const lastRun = data.last_run || (data.runs && data.runs[data.runs.length - 1]);
         renderPipelineBar(data, lastRun);
     } catch(e) {
-        bar.innerHTML = '<span class="pipeline-bar-empty">Pipeline stats unavailable.</span>';
+        console.error('[loadPipelineStats]', e.message);
+        const el = document.getElementById('pipeline-bar');
+        if (el) el.innerHTML = '<span class="pipeline-bar-empty">Pipeline stats unavailable (check connection).</span>';
     }
 }
 
@@ -3530,45 +3531,37 @@ function renderPipelineBar(data, lastRun) {
     const bar = document.getElementById('pipeline-bar');
     if (!bar || !lastRun) { bar.innerHTML = '<span class="pipeline-bar-empty">No data.</span>'; return; }
 
-    // Aggregate from runs
-    const platforms = {};
-    let totalLeads = 0, totalImported = 0;
-    const byPlatform = lastRun.by_platform || {};
-    for (const [src, count] of Object.entries(byPlatform)) {
-        platforms[src] = (platforms[src] || 0) + count;
-        totalLeads += count;
-    }
-    // Fallback: use new_leads
-    if (totalLeads === 0 && lastRun.new_leads !== undefined) {
-        totalLeads = lastRun.new_leads;
-        totalImported = lastRun.imported || 0;
-        if (byPlatform.GMAIL !== undefined) {
-            platforms['GMAIL'] = byPlatform.GMAIL;
-        }
-    } else {
-        totalImported = lastRun.imported || 0;
-    }
-
-    // Unique platforms seen across all runs
+    // Aggregate ALL runs cumulatively for a meaningful total
     const allPlatforms = new Set(['GMAIL']);
-    if (data.runs) {
-        data.runs.forEach(r => {
-            if (r.by_platform) Object.keys(r.by_platform).forEach(k => allPlatforms.add(k));
-        });
-    }
+    const platforms = {};
+    let totalEmails = 0, totalExtracted = 0, totalImported = 0;
 
-    const activePlatforms = Object.keys(platforms).length > 0 ? platforms : (byPlatform || {'GMAIL': lastRun.new_leads || 0});
-    const sortedPlatforms = Object.keys(activePlatforms).sort();
+    const runs = data.runs || [lastRun];
+    runs.forEach(r => {
+        totalEmails += r.emails_scraped || 0;
+        totalExtracted += r.leads_extracted || 0;
+        totalImported += r.imported || 0;
+        if (r.by_platform) {
+            Object.entries(r.by_platform).forEach(([src, count]) => {
+                platforms[src] = (platforms[src] || 0) + count;
+                allPlatforms.add(src);
+            });
+        }
+    });
+
+    // Use last run's by_platform for per-source counts if no cumulative available
+    const displayPlatforms = Object.keys(platforms).length > 0 ? platforms : (lastRun.by_platform || {'GMAIL': lastRun.new_leads || totalImported});
+    const sortedPlatforms = Object.keys(displayPlatforms).sort();
 
     const sourceButtons = sortedPlatforms.map(src => {
-        const count = activePlatforms[src] || 0;
+        const count = displayPlatforms[src] || 0;
         const icon = {GMAIL:'📧',LINKEDIN:'💼',X:'🐦',REFERRAL:'🤝',WEBSITE:'🌐'}[src] || '📊';
         const active = pipelineSourceFilter === src ? ' active' : '';
         return `<button class="pipeline-platform-btn${active}" onclick="setPipelineSourceFilter('${src}')">${icon} ${src} (${count})</button>`;
     }).join('');
 
     const allActive = pipelineSourceFilter === null ? ' active' : '';
-    const allCount = sortedPlatforms.reduce((s, src) => s + (activePlatforms[src] || 0), 0);
+    const allCount = sortedPlatforms.reduce((s, src) => s + (displayPlatforms[src] || 0), 0);
     const allBtns = `<button class="pipeline-platform-btn${allActive}" onclick="setPipelineSourceFilter(null)">📊 All (${allCount})</button>` + sourceButtons;
 
     const runDate = lastRun.timestamp ? new Date(lastRun.timestamp) : null;
@@ -3576,17 +3569,13 @@ function renderPipelineBar(data, lastRun) {
         ? `Last run: ${runDate.toLocaleDateString()} ${runDate.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`
         : '';
 
-    // Stats from last run
-    const emailsScraped = lastRun.emails_scraped || 0;
-    const leadsExtracted = lastRun.leads_extracted || 0;
-
     bar.innerHTML = `
         <span class="pipeline-bar-label">Pipeline</span>
         <span class="pipeline-bar-total">${allCount}</span>
-        <span class="pipeline-bar-sub">leads</span>
+        <span class="pipeline-bar-sub">leads imported</span>
         <div class="pipeline-bar-platforms">${allBtns}</div>
         <div style="font-size:11px;color:var(--muted);font-family:var(--font-mono);">
-            ${emailsScraped} emails &rarr; ${leadsExtracted} extracted &rarr; ${totalImported} imported
+            ${totalEmails} emails scraped &rarr; ${totalExtracted} extracted &rarr; ${totalImported} imported total
         </div>
         ${timeStr ? `<span class="pipeline-bar-time">${timeStr}</span>` : ''}
     `;
