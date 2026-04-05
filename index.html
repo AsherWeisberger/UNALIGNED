@@ -2161,7 +2161,7 @@ function renderCard(cardData) {
 
     let leadMetaHtml = '';
     if (cardData.priority || cardData.leadSource || cardData.estimatedValue) {
-        const pHtml = cardData.priority ? `<span class="card-priority ${cardData.priority}">${cardData.priority==='hot'?'🔥':cardData.priority==='warm'?'🌡️':'❄️'} ${cardData.priority}</span>` : '';
+        const pHtml = cardData.priority ? `<span class="card-priority ${cardData.priority}">${cardData.priority}</span>` : '';
         const sHtml = cardData.leadSource ? (cardData.emailDate ? `<span class="card-source">${cardData.leadSource} · ${fmtEmailDate(cardData.emailDate)}</span>` : `<span class="card-source">${cardData.leadSource}</span>`) : (cardData.emailDate ? `<span class="card-source">${fmtEmailDate(cardData.emailDate)}</span>` : '');
         const vHtml = cardData.estimatedValue ? `<span class="card-value">$${cardData.estimatedValue}</span>` : '';
         leadMetaHtml = `<div class="card-lead-meta">${pHtml}${sHtml}${vHtml}</div>`;
