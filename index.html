@@ -1323,7 +1323,7 @@
             <div class="card-modal-header">
                 <div class="card-modal-title-section">
                     <input type="text" class="card-modal-title" id="modal-card-title" placeholder="Card title…">
-                    <div class="card-modal-subtitle">in <span id="modal-list-name">list</span> &bull; <span id="modal-created-info"></span></div>
+                    <div class="card-modal-subtitle">in <span id="modal-list-name">list</span> &bull; <span id="modal-created-info"></span> &bull; First contact: <span id="modal-first-contact" style="color:#4facfe;"></span></div>
                 </div>
                 <button class="card-modal-save" onclick="saveCardAndClose()">Save</button>
                 <button class="card-modal-close" onclick="closeCardModal()">×</button>
@@ -1608,8 +1608,7 @@ What would you like to know?</div>
 </div><!-- /#app -->
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
-import { getFirestore, doc, collection, onSnapshot, setDoc, getDoc, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
 // ── Login ──────────────────────────────────────────
 window.selectedUser = { name: 'Asher W', initials: 'AW', password: '3' };
@@ -1652,25 +1651,107 @@ window.selectLoginUser = selectLoginUser;
 window.checkLogin = checkLogin;
 window.attemptLogin = attemptLogin;
 
-// ── Firebase ───────────────────────────────────────
-const firebaseConfig = {
-    apiKey: "AIzaSyBaSETzAzXCDC_RHntmNKeM9nO4pcA6VRA",
-    authDomain: "unaligned-fc556.firebaseapp.com",
-    projectId: "unaligned-fc556",
-    storageBucket: "unaligned-fc556.firebasestorage.app",
-    messagingSenderId: "720311168962",
-    appId: "1:720311168962:web:18d9f60626671a6e13f05b"
-};
+// ── Supabase
+const SUPABASE_URL = "https://hbnpwphxjurvtydezwgh.supabase.co";
+const supabase = createClient(SUPABASE_URL, "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhibnB3cGh4anVydnR5ZGV6d2doIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MTQ1MzIsImV4cCI6MjA5MDk5MDUzMn0.p5E48__GlGqjC17Z28q8fYFK-qV8CmiidYIP02vGe4s", {
+    realtime: { params: { eventsPerHour: 10000 } }
+});
 
-const twitterConfig = {
-    apiKey: "tbOiHjZfaq0xKlTOARGkHsP4U",
-    apiSecret: "l0IjZrYDoH0N90fAf0OWHV6UE1l0yfHvZjV0LBervSSH3BFWCM",
-    accessToken: "13348-xT9k3AmEVcOgjJheJ1KnUC8TGMj8f7fdBe7r71AS1hGM",
-    accessSecret: "DVRM9owSm6z25EueJ5iZDmS6lf1Sad9mat9dfJ5vcXXfh"
-};
-const firebaseApp = initializeApp(firebaseConfig);
-const db = getFirestore(firebaseApp);
-const boardDocRef = doc(db, 'boards', 'shared-board');
+// ── Supabase Realtime Channel ─────────────────────────
+let boardChannel = null;
+
+function setupRealtime() {
+    if (boardChannel) return;
+    boardChannel = supabase.channel('board-changes');
+    boardChannel
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'cards' }, payload => {
+            if (payload.eventType === 'INSERT') {
+                const card = normalizeSupabaseCard(payload.new);
+                if (!cardsData[card.id]) { cardsData[card.id] = card; renderCard(card); updateCardCount(); }
+            } else if (payload.eventType === 'UPDATE') {
+                const card = normalizeSupabaseCard(payload.new);
+                cardsData[card.id] = card;
+                const el = document.getElementById('card-' + card.id);
+                if (el) renderCard(card);
+                else renderCard(card);
+                updateCardCount();
+            } else if (payload.eventType === 'DELETE') {
+                const id = payload.old.id;
+                if (cardsData[id]) { delete cardsData[id]; const el = document.getElementById('card-' + id); if (el) el.remove(); updateCardCount(); }
+            }
+        })
+        .subscribe(status => { console.log('[realtime]', status); });
+}
+
+// Converts a Supabase row back to the board's card object shape
+function normalizeSupabaseCard(row) {
+    const labels = Array.isArray(row.labels) ? row.labels : [];
+    const checklist = Array.isArray(row.checklist) ? row.checklist : [];
+    const activity = Array.isArray(row.activity) ? row.activity.map(normalizeActivityEntry) : [];
+    const draft = row.draft_reply || null;
+    return {
+        id: row.id,
+        title: row.title || 'Untitled card',
+        listId: row.list_id || 'discovery',
+        labels: labels.map(l => typeof l === 'string' ? { name: l, color: 'blue' } : { name: l.name || 'Label', color: l.color || 'blue' }),
+        description: row.description || '',
+        checklist: checklist.map(i => ({ text: i.text || '', checked: Boolean(i.checked) })),
+        activity,
+        assignee: row.assignee || '',
+        dueDate: row.due_date || '',
+        createdBy: row.created_by || currentProfile.name,
+        createdAt: row.created_at || new Date().toISOString(),
+        contactName: row.contact_name || '',
+        email: row.email || '',
+        phone: row.phone || '',
+        businessName: row.business_name || '',
+        jobTitle: row.job_title || '',
+        leadSource: row.lead_source || '',
+        estimatedValue: row.estimated_value || '',
+        priority: row.priority || 'medium',
+        emailDate: row.email_date || '',
+        intent: row.intent || '',
+        email_id: row.email_id || '',
+        gmail_thread_id: row.gmail_thread_id || '',
+        linkedin_url: row.linkedin_url || '',
+        website: row.website || '',
+        location: row.location || '',
+        draft_reply: draft,
+        draft_reply_status: row.draft_reply_status || 'pending',
+    };
+}
+
+// Converts the board's card object to a Supabase row
+function cardToSupabaseRow(card) {
+    return {
+        id: card.id,
+        title: card.title || 'Untitled card',
+        list_id: card.listId || 'discovery',
+        labels: card.labels || [],
+        description: card.description || '',
+        checklist: card.checklist || [],
+        assignee: card.assignee || '',
+        due_date: card.dueDate || null,
+        created_by: card.createdBy || currentProfile.name,
+        contact_name: card.contactName || '',
+        email: card.email || '',
+        phone: card.phone || '',
+        business_name: card.businessName || '',
+        job_title: card.jobTitle || '',
+        lead_source: card.leadSource || '',
+        estimated_value: card.estimatedValue || '',
+        priority: card.priority || 'medium',
+        intent: card.intent || '',
+        email_id: card.email_id || String(card.id),
+        gmail_thread_id: card.gmail_thread_id || '',
+        linkedin_url: card.linkedin_url || '',
+        website: card.website || '',
+        location: card.location || '',
+        draft_reply: card.draft_reply || null,
+        draft_reply_status: card.draft_reply_status || 'pending',
+        owner: card.owner || '',
+    };
+}
 
 // ── State ──────────────────────────────────────────
 let currentProfile = { name: 'Sam L', initials: 'SL' };
@@ -1825,7 +1906,7 @@ function normalizeCardsMap(rawCards={}, lists=defaultBoardConfig) {
         const fallbackId = Number.isFinite(Number(value?.id)) ? Number(value.id) : Number(key);
         const card = normalizeCardShape(value||{}, fallbackId);
         if (!listIds.has(card.listId)) card.listId = lists[0]?.id || card.listId;
-        // Use string key so numeric IDs stay consistent with Firestore map keys
+        // Use string key so numeric IDs are consistent
         normalized[String(card.id)] = card;
     });
     return normalized;
@@ -1840,14 +1921,14 @@ async function getOpenAIKey() {
     // Try localStorage first (fallback for offline/dev)
     let key = localStorage.getItem('unaligned_openai_key');
     if (!key) {
-        // Fetch from Firestore _secrets (Admin SDK bypasses security rules)
+        // Fetch from Supabase _secrets table (service role bypasses RLS)
         try {
-            const snap = await getDoc(doc(db, '_secrets', 'config'));
-            if (snap.exists() && snap.data().openai_key) {
-                key = snap.data().openai_key;
-                localStorage.setItem('unaligned_openai_key', key); // cache locally too
+            const { data } = await supabase.from('_secrets').select('openai_key').eq('id', 'config').single();
+            if (data && data.openai_key) {
+                key = data.openai_key;
+                localStorage.setItem('unaligned_openai_key', key);
             }
-        } catch (e) { /* Firestore unavailable */ }
+        } catch (e) { /* Supabase unavailable */ }
     }
     _openaiKeyCache = key || '';
     return _openaiKeyCache;
@@ -1942,41 +2023,36 @@ function renderAllCards() {
     applyFilters();
 }
 
-function loadState() {
-    onSnapshot(boardDocRef, async (docSnap) => {
-        try {
-            console.log('[loadState] fired — exists:', docSnap.exists, '| fromCache:', docSnap.metadata?.fromCache, '| pendingWrites:', docSnap.metadata?.hasPendingWrites);
-            if (docSnap.metadata?.hasPendingWrites) { console.log('[loadState] skipping — pending writes'); return; }
-            if (currentEditingCard !== null) { console.log('[loadState] skipping — card being edited'); return; }
-            if (window.justSaved && Date.now() - window.justSaved < 2000) { console.log('[loadState] skipping — just saved'); return; }
-            isApplyingRemoteUpdate = true;
-            if (!docSnap.exists()) {
-                console.log('[loadState] doc empty — writing defaults to Firestore');
-                cardsData = JSON.parse(JSON.stringify(defaultCardsData));
-                cardIdCounter = deriveNextCardId(cardsData);
-                boardConfig = JSON.parse(JSON.stringify(defaultBoardConfig));
-                await saveBoardState(true);
-                refreshBoard(); markBoardReady(); setSyncState('synced',{syncedAt:new Date()}); loadPipelineStats();
-                return;
-            }
-            const payload = docSnap.data() || {};
-            console.log('[loadState] got payload — cards:', Object.keys(payload.cards||{}).length, '| lists:', (payload.lists||[]).length);
-            boardConfig = normalizeBoardConfig(payload.lists);
-            cardsData = normalizeCardsMap(payload.cards, boardConfig);
-            console.log('[loadState] normalized — cardsData keys:', Object.keys(cardsData).length);
-            cardIdCounter = payload.cardIdCounter || deriveNextCardId(cardsData);
-            refreshBoard(); markBoardReady(); setSyncState('synced',{syncedAt:new Date()}); loadPipelineStats();
-            console.log('[loadState] done');
-        } catch(err) {
-            console.error('[loadState] ERROR:', err.message, err.stack);
-            setSyncState('error',{errorMessage: err.message});
-        } finally {
-            isApplyingRemoteUpdate = false;
-        }
-    }, (err) => {
-        console.error('[loadState] snapshot ERROR:', err.code, err.message);
-        setSyncState('error',{errorMessage: err.code+': '+err.message});
-    });
+async function loadState() {
+    try {
+        setSyncState('connecting');
+        const { data: cards, error } = await supabase
+            .from('cards')
+            .select('*')
+            .limit(2000);
+        if (error) throw error;
+
+        isApplyingRemoteUpdate = true;
+        cardsData = {};
+        cards.forEach(row => {
+            const card = normalizeSupabaseCard(row);
+            cardsData[card.id] = card;
+        });
+        cardIdCounter = cards.length ? Math.max(...cards.map(c => c.id)) + 1 : 1;
+        console.log('[loadState] loaded', Object.keys(cardsData).length, 'cards from Supabase');
+
+        refreshBoard();
+        markBoardReady();
+        setSyncState('synced', { syncedAt: new Date() });
+        loadPipelineStats();
+        setupRealtime();
+        console.log('[loadState] done');
+    } catch(err) {
+        console.error('[loadState] ERROR:', err.message);
+        setSyncState('error', { errorMessage: err.message });
+    } finally {
+        isApplyingRemoteUpdate = false;
+    }
 }
 
 function markBoardReady() {
@@ -2002,16 +2078,13 @@ async function saveBoardState(force=false) {
     if (!force && isApplyingRemoteUpdate) return;
     if (syncState.status !== 'error') setSyncState('saving');
     try {
-        await setDoc(boardDocRef, {
-            cards: cardsData || {},
-            lists: boardConfig,
-            cardIdCounter,
-            updatedAt: serverTimestamp()
-        }, { merge: true });
-        setSyncState('synced',{syncedAt:new Date()});
+        const rows = Object.values(cardsData).map(cardToSupabaseRow);
+        const { error } = await supabase.from('cards').upsert(rows, { onConflict: 'id' });
+        if (error) throw error;
+        setSyncState('synced', { syncedAt: new Date() });
     } catch(error) {
-        console.error('Failed to save',error);
-        setSyncState('error',{errorMessage:'Failed to save. Changes stay on this device until sync resumes.'});
+        console.error('Failed to save', error);
+        setSyncState('error', { errorMessage: 'Failed to save. Changes stay on this device until sync resumes.' });
     }
 }
 
@@ -2215,6 +2288,20 @@ function openCardModal(cardId) {
     document.getElementById('modal-card-title').oninput = e=>{currentEditingCardData.title=e.target.value;renderCard(currentEditingCardData);updateFlowMap();};
     document.getElementById('modal-list-name').textContent = boardConfig.find(l=>l.id===currentEditingCardData.listId)?.title||'List';
     document.getElementById('modal-created-info').textContent = `Created by ${currentEditingCardData.createdBy} · ${timeAgo(new Date(currentEditingCardData.createdAt))}`;
+
+    // Show first contact date prominently
+    const firstContact = currentEditingCardData.firstEmailDate || currentEditingCardData.originalEmail?.date;
+    const firstContactEl = document.getElementById('modal-first-contact');
+    if (firstContact && firstContactEl) {
+        try {
+            const d = new Date(firstContact);
+            if (!isNaN(d)) {
+                firstContactEl.textContent = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            }
+        } catch(e) {
+            firstContactEl.textContent = firstContact;
+        }
+    }
     document.getElementById('modal-contact-name').value = currentEditingCardData.contactName||'';
     document.getElementById('modal-email').value = currentEditingCardData.email||'';
     document.getElementById('modal-phone').value = currentEditingCardData.phone||'';
@@ -2263,16 +2350,14 @@ function openCardModal(cardId) {
     });
 }
 
-// Track which card IDs have email data in subcollection (preloaded at startup)
+// Track which card IDs have email data (preloaded at startup)
 let _emailCacheSet = null;
 
-// Preload the set of card IDs that have email data in subcollection
+// Preload the set of card IDs that have email data
 async function preloadEmailCache() {
     try {
-        const emailColl = collection(db, 'boards/shared-board/_email_data');
-        const snap = await getDocs(emailColl);
-        _emailCacheSet = new Set();
-        snap.forEach(d => _emailCacheSet.add(d.id));
+        const { data } = await supabase.from('email_data').select('card_id');
+        _emailCacheSet = new Set((data || []).map(r => String(r.card_id)));
         console.log('[emailCache] Preloaded', _emailCacheSet.size, 'email IDs');
     } catch(e) {
         console.warn('[emailCache] Failed to preload:', e.message);
@@ -2280,7 +2365,7 @@ async function preloadEmailCache() {
     }
 }
 
-// Fetch full email body from _email_data subcollection
+// Fetch full email body from email_data table
 async function loadOriginalEmailBody(cardId) {
     const card = cardsData[cardId];
     const orig = card?.originalEmail;
@@ -2288,13 +2373,11 @@ async function loadOriginalEmailBody(cardId) {
     // If we already have full email data inline (body present), return as-is
     if (orig?.body) return orig;
 
-    // Card has originalEmail but no body — try subcollection for full data
+    // Card has originalEmail but no body — try email_data table for full data
     if (orig) {
         try {
-            const snap = await getDoc(doc(db, 'boards/shared-board/_email_data', cardId));
-            if (snap.exists()) {
-                const data = snap.data();
-                // Merge: keep existing ref fields, add body from subcollection
+            const { data } = await supabase.from('email_data').select('*').eq('card_id', cardId).single();
+            if (data) {
                 return {
                     cached: true,
                     from: orig.from || data.from || '',
@@ -2309,14 +2392,13 @@ async function loadOriginalEmailBody(cardId) {
         } catch(e) {
             console.warn('Failed to load email body for', cardId, e.message);
         }
-        return orig; // return what we have if subcollection miss
+        return orig;
     }
 
-    // Card has no originalEmail at all — check subcollection directly
+    // Card has no originalEmail at all — check email_data directly
     try {
-        const snap = await getDoc(doc(db, 'boards/shared-board/_email_data', cardId));
-        if (snap.exists()) {
-            const data = snap.data();
+        const { data } = await supabase.from('email_data').select('*').eq('card_id', cardId).single();
+        if (data) {
             return {
                 cached: true,
                 from: data.from || '',
@@ -3506,15 +3588,14 @@ let pipelineStats = null;
 let pipelineSourceFilter = null; // null = all
 
 async function loadPipelineStats() {
-    // Primary source: count from cardsData (already loaded from Firestore)
+    // Primary source: count from cardsData (already loaded from Supabase)
     // Falls back to _pipeline_stats for run metadata (emails/extract counts, timestamps)
     renderPipelineBarFromCards();
 
     // Also try to enrich with run metadata from _pipeline_stats
     try {
-        const snap = await db.doc('boards/_pipeline_stats').get();
-        if (!snap.exists) return;
-        const data = snap.data();
+        const { data } = await supabase.from('_pipeline_stats').select('*').single();
+        if (!data) return;
         pipelineStats = data;
         const lastRun = data.last_run || (data.runs && data.runs[data.runs.length - 1]);
         if (lastRun) renderPipelineBarFromCards(lastRun);
@@ -3622,7 +3703,7 @@ function tvGradient(n){return avatarGradients[n]||'linear-gradient(135deg,#6b728
 function tvFormatDate(iso){if(!iso)return'';const d=new Date(iso);const n=new Date();const m=Math.floor((n-d)/6e4);if(m<1)return'Just now';if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';return Math.floor(h/24)+'d ago';}
 function fmtEmailDate(d){if(!d)return'';if(/^\d{1,2}\/\d{1,2}$/.test(d))return d;const p=d.substring(0,10).split('-');return`${p[1]}/${p[2]}/${p[0].slice(-2)}`;}
 function tvLastAct(card){if(!card.activity||!card.activity.length)return'No activity';const l=card.activity[card.activity.length-1];return`${l.user}: ${l.action} (${tvFormatDate(l.time)})`;}
-function tvDate(card){if(!card.emailDate)return'—';return fmtEmailDate(card.emailDate);}
+function tvDate(card){const d=card.firstEmailDate||card.emailDate||card.originalEmail?.date;if(!d)return'—';return fmtEmailDate(d);}
 
 const TV_COLS = [
   {k:'contactName',  l:'Name',         w:150},
