@@ -2026,19 +2026,26 @@ function renderAllCards() {
 async function loadState() {
     try {
         setSyncState('connecting');
-        const { data: cards, error } = await supabase
-            .from('cards')
-            .select('*')
-            .limit(2000);
-        if (error) throw error;
+        // Paginate to get all cards (PostgREST caps single queries at 1000 rows)
+        const allRows = [];
+        for (let offset = 0; ; offset += 1000) {
+            const { data, error } = await supabase
+                .from('cards')
+                .select('*')
+                .range(offset, offset + 999);
+            if (error) throw error;
+            if (!data || data.length === 0) break;
+            allRows.push(...data);
+            if (data.length < 1000) break;
+        }
 
         isApplyingRemoteUpdate = true;
         cardsData = {};
-        cards.forEach(row => {
+        allRows.forEach(row => {
             const card = normalizeSupabaseCard(row);
             cardsData[card.id] = card;
         });
-        cardIdCounter = cards.length ? Math.max(...cards.map(c => c.id)) + 1 : 1;
+        cardIdCounter = allRows.length ? Math.max(...allRows.map(c => c.id)) + 1 : 1;
         console.log('[loadState] loaded', Object.keys(cardsData).length, 'cards from Supabase');
 
         refreshBoard();
