@@ -1337,46 +1337,13 @@
             </div>
             <div class="card-modal-body">
                 <div class="card-modal-main">
-                    <!-- WHO -->
+                    <!-- WHO / WHAT / WHY / VALUE — all in one textarea -->
                     <div class="modal-section">
-                        <div class="modal-section-title">👤 Who</div>
-                        <div class="contact-fields">
-                            <input type="text" class="contact-input" id="modal-contact-name" placeholder="Contact Name">
-                            <input type="text" class="contact-input" id="modal-business-name" placeholder="Business Name">
-                            <input type="email" class="contact-input" id="modal-email" placeholder="Email">
-                            <input type="tel" class="contact-input" id="modal-phone" placeholder="Phone" style="margin-bottom:0;">
-                        </div>
-                    </div>
-
-                    <!-- WHAT + VALUE -->
-                    <div class="modal-section">
-                        <div class="modal-section-title">⚡ What + Value</div>
-                        <div class="lead-fields">
-                            <select class="contact-input" id="modal-lead-source">
-                                <option value="">Lead Source</option>
-                                <option value="website">Website</option>
-                                <option value="referral">Referral</option>
-                                <option value="cold-call">Cold Call</option>
-                                <option value="social">Social Media</option>
-                                <option value="advertisement">Advertisement</option>
-                                <option value="other">Other</option>
-                            </select>
-                            <div style="display:flex;gap:8px;">
-                                <select class="contact-input" id="modal-priority" style="flex:1;margin-bottom:0;">
-                                    <option value="">Intent</option>
-                                    <option value="hot">🔥 Hot — immediate</option>
-                                    <option value="warm">🌡️ Warm — follow up</option>
-                                    <option value="cold">❄️ Cold — nurture</option>
-                                </select>
-                                <input type="text" class="contact-input" id="modal-estimated-value" placeholder="Value $" style="flex:1;margin-bottom:0;">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- WHY -->
-                    <div class="modal-section">
-                        <div class="modal-section-title">💡 Why (their hook)</div>
-                        <textarea class="description-textarea" id="modal-description" placeholder="Their message, hook, or reason for contact…" style="border-left:3px solid var(--accent);"></textarea>
+                        <div class="modal-section-title">📋 Lead Details</div>
+                        <textarea class="description-textarea" id="modal-description" placeholder="WHO: Name (Company)
+WHAT: intent type
+WHY: their message / hook
+VALUE: estimated value" style="border-left:3px solid var(--accent);"></textarea>
                     </div>
 
                     <!-- Email Thread (includes original lead + all replies, oldest→newest) -->
@@ -2326,13 +2293,7 @@ function openCardModal(cardId) {
             firstContactEl.textContent = firstContact;
         }
     }
-    document.getElementById('modal-contact-name').value = currentEditingCardData.contactName||'';
-    document.getElementById('modal-email').value = currentEditingCardData.email||'';
-    document.getElementById('modal-phone').value = currentEditingCardData.phone||'';
-    document.getElementById('modal-business-name').value = currentEditingCardData.businessName||'';
-    document.getElementById('modal-lead-source').value = currentEditingCardData.leadSource||'';
-    document.getElementById('modal-estimated-value').value = currentEditingCardData.estimatedValue||'';
-    document.getElementById('modal-priority').value = currentEditingCardData.priority||'';
+    document.getElementById('modal-description').value = currentEditingCardData.description||'';
     document.getElementById('due-date-input').value = currentEditingCardData.dueDate||'';
     renderChecklist(); renderActivity(); renderAssignee();
     renderDraftReply();
@@ -2445,18 +2406,6 @@ function saveCardAndClose() {
     if (currentEditingCardData) {
         currentEditingCardData.title = document.getElementById('modal-card-title').value;
         currentEditingCardData.description = document.getElementById('modal-description').value;
-        currentEditingCardData.contactName = document.getElementById('modal-contact-name').value;
-        currentEditingCardData.email = document.getElementById('modal-email').value;
-        currentEditingCardData.phone = document.getElementById('modal-phone').value;
-        currentEditingCardData.businessName = document.getElementById('modal-business-name').value;
-        currentEditingCardData.leadSource = document.getElementById('modal-lead-source').value;
-        currentEditingCardData.estimatedValue = document.getElementById('modal-estimated-value').value;
-        currentEditingCardData.priority = document.getElementById('modal-priority').value;
-        currentEditingCardData.draft_reply = {
-            subject: document.getElementById('modal-draft-subject').value,
-            body: document.getElementById('modal-draft-body').value
-        };
-        currentEditingCardData.draft_reply_status = document.getElementById('modal-draft-status').value;
         renderCard(currentEditingCardData); window.justSaved=Date.now();
         saveBoardStateNow(); updateFlowMap();
     }
