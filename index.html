@@ -3257,21 +3257,31 @@ window.addUnifiedItem = addUnifiedItem;
 
 // ── Lead Details — WHO/WHAT/WHY/VALUE grid ─────────────
 function parseLabel(l) {
+    // Already a proper object
     if (typeof l === 'object' && l !== null) return { name: l.name || 'Label', color: l.color || 'blue' };
-    if (typeof l === 'string') {
-        try {
-            // Handle raw JSON strings like "{name:'warm',color:'blue'}" or "{name:\"warm\",color:\"blue\"}"
-            const inner = l.trim().replace(/^['"]|['"]$/g, '');
-            // Try JSON.parse first
-            try { const o = JSON.parse(l); return { name: o.name || 'Label', color: o.color || 'blue' }; } catch {}
-            // Try simple key:val parsing
-            const n = inner.match(/name\s*:\s*['"]([^'"]+)['"]/i) || inner.match(/name\s*:\s*([^\s,}]+)/i);
-            const c = inner.match(/color\s*:\s*['"]([^'"]+)['"]/i) || inner.match(/color\s*:\s*([^\s,}]+)/i);
-            if (n) return { name: n[1].replace(/['"]/g, ''), color: (c ? c[1].replace(/['"]/g, '') : 'blue') };
-        } catch {}
-        return { name: l, color: 'blue' };
+    if (typeof l !== 'string') return { name: String(l), color: 'blue' };
+
+    const s = l.trim();
+
+    // Case 1: emoji-only string like "🔥 Hot" or "🌡️ Warm" or "❄️ Cold"
+    if (/^[🔥🌡❄]/.test(s)) {
+        const emojiMap = { '🔥': 'hot', '🌡️': 'warm', '❄️': 'cold', '❄': 'cold' };
+        const colorMap = { '🔥': 'red', '🌡️': 'yellow', '❄️': 'blue', '❄': 'blue' };
+        const emoji = s[0];
+        return { name: s, color: colorMap[emoji] || 'blue' };
     }
-    return { name: 'Label', color: 'blue' };
+
+    // Case 2: mangled string like "{name:'🌡️ Warm',color:blue}"
+    // Try JSON.parse first
+    try { const o = JSON.parse(s); return { name: o.name || 'Label', color: o.color || 'blue' }; } catch {}
+
+    // Case 3: try regex extraction
+    const n = s.match(/name\s*:\s*['"]([^'"]+)['"]/i) || s.match(/name\s*:\s*([^\s,}]+)/i);
+    const c = s.match(/color\s*:\s*['"]([^'"]+)['"]/i) || s.match(/color\s*:\s*([^\s,}]+)/i);
+    if (n) return { name: n[1].replace(/['"]/g, ''), color: c ? c[1].replace(/['"]/g, '') : 'blue' };
+
+    // Case 4: plain text fallback
+    return { name: s, color: 'blue' };
 }
 
 function autoResize(el) {
