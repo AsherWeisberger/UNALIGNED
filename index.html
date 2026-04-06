@@ -1664,12 +1664,27 @@ function normalizeSupabaseCard(row) {
     const checklist = Array.isArray(row.checklist) ? row.checklist : [];
     const activity = Array.isArray(row.activity) ? row.activity.map(normalizeActivityEntry) : [];
     const draft = row.draft_reply || null;
+
+    // Handle description: could be plain text (legacy) or JSON envelope (new format)
+    // JSON envelope: {"rich_description": "...", "email_thread": [...], "intent": "...", ...}
+    let description = row.description || '';
+    let originalEmail = null;
+    if (typeof description === 'string' && description.trim().startsWith('{')) {
+        try {
+            const parsed = JSON.parse(description);
+            description = parsed.rich_description || '';
+            originalEmail = Array.isArray(parsed.email_thread) ? parsed.email_thread : null;
+        } catch (e) {
+            // Not valid JSON — treat as legacy plain text
+        }
+    }
+
     return {
         id: row.id,
         title: row.title || 'Untitled card',
         listId: row.list_id || 'discovery',
         labels: labels.map(l => typeof l === 'string' ? { name: l, color: 'blue' } : { name: l.name || 'Label', color: l.color || 'blue' }),
-        description: row.description || '',
+        description: description,
         checklist: checklist.map(i => ({ text: i.text || '', checked: Boolean(i.checked) })),
         activity,
         assignee: row.assignee || '',
@@ -1693,18 +1708,42 @@ function normalizeSupabaseCard(row) {
         location: row.location || '',
         draft_reply: draft,
         draft_reply_status: row.draft_reply_status || 'pending',
-        originalEmail: row.email_thread || null,   // full email thread stored as JSONB
+        originalEmail: originalEmail,   // full email thread from JSON envelope
     };
 }
 
 // Converts the board's card object to a Supabase row
 function cardToSupabaseRow(card) {
+    // If the card has a full email thread (originalEmail), preserve it as JSON envelope
+    // by merging the new description into the existing JSON structure
+    let description = card.description || '';
+    if (card.originalEmail && Array.isArray(card.originalEmail) && card.originalEmail.length > 0) {
+        // Try to load existing JSON envelope from the stored card
+        const existing = cardsData[card.id];
+        const existingDesc = existing?.description || '';
+        if (typeof existingDesc === 'string' && existingDesc.trim().startsWith('{')) {
+            try {
+                const env = JSON.parse(existingDesc);
+                env.rich_description = description;
+                description = JSON.stringify(env);
+            } catch (e) {
+                // Couldn't parse — just save plain description
+            }
+        } else {
+            // No existing envelope — build new one
+            description = JSON.stringify({
+                rich_description: description,
+                email_thread: card.originalEmail,
+            });
+        }
+    }
+
     return {
         id: card.id,
         title: card.title || 'Untitled card',
         list_id: card.listId || 'discovery',
         labels: card.labels || [],
-        description: card.description || '',
+        description: description,
         checklist: card.checklist || [],
         assignee: card.assignee || '',
         due_date: card.dueDate || null,
