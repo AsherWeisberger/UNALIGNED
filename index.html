@@ -1896,6 +1896,8 @@ function normalizeSupabaseCard(row) {
             // Not valid JSON — treat as legacy plain text
         }
     }
+    // Fallback: pipeline saves original_email as a top-level column
+    if (!originalEmail) originalEmail = row.original_email || null;
 
     return {
         id: row.id,
