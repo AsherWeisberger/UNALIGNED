@@ -592,6 +592,52 @@
         /* Email Thread — clean, readable conversation view */
         #thread-list { display: flex; flex-direction: column; gap: 0; }
 
+        .contact-info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .contact-info-grid .contact-info-item:last-child:nth-child(odd) {
+            grid-column: 1 / -1;
+        }
+        .contact-info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .contact-info-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-family: var(--font-mono);
+            color: var(--muted2);
+        }
+        .contact-info-value {
+            font-size: 13px;
+            color: var(--text);
+            font-family: var(--font-mono);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .contact-info-value a {
+            color: #4facfe;
+            text-decoration: none;
+            word-break: break-all;
+        }
+        .contact-info-value a:hover { text-decoration: underline; }
+        .contact-info-value .no-data { color: var(--muted2); font-style: italic; font-size: 12px; }
+        .contact-copy-btn {
+            background: none;
+            border: none;
+            color: var(--muted2);
+            cursor: pointer;
+            font-size: 12px;
+            padding: 2px 4px;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+        .contact-copy-btn:hover { color: #4facfe; background: rgba(79,172,254,0.1); }
         .thread-email {
             background: var(--surface2);
             border-radius: 10px;
@@ -1500,6 +1546,48 @@
                         </div>
                     </div>
 
+                    <!-- Contact Information -->
+                    <div class="modal-section" id="contact-info-section">
+                        <div class="modal-section-title">📞 Contact Information</div>
+                        <div class="contact-info-grid" id="contact-info-grid">
+                            <div class="contact-info-item">
+                                <div class="contact-info-label">📧 Email</div>
+                                <div class="contact-info-value" id="contact-email">
+                                    <a href="#" id="contact-email-link" target="_blank"></a>
+                                    <button class="contact-copy-btn" onclick="copyContactField('email')" title="Copy">📋</button>
+                                </div>
+                            </div>
+                            <div class="contact-info-item">
+                                <div class="contact-info-label">📱 Phone</div>
+                                <div class="contact-info-value" id="contact-phone">
+                                    <span class="no-data" id="contact-phone-value">Not provided</span>
+                                    <button class="contact-copy-btn" onclick="copyContactField('phone')" title="Copy" id="phone-copy-btn" style="display:none;">📋</button>
+                                </div>
+                            </div>
+                            <div class="contact-info-item">
+                                <div class="contact-info-label">💼 LinkedIn</div>
+                                <div class="contact-info-value" id="contact-linkedin">
+                                    <a href="#" id="contact-linkedin-link" target="_blank">View Profile</a>
+                                    <button class="contact-copy-btn" onclick="copyContactField('linkedin')" title="Copy">📋</button>
+                                </div>
+                            </div>
+                            <div class="contact-info-item">
+                                <div class="contact-info-label">🌐 Website</div>
+                                <div class="contact-info-value" id="contact-website">
+                                    <span class="no-data" id="contact-website-value">Not provided</span>
+                                    <button class="contact-copy-btn" onclick="copyContactField('website')" title="Copy" id="website-copy-btn" style="display:none;">📋</button>
+                                </div>
+                            </div>
+                            <div class="contact-info-item" style="grid-column:1/-1;">
+                                <div class="contact-info-label">📍 Location</div>
+                                <div class="contact-info-value" id="contact-location">
+                                    <span class="no-data" id="contact-location-value">Not provided</span>
+                                    <button class="contact-copy-btn" onclick="copyContactField('location')" title="Copy" id="location-copy-btn" style="display:none;">📋</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Email Thread (includes original lead + all replies, oldest→newest) -->
                     <div class="modal-section" id="thread-section" style="display:none;">
                         <div class="modal-section-title" style="display:flex;align-items:center;gap:8px;">
@@ -1873,6 +1961,99 @@ function renderLeadDetails() {
         el.value = vals[i];
         el.style.height = 'auto';
         el.style.height = el.scrollHeight + 'px';
+    });
+}
+
+// Renders contact info section in card modal
+function renderContactInfo() {
+    if (!currentEditingCardData) return;
+    const card = currentEditingCardData;
+
+    // Email
+    const emailEl = document.getElementById('contact-email-link');
+    const emailVal = card.email || '';
+    if (emailVal) {
+        emailEl.textContent = emailVal;
+        emailEl.href = `mailto:${emailVal}`;
+    } else {
+        emailEl.textContent = 'Not provided';
+        emailEl.href = '#';
+    }
+
+    // Phone
+    const phoneEl = document.getElementById('contact-phone-value');
+    const phoneCopy = document.getElementById('phone-copy-btn');
+    const phoneVal = card.phone || '';
+    if (phoneVal) {
+        phoneEl.textContent = phoneVal;
+        phoneEl.classList.remove('no-data');
+        phoneCopy.style.display = '';
+    } else {
+        phoneEl.textContent = 'Not provided';
+        phoneEl.classList.add('no-data');
+        phoneCopy.style.display = 'none';
+    }
+
+    // LinkedIn
+    const liEl = document.getElementById('contact-linkedin-link');
+    const liVal = card.linkedin_url || '';
+    if (liVal) {
+        liEl.textContent = 'View Profile';
+        liEl.href = liVal;
+    } else {
+        liEl.textContent = 'Not provided';
+        liEl.href = '#';
+    }
+
+    // Website
+    const webEl = document.getElementById('contact-website-value');
+    const webCopy = document.getElementById('website-copy-btn');
+    const webVal = card.website || '';
+    if (webVal) {
+        webEl.outerHTML = `<a href="${webVal}" id="contact-website-link" target="_blank" class="contact-info-value" style="color:#4facfe;text-decoration:none;word-break:break-all;">${webVal}</a>`;
+        webCopy.style.display = '';
+    } else {
+        webEl.textContent = 'Not provided';
+        webEl.classList.add('no-data');
+        webCopy.style.display = 'none';
+    }
+
+    // Location
+    const locEl = document.getElementById('contact-location-value');
+    const locCopy = document.getElementById('location-copy-btn');
+    const locVal = card.location || '';
+    if (locVal) {
+        locEl.textContent = locVal;
+        locEl.classList.remove('no-data');
+        locCopy.style.display = '';
+    } else {
+        locEl.textContent = 'Not provided';
+        locEl.classList.add('no-data');
+        locCopy.style.display = 'none';
+    }
+}
+
+// Copies a contact field to clipboard
+function copyContactField(field) {
+    if (!currentEditingCardData) return;
+    const card = currentEditingCardData;
+    const map = {
+        email:    card.email,
+        phone:    card.phone,
+        linkedin: card.linkedin_url,
+        website:  card.website,
+        location: card.location,
+    };
+    const val = map[field];
+    if (!val) return;
+    navigator.clipboard.writeText(val).then(() => {
+        // Brief visual feedback
+        const btn = document.querySelector(`.contact-copy-btn[onclick*="${field}"]`);
+        if (btn) {
+            const orig = btn.textContent;
+            btn.textContent = '✓';
+            setTimeout(() => { btn.textContent = orig; }, 1000);
+        }
     });
 }
 
@@ -2551,6 +2732,7 @@ function openCardModal(cardId) {
         }
     }
     renderLeadDetails();
+    renderContactInfo();
     document.getElementById('due-date-input').value = currentEditingCardData.dueDate||'';
     renderUnifiedActivity(); renderAssignee();
     renderDraftReply();
@@ -4105,6 +4287,7 @@ window.closeEmailCompose=closeEmailCompose;
 window.sendEmail=sendEmail;
 window.draftAndOpenComposer=draftAndOpenComposer;
 window.copyDraft=copyDraft;
+window.copyContactField=copyContactField;
 
 
 // Expose login functions globally for inline onclick handlers
