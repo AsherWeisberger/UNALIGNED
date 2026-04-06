@@ -3122,10 +3122,16 @@ window.sendSamEmail = sendSamEmail;
 
 function renderAssignee() {
     const c = document.getElementById('modal-assignee');
-    if (!currentEditingCardData?.assignee) { c.innerHTML='<span style="color:var(--muted);font-size:13px;">Unassigned (Flow AI)</span>'; return; }
+    if (!currentEditingCardData?.assignee) {
+        c.innerHTML = '<span style="color:var(--muted);font-size:13px;cursor:pointer;" onclick="changeAssignee()">Unassigned (click to assign)</span>';
+        return;
+    }
     const p = profiles[currentEditingCardData.assignee];
-    if (!p) { c.innerHTML=`<span>${currentEditingCardData.assignee}</span>`; return; }
-    c.innerHTML=`<span class="avatar avatar-large" style="background:${p.gradient};">${p.initials}</span><span style="font-size:14px;">${currentEditingCardData.assignee}</span>`;
+    if (!p) {
+        c.innerHTML = `<span style="font-size:14px;cursor:pointer;" onclick="changeAssignee()">${currentEditingCardData.assignee}</span>`;
+        return;
+    }
+    c.innerHTML = `<span class="avatar avatar-large" style="background:${p.gradient};cursor:pointer;" onclick="changeAssignee()">${p.initials}</span><span style="font-size:14px;cursor:pointer;" onclick="changeAssignee()">${currentEditingCardData.assignee}</span>`;
 }
 
 async function sendCardToFlowAI() {
