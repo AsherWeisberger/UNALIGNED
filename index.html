@@ -2072,13 +2072,16 @@ function normalizeSupabaseCard(row) {
         try {
             const parsed = JSON.parse(description);
             description = parsed.rich_description || '';
-            originalEmail = Array.isArray(parsed.email_thread) ? parsed.email_thread : null;
+            // email_thread is the legacy location inside description JSON
+            if (!originalEmail || !originalEmail.length) {
+                originalEmail = Array.isArray(parsed.email_thread) ? parsed.email_thread : null;
+            }
         } catch (e) {
             // Not valid JSON — treat as legacy plain text
         }
     }
     // Fallback: pipeline saves original_email as a top-level column
-    if (!originalEmail) originalEmail = row.original_email || null;
+    if (!originalEmail || !originalEmail.length) originalEmail = row.original_email || null;
 
     return {
         id: row.id,
@@ -2719,7 +2722,10 @@ function openCardModal(cardId) {
     document.getElementById('modal-created-info').textContent = `Created by ${currentEditingCardData.createdBy} · ${timeAgo(new Date(currentEditingCardData.createdAt))}`;
 
     // Show first contact date prominently
-    const firstContact = currentEditingCardData.firstEmailDate || currentEditingCardData.originalEmail?.date;
+    // First contact: use oldest email in thread (first array entry)
+    const emailArr = currentEditingCardData.originalEmail;
+    const firstEmailDate = Array.isArray(emailArr) && emailArr.length > 0 ? emailArr[0].date : null;
+    const firstContact = firstEmailDate || currentEditingCardData.firstEmailDate || currentEditingCardData.emailDate;
     const firstContactEl = document.getElementById('modal-first-contact');
     if (firstContact && firstContactEl) {
         try {
@@ -2728,7 +2734,7 @@ function openCardModal(cardId) {
                 firstContactEl.textContent = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
             }
         } catch(e) {
-            firstContactEl.textContent = firstContact;
+            firstContactEl.textContent = fmtEmailDate(firstContact);
         }
     }
     renderLeadDetails();
@@ -4033,7 +4039,7 @@ function tvGradient(n){return avatarGradients[n]||'linear-gradient(135deg,#6b728
 function tvFormatDate(iso){if(!iso)return'';const d=new Date(iso);const n=new Date();const m=Math.floor((n-d)/6e4);if(m<1)return'Just now';if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';return Math.floor(h/24)+'d ago';}
 function fmtEmailDate(d){if(!d)return'';if(/^\d{1,2}\/\d{1,2}$/.test(d))return d;const p=d.substring(0,10).split('-');return`${p[1]}/${p[2]}/${p[0].slice(-2)}`;}
 function tvLastAct(card){if(!card.activity||!card.activity.length)return'No activity';const l=card.activity[card.activity.length-1];return`${l.user}: ${l.action} (${tvFormatDate(l.time)})`;}
-function tvDate(card){const d=card.firstEmailDate||card.emailDate||card.originalEmail?.date;if(!d)return'—';return fmtEmailDate(d);}
+function tvDate(card){const arr=card.originalEmail;const d=Array.isArray(arr)&&arr.length>0?arr[0].date:null;const fallback=d||card.firstEmailDate||card.emailDate;if(!fallback)return'—';return fmtEmailDate(fallback);}
 
 const TV_COLS = [
   {k:'contactName',  l:'Name',         w:150},
