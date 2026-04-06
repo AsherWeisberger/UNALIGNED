@@ -1464,6 +1464,29 @@ VALUE: estimated value" style="border-left:3px solid var(--accent);"></textarea>
                         </div>
                     </div>
 
+                    <!-- Sam Levin's Draft via UnalignedX -->
+                    <div class="modal-section" id="sam-draft-section" style="margin-top:0;">
+                        <div class="modal-section-title" style="display:flex;align-items:center;gap:8px;">
+                            ✉️ Sam Levin's Reply
+                            <span style="font-size:11px;color:var(--muted);font-weight:400;">via UnalignedX</span>
+                            <span id="sam-draft-badge" class="draft-badge" style="display:none;"></span>
+                        </div>
+                        <div id="sam-draft-loading" style="color:var(--muted);font-size:12px;font-family:var(--font-mono);display:none;">Generating…</div>
+                        <div id="sam-draft-empty">
+                            <p style="color:var(--muted);font-size:12px;font-family:var(--font-mono);margin:0 0 10px;">Sam Levin replies after the initial outreach.</p>
+                            <button class="sidebar-btn" onclick="generateSamDraft()" style="font-size:12px;background:rgba(99,179,237,0.12);color:#63b3ed;display:block;">✨ Generate Sam's Draft</button>
+                        </div>
+                        <div id="sam-draft-content" style="display:none;">
+                            <textarea class="description-textarea" id="sam-draft-body" placeholder="Sam's reply…" style="min-height:100px;resize:vertical;"></textarea>
+                            <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+                                <button class="sidebar-btn" onclick="generateSamDraft()" style="font-size:12px;">🔄 Regenerate</button>
+                                <button class="sidebar-btn" onclick="copySamDraft()" style="font-size:12px;">📋 Copy</button>
+                                <button class="sidebar-btn" onclick="sendSamEmail()" style="font-size:12px;background:rgba(99,179,237,0.15);color:#63b3ed;">📤 Send as Sam</button>
+                            </div>
+                            <div id="sam-email-error" style="color:#fc8181;font-size:12px;display:none;margin-top:8px;"></div>
+                        </div>
+                    </div>
+
                     <!-- Assignee + Due Date — compact inline row -->
                     <div style="display:flex;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--border);margin-top:4px;">
                         <div style="flex:1;">
