@@ -1693,6 +1693,7 @@ function normalizeSupabaseCard(row) {
         location: row.location || '',
         draft_reply: draft,
         draft_reply_status: row.draft_reply_status || 'pending',
+        originalEmail: row.email_thread || null,   // full email thread stored as JSONB
     };
 }
 
@@ -2298,31 +2299,8 @@ function openCardModal(cardId) {
     renderChecklist(); renderActivity(); renderAssignee();
     renderDraftReply();
 
-    // Show loading state while we fetch email body from subcollection
-    // We now show the original email as the first entry in the thread
-    const hasOrigRef = currentEditingCardData.originalEmail?.from;
-    const hasOrigCache = window._emailCacheSet?.has(cardId);
-    if (hasOrigRef || hasOrigCache) {
-        // Show thread section with loading indicator while we fetch
-        const threadSection = document.getElementById('thread-section');
-        const threadList = document.getElementById('thread-list');
-        const threadEmpty = document.getElementById('thread-empty');
-        const threadCount = document.getElementById('thread-count');
-        if (threadSection && threadList) {
-            threadSection.style.display = 'block';
-            threadCount.textContent = '(loading…)';
-            threadList.innerHTML = '<div style="color:var(--muted);font-size:12px;font-style:italic;">Loading email conversation…</div>';
-        }
-    }
-
-    // Fetch email body from subcollection then render unified thread
-    loadOriginalEmailBody(cardId).then(enriched => {
-        if (enriched) {
-            currentEditingCardData.originalEmail = enriched;
-        }
-        renderThread();
-    });
-
+    // email_thread JSONB loads with cardsData — thread is available immediately
+    renderThread();
     overlay.classList.add('active');
     // Scroll modal body to top on open
     requestAnimationFrame(() => {
@@ -2336,70 +2314,13 @@ function openCardModal(cardId) {
 }
 
 // Track which card IDs have email data (preloaded at startup)
-let _emailCacheSet = null;
-
-// Preload the set of card IDs that have email data
-async function preloadEmailCache() {
-    try {
-        const { data } = await supabase.from('email_data').select('card_id');
-        _emailCacheSet = new Set((data || []).map(r => String(r.card_id)));
-        console.log('[emailCache] Preloaded', _emailCacheSet.size, 'email IDs');
-    } catch(e) {
-        console.warn('[emailCache] Failed to preload:', e.message);
-        _emailCacheSet = new Set();
-    }
-}
-
-// Fetch full email body from email_data table
+// email_thread JSONB loads with cardsData — no separate cache needed
+// Fetch full email body from email_thread JSONB column
 async function loadOriginalEmailBody(cardId) {
+    // email_thread JSONB is already loaded into cardsData via normalizeSupabaseCard
+    // Just return it as-is — no extra fetch needed
     const card = cardsData[cardId];
-    const orig = card?.originalEmail;
-
-    // If we already have full email data inline (body present), return as-is
-    if (orig?.body) return orig;
-
-    // Card has originalEmail but no body — try email_data table for full data
-    if (orig) {
-        try {
-            const { data } = await supabase.from('email_data').select('*').eq('card_id', cardId).single();
-            if (data) {
-                return {
-                    cached: true,
-                    from: orig.from || data.from || '',
-                    email: orig.email || data.email || '',
-                    subject: orig.subject || data.subject || '',
-                    date: orig.date || data.date || '',
-                    snippet: orig.snippet || data.snippet || '',
-                    gmail_thread_id: orig.gmail_thread_id || data.gmail_thread_id || '',
-                    body: data.body || ''
-                };
-            }
-        } catch(e) {
-            console.warn('Failed to load email body for', cardId, e.message);
-        }
-        return orig;
-    }
-
-    // Card has no originalEmail at all — check email_data directly
-    try {
-        const { data } = await supabase.from('email_data').select('*').eq('card_id', cardId).single();
-        if (data) {
-            return {
-                cached: true,
-                from: data.from || '',
-                email: data.email || '',
-                subject: data.subject || '',
-                date: data.date || '',
-                snippet: data.snippet || '',
-                gmail_thread_id: data.gmail_thread_id || '',
-                body: data.body || ''
-            };
-        }
-    } catch(e) {
-        console.warn('Failed to load email for', cardId, e.message);
-    }
-
-    return null;
+    return card?.originalEmail || null;
 }
 
 function saveCardAndClose() {
@@ -2855,7 +2776,7 @@ async function sendEmail() {
 }
 
 // ── Email Thread ───────────────────────────────────
-// Renders unified conversation: original lead email FIRST, then replies, oldest→newest
+// Renders unified conversation from email_thread JSONB — original first, then replies
 function renderThread() {
     const section = document.getElementById('thread-section');
     const empty = document.getElementById('thread-empty');
@@ -2863,24 +2784,16 @@ function renderThread() {
     const count = document.getElementById('thread-count');
     if (!section || !list || !currentEditingCardData) return;
 
-    const orig = currentEditingCardData.originalEmail;
-    const thread = currentEditingCardData.thread || [];
+    // email_thread is a JSONB array of email objects
+    const thread = currentEditingCardData.originalEmail || [];
 
-    // Build unified list: original lead first, then replies
-    const allEmails = [];
-    if (orig && orig.from) {
-        allEmails.push({ direction: 'lead', from: orig.from, subject: orig.subject || '', date: orig.date || null, body: orig.body || orig.snippet || '', isOriginal: true });
-    }
-    thread.forEach(e => allEmails.push(e));
-
-    if (allEmails.length === 0) {
+    if (!thread || thread.length === 0) {
         section.style.display = 'none';
         return;
     }
 
     // Sort oldest → newest
-    allEmails.sort((a, b) => {
-        if (!a.date && !b.date) return 0;
+    const sorted = [...thread].sort((a, b) => {
         if (!a.date) return 1;
         if (!b.date) return -1;
         return new Date(a.date) - new Date(b.date);
@@ -2888,37 +2801,40 @@ function renderThread() {
 
     section.style.display = 'block';
     empty.style.display = 'none';
-    const total = allEmails.length;
+    const total = sorted.length;
     count.textContent = `${total} email${total !== 1 ? 's' : ''}`;
 
-    list.innerHTML = allEmails.map((email, i) => {
-        const dir = email.direction || 'lead';
+    list.innerHTML = sorted.map((email, i) => {
+        const isFirst = i === 0;
+        const isLast = i === sorted.length - 1;
+        const dir = detectSender(email.from);
         const senderLabel = dir === 'robert' ? 'Robert Scoble' : dir === 'sam' ? 'Sam Levin' : 'Lead';
         const date = email.date ? new Date(email.date) : null;
-        // Clean timestamp: "Mar 28 · 2:30 PM"
         const dateStr = date ? date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
         const timeStr = date ? date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
         const fullDateStr = date ? date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
-        const subject = email.subject || (email.isOriginal ? '' : '');
-
-        const isFirst = i === 0;
-        const isLast = i === allEmails.length - 1;
 
         return `
             <div class="thread-email from-${dir}" id="thread-email-${i}">
                 <div class="thread-email-header">
                     <span class="thread-sender ${dir}">${escHtml(senderLabel)}</span>
                     <span class="thread-timestamp" title="${escHtml(fullDateStr)}">${escHtml(dateStr)}${dateStr && timeStr ? ' · ' : ''}${escHtml(timeStr)}</span>
-                    ${isLast && !email.isOriginal ? '<span style="font-size:10px;color:var(--accent);margin-left:4px;">← latest</span>' : ''}
+                    ${isLast ? '<span style="font-size:10px;color:var(--accent);margin-left:4px;">← latest</span>' : ''}
                 </div>
-                ${subject ? `<div class="thread-subject">${escHtml(subject)}</div>` : ''}
-                <div class="thread-body">${escHtml(email.body || '')}</div>
+                <div class="thread-body">${escHtml(email.body || email.snippet || '')}</div>
             </div>
         `;
     }).join('');
 
-    // Scroll to top (oldest email)
     requestAnimationFrame(() => { list.scrollTop = 0; });
+}
+
+function detectSender(from) {
+    if (!from) return 'lead';
+    const lower = from.toLowerCase();
+    if (lower.includes('scoble') || lower.includes('robertscoble')) return 'robert';
+    if (lower.includes('sam') || lower.includes('saml')) return 'sam';
+    return 'lead';
 }
 
 function escHtml(str) {
