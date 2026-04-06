@@ -3312,19 +3312,27 @@ function syncLeadDetails() {
 
 function renderLeadDetails() {
     if (!currentEditingCardData) return;
-    const desc = currentEditingCardData.description || '';
-    const who   = extractLeadField(desc, 'WHO');
-    const what  = extractLeadField(desc, 'WHAT');
-    const why   = extractLeadField(desc, 'WHY');
-    const value = extractLeadField(desc, 'VALUE');
+    const card = currentEditingCardData;
+    const desc = card.description || '';
 
-    const ids = ['lead-who','lead-what','lead-why','lead-value'];
+    // Primary: extract from structured description
+    let who   = extractLeadField(desc, 'WHO');
+    let what  = extractLeadField(desc, 'WHAT');
+    let why   = extractLeadField(desc, 'WHY');
+    let value = extractLeadField(desc, 'VALUE');
+
+    // Fallback: derive from individual card fields
+    if (!who)   who   = [card.contactName, card.businessName, card.jobTitle].filter(Boolean).join(' · ');
+    if (!what)  what  = card.intent || card.title || card.leadSource || '';
+    if (!why)   why   = extractLeadField(desc, 'WHY THEM') || desc.replace(/^WHO:.*$/mg,'').replace(/^WHAT:.*$/mg,'').replace(/^VALUE:.*$/mg,'').trim().slice(0, 200);
+    if (!value) value = card.estimatedValue ? `$${card.estimatedValue}` : '';
+
+    const ids  = ['lead-who', 'lead-what', 'lead-why', 'lead-value'];
     const vals = [who, what, why, value];
     ids.forEach((id, i) => {
         const el = document.getElementById(id);
         if (!el) return;
         el.value = vals[i];
-        // Auto-resize to fit content
         el.style.height = 'auto';
         el.style.height = el.scrollHeight + 'px';
     });
