@@ -38,6 +38,7 @@
 
         body {
             font-family: var(--font-body);
+            font-size: 16px;
             background: var(--bg);
             min-height: 100vh;
             height: 100%;
@@ -355,7 +356,7 @@
         }
 
         .list-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
-        .list-title { font-size: 14px; font-weight: 700; font-family: var(--font-display); letter-spacing: 0.01em; }
+        .list-title { font-size: 16px; font-weight: 700; font-family: var(--font-display); letter-spacing: 0.01em; }
         .list-meta { font-size: 11px; color: var(--muted); margin-top: 2px; font-family: var(--font-mono); }
 
         .list-actions { display: flex; align-items: center; gap: 4px; }
@@ -391,7 +392,7 @@
             font-size: 10px; font-weight: 600; color: #fff;
             font-family: var(--font-mono);
         }
-        .card-content { font-size: 13px; color: #1f2937; line-height: 1.4; flex: 1; }
+        .card-content { font-size: 15px; color: #1f2937; line-height: 1.4; flex: 1; }
         .card-who { font-weight: 600; margin-bottom: 3px; }
         .card-what-why { font-size: 11px; color: #6b7280; }
         .card-intent-tag { display: inline-block; background: rgba(59,130,246,0.1); color: #3b82f6; border-radius: 4px; padding: 1px 6px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 2px; }
@@ -4164,17 +4165,17 @@ function renderTableView() {
         return`<tr style="border-bottom:1px solid var(--surface2);" data-cid="${c.id}" class="${rowClass}">
           <td class="tv-checkbox-cell" style="padding:7px 4px;vertical-align:top;"><input type="checkbox" class="tv-row-checkbox" data-id="${c.id}" onclick="handleTvRowCheckbox(event,'${c.id}')" style="accent-color:var(--accent);cursor:pointer;width:15px;height:15px;"></td>
           <td style="padding:7px 10px;vertical-align:top;font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;${isStale?'color:#f87171;':''}" onclick="openCardModal('${c.id}')">${isStale?'⚠️ ':''}${escapeHtml(c.contactName||c.title||'—')}</td>
-          <td style="padding:7px 10px;vertical-align:top;color:var(--muted);font-size:12px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.businessName||'—')}</td>
-          <td style="padding:7px 10px;vertical-align:top;font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${c.email?`<a href="mailto:${c.email}" style="color:#4facfe;text-decoration:none;">${escapeHtml(c.email)}</a>`:'—'}</td>
-          <td style="padding:7px 10px;vertical-align:top;font-size:12px;color:var(--muted);cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.phone||'—')}</td>
+          <td style="padding:7px 10px;vertical-align:top;color:var(--muted);font-size:14px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.businessName||'—')}</td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:14px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${c.email?`<a href="mailto:${c.email}" style="color:#4facfe;text-decoration:none;">${escapeHtml(c.email)}</a>`:'—'}</td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:14px;color:var(--muted);cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.phone||'—')}</td>
           <td style="padding:7px 10px;vertical-align:top;cursor:default;" onclick="event.stopPropagation()"><select onchange="moveCardToList('${c.id}',this.value);this.value='${c.listId}';" style="background:${st.color}22;color:${st.color};border:1px solid ${st.color}55;border-radius:10px;padding:2px 6px;font-size:10px;font-weight:700;text-transform:uppercase;cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;">${stageOpts}</select></td>
           <td style="padding:7px 10px;vertical-align:top;font-weight:600;color:#34d399;font-size:12px;cursor:pointer;" onclick="openCardModal('${c.id}')">$${Number(c.estimatedValue||0).toLocaleString()}</td>
           <td style="padding:7px 10px;vertical-align:top;font-size:11px;font-weight:700;${c.priority==='hot'?'color:#ef4444':c.priority==='warm'?'color:#f59e0b':'color:#3b82f6'};cursor:pointer;" onclick="openCardModal('${c.id}')">${(c.priority||'—').toUpperCase()}</td>
-          <td style="padding:7px 10px;vertical-align:top;font-size:12px;cursor:default;" onclick="event.stopPropagation()"><div style="display:flex;align-items:center;gap:6px;">${c.assignee?`<span style="width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;flex-shrink:0;background:${tvGradient(c.assignee)}">${tvInitials(c.assignee)}</span><span>${escapeHtml(c.assignee)}</span>`:'—'}</div></td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:14px;cursor:default;" onclick="event.stopPropagation()"><div style="display:flex;align-items:center;gap:6px;">${c.assignee?`<span style="width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;flex-shrink:0;background:${tvGradient(c.assignee)}">${tvInitials(c.assignee)}</span><span>${escapeHtml(c.assignee)}</span>`:'—'}</div></td>
           <td style="padding:7px 10px;vertical-align:top;font-size:11px;color:var(--muted);cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.leadSource||'—')}</td>
           <td style="padding:7px 10px;vertical-align:top;font-size:11px;color:${isOverdue?'#f87171':'var(--muted)'};cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.dueDate||'—')}</td>
-          <td style="padding:7px 10px;vertical-align:top;font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.title||'—')}</td>
-          <td style="padding:7px 10px;vertical-align:top;font-size:12px;color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.description||'—')}</td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:14px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.title||'—')}</td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:14px;color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.description||'—')}</td>
           <td style="padding:7px 10px;vertical-align:top;font-size:11px;color:var(--muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(act)}</td>
           <td style="padding:7px 10px;vertical-align:top;font-size:11px;color:var(--muted);white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${tvDate(c)}</td>
         </tr>`;
