@@ -2090,6 +2090,8 @@ function normalizeSupabaseCard(row) {
             } catch (e) {}
         }
     }
+    // DEBUG: log email source for card 2739
+    if (row.id === 2739) { console.log('[DEBUG 2739] row.original_email:', row.original_email ? row.original_email.length + ' emails, first=' + (row.original_email[0]?.from||'').slice(0,30) : 'NULL'); console.log('[DEBUG 2739] final originalEmail:', originalEmail ? originalEmail.length + ' emails, first=' + (originalEmail[0]?.from||'').slice(0,30) : 'NULL'); }
 
     return {
         id: row.id,
@@ -3262,6 +3264,7 @@ function renderThread() {
 
     // email_thread is a JSONB array of email objects
     const thread = currentEditingCardData.originalEmail || [];
+    console.log('[DEBUG renderThread] cardId:', currentEditingCard, 'originalEmail count:', thread.length, 'first:', (thread[0]?.from||'none').slice(0,50));
 
     if (!thread || thread.length === 0) {
         section.style.display = 'none';
