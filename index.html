@@ -1053,73 +1053,155 @@
         }
         .stale-header-badge:hover { background: rgba(248,113,113,0.18); }
 
-        /* ─── ACTIVITY LOG IMPROVEMENTS ────────────────────── */
-        .activity-log-section {
+        /* ─── UNIFIED ACTIVITY + TASKS SECTION ───────────────── */
+        .unified-activity {
             background: var(--surface2);
             border-radius: 10px;
-            padding: 14px;
             border: 1px solid var(--border);
+            overflow: hidden;
         }
-        .activity-log-title {
+        .unified-activity-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 14px 10px;
+            border-bottom: 1px solid var(--border);
+        }
+        .unified-activity-title {
             font-size: 11px;
             font-weight: 600;
             color: var(--muted2);
             text-transform: uppercase;
             letter-spacing: 0.06em;
             font-family: var(--font-mono);
-            margin-bottom: 10px;
         }
-        .activity-log-buttons {
+        .unified-activity-count {
+            font-size: 10px;
+            color: var(--muted);
+            font-family: var(--font-mono);
+        }
+        .unified-input-row {
             display: flex;
             gap: 6px;
-            flex-wrap: wrap;
-            margin-bottom: 10px;
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(0,0,0,0.1);
         }
-        .activity-log-btn {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            padding: 5px 10px;
-            border-radius: 999px;
+        .unified-type-select {
+            padding: 7px 8px;
+            border-radius: 7px;
             border: 1px solid var(--border2);
             background: var(--surface);
             color: var(--text);
-            font-size: 11px;
-            font-weight: 500;
-            cursor: pointer;
+            font-size: 12px;
             font-family: var(--font-body);
-            transition: all 0.15s;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            padding-right: 22px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239ca3af' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 7px center;
         }
-        .activity-log-btn:hover { background: rgba(91,140,255,0.1); border-color: rgba(91,140,255,0.4); color: var(--accent); }
-        .activity-log-form {
-            display: none;
-            gap: 8px;
-            align-items: center;
-        }
-        .activity-log-form.active { display: flex; }
-        .activity-log-input {
+        .unified-type-select:focus { outline: none; border-color: var(--accent); }
+        .unified-input {
             flex: 1;
-            padding: 8px 12px;
-            border-radius: 8px;
+            padding: 7px 11px;
+            border-radius: 7px;
             border: 1px solid var(--border2);
             background: var(--surface);
             color: var(--text);
             font-size: 13px;
             font-family: var(--font-body);
         }
-        .activity-log-input:focus { outline: none; border-color: var(--accent); }
-        .activity-log-type-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 3px 8px;
-            border-radius: 999px;
-            background: rgba(91,140,255,0.12);
+        .unified-input:focus { outline: none; border-color: var(--accent); }
+        .unified-input::placeholder { color: var(--muted2); }
+        .unified-add-btn {
+            padding: 7px 14px;
+            border-radius: 7px;
+            border: 1px solid rgba(91,140,255,0.4);
+            background: rgba(91,140,255,0.15);
             color: var(--accent);
-            font-size: 10px;
+            font-size: 12px;
             font-weight: 600;
-            font-family: var(--font-mono);
+            cursor: pointer;
+            font-family: var(--font-body);
             white-space: nowrap;
+            transition: all 0.15s;
+        }
+        .unified-add-btn:hover { background: rgba(91,140,255,0.25); }
+        .unified-timeline {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            max-height: 280px;
+            overflow-y: auto;
+        }
+        .unified-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 9px 14px;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            transition: background 0.1s;
+        }
+        .unified-item:last-child { border-bottom: none; }
+        .unified-item:hover { background: rgba(255,255,255,0.02); }
+        .unified-item.task-done { opacity: 0.55; }
+        .unified-item.task-done .unified-item-text { text-decoration: line-through; color: var(--muted); }
+        .unified-checkbox {
+            width: 15px;
+            height: 15px;
+            border-radius: 4px;
+            border: 1.5px solid var(--border2);
+            background: transparent;
+            cursor: pointer;
+            flex-shrink: 0;
+            margin-top: 1px;
+            appearance: none;
+            -webkit-appearance: none;
+            position: relative;
+            transition: all 0.15s;
+        }
+        .unified-checkbox:checked {
+            background: var(--green);
+            border-color: var(--green);
+        }
+        .unified-checkbox:checked::after {
+            content: '✓';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 10px;
+            color: #fff;
+            font-weight: 700;
+        }
+        .unified-type-icon {
+            font-size: 13px;
+            flex-shrink: 0;
+            margin-top: 1px;
+            width: 18px;
+            text-align: center;
+        }
+        .unified-item-body { flex: 1; min-width: 0; }
+        .unified-item-text {
+            font-size: 13px;
+            color: var(--text);
+            line-height: 1.4;
+        }
+        .unified-item-meta {
+            font-size: 11px;
+            color: var(--muted);
+            font-family: var(--font-mono);
+            margin-top: 2px;
+        }
+        .unified-empty {
+            padding: 20px 14px;
+            text-align: center;
+            color: var(--muted);
+            font-size: 12px;
+            font-family: var(--font-mono);
         }
         .activity-group-date {
             font-size: 10px;
@@ -1128,9 +1210,9 @@
             text-transform: uppercase;
             letter-spacing: 0.08em;
             font-family: var(--font-mono);
-            padding: 4px 0 6px;
+            padding: 6px 14px 4px;
+            background: rgba(0,0,0,0.1);
             border-bottom: 1px solid var(--border);
-            margin-bottom: 8px;
         }
         .activity-emoji { font-size: 13px; margin-right: 2px; }
 
@@ -1358,70 +1440,40 @@ VALUE: estimated value" style="border-left:3px solid var(--accent);"></textarea>
                         <div id="thread-list"></div>
                     </div>
 
-                    <div class="modal-section">
-                        <div class="modal-section-title">Checklist</div>
-                        <div class="checklist-items" id="modal-checklist"></div>
-                        <div style="display:flex;gap:8px;margin-top:10px;">
-                            <input type="text" class="contact-input" id="checklist-input" placeholder="Add item…" style="flex:1;margin-bottom:0;">
-                            <button class="card-modal-save" onclick="addChecklistItem()" style="padding:8px 14px;">Add</button>
+                    <!-- ── UNIFIED ACTIVITY + TASKS ───────────────────── -->
+                    <div class="unified-activity" id="unified-activity">
+                        <div class="unified-activity-header">
+                            <span class="unified-activity-title">Activity &amp; Tasks</span>
+                            <span class="unified-activity-count" id="unified-count"></span>
+                        </div>
+                        <div class="unified-input-row">
+                            <select class="unified-type-select" id="unified-type">
+                                <option value="Task">☐ Task</option>
+                                <option value="Email">📧 Email</option>
+                                <option value="Call">📞 Call</option>
+                                <option value="Note">📝 Note</option>
+                                <option value="Demo">🎥 Demo</option>
+                                <option value="Meeting">🤝 Meeting</option>
+                                <option value="Follow-up">📅 Follow-up</option>
+                            </select>
+                            <input type="text" class="unified-input" id="unified-input" placeholder="Add a note or task…" onkeydown="if(event.key==='Enter')addUnifiedItem()">
+                            <button class="unified-add-btn" onclick="addUnifiedItem()">Add</button>
+                        </div>
+                        <div class="unified-timeline" id="unified-timeline">
+                            <div class="unified-empty" id="unified-empty">Nothing yet — add the first item above.</div>
                         </div>
                     </div>
 
-                    <div class="modal-section">
-                        <div class="modal-section-title">Assignee</div>
-                        <div class="modal-assignee-display" id="modal-assignee"></div>
-                        <button class="sidebar-btn" onclick="changeAssignee()">Change assignee</button>
-                    </div>
-
-                    <div class="modal-section">
-                        <div class="modal-section-title">Due Date</div>
-                        <input type="date" class="contact-input" id="due-date-input" onchange="updateDueDate()" style="margin-bottom:0;">
-                    </div>
-
-                    <!-- Sam's Draft -->
-                    <div class="modal-section" id="sam-draft-section">
-                        <div class="modal-section-title" style="display:flex;align-items:center;gap:8px;">
-                            ✉️ Sam Levin's Draft
-                            <span style="font-size:11px;color:var(--muted);font-weight:400;">via UnalignedX</span>
-                            <span id="sam-draft-badge" class="draft-badge" style="display:none;"></span>
+                    <!-- Assignee + Due Date — compact inline row -->
+                    <div style="display:flex;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--border);margin-top:4px;">
+                        <div style="flex:1;">
+                            <div style="font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:0.06em;font-family:var(--font-mono);margin-bottom:6px;">Assignee</div>
+                            <div class="modal-assignee-display" id="modal-assignee" style="display:flex;align-items:center;gap:8px;"></div>
                         </div>
-                        <div id="sam-draft-loading" style="color:var(--muted);font-size:12px;font-family:var(--font-mono);display:none;">Generating…</div>
-                        <div id="sam-draft-empty">
-                            <p style="color:var(--muted);font-size:12px;font-family:var(--font-mono);margin:0 0 10px;">Sam Levin responds after the initial outreach.</p>
-                            <button class="sidebar-btn" onclick="generateSamDraft()" style="font-size:12px;background:rgba(99,179,237,0.12);color:#63b3ed;display:block;">✨ Generate Sam's Draft</button>
+                        <div style="flex:1;">
+                            <div style="font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:0.06em;font-family:var(--font-mono);margin-bottom:6px;">Due Date</div>
+                            <input type="date" class="contact-input" id="due-date-input" onchange="updateDueDate()" style="margin-bottom:0;">
                         </div>
-                        <div id="sam-draft-content" style="display:none;">
-                            <textarea class="description-textarea" id="sam-draft-body" placeholder="Sam's reply…" style="min-height:100px;resize:vertical;"></textarea>
-                            <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
-                                <button class="sidebar-btn" onclick="generateSamDraft()" style="font-size:12px;">🔄 Regenerate</button>
-                                <button class="sidebar-btn" onclick="copySamDraft()" style="font-size:12px;">📋 Copy</button>
-                                <button class="sidebar-btn" onclick="sendSamEmail()" style="font-size:12px;background:rgba(99,179,237,0.15);color:#63b3ed;">📤 Send as Sam</button>
-                            </div>
-                            <div id="sam-email-error" style="color:#fc8181;font-size:12px;display:none;margin-top:8px;"></div>
-                        </div>
-                    </div>
-
-                    <!-- Log Activity Quick Actions -->
-                    <div class="activity-log-section" id="activity-log-section">
-                        <div class="activity-log-title">Log Activity</div>
-                        <div class="activity-log-buttons">
-                            <button class="activity-log-btn" onclick="openActivityForm('Email')">📧 Email</button>
-                            <button class="activity-log-btn" onclick="openActivityForm('Call')">📞 Call</button>
-                            <button class="activity-log-btn" onclick="openActivityForm('Note')">📝 Note</button>
-                            <button class="activity-log-btn" onclick="openActivityForm('Demo')">🎥 Demo</button>
-                            <button class="activity-log-btn" onclick="openActivityForm('Meeting')">🤝 Meeting</button>
-                            <button class="activity-log-btn" onclick="openActivityForm('Follow-up Scheduled')">📅 Follow-up Scheduled</button>
-                        </div>
-                        <div class="activity-log-form" id="activity-log-form">
-                            <span class="activity-log-type-badge" id="activity-log-type"></span>
-                            <input type="text" class="activity-log-input" id="activity-log-input" placeholder="Add a note…" onkeydown="if(event.key==='Enter')saveActivityLog()">
-                            <button class="card-modal-save" onclick="saveActivityLog()" style="padding:8px 14px;">Save</button>
-                        </div>
-                    </div>
-
-                    <div class="modal-section">
-                        <div class="modal-section-title">Activity</div>
-                        <div class="activity-list" id="modal-activity"></div>
                     </div>
 
                     <div class="modal-section" id="draft-reply-section">
@@ -2333,7 +2385,7 @@ function openCardModal(cardId) {
     }
     document.getElementById('modal-description').value = currentEditingCardData.description||'';
     document.getElementById('due-date-input').value = currentEditingCardData.dueDate||'';
-    renderChecklist(); renderActivity(); renderAssignee();
+    renderUnifiedActivity(); renderAssignee();
     renderDraftReply();
 
     // email_thread JSONB loads with cardsData — thread is available immediately
@@ -2391,68 +2443,92 @@ function renderModalLabels() {
     c.innerHTML = currentEditingCardData.labels.map(l=>`<span class="label-tag ${l.color}">${l.name} <span class="remove-label" onclick="removeLabel('${l.name}')">×</span></span>`).join('');
 }
 
-function renderChecklist() {
-    const c = document.getElementById('modal-checklist');
-    if (!currentEditingCardData.checklist?.length) { c.innerHTML='<span style="color:var(--muted);font-size:12px;font-family:var(--font-mono);">No items yet</span>'; return; }
-    c.innerHTML = currentEditingCardData.checklist.map((item,i)=>`
-        <div class="checklist-item ${item.checked?'checked':''}">
-            <input type="checkbox" ${item.checked?'checked':''} onchange="toggleChecklistItem(${i})">
-            <span class="checklist-item-text">${escapeHtml(item.text)}</span>
-        </div>`).join('');
-}
+function renderUnifiedActivity() {
+    const timeline = document.getElementById('unified-timeline');
+    const empty = document.getElementById('unified-empty');
+    const count = document.getElementById('unified-count');
+    if (!timeline) return;
 
-function renderActivity() {
-    const c = document.getElementById('modal-activity');
-    if (!currentEditingCardData.activity?.length) { c.innerHTML='<span style="color:var(--muted);font-size:12px;font-family:var(--font-mono);">Nothing yet</span>'; return; }
+    const checklist = currentEditingCardData.checklist || [];
+    const activities = currentEditingCardData.activity || [];
+    const total = checklist.length + activities.length;
+    count.textContent = total ? `${total} item${total !== 1 ? 's' : ''}` : '';
 
-    // Group activities by date
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
+    if (!total) {
+        empty.style.display = 'block';
+        timeline.innerHTML = '';
+        timeline.appendChild(empty);
+        return;
+    }
+    empty.style.display = 'none';
 
+    // Build unified list with timestamps, merge-sort by time descending
+    const items = [];
+    checklist.forEach((item, i) => {
+        items.push({ type: 'task', text: item.text, checked: !!item.checked, index: i, time: item._time || new Date().toISOString() });
+    });
+    activities.forEach(act => {
+        items.push({ type: 'activity', action: act.action, user: act.user, initials: act.initials || '?', time: act.time });
+    });
+    items.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+    // Group by date
+    const today = new Date(); today.setHours(0,0,0,0);
+    const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
     const groups = { today: [], yesterday: [], older: [] };
-    currentEditingCardData.activity.forEach(act => {
-        const d = new Date(act.time);
-        d.setHours(0,0,0,0);
-        if (d.getTime() === today.getTime()) groups.today.push(act);
-        else if (d.getTime() === yesterday.getTime()) groups.yesterday.push(act);
-        else groups.older.push(act);
+    items.forEach(item => {
+        const d = new Date(item.time); d.setHours(0,0,0,0);
+        if (d.getTime() === today.getTime()) groups.today.push(item);
+        else if (d.getTime() === yesterday.getTime()) groups.yesterday.push(item);
+        else groups.older.push(item);
     });
 
     const formatDateLabel = (d) => {
-        d.setHours(0,0,0,0);
+        d = new Date(d); d.setHours(0,0,0,0);
         if (d.getTime() === today.getTime()) return 'Today';
         if (d.getTime() === yesterday.getTime()) return 'Yesterday';
         return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     };
 
-    const renderActivityItem = (act) => {
-        const p = profiles[act.user]||{gradient:'#9ca3af',initials:act.initials||'?'};
-        // Extract emoji from action if present
-        const emojiMatch = act.action.match(/^([^\s]+) /);
-        const emojiHtml = emojiMatch ? `<span class="activity-emoji">${emojiMatch[0].trim()}</span>` : '';
-        const actionText = emojiMatch ? act.action.replace(/^[^\s]+ /, '') : act.action;
-        return `<div class="activity-item">
-            <span class="activity-avatar" style="background:${p.gradient};">${act.initials||'?'}</span>
-            <div><div class="activity-text"><strong>${act.user}</strong> ${emojiHtml}${actionText}</div><div class="activity-time">${timeAgo(new Date(act.time))}</div></div>
-        </div>`;
+    const iconMap = { Task:'☐', Email:'📧', Call:'📞', Note:'📝', Demo:'🎥', Meeting:'🤝', Followup:'📅' };
+
+    const renderItem = (item) => {
+        if (item.type === 'task') {
+            return `<div class="unified-item ${item.checked ? 'task-done' : ''}" id="u-task-${item.index}">
+                <input type="checkbox" class="unified-checkbox" ${item.checked ? 'checked' : ''} onchange="toggleUnifiedTask(${item.index})">
+                <span class="unified-type-icon">☐</span>
+                <div class="unified-item-body">
+                    <div class="unified-item-text">${escapeHtml(item.text)}</div>
+                    <div class="unified-item-meta">${item.checked ? '✓ Completed' : 'Task'}</div>
+                </div>
+            </div>`;
+        } else {
+            // activity item
+            const emojiMatch = item.action.match(/^([^\s]+) /);
+            const emoji = emojiMatch ? emojiMatch[1].trim() : '📝';
+            const text = emojiMatch ? item.action.replace(/^[^\s]+ /, '') : item.action;
+            const user = item.user || 'Unknown';
+            const p = profiles[user] || { gradient: '#9ca3af' };
+            return `<div class="unified-item">
+                <span class="activity-avatar" style="background:${p.gradient};font-size:10px;">${item.initials || '?'}</span>
+                <div class="unified-item-body">
+                    <div class="unified-item-text"><strong>${escapeHtml(user)}</strong> ${emoji} ${escapeHtml(text)}</div>
+                    <div class="unified-item-meta">${timeAgo(new Date(item.time))}</div>
+                </div>
+            </div>`;
+        }
     };
 
     let html = '';
-    if (groups.today.length) {
-        html += `<div class="activity-group-date">Today</div>`;
-        groups.today.forEach(act => { html += renderActivityItem(act); });
-    }
-    if (groups.yesterday.length) {
-        html += `<div class="activity-group-date">Yesterday</div>`;
-        groups.yesterday.forEach(act => { html += renderActivityItem(act); });
-    }
-    if (groups.older.length) {
-        html += `<div class="activity-group-date">Older</div>`;
-        groups.older.forEach(act => { html += renderActivityItem(act); });
-    }
-    c.innerHTML = html;
+    [['Today', today], ['Yesterday', yesterday], ['Older', null]].forEach(([label, baseDate]) => {
+        const items2 = groups[label.toLowerCase()];
+        if (!items2.length) return;
+        const d = label === 'Older' ? new Date(items2[0].time) : baseDate;
+        html += `<div class="activity-group-date">${formatDateLabel(d)}</div>`;
+        items2.forEach(item => { html += renderItem(item); });
+    });
+
+    timeline.innerHTML = html;
 }
 
 // ── Draft Reply ─────────────────────────────────────
@@ -3048,69 +3124,43 @@ async function copyTextToClipboard(text) {
 function announce(message) { const r=document.getElementById('live-region'); if(!r) return; r.textContent=message; setTimeout(()=>{r.textContent='';},1500); }
 
 // ── Checklist ──────────────────────────────────────
-function addChecklistItem() {
-    const input = document.getElementById('checklist-input');
-    const text = input.value.trim();
-    if (!text) return;
-    currentEditingCardData.checklist = currentEditingCardData.checklist||[];
-    currentEditingCardData.checklist.push({text,checked:false});
-    input.value=''; renderChecklist();
-    addActivity(`added checklist item "${text}"`); queueSaveBoardState();
-}
-
-function toggleChecklistItem(index) {
-    if (!currentEditingCardData?.checklist?.[index]) return;
-    currentEditingCardData.checklist[index].checked = !currentEditingCardData.checklist[index].checked;
-    renderChecklist(); queueSaveBoardState();
-}
-
 function addActivity(action) {
-    if (!currentEditingCardData) return;
-    currentEditingCardData.activity = Array.isArray(currentEditingCardData.activity)?currentEditingCardData.activity:[];
-    currentEditingCardData.activity.unshift({user:currentProfile.name,initials:currentProfile.initials,action,time:new Date().toISOString()});
-    currentEditingCardData.lastActivity = new Date().toISOString();
-    renderActivity();
-}
-
-// ── Activity Log Quick Actions ────────────────────────
-const activityEmojiMap = {
-    'Email': '📧', 'Call': '📞', 'Note': '📝', 'Demo': '🎥',
-    'Meeting': '🤝', 'Follow-up Scheduled': '📅'
-};
-
-function openActivityForm(type) {
-    currentActivityType = type;
-    const form = document.getElementById('activity-log-form');
-    const typeBadge = document.getElementById('activity-log-type');
-    const input = document.getElementById('activity-log-input');
-    if (form && typeBadge && input) {
-        typeBadge.textContent = `${activityEmojiMap[type] || '📋'} ${type}`;
-        form.classList.add('active');
-        input.value = '';
-        input.focus();
-    }
-}
-
-function saveActivityLog() {
-    if (!currentEditingCardData || !currentActivityType) return;
-    const input = document.getElementById('activity-log-input');
-    const note = input ? input.value.trim() : '';
-    const emoji = activityEmojiMap[currentActivityType] || '📋';
-    const action = note ? `${emoji} ${currentActivityType}: ${note}` : `${emoji} ${currentActivityType}`;
     currentEditingCardData.activity = Array.isArray(currentEditingCardData.activity) ? currentEditingCardData.activity : [];
     currentEditingCardData.activity.unshift({ user: currentProfile.name, initials: currentProfile.initials, action, time: new Date().toISOString() });
     currentEditingCardData.lastActivity = new Date().toISOString();
-    renderActivity();
+    renderUnifiedActivity();
     updateStaleBadge();
-    // Close form
-    const form = document.getElementById('activity-log-form');
-    if (form) form.classList.remove('active');
-    currentActivityType = '';
-    queueSaveBoardState();
 }
 
-window.openActivityForm = openActivityForm;
-window.saveActivityLog = saveActivityLog;
+function addUnifiedItem() {
+    if (!currentEditingCardData) return;
+    const type = document.getElementById('unified-type').value;
+    const input = document.getElementById('unified-input');
+    const text = input ? input.value.trim() : '';
+    if (!text) return;
+
+    if (type === 'Task') {
+        currentEditingCardData.checklist = currentEditingCardData.checklist || [];
+        currentEditingCardData.checklist.push({ text, checked: false, _time: new Date().toISOString() });
+    } else {
+        const emojiMap = { Email:'📧', Call:'📞', Note:'📝', Demo:'🎥', Meeting:'🤝', Followup:'📅' };
+        const emoji = emojiMap[type] || '📋';
+        currentEditingCardData.activity = Array.isArray(currentEditingCardData.activity) ? currentEditingCardData.activity : [];
+        currentEditingCardData.activity.unshift({ user: currentProfile.name, initials: currentProfile.initials, action: `${emoji} ${type}: ${text}`, time: new Date().toISOString() });
+    }
+    if (input) input.value = '';
+    renderUnifiedActivity();
+    queueSaveBoardState();
+}
+window.addUnifiedItem = addUnifiedItem;
+
+function toggleUnifiedTask(index) {
+    if (!currentEditingCardData?.checklist?.[index]) return;
+    currentEditingCardData.checklist[index].checked = !currentEditingCardData.checklist[index].checked;
+    renderUnifiedActivity();
+    queueSaveBoardState();
+}
+window.toggleUnifiedTask = toggleUnifiedTask;
 
 // ── Assignee / Due Date / Labels ───────────────────
 function changeAssignee() { document.getElementById('assignee-modal').classList.add('active'); }
@@ -3419,7 +3469,7 @@ function executeCommand(id) { const c=commands.find(cmd=>cmd.id===id); if(c){c.a
 document.addEventListener('keydown', e=>{
     if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();openCommandPalette();}
     if(e.key==='Escape'){document.getElementById('profile-modal').classList.remove('active');document.getElementById('label-modal').classList.remove('active');document.getElementById('assignee-modal').classList.remove('active');document.getElementById('command-palette-modal')?.classList.remove('active');closeCardModal();}
-    if(e.key==='Enter'&&e.target.id==='checklist-input')addChecklistItem();
+    if(e.key==='Enter'&&e.target.id==='unified-input')addUnifiedItem();
 });
 
 // ── Add Card/List ──────────────────────────────────
@@ -3766,10 +3816,10 @@ function deriveNextCardId(data=cardsData) { const ids=Object.keys(data||{}).map(
 
 // ── Globals ────────────────────────────────────────
 Object.assign(window,{
-    addCard,addChecklistItem,addList,allowDrop,cancelAddCard,cancelAddList,changeAssignee,
+    addCard,addUnifiedItem,addList,allowDrop,cancelAddCard,cancelAddList,changeAssignee,
     closeAssigneeModal,closeCardModal,closeLabelModal,closeProfileModal,deleteCard,deleteList,
     drop,dragLeave,openLabelPicker,openProfileModal,removeDueDate,removeLabel,renameList,
-    selectProfile,sendCardToFlowAI,showAddCardForm,showAddListForm,toggleChecklistItem,
+    selectProfile,sendCardToFlowAI,showAddCardForm,showAddListForm,toggleUnifiedTask,
     toggleLabel,updateDueDate,quickAddLead,updateContactField,openCommandPalette,closeCommandPalette,
     renderCommands,executeCommand,toggleViewMode,handleAskHubbleClick,handleSearchKey,
 });
