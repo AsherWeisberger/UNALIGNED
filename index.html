@@ -2719,6 +2719,9 @@ function openCardModal(cardId) {
     overlay.classList.add('active'); overlay.style.display='flex';
     modal.classList.add('active'); modal.style.display='flex';
 
+    // DEBUG: log email data for this card
+    console.log('[openCardModal] cardId:', cardId, 'originalEmail count:', (currentEditingCardData.originalEmail||[]).length, 'first snippet:', (currentEditingCardData.originalEmail&&currentEditingCardData.originalEmail[0]?.snippet||'none').slice(0,60));
+
     // Force scroll to top of overlay — this is the element that scrolls in the modal
     overlay.scrollTop = 0;
     overlay.scrollIntoView({ behavior: 'instant', block: 'start' });
