@@ -2067,21 +2067,29 @@ function normalizeSupabaseCard(row) {
     // Handle description: could be plain text (legacy) or JSON envelope (new format)
     // JSON envelope: {"rich_description": "...", "email_thread": [...], "intent": "...", ...}
     let description = row.description || '';
-    let originalEmail = null;
-    if (typeof description === 'string' && description.trim().startsWith('{')) {
-        try {
-            const parsed = JSON.parse(description);
-            description = parsed.rich_description || '';
-            // email_thread is the legacy location inside description JSON
-            if (!originalEmail || !originalEmail.length) {
+    // Read original_email FIRST (authoritative — set by pipeline/backfill)
+    // Fall back to description.email_thread (legacy AI-extraction data, often stale)
+    let originalEmail = row.original_email || null;
+    if (!originalEmail || !originalEmail.length) {
+        // No top-level email — try legacy description.email_thread
+        if (typeof description === 'string' && description.trim().startsWith('{')) {
+            try {
+                const parsed = JSON.parse(description);
+                description = parsed.rich_description || '';
                 originalEmail = Array.isArray(parsed.email_thread) ? parsed.email_thread : null;
+            } catch (e) {
+                // Not valid JSON — treat as legacy plain text
             }
-        } catch (e) {
-            // Not valid JSON — treat as legacy plain text
+        }
+    } else {
+        // Has top-level email — still extract rich_description from description JSON
+        if (typeof description === 'string' && description.trim().startsWith('{')) {
+            try {
+                const parsed = JSON.parse(description);
+                description = parsed.rich_description || '';
+            } catch (e) {}
         }
     }
-    // Fallback: pipeline saves original_email as a top-level column
-    if (!originalEmail || !originalEmail.length) originalEmail = row.original_email || null;
 
     return {
         id: row.id,
