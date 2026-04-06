@@ -2037,7 +2037,7 @@ function normalizeCardShape(card={}, fallbackId) {
     return {
         id: Number.isFinite(Number(card.id)) ? Number(card.id) : fallbackId ?? deriveNextCardId(cardsData),
         title: card.title||'Untitled card', listId:card.listId||defaultBoardConfig[0].id,
-        labels: Array.isArray(card.labels)?card.labels.filter(Boolean).map(l=>({name:l?.name||'Label',color:l?.color||'blue'})):[],
+        labels: Array.isArray(card.labels)?card.labels.filter(Boolean).map(l=>parseLabel(l)):[],
         description:card.description||'',
         checklist:Array.isArray(card.checklist)?card.checklist.filter(Boolean).map(i=>({text:i?.text||'',checked:Boolean(i?.checked)})):[],
         activity:Array.isArray(card.activity)?card.activity.filter(Boolean).map(normalizeActivityEntry):[],
@@ -2300,7 +2300,7 @@ function renderCard(cardData) {
     card.className = priorityClass;
     card.draggable = true; card.dataset.cardId = cardData.id; card.id = 'card-'+cardData.id;
 
-    const labelsHtml = (cardData.labels||[]).map(l=>`<span class="card-label-text ${l.color}">${l.name}</span>`).join('');
+    const labelsHtml = (cardData.labels||[]).map(l=>{const p=parseLabel(l);return`<span class="card-label-text ${p.color}">${p.name}</span>`;}).join('');
 
     let checklistHtml = '';
     if (cardData.checklist?.length) {
@@ -2433,8 +2433,8 @@ function applyFilters() {
         const el = document.getElementById('card-'+card.id);
         if (!el) return;
         let v = true;
-        if (filters.search) v = `${card.title} ${card.description} ${card.contactName||''} ${card.businessName||''} ${(card.labels||[]).map(l=>l.name).join(' ')}`.toLowerCase().includes(filters.search);
-        if (v && filters.label!=='all') v = card.labels?.some(l=>l.name===filters.label);
+        if (filters.search) v = `${card.title} ${card.description} ${card.contactName||''} ${card.businessName||''} ${(card.labels||[]).map(l=>parseLabel(l).name).join(' ')}`.toLowerCase().includes(filters.search);
+        if (v && filters.label!=='all') v = (card.labels||[]).map(parseLabel).some(l=>l.name===filters.label);
         if (v && filters.priority!=='all') v = card.priority===filters.priority;
         if (v && filters.source!=='all') v = card.leadSource===filters.source;
         if (v && filters.assignee!=='all') v = card.assignee===filters.assignee;
@@ -2535,7 +2535,7 @@ function renderModalLabels() {
     const c = document.getElementById('modal-labels');
     if (!c) return;
     if (!currentEditingCardData.labels?.length) { c.innerHTML='<span style="color:var(--muted);font-size:13px;">No labels</span> <button class="sidebar-btn" style="margin-top:8px;" onclick="openLabelPicker()">Add</button>'; return; }
-    c.innerHTML = currentEditingCardData.labels.map(l=>`<span class="label-tag ${l.color}">${l.name} <span class="remove-label" onclick="removeLabel('${l.name}')">×</span></span>`).join('');
+    c.innerHTML = (currentEditingCardData.labels||[]).map(l=>{const p=parseLabel(l);return`<span class="label-tag ${p.color}">${p.name} <span class="remove-label" onclick="removeLabel('${p.name}')">×</span></span>`;}).join('');
 }
 
 function renderUnifiedActivity() {
@@ -3209,7 +3209,7 @@ function renderAssignee() {
 async function sendCardToFlowAI() {
     if (!currentEditingCardData) return;
     const listName = boardConfig.find(l=>l.id===currentEditingCardData.listId)?.title||currentEditingCardData.listId;
-    const labels = (currentEditingCardData.labels||[]).map(l=>l.name).join(', ')||'None';
+    const labels = (currentEditingCardData.labels||[]).map(l=>parseLabel(l).name).join(', ')||'None';
     const checklist = (currentEditingCardData.checklist||[]).map(i=>`- [${i.checked?'x':' '}] ${i.text}`).join('\n')||'None';
     const summary = `Flow AI Request\nTitle: ${currentEditingCardData.title}\nList: ${listName}\nAssignee: ${currentEditingCardData.assignee||'Flow AI'}\nDue: ${currentEditingCardData.dueDate||'None'}\nLabels: ${labels}\n\nDescription:\n${currentEditingCardData.description?.trim()||'None'}\n\nChecklist:\n${checklist}`;
     const copied = await copyTextToClipboard(summary);
@@ -3256,6 +3256,24 @@ function addUnifiedItem() {
 window.addUnifiedItem = addUnifiedItem;
 
 // ── Lead Details — WHO/WHAT/WHY/VALUE grid ─────────────
+function parseLabel(l) {
+    if (typeof l === 'object' && l !== null) return { name: l.name || 'Label', color: l.color || 'blue' };
+    if (typeof l === 'string') {
+        try {
+            // Handle raw JSON strings like "{name:'warm',color:'blue'}" or "{name:\"warm\",color:\"blue\"}"
+            const inner = l.trim().replace(/^['"]|['"]$/g, '');
+            // Try JSON.parse first
+            try { const o = JSON.parse(l); return { name: o.name || 'Label', color: o.color || 'blue' }; } catch {}
+            // Try simple key:val parsing
+            const n = inner.match(/name\s*:\s*['"]([^'"]+)['"]/i) || inner.match(/name\s*:\s*([^\s,}]+)/i);
+            const c = inner.match(/color\s*:\s*['"]([^'"]+)['"]/i) || inner.match(/color\s*:\s*([^\s,}]+)/i);
+            if (n) return { name: n[1].replace(/['"]/g, ''), color: (c ? c[1].replace(/['"]/g, '') : 'blue') };
+        } catch {}
+        return { name: l, color: 'blue' };
+    }
+    return { name: 'Label', color: 'blue' };
+}
+
 function autoResize(el) {
     el.style.height = 'auto';
     el.style.height = el.scrollHeight + 'px';
