@@ -3304,7 +3304,7 @@ function renderThread() {
                     <span class="thread-timestamp" title="${escHtml(fullDateStr)}">${escHtml(dateStr)}${dateStr && timeStr ? ' · ' : ''}${escHtml(timeStr)}</span>
                     ${isLast ? '<span style="font-size:10px;color:var(--accent);margin-left:4px;">← latest</span>' : ''}
                 </div>
-                <div class="thread-body">${escHtml(email.body || email.snippet || '')}</div>
+                <div class="thread-body">${escHtml(decodeHtml(email.body || email.snippet || ''))}</div>
             </div>
         `;
     }).join('');
@@ -3327,6 +3327,20 @@ function escHtml(str) {
         .replace(/</g,'&lt;')
         .replace(/>/g,'&gt;')
         .replace(/"/g,'&quot;');
+}
+
+function decodeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&amp;/g,'&')
+        .replace(/&lt;/g,'<')
+        .replace(/&gt;/g,'>')
+        .replace(/&quot;/g,'"')
+        .replace(/&#39;/g,"'")
+        .replace(/&apos;/g,"'")
+        .replace(/&#x27;/g,"'")
+        .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(parseInt(n, 10)))
+        .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)));
 }
 
 // ── Sam's Draft ─────────────────────────────────────
@@ -4179,7 +4193,7 @@ window.renderTableView = renderTableView;
 window.exportTableCSV = exportTableCSV;
 
 // ── Utils ──────────────────────────────────────────
-function escapeHtml(text='') { const d=document.createElement('div'); d.textContent=text; return d.innerHTML; }
+function escapeHtml(text='') { const d=document.createElement('div'); d.textContent=decodeHtml(text); return d.innerHTML; }
 function timeAgo(date) {
     const s=Math.floor((new Date()-date)/1000);
     if(s<60) return 'just now';
