@@ -544,6 +544,51 @@
         .draft-badge.approved   { background: rgba(52,211,153,0.15); color: #34d399; }
         .draft-badge.sent      { background: rgba(52,211,153,0.25); color: #34d399; }
 
+        /* ─── LEAD DETAILS — structured 2×2 grid ─────────── */
+        .lead-details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px 16px;
+        }
+        .lead-field {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+        .lead-field-label {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-family: var(--font-mono);
+        }
+        .lead-field-label.who { color: #a78bfa; }
+        .lead-field-label.what { color: #60a5fa; }
+        .lead-field-label.why { color: #34d399; }
+        .lead-field-label.value { color: #fbbf24; }
+        .lead-field-input {
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid var(--border2);
+            color: var(--text);
+            font-size: 13px;
+            font-family: var(--font-body);
+            padding: 2px 0 3px;
+            width: 100%;
+            resize: none;
+            overflow: hidden;
+            line-height: 1.4;
+            transition: border-color 0.15s;
+        }
+        .lead-field-input:focus {
+            outline: none;
+            border-bottom-color: var(--accent);
+        }
+        .lead-field-input::placeholder { color: var(--muted2); opacity: 0.6; }
+        .lead-details-grid:has(.lead-field-input:not(:placeholder-shown)) .lead-field:not(:has(.lead-field-input:not(:placeholder-shown))) {
+            opacity: 0.4;
+        }
+
         /* Email Thread — clean, readable conversation view */
         #thread-list { display: flex; flex-direction: column; gap: 0; }
 
@@ -1420,12 +1465,39 @@
             <div class="card-modal-body">
                 <div class="card-modal-main">
                     <!-- WHO / WHAT / WHY / VALUE — all in one textarea -->
-                    <div class="modal-section">
+                    <!-- Lead Details — structured 2×2 grid -->
+                    <div class="modal-section" id="lead-details-section">
                         <div class="modal-section-title">📋 Lead Details</div>
-                        <textarea class="description-textarea" id="modal-description" placeholder="WHO: Name (Company)
-WHAT: intent type
-WHY: their message / hook
-VALUE: estimated value" style="border-left:3px solid var(--accent);"></textarea>
+                        <div class="lead-details-grid">
+                            <div class="lead-field">
+                                <span class="lead-field-label who">WHO</span>
+                                <textarea class="lead-field-input" id="lead-who" rows="1"
+                                    placeholder="Name · Company · Role"
+                                    oninput="autoResize(this); syncLeadDetails()"
+                                    onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('lead-what').focus()}"></textarea>
+                            </div>
+                            <div class="lead-field">
+                                <span class="lead-field-label what">WHAT</span>
+                                <textarea class="lead-field-input" id="lead-what" rows="1"
+                                    placeholder="Intent type · product interest"
+                                    oninput="autoResize(this); syncLeadDetails()"
+                                    onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('lead-why').focus()}"></textarea>
+                            </div>
+                            <div class="lead-field">
+                                <span class="lead-field-label why">WHY</span>
+                                <textarea class="lead-field-input" id="lead-why" rows="1"
+                                    placeholder="Their message · hook · pain point"
+                                    oninput="autoResize(this); syncLeadDetails()"
+                                    onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('lead-value').focus()}"></textarea>
+                            </div>
+                            <div class="lead-field">
+                                <span class="lead-field-label value">VALUE</span>
+                                <textarea class="lead-field-input" id="lead-value" rows="1"
+                                    placeholder="Deal size · urgency · LTV"
+                                    oninput="autoResize(this); syncLeadDetails()"
+                                    onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('lead-who').focus()}"></textarea>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Email Thread (includes original lead + all replies, oldest→newest) -->
@@ -2389,7 +2461,6 @@ function openCardModal(cardId) {
     document.activeElement && document.activeElement.blur && document.activeElement.blur();
 
     document.getElementById('modal-card-title').value = currentEditingCardData.title;
-    document.getElementById('modal-description').value = currentEditingCardData.description||'';
     document.getElementById('modal-card-title').oninput = e=>{currentEditingCardData.title=e.target.value;renderCard(currentEditingCardData);updateFlowMap();};
     document.getElementById('modal-list-name').textContent = boardConfig.find(l=>l.id===currentEditingCardData.listId)?.title||'List';
     document.getElementById('modal-created-info').textContent = `Created by ${currentEditingCardData.createdBy} · ${timeAgo(new Date(currentEditingCardData.createdAt))}`;
@@ -2407,7 +2478,7 @@ function openCardModal(cardId) {
             firstContactEl.textContent = firstContact;
         }
     }
-    document.getElementById('modal-description').value = currentEditingCardData.description||'';
+    renderLeadDetails();
     document.getElementById('due-date-input').value = currentEditingCardData.dueDate||'';
     renderUnifiedActivity(); renderAssignee();
     renderDraftReply();
@@ -2439,7 +2510,7 @@ async function loadOriginalEmailBody(cardId) {
 function saveCardAndClose() {
     if (currentEditingCardData) {
         currentEditingCardData.title = document.getElementById('modal-card-title').value;
-        currentEditingCardData.description = document.getElementById('modal-description').value;
+        syncLeadDetails();
         renderCard(currentEditingCardData); window.justSaved=Date.now();
         saveBoardStateNow(); updateFlowMap();
     }
@@ -3183,6 +3254,53 @@ function addUnifiedItem() {
     queueSaveBoardState();
 }
 window.addUnifiedItem = addUnifiedItem;
+
+// ── Lead Details — WHO/WHAT/WHY/VALUE grid ─────────────
+function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+}
+
+function syncLeadDetails() {
+    if (!currentEditingCardData) return;
+    // Compose description from the 4 structured fields
+    const who   = document.getElementById('lead-who')?.value.trim()   || '';
+    const what  = document.getElementById('lead-what')?.value.trim()  || '';
+    const why   = document.getElementById('lead-why')?.value.trim()   || '';
+    const value = document.getElementById('lead-value')?.value.trim() || '';
+    currentEditingCardData.description = `WHO: ${who}\nWHAT: ${what}\nWHY: ${why}\nVALUE: ${value}`;
+    // Also sync title if empty
+    if (!currentEditingCardData.title && who) {
+        currentEditingCardData.title = who.split(/[\n·]/)[0].trim();
+        const titleEl = document.getElementById('modal-card-title');
+        if (titleEl) titleEl.value = currentEditingCardData.title;
+    }
+}
+
+function renderLeadDetails() {
+    if (!currentEditingCardData) return;
+    const desc = currentEditingCardData.description || '';
+    const who   = extractLeadField(desc, 'WHO');
+    const what  = extractLeadField(desc, 'WHAT');
+    const why   = extractLeadField(desc, 'WHY');
+    const value = extractLeadField(desc, 'VALUE');
+
+    const ids = ['lead-who','lead-what','lead-why','lead-value'];
+    const vals = [who, what, why, value];
+    ids.forEach((id, i) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.value = vals[i];
+        // Auto-resize to fit content
+        el.style.height = 'auto';
+        el.style.height = el.scrollHeight + 'px';
+    });
+}
+
+function extractLeadField(desc, key) {
+    const match = desc.match(new RegExp(`^${key}:[ ]*(.*)`, 'im'));
+    return match ? match[1].trim() : '';
+}
 
 function toggleUnifiedTask(index) {
     if (!currentEditingCardData?.checklist?.[index]) return;
