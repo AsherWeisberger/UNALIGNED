@@ -2816,6 +2816,7 @@ function renderUnifiedActivity() {
     const empty = document.getElementById('unified-empty');
     const count = document.getElementById('unified-count');
     if (!timeline) return;
+    if (!empty) return;
 
     const checklist = currentEditingCardData.checklist || [];
     const activities = currentEditingCardData.activity || [];
