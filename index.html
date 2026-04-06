@@ -3258,24 +3258,29 @@ window.addUnifiedItem = addUnifiedItem;
 // ── Lead Details — WHO/WHAT/WHY/VALUE grid ─────────────
 function parseLabel(l) {
     // Already a proper object
-    if (typeof l === 'object' && l !== null) return { name: l.name || 'Label', color: l.color || 'blue' };
+    if (typeof l === 'object' && l !== null) {
+        let name = l.name || 'Label';
+        let color = l.color || 'blue';
+        // Handle deeply nested: name field is itself a JSON string
+        if (typeof name === 'string') {
+            try { const p = JSON.parse(name); name = p.name || name; color = p.color || color; } catch {}
+        }
+        return { name: String(name), color: String(color) };
+    }
     if (typeof l !== 'string') return { name: String(l), color: 'blue' };
 
     const s = l.trim();
 
-    // Case 1: emoji-only string like "🔥 Hot" or "🌡️ Warm" or "❄️ Cold"
+    // Case 1: emoji string like "🔥 Hot" or "🌡️ Warm" or "❄️ Cold"
     if (/^[🔥🌡❄]/.test(s)) {
-        const emojiMap = { '🔥': 'hot', '🌡️': 'warm', '❄️': 'cold', '❄': 'cold' };
         const colorMap = { '🔥': 'red', '🌡️': 'yellow', '❄️': 'blue', '❄': 'blue' };
-        const emoji = s[0];
-        return { name: s, color: colorMap[emoji] || 'blue' };
+        return { name: s, color: colorMap[s[0]] || 'blue' };
     }
 
-    // Case 2: mangled string like "{name:'🌡️ Warm',color:blue}"
-    // Try JSON.parse first
-    try { const o = JSON.parse(s); return { name: o.name || 'Label', color: o.color || 'blue' }; } catch {}
+    // Case 2: try JSON.parse
+    try { const o = JSON.parse(s); return parseLabel(o); } catch {}
 
-    // Case 3: try regex extraction
+    // Case 3: regex extraction from mangled string
     const n = s.match(/name\s*:\s*['"]([^'"]+)['"]/i) || s.match(/name\s*:\s*([^\s,}]+)/i);
     const c = s.match(/color\s*:\s*['"]([^'"]+)['"]/i) || s.match(/color\s*:\s*([^\s,}]+)/i);
     if (n) return { name: n[1].replace(/['"]/g, ''), color: c ? c[1].replace(/['"]/g, '') : 'blue' };
