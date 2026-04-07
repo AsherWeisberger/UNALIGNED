@@ -2114,7 +2114,8 @@ function normalizeSupabaseCard(row) {
         leadSource: row.lead_source || '',
         estimatedValue: row.estimated_value || '',
         priority: row.priority || 'medium',
-        emailDate: row.email_date || '',
+        dateReceivedIso: row.date_received_iso || '',
+        emailDate: row.date_received_iso || row.date_received || '',
         intent: row.intent || '',
         email_id: row.email_id || '',
         gmail_thread_id: row.gmail_thread_id || '',
@@ -4067,9 +4068,46 @@ const avatarGradients = { 'Asher W':'linear-gradient(135deg,#4facfe,#00f2fe)','R
 function tvInitials(n){if(!n)return'?';return n.split(' ').map(x=>x[0]).join('').toUpperCase().slice(0,2);}
 function tvGradient(n){return avatarGradients[n]||'linear-gradient(135deg,#6b7280,#4b5563)';}
 function tvFormatDate(iso){if(!iso)return'';const d=new Date(iso);const n=new Date();const m=Math.floor((n-d)/6e4);if(m<1)return'Just now';if(m<60)return m+'m ago';const h=Math.floor(m/60);if(h<24)return h+'h ago';return Math.floor(h/24)+'d ago';}
-function fmtEmailDate(d){if(!d)return'';if(/^\d{1,2}\/\d{1,2}$/.test(d))return d;const p=d.substring(0,10).split('-');return`${p[1]}/${p[2]}/${p[0].slice(-2)}`;}
+function fmtEmailDate(d){
+  if(!d)return'';
+  if(/^\d{1,2}\/\d{1,2}$/.test(d))return d;
+  // ISO format: YYYY-MM-DD
+  if(/^\d{4}-\d{2}-\d{2}/.test(d)){
+    const p=d.substring(0,10).split('-');
+    return`${p[1]}/${p[2]}/${p[0].slice(-2)}`;
+  }
+  // Display format: "Oct 10, 2025" or "April 9, 2025"
+  const dispMatch=d.match(/^(\w+)\s+(\d{1,2}),\s+(\d{4})/);
+  if(dispMatch){
+    const months={'Jan':1,'Feb':2,'Mar':3,'Apr':4,'May':5,'Jun':6,'Jul':7,'Aug':8,'Sep':9,'Oct':10,'Nov':11,'Dec':12};
+    const mon=months[dispMatch[1]]||1;
+    const day=dispMatch[2].padStart(2,'0');
+    return`${String(mon).padStart(2,'0')}/${day}/${dispMatch[3].slice(-2)}`;
+  }
+  // RFC 2822: "Wed, 9 Apr 2025 23:13:57 +0000" — parse with Date constructor
+  const rfcMatch=d.match(/^\w+,\s+(\d{1,2})\s+(\w+)\s+(\d{4})/);
+  if(rfcMatch){
+    const months={'Jan':1,'Feb':2,'Mar':3,'Apr':4,'May':5,'Jun':6,'Jul':7,'Aug':8,'Sep':9,'Oct':10,'Nov':11,'Dec':12};
+    const mon=months[rfcMatch[2]]||1;
+    const day=rfcMatch[1].padStart(2,'0');
+    return`${String(mon).padStart(2,'0')}/${day}/${rfcMatch[3].slice(-2)}`;
+  }
+  return d;
+}
 function tvLastAct(card){if(!card.activity||!card.activity.length)return'No activity';const l=card.activity[card.activity.length-1];return`${l.user}: ${l.action} (${tvFormatDate(l.time)})`;}
-function tvDate(card){const arr=card.originalEmail;const d=Array.isArray(arr)&&arr.length>0?arr[0].date:null;const fallback=d||card.firstEmailDate||card.emailDate;if(!fallback)return'—';return fmtEmailDate(fallback);}
+function tvDate(card){
+  // Prefer the cleaned ISO date stored by the scraper
+  if(card.dateReceivedIso)return fmtEmailDate(card.dateReceivedIso);
+  // Fall back to email_date field
+  if(card.emailDate)return fmtEmailDate(card.emailDate);
+  // Last resort: originalEmail (handles both dict and array formats)
+  const arr=card.originalEmail;
+  if(arr){
+    const rawDate=Array.isArray(arr)?(arr[0]&&arr[0].date):(arr&&arr.date);
+    if(rawDate)return fmtEmailDate(rawDate);
+  }
+  return'—';
+}
 
 const TV_COLS = [
   {k:'contactName',  l:'Name',         w:150},
