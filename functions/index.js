@@ -1,0 +1,120 @@
+const functions = require('firebase-functions');
+const admin = require('firebase-admin');
+const { google } = require('googleapis');
+const nodemailer = require('nodemailer');
+
+admin.initializeApp();
+const db = admin.firestore();
+
+// ── Gmail OAuth (Robert) ────────────────────────────────
+let cachedRobertAuth = null;
+
+async function getRobertGmailAuth() {
+  if (cachedRobertAuth) return cachedRobertAuth;
+
+  const snap = await db.collection('_secrets').doc('gmail_oauth').get();
+  if (!snap.exists) throw new Error('Gmail credentials not found');
+
+  const { token, refresh_token, client_id, client_secret } = snap.data();
+  const oauth2 = new google.auth.OAuth2(client_id, client_secret);
+
+  if (!token || token.length < 50) {
+    console.log('Refreshing Robert access token...');
+    oauth2.setCredentials({ refresh_token });
+    const { credentials } = await oauth2.refreshAccessToken();
+    await db.collection('_secrets').doc('gmail_oauth').set({ token: credentials.access_token }, { merge: true });
+    cachedRobertAuth = oauth2;
+  } else {
+    oauth2.setCredentials({ access_token: token, refresh_token });
+    cachedRobertAuth = oauth2;
+  }
+  return cachedRobertAuth;
+}
+
+async function sendViaRobert(to, subject, body, cc) {
+  const auth = await getRobertGmailAuth();
+  const gmail = google.gmail({ version: 'v1', auth });
+  const raw = makeMime(to, cc, subject, body);
+  const result = await gmail.users.messages.send({ userId: 'me', resource: raw });
+  return result.data.id;
+}
+
+// ── Sam SMTP (App Password) ───────────────────────────
+let samTransporter = null;
+
+async function getSamTransporter() {
+  if (samTransporter) return samTransporter;
+
+  const snap = await db.collection('_secrets').doc('sam_gmail').get();
+  if (!snap.exists) throw new Error('Sam Gmail credentials not found');
+
+  const { email, app_password } = snap.data();
+  samTransporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    auth: { user: email, pass: app_password },
+  });
+  return samTransporter;
+}
+
+async function sendViaSam(to, subject, body, cc) {
+  const t = await getSamTransporter();
+  const snap = await db.collection('_secrets').doc('sam_gmail').get();
+  const { email } = snap.data();
+  await t.sendMail({
+    from: `"Sam Levin" <${email}>`,
+    to,
+    cc: cc || undefined,
+    subject,
+    text: body,
+  });
+  return 'sent via SMTP';
+}
+
+// ── Shared ──────────────────────────────────────────
+function makeMime(to, cc, subject, body) {
+  const lines = [
+    `To: ${to}`,
+    `Cc: ${cc || ''}`,
+    `Subject: ${subject}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset="UTF-8"',
+    '',
+    body,
+  ];
+  return { raw: Buffer.from(lines.join('\r\n')).toString('base64url') };
+}
+
+exports.sendEmail = functions.https.onRequest(async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+  if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
+
+  const { to, subject, body, cc, from } = req.body || {};
+
+  if (!to || !subject || !body) {
+    res.status(400).json({ error: 'Missing to, subject, or body' });
+    return;
+  }
+
+  try {
+    const defaultCC = 'UnalignedX@gmail.com';
+    const effectiveCC = cc || defaultCC;
+    let messageId;
+
+    if (from === 'sam' || from === 'unalignedx') {
+      messageId = await sendViaSam(to, subject, body, effectiveCC);
+    } else {
+      messageId = await sendViaRobert(to, subject, body, effectiveCC);
+    }
+
+    res.json({ success: true, messageId });
+  } catch (err) {
+    console.error('sendEmail error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});

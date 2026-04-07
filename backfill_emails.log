@@ -1,0 +1,10 @@
+Checking existing subcollection docs...
+Subcollection already has: 274 emails
+Need to fetch email for: 495 cards
+  20/495 | fetched: 5 | notFound: 15 | saved: 5     40/495 | fetched: 5 | notFound: 35 | saved: 5     60/495 | fetched: 5 | notFound: 55 | saved: 5     80/495 | fetched: 5 | notFound: 75 | saved: 5     100/495 | fetched: 5 | notFound: 95 | saved: 5     120/495 | fetched: 5 | notFound: 115 | saved: 5     140/495 | fetched: 5 | notFound: 135 | saved: 5     160/495 | fetched: 5 | notFound: 155 | saved: 5     180/495 | fetched: 5 | notFound: 175 | saved: 5     200/495 | fetched: 5 | notFound: 195 | saved: 5     220/495 | fetched: 5 | notFound: 215 | saved: 5     240/495 | fetched: 5 | notFound: 235 | saved: 5     260/495 | fetched: 5 | notFound: 255 | saved: 5     280/495 | fetched: 5 | notFound: 275 | saved: 5     300/495 | fetched: 5 | notFound: 295 | saved: 5     320/495 | fetched: 5 | notFound: 315 | saved: 5     340/495 | fetched: 5 | notFound: 335 | saved: 5     360/495 | fetched: 5 | notFound: 355 | saved: 5     380/495 | fetched: 5 | notFound: 375 | saved: 5     400/495 | fetched: 5 | notFound: 395 | saved: 5     420/495 | fetched: 5 | notFound: 415 | saved: 5     440/495 | fetched: 5 | notFound: 435 | saved: 5     460/495 | fetched: 5 | notFound: 455 | saved: 5     480/495 | fetched: 5 | notFound: 475 | saved: 5     495/495 | fetched: 5 | notFound: 490 | saved: 5   
+
+Done!
+  Fetched: 5 | Not found: 490 | Saved: 5
+  Total emails in subcollection: 279
+  Card doc size: 803 KB
+EXIT:0
