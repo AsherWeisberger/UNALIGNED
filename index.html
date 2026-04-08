@@ -452,6 +452,49 @@
         .briefing-chip.warn   { background: rgba(245,158,11,0.1);  color: #f59e0b; border: 1px solid rgba(245,158,11,0.2); }
         .briefing-chip.new    { background: rgba(52,211,153,0.1);  color: #34d399; border: 1px solid rgba(52,211,153,0.2); }
 
+        /* ─── CARD ENTRANCE ANIMATION ──────────────────────── */
+        @keyframes cardIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        .card-animate { animation: cardIn 0.2s ease both; }
+
+        /* ─── HOT CARD GLOW PULSE ───────────────────────────── */
+        @keyframes hotPulse {
+            0%,100% { box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+            50%      { box-shadow: 0 1px 3px rgba(0,0,0,0.3), 0 0 14px 3px rgba(239,68,68,0.18); }
+        }
+        .card.priority-hot:not(.dragging) { animation: hotPulse 2.5s ease-in-out infinite; }
+
+        /* ─── MODAL ENTRANCE ────────────────────────────────── */
+        @keyframes modalIn { from { opacity:0; transform:translateY(16px) scale(0.97); } to { opacity:1; transform:translateY(0) scale(1); } }
+        .card-modal.active { animation: modalIn 0.22s cubic-bezier(0.34,1.2,0.64,1) both !important; }
+        .modal-overlay.active { backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+
+        /* ─── COLUMN COLLAPSE ───────────────────────────────── */
+        .list { transition: min-width 0.2s ease, max-width 0.2s ease; }
+        .list.collapsed { min-width: 52px !important; max-width: 52px !important; overflow: hidden; }
+        .list.collapsed .cards-container,
+        .list.collapsed .add-card-btn,
+        .list.collapsed .list-actions,
+        .list.collapsed .list-value,
+        .list.collapsed .list-count-badge,
+        .list.collapsed .list-accent { display: none !important; }
+        .list.collapsed .list-header { margin-bottom: 0; flex-direction: column; align-items: center; }
+        .list.collapsed .list-title { writing-mode: vertical-rl; transform: rotate(180deg); padding: 14px 0; font-size: 11px; }
+        .list-collapse-btn { border: none; background: transparent; cursor: pointer; font-size: 12px; color: var(--muted); padding: 3px 5px; border-radius: 5px; transition: all 0.15s; opacity: 0.6; }
+        .list-collapse-btn:hover { background: rgba(255,255,255,0.08); color: var(--text); opacity: 1; }
+
+        /* ─── SORT DROPDOWN ─────────────────────────────────── */
+        .list-sort-wrap { position: relative; }
+        .sort-dropdown { position: absolute; top: calc(100% + 4px); right: 0; z-index: 50; background: var(--surface2); border: 1px solid var(--border2); border-radius: 8px; padding: 4px; min-width: 140px; box-shadow: var(--shadow-lg); animation: fadeUp 0.12s ease; }
+        .sort-option { padding: 6px 10px; border-radius: 5px; cursor: pointer; font-size: 11px; color: var(--muted2); font-family: var(--font-mono); transition: all 0.1s; }
+        .sort-option:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+        .sort-option.active { color: var(--accent); background: rgba(91,140,255,0.08); }
+
+        /* ─── CUSTOM SCROLLBARS ─────────────────────────────── */
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 99px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
         /* ─── LABEL COLORS ────────────────────────────────── */
         .card-label-text.red, .label-tag.red, .label-color.red { background: #ef4444; }
         .card-label-text.blue, .label-tag.blue, .label-color.blue { background: #3b82f6; }
@@ -2516,6 +2559,38 @@ function hydrateLabelModal() {
     });
 }
 
+function toggleListCollapse(stageId) {
+    const list = document.querySelector(`.list[data-list-id="${stageId}"]`);
+    if (list) list.classList.toggle('collapsed');
+}
+
+window._columnSort = {};
+function openSortMenu(stageId, evt) {
+    evt.stopPropagation();
+    document.querySelectorAll('.sort-dropdown').forEach(d => d.remove());
+    const btn = evt.currentTarget;
+    const wrap = btn.closest('.list-sort-wrap');
+    if (!wrap) return;
+    const current = (window._columnSort||{})[stageId] || 'default';
+    const opts = [{key:'default',label:'Default (date)'},{key:'priority',label:'Priority'},{key:'value',label:'Value ($$)'},{key:'age',label:'Age (oldest)'}];
+    const menu = document.createElement('div');
+    menu.className = 'sort-dropdown';
+    menu.innerHTML = opts.map(o=>`<div class="sort-option ${o.key===current?'active':''}" onclick="setColumnSort('${stageId}','${o.key}')">${o.label}</div>`).join('');
+    wrap.appendChild(menu);
+    setTimeout(() => {
+        document.addEventListener('click', function closeSortMenu(e) {
+            if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', closeSortMenu); }
+        });
+    }, 0);
+}
+
+function setColumnSort(stageId, key) {
+    if (!window._columnSort) window._columnSort = {};
+    window._columnSort[stageId] = key;
+    document.querySelectorAll('.sort-dropdown').forEach(d => d.remove());
+    renderAllCards();
+}
+
 function initBoardStructure() {
     const boardLists = document.getElementById('board-lists');
     boardLists.innerHTML = '';
@@ -2527,11 +2602,14 @@ function initBoardStructure() {
             <div class="list-accent" style="background:${stage.color};"></div>
             <div class="list-header">
                 <div style="display:flex;align-items:center;gap:8px;">
-                    <h3 class="list-title" style="color:${stage.color};">${stage.title}</h3>
+                    <h3 class="list-title" style="color:${stage.color};cursor:pointer;" onclick="toggleListCollapse('${stage.id}')" title="Click to collapse">${stage.title}</h3>
                     <span class="list-count-badge" id="count-${stage.id}" style="background:${stage.color}22;color:${stage.color};border:1px solid ${stage.color}44;">0</span>
                     <span class="list-value" id="value-${stage.id}"></span>
                 </div>
                 <div class="list-actions">
+                    <div class="list-sort-wrap">
+                        <button class="list-menu-btn" id="sort-btn-${stage.id}" title="Sort column" onclick="openSortMenu('${stage.id}',event)">↕</button>
+                    </div>
                     <button class="list-menu-btn" title="Rename" onclick="renameList('${stage.id}')">✎</button>
                     <button class="list-menu-btn danger" title="Delete" onclick="deleteList('${stage.id}')">✕</button>
                 </div>
@@ -2543,13 +2621,31 @@ function initBoardStructure() {
     });
 }
 
+const _sortFns = {
+    priority: (a,b) => { const o={hot:0,warm:1,cold:2}; return (o[a.priority]??3)-(o[b.priority]??3); },
+    value:    (a,b) => { const pv=s=>parseFloat(String(s||'').replace(/[^0-9.]/g,''))||0; return pv(b.estimatedValue)-pv(a.estimatedValue); },
+    age:      (a,b) => new Date(a.movedAt||a.createdAt||0).getTime()-new Date(b.movedAt||b.createdAt||0).getTime(),
+    default:  (a,b) => { const at=a?.createdAt?new Date(a.createdAt).getTime():0,bt=b?.createdAt?new Date(b.createdAt).getTime():0; return at-bt; }
+};
 function renderAllCards() {
     document.querySelectorAll('.cards-container').forEach(c => c.innerHTML='');
-    Object.values(cardsData).sort((a,b)=>{
-        const at=a?.createdAt?new Date(a.createdAt).getTime():0;
-        const bt=b?.createdAt?new Date(b.createdAt).getTime():0;
-        return at-bt;
-    }).forEach(renderCard);
+    let gi = 0;
+    boardConfig.forEach(stage => {
+        const stageCards = Object.values(cardsData).filter(c => c.listId === stage.id);
+        const sortKey = (window._columnSort||{})[stage.id] || 'default';
+        stageCards.sort(_sortFns[sortKey]||_sortFns.default);
+        stageCards.forEach(card => {
+            renderCard(card);
+            const el = document.getElementById('card-'+card.id);
+            if (el) { el.classList.add('card-animate'); el.style.animationDelay = Math.min(gi*20,400)+'ms'; }
+            gi++;
+        });
+        // Update sort button color if custom sort active
+        const sortBtn = document.getElementById('sort-btn-'+stage.id);
+        if (sortBtn) sortBtn.style.color = sortKey !== 'default' ? 'var(--accent)' : '';
+    });
+    // Render cards in stages not in boardConfig (fallback)
+    Object.values(cardsData).filter(c => !boardConfig.find(s=>s.id===c.listId)).forEach(card => renderCard(card));
     applyFilters();
 }
 
@@ -2776,12 +2872,43 @@ function renderCard(cardData) {
     container.appendChild(card);
 }
 
+function spawnConfetti(cx, cy) {
+    const canvas = document.createElement('canvas');
+    canvas.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;';
+    document.body.appendChild(canvas);
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+    const ctx = canvas.getContext('2d');
+    const cols = ['#5b8cff','#34d399','#f59e0b','#ef4444','#a855f7','#f0f2ff','#fb7185'];
+    const pts = Array.from({length:30}, () => ({
+        x:cx, y:cy,
+        vx:(Math.random()-0.5)*9, vy:(Math.random()-0.9)*11,
+        color:cols[Math.floor(Math.random()*cols.length)],
+        w:4+Math.random()*5, h:3+Math.random()*3,
+        grav:0.35+Math.random()*0.2,
+        rot:Math.random()*Math.PI*2, spin:(Math.random()-0.5)*0.25,
+        life:1
+    }));
+    (function tick() {
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        let alive=false;
+        pts.forEach(p=>{ p.x+=p.vx; p.y+=p.vy; p.vy+=p.grav; p.rot+=p.spin; p.life-=0.02;
+            if(p.life>0){ alive=true; ctx.save(); ctx.globalAlpha=p.life; ctx.translate(p.x,p.y); ctx.rotate(p.rot); ctx.fillStyle=p.color; ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h); ctx.restore(); }
+        });
+        if(alive) requestAnimationFrame(tick); else canvas.remove();
+    })();
+}
+
 function moveCardToList(cardId,newListId) {
     const card = cardsData[cardId];
     if (!card) return;
     const oldListId = card.listId;
     card.listId = newListId;
     card.movedAt = new Date().toISOString();
+    if (newListId === 'done' || newListId === 'paid-out') {
+        const el = document.getElementById('card-'+cardId);
+        const r = el ? el.getBoundingClientRect() : null;
+        spawnConfetti(r ? r.left+r.width/2 : window.innerWidth/2, r ? r.top+r.height/2 : window.innerHeight/2);
+    }
     addActivity(`moved from ${boardConfig.find(l=>l.id===oldListId)?.title||oldListId} to ${boardConfig.find(l=>l.id===newListId)?.title||newListId}`);
     renderAllCards(); updateCardCount(); updateFlowMap(); saveBoardStateNow();
 }
@@ -2804,6 +2931,10 @@ function drop(ev) {
     const oldListId = targetCard.listId;
     targetCard.listId = newListId;
     targetCard.movedAt = new Date().toISOString();
+    if (newListId === 'done' || newListId === 'paid-out') {
+        const r = container.getBoundingClientRect();
+        spawnConfetti(r.left+r.width/2, r.top+r.height/2);
+    }
     const nLN = boardConfig.find(l=>l.id===newListId)?.title||newListId;
     const oLN = boardConfig.find(l=>l.id===oldListId)?.title||oldListId;
     targetCard.activity = Array.isArray(targetCard.activity)?targetCard.activity:[];
@@ -4529,6 +4660,10 @@ window.copyContactField=copyContactField;
 window.quickReply=quickReply;
 window.quickMoveNext=quickMoveNext;
 window.quickDone=quickDone;
+window.toggleListCollapse=toggleListCollapse;
+window.openSortMenu=openSortMenu;
+window.setColumnSort=setColumnSort;
+window.spawnConfetti=spawnConfetti;
 
 
 // Expose login functions globally for inline onclick handlers
