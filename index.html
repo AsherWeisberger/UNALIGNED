@@ -2987,10 +2987,7 @@ async function regenerateDraft() {
 
         const res = await fetch('https://hbnpwphxjurvtydezwgh.supabase.co/functions/v1/generate-draft', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhibnB3cGh4anVydnR5ZGV6d2doIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MTQ1MzIsImV4cCI6MjA5MDk5MDUzMn0.p5E48__GlGqjC17Z28q8fYFK-qV8CmiidYIP02vGe4s'`
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt, model: 'claude-sonnet-4-20250514', max_tokens: 1024 })
         });
         const data = await res.json();
@@ -3386,10 +3383,7 @@ async function generateSamDraft() {
 
         const res = await fetch('https://hbnpwphxjurvtydezwgh.supabase.co/functions/v1/generate-draft', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhibnB3cGh4anVydnR5ZGV6d2doIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MTQ1MzIsImV4cCI6MjA5MDk5MDUzMn0.p5E48__GlGqjC17Z28q8fYFK-qV8CmiidYIP02vGe4s'`
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt, model: 'claude-sonnet-4-20250514', max_tokens: 1024 })
         });
         const data = await res.json();
