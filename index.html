@@ -2068,16 +2068,20 @@ function normalizeSupabaseCard(row) {
     // Handle description: could be plain text (legacy) or JSON envelope (new format)
     // JSON envelope: {"rich_description": "...", "email_thread": [...], "intent": "...", ...}
     let description = row.description || '';
-    // Read original_email FIRST (authoritative — set by pipeline/backfill)
-    // Fall back to description.email_thread (legacy AI-extraction data, often stale)
-    let originalEmail = row.original_email || null;
-    if (!originalEmail || !originalEmail.length) {
+    // Priority: row.email_thread (full conversation from scraper) >
+    //           row.original_email (first message only) >
+    //           description.email_thread (legacy JSON format, often stale)
+    let emailThread = Array.isArray(row.email_thread) ? row.email_thread : null;
+    if ((!emailThread || !emailThread.length)) {
+        emailThread = Array.isArray(row.original_email) ? row.original_email : null;
+    }
+    if ((!emailThread || !emailThread.length)) {
         // No top-level email — try legacy description.email_thread
         if (typeof description === 'string' && description.trim().startsWith('{')) {
             try {
                 const parsed = JSON.parse(description);
                 description = parsed.rich_description || '';
-                originalEmail = Array.isArray(parsed.email_thread) ? parsed.email_thread : null;
+                emailThread = Array.isArray(parsed.email_thread) ? parsed.email_thread : null;
             } catch (e) {
                 // Not valid JSON — treat as legacy plain text
             }
@@ -2092,7 +2096,7 @@ function normalizeSupabaseCard(row) {
         }
     }
     // DEBUG: log email source for card 2739
-    if (row.id === 2739) { console.log('[DEBUG 2739] row.original_email:', row.original_email ? row.original_email.length + ' emails, first=' + (row.original_email[0]?.from||'').slice(0,30) : 'NULL'); console.log('[DEBUG 2739] final originalEmail:', originalEmail ? originalEmail.length + ' emails, first=' + (originalEmail[0]?.from||'').slice(0,30) : 'NULL'); }
+    if (row.id === 2739) { console.log('[DEBUG 2739] row.email_thread:', emailThread ? emailThread.length + ' emails' : 'NULL'); console.log('[DEBUG 2739] final emailThread:', emailThread ? emailThread.length + ' emails' : 'NULL'); }
 
     return {
         id: row.id,
@@ -2124,7 +2128,7 @@ function normalizeSupabaseCard(row) {
         location: row.location || '',
         draft_reply: draft,
         draft_reply_status: row.draft_reply_status || 'pending',
-        originalEmail: originalEmail,   // full email thread from JSON envelope
+        originalEmail: emailThread,   // full email thread from email_thread column (priority), original_email (fallback), or description JSON
     };
 }
 
@@ -2181,6 +2185,9 @@ function cardToSupabaseRow(card) {
         draft_reply: card.draft_reply || null,
         draft_reply_status: card.draft_reply_status || 'pending',
         owner: card.owner || '',
+        email_thread: (card.originalEmail && Array.isArray(card.originalEmail) && card.originalEmail.length > 0)
+            ? card.originalEmail
+            : null,
     };
 }
 
