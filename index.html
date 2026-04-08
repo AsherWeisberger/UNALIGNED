@@ -2972,13 +2972,6 @@ function copyDraft() {
 
 async function regenerateDraft() {
     if (!currentEditingCardData) return;
-    const key = await getAnthropicKey();
-    if (!key) {
-        const err = document.getElementById('draft-error');
-        err.textContent = '⚠️ No Anthropic API key found. Add anthropic_key to _secrets table in Supabase.';
-        err.style.display = 'block';
-        return;
-    }
     const btn = document.getElementById('btn-regen');
     const loading = document.getElementById('draft-loading');
     const empty = document.getElementById('draft-empty');
@@ -2990,24 +2983,18 @@ async function regenerateDraft() {
 
     try {
         const card = currentEditingCardData;
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
+        const prompt = `You are a professional sales assistant. Draft a first-response email reply from Robert Scoble.\n\nSENDER INFO:\n- Name: ${card.contactName || 'Unknown'}\n- Email: ${card.email || 'Unknown'}\n- Business: ${card.businessName || 'Unknown'}\n- Source: ${card.leadSource || 'unknown'}\n- Priority: ${card.priority || 'warm'}\n\nCONTACT MESSAGE:\n${card.description || '(No description)'}\n\nRespond ONLY with JSON:\n{"subject": "email subject line", "body": "email body text", "status": "drafted"}\n\nRequirements:\n- Subject: concise, professional reply subject\n- Body: warm, personalized opening acknowledging their message; 2-3 short paragraphs; natural sign-off\n- IMPORTANT: The email body MUST end with this exact closing paragraph:\n  "I am copying my business partner, Sam Levin, on this thread as we explore opportunities together. Sam brings invaluable expertise and will be an important part of any collaboration we pursue."\n\nRobert Scoble\nFounder, Unaligned (media company about how AI is bringing us new things)\nMobile: +1-425-205-1921\nX: https://x.com/scobleizer\nWeb: https://unaligned.io\n\n- Do NOT include any text outside the JSON.\n- No placeholders — write as if you know the person`;
+
+        const res = await fetch('https://hbnpwphxjurvtydezwgh.supabase.co/functions/v1/generate-draft', {
             method: 'POST',
             headers: {
-                'x-api-key': key,
-                'anthropic-version': '2023-06-01',
-                'content-type': 'application/json'
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabase.auth.session()?.access_token || ''}`
             },
-            body: JSON.stringify({
-                model: 'claude-sonnet-4-20250514',
-                max_tokens: 1024,
-                messages: [{
-                    role: 'user',
-                    content: `You are a professional sales assistant. Draft a first-response email reply from Robert Scoble.\n\nSENDER INFO:\n- Name: ${card.contactName || 'Unknown'}\n- Email: ${card.email || 'Unknown'}\n- Business: ${card.businessName || 'Unknown'}\n- Source: ${card.leadSource || 'unknown'}\n- Priority: ${card.priority || 'warm'}\n\nCONTACT MESSAGE:\n${card.description || '(No description)'}\n\nRespond ONLY with JSON:\n{"subject": "email subject line", "body": "email body text", "status": "drafted"}\n\nRequirements:\n- Subject: concise, professional reply subject\n- Body: warm, personalized opening acknowledging their message; 2-3 short paragraphs; natural sign-off\n- IMPORTANT: The email body MUST end with this exact closing paragraph:\n  "I am copying my business partner, Sam Levin, on this thread as we explore opportunities together. Sam brings invaluable expertise and will be an important part of any collaboration we pursue."\n\nRobert Scoble\nFounder, Unaligned (media company about how AI is bringing us new things)\nMobile: +1-425-205-1921\nX: https://x.com/scobleizer\nWeb: https://unaligned.io\n\n- Do NOT include any text outside the JSON.\n- No placeholders — write as if you know the person`
-                }]
-            })
+            body: JSON.stringify({ prompt, model: 'claude-sonnet-4-20250514', max_tokens: 1024 })
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error?.message || 'API error');
+        if (!res.ok) throw new Error(data.error || data.message || 'API error');
 
         const text = data.content?.[0]?.text;
         if (!text || typeof text !== 'string') throw new Error('Empty response from Claude');
@@ -3372,12 +3359,6 @@ function decodeHtml(str) {
 // ── Sam's Draft ─────────────────────────────────────
 async function generateSamDraft() {
     if (!currentEditingCardData) return;
-    const key = await getAnthropicKey();
-    if (!key) {
-        const err = document.getElementById('sam-email-error');
-        if (err) { err.textContent = '⚠️ No Anthropic API key found. Add anthropic_key to _secrets table in Supabase.'; err.style.display = 'block'; }
-        return;
-    }
 
     const loading = document.getElementById('sam-draft-loading');
     const empty = document.getElementById('sam-draft-empty');
@@ -3401,24 +3382,18 @@ async function generateSamDraft() {
             }).join('\n\n');
         }
 
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
+        const prompt = `You are Sam Levin, business partner at Unaligned. Be warm, professional, and concise. Always respond with valid JSON only.\n\nDraft an email reply as Sam Levin from UnalignedX@gmail.com.\n\nRECIPIENT:\n- Name: ${card.contactName || 'Unknown'}\n- Email: ${card.email || 'Unknown'}\n- Business: ${card.businessName || 'Unknown'}\n\nORIGINAL MESSAGE:\n${card.description || '(No message)'}${threadContext}\n\nRespond ONLY with JSON:\n{"body": "email body text"}\n\nRequirements:\n- Body: warm and professional; 2-3 short paragraphs\n- IMPORTANT: The email body MUST end with this exact signature block (include it verbatim, with a blank line before it):\n\nSam Levin, Partner\nUnaligned\n+1-415-827-3870\nhttps://unaligned.io\nhttps://x.com/samlevin\nlinkedin.com/in/samlevin/\n\n- Do NOT include any text outside the JSON.\n- Do NOT generate a subject line (it stays on the original thread)`;
+
+        const res = await fetch('https://hbnpwphxjurvtydezwgh.supabase.co/functions/v1/generate-draft', {
             method: 'POST',
             headers: {
-                'x-api-key': key,
-                'anthropic-version': '2023-06-01',
-                'content-type': 'application/json'
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabase.auth.session()?.access_token || ''}`
             },
-            body: JSON.stringify({
-                model: 'claude-sonnet-4-20250514',
-                max_tokens: 1024,
-                messages: [{
-                    role: 'user',
-                    content: `You are Sam Levin, business partner at Unaligned. Be warm, professional, and concise. Always respond with valid JSON only.\n\nDraft an email reply as Sam Levin from UnalignedX@gmail.com.\n\nRECIPIENT:\n- Name: ${card.contactName || 'Unknown'}\n- Email: ${card.email || 'Unknown'}\n- Business: ${card.businessName || 'Unknown'}\n\nORIGINAL MESSAGE:\n${card.description || '(No message)'}${threadContext}\n\nRespond ONLY with JSON:\n{"body": "email body text"}\n\nRequirements:\n- Body: warm and professional; 2-3 short paragraphs\n- IMPORTANT: The email body MUST end with this exact signature block (include it verbatim, with a blank line before it):\n\nSam Levin, Partner\nUnaligned\n+1-415-827-3870\nhttps://unaligned.io\nhttps://x.com/samlevin\nlinkedin.com/in/samlevin/\n\n- Do NOT include any text outside the JSON.\n- Do NOT generate a subject line (it stays on the original thread)`
-                }]
-            })
+            body: JSON.stringify({ prompt, model: 'claude-sonnet-4-20250514', max_tokens: 1024 })
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error?.message || 'API error');
+        if (!res.ok) throw new Error(data.error || data.message || 'API error');
 
         const text = data.content?.[0]?.text || '';
         let cleaned = text.replace(/^```json\s*/i,'').replace(/^```\s*/i,'').replace(/\s*```$/i,'').trim();
