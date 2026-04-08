@@ -3280,8 +3280,21 @@ function renderThread() {
     const count = document.getElementById('thread-count');
     if (!section || !list || !currentEditingCardData) return;
 
-    // email_thread is a JSONB array of email objects
-    const thread = currentEditingCardData.originalEmail || [];
+    // email_thread: prefer original_email JSONB field, fall back to description.email_thread
+    const thread = currentEditingCardData.originalEmail && currentEditingCardData.originalEmail.length > 0
+        ? currentEditingCardData.originalEmail
+        : ((() => {
+            try {
+                const d = currentEditingCardData.description;
+                if (typeof d === 'string' && d.startsWith('{')) {
+                    const parsed = JSON.parse(d);
+                    if (parsed.email_thread && Array.isArray(parsed.email_thread)) return parsed.email_thread;
+                } else if (typeof d === 'object' && d.email_thread) {
+                    return d.email_thread;
+                }
+            } catch (_) {}
+            return [];
+          })());
     console.log('[DEBUG renderThread] cardId:', currentEditingCard, 'originalEmail count:', thread.length, 'first:', (thread[0]?.from||'none').slice(0,50));
 
     if (!thread || thread.length === 0) {
