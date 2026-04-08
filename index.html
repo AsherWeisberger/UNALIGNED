@@ -349,14 +349,18 @@
 
         /* ─── LIST ────────────────────────────────────────── */
         .list {
-            min-width: 272px; max-width: 272px;
+            min-width: 300px; max-width: 300px;
             background: var(--surface); color: var(--text);
             border-radius: var(--radius-lg); padding: 14px;
             border: 1px solid var(--border);
+            overflow: hidden;
         }
 
-        .list-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
-        .list-title { font-size: 16px; font-weight: 700; font-family: var(--font-display); letter-spacing: 0.01em; }
+        .list-accent { height: 3px; margin: -14px -14px 14px; border-radius: 18px 18px 0 0; }
+        .list-count-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; font-family: var(--font-mono); line-height: 1; }
+
+        .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .list-title { font-size: 12px; font-weight: 700; font-family: var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; }
         .list-meta { font-size: 11px; color: var(--muted); margin-top: 2px; font-family: var(--font-mono); }
 
         .list-actions { display: flex; align-items: center; gap: 4px; }
@@ -373,18 +377,20 @@
 
         /* ─── CARD ────────────────────────────────────────── */
         .card {
-            background: #fff; border-radius: 10px; padding: 13px;
-            cursor: grab; box-shadow: 0 2px 8px rgba(15,23,42,0.1);
-            transition: transform 0.15s, box-shadow 0.15s;
-            border-left: 3px solid transparent;
+            background: var(--surface2); border-radius: 10px; padding: 13px;
+            cursor: grab; box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+            border: 1px solid var(--border);
+            border-left: 3px solid rgba(255,255,255,0.08);
+            position: relative;
         }
-        .card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(15,23,42,0.15); }
+        .card:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.07); border-color: var(--border2); }
         .card.dragging { opacity: 0.45; transform: rotate(1.5deg); }
 
-        .card.priority-hot { background: linear-gradient(135deg, #fef2f2, #fee2e2); border-left-color: #ef4444; }
-        .card.priority-warm { background: linear-gradient(135deg, #fffbeb, #fef3c7); border-left-color: #f59e0b; }
-        .card.priority-cold { background: linear-gradient(135deg, #eff6ff, #dbeafe); border-left-color: #3b82f6; }
-        .card.priority-done { background: linear-gradient(135deg, #f0fdf4, #dcfce7); border-left-color: #22c55e; }
+        .card.priority-hot { background: rgba(239,68,68,0.06); border-left-color: #ef4444; border-color: rgba(239,68,68,0.2); }
+        .card.priority-warm { background: rgba(245,158,11,0.06); border-left-color: #f59e0b; border-color: rgba(245,158,11,0.2); }
+        .card.priority-cold { border-left-color: #3b82f6; }
+        .card.priority-done { background: rgba(52,211,153,0.04); border-left-color: #34d399; border-color: rgba(52,211,153,0.15); }
 
         .card-labels { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 8px; }
         .card-label-text {
@@ -392,13 +398,13 @@
             font-size: 10px; font-weight: 600; color: #fff;
             font-family: var(--font-mono);
         }
-        .card-content { font-size: 15px; color: #1f2937; line-height: 1.4; flex: 1; }
-        .card-who { font-weight: 600; margin-bottom: 3px; }
-        .card-what-why { font-size: 11px; color: #6b7280; }
-        .card-intent-tag { display: inline-block; background: rgba(59,130,246,0.1); color: #3b82f6; border-radius: 4px; padding: 1px 6px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 2px; }
-        .card-why-snippet { color: #9ca3af; font-style: italic; font-size: 11px; line-height: 1.3; margin-top: 2px; }
+        .card-content { font-size: 13px; color: var(--text); line-height: 1.4; flex: 1; }
+        .card-who { font-weight: 600; margin-bottom: 4px; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .card-what-why { font-size: 11px; color: var(--muted2); }
+        .card-intent-tag { display: inline-block; background: rgba(91,140,255,0.12); color: var(--accent); border-radius: 4px; padding: 1px 6px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 3px; }
+        .card-why-snippet { color: var(--muted); font-size: 11px; line-height: 1.3; margin-top: 2px; }
         .modal-section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #9ca3af; margin-bottom: 8px; }
-        .card-footer { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #6b7280; }
+        .card-footer { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--muted); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
         .card-meta { display: flex; gap: 6px; align-items: center; font-family: var(--font-mono); }
         .card-meta-item { display: flex; align-items: center; gap: 3px; }
         .card-assignee { display: flex; align-items: center; gap: 5px; }
@@ -408,8 +414,8 @@
         .card-priority.hot { background: rgba(239,68,68,0.12); color: #ef4444; }
         .card-priority.warm { background: rgba(245,158,11,0.12); color: #f59e0b; }
         .card-priority.cold { background: rgba(59,130,246,0.12); color: #3b82f6; }
-        .card-source { padding: 2px 7px; border-radius: 6px; font-size: 10px; background: rgba(0,0,0,0.06); color: #374151; }
-        .card-value { padding: 2px 7px; border-radius: 6px; font-size: 10px; font-weight: 600; color: #059669; background: rgba(5,150,105,0.1); font-family: var(--font-mono); }
+        .card-source { padding: 2px 7px; border-radius: 6px; font-size: 10px; background: rgba(255,255,255,0.07); color: var(--muted2); }
+        .card-value { padding: 2px 7px; border-radius: 6px; font-size: 10px; font-weight: 600; color: var(--green); background: rgba(52,211,153,0.1); font-family: var(--font-mono); }
 
         /* ─── LABEL COLORS ────────────────────────────────── */
         .card-label-text.red, .label-tag.red, .label-color.red { background: #ef4444; }
@@ -422,8 +428,8 @@
 
         /* ─── ADD CARD/LIST BUTTONS ───────────────────────── */
         .add-card-btn {
-            width: 100%; border: 1px dashed rgba(0,0,0,0.15); background: transparent;
-            color: #6b7280; padding: 10px; border-radius: 8px;
+            width: 100%; border: 1px dashed rgba(255,255,255,0.12); background: transparent;
+            color: var(--muted); padding: 10px; border-radius: 8px;
             cursor: pointer; font-size: 12px; display: flex; align-items: center;
             justify-content: center; gap: 5px; margin-top: 8px; transition: all 0.15s;
         }
@@ -440,18 +446,19 @@
 
         /* ─── NEW CARD/LIST FORMS ─────────────────────────── */
         .new-card-form, .new-list-form {
-            background: #fff; border-radius: 10px; padding: 10px;
+            background: var(--surface2); border-radius: 10px; padding: 10px;
             margin-top: 8px; display: flex; flex-direction: column; gap: 8px;
+            border: 1px solid var(--border2);
         }
         .new-card-input, .new-list-input {
-            border: 1px solid #e5e7eb; border-radius: 8px;
+            border: 1px solid var(--border2); border-radius: 8px;
             padding: 10px; font-size: 13px; resize: none; width: 100%;
-            font-family: var(--font-body);
+            font-family: var(--font-body); background: var(--surface); color: var(--text);
         }
         .new-card-input:focus, .new-list-input:focus { outline: none; border-color: var(--accent); }
         .new-card-actions { display: flex; gap: 6px; }
-        .btn-primary { padding: 8px 14px; border: none; border-radius: 7px; background: #2563eb; color: #fff; cursor: pointer; font-size: 13px; }
-        .btn-cancel { border: none; background: transparent; font-size: 18px; cursor: pointer; color: #9ca3af; }
+        .btn-primary { padding: 8px 14px; border: none; border-radius: 7px; background: var(--accent); color: #fff; cursor: pointer; font-size: 13px; font-weight: 600; }
+        .btn-cancel { border: none; background: transparent; font-size: 18px; cursor: pointer; color: var(--muted); }
 
         /* ─── CARD MODAL ──────────────────────────────────── */
         .modal-overlay.active { align-items: flex-start; justify-content: center; padding-top: 40px; padding-bottom: 40px; }
@@ -2453,10 +2460,11 @@ function initBoardStructure() {
         list.className = 'list';
         list.dataset.listId = stage.id;
         list.innerHTML = `
+            <div class="list-accent" style="background:${stage.color};"></div>
             <div class="list-header">
-                <div>
+                <div style="display:flex;align-items:center;gap:8px;">
                     <h3 class="list-title" style="color:${stage.color};">${stage.title}</h3>
-                    <div class="list-meta">${stage.description}</div>
+                    <span class="list-count-badge" id="count-${stage.id}" style="background:${stage.color}22;color:${stage.color};border:1px solid ${stage.color}44;">0</span>
                 </div>
                 <div class="list-actions">
                     <button class="list-menu-btn" title="Rename" onclick="renameList('${stage.id}')">✎</button>
@@ -3948,6 +3956,11 @@ function selectProfile(name,initials,el) {
 function updateCardCount() {
     const n=Object.keys(cardsData).length;
     document.getElementById('total-cards').textContent=`${n} card${n===1?'':'s'}`;
+    boardConfig.forEach(stage => {
+        const count = Object.values(cardsData).filter(c=>c.listId===stage.id).length;
+        const badge = document.getElementById('count-'+stage.id);
+        if (badge) badge.textContent = count;
+    });
     updateAssignedCount(); queueSaveBoardState();
 }
 
