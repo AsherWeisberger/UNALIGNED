@@ -417,6 +417,41 @@
         .card-source { padding: 2px 7px; border-radius: 6px; font-size: 10px; background: rgba(255,255,255,0.07); color: var(--muted2); }
         .card-value { padding: 2px 7px; border-radius: 6px; font-size: 10px; font-weight: 600; color: var(--green); background: rgba(52,211,153,0.1); font-family: var(--font-mono); }
 
+        /* ─── STAGE AGE ────────────────────────────────────── */
+        .card-age { font-size: 10px; font-family: var(--font-mono); padding: 2px 7px; border-radius: 6px; }
+        .card-age.age-fresh { background: rgba(52,211,153,0.08); color: #34d399; }
+        .card-age.age-warn  { background: rgba(245,158,11,0.08);  color: #f59e0b; }
+        .card-age.age-old   { background: rgba(239,68,68,0.08);   color: #ef4444; }
+
+        /* ─── QUICK ACTIONS ON HOVER ──────────────────────── */
+        .card-quick-actions { display: none; position: absolute; top: 8px; right: 8px; gap: 4px; z-index: 2; }
+        .card:hover .card-quick-actions { display: flex; }
+        .card-quick-btn {
+            background: rgba(13,15,28,0.92); border: 1px solid rgba(255,255,255,0.13);
+            border-radius: 6px; padding: 4px 9px; font-size: 11px; cursor: pointer;
+            color: var(--muted2); transition: all 0.15s; font-family: var(--font-mono);
+            white-space: nowrap; line-height: 1.3;
+        }
+        .card-quick-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .card-quick-btn.done-btn:hover { border-color: var(--green); color: var(--green); }
+
+        /* ─── COLUMN VALUE ─────────────────────────────────── */
+        .list-value { font-size: 11px; color: #34d399; font-family: var(--font-mono); font-weight: 600; opacity: 0.8; }
+
+        /* ─── DAILY BRIEFING ───────────────────────────────── */
+        .daily-briefing {
+            background: linear-gradient(135deg,rgba(91,140,255,0.05),rgba(52,211,153,0.03));
+            border: 1px solid rgba(91,140,255,0.14); border-radius: var(--radius);
+            padding: 10px 16px; display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap;
+        }
+        .briefing-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--accent); margin-right: 4px; font-family: var(--font-mono); white-space: nowrap; line-height: 1.8; }
+        .briefing-items { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; flex: 1; }
+        .briefing-chip { font-size: 11px; padding: 3px 10px; border-radius: 20px; cursor: pointer; transition: opacity 0.15s; font-family: var(--font-mono); }
+        .briefing-chip:hover { opacity: 0.75; }
+        .briefing-chip.urgent { background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+        .briefing-chip.warn   { background: rgba(245,158,11,0.1);  color: #f59e0b; border: 1px solid rgba(245,158,11,0.2); }
+        .briefing-chip.new    { background: rgba(52,211,153,0.1);  color: #34d399; border: 1px solid rgba(52,211,153,0.2); }
+
         /* ─── LABEL COLORS ────────────────────────────────── */
         .card-label-text.red, .label-tag.red, .label-color.red { background: #ef4444; }
         .card-label-text.blue, .label-tag.blue, .label-color.blue { background: #3b82f6; }
@@ -1418,6 +1453,8 @@
 
                 <div id="board-loading" class="loading-state" role="status" aria-live="polite">Loading board…</div>
 
+                <div id="daily-briefing" class="daily-briefing" style="display:none;"></div>
+
                 <section class="flow-map" id="flow-map" aria-label="Flow snapshot"></section>
 
                 <!-- Pipeline Stats Bar -->
@@ -2135,6 +2172,7 @@ function normalizeSupabaseCard(row) {
         location: row.location || '',
         draft_reply: draft,
         draft_reply_status: row.draft_reply_status || 'pending',
+        movedAt: row.moved_at || null,
         originalEmail: emailThread,   // full email thread from email_thread column (priority), original_email (fallback), or description JSON
     };
 }
@@ -2191,6 +2229,7 @@ function cardToSupabaseRow(card) {
         location: card.location || '',
         draft_reply: card.draft_reply || null,
         draft_reply_status: card.draft_reply_status || 'pending',
+        moved_at: card.movedAt || null,
         owner: card.owner || '',
         email_thread: (card.originalEmail && Array.isArray(card.originalEmail) && card.originalEmail.length > 0)
             ? card.originalEmail
@@ -2246,6 +2285,31 @@ function updateStaleBadge() {
         countEl.textContent = count;
         badge.style.display = count > 0 ? 'inline-flex' : 'none';
     }
+}
+
+function renderDailyBriefing() {
+    const el = document.getElementById('daily-briefing');
+    if (!el) return;
+    const cards = Object.values(cardsData);
+    const today = new Date().toDateString();
+    const hotStale = cards.filter(c => {
+        const labels = (c.labels||[]).map(l=>typeof l==='object'?l.name:l);
+        const isHot = labels.some(l=>/hot|🔥/i.test(l));
+        const days = stageAgeDays(c);
+        return isHot && days !== null && days >= 7 && c.listId !== 'done' && c.listId !== 'paid-out';
+    });
+    const stuck = cards.filter(c => {
+        const days = stageAgeDays(c);
+        return days !== null && days >= 14 && c.listId !== 'done' && c.listId !== 'paid-out';
+    });
+    const newToday = cards.filter(c => c.createdAt && new Date(c.createdAt).toDateString() === today);
+    const chips = [];
+    if (hotStale.length) chips.push(`<span class="briefing-chip urgent">🔥 ${hotStale.length} hot lead${hotStale.length>1?'s':''} going cold</span>`);
+    if (stuck.length) chips.push(`<span class="briefing-chip warn">⏳ ${stuck.length} stuck 14+ days</span>`);
+    if (newToday.length) chips.push(`<span class="briefing-chip fresh">✦ ${newToday.length} new today</span>`);
+    if (chips.length === 0) { el.style.display='none'; return; }
+    el.innerHTML = `<span class="briefing-label">Today</span>` + chips.join('');
+    el.style.display = 'flex';
 }
 
 function setSyncState(status, { errorMessage = '', syncedAt = null } = {}) {
@@ -2465,6 +2529,7 @@ function initBoardStructure() {
                 <div style="display:flex;align-items:center;gap:8px;">
                     <h3 class="list-title" style="color:${stage.color};">${stage.title}</h3>
                     <span class="list-count-badge" id="count-${stage.id}" style="background:${stage.color}22;color:${stage.color};border:1px solid ${stage.color}44;">0</span>
+                    <span class="list-value" id="value-${stage.id}"></span>
                 </div>
                 <div class="list-actions">
                     <button class="list-menu-btn" title="Rename" onclick="renameList('${stage.id}')">✎</button>
@@ -2534,6 +2599,7 @@ function markBoardReady() {
     const el = document.getElementById('board-loading');
     if (el) el.remove();
     updateStaleBadge();
+    renderDailyBriefing();
     loadViewMode();
 }
 
@@ -2586,6 +2652,26 @@ document.addEventListener('click', e => {
     if (card && card.dataset.cardId && !e.target.classList.contains('card-checkbox')) { e.stopPropagation(); openCardModal(card.dataset.cardId); }
 });
 
+// ── Stage Age ──────────────────────────────────────
+function stageAgeDays(card) {
+    const ref = card.movedAt || card.createdAt;
+    if (!ref) return null;
+    return Math.floor((Date.now() - new Date(ref).getTime()) / 86400000);
+}
+
+// ── Quick Card Actions ──────────────────────────────
+function quickReply(cardId) {
+    openCardModal(cardId);
+    setTimeout(() => draftAndOpenComposer(), 250);
+}
+function quickMoveNext(cardId) {
+    const card = cardsData[cardId];
+    if (!card) return;
+    const idx = boardConfig.findIndex(l => l.id === card.listId);
+    if (idx >= 0 && idx < boardConfig.length - 1) moveCardToList(cardId, boardConfig[idx + 1].id);
+}
+function quickDone(cardId) { moveCardToList(cardId, 'done'); }
+
 // ── Render Card ────────────────────────────────────
 function renderCard(cardData) {
     const container = document.getElementById(cardData.listId+'-cards');
@@ -2636,11 +2722,31 @@ function renderCard(cardData) {
     const whatText = cardData.intent ? `<span class="card-intent-tag">${cardData.intent}</span>` : '';
     const whyText = cardData.description ? `<div class="card-why-snippet">${escapeHtml(cardData.description.slice(0, 80))}${cardData.description.length > 80 ? '…' : ''}</div>` : '';
 
+    // Stage age chip
+    const ageDays = stageAgeDays(cardData);
+    let ageHtml = '';
+    if (ageDays !== null && ageDays > 0) {
+        const ageCls = ageDays >= 21 ? 'age-old' : ageDays >= 7 ? 'age-warn' : 'age-fresh';
+        ageHtml = `<span class="card-age ${ageCls}">${ageDays}d</span>`;
+    }
+
+    // Quick action buttons (hidden, shown on hover via CSS)
+    const nextStageIdx = boardConfig.findIndex(l => l.id === cardData.listId);
+    const nextStage = nextStageIdx >= 0 && nextStageIdx < boardConfig.length - 1 ? boardConfig[nextStageIdx + 1] : null;
+    const isDone = cardData.listId === 'done' || cardData.listId === 'paid-out';
+    const quickActionsHtml = !isDone ? `
+        <div class="card-quick-actions" onclick="event.stopPropagation()">
+            ${cardData.email ? `<button class="card-quick-btn" onclick="quickReply(${cardData.id})" title="Open reply draft">✉ Reply</button>` : ''}
+            ${nextStage ? `<button class="card-quick-btn" onclick="quickMoveNext(${cardData.id})" title="Move to ${nextStage.title}">→ ${nextStage.title.split(' ')[0]}</button>` : ''}
+            <button class="card-quick-btn done-btn" onclick="quickDone(${cardData.id})" title="Mark as Done">✓</button>
+        </div>` : '';
+
     card.innerHTML = `
         <div class="card-checkbox-wrap">
             <input type="checkbox" class="card-checkbox" data-id="${cardData.id}" onclick="handleCardCheckbox(event, '${cardData.id}')">
         </div>
         ${isStaleCard(cardData) ? '<span class="stale-badge" style="position:absolute;top:8px;left:8px;z-index:3;">⚠️</span>' : ''}
+        ${quickActionsHtml}
         <div class="card-labels">${labelsHtml}</div>
         ${leadMetaHtml}
         <div class="card-content">
@@ -2648,7 +2754,7 @@ function renderCard(cardData) {
             <div class="card-what-why">${whatText}${whyText}</div>
         </div>
         <div class="card-footer">
-            <div class="card-meta">${checklistHtml}${dueDateHtml}</div>
+            <div class="card-meta">${checklistHtml}${dueDateHtml}${ageHtml}</div>
             ${assigneeHtml}
         </div>
     `;
@@ -2675,6 +2781,7 @@ function moveCardToList(cardId,newListId) {
     if (!card) return;
     const oldListId = card.listId;
     card.listId = newListId;
+    card.movedAt = new Date().toISOString();
     addActivity(`moved from ${boardConfig.find(l=>l.id===oldListId)?.title||oldListId} to ${boardConfig.find(l=>l.id===newListId)?.title||newListId}`);
     renderAllCards(); updateCardCount(); updateFlowMap(); saveBoardStateNow();
 }
@@ -2696,6 +2803,7 @@ function drop(ev) {
     const newListId = container.dataset.list;
     const oldListId = targetCard.listId;
     targetCard.listId = newListId;
+    targetCard.movedAt = new Date().toISOString();
     const nLN = boardConfig.find(l=>l.id===newListId)?.title||newListId;
     const oLN = boardConfig.find(l=>l.id===oldListId)?.title||oldListId;
     targetCard.activity = Array.isArray(targetCard.activity)?targetCard.activity:[];
@@ -3866,7 +3974,7 @@ function openCommandPalette() {
         const items=document.querySelectorAll('.command-item');
         if(e.key==='ArrowDown'){e.preventDefault();window.selectedCommandIndex=Math.min(window.selectedCommandIndex+1,items.length-1);renderCommands(newInput.value);}
         else if(e.key==='ArrowUp'){e.preventDefault();window.selectedCommandIndex=Math.max(window.selectedCommandIndex-1,0);renderCommands(newInput.value);}
-        else if(e.key==='Enter'){e.preventDefault();const f=commands.filter(c=>c.title.toLowerCase().includes(newInput.value.toLowerCase()));if(f[window.selectedCommandIndex])executeCommand(f[window.selectedCommandIndex].id);}
+        else if(e.key==='Enter'){e.preventDefault();const items=window._cmdPaletteItems||commands;if(items[window.selectedCommandIndex])executeCommand(items[window.selectedCommandIndex].id);}
         else if(e.key==='Escape')closeCommandPalette();
     });
     setTimeout(()=>newInput.focus(),100);
@@ -3875,12 +3983,36 @@ function openCommandPalette() {
 function closeCommandPalette(event) { if(!event||event.target===document.getElementById('command-palette-modal')) document.getElementById('command-palette-modal').classList.remove('active'); }
 
 function renderCommands(filter) {
-    const c=document.getElementById('command-palette-results');
-    const f=commands.filter(cmd=>cmd.title.toLowerCase().includes(filter.toLowerCase())||cmd.desc.toLowerCase().includes(filter.toLowerCase()));
-    c.innerHTML=f.map((cmd,i)=>`<div class="command-item ${i===window.selectedCommandIndex?'selected':''}" onclick="executeCommand('${cmd.id}')"><div class="command-item-icon">${cmd.icon}</div><div class="command-item-text"><div class="command-item-title">${cmd.title}</div><div class="command-item-desc">${cmd.desc}</div></div></div>`).join('');
+    const c = document.getElementById('command-palette-results');
+    const f = filter.length >= 2
+        ? commands.filter(cmd => cmd.title.toLowerCase().includes(filter.toLowerCase()) || cmd.desc.toLowerCase().includes(filter.toLowerCase()))
+        : commands;
+    const cardResults = filter.length >= 2
+        ? Object.values(cardsData).filter(card =>
+            (card.title||'').toLowerCase().includes(filter.toLowerCase()) ||
+            (card.description||'').toLowerCase().includes(filter.toLowerCase())
+          ).slice(0,5).map(card => ({
+            id: '__card__'+card.id,
+            icon: '🃏',
+            title: card.title || 'Untitled',
+            desc: boardConfig.find(l=>l.id===card.listId)?.title || card.listId
+          }))
+        : [];
+    const merged = [...f, ...cardResults];
+    window._cmdPaletteItems = merged;
+    c.innerHTML = merged.map((cmd,i) =>
+        `<div class="command-item ${i===window.selectedCommandIndex?'selected':''}" onclick="executeCommand('${cmd.id}')"><div class="command-item-icon">${cmd.icon}</div><div class="command-item-text"><div class="command-item-title">${cmd.title}</div><div class="command-item-desc">${cmd.desc}</div></div></div>`
+    ).join('');
 }
 
-function executeCommand(id) { const c=commands.find(cmd=>cmd.id===id); if(c){c.action();closeCommandPalette();} }
+function executeCommand(id) {
+    if (String(id).startsWith('__card__')) {
+        const cardId = parseInt(id.replace('__card__',''), 10);
+        closeCommandPalette(); openCardModal(cardId); return;
+    }
+    const c = commands.find(cmd=>cmd.id===id);
+    if (c) { c.action(); closeCommandPalette(); }
+}
 
 document.addEventListener('keydown', e=>{
     if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();openCommandPalette();}
@@ -3957,9 +4089,15 @@ function updateCardCount() {
     const n=Object.keys(cardsData).length;
     document.getElementById('total-cards').textContent=`${n} card${n===1?'':'s'}`;
     boardConfig.forEach(stage => {
-        const count = Object.values(cardsData).filter(c=>c.listId===stage.id).length;
+        const stageCards = Object.values(cardsData).filter(c=>c.listId===stage.id);
+        const count = stageCards.length;
         const badge = document.getElementById('count-'+stage.id);
         if (badge) badge.textContent = count;
+        const valEl = document.getElementById('value-'+stage.id);
+        if (valEl) {
+            const total = stageCards.reduce((s,c)=> s + (parseFloat(String(c.estimatedValue||'').replace(/[^0-9.]/g,''))||0), 0);
+            valEl.textContent = total > 0 ? '$' + total.toLocaleString() : '';
+        }
     });
     updateAssignedCount(); queueSaveBoardState();
 }
@@ -4388,6 +4526,9 @@ window.sendEmail=sendEmail;
 window.draftAndOpenComposer=draftAndOpenComposer;
 window.copyDraft=copyDraft;
 window.copyContactField=copyContactField;
+window.quickReply=quickReply;
+window.quickMoveNext=quickMoveNext;
+window.quickDone=quickDone;
 
 
 // Expose login functions globally for inline onclick handlers
