@@ -2985,9 +2985,13 @@ async function regenerateDraft() {
         const card = currentEditingCardData;
         const prompt = `You are a professional sales assistant. Draft a first-response email reply from Robert Scoble.\n\nSENDER INFO:\n- Name: ${card.contactName || 'Unknown'}\n- Email: ${card.email || 'Unknown'}\n- Business: ${card.businessName || 'Unknown'}\n- Source: ${card.leadSource || 'unknown'}\n- Priority: ${card.priority || 'warm'}\n\nCONTACT MESSAGE:\n${card.description || '(No description)'}\n\nRespond ONLY with JSON:\n{"subject": "email subject line", "body": "email body text", "status": "drafted"}\n\nRequirements:\n- Subject: concise, professional reply subject\n- Body: warm, personalized opening acknowledging their message; 2-3 short paragraphs; natural sign-off\n- IMPORTANT: The email body MUST end with this exact closing paragraph:\n  "I am copying my business partner, Sam Levin, on this thread as we explore opportunities together. Sam brings invaluable expertise and will be an important part of any collaboration we pursue."\n\nRobert Scoble\nFounder, Unaligned (media company about how AI is bringing us new things)\nMobile: +1-425-205-1921\nX: https://x.com/scobleizer\nWeb: https://unaligned.io\n\n- Do NOT include any text outside the JSON.\n- No placeholders — write as if you know the person`;
 
+        const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhibnB3cGh4anVydnR5ZGV6d2doIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MTQ1MzIsImV4cCI6MjA5MDk5MDUzMn0.p5E48__GlGqjC17Z28q8fYFK-qV8CmiidYIP02vGe4s';
         const res = await fetch('https://hbnpwphxjurvtydezwgh.supabase.co/functions/v1/generate-draft', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + ANON_KEY
+            },
             body: JSON.stringify({ prompt, model: 'claude-sonnet-4-20250514', max_tokens: 1024 })
         });
         const data = await res.json();
@@ -3381,9 +3385,13 @@ async function generateSamDraft() {
 
         const prompt = `You are Sam Levin, business partner at Unaligned. Be warm, professional, and concise. Always respond with valid JSON only.\n\nDraft an email reply as Sam Levin from UnalignedX@gmail.com.\n\nRECIPIENT:\n- Name: ${card.contactName || 'Unknown'}\n- Email: ${card.email || 'Unknown'}\n- Business: ${card.businessName || 'Unknown'}\n\nORIGINAL MESSAGE:\n${card.description || '(No message)'}${threadContext}\n\nRespond ONLY with JSON:\n{"body": "email body text"}\n\nRequirements:\n- Body: warm and professional; 2-3 short paragraphs\n- IMPORTANT: The email body MUST end with this exact signature block (include it verbatim, with a blank line before it):\n\nSam Levin, Partner\nUnaligned\n+1-415-827-3870\nhttps://unaligned.io\nhttps://x.com/samlevin\nlinkedin.com/in/samlevin/\n\n- Do NOT include any text outside the JSON.\n- Do NOT generate a subject line (it stays on the original thread)`;
 
+        const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhibnB3cGh4anVydnR5ZGV6d2doIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MTQ1MzIsImV4cCI6MjA5MDk5MDUzMn0.p5E48__GlGqjC17Z28q8fYFK-qV8CmiidYIP02vGe4s';
         const res = await fetch('https://hbnpwphxjurvtydezwgh.supabase.co/functions/v1/generate-draft', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + ANON_KEY
+            },
             body: JSON.stringify({ prompt, model: 'claude-sonnet-4-20250514', max_tokens: 1024 })
         });
         const data = await res.json();
