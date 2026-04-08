@@ -4035,22 +4035,17 @@ function renderPipelineBarFromCards(lastRun) {
 
 function setPipelineSourceFilter(src) {
     pipelineSourceFilter = src;
-    // Re-render bar to update active state
-    if (pipelineStats) {
-        const lastRun = pipelineStats.last_run || (pipelineStats.runs && pipelineStats.runs[pipelineStats.runs.length - 1]);
-        renderPipelineBar(pipelineStats, lastRun);
-    }
-    // Apply filter to board (if source-based filtering exists)
+    // Re-render bar to show active state and apply filter to cards
+    renderPipelineBarFromCards(pipelineStats?.last_run || null);
+    // Apply filter to board cards
     if (src) {
-        // Show only leads with this source
         Object.values(cardsData).forEach(card => {
-            const el = document.querySelector(`[data-card-id="${card.id}"]`);
+            const el = document.getElementById('card-' + card.id);
             if (el) el.style.display = (card.leadSource === src) ? '' : 'none';
         });
     } else {
-        // Show all
         Object.values(cardsData).forEach(card => {
-            const el = document.querySelector(`[data-card-id="${card.id}"]`);
+            const el = document.getElementById('card-' + card.id);
             if (el) el.style.display = '';
         });
     }
