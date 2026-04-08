@@ -145,6 +145,43 @@ def html_to_text(html):
     return text
 
 
+def decode_body(bd):
+    """Decode body data from Gmail API (always base64)."""
+    data = bd.get('data', '')
+    if not data:
+        return ''
+    try:
+        return base64.urlsafe_b64decode(data + '==').decode('utf-8', errors='replace')
+    except Exception:
+        return ''
+
+
+def extract_text_from_part(part):
+    """Recursively extract text from a message part (handles nested multipart)."""
+    mt = part.get('mimeType', '')
+    bd = part.get('body', {})
+
+    if mt == 'text/plain' and 'data' in bd:
+        result = decode_body(bd)
+        if result:
+            return result
+
+    if mt == 'text/html' and 'data' in bd:
+        html = decode_body(bd)
+        return html_to_text(html)
+
+    # multipart/* — recurse into nested parts
+    nested = part.get('parts', [])
+    if nested:
+        # Prefer text/plain, fall back to text/html
+        for sub in nested:
+            result = extract_text_from_part(sub)
+            if result:
+                return result
+
+    return ''
+
+
 def format_email(msg):
     headers = {h['name'].lower(): h['value'] for h in msg.get('payload', {}).get('headers', [])}
     from_raw = headers.get('from', '')
@@ -155,24 +192,18 @@ def format_email(msg):
 
     body = ''
     payload = msg.get('payload', {})
-    if 'parts' in payload:
-        for part in payload['parts']:
-            mt = part.get('mimeType', '')
-            bd = part.get('body', {})
-            if mt == 'text/plain' and 'data' in bd:
-                body = base64.urlsafe_b64decode(bd['data']).decode('utf-8', errors='replace')
-                break
-            elif mt == 'text/html' and 'data' in bd and not body:
-                html = base64.urlsafe_b64decode(bd['data']).decode('utf-8', errors='replace')
-                body = html_to_text(html)
-    elif 'data' in payload:
-        mt = payload.get('mimeType', '')
+
+    # First try: direct body.data (no parts at all — simple text/plain or text/html)
+    if 'parts' not in payload:
         bd = payload.get('body', {})
-        if mt == 'text/html' and 'data' in bd:
-            html = base64.urlsafe_b64decode(bd['data']).decode('utf-8', errors='replace')
-            body = html_to_text(html)
-        elif 'data' in bd:
-            body = base64.urlsafe_b64decode(bd['data']).decode('utf-8', errors='replace')
+        if 'data' in bd:
+            mt = payload.get('mimeType', '')
+            body = decode_body(bd)
+            if mt == 'text/html':
+                body = html_to_text(body)
+    else:
+        # Has parts — extract recursively
+        body = extract_text_from_part(payload)
 
     # Filter noise from thread emails
     if is_noise(email_addr, subject):
