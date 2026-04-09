@@ -1185,20 +1185,32 @@
                 text-align: center;
             }
 
-            /* ── Cards: generous touch targets ── */
-            .card { padding: 14px; min-height: 72px; }
-            .card:hover { transform: none; box-shadow: 0 1px 3px rgba(0,0,0,0.3); } /* no hover lift on touch */
-            .card-quick-btn { padding: 8px 12px; font-size: 11px; min-height: 36px; }
+            /* ── Cards: compact — keep name, labels, priority only ── */
+            .card { padding: 10px 12px; min-height: 0; }
+            .card:hover { transform: none; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
 
-            /* ── Quick actions: always show inline on mobile (no hover needed) ── */
+            /* Hide description — too long for mobile */
+            .card-what-why { display: none !important; }
+            /* Hide footer (age, checklist) — not needed at a glance */
+            .card-footer { display: none !important; }
+
+            /* Right padding so name text doesn't run under the buttons */
+            .card-content { padding-right: 100px; }
+            .card-who { font-size: 13px; }
+            .card-lead-meta { margin-top: 4px; }
+
+            /* Quick actions: keep absolute (top-right), always visible, compact */
             .card-quick-actions {
                 display: flex !important;
-                position: static;
-                margin-top: 10px;
-                padding-top: 8px;
-                border-top: 1px solid var(--border);
-                justify-content: flex-end;
-                gap: 6px;
+                position: absolute;
+                top: 8px; right: 8px;
+                gap: 3px;
+            }
+            .card-quick-btn {
+                padding: 4px 7px;
+                font-size: 10px;
+                min-height: 0;
+                border-radius: 5px;
             }
 
             /* ── Modals: full screen ── */
