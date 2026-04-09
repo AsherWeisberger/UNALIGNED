@@ -1196,26 +1196,56 @@
             .card-modal.active { animation: none !important; }
             .card-modal-header { position: sticky; top: 0; z-index: 10; background: var(--surface); }
 
-            /* ── Column dots: show which column you're on ── */
-            #col-dots {
+            /* ── Mobile column nav bar ── */
+            #mobile-col-nav {
                 display: flex !important;
                 position: fixed;
-                bottom: 16px;
-                left: 50%;
-                transform: translateX(-50%);
-                gap: 6px;
-                z-index: 100;
-                background: rgba(7,8,15,0.7);
-                backdrop-filter: blur(8px);
-                padding: 6px 10px;
-                border-radius: 999px;
+                bottom: 0; left: 0; right: 0;
+                height: 54px;
+                background: var(--surface);
+                border-top: 1px solid var(--border);
+                align-items: center;
+                justify-content: space-between;
+                padding: 0 8px;
+                z-index: 200;
+                gap: 8px;
+            }
+            #col-nav-prev, #col-nav-next {
+                background: var(--surface2);
                 border: 1px solid var(--border);
+                color: var(--text);
+                border-radius: 10px;
+                width: 80px;
+                height: 38px;
+                font-size: 20px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+                transition: background 0.15s, border-color 0.15s;
+            }
+            #col-nav-prev:active, #col-nav-next:active {
+                background: var(--accent);
+                border-color: var(--accent);
+            }
+            #col-nav-prev:disabled, #col-nav-next:disabled {
+                opacity: 0.25;
+                pointer-events: none;
+            }
+            #col-dots {
+                display: flex;
+                gap: 6px;
+                align-items: center;
+                justify-content: center;
+                flex: 1;
             }
             .col-dot {
                 width: 6px; height: 6px;
                 border-radius: 50%;
-                background: rgba(255,255,255,0.25);
+                background: rgba(255,255,255,0.2);
                 transition: background 0.2s, width 0.2s;
+                flex-shrink: 0;
             }
             .col-dot.active {
                 background: var(--accent);
@@ -1564,7 +1594,7 @@
                     <span>Asher W</span>
                 </div>
             </div>
-            <input type="password" class="login-input" id="login-password" placeholder="Password">
+            <input type="password" class="login-input" id="login-password" placeholder="Password" autocomplete="new-password">
             <button class="login-btn" id="login-submit-btn">Enter</button>
             <p class="login-error" id="login-error"></p>
         </div>
@@ -1604,7 +1634,11 @@
             </div>
         </header>
 
-        <div id="col-dots" style="display:none;"></div>
+        <div id="mobile-col-nav" style="display:none;">
+            <button id="col-nav-prev" onclick="colNavStep(-1)">&#8592;</button>
+            <div id="col-dots"></div>
+            <button id="col-nav-next" onclick="colNavStep(1)">&#8594;</button>
+        </div>
 
         <div class="sync-warning" id="sync-warning" role="alert" aria-live="polite"></div>
         <div class="sync-indicator sync-connecting sync-indicator-floating" id="sync-indicator-floating" data-sync-indicator title="Connecting…">
@@ -2859,18 +2893,34 @@ function markBoardReady() {
 
 function initColDots() {
     if (window.innerWidth > 640) return;
+    const nav = document.getElementById('mobile-col-nav');
     const dotsEl = document.getElementById('col-dots');
     const board = document.getElementById('board');
-    if (!dotsEl || !board) return;
+    const prevBtn = document.getElementById('col-nav-prev');
+    const nextBtn = document.getElementById('col-nav-next');
+    if (!nav || !dotsEl || !board) return;
 
-    const cols = boardConfig.length;
+    nav.style.display = 'flex';
+
     dotsEl.innerHTML = boardConfig.map((s, i) => `<div class="col-dot${i===0?' active':''}" data-col="${i}"></div>`).join('');
 
-    board.addEventListener('scroll', () => {
+    function updateNav() {
         const idx = Math.round(board.scrollLeft / window.innerWidth);
         dotsEl.querySelectorAll('.col-dot').forEach((d, i) => d.classList.toggle('active', i === idx));
-    }, { passive: true });
+        if (prevBtn) prevBtn.disabled = idx === 0;
+        if (nextBtn) nextBtn.disabled = idx >= boardConfig.length - 1;
+    }
+
+    updateNav();
+    board.addEventListener('scroll', updateNav, { passive: true });
 }
+
+function colNavStep(dir) {
+    const board = document.getElementById('board');
+    if (!board) return;
+    board.scrollBy({ left: dir * window.innerWidth, behavior: 'smooth' });
+}
+window.colNavStep = colNavStep;
 
 function initScrollHide() {
     if (window.innerWidth <= 640) return; // mobile board scrolls horizontally — strip logic doesn't apply
