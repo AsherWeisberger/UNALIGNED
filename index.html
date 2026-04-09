@@ -2775,45 +2775,46 @@ function initScrollHide() {
     const strip = document.getElementById('board-top-strip');
     if (!strip) return;
 
-    let hideTimer = null;
     let shown = true;
+    let lastEvent = 0;
 
     function showStrip() {
         if (!shown) { shown = true; strip.classList.remove('strip-hidden'); }
-        clearTimeout(hideTimer);
     }
     function hideStrip() {
         if (shown) { shown = false; strip.classList.add('strip-hidden'); }
-        clearTimeout(hideTimer);
     }
 
-    // Board: listen for wheel (horizontal board scrolls vertically via trackpad/mouse)
-    const board = document.getElementById('board');
+    // Document-level wheel: catches all trackpad/mouse gestures regardless of scroll direction
+    // deltaX > 0  = scrolling right (navigating board columns) → hide
+    // deltaY > 0  = scrolling down → hide
+    // deltaY < 0  = scrolling up → show
+    document.addEventListener('wheel', function(e) {
+        const now = Date.now();
+        if (now - lastEvent < 80) return; // debounce rapid events
+        lastEvent = now;
+        if (e.deltaY > 3 || e.deltaX > 10) {
+            hideStrip();
+        } else if (e.deltaY < -3) {
+            showStrip();
+        }
+    }, { passive: true });
+
+    // Board horizontal scroll position (belt-and-suspenders)
+    const board = document.querySelector('.board');
     if (board) {
-        board.addEventListener('wheel', function(e) {
-            if (e.deltaY > 5) {
-                hideStrip();
-            } else if (e.deltaY < -5) {
-                showStrip();
-            }
+        board.addEventListener('scroll', function() {
+            if (board.scrollLeft > 80) hideStrip();
+            else if (board.scrollLeft < 10) showStrip();
         }, { passive: true });
     }
 
-    // Table view: listen for scroll (it actually scrolls vertically)
+    // Table view vertical scroll
     const tableView = document.getElementById('table-view');
     if (tableView) {
         tableView.addEventListener('scroll', function() {
             if (tableView.scrollTop > 60) hideStrip();
-            else if (tableView.scrollTop < 20) showStrip();
-        }, { passive: true });
-    }
-
-    // main-scroll: covers any other vertical scroll
-    const mainScroll = document.querySelector('.main-scroll');
-    if (mainScroll) {
-        mainScroll.addEventListener('scroll', function() {
-            if (mainScroll.scrollTop > 60) hideStrip();
-            else if (mainScroll.scrollTop < 20) showStrip();
+            else if (tableView.scrollTop < 10) showStrip();
         }, { passive: true });
     }
 }
