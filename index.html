@@ -1185,34 +1185,49 @@
                 text-align: center;
             }
 
-            /* ── Cards: clean list items — tap to open, no clutter ── */
+            /* ── Cards: flex column so we can reorder via CSS `order` ── */
+            /* HTML order: checkbox → quick-actions → labels → lead-meta → content → footer */
+            /* Visual order we want: content(name) → labels → lead-meta → footer → quick-actions */
             .card {
-                padding: 10px 12px;
+                display: flex !important;
+                flex-direction: column;
+                gap: 0;
+                padding: 11px 12px;
                 min-height: 0;
-                display: block;
             }
-            .card:hover { transform: none; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
-            .card:active { opacity: 0.85; }
+            .card:hover  { transform: none; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+            .card:active { opacity: 0.8; }
 
-            /* Hide everything that clutters mobile */
-            .card-checkbox-wrap  { display: none !important; }
-            .card-quick-actions  { display: none !important; }
-            .card-what-why       { display: none !important; }
-            .card-footer         { display: none !important; }
-            .stale-badge         { top: 6px; left: 6px; font-size: 10px; }
+            .card-checkbox-wrap { display: none !important; }
+            .stale-badge        { position: absolute; top: 6px; right: 6px; font-size: 10px; left: auto; }
 
-            /* Labels row: tight */
-            .card-labels { margin-bottom: 3px; }
+            /* Visual ordering */
+            .card-content   { order: 1; padding-right: 0; }
+            .card-labels    { order: 2; margin-top: 5px; margin-bottom: 0; }
+            .card-lead-meta { order: 3; margin-top: 3px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+            .card-footer    { order: 4; display: flex !important; margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--border); }
+
+            /* Quick actions: last, always visible, in normal flow (no absolute) */
+            .card-quick-actions {
+                order: 5;
+                display: flex !important;
+                position: static !important;
+                margin-top: 8px;
+                padding-top: 8px;
+                border-top: 1px solid var(--border);
+                justify-content: flex-start;
+                gap: 6px;
+            }
+            .card-quick-btn { padding: 6px 12px; font-size: 12px; min-height: 0; }
+
+            /* Hide description — still too long for card */
+            .card-what-why { display: none !important; }
+
+            /* Text sizing */
+            .card-who        { font-size: 14px; font-weight: 600; }
             .card-label-text { font-size: 10px; padding: 1px 6px; }
-
-            /* Name: full width, clear */
-            .card-content { padding-right: 0; }
-            .card-who { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-            /* Priority + source: small single line below name */
-            .card-lead-meta { margin-top: 3px; font-size: 11px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-            .card-priority { font-size: 10px; }
-            .card-source { font-size: 10px; color: var(--muted); }
+            .card-priority   { font-size: 11px; }
+            .card-source     { font-size: 11px; color: var(--muted); }
 
             /* ── Modals: full screen ── */
             .modal-overlay.active { padding: 0 !important; align-items: stretch !important; }
