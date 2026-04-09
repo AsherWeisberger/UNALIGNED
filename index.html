@@ -2772,6 +2772,7 @@ function initScrollHide() {
 
     let shown = true;
     let cachedH = null;
+    let manualHide = false; // true when user explicitly toggled it closed
 
     function hideStrip() {
         if (!shown) return;
@@ -2781,7 +2782,7 @@ function initScrollHide() {
         strip.style.overflow = 'hidden';
         strip.style.height = cachedH + 'px';
         strip.style.transition = 'none';
-        strip.offsetHeight; // force reflow so browser commits starting state
+        strip.offsetHeight; // force reflow
         strip.style.transition = 'height 0.3s ease, opacity 0.25s ease';
         strip.style.height = '0px';
         strip.style.opacity = '0';
@@ -2794,6 +2795,7 @@ function initScrollHide() {
     function showStrip() {
         if (shown) return;
         shown = true;
+        manualHide = false;
 
         strip.style.transition = 'height 0.3s ease, opacity 0.25s ease';
         strip.style.height = (cachedH || 200) + 'px';
@@ -2807,23 +2809,27 @@ function initScrollHide() {
         if (btn) btn.textContent = '▴';
     }
 
-    window.toggleTopStrip = function() { if (shown) hideStrip(); else showStrip(); };
+    window.toggleTopStrip = function() {
+        if (shown) { manualHide = true; hideStrip(); }
+        else { manualHide = false; showStrip(); }
+    };
 
-    // Board: hide when user scrolls away from column 1, show when they're back at the start
+    // Board: hide when scrolled right; show when back at 0 — but only if scroll caused the hide
+    // (manualHide prevents scroll from overriding an explicit user close)
     const board = document.querySelector('.board');
     if (board) {
         board.addEventListener('scroll', () => {
-            if (board.scrollLeft > 60) hideStrip();
-            else if (board.scrollLeft === 0) showStrip();
+            if (board.scrollLeft > 60) { manualHide = false; hideStrip(); }
+            else if (board.scrollLeft === 0 && !manualHide) showStrip();
         }, { passive: true });
     }
 
-    // Table view: hide when scrolled down, show when back at top
+    // Table view
     const tableView = document.getElementById('table-view');
     if (tableView) {
         tableView.addEventListener('scroll', () => {
-            if (tableView.scrollTop > 60) hideStrip();
-            else if (tableView.scrollTop < 10) showStrip();
+            if (tableView.scrollTop > 60) { manualHide = false; hideStrip(); }
+            else if (tableView.scrollTop < 10 && !manualHide) showStrip();
         }, { passive: true });
     }
 }
