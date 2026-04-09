@@ -1234,6 +1234,12 @@
                 border-radius: 3px;
             }
 
+            /* ── Hide add-list button (shows as ghost column on mobile) ── */
+            .add-list-btn { display: none !important; }
+
+            /* ── Collapsed columns must still be full-width on mobile ── */
+            .list.collapsed { min-width: 100vw !important; max-width: 100vw !important; overflow: hidden !important; }
+
             /* ── Sync + briefing ── */
             .sync-indicator-floating { display: none !important; }
             .daily-briefing { padding: 8px 12px; gap: 6px; margin: 0; }
@@ -2878,6 +2884,7 @@ function initColDots() {
 }
 
 function initScrollHide() {
+    if (window.innerWidth <= 640) return; // mobile board scrolls horizontally — strip logic doesn't apply
     const strip = document.getElementById('board-top-strip');
     if (!strip) return;
 
@@ -2909,7 +2916,7 @@ function initScrollHide() {
         manualHide = false;
 
         strip.style.transition = 'height 0.3s ease, opacity 0.25s ease';
-        strip.style.height = (cachedH || 200) + 'px';
+        strip.style.height = cachedH + 'px';
         strip.style.opacity = '1';
         strip.style.pointerEvents = '';
         setTimeout(() => {
