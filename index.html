@@ -1110,24 +1110,26 @@
             .filters-mobile { display: none !important; }
             .ask-hubble-section { display: none !important; }
 
-            /* ── main-scroll: no padding, no scrolling — board owns the space ── */
+            /* ── main-scroll: no padding, board is the full page ── */
             .main-scroll { padding: 0; gap: 0; overflow: hidden; }
 
-            /* ── Board fills all remaining height below header ── */
+            /* ── Board: explicit height so it doesn't depend on flex chain ── */
             .board {
-                flex: 1;
-                min-height: 0;
+                height: calc(100svh - 56px);
+                width: 100vw;
                 overflow-x: auto;
                 overflow-y: hidden;
                 scroll-snap-type: x mandatory;
+                -webkit-overflow-scrolling: touch;
                 touch-action: pan-x;
                 align-items: stretch;
                 padding: 0;
                 gap: 0;
+                flex-shrink: 0;
             }
 
-            /* ── board-lists: no gaps so columns are flush ── */
-            .board-lists { gap: 0; padding: 0; align-items: stretch; }
+            /* ── board-lists: flex:none so it sizes to content (N×100vw), not the board width ── */
+            .board-lists { flex: none; gap: 0; padding: 0; align-items: stretch; height: 100%; }
 
             /* ── Each column = exactly one full screen ── */
             .list {
@@ -1205,8 +1207,35 @@
             .card-modal.active { animation: none !important; }
             .card-modal-header { position: sticky; top: 0; z-index: 10; background: var(--surface); }
 
+            /* ── Column dots: show which column you're on ── */
+            #col-dots {
+                display: flex !important;
+                position: fixed;
+                bottom: 16px;
+                left: 50%;
+                transform: translateX(-50%);
+                gap: 6px;
+                z-index: 100;
+                background: rgba(7,8,15,0.7);
+                backdrop-filter: blur(8px);
+                padding: 6px 10px;
+                border-radius: 999px;
+                border: 1px solid var(--border);
+            }
+            .col-dot {
+                width: 6px; height: 6px;
+                border-radius: 50%;
+                background: rgba(255,255,255,0.25);
+                transition: background 0.2s, width 0.2s;
+            }
+            .col-dot.active {
+                background: var(--accent);
+                width: 18px;
+                border-radius: 3px;
+            }
+
             /* ── Sync + briefing ── */
-            .sync-indicator-floating { left: 50%; right: auto; transform: translateX(-50%); bottom: 14px; }
+            .sync-indicator-floating { display: none !important; }
             .daily-briefing { padding: 8px 12px; gap: 6px; margin: 0; }
             .briefing-chip { font-size: 10px; padding: 2px 8px; }
         }
@@ -1579,6 +1608,8 @@
                 </button>
             </div>
         </header>
+
+        <div id="col-dots" style="display:none;"></div>
 
         <div class="sync-warning" id="sync-warning" role="alert" aria-live="polite"></div>
         <div class="sync-indicator sync-connecting sync-indicator-floating" id="sync-indicator-floating" data-sync-indicator title="Connecting…">
@@ -2513,7 +2544,6 @@ const labelPalette = { red:'#ef4444',blue:'#3b82f6',green:'#22c55e',yellow:'#fac
 
 // ── Board Config ───────────────────────────────────
 const defaultBoardConfig = [
-    { id:'new',             title:'NEW',             description:'Freshly scraped leads', color:'#f97316' },
     { id:'discovery',        title:'LEAD IN',        description:'', color:'#94a3b8' },
     { id:'build',            title:'IN PROGRESS',    description:'', color:'#3b82f6' },
     { id:'review',           title:'REVIEW',          description:'', color:'#fbbf24' },
@@ -2829,6 +2859,22 @@ function markBoardReady() {
     renderDailyBriefing();
     loadViewMode();
     initScrollHide();
+    initColDots();
+}
+
+function initColDots() {
+    if (window.innerWidth > 640) return;
+    const dotsEl = document.getElementById('col-dots');
+    const board = document.getElementById('board');
+    if (!dotsEl || !board) return;
+
+    const cols = boardConfig.length;
+    dotsEl.innerHTML = boardConfig.map((s, i) => `<div class="col-dot${i===0?' active':''}" data-col="${i}"></div>`).join('');
+
+    board.addEventListener('scroll', () => {
+        const idx = Math.round(board.scrollLeft / window.innerWidth);
+        dotsEl.querySelectorAll('.col-dot').forEach((d, i) => d.classList.toggle('active', i === idx));
+    }, { passive: true });
 }
 
 function initScrollHide() {
