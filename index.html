@@ -2814,7 +2814,7 @@ const _sortFns = {
     priority: (a,b) => { const o={hot:0,warm:1,cold:2}; return (o[a.priority]??3)-(o[b.priority]??3); },
     value:    (a,b) => { const pv=s=>parseFloat(String(s||'').replace(/[^0-9.]/g,''))||0; return pv(b.estimatedValue)-pv(a.estimatedValue); },
     age:      (a,b) => new Date(a.movedAt||a.createdAt||0).getTime()-new Date(b.movedAt||b.createdAt||0).getTime(),
-    default:  (a,b) => { const at=a?.createdAt?new Date(a.createdAt).getTime():0,bt=b?.createdAt?new Date(b.createdAt).getTime():0; return at-bt; }
+    default:  (a,b) => { const at=a?.createdAt?new Date(a.createdAt).getTime():0,bt=b?.createdAt?new Date(b.createdAt).getTime():0; return bt-at; }
 };
 let _boardFirstRender = true;
 function renderAllCards() {
