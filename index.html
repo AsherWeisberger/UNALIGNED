@@ -3140,7 +3140,7 @@ function renderCard(cardData) {
         <div class="card-checkbox-wrap">
             <input type="checkbox" class="card-checkbox" data-id="${cardData.id}" onclick="handleCardCheckbox(event, '${cardData.id}')">
         </div>
-        ${isStaleCard(cardData) ? '<span class="stale-badge" style="position:absolute;top:8px;left:8px;z-index:3;">⚠️</span>' : ''}
+        ${isStaleCard(cardData) ? '<span class="stale-badge" style="position:absolute;top:8px;right:8px;z-index:3;">⚠️</span>' : ''}
         ${quickActionsHtml}
         <div class="card-labels">${labelsHtml}</div>
         ${leadMetaHtml}
