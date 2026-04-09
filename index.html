@@ -259,7 +259,8 @@
         /* ─── SCROLL-HIDE STRIP ───────────────────────────── */
         #board-top-strip {
             display: flex; flex-direction: column; gap: 16px;
-            /* overflow and transition are set via JS for animation control */
+            background: var(--bg); /* opaque — prevents board cards bleeding through during collapse */
+            position: relative; z-index: 2; /* stacks above board during animation */
         }
 
         /* ─── FLOW MAP ────────────────────────────────────── */
