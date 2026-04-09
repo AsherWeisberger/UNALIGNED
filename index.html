@@ -1601,9 +1601,9 @@
                     </button>
                 </section>
 
-                <!-- ── Table View ─────────────────────────── -->
-                <div id="table-view" style="display:none; overflow-x:auto; padding-bottom:40px;">
-                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+                <!-- ── Table Filters — sticky bar, must be outside overflow-x container ── -->
+                <div id="tv-filters" style="display:none; position:sticky; top:0; z-index:5; background:var(--bg); padding:10px 0 10px; border-bottom:1px solid var(--border); margin-bottom:4px;">
+                  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
                     <input type="text" id="tv-search" placeholder="Search name, email, business..."
                       style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 12px;font-size:13px;outline:none;min-width:220px;"
                       oninput="renderTableView()">
@@ -1632,12 +1632,14 @@
                     <button onclick="exportTableCSV()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer;margin-left:auto;">Export CSV</button>
                     <span id="tv-count" style="font-size:12px;color:var(--muted);white-space:nowrap;"></span>
                   </div>
-                  <div style="overflow-x:auto;">
-                    <table id="tv-table" style="width:100%;border-collapse:collapse;font-size:13px;min-width:900px;">
-                      <thead id="tv-thead"></thead>
-                      <tbody id="tv-tbody"></tbody>
-                    </table>
-                  </div>
+                </div>
+
+                <!-- ── Table View — overflow-x only for the table itself ─────── -->
+                <div id="table-view" style="display:none; overflow-x:auto; padding-bottom:40px;">
+                  <table id="tv-table" style="width:100%;border-collapse:collapse;font-size:13px;min-width:900px;">
+                    <thead id="tv-thead"></thead>
+                    <tbody id="tv-tbody"></tbody>
+                  </table>
                 </div>
             </div>
         </main>
@@ -4565,17 +4567,20 @@ function toggleTableView() {
     const bv=document.getElementById('board');
     const fm=document.getElementById('flow-map');
     const tv=document.getElementById('table-view');
+    const tf=document.getElementById('tv-filters');
     const btn=document.getElementById('table-view-btn');
     if(isTableView){
         bv.style.display='none';
         fm.style.display='none';
         tv.style.display='block';
+        if(tf) tf.style.display='block';
         btn.textContent='⊞ Board';
         renderTableView();
     } else {
         bv.style.display='';
         fm.style.display='';
         tv.style.display='none';
+        if(tf) tf.style.display='none';
         btn.textContent='☰ Table';
     }
     localStorage.setItem('flowViewMode',isTableView?'table':(isCompactView?'compact':'expanded'));
