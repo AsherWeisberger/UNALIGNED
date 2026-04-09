@@ -1185,33 +1185,34 @@
                 text-align: center;
             }
 
-            /* ── Cards: compact — keep name, labels, priority only ── */
-            .card { padding: 10px 12px; min-height: 0; }
-            .card:hover { transform: none; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
-
-            /* Hide description — too long for mobile */
-            .card-what-why { display: none !important; }
-            /* Hide footer (age, checklist) — not needed at a glance */
-            .card-footer { display: none !important; }
-
-            /* Right padding so name text doesn't run under the buttons */
-            .card-content { padding-right: 100px; }
-            .card-who { font-size: 13px; }
-            .card-lead-meta { margin-top: 4px; }
-
-            /* Quick actions: keep absolute (top-right), always visible, compact */
-            .card-quick-actions {
-                display: flex !important;
-                position: absolute;
-                top: 8px; right: 8px;
-                gap: 3px;
-            }
-            .card-quick-btn {
-                padding: 4px 7px;
-                font-size: 10px;
+            /* ── Cards: clean list items — tap to open, no clutter ── */
+            .card {
+                padding: 10px 12px;
                 min-height: 0;
-                border-radius: 5px;
+                display: block;
             }
+            .card:hover { transform: none; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+            .card:active { opacity: 0.85; }
+
+            /* Hide everything that clutters mobile */
+            .card-checkbox-wrap  { display: none !important; }
+            .card-quick-actions  { display: none !important; }
+            .card-what-why       { display: none !important; }
+            .card-footer         { display: none !important; }
+            .stale-badge         { top: 6px; left: 6px; font-size: 10px; }
+
+            /* Labels row: tight */
+            .card-labels { margin-bottom: 3px; }
+            .card-label-text { font-size: 10px; padding: 1px 6px; }
+
+            /* Name: full width, clear */
+            .card-content { padding-right: 0; }
+            .card-who { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+            /* Priority + source: small single line below name */
+            .card-lead-meta { margin-top: 3px; font-size: 11px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+            .card-priority { font-size: 10px; }
+            .card-source { font-size: 10px; color: var(--muted); }
 
             /* ── Modals: full screen ── */
             .modal-overlay.active { padding: 0 !important; align-items: stretch !important; }
