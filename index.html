@@ -1631,6 +1631,7 @@
                     <span data-sync-text>Connecting…</span>
                 </div>
                 <button class="view-toggle" id="strip-toggle-btn" onclick="toggleTopStrip()" title="Toggle top panel">▴</button>
+                <button class="view-toggle" id="global-sort-btn" onclick="cycleGlobalSort()" title="Sort all columns">⇅ Date</button>
                 <button class="view-toggle" id="view-toggle-btn" onclick="toggleViewMode()">⊞ Compact</button>
                 <button class="view-toggle" id="table-view-btn" onclick="toggleTableView()">☰ Table</button>
                 <button class="profile-btn" id="profile-btn" onclick="openProfileModal()">
@@ -2810,11 +2811,27 @@ function initBoardStructure() {
     });
 }
 
+window._globalSort = 'date';
+const _globalSortCycle = ['date','az','value'];
+const _globalSortLabels = {date:'⇅ Date', az:'⇅ A–Z', value:'⇅ Value'};
+function cycleGlobalSort() {
+    const idx = _globalSortCycle.indexOf(window._globalSort);
+    window._globalSort = _globalSortCycle[(idx+1) % _globalSortCycle.length];
+    const btn = document.getElementById('global-sort-btn');
+    if (btn) btn.textContent = _globalSortLabels[window._globalSort];
+    renderAllCards();
+    if (typeof applyGlobalSortToTable !== 'undefined') applyGlobalSortToTable();
+    renderTableView && renderTableView();
+}
 const _sortFns = {
     priority: (a,b) => { const o={hot:0,warm:1,cold:2}; return (o[a.priority]??3)-(o[b.priority]??3); },
     value:    (a,b) => { const pv=s=>parseFloat(String(s||'').replace(/[^0-9.]/g,''))||0; return pv(b.estimatedValue)-pv(a.estimatedValue); },
     age:      (a,b) => new Date(a.movedAt||a.createdAt||0).getTime()-new Date(b.movedAt||b.createdAt||0).getTime(),
-    default:  (a,b) => { const at=a?.createdAt?new Date(a.createdAt).getTime():0,bt=b?.createdAt?new Date(b.createdAt).getTime():0; return bt-at; }
+    default:  (a,b) => {
+        if (window._globalSort === 'az') return (a.contactName||a.title||'').localeCompare(b.contactName||b.title||'');
+        if (window._globalSort === 'value') { const pv=s=>parseFloat(String(s||'').replace(/[^0-9.]/g,''))||0; return pv(b.estimatedValue)-pv(a.estimatedValue); }
+        const at=a?.createdAt?new Date(a.createdAt).getTime():0,bt=b?.createdAt?new Date(b.createdAt).getTime():0; return bt-at;
+    }
 };
 let _boardFirstRender = true;
 function renderAllCards() {
@@ -4723,6 +4740,11 @@ const TV_COLS = [
   {k:'_received',   l:'Date',         w:90},
 ];
 let tvSortKey='_received', tvSortAsc=false;
+function applyGlobalSortToTable() {
+    if (window._globalSort === 'az')    { tvSortKey='contactName'; tvSortAsc=true; }
+    else if (window._globalSort === 'value') { tvSortKey='estimatedValue'; tvSortAsc=false; }
+    else                                     { tvSortKey='_received'; tvSortAsc=false; }
+}
 
 function toggleTableView() {
     isTableView=!isTableView;
