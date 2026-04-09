@@ -1503,6 +1503,7 @@
                     <span class="sync-dot"></span>
                     <span data-sync-text>Connecting…</span>
                 </div>
+                <button class="view-toggle" id="strip-toggle-btn" onclick="toggleTopStrip()" title="Toggle top panel">▴</button>
                 <button class="view-toggle" id="view-toggle-btn" onclick="toggleViewMode()">⊞ Compact</button>
                 <button class="view-toggle" id="table-view-btn" onclick="toggleTableView()">☰ Table</button>
                 <button class="profile-btn" id="profile-btn" onclick="openProfileModal()">
@@ -2770,59 +2771,54 @@ function initScrollHide() {
     if (!strip) return;
 
     let shown = true;
-    let hiddenAt = 0;
     let cachedH = null;
-    let accumY = 0, accumX = 0;
-    let accumReset = null;
 
     function hideStrip() {
         if (!shown) return;
         shown = false;
-        hiddenAt = Date.now();
         cachedH = strip.offsetHeight;
 
         strip.style.overflow = 'hidden';
         strip.style.height = cachedH + 'px';
         strip.style.transition = 'none';
-        strip.offsetHeight; // force synchronous reflow — commits starting height before transition
-        strip.style.transition = 'height 0.25s ease, opacity 0.2s ease';
+        strip.offsetHeight; // force reflow so browser commits starting state
+        strip.style.transition = 'height 0.3s ease, opacity 0.25s ease';
         strip.style.height = '0px';
         strip.style.opacity = '0';
         strip.style.pointerEvents = 'none';
+
+        const btn = document.getElementById('strip-toggle-btn');
+        if (btn) btn.textContent = '▾';
     }
 
     function showStrip() {
         if (shown) return;
-        if (Date.now() - hiddenAt < 500) return; // ignore inertia snap-back
         shown = true;
-        strip.style.transition = 'height 0.25s ease, opacity 0.2s ease';
+
+        strip.style.transition = 'height 0.3s ease, opacity 0.25s ease';
         strip.style.height = (cachedH || 200) + 'px';
         strip.style.opacity = '1';
         strip.style.pointerEvents = '';
         setTimeout(() => {
             if (shown) { strip.style.height = ''; strip.style.overflow = ''; strip.style.transition = ''; }
-        }, 280);
+        }, 320);
+
+        const btn = document.getElementById('strip-toggle-btn');
+        if (btn) btn.textContent = '▴';
     }
 
-    // Accumulate scroll delta — no per-event debounce lag, triggers once enough delta builds up
-    document.addEventListener('wheel', function(e) {
-        accumY += e.deltaY;
-        accumX += e.deltaX;
-        clearTimeout(accumReset);
-        accumReset = setTimeout(() => { accumY = 0; accumX = 0; }, 200);
+    window.toggleTopStrip = function() { if (shown) hideStrip(); else showStrip(); };
 
-        if (accumY > 25 || accumX > 40) { accumY = 0; accumX = 0; hideStrip(); }
-        else if (accumY < -40) { accumY = 0; accumX = 0; showStrip(); }
-    }, { passive: true });
-
+    // Board: hide when user scrolls away from column 1, show when they're back at the start
     const board = document.querySelector('.board');
     if (board) {
         board.addEventListener('scroll', () => {
-            if (board.scrollLeft > 80) hideStrip();
-            else if (board.scrollLeft < 10 && Date.now() - hiddenAt > 500) showStrip();
+            if (board.scrollLeft > 60) hideStrip();
+            else if (board.scrollLeft === 0) showStrip();
         }, { passive: true });
     }
 
+    // Table view: hide when scrolled down, show when back at top
     const tableView = document.getElementById('table-view');
     if (tableView) {
         tableView.addEventListener('scroll', () => {
