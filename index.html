@@ -2769,68 +2769,62 @@ function initScrollHide() {
     if (!strip) return;
 
     let shown = true;
-    let lastWheel = 0;
     let hiddenAt = 0;
     let cachedH = null;
-    const TRANSITION = 'height 0.38s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease';
+    let accumY = 0, accumX = 0;
+    let accumReset = null;
 
     function hideStrip() {
         if (!shown) return;
         shown = false;
         hiddenAt = Date.now();
-        cachedH = strip.offsetHeight; // measure real height before collapsing
+        cachedH = strip.offsetHeight;
+
         strip.style.overflow = 'hidden';
         strip.style.height = cachedH + 'px';
         strip.style.transition = 'none';
-        requestAnimationFrame(() => {
-            strip.style.transition = TRANSITION;
-            strip.style.height = '0px';
-            strip.style.opacity = '0';
-            strip.style.pointerEvents = 'none';
-        });
+        strip.offsetHeight; // force synchronous reflow — commits starting height before transition
+        strip.style.transition = 'height 0.25s ease, opacity 0.2s ease';
+        strip.style.height = '0px';
+        strip.style.opacity = '0';
+        strip.style.pointerEvents = 'none';
     }
 
     function showStrip() {
         if (shown) return;
-        if (Date.now() - hiddenAt < 700) return; // cooldown: ignore snap-back from gesture inertia
+        if (Date.now() - hiddenAt < 500) return; // ignore inertia snap-back
         shown = true;
-        strip.style.overflow = 'hidden';
-        strip.style.transition = TRANSITION;
+        strip.style.transition = 'height 0.25s ease, opacity 0.2s ease';
         strip.style.height = (cachedH || 200) + 'px';
         strip.style.opacity = '1';
         strip.style.pointerEvents = '';
         setTimeout(() => {
-            strip.style.height = '';
-            strip.style.overflow = '';
-            strip.style.transition = '';
-        }, 420);
+            if (shown) { strip.style.height = ''; strip.style.overflow = ''; strip.style.transition = ''; }
+        }, 280);
     }
 
-    // Document-level wheel: catches all trackpad/mouse scroll gestures
+    // Accumulate scroll delta — no per-event debounce lag, triggers once enough delta builds up
     document.addEventListener('wheel', function(e) {
-        const now = Date.now();
-        if (now - lastWheel < 120) return; // debounce
-        lastWheel = now;
-        if (e.deltaY > 5 || e.deltaX > 15) {
-            hideStrip();
-        } else if (e.deltaY < -20) { // high threshold: only intentional upward scroll shows it
-            showStrip();
-        }
+        accumY += e.deltaY;
+        accumX += e.deltaX;
+        clearTimeout(accumReset);
+        accumReset = setTimeout(() => { accumY = 0; accumX = 0; }, 200);
+
+        if (accumY > 25 || accumX > 40) { accumY = 0; accumX = 0; hideStrip(); }
+        else if (accumY < -40) { accumY = 0; accumX = 0; showStrip(); }
     }, { passive: true });
 
-    // Board: horizontal scroll position
     const board = document.querySelector('.board');
     if (board) {
-        board.addEventListener('scroll', function() {
+        board.addEventListener('scroll', () => {
             if (board.scrollLeft > 80) hideStrip();
-            else if (board.scrollLeft < 10) showStrip();
+            else if (board.scrollLeft < 10 && Date.now() - hiddenAt > 500) showStrip();
         }, { passive: true });
     }
 
-    // Table view: vertical scroll
     const tableView = document.getElementById('table-view');
     if (tableView) {
-        tableView.addEventListener('scroll', function() {
+        tableView.addEventListener('scroll', () => {
             if (tableView.scrollTop > 60) hideStrip();
             else if (tableView.scrollTop < 10) showStrip();
         }, { passive: true });
