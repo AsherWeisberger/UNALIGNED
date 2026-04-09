@@ -253,9 +253,20 @@
             padding: 0 clamp(16px,4vw,40px) 80px;
             display: flex; flex-direction: column; gap: 16px;
             -webkit-overflow-scrolling: touch;
-            /* Fade top edge so content disappears smoothly under the header */
-            mask-image: linear-gradient(to bottom, transparent 0px, black 40px);
-            -webkit-mask-image: linear-gradient(to bottom, transparent 0px, black 40px);
+        }
+
+        /* ─── SCROLL-HIDE STRIP ───────────────────────────── */
+        #board-top-strip {
+            display: flex; flex-direction: column; gap: 16px;
+            overflow: hidden;
+            max-height: 600px;
+            opacity: 1;
+            transition: max-height 0.4s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease;
+        }
+        #board-top-strip.strip-hidden {
+            max-height: 0;
+            opacity: 0;
+            pointer-events: none;
         }
 
         /* ─── FLOW MAP ────────────────────────────────────── */
@@ -1519,6 +1530,9 @@
 
         <main>
             <div class="main-scroll">
+                <!-- Collapsible strip — hides on scroll down, reveals on scroll up -->
+                <div id="board-top-strip">
+
                 <!-- Ask Hubble — scrolls up with content -->
                 <section class="ask-hubble-section">
                     <div class="ask-hubble-wrapper">
@@ -1532,6 +1546,17 @@
                     <input type="search" class="ask-hubble-mobile-input" id="filter-search-mobile" placeholder="💬 Ask Hubble…" aria-label="Ask Hubble" onkeydown="handleSearchKey(event)">
                 </section>
 
+                <div id="daily-briefing" class="daily-briefing" style="display:none;"></div>
+
+                <section class="flow-map" id="flow-map" aria-label="Flow snapshot"></section>
+
+                <!-- Pipeline Stats Bar -->
+                <div class="pipeline-bar" id="pipeline-bar">
+                    <span class="pipeline-bar-loading">Loading pipeline stats…</span>
+                </div>
+
+                </div><!-- /#board-top-strip -->
+
                 <!-- Hidden filter selects (used by JS) -->
                 <section class="filters" style="display:none;" aria-hidden="true">
                     <select id="filter-label"><option value="all">All Labels</option></select>
@@ -1542,15 +1567,6 @@
                 </section>
 
                 <div id="board-loading" class="loading-state" role="status" aria-live="polite">Loading board…</div>
-
-                <div id="daily-briefing" class="daily-briefing" style="display:none;"></div>
-
-                <section class="flow-map" id="flow-map" aria-label="Flow snapshot"></section>
-
-                <!-- Pipeline Stats Bar -->
-                <div class="pipeline-bar" id="pipeline-bar">
-                    <span class="pipeline-bar-loading">Loading pipeline stats…</span>
-                </div>
 
                 <!-- Bulk Actions Toolbar -->
                 <div class="bulk-toolbar" id="bulk-toolbar">
@@ -2752,6 +2768,54 @@ function markBoardReady() {
     updateStaleBadge();
     renderDailyBriefing();
     loadViewMode();
+    initScrollHide();
+}
+
+function initScrollHide() {
+    const strip = document.getElementById('board-top-strip');
+    if (!strip) return;
+
+    let hideTimer = null;
+    let shown = true;
+
+    function showStrip() {
+        if (!shown) { shown = true; strip.classList.remove('strip-hidden'); }
+        clearTimeout(hideTimer);
+    }
+    function hideStrip() {
+        if (shown) { shown = false; strip.classList.add('strip-hidden'); }
+        clearTimeout(hideTimer);
+    }
+
+    // Board: listen for wheel (horizontal board scrolls vertically via trackpad/mouse)
+    const board = document.getElementById('board');
+    if (board) {
+        board.addEventListener('wheel', function(e) {
+            if (e.deltaY > 5) {
+                hideStrip();
+            } else if (e.deltaY < -5) {
+                showStrip();
+            }
+        }, { passive: true });
+    }
+
+    // Table view: listen for scroll (it actually scrolls vertically)
+    const tableView = document.getElementById('table-view');
+    if (tableView) {
+        tableView.addEventListener('scroll', function() {
+            if (tableView.scrollTop > 60) hideStrip();
+            else if (tableView.scrollTop < 20) showStrip();
+        }, { passive: true });
+    }
+
+    // main-scroll: covers any other vertical scroll
+    const mainScroll = document.querySelector('.main-scroll');
+    if (mainScroll) {
+        mainScroll.addEventListener('scroll', function() {
+            if (mainScroll.scrollTop > 60) hideStrip();
+            else if (mainScroll.scrollTop < 20) showStrip();
+        }, { passive: true });
+    }
 }
 
 function queueSaveBoardState() {
