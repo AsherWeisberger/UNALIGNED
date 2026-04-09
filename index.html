@@ -141,6 +141,16 @@
             padding: max(18px, env(safe-area-inset-top)) clamp(16px,4vw,40px) 14px;
             border-bottom: 1px solid var(--border);
             background: var(--bg);
+            overflow: hidden;
+            transition: max-height 0.35s ease, opacity 0.3s ease, padding-top 0.35s ease, padding-bottom 0.35s ease;
+            max-height: 120px;
+        }
+        header.scrolled-away {
+            max-height: 0;
+            opacity: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+            pointer-events: none;
         }
 
         .header-left { display: flex; flex-direction: column; gap: 2px; }
@@ -218,6 +228,16 @@
             padding: 12px clamp(16px,4vw,40px);
             background: linear-gradient(180deg, rgba(91,140,255,0.06) 0%, transparent 100%);
             border-bottom: 1px solid var(--border);
+            overflow: hidden;
+            transition: max-height 0.3s ease, opacity 0.25s ease, padding-top 0.3s ease, padding-bottom 0.3s ease;
+            max-height: 80px;
+        }
+        .ask-hubble-section.scrolled-away {
+            max-height: 0;
+            opacity: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+            pointer-events: none;
         }
 
         .ask-hubble-wrapper { max-width: 680px; margin: 0 auto; display: flex; gap: 8px; }
@@ -1071,29 +1091,71 @@
         #filter-label, #filter-assignee, #filter-priority, #filter-source, #filter-mine { display: none !important; }
 
         /* ─── MOBILE ──────────────────────────────────────── */
-        @media (max-width: 768px) {
-            .ask-hubble-section { display: none; }
-            .filters-mobile { display: block; padding: 10px 14px; background: rgba(0,0,0,0.2); }
-            .ask-hubble-mobile-input {
-                width: 100%; background: var(--surface); color: var(--text);
-                border: 1px solid var(--border2); border-radius: 999px;
-                padding: 11px 18px; font-size: 14px; font-family: var(--font-body);
-            }
-            .ask-hubble-mobile-input:focus { outline: none; border-color: var(--accent); }
-            .ask-hubble-mobile-input::placeholder { color: var(--muted); }
-
-            .stats { display: none; }
-            header { flex-wrap: wrap; gap: 10px; }
+        /* ── TABLET (iPad, 641–1024px) ──────────────────── */
+        @media (max-width: 1024px) and (min-width: 641px) {
+            .list { min-width: 260px; max-width: 260px; }
+            .board { gap: 10px; }
+            .board-lists { gap: 10px; }
+            header { padding: 14px clamp(14px,3vw,32px); }
         }
 
-        @media (max-width: 480px) {
-            .list { min-width: calc(100vw - 48px) !important; max-width: calc(100vw - 48px) !important; }
-            main { padding-bottom: 40px; }
-            .card-modal { width: 100%; height: 100%; max-width: 100%; max-height: 100%; border-radius: 0; }
-            .flow-map { display: none; }
+        /* ── PHONE (≤640px) ──────────────────────────────── */
+        @media (max-width: 640px) {
+            /* Compact single-row header */
+            header { padding: 10px 14px; flex-wrap: nowrap; gap: 0; max-height: 56px; }
+            .header-left { flex-direction: row; align-items: center; gap: 10px; }
+            .subtitle { display: none; }
+            .logo { font-size: 21px; }
+            .stats { display: none !important; }
+            .sync-indicator { display: none; }
+            .view-toggle { display: none; }
+            #current-profile-name { display: none; }
+            .profile-btn { padding: 5px 7px; }
+            .quick-add-btn { padding: 7px 12px; font-size: 12px; }
+
+            /* Ask Hubble: keep but compact, hide mobile fallback */
+            .ask-hubble-section { display: block !important; padding: 8px 14px; max-height: 60px; }
+            .filters-mobile { display: none !important; }
+
+            /* Main scroll tighter */
+            .main-scroll { padding: 0 12px 80px; gap: 10px; }
+
+            /* Columns: full-width, scroll-snap */
+            .list { min-width: calc(100vw - 28px) !important; max-width: calc(100vw - 28px) !important; scroll-snap-align: start; }
+            .board { scroll-snap-type: x mandatory; padding-left: 14px; padding-right: 14px; gap: 14px; }
+            .board-lists { gap: 14px; padding-right: 14px; }
+
+            /* Hide space-hungry sections */
+            .flow-map { display: none !important; }
+            .pipeline-bar { display: none !important; }
+
+            /* Bigger touch targets for cards */
+            .card { padding: 14px; min-height: 80px; }
+            .card-quick-btn { padding: 8px 12px; font-size: 11px; min-height: 36px; }
+
+            /* Quick actions: always visible at bottom of card on mobile */
+            .card-quick-actions {
+                display: flex !important;
+                position: static;
+                margin-top: 10px;
+                padding-top: 8px;
+                border-top: 1px solid var(--border);
+                justify-content: flex-end;
+                gap: 6px;
+            }
+
+            /* Full-screen modal */
+            .modal-overlay.active { padding: 0 !important; align-items: stretch !important; }
+            .card-modal { width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; border-radius: 0 !important; }
+            .card-modal.active { animation: none !important; }
+            .card-modal-header { position: sticky; top: 0; }
+
+            /* Sync indicator */
             .sync-indicator-floating { left: 50%; right: auto; transform: translateX(-50%); bottom: 14px; }
-            header { padding: 12px; }
-            .logo { font-size: 24px; }
+
+            /* Daily briefing smaller */
+            .daily-briefing { padding: 8px 12px; gap: 6px; }
+            .briefing-chip { font-size: 10px; padding: 2px 8px; }
         }
 
         /* ─── COMPACT VIEW ────────────────────────────────── */
@@ -2627,8 +2689,11 @@ const _sortFns = {
     age:      (a,b) => new Date(a.movedAt||a.createdAt||0).getTime()-new Date(b.movedAt||b.createdAt||0).getTime(),
     default:  (a,b) => { const at=a?.createdAt?new Date(a.createdAt).getTime():0,bt=b?.createdAt?new Date(b.createdAt).getTime():0; return at-bt; }
 };
+let _boardFirstRender = true;
 function renderAllCards() {
     document.querySelectorAll('.cards-container').forEach(c => c.innerHTML='');
+    const doAnimate = _boardFirstRender;
+    _boardFirstRender = false;
     let gi = 0;
     boardConfig.forEach(stage => {
         const stageCards = Object.values(cardsData).filter(c => c.listId === stage.id);
@@ -2636,15 +2701,15 @@ function renderAllCards() {
         stageCards.sort(_sortFns[sortKey]||_sortFns.default);
         stageCards.forEach(card => {
             renderCard(card);
-            const el = document.getElementById('card-'+card.id);
-            if (el) { el.classList.add('card-animate'); el.style.animationDelay = Math.min(gi*20,400)+'ms'; }
+            if (doAnimate) {
+                const el = document.getElementById('card-'+card.id);
+                if (el) { el.classList.add('card-animate'); el.style.animationDelay = Math.min(gi*20,400)+'ms'; }
+            }
             gi++;
         });
-        // Update sort button color if custom sort active
         const sortBtn = document.getElementById('sort-btn-'+stage.id);
         if (sortBtn) sortBtn.style.color = sortKey !== 'default' ? 'var(--accent)' : '';
     });
-    // Render cards in stages not in boardConfig (fallback)
     Object.values(cardsData).filter(c => !boardConfig.find(s=>s.id===c.listId)).forEach(card => renderCard(card));
     applyFilters();
 }
@@ -2688,6 +2753,29 @@ async function loadState() {
     }
 }
 
+function initScrollHide() {
+    const scrollEl = document.querySelector('.main-scroll');
+    if (!scrollEl) return;
+    let ticking = false;
+    scrollEl.addEventListener('scroll', () => {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(() => {
+            const y = scrollEl.scrollTop;
+            const header = document.querySelector('header');
+            const hubble = document.querySelector('.ask-hubble-section');
+            if (y > 50) {
+                header?.classList.add('scrolled-away');
+                hubble?.classList.add('scrolled-away');
+            } else {
+                header?.classList.remove('scrolled-away');
+                hubble?.classList.remove('scrolled-away');
+            }
+            ticking = false;
+        });
+    }, { passive: true });
+}
+
 function markBoardReady() {
     if (hasLoadedInitialState) return;
     hasLoadedInitialState = true;
@@ -2696,6 +2784,7 @@ function markBoardReady() {
     if (el) el.remove();
     updateStaleBadge();
     renderDailyBriefing();
+    initScrollHide();
     loadViewMode();
 }
 
@@ -2923,6 +3012,9 @@ function drop(ev) {
     const container = ev.target.closest('.cards-container');
     if (!container || !draggedCard) return;
     container.classList.remove('drag-over');
+    // Strip entrance animation to prevent it restarting when element moves in DOM
+    draggedCard.classList.remove('card-animate');
+    draggedCard.style.animationDelay = '';
     container.appendChild(draggedCard);
     const cardId = parseInt(draggedCard.dataset.cardId,10);
     const targetCard = cardsData[cardId];
