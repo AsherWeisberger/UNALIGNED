@@ -258,16 +258,7 @@
         /* ─── SCROLL-HIDE STRIP ───────────────────────────── */
         #board-top-strip {
             display: flex; flex-direction: column; gap: 16px;
-            /* NO overflow:hidden here — ask-hubble uses negative margins that would be clipped */
-            max-height: 1000px;
-            opacity: 1;
-            transition: max-height 0.45s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease;
-        }
-        #board-top-strip.strip-hidden {
-            max-height: 0;
-            overflow: hidden;
-            opacity: 0;
-            pointer-events: none;
+            /* overflow and transition are set via JS for animation control */
         }
 
         /* ─── FLOW MAP ────────────────────────────────────── */
@@ -2777,38 +2768,56 @@ function initScrollHide() {
     if (!strip) return;
 
     let shown = true;
-    let lastEvent = 0;
+    let lastWheel = 0;
+    let hiddenAt = 0;
+    let cachedH = null;
+    const TRANSITION = 'height 0.38s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease';
 
-    function showStrip() {
-        if (shown) return;
-        shown = true;
-        strip.style.overflow = 'hidden'; // clip during expand animation
-        strip.classList.remove('strip-hidden');
-        setTimeout(() => { if (shown) strip.style.overflow = ''; }, 460); // restore after transition
-    }
     function hideStrip() {
         if (!shown) return;
         shown = false;
-        strip.style.overflow = 'hidden'; // clip during collapse animation
-        strip.classList.add('strip-hidden');
+        hiddenAt = Date.now();
+        cachedH = strip.offsetHeight; // measure real height before collapsing
+        strip.style.overflow = 'hidden';
+        strip.style.height = cachedH + 'px';
+        strip.style.transition = 'none';
+        requestAnimationFrame(() => {
+            strip.style.transition = TRANSITION;
+            strip.style.height = '0px';
+            strip.style.opacity = '0';
+            strip.style.pointerEvents = 'none';
+        });
     }
 
-    // Document-level wheel: catches all trackpad/mouse gestures regardless of scroll direction
-    // deltaX > 0  = scrolling right (navigating board columns) → hide
-    // deltaY > 0  = scrolling down → hide
-    // deltaY < 0  = scrolling up → show
+    function showStrip() {
+        if (shown) return;
+        if (Date.now() - hiddenAt < 700) return; // cooldown: ignore snap-back from gesture inertia
+        shown = true;
+        strip.style.overflow = 'hidden';
+        strip.style.transition = TRANSITION;
+        strip.style.height = (cachedH || 200) + 'px';
+        strip.style.opacity = '1';
+        strip.style.pointerEvents = '';
+        setTimeout(() => {
+            strip.style.height = '';
+            strip.style.overflow = '';
+            strip.style.transition = '';
+        }, 420);
+    }
+
+    // Document-level wheel: catches all trackpad/mouse scroll gestures
     document.addEventListener('wheel', function(e) {
         const now = Date.now();
-        if (now - lastEvent < 80) return; // debounce rapid events
-        lastEvent = now;
-        if (e.deltaY > 3 || e.deltaX > 10) {
+        if (now - lastWheel < 120) return; // debounce
+        lastWheel = now;
+        if (e.deltaY > 5 || e.deltaX > 15) {
             hideStrip();
-        } else if (e.deltaY < -3) {
+        } else if (e.deltaY < -20) { // high threshold: only intentional upward scroll shows it
             showStrip();
         }
     }, { passive: true });
 
-    // Board horizontal scroll position (belt-and-suspenders)
+    // Board: horizontal scroll position
     const board = document.querySelector('.board');
     if (board) {
         board.addEventListener('scroll', function() {
@@ -2817,7 +2826,7 @@ function initScrollHide() {
         }, { passive: true });
     }
 
-    // Table view vertical scroll
+    // Table view: vertical scroll
     const tableView = document.getElementById('table-view');
     if (tableView) {
         tableView.addEventListener('scroll', function() {
