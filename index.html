@@ -2703,7 +2703,12 @@ function renderAllCards() {
             renderCard(card);
             if (doAnimate) {
                 const el = document.getElementById('card-'+card.id);
-                if (el) { el.classList.add('card-animate'); el.style.animationDelay = Math.min(gi*20,400)+'ms'; }
+                // Don't add card-animate to hot cards — hotPulse animation has higher specificity
+                // and overrides it, leaving the class as a hidden trap that fires on drag
+                if (el && !el.classList.contains('priority-hot')) {
+                    el.classList.add('card-animate');
+                    el.style.animationDelay = Math.min(gi*20,400)+'ms';
+                }
             }
             gi++;
         });
@@ -3003,7 +3008,7 @@ function moveCardToList(cardId,newListId) {
 }
 
 // ── Drag & Drop ────────────────────────────────────
-function drag(ev) { draggedCard=ev.currentTarget; draggedCard.classList.add('dragging'); ev.dataTransfer.effectAllowed='move'; ev.dataTransfer.setData('text/plain',draggedCard.dataset.cardId); }
+function drag(ev) { draggedCard=ev.currentTarget; draggedCard.classList.remove('card-animate'); draggedCard.style.animationDelay=''; draggedCard.classList.add('dragging'); ev.dataTransfer.effectAllowed='move'; ev.dataTransfer.setData('text/plain',draggedCard.dataset.cardId); }
 function dragEnd(ev) { ev.currentTarget.classList.remove('dragging'); document.querySelectorAll('.cards-container').forEach(c=>c.classList.remove('drag-over')); draggedCard=null; }
 function allowDrop(ev) { ev.preventDefault(); const c=ev.target.closest('.cards-container'); if(c) c.classList.add('drag-over'); }
 function dragLeave(ev) { const c=ev.target.closest('.cards-container'); if(c&&!c.contains(ev.relatedTarget)) c.classList.remove('drag-over'); }
