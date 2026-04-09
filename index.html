@@ -2913,6 +2913,12 @@ function markBoardReady() {
     loadViewMode();
     initScrollHide();
     initColDots();
+    // Always start on date sort
+    window._globalSort = 'date';
+    window._columnSort = {};
+    const btn = document.getElementById('global-sort-btn');
+    if (btn) btn.textContent = '⇅ Date';
+    renderAllCards();
 }
 
 function initColDots() {
