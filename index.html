@@ -1110,10 +1110,47 @@
             /* Main scroll tighter */
             .main-scroll { padding: 0 12px 80px; gap: 10px; }
 
-            /* Columns: full-width, scroll-snap */
-            .list { min-width: calc(100vw - 28px) !important; max-width: calc(100vw - 28px) !important; scroll-snap-align: start; }
-            .board { scroll-snap-type: x mandatory; padding-left: 14px; padding-right: 14px; gap: 14px; }
-            .board-lists { gap: 14px; padding-right: 14px; }
+            /* Columns: full-viewport-height, horizontal snap between them */
+            .board {
+                scroll-snap-type: x proximity; /* proximity = only snaps when close, won't fire on vertical swipes */
+                touch-action: pan-x;           /* browser knows this element only handles horizontal */
+                padding-left: 14px; padding-right: 14px; gap: 14px;
+                height: calc(100dvh - 58px);   /* fill remaining height below header */
+                overflow-y: hidden;
+                align-items: stretch;          /* columns stretch to full board height */
+            }
+            .board-lists { gap: 14px; padding-right: 14px; align-items: stretch; }
+
+            .list {
+                min-width: calc(100vw - 28px) !important;
+                max-width: calc(100vw - 28px) !important;
+                scroll-snap-align: start;
+                display: flex !important;
+                flex-direction: column !important;
+                height: 100% !important;
+                overflow: hidden !important;
+            }
+
+            /* Column title sticks to top while cards scroll */
+            .list-header {
+                position: sticky;
+                top: 0;
+                z-index: 3;
+                background: var(--surface);
+                padding-bottom: 8px;
+                margin-bottom: 4px;
+            }
+
+            /* Cards scroll vertically inside the column */
+            .cards-container {
+                flex: 1 !important;
+                overflow-y: auto !important;
+                overscroll-behavior: contain; /* stops vertical scroll from triggering horizontal column snap */
+                touch-action: pan-y;          /* browser knows this element only handles vertical */
+                -webkit-overflow-scrolling: touch;
+                min-height: 0 !important;
+                padding-bottom: 16px;
+            }
 
             /* Hide space-hungry sections */
             .flow-map { display: none !important; }
