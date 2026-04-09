@@ -258,13 +258,14 @@
         /* ─── SCROLL-HIDE STRIP ───────────────────────────── */
         #board-top-strip {
             display: flex; flex-direction: column; gap: 16px;
-            overflow: hidden;
-            max-height: 600px;
+            /* NO overflow:hidden here — ask-hubble uses negative margins that would be clipped */
+            max-height: 1000px;
             opacity: 1;
-            transition: max-height 0.4s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease;
+            transition: max-height 0.45s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease;
         }
         #board-top-strip.strip-hidden {
             max-height: 0;
+            overflow: hidden;
             opacity: 0;
             pointer-events: none;
         }
@@ -2779,10 +2780,17 @@ function initScrollHide() {
     let lastEvent = 0;
 
     function showStrip() {
-        if (!shown) { shown = true; strip.classList.remove('strip-hidden'); }
+        if (shown) return;
+        shown = true;
+        strip.style.overflow = 'hidden'; // clip during expand animation
+        strip.classList.remove('strip-hidden');
+        setTimeout(() => { if (shown) strip.style.overflow = ''; }, 460); // restore after transition
     }
     function hideStrip() {
-        if (shown) { shown = false; strip.classList.add('strip-hidden'); }
+        if (!shown) return;
+        shown = false;
+        strip.style.overflow = 'hidden'; // clip during collapse animation
+        strip.classList.add('strip-hidden');
     }
 
     // Document-level wheel: catches all trackpad/mouse gestures regardless of scroll direction
