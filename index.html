@@ -3086,6 +3086,27 @@ function stageAgeDays(card) {
 }
 
 // ── Quick Card Actions ──────────────────────────────
+function quickApproveAndSend(cardId) {
+    openCardModal(cardId);
+    setTimeout(() => {
+        const card = cardsData[cardId];
+        if (!card) return;
+        const draft = card.draft_reply;
+        if (!draft) return;
+        const subject = typeof draft === 'object' ? draft.subject : '';
+        const body = typeof draft === 'object' ? draft.body : draft;
+        emailComposeCardId = cardId;
+        document.getElementById('email-compose-contact').textContent = card.contactName || card.email || 'New Email';
+        document.getElementById('email-to').value = card.email || '';
+        document.getElementById('email-subject').value = subject;
+        document.getElementById('email-body').value = body;
+        setEmailStatus('draft');
+        document.getElementById('email-error-msg').style.display = 'none';
+        document.getElementById('email-server-error').style.display = 'none';
+        setEmailButtonsDisabled(false);
+        document.getElementById('email-compose-overlay').classList.add('active');
+    }, 400);
+}
 function quickReply(cardId) {
     openCardModal(cardId);
     setTimeout(() => draftAndOpenComposer(), 250);
@@ -3160,8 +3181,10 @@ function renderCard(cardData) {
     const nextStageIdx = boardConfig.findIndex(l => l.id === cardData.listId);
     const nextStage = nextStageIdx >= 0 && nextStageIdx < boardConfig.length - 1 ? boardConfig[nextStageIdx + 1] : null;
     const isDone = cardData.listId === 'done' || cardData.listId === 'paid-out';
+    const hasPendingDraft = cardData.listId === 'unreplied' && cardData.draft_reply && (cardData.draft_reply_status === 'drafted' || cardData.draft_reply_status === 'pending');
     const quickActionsHtml = !isDone ? `
         <div class="card-quick-actions" onclick="event.stopPropagation()">
+            ${hasPendingDraft ? `<button class="card-quick-btn" style="background:rgba(52,211,153,0.2);color:#34d399;" onclick="quickApproveAndSend(${cardData.id})" title="Approve & Send draft">✅ Approve</button>` : ''}
             ${cardData.email ? `<button class="card-quick-btn" onclick="quickReply(${cardData.id})" title="Open reply draft">✉ Reply</button>` : ''}
             ${nextStage ? `<button class="card-quick-btn" onclick="quickMoveNext(${cardData.id})" title="Move to ${nextStage.title}">→ ${nextStage.title.split(' ')[0]}</button>` : ''}
             <button class="card-quick-btn done-btn" onclick="quickDone(${cardData.id})" title="Mark as Done">✓</button>
@@ -3768,7 +3791,7 @@ async function sendEmail() {
         const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ to, subject, body, threadId, cc: 'UnalignedX@gmail.com' })
+            body: JSON.stringify({ to, subject, body, threadId, cc: 'UnalignedX@gmail.com,samlevin@mac.com,asherunaligned@gmail.com' })
         });
         const data = await resp.json();
 
@@ -3797,9 +3820,10 @@ async function sendEmail() {
                 date: new Date().toISOString()
             });
 
-            // Auto-move to IN PROGRESS if still in LEAD IN
-            const inProgressList = boardConfig.find(l => l.title === 'IN PROGRESS');
-            if (inProgressList && currentEditingCardData.listId !== inProgressList.id) {
+            // Auto-move to IN PROGRESS if still in LEAD IN or NEW — NO REPLY
+            const inProgressList = boardConfig.find(l => l.id === 'build');
+            const inEntry = ['discovery','unreplied'].includes(currentEditingCardData.listId);
+            if (inProgressList && inEntry) {
                 currentEditingCardData.listId = inProgressList.id;
                 currentEditingCardData.activity = Array.isArray(currentEditingCardData.activity) ? currentEditingCardData.activity : [];
                 currentEditingCardData.activity.unshift({
@@ -4034,7 +4058,7 @@ async function sendSamEmail() {
         const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ to, subject, body, threadId, from: 'sam' })
+            body: JSON.stringify({ to, subject, body, threadId, from: 'sam', cc: 'UnalignedX@gmail.com,samlevin@mac.com,asherunaligned@gmail.com' })
         });
         const data = await resp.json();
         if (data.error) throw new Error(data.error);
@@ -4998,6 +5022,7 @@ window.sendEmail=sendEmail;
 window.draftAndOpenComposer=draftAndOpenComposer;
 window.copyDraft=copyDraft;
 window.copyContactField=copyContactField;
+window.quickApproveAndSend=quickApproveAndSend;
 window.quickReply=quickReply;
 window.quickMoveNext=quickMoveNext;
 window.quickDone=quickDone;
