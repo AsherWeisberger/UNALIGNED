@@ -3028,13 +3028,18 @@ function queueSaveBoardState() {
     saveTimeout = setTimeout(() => saveBoardState(), 600);
 }
 
-async function saveBoardState(force=false) {
+async function saveBoardState(force=false, dirtyIds=null) {
     if (!force && isApplyingRemoteUpdate) return;
     if (syncState.status !== 'error') setSyncState('saving');
     try {
-        const rows = Object.values(cardsData).map(cardToSupabaseRow);
-        const { error } = await supabase.from('cards').upsert(rows, { onConflict: 'id' });
-        if (error) throw error;
+        const rows = dirtyIds
+            ? dirtyIds.map(id => cardsData[id]).filter(Boolean).map(cardToSupabaseRow)
+            : Object.values(cardsData).map(cardToSupabaseRow);
+        // Batch in chunks of 50 to stay under Supabase payload limits
+        for (let i = 0; i < rows.length; i += 50) {
+            const { error } = await supabase.from('cards').upsert(rows.slice(i, i+50), { onConflict: 'id' });
+            if (error) throw error;
+        }
         setSyncState('synced', { syncedAt: new Date() });
     } catch(error) {
         console.error('Failed to save', error);
@@ -3232,7 +3237,7 @@ function moveCardToList(cardId,newListId) {
         spawnConfetti(r ? r.left+r.width/2 : window.innerWidth/2, r ? r.top+r.height/2 : window.innerHeight/2);
     }
     addActivity(`moved from ${boardConfig.find(l=>l.id===oldListId)?.title||oldListId} to ${boardConfig.find(l=>l.id===newListId)?.title||newListId}`);
-    renderAllCards(); updateCardCount(); updateFlowMap(); saveBoardStateNow();
+    renderAllCards(); updateCardCount(); updateFlowMap(); saveBoardState(true, [cardId]);
 }
 
 // ── Drag & Drop ────────────────────────────────────
@@ -3264,7 +3269,7 @@ function drop(ev) {
     const oLN = boardConfig.find(l=>l.id===oldListId)?.title||oldListId;
     targetCard.activity = Array.isArray(targetCard.activity)?targetCard.activity:[];
     targetCard.activity.unshift({user:currentProfile.name,initials:currentProfile.initials,action:`moved from ${oLN} to ${nLN}`,time:new Date().toISOString()});
-    updateCardCount(); updateFlowMap(); queueSaveBoardState();
+    updateCardCount(); updateFlowMap(); saveBoardState(true, [cardId]);
 }
 
 // ── Filters ────────────────────────────────────────
