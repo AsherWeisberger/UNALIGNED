@@ -1711,6 +1711,7 @@
                         ➡ Move to
                         <select id="bulk-move-select" onchange="bulkMoveToList(this.value);this.value='';" style="background:transparent;border:none;color:inherit;font-size:12px;font-weight:600;cursor:pointer;outline:none;margin-left:2px;">
                             <option value="">Choose…</option>
+                            <option value="unreplied">NEW — NO REPLY</option>
                             <option value="discovery">LEAD IN</option>
                             <option value="build">IN PROGRESS</option>
                             <option value="review">REVIEW</option>
@@ -1739,6 +1740,7 @@
                       oninput="renderTableView()">
                     <select id="tv-stage" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:13px;cursor:pointer;outline:none;" onchange="renderTableView()">
                       <option value="">All Stages</option>
+                      <option value="unreplied">New — No Reply</option>
                       <option value="discovery">Lead In</option>
                       <option value="build">In Progress</option>
                       <option value="review">Review</option>
@@ -2580,6 +2582,7 @@ const labelPalette = { red:'#ef4444',blue:'#3b82f6',green:'#22c55e',yellow:'#fac
 
 // ── Board Config ───────────────────────────────────
 const defaultBoardConfig = [
+    { id:'unreplied',        title:'NEW — NO REPLY', description:'Inbound emails with no reply sent yet', color:'#f97316' },
     { id:'discovery',        title:'LEAD IN',        description:'', color:'#94a3b8' },
     { id:'build',            title:'IN PROGRESS',    description:'', color:'#3b82f6' },
     { id:'review',           title:'REVIEW',          description:'', color:'#fbbf24' },
@@ -4688,7 +4691,7 @@ function loadViewMode() {
 
 // ── Table View ───────────────────────────────────────────────
 let isTableView = false;
-const stageMap = { 'discovery':{label:'LEAD IN',color:'#94a3b8'},'build':{label:'IN PROGRESS',color:'#3b82f6'},'review':{label:'REVIEW',color:'#fbbf24'},'done':{label:'DONE',color:'#34d399'},'paid-out':{label:'PAID OUT',color:'#a855f7'},'anything-else':{label:'ANYTHING ELSE',color:'#6b7280'} };
+const stageMap = { 'unreplied':{label:'NEW — NO REPLY',color:'#f97316'},'discovery':{label:'LEAD IN',color:'#94a3b8'},'build':{label:'IN PROGRESS',color:'#3b82f6'},'review':{label:'REVIEW',color:'#fbbf24'},'done':{label:'DONE',color:'#34d399'},'paid-out':{label:'PAID OUT',color:'#a855f7'},'anything-else':{label:'ANYTHING ELSE',color:'#6b7280'} };
 const avatarGradients = { 'Asher W':'linear-gradient(135deg,#4facfe,#00f2fe)','Robert S':'linear-gradient(135deg,#f093fb,#f5576c)','Sam L':'linear-gradient(135deg,#667eea,#764ba2)' };
 function tvInitials(n){if(!n)return'?';return n.split(' ').map(x=>x[0]).join('').toUpperCase().slice(0,2);}
 function tvGradient(n){return avatarGradients[n]||'linear-gradient(135deg,#6b7280,#4b5563)';}
