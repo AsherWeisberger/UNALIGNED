@@ -3951,8 +3951,8 @@ function renderThread() {
 function detectSender(from) {
     if (!from) return 'lead';
     const lower = from.toLowerCase();
-    if (lower.includes('scoble') || lower.includes('robertscoble')) return 'robert';
-    if (lower.includes('sam') || lower.includes('saml')) return 'sam';
+    if (lower.includes('scoble') || lower.includes('robertscoble') || lower.includes('scobleizer@gmail')) return 'robert';
+    if (lower.includes('sam') || lower.includes('saml') || lower.includes('samlevin') || lower.includes('unalignedx@gmail') || lower.includes('unaligned management') || lower.includes('asherunaligned') || lower.includes('asherweisberger')) return 'sam';
     return 'lead';
 }
 
