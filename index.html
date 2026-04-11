@@ -2343,7 +2343,12 @@ function normalizeSupabaseCard(row) {
     const labels = Array.isArray(row.labels) ? row.labels : [];
     const checklist = Array.isArray(row.checklist) ? row.checklist : [];
     const activity = Array.isArray(row.activity) ? row.activity.map(normalizeActivityEntry) : [];
-    const draft = row.draft_reply || null;
+    const draft = (() => {
+        const d = row.draft_reply;
+        if (!d) return null;
+        if (typeof d === 'object') return d;
+        try { return JSON.parse(d); } catch(e) { return null; }
+    })();
 
     // Handle description: could be plain text (legacy) or JSON envelope (new format)
     // JSON envelope: {"rich_description": "...", "email_thread": [...], "intent": "...", ...}
