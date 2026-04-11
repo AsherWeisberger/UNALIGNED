@@ -441,6 +441,7 @@
         .card-age.age-fresh { background: rgba(52,211,153,0.08); color: #34d399; }
         .card-age.age-warn  { background: rgba(245,158,11,0.08);  color: #f59e0b; }
         .card-age.age-old   { background: rgba(239,68,68,0.08);   color: #ef4444; }
+        .card-approve-btn { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 6px; border: none; background: rgba(52,211,153,0.2); color: #34d399; cursor: pointer; white-space: nowrap; }
 
         /* ─── QUICK ACTIONS ON HOVER ──────────────────────── */
         .card-quick-actions { display: none; position: absolute; top: 8px; right: 8px; gap: 4px; z-index: 2; }
@@ -3184,7 +3185,6 @@ function renderCard(cardData) {
     const hasPendingDraft = cardData.listId === 'unreplied' && cardData.draft_reply && (cardData.draft_reply_status === 'drafted' || cardData.draft_reply_status === 'pending');
     const quickActionsHtml = !isDone ? `
         <div class="card-quick-actions" onclick="event.stopPropagation()">
-            ${hasPendingDraft ? `<button class="card-quick-btn" style="background:rgba(52,211,153,0.2);color:#34d399;" onclick="quickApproveAndSend(${cardData.id})" title="Approve & Send draft">✅ Approve</button>` : ''}
             ${cardData.email ? `<button class="card-quick-btn" onclick="quickReply(${cardData.id})" title="Open reply draft">✉ Reply</button>` : ''}
             ${nextStage ? `<button class="card-quick-btn" onclick="quickMoveNext(${cardData.id})" title="Move to ${nextStage.title}">→ ${nextStage.title.split(' ')[0]}</button>` : ''}
             <button class="card-quick-btn done-btn" onclick="quickDone(${cardData.id})" title="Mark as Done">✓</button>
@@ -3204,7 +3204,7 @@ function renderCard(cardData) {
         </div>
         <div class="card-footer">
             <div class="card-meta">${checklistHtml}${dueDateHtml}${ageHtml}</div>
-            ${assigneeHtml}
+            ${hasPendingDraft ? `<button class="card-approve-btn" onclick="event.stopPropagation();quickApproveAndSend(${cardData.id})" title="Approve & Send draft">✅ Approve</button>` : assigneeHtml}
         </div>
     `;
 
@@ -4765,6 +4765,7 @@ const TV_COLS = [
   {k:'contactName',  l:'Name',         w:150},
   {k:'businessName', l:'Business',     w:140},
   {k:'email',        l:'Email',        w:200},
+  {k:'_received',   l:'Date',         w:90},
   {k:'phone',        l:'Phone',       w:120},
   {k:'listId',       l:'Stage',        w:110},
   {k:'estimatedValue',l:'Deal Value', w:100},
@@ -4775,7 +4776,6 @@ const TV_COLS = [
   {k:'title',        l:'Title',         w:200},
   {k:'description',  l:'Notes',         w:220},
   {k:'_activity',   l:'Last Activity', w:180},
-  {k:'_received',   l:'Date',         w:90},
 ];
 let tvSortKey='_received', tvSortAsc=false;
 function applyGlobalSortToTable() {
@@ -4865,6 +4865,7 @@ function renderTableView() {
           <td style="padding:7px 10px;vertical-align:top;font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;${isStale?'color:#f87171;':''}" onclick="openCardModal('${c.id}')">${isStale?'⚠️ ':''}${escapeHtml(c.contactName||c.title||'—')}</td>
           <td style="padding:7px 10px;vertical-align:top;color:var(--muted);font-size:14px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.businessName||'—')}</td>
           <td style="padding:7px 10px;vertical-align:top;font-size:14px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${c.email?`<a href="mailto:${c.email}" style="color:#4facfe;text-decoration:none;">${escapeHtml(c.email)}</a>`:'—'}</td>
+          <td style="padding:7px 10px;vertical-align:top;font-size:11px;color:var(--muted);white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${tvDate(c)}</td>
           <td style="padding:7px 10px;vertical-align:top;font-size:14px;color:var(--muted);cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.phone||'—')}</td>
           <td style="padding:7px 10px;vertical-align:top;cursor:default;" onclick="event.stopPropagation()"><select onchange="moveCardToList('${c.id}',this.value);this.value='${c.listId}';" style="background:${st.color}22;color:${st.color};border:1px solid ${st.color}55;border-radius:10px;padding:2px 6px;font-size:10px;font-weight:700;text-transform:uppercase;cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;">${stageOpts}</select></td>
           <td style="padding:7px 10px;vertical-align:top;font-weight:600;color:#34d399;font-size:12px;cursor:pointer;" onclick="openCardModal('${c.id}')">$${Number(c.estimatedValue||0).toLocaleString()}</td>
@@ -4875,7 +4876,6 @@ function renderTableView() {
           <td style="padding:7px 10px;vertical-align:top;font-size:14px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.title||'—')}</td>
           <td style="padding:7px 10px;vertical-align:top;font-size:14px;color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.description||'—')}</td>
           <td style="padding:7px 10px;vertical-align:top;font-size:11px;color:var(--muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(act)}</td>
-          <td style="padding:7px 10px;vertical-align:top;font-size:11px;color:var(--muted);white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${tvDate(c)}</td>
         </tr>`;
     }).join('');
 }
