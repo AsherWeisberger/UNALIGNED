@@ -3927,7 +3927,7 @@ function renderThread() {
         const isFirst = i === 0;
         const isLast = i === sorted.length - 1;
         const dir = detectSender(email.from);
-        const senderLabel = dir === 'robert' ? 'Robert Scoble' : dir === 'sam' ? 'Sam Levin' : 'Lead';
+        const senderLabel = dir === 'robert' ? 'Robert Scoble' : dir === 'sam' ? 'Sam Levin' : dir === 'unaligned' ? 'UNALIGNED' : dir === 'asher' ? 'ASHER W' : 'Lead';
         const date = email.date ? new Date(email.date) : null;
         const dateStr = date ? date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
         const timeStr = date ? date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
@@ -3952,7 +3952,9 @@ function detectSender(from) {
     if (!from) return 'lead';
     const lower = from.toLowerCase();
     if (lower.includes('scoble') || lower.includes('robertscoble') || lower.includes('scobleizer@gmail')) return 'robert';
-    if (lower.includes('sam') || lower.includes('saml') || lower.includes('samlevin') || lower.includes('unalignedx@gmail') || lower.includes('unaligned management') || lower.includes('asherunaligned') || lower.includes('asherweisberger')) return 'sam';
+    if (lower.includes('asherunaligned') || lower.includes('asherweisberger')) return 'asher';
+    if (lower.includes('unalignedx@gmail') || lower.includes('unaligned management')) return 'unaligned';
+    if (lower.includes('sam') || lower.includes('saml') || lower.includes('samlevin')) return 'sam';
     return 'lead';
 }
 
