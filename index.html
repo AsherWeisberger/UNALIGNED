@@ -1718,7 +1718,7 @@
                             <option value="review">REVIEW</option>
                             <option value="done">DONE</option>
                             <option value="paid-out">PAID OUT</option>
-                            <option value="anything-else">ANYTHING ELSE</option>
+                            <option value="anything-else">DEAD LEADS</option>
                         </select>
                     </button>
                     <button class="bulk-btn danger" onclick="bulkDelete()">🗑 Delete</button>
@@ -1747,7 +1747,7 @@
                       <option value="review">Review</option>
                       <option value="done">Done</option>
                       <option value="paid-out">Paid Out</option>
-                      <option value="anything-else">Anything Else</option>
+                      <option value="anything-else">Dead Leads</option>
                     </select>
                     <select id="tv-priority" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:13px;cursor:pointer;outline:none;" onchange="renderTableView()">
                       <option value="">All Priority</option>
@@ -2594,7 +2594,7 @@ const defaultBoardConfig = [
     { id:'review',           title:'REVIEW',          description:'', color:'#fbbf24' },
     { id:'done',             title:'DONE',            description:'', color:'#34d399' },
     { id:'paid-out',         title:'PAID OUT',        description:'Custom lane', color:'#a855f7' },
-    { id:'anything-else',    title:'ANYTHING ELSE',   description:'', color:'#6b7280' }
+    { id:'anything-else',    title:'DEAD LEADS',   description:'', color:'#6b7280' }
 ];
 let boardConfig = JSON.parse(JSON.stringify(defaultBoardConfig));
 
@@ -4722,7 +4722,7 @@ function loadViewMode() {
 
 // ── Table View ───────────────────────────────────────────────
 let isTableView = false;
-const stageMap = { 'unreplied':{label:'NEW — NO REPLY',color:'#f97316'},'discovery':{label:'LEAD IN',color:'#94a3b8'},'build':{label:'IN PROGRESS',color:'#3b82f6'},'review':{label:'REVIEW',color:'#fbbf24'},'done':{label:'DONE',color:'#34d399'},'paid-out':{label:'PAID OUT',color:'#a855f7'},'anything-else':{label:'ANYTHING ELSE',color:'#6b7280'} };
+const stageMap = { 'unreplied':{label:'NEW — NO REPLY',color:'#f97316'},'discovery':{label:'LEAD IN',color:'#94a3b8'},'build':{label:'IN PROGRESS',color:'#3b82f6'},'review':{label:'REVIEW',color:'#fbbf24'},'done':{label:'DONE',color:'#34d399'},'paid-out':{label:'PAID OUT',color:'#a855f7'},'anything-else':{label:'DEAD LEADS',color:'#6b7280'} };
 const avatarGradients = { 'Asher W':'linear-gradient(135deg,#4facfe,#00f2fe)','Robert S':'linear-gradient(135deg,#f093fb,#f5576c)','Sam L':'linear-gradient(135deg,#667eea,#764ba2)' };
 function tvInitials(n){if(!n)return'?';return n.split(' ').map(x=>x[0]).join('').toUpperCase().slice(0,2);}
 function tvGradient(n){return avatarGradients[n]||'linear-gradient(135deg,#6b7280,#4b5563)';}
