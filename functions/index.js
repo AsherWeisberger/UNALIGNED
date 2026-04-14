@@ -102,7 +102,7 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
   }
 
   try {
-    const defaultCC = 'UnalignedX@gmail.com,samlevin@mac.com,asherunaligned@gmail.com';
+    const defaultCC = 'UnalignedX@gmail.com';
     const effectiveCC = cc || defaultCC;
     let messageId;
 
