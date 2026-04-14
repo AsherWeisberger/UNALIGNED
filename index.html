@@ -5040,15 +5040,18 @@ async function loadApiCostWidget() {
         if (!data) return;
         const stats = JSON.parse(data.anthropic_key || '{}');
         const baseline  = stats.baseline_cost_usd || 151.81;
-        const inTok     = stats.pipeline_input_tokens  || 0;
-        const outTok    = stats.pipeline_output_tokens || 0;
-        const pipelineCost = (inTok / 1_000_000 * 15) + (outTok / 1_000_000 * 75);
+        const baseInTok  = stats.baseline_input_tokens  || 4_480_000;
+        const baseOutTok = stats.baseline_output_tokens || 1_120_000;
+        const pipeInTok  = stats.pipeline_input_tokens  || 0;
+        const pipeOutTok = stats.pipeline_output_tokens || 0;
+        const pipelineCost = (pipeInTok / 1_000_000 * 15) + (pipeOutTok / 1_000_000 * 75);
         const total     = baseline + pipelineCost;
-        const totalTok  = inTok + outTok;
+        const totalTok  = baseInTok + baseOutTok + pipeInTok + pipeOutTok;
         const el = document.getElementById('api-cost-total');
         if (el) {
-            el.textContent = `$${total.toFixed(2)} · ${totalTok > 1_000_000 ? (totalTok/1_000_000).toFixed(1)+'M' : (totalTok/1000).toFixed(0)+'K'} tokens`;
-            el.parentElement.title = `Claude API spend since project start\nBaseline: $${baseline.toFixed(2)}\nPipeline tracked: $${pipelineCost.toFixed(4)}\nInput: ${inTok.toLocaleString()} tokens\nOutput: ${outTok.toLocaleString()} tokens\nPipeline runs: ${stats.pipeline_runs||0}`;
+            const tokStr = totalTok >= 1_000_000 ? (totalTok/1_000_000).toFixed(1)+'M' : (totalTok/1000).toFixed(0)+'K';
+            el.textContent = `$${total.toFixed(2)} · ~${tokStr} tokens`;
+            el.parentElement.title = `Claude API spend since project start\n\nTotal: $${total.toFixed(2)} · ~${tokStr} tokens\n\nBaseline (est.): $${baseline.toFixed(2)} · ~${((baseInTok+baseOutTok)/1_000_000).toFixed(1)}M tokens\nPipeline tracked: $${pipelineCost.toFixed(4)} · ${(pipeInTok+pipeOutTok).toLocaleString()} tokens\nPipeline runs logged: ${stats.pipeline_runs||0}`;
         }
     } catch(e) {
         const el = document.getElementById('api-cost-total');
