@@ -984,6 +984,20 @@
         }
         .approval-send-btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
         .approval-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .approval-reject-reason-input {
+            flex: 1;
+            background: var(--bg2);
+            border: 1px solid var(--border2);
+            border-radius: 6px;
+            color: var(--muted);
+            font-size: 11px;
+            font-family: var(--font-mono);
+            padding: 6px 10px;
+            outline: none;
+            min-width: 0;
+        }
+        .approval-reject-reason-input:focus { border-color: #f87171; color: var(--text); }
+        .approval-reject-reason-input::placeholder { color: var(--muted); opacity: 0.6; }
 
         .email-compose-modal {
             background: var(--surface);
@@ -1788,18 +1802,12 @@
                 <!-- Collapsible strip — hides on scroll down, reveals on scroll up -->
                 <div id="board-top-strip">
 
-                <!-- Ask Hubble — scrolls up with content -->
-                <section class="ask-hubble-section">
-                    <div class="ask-hubble-wrapper">
-                        <input type="search" class="ask-hubble-main-input" id="filter-search" placeholder="💬 Ask Hubble anything — weather, your data, math…" aria-label="Ask Hubble" onkeydown="handleSearchKey(event)">
-                        <button class="ask-hubble-main-btn" onclick="handleAskHubbleClick()">Ask</button>
-                    </div>
-                </section>
-
-                <!-- Ask Hubble — Mobile -->
-                <section class="filters-mobile">
-                    <input type="search" class="ask-hubble-mobile-input" id="filter-search-mobile" placeholder="💬 Ask Hubble…" aria-label="Ask Hubble" onkeydown="handleSearchKey(event)">
-                </section>
+                <!-- Board Card Search -->
+                <div id="board-search-bar" style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface2);border-radius:8px;max-width:360px;margin:0 12px 6px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input type="text" id="board-card-search" placeholder="Search cards…" oninput="filters.search=this.value.toLowerCase();applyFilters();"
+                        style="background:transparent;border:none;color:var(--text);font-size:13px;outline:none;width:100%;">
+                </div>
 
                 <div id="daily-briefing" class="daily-briefing" style="display:none;"></div>
 
@@ -2136,6 +2144,7 @@
             </div>
             <div class="approval-footer">
                 <button class="approval-reject-btn" onclick="rejectDraft()">✕ Reject</button>
+                <input type="text" id="approval-reject-reason" class="approval-reject-reason-input" placeholder="rejection reason (optional)…">
                 <button class="approval-send-btn" id="approval-send-btn" onclick="approveDraft()">✅ Approve &amp; Send</button>
             </div>
             <div id="approval-error" style="display:none;color:#f87171;font-size:12px;font-family:var(--font-mono);padding:0 24px 16px;"></div>
@@ -3261,6 +3270,8 @@ function stageAgeDays(card) {
 
 // ── Quick Card Actions ──────────────────────────────
 let _approvalCardId = null;
+let _approvalOriginalSubject = '';
+let _approvalOriginalBody    = '';
 
 function quickApproveAndSend(cardId) {
     const card = cardsData[cardId];
@@ -3292,6 +3303,14 @@ function quickApproveAndSend(cardId) {
     document.getElementById('approval-subject').value = subject;
     document.getElementById('approval-body').value = body;
 
+    // Store originals for edit detection
+    _approvalOriginalSubject = subject;
+    _approvalOriginalBody    = body;
+
+    // Reset reject reason
+    const rrEl = document.getElementById('approval-reject-reason');
+    if (rrEl) rrEl.value = '';
+
     // Reset state
     document.getElementById('approval-error').style.display = 'none';
     document.getElementById('approval-send-btn').disabled = false;
@@ -3313,14 +3332,32 @@ function closeApprovalModal(e) {
 
 function rejectDraft() {
     if (!_approvalCardId) return;
-    const card = cardsData[_approvalCardId];
+    const card  = cardsData[_approvalCardId];
+    const reason = (document.getElementById('approval-reject-reason')?.value || '').trim();
+
+    // Log feedback — fire and forget
+    fetch('http://localhost:5000/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            card_id:          _approvalCardId,
+            action:           'rejected',
+            voice:            card?.draft_reply?.voice || 'sam',
+            thread_state:     card?.draft_reply?.thread_state || '',
+            original_subject: _approvalOriginalSubject,
+            original_body:    _approvalOriginalBody,
+            rejection_reason: reason,
+            to:               card?.email || ''
+        })
+    }).catch(() => {});
+
     if (card) {
         card.draft_reply_status = 'rejected';
         renderCard(card);
         queueSaveBoardState();
     }
     closeApprovalModal();
-    showEmailToast('Draft rejected.');
+    showEmailToast('Draft rejected.' + (reason ? ` Reason logged.` : ''));
 }
 
 async function approveDraft() {
@@ -3363,6 +3400,25 @@ async function approveDraft() {
 
         sendBtn.textContent = '✓ Sent!';
         showEmailToast(`✅ Sent as ${data.voice === 'robert' ? 'Robert' : 'Sam'} → ${data.to}`);
+
+        // Feedback logging — detect edits, fire and forget
+        const wasEdited = subject !== _approvalOriginalSubject || body !== _approvalOriginalBody;
+        fetch('http://localhost:5000/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                card_id:          _approvalCardId,
+                action:           wasEdited ? 'approved_with_edits' : 'approved',
+                voice:            data.voice,
+                thread_state:     card?.draft_reply?.thread_state || '',
+                original_subject: _approvalOriginalSubject,
+                original_body:    _approvalOriginalBody,
+                final_subject:    subject,
+                final_body:       body,
+                to:               data.to
+            })
+        }).catch(() => {});
+
         setTimeout(closeApprovalModal, 1200);
 
     } catch (e) {
