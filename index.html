@@ -856,6 +856,135 @@
         .command-item-desc { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
 
         /* ─── EMAIL COMPOSE MODAL ────────────────────────── */
+        /* ─── APPROVAL MODAL ─────────────────────────── */
+        .approval-modal {
+            background: var(--surface);
+            border-radius: var(--radius-lg);
+            width: 620px;
+            max-width: 95vw;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border2);
+            box-shadow: var(--shadow-lg);
+            max-height: 88vh;
+            animation: fadeUp 0.2s ease;
+            overflow: hidden;
+        }
+        .approval-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px 24px 14px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .approval-modal-title {
+            font-family: var(--font-display);
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text);
+        }
+        .approval-meta-row {
+            display: flex;
+            gap: 24px;
+            padding: 14px 24px;
+            background: var(--bg2);
+            border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+        .approval-meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+        .approval-meta-label {
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+        .approval-voice-badge {
+            font-size: 12px;
+            font-weight: 700;
+            padding: 2px 10px;
+            border-radius: 20px;
+            background: rgba(91,140,255,0.15);
+            color: var(--accent);
+            display: inline-block;
+        }
+        .approval-voice-badge.robert {
+            background: rgba(52,211,153,0.15);
+            color: var(--green);
+        }
+        .approval-body {
+            padding: 20px 24px;
+            overflow-y: auto;
+            flex: 1;
+        }
+        .approval-input {
+            width: 100%;
+            background: var(--surface2);
+            border: 1px solid var(--border2);
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: var(--text);
+            font-size: 13px;
+            font-family: var(--font-body);
+            transition: border-color 0.2s;
+        }
+        .approval-input:focus { outline: none; border-color: var(--accent); }
+        .approval-textarea {
+            width: 100%;
+            background: var(--surface2);
+            border: 1px solid var(--border2);
+            border-radius: 8px;
+            padding: 12px 14px;
+            color: var(--text);
+            font-size: 13px;
+            font-family: var(--font-mono);
+            line-height: 1.6;
+            resize: vertical;
+            min-height: 260px;
+            transition: border-color 0.2s;
+        }
+        .approval-textarea:focus { outline: none; border-color: var(--accent); }
+        .approval-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 24px;
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .approval-reject-btn {
+            background: transparent;
+            border: 1px solid var(--border2);
+            color: var(--muted2);
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .approval-reject-btn:hover { border-color: #f87171; color: #f87171; }
+        .approval-send-btn {
+            background: linear-gradient(135deg, var(--accent), var(--green));
+            border: none;
+            color: var(--bg);
+            padding: 10px 28px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 700;
+            font-family: var(--font-display);
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+        .approval-send-btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+        .approval-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
         .email-compose-modal {
             background: var(--surface);
             border-radius: var(--radius);
@@ -1978,6 +2107,41 @@
         </div>
     </div>
 
+    <!-- ─── APPROVAL MODAL ───────────────────────────────── -->
+    <div class="modal-overlay" id="approval-modal-overlay" onclick="closeApprovalModal(event)" style="display:none;z-index:1100;">
+        <div class="approval-modal" onclick="event.stopPropagation()">
+            <div class="approval-modal-header">
+                <div class="approval-modal-title">Review &amp; Approve Draft</div>
+                <button class="card-modal-close" onclick="closeApprovalModal()">×</button>
+            </div>
+            <div class="approval-meta-row">
+                <div class="approval-meta-item">
+                    <span class="approval-meta-label">Sending as</span>
+                    <span id="approval-voice-badge" class="approval-voice-badge">Sam Levin</span>
+                </div>
+                <div class="approval-meta-item">
+                    <span class="approval-meta-label">To</span>
+                    <span id="approval-to" style="font-size:13px;color:var(--muted2);"></span>
+                </div>
+                <div class="approval-meta-item">
+                    <span class="approval-meta-label">State</span>
+                    <span id="approval-thread-state" style="font-size:12px;color:var(--muted);font-family:var(--font-mono);"></span>
+                </div>
+            </div>
+            <div class="approval-body">
+                <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Subject</div>
+                <input type="text" id="approval-subject" class="approval-input" placeholder="Subject line…">
+                <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Message</div>
+                <textarea id="approval-body" class="approval-textarea" placeholder="Email body…"></textarea>
+            </div>
+            <div class="approval-footer">
+                <button class="approval-reject-btn" onclick="rejectDraft()">✕ Reject</button>
+                <button class="approval-send-btn" id="approval-send-btn" onclick="approveDraft()">✅ Approve &amp; Send</button>
+            </div>
+            <div id="approval-error" style="display:none;color:#f87171;font-size:12px;font-family:var(--font-mono);padding:0 24px 16px;"></div>
+        </div>
+    </div>
+
     <!-- ─── EMAIL COMPOSE MODAL ──────────────────────────── -->
     <div class="modal-overlay" id="email-compose-overlay" onclick="closeEmailCompose(event)">
         <div class="email-compose-modal" id="email-compose-modal" onclick="event.stopPropagation()">
@@ -3096,26 +3260,119 @@ function stageAgeDays(card) {
 }
 
 // ── Quick Card Actions ──────────────────────────────
+let _approvalCardId = null;
+
 function quickApproveAndSend(cardId) {
-    openCardModal(cardId);
-    setTimeout(() => {
-        const card = cardsData[cardId];
-        if (!card) return;
-        const draft = card.draft_reply;
-        if (!draft) return;
-        const subject = typeof draft === 'object' ? draft.subject : '';
-        const body = typeof draft === 'object' ? draft.body : draft;
-        emailComposeCardId = cardId;
-        document.getElementById('email-compose-contact').textContent = card.contactName || card.email || 'New Email';
-        document.getElementById('email-to').value = card.email || '';
-        document.getElementById('email-subject').value = subject;
-        document.getElementById('email-body').value = body;
-        setEmailStatus('draft');
-        document.getElementById('email-error-msg').style.display = 'none';
-        document.getElementById('email-server-error').style.display = 'none';
-        setEmailButtonsDisabled(false);
-        document.getElementById('email-compose-overlay').classList.add('active');
-    }, 400);
+    const card = cardsData[cardId];
+    if (!card) return;
+    const draft = card.draft_reply;
+    if (!draft) return;
+
+    _approvalCardId = cardId;
+
+    const subject = typeof draft === 'object' ? (draft.subject || '') : '';
+    const body    = typeof draft === 'object' ? (draft.body || '') : (draft || '');
+    const voice   = typeof draft === 'object' ? (draft.voice || 'sam') : 'sam';
+    const state   = typeof draft === 'object' ? (draft.thread_state || '') : '';
+
+    // Voice badge
+    const badge = document.getElementById('approval-voice-badge');
+    if (badge) {
+        badge.textContent = voice === 'robert' ? 'Robert Scoble' : 'Sam Levin';
+        badge.className = 'approval-voice-badge' + (voice === 'robert' ? ' robert' : '');
+    }
+
+    // Meta
+    const toEl = document.getElementById('approval-to');
+    if (toEl) toEl.textContent = card.email || '';
+    const stateEl = document.getElementById('approval-thread-state');
+    if (stateEl) stateEl.textContent = state.replace(/_/g, ' ') || '—';
+
+    // Draft fields
+    document.getElementById('approval-subject').value = subject;
+    document.getElementById('approval-body').value = body;
+
+    // Reset state
+    document.getElementById('approval-error').style.display = 'none';
+    document.getElementById('approval-send-btn').disabled = false;
+    document.getElementById('approval-send-btn').textContent = '✅ Approve & Send';
+
+    // Open modal
+    const overlay = document.getElementById('approval-modal-overlay');
+    overlay.style.display = 'flex';
+    requestAnimationFrame(() => overlay.classList.add('active'));
+}
+
+function closeApprovalModal(e) {
+    if (e && e.target !== e.currentTarget) return;
+    const overlay = document.getElementById('approval-modal-overlay');
+    overlay.classList.remove('active');
+    setTimeout(() => { overlay.style.display = 'none'; }, 200);
+    _approvalCardId = null;
+}
+
+function rejectDraft() {
+    if (!_approvalCardId) return;
+    const card = cardsData[_approvalCardId];
+    if (card) {
+        card.draft_reply_status = 'rejected';
+        renderCard(card);
+        queueSaveBoardState();
+    }
+    closeApprovalModal();
+    showEmailToast('Draft rejected.');
+}
+
+async function approveDraft() {
+    if (!_approvalCardId) return;
+    const subject = document.getElementById('approval-subject').value.trim();
+    const body    = document.getElementById('approval-body').value.trim();
+    const sendBtn = document.getElementById('approval-send-btn');
+    const errEl   = document.getElementById('approval-error');
+
+    if (!body) { errEl.textContent = '⚠️ Body cannot be empty.'; errEl.style.display = 'block'; return; }
+
+    sendBtn.disabled = true;
+    sendBtn.textContent = '⏳ Sending…';
+    errEl.style.display = 'none';
+
+    try {
+        const resp = await fetch('http://localhost:5000/approve', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ card_id: _approvalCardId, subject, body })
+        });
+        const data = await resp.json();
+        if (data.error) throw new Error(data.error);
+
+        // Update card locally
+        const card = cardsData[_approvalCardId];
+        if (card) {
+            card.draft_reply_status = 'sent';
+            card.lastActivity = new Date().toISOString();
+            card.activity = Array.isArray(card.activity) ? card.activity : [];
+            card.activity.unshift({
+                user: currentProfile?.name || 'User',
+                initials: currentProfile?.initials || '?',
+                action: `📧 Approved & sent: ${subject}`,
+                time: new Date().toISOString()
+            });
+            renderCard(card);
+            queueSaveBoardState();
+        }
+
+        sendBtn.textContent = '✓ Sent!';
+        showEmailToast(`✅ Sent as ${data.voice === 'robert' ? 'Robert' : 'Sam'} → ${data.to}`);
+        setTimeout(closeApprovalModal, 1200);
+
+    } catch (e) {
+        sendBtn.disabled = false;
+        sendBtn.textContent = '✅ Approve & Send';
+        errEl.innerHTML = e.message.includes('fetch') || e.message.includes('Failed')
+            ? '⚠️ Approval server not running.<br>Run: <code style="background:rgba(255,255,255,0.1);padding:2px 6px;border-radius:4px;">source run_daily_scraper.sh && python3 email_server.py</code>'
+            : '⚠️ ' + e.message;
+        errEl.style.display = 'block';
+    }
 }
 function quickReply(cardId) {
     openCardModal(cardId);
@@ -5041,6 +5298,9 @@ window.draftAndOpenComposer=draftAndOpenComposer;
 window.copyDraft=copyDraft;
 window.copyContactField=copyContactField;
 window.quickApproveAndSend=quickApproveAndSend;
+window.closeApprovalModal=closeApprovalModal;
+window.approveDraft=approveDraft;
+window.rejectDraft=rejectDraft;
 window.quickReply=quickReply;
 window.quickMoveNext=quickMoveNext;
 window.quickDone=quickDone;
