@@ -340,6 +340,22 @@
         }
 
         /* ─── BOARD ───────────────────────────────────────── */
+        .board-scroll-wrap { position: relative; }
+        .board-scroll-btn {
+            display: none;
+            position: absolute; top: 50%; transform: translateY(-50%);
+            z-index: 10; width: 36px; height: 64px;
+            background: rgba(30,30,40,0.85); border: 1px solid rgba(255,255,255,0.08);
+            backdrop-filter: blur(6px); border-radius: 8px;
+            color: var(--muted2); font-size: 18px; cursor: pointer;
+            align-items: center; justify-content: center;
+            transition: background 0.15s, color 0.15s, opacity 0.15s;
+        }
+        .board-scroll-btn:hover { background: rgba(91,140,255,0.18); color: var(--accent); }
+        .board-scroll-btn.bsb-left  { left: -18px; }
+        .board-scroll-btn.bsb-right { right: -18px; }
+        .board-scroll-btn.bsb-hidden { opacity: 0; pointer-events: none; }
+        @media (min-width: 641px) { .board-scroll-btn { display: flex; } }
         .board { display: flex; gap: 14px; overflow-x: auto; align-items: flex-start; padding-top: 4px; padding-bottom: 8px; }
         .board-lists { display: flex; gap: 14px; flex: 1; }
 
@@ -1872,13 +1888,17 @@
                     <button class="bulk-clear" onclick="clearSelection()">✕ Clear</button>
                 </div>
 
-                <section class="board" id="board" aria-label="Kanban board">
-                    <div class="board-lists" id="board-lists"></div>
-                    <button class="add-list-btn" id="add-list-btn" onclick="showAddListForm()">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-                        Add list
-                    </button>
-                </section>
+                <div class="board-scroll-wrap">
+                    <button class="board-scroll-btn bsb-left bsb-hidden" id="bsb-left" onclick="boardScrollStep(-1)" aria-label="Scroll left">&#8592;</button>
+                    <button class="board-scroll-btn bsb-right" id="bsb-right" onclick="boardScrollStep(1)" aria-label="Scroll right">&#8594;</button>
+                    <section class="board" id="board" aria-label="Kanban board">
+                        <div class="board-lists" id="board-lists"></div>
+                        <button class="add-list-btn" id="add-list-btn" onclick="showAddListForm()">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                            Add list
+                        </button>
+                    </section>
+                </div>
 
                 <!-- ── Table Filters — sticky bar, must be outside overflow-x container ── -->
                 <div id="tv-filters" style="display:none; position:sticky; top:0; z-index:5; background:var(--bg); padding:10px 0 10px; border-bottom:1px solid var(--border); margin-bottom:4px;">
@@ -3118,6 +3138,7 @@ function markBoardReady() {
     loadViewMode();
     initScrollHide();
     initColDots();
+    initBoardScrollBtns();
     // Always start on date sort
     window._globalSort = 'date';
     window._columnSort = {};
@@ -3156,6 +3177,38 @@ function colNavStep(dir) {
     board.scrollBy({ left: dir * window.innerWidth, behavior: 'smooth' });
 }
 window.colNavStep = colNavStep;
+
+// ── Desktop board scroll arrows ──────────────────────────
+function boardScrollStep(dir) {
+    const board = document.getElementById('board');
+    if (!board) return;
+    // Scroll by one column width (~280px) + gap
+    const col = board.querySelector('.list');
+    const step = col ? col.offsetWidth + 14 : 294;
+    board.scrollBy({ left: dir * step, behavior: 'smooth' });
+}
+window.boardScrollStep = boardScrollStep;
+
+function updateBoardScrollBtns() {
+    const board = document.getElementById('board');
+    const left  = document.getElementById('bsb-left');
+    const right = document.getElementById('bsb-right');
+    if (!board || !left || !right) return;
+    const atLeft  = board.scrollLeft <= 4;
+    const atRight = board.scrollLeft + board.clientWidth >= board.scrollWidth - 4;
+    left.classList.toggle('bsb-hidden', atLeft);
+    right.classList.toggle('bsb-hidden', atRight);
+}
+window.updateBoardScrollBtns = updateBoardScrollBtns;
+
+function initBoardScrollBtns() {
+    if (window.innerWidth <= 640) return;
+    const board = document.getElementById('board');
+    if (!board) return;
+    board.addEventListener('scroll', updateBoardScrollBtns, { passive: true });
+    updateBoardScrollBtns();
+}
+window.initBoardScrollBtns = initBoardScrollBtns;
 
 function initScrollHide() {
     if (window.innerWidth <= 640) return; // mobile board scrolls horizontally — strip logic doesn't apply
@@ -3272,7 +3325,7 @@ async function saveBoardStateNow() {
     await saveBoardState(true);
 }
 
-function refreshBoard() { initBoardStructure(); renderAllCards(); updateCardCount(); updateFlowMap(); updateStaleBadge(); }
+function refreshBoard() { initBoardStructure(); renderAllCards(); updateCardCount(); updateFlowMap(); updateStaleBadge(); setTimeout(updateBoardScrollBtns, 100); }
 
 // Delegated click on board — opens card modal when any card is clicked (but not checkbox)
 document.addEventListener('click', e => {
