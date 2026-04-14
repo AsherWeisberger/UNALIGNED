@@ -3663,6 +3663,8 @@ function applyFilters() {
         el.style.display = v?'':'none';
     });
 }
+window.applyFilters = applyFilters;
+window.filters = filters;
 
 // ── Card Modal ─────────────────────────────────────
 function openCardModal(cardId) {
