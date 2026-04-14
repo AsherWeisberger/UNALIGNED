@@ -1436,6 +1436,11 @@
             flex-shrink: 0; transition: all 0.15s; font-family: var(--font-mono);
         }
         .view-toggle:hover { background: var(--surface2); color: var(--text); }
+        /* ── Pipeline / Network segmented toggle ── */
+        .dt-btn { padding: 7px 11px; background: transparent; border: none; cursor: pointer; font-size: 12px; color: var(--muted2); font-family: var(--font-mono); transition: all 0.15s; border-right: 1px solid var(--border2); }
+        .dt-btn:last-child { border-right: none; }
+        .dt-btn:hover { background: var(--surface2); color: var(--text); }
+        .dt-btn.dt-active { background: var(--accent); color: #fff; }
 
         /* ─── MISC UTILS ──────────────────────────────────── */
         .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
@@ -1774,6 +1779,11 @@
                     <span class="sync-dot"></span>
                     <span data-sync-text>Connecting…</span>
                 </div>
+                <span class="view-toggle" id="dt-toggle-group" style="padding:0;gap:0;overflow:hidden;" title="Switch between revenue pipeline and relationship network">
+                    <button class="dt-btn dt-active" id="dt-btn-all" onclick="setDealTypeFilter('all')">All</button>
+                    <button class="dt-btn" id="dt-btn-deal" onclick="setDealTypeFilter('deal')">💼 Pipeline</button>
+                    <button class="dt-btn" id="dt-btn-relationship" onclick="setDealTypeFilter('relationship')">🤝 Network</button>
+                </span>
                 <button class="view-toggle" id="strip-toggle-btn" onclick="toggleTopStrip()" title="Toggle top panel">▴</button>
                 <button class="view-toggle" id="global-sort-btn" onclick="cycleGlobalSort()" title="Sort all columns">⇅ Date</button>
                 <button class="view-toggle" id="view-toggle-btn" onclick="toggleViewMode()">⊞ Compact</button>
@@ -2560,6 +2570,10 @@ function normalizeSupabaseCard(row) {
     // DEBUG: log email source for card 2739
     if (row.id === 2739) { console.log('[DEBUG 2739] row.email_thread:', emailThread ? emailThread.length + ' emails' : 'NULL'); console.log('[DEBUG 2739] final emailThread:', emailThread ? emailThread.length + ' emails' : 'NULL'); }
 
+    // Derive dealType from labels: '💼 Deal' → 'deal', '🤝 Network' → 'relationship', default 'deal'
+    const _labelNames = labels.map(l => typeof l === 'string' ? l : (l.name || ''));
+    const dealType = _labelNames.some(l => l.includes('🤝') || l.toLowerCase().includes('network')) ? 'relationship' : 'deal';
+
     return {
         id: row.id,
         title: row.title || 'Untitled card',
@@ -2592,6 +2606,7 @@ function normalizeSupabaseCard(row) {
         draft_reply_status: row.draft_reply_status || 'pending',
         movedAt: row.moved_at || null,
         originalEmail: emailThread,   // full email thread from email_thread column (priority), original_email (fallback), or description JSON
+        dealType,
     };
 }
 
@@ -2708,7 +2723,7 @@ function updateStaleBadge() {
 function renderDailyBriefing() {
     const el = document.getElementById('daily-briefing');
     if (!el) return;
-    const cards = Object.values(cardsData);
+    const cards = Object.values(cardsData).filter(c => c.dealType !== 'relationship');
     const today = new Date().toDateString();
     const hotStale = cards.filter(c => {
         const labels = (c.labels||[]).map(l=>typeof l==='object'?l.name:l);
@@ -3096,6 +3111,8 @@ function markBoardReady() {
     if (el) el.remove();
     updateStaleBadge();
     renderDailyBriefing();
+    // Restore deal type toggle state
+    setDealTypeFilter(window._dealTypeFilter || 'all');
     loadViewMode();
     initScrollHide();
     initColDots();
@@ -3660,11 +3677,27 @@ function applyFilters() {
         if (v && filters.source!=='all') v = card.leadSource===filters.source;
         if (v && filters.assignee!=='all') v = card.assignee===filters.assignee;
         if (v && filters.mineOnly) v = card.assignee===currentProfile.name;
+        if (v && window._dealTypeFilter && window._dealTypeFilter !== 'all') v = card.dealType === window._dealTypeFilter;
         el.style.display = v?'':'none';
     });
 }
 window.applyFilters = applyFilters;
 window.filters = filters;
+
+// ── Pipeline / Network toggle ───────────────────────────────
+window._dealTypeFilter = localStorage.getItem('dealTypeFilter') || 'all';
+function setDealTypeFilter(type) {
+    window._dealTypeFilter = type;
+    localStorage.setItem('dealTypeFilter', type);
+    ['all','deal','relationship'].forEach(t => {
+        const btn = document.getElementById('dt-btn-' + t);
+        if (btn) btn.classList.toggle('dt-active', t === type);
+    });
+    applyFilters();
+    updateCardCount();
+    renderDailyBriefing();
+}
+window.setDealTypeFilter = setDealTypeFilter;
 
 // ── Card Modal ─────────────────────────────────────
 function openCardModal(cardId) {
@@ -4910,7 +4943,7 @@ function updateCardCount() {
     const n=Object.keys(cardsData).length;
     document.getElementById('total-cards').textContent=`${n} card${n===1?'':'s'}`;
     boardConfig.forEach(stage => {
-        const stageCards = Object.values(cardsData).filter(c=>c.listId===stage.id);
+        const stageCards = Object.values(cardsData).filter(c=>c.listId===stage.id && (window._dealTypeFilter==='all'||c.dealType===window._dealTypeFilter));
         const count = stageCards.length;
         const badge = document.getElementById('count-'+stage.id);
         if (badge) badge.textContent = count;
