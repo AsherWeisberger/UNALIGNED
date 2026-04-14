@@ -1800,6 +1800,9 @@
                     <button class="dt-btn" id="dt-btn-deal" onclick="setDealTypeFilter('deal')">💼 Pipeline</button>
                     <button class="dt-btn" id="dt-btn-relationship" onclick="setDealTypeFilter('relationship')">🤝 Network</button>
                 </span>
+                <div id="api-cost-widget" title="Total Claude API spend since project start" style="font-size:11px;font-family:var(--font-mono);color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 9px;white-space:nowrap;cursor:default;">
+                    🤖 <span id="api-cost-total">…</span>
+                </div>
                 <button class="view-toggle" id="strip-toggle-btn" onclick="toggleTopStrip()" title="Toggle top panel">▴</button>
                 <button class="view-toggle" id="global-sort-btn" onclick="cycleGlobalSort()" title="Sort all columns">⇅ Date</button>
                 <button class="view-toggle" id="view-toggle-btn" onclick="toggleViewMode()">⊞ Compact</button>
@@ -5031,10 +5034,34 @@ function updateFlowMap() {
 let pipelineStats = null;
 let pipelineSourceFilter = null; // null = all
 
+async function loadApiCostWidget() {
+    try {
+        const { data } = await supabase.from('_secrets').select('anthropic_key').eq('id','usage_stats').single();
+        if (!data) return;
+        const stats = JSON.parse(data.anthropic_key || '{}');
+        const baseline  = stats.baseline_cost_usd || 151.81;
+        const inTok     = stats.pipeline_input_tokens  || 0;
+        const outTok    = stats.pipeline_output_tokens || 0;
+        const pipelineCost = (inTok / 1_000_000 * 15) + (outTok / 1_000_000 * 75);
+        const total     = baseline + pipelineCost;
+        const totalTok  = inTok + outTok;
+        const el = document.getElementById('api-cost-total');
+        if (el) {
+            el.textContent = `$${total.toFixed(2)} · ${totalTok > 1_000_000 ? (totalTok/1_000_000).toFixed(1)+'M' : (totalTok/1000).toFixed(0)+'K'} tokens`;
+            el.parentElement.title = `Claude API spend since project start\nBaseline: $${baseline.toFixed(2)}\nPipeline tracked: $${pipelineCost.toFixed(4)}\nInput: ${inTok.toLocaleString()} tokens\nOutput: ${outTok.toLocaleString()} tokens\nPipeline runs: ${stats.pipeline_runs||0}`;
+        }
+    } catch(e) {
+        const el = document.getElementById('api-cost-total');
+        if (el) el.textContent = '$151.81';
+    }
+}
+window.loadApiCostWidget = loadApiCostWidget;
+
 async function loadPipelineStats() {
     // Primary source: count from cardsData (already loaded from Supabase)
     // Falls back to _pipeline_stats for run metadata (emails/extract counts, timestamps)
     renderPipelineBarFromCards();
+    loadApiCostWidget();
 
     // Also try to enrich with run metadata from _pipeline_stats
     try {
