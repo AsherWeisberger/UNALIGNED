@@ -3206,8 +3206,9 @@ function updateBoardScrollBtns() {
         right.classList.add('bsb-hidden');
         return;
     }
+    const scrollable = board.scrollWidth > board.clientWidth + 8;
     const atLeft  = board.scrollLeft <= 4;
-    const atRight = board.scrollLeft + board.clientWidth >= board.scrollWidth - 4;
+    const atRight = !scrollable || (board.scrollLeft + board.clientWidth >= board.scrollWidth - 4);
     left.classList.toggle('bsb-hidden', atLeft);
     right.classList.toggle('bsb-hidden', atRight);
 }
@@ -3218,7 +3219,11 @@ function initBoardScrollBtns() {
     const board = document.getElementById('board');
     if (!board) return;
     board.addEventListener('scroll', updateBoardScrollBtns, { passive: true });
-    updateBoardScrollBtns();
+    window.addEventListener('resize', updateBoardScrollBtns, { passive: true });
+    // Columns may not be fully rendered yet — check after paints
+    setTimeout(updateBoardScrollBtns, 100);
+    setTimeout(updateBoardScrollBtns, 500);
+    setTimeout(updateBoardScrollBtns, 1500);
 }
 window.initBoardScrollBtns = initBoardScrollBtns;
 
