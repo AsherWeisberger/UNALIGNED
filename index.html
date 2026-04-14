@@ -2577,7 +2577,7 @@ function normalizeSupabaseCard(row) {
     return {
         id: row.id,
         title: row.title || 'Untitled card',
-        listId: row.list_id || 'discovery',
+        listId: row.list_id || 'new',
         labels: labels.map(l => parseLabel(l)),
         description: description,
         checklist: checklist.map(i => ({ text: i.text || '', checked: Boolean(i.checked) })),
@@ -2639,7 +2639,7 @@ function cardToSupabaseRow(card) {
     return {
         id: card.id,
         title: card.title || 'Untitled card',
-        list_id: card.listId || 'discovery',
+        list_id: card.listId || 'new',
         labels: card.labels || [],
         description: description,
         checklist: card.checklist || [],
@@ -2780,13 +2780,15 @@ const labelPalette = { red:'#ef4444',blue:'#3b82f6',green:'#22c55e',yellow:'#fac
 
 // ── Board Config ───────────────────────────────────
 const defaultBoardConfig = [
-    { id:'unreplied',        title:'NEW — NO REPLY', description:'Inbound emails with no reply sent yet', color:'#f97316' },
-    { id:'discovery',        title:'LEAD IN',        description:'', color:'#94a3b8' },
-    { id:'build',            title:'IN PROGRESS',    description:'', color:'#3b82f6' },
-    { id:'review',           title:'REVIEW',          description:'', color:'#fbbf24' },
-    { id:'done',             title:'DONE',            description:'', color:'#34d399' },
-    { id:'paid-out',         title:'PAID OUT',        description:'Custom lane', color:'#a855f7' },
-    { id:'anything-else',    title:'DEAD LEADS',   description:'', color:'#6b7280' }
+    { id:'new',          title:'NEW',           description:'Just arrived — not yet analyzed by pipeline', color:'#64748b' },
+    { id:'first-touch',  title:'FIRST TOUCH',   description:'Initial reply drafted — awaiting your approval to send', color:'#f97316' },
+    { id:'engaged',      title:'ENGAGED',       description:'Active conversation — moving toward pricing', color:'#8b5cf6' },
+    { id:'rates-sent',   title:'RATES SENT',    description:'Pricing sent — waiting on their response', color:'#3b82f6' },
+    { id:'negotiating',  title:'NEGOTIATING',   description:'Active negotiation on terms and deliverables', color:'#f59e0b' },
+    { id:'invoice-sent', title:'INVOICE SENT',  description:'Deal agreed — invoice out, awaiting payment', color:'#10b981' },
+    { id:'done',         title:'DONE',          description:'Delivered and complete', color:'#34d399' },
+    { id:'paid-out',     title:'PAID OUT',      description:'Payment received', color:'#a855f7' },
+    { id:'dead-leads',   title:'DEAD LEADS',    description:'Closed lost or ghosted', color:'#6b7280' },
 ];
 let boardConfig = JSON.parse(JSON.stringify(defaultBoardConfig));
 
@@ -4185,7 +4187,7 @@ async function sendEmail() {
             });
 
             // Auto-move to IN PROGRESS if still in LEAD IN or NEW — NO REPLY
-            const inProgressList = boardConfig.find(l => l.id === 'build');
+            const inProgressList = boardConfig.find(l => l.id === 'negotiating');
             const inEntry = ['discovery','unreplied'].includes(currentEditingCardData.listId);
             if (inProgressList && inEntry) {
                 currentEditingCardData.listId = inProgressList.id;
