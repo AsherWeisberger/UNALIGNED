@@ -5051,27 +5051,35 @@ let pipelineStats = null;
 let pipelineSourceFilter = null; // null = all
 
 async function loadApiCostWidget() {
+    const el = document.getElementById('api-cost-total');
+    if (!el) return;
+    // Baseline shown immediately — no wait for network
+    const BASELINE_COST = 151.81;
+    const BASELINE_IN   = 4_480_000;
+    const BASELINE_OUT  = 1_120_000;
+    el.textContent = `$${BASELINE_COST.toFixed(2)} · ~5.6M tokens`;
     try {
-        const { data } = await supabase.from('_secrets').select('anthropic_key').eq('id','usage_stats').single();
-        if (!data) return;
-        const stats = JSON.parse(data.anthropic_key || '{}');
-        const baseline  = stats.baseline_cost_usd || 151.81;
-        const baseInTok  = stats.baseline_input_tokens  || 4_480_000;
-        const baseOutTok = stats.baseline_output_tokens || 1_120_000;
-        const pipeInTok  = stats.pipeline_input_tokens  || 0;
-        const pipeOutTok = stats.pipeline_output_tokens || 0;
+        const ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhibnB3cGh4anVydnR5ZGV6d2doIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MTQ1MzIsImV4cCI6MjA5MDk5MDUzMn0.p5E48__GlGqjC17Z28q8fYFK-qV8CmiidYIP02vGe4s";
+        const res  = await fetch(`${SUPABASE_URL}/rest/v1/_secrets?id=eq.usage_stats&select=anthropic_key`, {
+            headers: { apikey: ANON, Authorization: `Bearer ${ANON}` }
+        });
+        const rows = await res.json();
+        const raw  = rows?.[0]?.anthropic_key || '';
+        const stats = (raw && raw.trim().startsWith('{')) ? JSON.parse(raw) : {};
+        const baseline     = stats.baseline_cost_usd       || BASELINE_COST;
+        const baseInTok    = stats.baseline_input_tokens   || BASELINE_IN;
+        const baseOutTok   = stats.baseline_output_tokens  || BASELINE_OUT;
+        const pipeInTok    = stats.pipeline_input_tokens   || 0;
+        const pipeOutTok   = stats.pipeline_output_tokens  || 0;
         const pipelineCost = (pipeInTok / 1_000_000 * 15) + (pipeOutTok / 1_000_000 * 75);
-        const total     = baseline + pipelineCost;
-        const totalTok  = baseInTok + baseOutTok + pipeInTok + pipeOutTok;
-        const el = document.getElementById('api-cost-total');
-        if (el) {
-            const tokStr = totalTok >= 1_000_000 ? (totalTok/1_000_000).toFixed(1)+'M' : (totalTok/1000).toFixed(0)+'K';
-            el.textContent = `$${total.toFixed(2)} · ~${tokStr} tokens`;
-            el.parentElement.title = `Claude API spend since project start\n\nTotal: $${total.toFixed(2)} · ~${tokStr} tokens\n\nBaseline (est.): $${baseline.toFixed(2)} · ~${((baseInTok+baseOutTok)/1_000_000).toFixed(1)}M tokens\nPipeline tracked: $${pipelineCost.toFixed(4)} · ${(pipeInTok+pipeOutTok).toLocaleString()} tokens\nPipeline runs logged: ${stats.pipeline_runs||0}`;
-        }
+        const total        = baseline + pipelineCost;
+        const totalTok     = baseInTok + baseOutTok + pipeInTok + pipeOutTok;
+        const tokStr       = totalTok >= 1_000_000 ? (totalTok/1_000_000).toFixed(1)+'M' : (totalTok/1000).toFixed(0)+'K';
+        el.textContent = `$${total.toFixed(2)} · ~${tokStr} tokens`;
+        el.parentElement.title = `Claude API spend since project start\n\nTotal: $${total.toFixed(2)} · ~${tokStr} tokens\n\nBaseline (est.): $${baseline.toFixed(2)} · ~${((baseInTok+baseOutTok)/1_000_000).toFixed(1)}M tokens\nPipeline tracked: $${pipelineCost.toFixed(4)} · ${(pipeInTok+pipeOutTok).toLocaleString()} tokens\nPipeline runs logged: ${stats.pipeline_runs||0}`;
     } catch(e) {
-        const el = document.getElementById('api-cost-total');
-        if (el) el.textContent = '$151.81';
+        console.warn('[api-cost-widget]', e.message);
+        // Keep the baseline value already shown
     }
 }
 window.loadApiCostWidget = loadApiCostWidget;
