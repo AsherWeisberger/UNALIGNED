@@ -357,7 +357,7 @@
         .board-scroll-btn.bsb-right { right: 6px; }
         .board-scroll-btn.bsb-hidden { opacity: 0; pointer-events: none; }
         @media (min-width: 641px) { .board-scroll-btn { display: flex; } }
-        .board { display: flex; gap: 14px; overflow-x: auto; align-items: flex-start; padding-top: 4px; padding-bottom: 8px; }
+        .board { display: flex; gap: 14px; overflow-x: auto; align-items: flex-start; padding-top: 4px; padding-bottom: 8px; touch-action: pan-y; }
         .board-lists { display: flex; gap: 14px; flex: 1; }
 
         .loading-state {
@@ -3221,6 +3221,10 @@ function initBoardScrollBtns() {
     if (!board) return;
     board.addEventListener('scroll', updateBoardScrollBtns, { passive: true });
     window.addEventListener('resize', updateBoardScrollBtns, { passive: true });
+    // Block horizontal trackpad/wheel scroll — arrows only
+    board.addEventListener('wheel', (e) => {
+        if (Math.abs(e.deltaX) > 0) e.preventDefault();
+    }, { passive: false });
     // Columns may not be fully rendered yet — check after paints
     setTimeout(updateBoardScrollBtns, 100);
     setTimeout(updateBoardScrollBtns, 500);
