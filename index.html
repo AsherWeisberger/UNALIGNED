@@ -1992,6 +1992,10 @@
             </div>
             <div class="email-compose-body">
                 <div id="email-server-error" class="email-server-error" style="display:none;"></div>
+                <div class="email-field-row" id="email-voice-row" style="background:rgba(91,140,255,0.08);border-radius:8px;padding:8px 12px;margin-bottom:4px;">
+                    <span class="email-field-label" style="color:var(--muted2);">Sending as:</span>
+                    <span id="email-voice-label" style="font-weight:600;color:var(--accent);font-size:13px;">Sam Levin</span>
+                </div>
                 <div class="email-field-row">
                     <span class="email-field-label">To:</span>
                     <input type="email" class="email-field-input" id="email-to" placeholder="recipient@example.com">
@@ -3187,7 +3191,9 @@ function renderCard(cardData) {
     const nextStageIdx = boardConfig.findIndex(l => l.id === cardData.listId);
     const nextStage = nextStageIdx >= 0 && nextStageIdx < boardConfig.length - 1 ? boardConfig[nextStageIdx + 1] : null;
     const isDone = cardData.listId === 'done' || cardData.listId === 'paid-out';
-    const hasPendingDraft = cardData.listId === 'unreplied' && cardData.draft_reply && (cardData.draft_reply_status === 'drafted' || cardData.draft_reply_status === 'pending');
+    const hasPendingDraft = !isDone && cardData.draft_reply && (cardData.draft_reply_status === 'drafted' || cardData.draft_reply_status === 'pending');
+    const draftVoice = (cardData.draft_reply && typeof cardData.draft_reply === 'object') ? (cardData.draft_reply.voice || 'sam') : 'sam';
+    const voiceLabel = draftVoice === 'robert' ? 'Robert' : 'Sam';
     const quickActionsHtml = !isDone ? `
         <div class="card-quick-actions" onclick="event.stopPropagation()">
             ${cardData.email ? `<button class="card-quick-btn" onclick="quickReply(${cardData.id})" title="Open reply draft">✉ Reply</button>` : ''}
@@ -3209,7 +3215,7 @@ function renderCard(cardData) {
         </div>
         <div class="card-footer">
             <div class="card-meta">${checklistHtml}${dueDateHtml}${ageHtml}</div>
-            ${hasPendingDraft ? `<button class="card-approve-btn" onclick="event.stopPropagation();quickApproveAndSend(${cardData.id})" title="Approve & Send draft">✅ Approve</button>` : assigneeHtml}
+            ${hasPendingDraft ? `<button class="card-approve-btn" onclick="event.stopPropagation();quickApproveAndSend(${cardData.id})" title="Approve & Send draft">✅ Approve ${voiceLabel}</button>` : assigneeHtml}
         </div>
     `;
 
@@ -3654,6 +3660,12 @@ function openEmailComposer() {
     const body = document.getElementById('modal-draft-body')?.value || card.draft_reply?.body || '';
     const to = card.email || '';
 
+    // Voice label
+    const voice = (card.draft_reply && typeof card.draft_reply === 'object') ? (card.draft_reply.voice || 'sam') : 'sam';
+    const voiceName = voice === 'robert' ? 'Robert Scoble' : 'Sam Levin';
+    const voiceEl = document.getElementById('email-voice-label');
+    if (voiceEl) voiceEl.textContent = voiceName;
+
     document.getElementById('email-compose-contact').textContent = card.contactName || card.email || 'New Email';
     document.getElementById('email-to').value = to;
     document.getElementById('email-to').readOnly = false;
@@ -3792,11 +3804,10 @@ async function sendEmail() {
     document.getElementById('email-error-msg').style.display = 'none';
 
     try {
-        const threadId = currentEditingCardData.threadId || null;
-        const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail', {
+        const resp = await fetch('http://localhost:5000/approve', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ to, subject, body, threadId, cc: 'UnalignedX@gmail.com,samlevin@mac.com,asherunaligned@gmail.com' })
+            body: JSON.stringify({ card_id: currentEditingCardData.id, subject, body })
         });
         const data = await resp.json();
 
