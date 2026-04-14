@@ -340,6 +340,23 @@
         }
 
         /* ─── BOARD ───────────────────────────────────────── */
+        .board-scroll-wrap { position: relative; }
+        .board-scroll-btn {
+            display: none;
+            position: fixed; top: 50%; transform: translateY(-50%);
+            z-index: 200; width: 38px; height: 72px;
+            background: rgba(20,20,30,0.82); border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(8px); border-radius: 10px;
+            color: rgba(255,255,255,0.55); font-size: 20px; cursor: pointer;
+            align-items: center; justify-content: center;
+            transition: background 0.15s, color 0.15s, opacity 0.2s, transform 0.2s;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+        }
+        .board-scroll-btn:hover { background: rgba(91,140,255,0.22); color: var(--accent); transform: translateY(-50%) scale(1.07); }
+        .board-scroll-btn.bsb-left  { left: 6px; }
+        .board-scroll-btn.bsb-right { right: 6px; }
+        .board-scroll-btn.bsb-hidden { opacity: 0; pointer-events: none; }
+        @media (min-width: 641px) { .board-scroll-btn { display: flex; } }
         .board { display: flex; gap: 14px; overflow-x: auto; align-items: flex-start; padding-top: 4px; padding-bottom: 8px; }
         .board-lists { display: flex; gap: 14px; flex: 1; }
 
@@ -857,6 +874,149 @@
         .command-item-desc { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
 
         /* ─── EMAIL COMPOSE MODAL ────────────────────────── */
+        /* ─── APPROVAL MODAL ─────────────────────────── */
+        .approval-modal {
+            background: var(--surface);
+            border-radius: var(--radius-lg);
+            width: 620px;
+            max-width: 95vw;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border2);
+            box-shadow: var(--shadow-lg);
+            max-height: 88vh;
+            animation: fadeUp 0.2s ease;
+            overflow: hidden;
+        }
+        .approval-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px 24px 14px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .approval-modal-title {
+            font-family: var(--font-display);
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text);
+        }
+        .approval-meta-row {
+            display: flex;
+            gap: 24px;
+            padding: 14px 24px;
+            background: var(--bg2);
+            border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+        .approval-meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+        .approval-meta-label {
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+        .approval-voice-badge {
+            font-size: 12px;
+            font-weight: 700;
+            padding: 2px 10px;
+            border-radius: 20px;
+            background: rgba(91,140,255,0.15);
+            color: var(--accent);
+            display: inline-block;
+        }
+        .approval-voice-badge.robert {
+            background: rgba(52,211,153,0.15);
+            color: var(--green);
+        }
+        .approval-body {
+            padding: 20px 24px;
+            overflow-y: auto;
+            flex: 1;
+        }
+        .approval-input {
+            width: 100%;
+            background: var(--surface2);
+            border: 1px solid var(--border2);
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: var(--text);
+            font-size: 13px;
+            font-family: var(--font-body);
+            transition: border-color 0.2s;
+        }
+        .approval-input:focus { outline: none; border-color: var(--accent); }
+        .approval-textarea {
+            width: 100%;
+            background: var(--surface2);
+            border: 1px solid var(--border2);
+            border-radius: 8px;
+            padding: 12px 14px;
+            color: var(--text);
+            font-size: 13px;
+            font-family: var(--font-mono);
+            line-height: 1.6;
+            resize: vertical;
+            min-height: 260px;
+            transition: border-color 0.2s;
+        }
+        .approval-textarea:focus { outline: none; border-color: var(--accent); }
+        .approval-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 24px;
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .approval-reject-btn {
+            background: transparent;
+            border: 1px solid var(--border2);
+            color: var(--muted2);
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .approval-reject-btn:hover { border-color: #f87171; color: #f87171; }
+        .approval-send-btn {
+            background: linear-gradient(135deg, var(--accent), var(--green));
+            border: none;
+            color: var(--bg);
+            padding: 10px 28px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 700;
+            font-family: var(--font-display);
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+        .approval-send-btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+        .approval-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .approval-reject-reason-input {
+            flex: 1;
+            background: var(--bg2);
+            border: 1px solid var(--border2);
+            border-radius: 6px;
+            color: var(--muted);
+            font-size: 11px;
+            font-family: var(--font-mono);
+            padding: 6px 10px;
+            outline: none;
+            min-width: 0;
+        }
+        .approval-reject-reason-input:focus { border-color: #f87171; color: var(--text); }
+        .approval-reject-reason-input::placeholder { color: var(--muted); opacity: 0.6; }
+
         .email-compose-modal {
             background: var(--surface);
             border-radius: var(--radius);
@@ -1294,6 +1454,11 @@
             flex-shrink: 0; transition: all 0.15s; font-family: var(--font-mono);
         }
         .view-toggle:hover { background: var(--surface2); color: var(--text); }
+        /* ── Pipeline / Network segmented toggle ── */
+        .dt-btn { padding: 7px 11px; background: transparent; border: none; cursor: pointer; font-size: 12px; color: var(--muted2); font-family: var(--font-mono); transition: all 0.15s; border-right: 1px solid var(--border2); }
+        .dt-btn:last-child { border-right: none; }
+        .dt-btn:hover { background: var(--surface2); color: var(--text); }
+        .dt-btn.dt-active { background: var(--accent); color: #fff; }
 
         /* ─── MISC UTILS ──────────────────────────────────── */
         .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
@@ -1632,6 +1797,14 @@
                     <span class="sync-dot"></span>
                     <span data-sync-text>Connecting…</span>
                 </div>
+                <span class="view-toggle" id="dt-toggle-group" style="padding:0;gap:0;overflow:hidden;" title="Switch between revenue pipeline and relationship network">
+                    <button class="dt-btn dt-active" id="dt-btn-all" onclick="setDealTypeFilter('all')">All</button>
+                    <button class="dt-btn" id="dt-btn-deal" onclick="setDealTypeFilter('deal')">💼 Pipeline</button>
+                    <button class="dt-btn" id="dt-btn-relationship" onclick="setDealTypeFilter('relationship')">🤝 Network</button>
+                </span>
+                <div id="api-cost-widget" title="Total Claude API spend since project start" style="font-size:11px;font-family:var(--font-mono);color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 9px;white-space:nowrap;cursor:default;">
+                    🤖 <span id="api-cost-total">…</span>
+                </div>
                 <button class="view-toggle" id="strip-toggle-btn" onclick="toggleTopStrip()" title="Toggle top panel">▴</button>
                 <button class="view-toggle" id="global-sort-btn" onclick="cycleGlobalSort()" title="Sort all columns">⇅ Date</button>
                 <button class="view-toggle" id="view-toggle-btn" onclick="toggleViewMode()">⊞ Compact</button>
@@ -1660,18 +1833,12 @@
                 <!-- Collapsible strip — hides on scroll down, reveals on scroll up -->
                 <div id="board-top-strip">
 
-                <!-- Ask Hubble — scrolls up with content -->
-                <section class="ask-hubble-section">
-                    <div class="ask-hubble-wrapper">
-                        <input type="search" class="ask-hubble-main-input" id="filter-search" placeholder="💬 Ask Hubble anything — weather, your data, math…" aria-label="Ask Hubble" onkeydown="handleSearchKey(event)">
-                        <button class="ask-hubble-main-btn" onclick="handleAskHubbleClick()">Ask</button>
-                    </div>
-                </section>
-
-                <!-- Ask Hubble — Mobile -->
-                <section class="filters-mobile">
-                    <input type="search" class="ask-hubble-mobile-input" id="filter-search-mobile" placeholder="💬 Ask Hubble…" aria-label="Ask Hubble" onkeydown="handleSearchKey(event)">
-                </section>
+                <!-- Board Card Search -->
+                <div id="board-search-bar" style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface2);border-radius:8px;max-width:360px;margin:0 12px 6px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input type="text" id="board-card-search" placeholder="Search cards…" oninput="filters.search=this.value.toLowerCase();applyFilters();"
+                        style="background:transparent;border:none;color:var(--text);font-size:13px;outline:none;width:100%;">
+                </div>
 
                 <div id="daily-briefing" class="daily-briefing" style="display:none;"></div>
 
@@ -1726,13 +1893,17 @@
                     <button class="bulk-clear" onclick="clearSelection()">✕ Clear</button>
                 </div>
 
-                <section class="board" id="board" aria-label="Kanban board">
-                    <div class="board-lists" id="board-lists"></div>
-                    <button class="add-list-btn" id="add-list-btn" onclick="showAddListForm()">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-                        Add list
-                    </button>
-                </section>
+                <div class="board-scroll-wrap">
+                    <button class="board-scroll-btn bsb-left bsb-hidden" id="bsb-left" onclick="boardScrollStep(-1)" aria-label="Scroll left">&#8592;</button>
+                    <button class="board-scroll-btn bsb-right" id="bsb-right" onclick="boardScrollStep(1)" aria-label="Scroll right">&#8594;</button>
+                    <section class="board" id="board" aria-label="Kanban board">
+                        <div class="board-lists" id="board-lists"></div>
+                        <button class="add-list-btn" id="add-list-btn" onclick="showAddListForm()">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                            Add list
+                        </button>
+                    </section>
+                </div>
 
                 <!-- ── Table Filters — sticky bar, must be outside overflow-x container ── -->
                 <div id="tv-filters" style="display:none; position:sticky; top:0; z-index:5; background:var(--bg); padding:10px 0 10px; border-bottom:1px solid var(--border); margin-bottom:4px;">
@@ -1979,6 +2150,42 @@
         </div>
     </div>
 
+    <!-- ─── APPROVAL MODAL ───────────────────────────────── -->
+    <div class="modal-overlay" id="approval-modal-overlay" onclick="closeApprovalModal(event)" style="display:none;z-index:1100;">
+        <div class="approval-modal" onclick="event.stopPropagation()">
+            <div class="approval-modal-header">
+                <div class="approval-modal-title">Review &amp; Approve Draft</div>
+                <button class="card-modal-close" onclick="closeApprovalModal()">×</button>
+            </div>
+            <div class="approval-meta-row">
+                <div class="approval-meta-item">
+                    <span class="approval-meta-label">Sending as</span>
+                    <span id="approval-voice-badge" class="approval-voice-badge">Sam Levin</span>
+                </div>
+                <div class="approval-meta-item">
+                    <span class="approval-meta-label">To</span>
+                    <span id="approval-to" style="font-size:13px;color:var(--muted2);"></span>
+                </div>
+                <div class="approval-meta-item">
+                    <span class="approval-meta-label">State</span>
+                    <span id="approval-thread-state" style="font-size:12px;color:var(--muted);font-family:var(--font-mono);"></span>
+                </div>
+            </div>
+            <div class="approval-body">
+                <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Subject</div>
+                <input type="text" id="approval-subject" class="approval-input" placeholder="Subject line…">
+                <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);margin:14px 0 6px;">Message</div>
+                <textarea id="approval-body" class="approval-textarea" placeholder="Email body…"></textarea>
+            </div>
+            <div class="approval-footer">
+                <button class="approval-reject-btn" onclick="rejectDraft()">✕ Reject</button>
+                <input type="text" id="approval-reject-reason" class="approval-reject-reason-input" placeholder="rejection reason (optional)…">
+                <button class="approval-send-btn" id="approval-send-btn" onclick="approveDraft()">✅ Approve &amp; Send</button>
+            </div>
+            <div id="approval-error" style="display:none;color:#f87171;font-size:12px;font-family:var(--font-mono);padding:0 24px 16px;"></div>
+        </div>
+    </div>
+
     <!-- ─── EMAIL COMPOSE MODAL ──────────────────────────── -->
     <div class="modal-overlay" id="email-compose-overlay" onclick="closeEmailCompose(event)">
         <div class="email-compose-modal" id="email-compose-modal" onclick="event.stopPropagation()">
@@ -1993,6 +2200,10 @@
             </div>
             <div class="email-compose-body">
                 <div id="email-server-error" class="email-server-error" style="display:none;"></div>
+                <div class="email-field-row" id="email-voice-row" style="background:rgba(91,140,255,0.08);border-radius:8px;padding:8px 12px;margin-bottom:4px;">
+                    <span class="email-field-label" style="color:var(--muted2);">Sending as:</span>
+                    <span id="email-voice-label" style="font-weight:600;color:var(--accent);font-size:13px;">Sam Levin</span>
+                </div>
                 <div class="email-field-row">
                     <span class="email-field-label">To:</span>
                     <input type="email" class="email-field-input" id="email-to" placeholder="recipient@example.com">
@@ -2384,10 +2595,14 @@ function normalizeSupabaseCard(row) {
     // DEBUG: log email source for card 2739
     if (row.id === 2739) { console.log('[DEBUG 2739] row.email_thread:', emailThread ? emailThread.length + ' emails' : 'NULL'); console.log('[DEBUG 2739] final emailThread:', emailThread ? emailThread.length + ' emails' : 'NULL'); }
 
+    // Derive dealType from labels: '💼 Deal' → 'deal', '🤝 Network' → 'relationship', default 'deal'
+    const _labelNames = labels.map(l => typeof l === 'string' ? l : (l.name || ''));
+    const dealType = _labelNames.some(l => l.includes('🤝') || l.toLowerCase().includes('network')) ? 'relationship' : 'deal';
+
     return {
         id: row.id,
         title: row.title || 'Untitled card',
-        listId: row.list_id || 'discovery',
+        listId: row.list_id || 'new',
         labels: labels.map(l => parseLabel(l)),
         description: description,
         checklist: checklist.map(i => ({ text: i.text || '', checked: Boolean(i.checked) })),
@@ -2416,6 +2631,7 @@ function normalizeSupabaseCard(row) {
         draft_reply_status: row.draft_reply_status || 'pending',
         movedAt: row.moved_at || null,
         originalEmail: emailThread,   // full email thread from email_thread column (priority), original_email (fallback), or description JSON
+        dealType,
     };
 }
 
@@ -2448,7 +2664,7 @@ function cardToSupabaseRow(card) {
     return {
         id: card.id,
         title: card.title || 'Untitled card',
-        list_id: card.listId || 'discovery',
+        list_id: card.listId || 'new',
         labels: card.labels || [],
         description: description,
         checklist: card.checklist || [],
@@ -2532,7 +2748,7 @@ function updateStaleBadge() {
 function renderDailyBriefing() {
     const el = document.getElementById('daily-briefing');
     if (!el) return;
-    const cards = Object.values(cardsData);
+    const cards = Object.values(cardsData).filter(c => c.dealType !== 'relationship');
     const today = new Date().toDateString();
     const hotStale = cards.filter(c => {
         const labels = (c.labels||[]).map(l=>typeof l==='object'?l.name:l);
@@ -2589,13 +2805,15 @@ const labelPalette = { red:'#ef4444',blue:'#3b82f6',green:'#22c55e',yellow:'#fac
 
 // ── Board Config ───────────────────────────────────
 const defaultBoardConfig = [
-    { id:'unreplied',        title:'NEW — NO REPLY', description:'Inbound emails with no reply sent yet', color:'#f97316' },
-    { id:'discovery',        title:'LEAD IN',        description:'', color:'#94a3b8' },
-    { id:'build',            title:'IN PROGRESS',    description:'', color:'#3b82f6' },
-    { id:'review',           title:'REVIEW',          description:'', color:'#fbbf24' },
-    { id:'done',             title:'DONE',            description:'', color:'#34d399' },
-    { id:'paid-out',         title:'PAID OUT',        description:'Custom lane', color:'#a855f7' },
-    { id:'anything-else',    title:'DEAD LEADS',   description:'', color:'#6b7280' }
+    { id:'new',          title:'NEW',           description:'Just arrived — not yet analyzed by pipeline', color:'#64748b' },
+    { id:'first-touch',  title:'FIRST TOUCH',   description:'Initial reply drafted — awaiting your approval to send', color:'#f97316' },
+    { id:'engaged',      title:'ENGAGED',       description:'Active conversation — moving toward pricing', color:'#8b5cf6' },
+    { id:'rates-sent',   title:'RATES SENT',    description:'Pricing sent — waiting on their response', color:'#3b82f6' },
+    { id:'negotiating',  title:'NEGOTIATING',   description:'Active negotiation on terms and deliverables', color:'#f59e0b' },
+    { id:'invoice-sent', title:'INVOICE SENT',  description:'Deal agreed — invoice out, awaiting payment', color:'#10b981' },
+    { id:'done',         title:'DONE',          description:'Delivered and complete', color:'#34d399' },
+    { id:'paid-out',     title:'PAID OUT',      description:'Payment received', color:'#a855f7' },
+    { id:'dead-leads',   title:'DEAD LEADS',    description:'Closed lost or ghosted', color:'#6b7280' },
 ];
 let boardConfig = JSON.parse(JSON.stringify(defaultBoardConfig));
 
@@ -2920,9 +3138,12 @@ function markBoardReady() {
     if (el) el.remove();
     updateStaleBadge();
     renderDailyBriefing();
+    // Restore deal type toggle state
+    setDealTypeFilter(window._dealTypeFilter || 'all');
     loadViewMode();
     initScrollHide();
     initColDots();
+    initBoardScrollBtns();
     // Always start on date sort
     window._globalSort = 'date';
     window._columnSort = {};
@@ -2961,6 +3182,51 @@ function colNavStep(dir) {
     board.scrollBy({ left: dir * window.innerWidth, behavior: 'smooth' });
 }
 window.colNavStep = colNavStep;
+
+// ── Desktop board scroll arrows ──────────────────────────
+function boardScrollStep(dir) {
+    const board = document.getElementById('board');
+    if (!board) return;
+    // Scroll by one column width (~280px) + gap
+    const col = board.querySelector('.list');
+    const step = col ? col.offsetWidth + 14 : 294;
+    board.scrollBy({ left: dir * step, behavior: 'smooth' });
+}
+window.boardScrollStep = boardScrollStep;
+
+function updateBoardScrollBtns() {
+    const board = document.getElementById('board');
+    const left  = document.getElementById('bsb-left');
+    const right = document.getElementById('bsb-right');
+    if (!board || !left || !right) return;
+    // Hide both if in table view or board not visible
+    const inTableView = document.getElementById('table-view')?.style.display !== 'none';
+    const modalOpen   = document.getElementById('card-modal-overlay')?.style.display !== 'none';
+    if (inTableView || modalOpen) {
+        left.classList.add('bsb-hidden');
+        right.classList.add('bsb-hidden');
+        return;
+    }
+    const scrollable = board.scrollWidth > board.clientWidth + 8;
+    const atLeft  = board.scrollLeft <= 4;
+    const atRight = !scrollable || (board.scrollLeft + board.clientWidth >= board.scrollWidth - 4);
+    left.classList.toggle('bsb-hidden', atLeft);
+    right.classList.toggle('bsb-hidden', atRight);
+}
+window.updateBoardScrollBtns = updateBoardScrollBtns;
+
+function initBoardScrollBtns() {
+    if (window.innerWidth <= 640) return;
+    const board = document.getElementById('board');
+    if (!board) return;
+    board.addEventListener('scroll', updateBoardScrollBtns, { passive: true });
+    window.addEventListener('resize', updateBoardScrollBtns, { passive: true });
+    // Columns may not be fully rendered yet — check after paints
+    setTimeout(updateBoardScrollBtns, 100);
+    setTimeout(updateBoardScrollBtns, 500);
+    setTimeout(updateBoardScrollBtns, 1500);
+}
+window.initBoardScrollBtns = initBoardScrollBtns;
 
 function initScrollHide() {
     if (window.innerWidth <= 640) return; // mobile board scrolls horizontally — strip logic doesn't apply
@@ -3077,7 +3343,7 @@ async function saveBoardStateNow() {
     await saveBoardState(true);
 }
 
-function refreshBoard() { initBoardStructure(); renderAllCards(); updateCardCount(); updateFlowMap(); updateStaleBadge(); }
+function refreshBoard() { initBoardStructure(); renderAllCards(); updateCardCount(); updateFlowMap(); updateStaleBadge(); setTimeout(updateBoardScrollBtns, 100); }
 
 // Delegated click on board — opens card modal when any card is clicked (but not checkbox)
 document.addEventListener('click', e => {
@@ -3093,30 +3359,170 @@ function stageAgeDays(card) {
 }
 
 // ── Quick Card Actions ──────────────────────────────
+let _approvalCardId = null;
+let _approvalOriginalSubject = '';
+let _approvalOriginalBody    = '';
+
 function markInvoicePaid(cardId) {
     moveCardToList(cardId, 'paid-out');
 }
 
 function quickApproveAndSend(cardId) {
-    openCardModal(cardId);
-    setTimeout(() => {
-        const card = cardsData[cardId];
-        if (!card) return;
-        const draft = card.draft_reply;
-        if (!draft) return;
-        const subject = typeof draft === 'object' ? draft.subject : '';
-        const body = typeof draft === 'object' ? draft.body : draft;
-        emailComposeCardId = cardId;
-        document.getElementById('email-compose-contact').textContent = card.contactName || card.email || 'New Email';
-        document.getElementById('email-to').value = card.email || '';
-        document.getElementById('email-subject').value = subject;
-        document.getElementById('email-body').value = body;
-        setEmailStatus('draft');
-        document.getElementById('email-error-msg').style.display = 'none';
-        document.getElementById('email-server-error').style.display = 'none';
-        setEmailButtonsDisabled(false);
-        document.getElementById('email-compose-overlay').classList.add('active');
-    }, 400);
+    const card = cardsData[cardId];
+    if (!card) return;
+    const draft = card.draft_reply;
+    if (!draft) return;
+
+    _approvalCardId = cardId;
+
+    const subject = typeof draft === 'object' ? (draft.subject || '') : '';
+    const body    = typeof draft === 'object' ? (draft.body || '') : (draft || '');
+    const voice   = typeof draft === 'object' ? (draft.voice || 'sam') : 'sam';
+    const state   = typeof draft === 'object' ? (draft.thread_state || '') : '';
+
+    // Voice badge
+    const badge = document.getElementById('approval-voice-badge');
+    if (badge) {
+        badge.textContent = voice === 'robert' ? 'Robert Scoble' : 'Sam Levin';
+        badge.className = 'approval-voice-badge' + (voice === 'robert' ? ' robert' : '');
+    }
+
+    // Meta
+    const toEl = document.getElementById('approval-to');
+    if (toEl) toEl.textContent = card.email || '';
+    const stateEl = document.getElementById('approval-thread-state');
+    if (stateEl) stateEl.textContent = state.replace(/_/g, ' ') || '—';
+
+    // Draft fields
+    document.getElementById('approval-subject').value = subject;
+    document.getElementById('approval-body').value = body;
+
+    // Store originals for edit detection
+    _approvalOriginalSubject = subject;
+    _approvalOriginalBody    = body;
+
+    // Reset reject reason
+    const rrEl = document.getElementById('approval-reject-reason');
+    if (rrEl) rrEl.value = '';
+
+    // Reset state
+    document.getElementById('approval-error').style.display = 'none';
+    document.getElementById('approval-send-btn').disabled = false;
+    document.getElementById('approval-send-btn').textContent = '✅ Approve & Send';
+
+    // Open modal
+    const overlay = document.getElementById('approval-modal-overlay');
+    overlay.style.display = 'flex';
+    requestAnimationFrame(() => overlay.classList.add('active'));
+}
+
+function closeApprovalModal(e) {
+    if (e && e.target !== e.currentTarget) return;
+    const overlay = document.getElementById('approval-modal-overlay');
+    overlay.classList.remove('active');
+    setTimeout(() => { overlay.style.display = 'none'; }, 200);
+    _approvalCardId = null;
+}
+
+function rejectDraft() {
+    if (!_approvalCardId) return;
+    const card  = cardsData[_approvalCardId];
+    const reason = (document.getElementById('approval-reject-reason')?.value || '').trim();
+
+    // Log feedback — fire and forget
+    fetch('http://localhost:5000/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            card_id:          _approvalCardId,
+            action:           'rejected',
+            voice:            card?.draft_reply?.voice || 'sam',
+            thread_state:     card?.draft_reply?.thread_state || '',
+            original_subject: _approvalOriginalSubject,
+            original_body:    _approvalOriginalBody,
+            rejection_reason: reason,
+            to:               card?.email || ''
+        })
+    }).catch(() => {});
+
+    if (card) {
+        card.draft_reply_status = 'rejected';
+        renderCard(card);
+        queueSaveBoardState();
+    }
+    closeApprovalModal();
+    showEmailToast('Draft rejected.' + (reason ? ` Reason logged.` : ''));
+}
+
+async function approveDraft() {
+    if (!_approvalCardId) return;
+    const subject = document.getElementById('approval-subject').value.trim();
+    const body    = document.getElementById('approval-body').value.trim();
+    const sendBtn = document.getElementById('approval-send-btn');
+    const errEl   = document.getElementById('approval-error');
+
+    if (!body) { errEl.textContent = '⚠️ Body cannot be empty.'; errEl.style.display = 'block'; return; }
+
+    sendBtn.disabled = true;
+    sendBtn.textContent = '⏳ Sending…';
+    errEl.style.display = 'none';
+
+    try {
+        const resp = await fetch('http://localhost:5000/approve', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ card_id: _approvalCardId, subject, body })
+        });
+        const data = await resp.json();
+        if (data.error) throw new Error(data.error);
+
+        // Update card locally
+        const card = cardsData[_approvalCardId];
+        if (card) {
+            card.draft_reply_status = 'sent';
+            card.lastActivity = new Date().toISOString();
+            card.activity = Array.isArray(card.activity) ? card.activity : [];
+            card.activity.unshift({
+                user: currentProfile?.name || 'User',
+                initials: currentProfile?.initials || '?',
+                action: `📧 Approved & sent: ${subject}`,
+                time: new Date().toISOString()
+            });
+            renderCard(card);
+            queueSaveBoardState();
+        }
+
+        sendBtn.textContent = '✓ Sent!';
+        showEmailToast(`✅ Sent as ${data.voice === 'robert' ? 'Robert' : 'Sam'} → ${data.to}`);
+
+        // Feedback logging — detect edits, fire and forget
+        const wasEdited = subject !== _approvalOriginalSubject || body !== _approvalOriginalBody;
+        fetch('http://localhost:5000/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                card_id:          _approvalCardId,
+                action:           wasEdited ? 'approved_with_edits' : 'approved',
+                voice:            data.voice,
+                thread_state:     card?.draft_reply?.thread_state || '',
+                original_subject: _approvalOriginalSubject,
+                original_body:    _approvalOriginalBody,
+                final_subject:    subject,
+                final_body:       body,
+                to:               data.to
+            })
+        }).catch(() => {});
+
+        setTimeout(closeApprovalModal, 1200);
+
+    } catch (e) {
+        sendBtn.disabled = false;
+        sendBtn.textContent = '✅ Approve & Send';
+        errEl.innerHTML = e.message.includes('fetch') || e.message.includes('Failed')
+            ? '⚠️ Approval server not running.<br>Run: <code style="background:rgba(255,255,255,0.1);padding:2px 6px;border-radius:4px;">source run_daily_scraper.sh && python3 email_server.py</code>'
+            : '⚠️ ' + e.message;
+        errEl.style.display = 'block';
+    }
 }
 function quickReply(cardId) {
     openCardModal(cardId);
@@ -3192,7 +3598,9 @@ function renderCard(cardData) {
     const nextStageIdx = boardConfig.findIndex(l => l.id === cardData.listId);
     const nextStage = nextStageIdx >= 0 && nextStageIdx < boardConfig.length - 1 ? boardConfig[nextStageIdx + 1] : null;
     const isDone = cardData.listId === 'done' || cardData.listId === 'paid-out';
-    const hasPendingDraft = cardData.listId === 'unreplied' && cardData.draft_reply && (cardData.draft_reply_status === 'drafted' || cardData.draft_reply_status === 'pending');
+    const hasPendingDraft = !isDone && cardData.draft_reply && (cardData.draft_reply_status === 'drafted' || cardData.draft_reply_status === 'pending');
+    const draftVoice = (cardData.draft_reply && typeof cardData.draft_reply === 'object') ? (cardData.draft_reply.voice || 'sam') : 'sam';
+    const voiceLabel = draftVoice === 'robert' ? 'Robert' : 'Sam';
     const quickActionsHtml = !isDone ? `
         <div class="card-quick-actions" onclick="event.stopPropagation()">
             ${cardData.email ? `<button class="card-quick-btn" onclick="quickReply(${cardData.id})" title="Open reply draft">✉ Reply</button>` : ''}
@@ -3216,7 +3624,7 @@ function renderCard(cardData) {
             <div class="card-meta">${checklistHtml}${dueDateHtml}${ageHtml}</div>
             <div style="display:flex;align-items:center;gap:4px;">
                 ${(cardData.listId === 'done' || boardConfig.find(l=>l.id===cardData.listId)?.title?.toLowerCase().includes('invoice')) ? `<button class="card-invoice-paid-btn" onclick="event.stopPropagation();markInvoicePaid(${cardData.id})" title="Mark invoice as paid — moves to Paid Out">💰 Invoice Paid</button>` : ''}
-                ${hasPendingDraft ? `<button class="card-approve-btn" onclick="event.stopPropagation();quickApproveAndSend(${cardData.id})" title="Approve & Send draft">✅ Approve</button>` : assigneeHtml}
+                ${hasPendingDraft ? `<button class="card-approve-btn" onclick="event.stopPropagation();quickApproveAndSend(${cardData.id})" title="Approve & Send draft">✅ Approve ${voiceLabel}</button>` : assigneeHtml}
             </div>
         </div>
     `;
@@ -3349,9 +3757,27 @@ function applyFilters() {
         if (v && filters.source!=='all') v = card.leadSource===filters.source;
         if (v && filters.assignee!=='all') v = card.assignee===filters.assignee;
         if (v && filters.mineOnly) v = card.assignee===currentProfile.name;
+        if (v && window._dealTypeFilter && window._dealTypeFilter !== 'all') v = card.dealType === window._dealTypeFilter;
         el.style.display = v?'':'none';
     });
 }
+window.applyFilters = applyFilters;
+window.filters = filters;
+
+// ── Pipeline / Network toggle ───────────────────────────────
+window._dealTypeFilter = localStorage.getItem('dealTypeFilter') || 'all';
+function setDealTypeFilter(type) {
+    window._dealTypeFilter = type;
+    localStorage.setItem('dealTypeFilter', type);
+    ['all','deal','relationship'].forEach(t => {
+        const btn = document.getElementById('dt-btn-' + t);
+        if (btn) btn.classList.toggle('dt-active', t === type);
+    });
+    applyFilters();
+    updateCardCount();
+    renderDailyBriefing();
+}
+window.setDealTypeFilter = setDealTypeFilter;
 
 // ── Card Modal ─────────────────────────────────────
 function openCardModal(cardId) {
@@ -3362,6 +3788,7 @@ function openCardModal(cardId) {
     const modal = document.getElementById('card-modal');
     overlay.classList.add('active'); overlay.style.display='flex';
     modal.classList.add('active'); modal.style.display='flex';
+    updateBoardScrollBtns();
 
     // DEBUG: log email data for this card
     console.log('[openCardModal] cardId:', cardId, 'originalEmail count:', (currentEditingCardData.originalEmail||[]).length, 'first snippet:', (currentEditingCardData.originalEmail&&currentEditingCardData.originalEmail[0]?.snippet||'none').slice(0,60));
@@ -3445,6 +3872,7 @@ function closeCardModal(event) {
         document.getElementById('card-modal').style.display='none';
         document.getElementById('card-modal').classList.remove('active');
         currentEditingCard=null; currentEditingCardData=null;
+        updateBoardScrollBtns();
     }
 }
 
@@ -3662,6 +4090,12 @@ function openEmailComposer() {
     const body = document.getElementById('modal-draft-body')?.value || card.draft_reply?.body || '';
     const to = card.email || '';
 
+    // Voice label
+    const voice = (card.draft_reply && typeof card.draft_reply === 'object') ? (card.draft_reply.voice || 'sam') : 'sam';
+    const voiceName = voice === 'robert' ? 'Robert Scoble' : 'Sam Levin';
+    const voiceEl = document.getElementById('email-voice-label');
+    if (voiceEl) voiceEl.textContent = voiceName;
+
     document.getElementById('email-compose-contact').textContent = card.contactName || card.email || 'New Email';
     document.getElementById('email-to').value = to;
     document.getElementById('email-to').readOnly = false;
@@ -3800,11 +4234,10 @@ async function sendEmail() {
     document.getElementById('email-error-msg').style.display = 'none';
 
     try {
-        const threadId = currentEditingCardData.threadId || null;
-        const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail', {
+        const resp = await fetch('http://localhost:5000/approve', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ to, subject, body, threadId, cc: 'UnalignedX@gmail.com,samlevin@mac.com,asherunaligned@gmail.com' })
+            body: JSON.stringify({ card_id: currentEditingCardData.id, subject, body })
         });
         const data = await resp.json();
 
@@ -3834,7 +4267,7 @@ async function sendEmail() {
             });
 
             // Auto-move to IN PROGRESS if still in LEAD IN or NEW — NO REPLY
-            const inProgressList = boardConfig.find(l => l.id === 'build');
+            const inProgressList = boardConfig.find(l => l.id === 'negotiating');
             const inEntry = ['discovery','unreplied'].includes(currentEditingCardData.listId);
             if (inProgressList && inEntry) {
                 currentEditingCardData.listId = inProgressList.id;
@@ -4592,7 +5025,7 @@ function updateCardCount() {
     const n=Object.keys(cardsData).length;
     document.getElementById('total-cards').textContent=`${n} card${n===1?'':'s'}`;
     boardConfig.forEach(stage => {
-        const stageCards = Object.values(cardsData).filter(c=>c.listId===stage.id);
+        const stageCards = Object.values(cardsData).filter(c=>c.listId===stage.id && (window._dealTypeFilter==='all'||c.dealType===window._dealTypeFilter));
         const count = stageCards.length;
         const badge = document.getElementById('count-'+stage.id);
         if (badge) badge.textContent = count;
@@ -4625,10 +5058,45 @@ function updateFlowMap() {
 let pipelineStats = null;
 let pipelineSourceFilter = null; // null = all
 
+async function loadApiCostWidget() {
+    const el = document.getElementById('api-cost-total');
+    if (!el) return;
+    // Baseline shown immediately — no wait for network
+    const BASELINE_COST = 151.81;
+    const BASELINE_IN   = 4_480_000;
+    const BASELINE_OUT  = 1_120_000;
+    el.textContent = `$${BASELINE_COST.toFixed(2)} · ~5.6M tokens`;
+    try {
+        const ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhibnB3cGh4anVydnR5ZGV6d2doIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MTQ1MzIsImV4cCI6MjA5MDk5MDUzMn0.p5E48__GlGqjC17Z28q8fYFK-qV8CmiidYIP02vGe4s";
+        const res  = await fetch(`${SUPABASE_URL}/rest/v1/_secrets?id=eq.usage_stats&select=anthropic_key`, {
+            headers: { apikey: ANON, Authorization: `Bearer ${ANON}` }
+        });
+        const rows = await res.json();
+        const raw  = rows?.[0]?.anthropic_key || '';
+        const stats = (raw && raw.trim().startsWith('{')) ? JSON.parse(raw) : {};
+        const baseline     = stats.baseline_cost_usd       || BASELINE_COST;
+        const baseInTok    = stats.baseline_input_tokens   || BASELINE_IN;
+        const baseOutTok   = stats.baseline_output_tokens  || BASELINE_OUT;
+        const pipeInTok    = stats.pipeline_input_tokens   || 0;
+        const pipeOutTok   = stats.pipeline_output_tokens  || 0;
+        const pipelineCost = (pipeInTok / 1_000_000 * 15) + (pipeOutTok / 1_000_000 * 75);
+        const total        = baseline + pipelineCost;
+        const totalTok     = baseInTok + baseOutTok + pipeInTok + pipeOutTok;
+        const tokStr       = totalTok >= 1_000_000 ? (totalTok/1_000_000).toFixed(1)+'M' : (totalTok/1000).toFixed(0)+'K';
+        el.textContent = `$${total.toFixed(2)} · ~${tokStr} tokens`;
+        el.parentElement.title = `Claude API spend since project start\n\nTotal: $${total.toFixed(2)} · ~${tokStr} tokens\n\nBaseline (est.): $${baseline.toFixed(2)} · ~${((baseInTok+baseOutTok)/1_000_000).toFixed(1)}M tokens\nPipeline tracked: $${pipelineCost.toFixed(4)} · ${(pipeInTok+pipeOutTok).toLocaleString()} tokens\nPipeline runs logged: ${stats.pipeline_runs||0}`;
+    } catch(e) {
+        console.warn('[api-cost-widget]', e.message);
+        // Keep the baseline value already shown
+    }
+}
+window.loadApiCostWidget = loadApiCostWidget;
+
 async function loadPipelineStats() {
     // Primary source: count from cardsData (already loaded from Supabase)
     // Falls back to _pipeline_stats for run metadata (emails/extract counts, timestamps)
     renderPipelineBarFromCards();
+    loadApiCostWidget();
 
     // Also try to enrich with run metadata from _pipeline_stats
     try {
@@ -5039,6 +5507,9 @@ window.copyDraft=copyDraft;
 window.copyContactField=copyContactField;
 window.markInvoicePaid=markInvoicePaid;
 window.quickApproveAndSend=quickApproveAndSend;
+window.closeApprovalModal=closeApprovalModal;
+window.approveDraft=approveDraft;
+window.rejectDraft=rejectDraft;
 window.quickReply=quickReply;
 window.quickMoveNext=quickMoveNext;
 window.quickDone=quickDone;
