@@ -4331,90 +4331,55 @@ async function sendEmail() {
     document.getElementById('email-error-msg').style.display = 'none';
 
     try {
-        const resp = await fetch('http://localhost:5000/approve', {
+        const threadId = currentEditingCardData?.gmailThreadId || currentEditingCardData?.threadId || null;
+        const isSam = currentProfile?.name?.toLowerCase().includes('sam') || currentProfile?.initials === 'SL';
+        const fromSender = isSam ? 'sam' : 'robert';
+
+        const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ card_id: currentEditingCardData.id, subject, body })
+            body: JSON.stringify({
+                to, subject, body, threadId,
+                from: fromSender,
+                cc: 'scobleizer@gmail.com,UnalignedX@gmail.com,samlevin@mac.com,asherunaligned@gmail.com'
+            })
         });
         const data = await resp.json();
+        if (data.error) throw new Error(data.error);
 
-        if (data.error) {
-            throw new Error(data.error);
-        }
-
-        // Success
         setEmailStatus('sent');
         showEmailToast(`✅ Email sent to ${to}`);
 
-        // Update card
         if (currentEditingCardData) {
-            if (data.messageId) currentEditingCardData.messageId = data.messageId;
-            if (data.threadId) currentEditingCardData.threadId = data.threadId;
             currentEditingCardData.draft_reply_status = 'sent';
-
-            // Add to email thread
             if (!currentEditingCardData.thread) currentEditingCardData.thread = [];
             currentEditingCardData.thread.push({
-                direction: 'robert',
-                from: 'Robert Scoble',
-                to: to,
-                subject: subject,
-                body: body,
+                direction: fromSender,
+                from: isSam ? 'Sam Levin <UnalignedX@gmail.com>' : 'Robert Scoble <scobleizer@gmail.com>',
+                to, subject, body,
                 date: new Date().toISOString()
             });
-
-            // Auto-move to IN PROGRESS if still in LEAD IN or NEW — NO REPLY
-            const inProgressList = boardConfig.find(l => l.id === 'negotiating');
-            const inEntry = ['discovery','unreplied'].includes(currentEditingCardData.listId);
-            if (inProgressList && inEntry) {
-                currentEditingCardData.listId = inProgressList.id;
-                currentEditingCardData.activity = Array.isArray(currentEditingCardData.activity) ? currentEditingCardData.activity : [];
-                currentEditingCardData.activity.unshift({
-                    user: currentProfile.name,
-                    initials: currentProfile.initials,
-                    action: '🔄 Auto-moved to IN PROGRESS after sending email',
-                    time: new Date().toISOString()
-                });
-                renderBoard();
-            }
-
-            // Log activity
             currentEditingCardData.activity = Array.isArray(currentEditingCardData.activity) ? currentEditingCardData.activity : [];
             currentEditingCardData.activity.unshift({
                 user: currentProfile.name,
                 initials: currentProfile.initials,
-                action: `📧 Emailed: ${subject}`,
+                action: `📧 Sent reply: ${subject}`,
                 time: new Date().toISOString()
             });
-            currentEditingCardData.lastActivity = new Date().toISOString();
-
-            // Sync draft status back to card modal
-            const modalStatus = document.getElementById('modal-draft-status');
-            if (modalStatus) modalStatus.value = 'sent';
-
             const badge = document.getElementById('draft-status-badge');
             if (badge) { badge.style.display = 'inline-block'; badge.className = 'draft-badge sent'; badge.textContent = 'sent'; }
-
             queueSaveBoardState();
             renderThread();
         }
 
-        // Close after short delay
         setTimeout(closeEmailCompose, 1500);
 
     } catch (e) {
         setEmailStatus('error');
         const errEl = document.getElementById('email-error-msg');
-        if (errEl) {
-            if (e.message.includes('fetch') || e.message.includes('Failed') || e.message.includes('NetworkError')) {
-                errEl.innerHTML = '⚠️ Email server not running.<br>Start it with: <code style="background:rgba(255,255,255,0.1);padding:2px 6px;border-radius:4px;">python3 email_server.py</code>';
-            } else {
-                errEl.textContent = '⚠️ ' + e.message;
-            }
-            errEl.style.display = 'block';
-        }
+        if (errEl) { errEl.textContent = '⚠️ ' + e.message; errEl.style.display = 'block'; }
         setEmailButtonsDisabled(false);
-        showEmailToast('⚠️ Failed to send email: ' + e.message, true);
+        showEmailToast('⚠️ Failed to send: ' + e.message, true);
     }
 }
 
