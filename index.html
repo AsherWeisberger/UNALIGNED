@@ -3922,7 +3922,7 @@ function openCardModal(cardId) {
     // Clear new-reply flag when card is opened
     if (currentEditingCardData.newReplyAt) {
         currentEditingCardData.newReplyAt = null;
-        renderCard(currentEditingCardData);
+        renderAllCards();
         supabase.from('cards').update({ new_reply_at: null }).eq('id', cardId)
             .then(({ error }) => { if (error) console.warn('clear new_reply_at failed:', error.message); });
     }
