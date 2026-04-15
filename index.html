@@ -3854,8 +3854,13 @@ function openCardModal(cardId) {
             .then(({ error }) => { if (error) console.warn('clear new_reply_at failed:', error.message); });
     }
 
-    // Reset reply tabs to Robert each time modal opens
-    switchReplyTab('robert');
+    // Default tab: Sam for engaged (she sends rates), Robert for everything else
+    const defaultTab = currentEditingCardData.listId === 'engaged' ? 'sam' : 'robert';
+    switchReplyTab(defaultTab);
+    // Auto-generate Sam's rates draft when opening an engaged card with no draft yet
+    if (defaultTab === 'sam' && !currentEditingCardData.sam_draft_body) {
+        setTimeout(() => generateSamDraft(), 150);
+    }
     document.getElementById('modal-list-name').textContent = boardConfig.find(l=>l.id===currentEditingCardData.listId)?.title||'List';
     document.getElementById('modal-created-info').textContent = `Created by ${currentEditingCardData.createdBy} · ${timeAgo(new Date(currentEditingCardData.createdAt))}`;
 
@@ -4558,7 +4563,7 @@ linkedin.com/in/samlevin/`;
             // Rates email — only generate personalized opening line, append canonical template verbatim
             prompt = `You are Sam Levin at Unaligned. Write ONLY a short personalized opening greeting for a rates email. Always respond with valid JSON only.\n\nRECIPIENT:\n- Name: ${card.contactName || 'there'}\n- Business: ${card.businessName || 'Unknown'}\n\nCONTEXT:\n${card.description || '(No message)'}${threadContext}\n\nRespond ONLY with JSON:\n{"opening": "Hi [name or personalized reference],"}\n\nRequirements:\n- The opening field must be a single short greeting line ending with a comma, e.g. "Hi John," or "Hi Maria, loved what you're building with [product],"\n- Reference their product/company/thread if there's enough context, otherwise just use their name\n- Do NOT include anything beyond the opening line\n- Do NOT include any text outside the JSON`;
         } else {
-            prompt = `You are Sam Levin, business partner at Unaligned. Be warm, professional, and concise. Always respond with valid JSON only.\n\nDraft an email reply as Sam Levin from UnalignedX@gmail.com.\n\nRECIPIENT:\n- Name: ${card.contactName || 'Unknown'}\n- Email: ${card.email || 'Unknown'}\n- Business: ${card.businessName || 'Unknown'}\n\nORIGINAL MESSAGE:\n${card.description || '(No message)'}${threadContext}\n\nRespond ONLY with JSON:\n{"body": "email body text"}\n\nRequirements:\n- Body: warm and professional; 2-3 short paragraphs\n- IMPORTANT: The email body MUST end with this exact signature block (include it verbatim, with a blank line before it):\n\nSam Levin, Partner\nUnaligned\n+1-415-827-3870\nhttps://unaligned.io\nhttps://x.com/samlevin\nlinkedin.com/in/samlevin/\n\n- Do NOT include any text outside the JSON.\n- Do NOT generate a subject line (it stays on the original thread)`;
+            prompt = `You are Sam Levin, business partner at Unaligned (Robert Scoble's company). Write a short, natural follow-up reply. Always respond with valid JSON only.\n\nCONTEXT:\n- You are following up on a thread Robert already started with this lead\n- Your job is to keep the conversation warm, ask one useful question, or move things forward\n- Tone: human, brief, not salesy — like a real person replying to an email\n\nRECIPIENT:\n- Name: ${card.contactName || 'the lead'}\n- Business: ${card.businessName || ''}\n- Intent: ${card.intent || ''}\n\nTHREAD / MESSAGE:\n${card.description || '(No message)'}${threadContext}\n\nRespond ONLY with JSON:\n{"body": "email body text"}\n\nRequirements:\n- 2-4 short sentences max — do not over-write\n- Reference something specific from their message or business if possible\n- End with one clear next-step question or action\n- Close with this exact signature (blank line before it):\n\nSam Levin, Partner\nUnaligned\n+1-415-827-3870\nhttps://unaligned.io\n\n- No placeholders. No fluff. No generic opener like "I hope this finds you well."\n- Do NOT include any text outside the JSON.`;
         }
 
         const SVC_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhibnB3cGh4anVydnR5ZGV6d2doIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTQxNDUzMiwiZXhwIjoyMDkwOTkwNTMyfQ.kAoOUyyqIsPGtbrBhQNEf9Zcb6FX4kq72XdpdJqf0L0';
