@@ -2172,7 +2172,11 @@
                                 </div>
                                 <div id="sam-draft-content" style="display:none;">
                                     <textarea class="description-textarea" id="sam-draft-body" placeholder="Sam's reply…" style="min-height:320px;resize:vertical;"></textarea>
-                                    <div style="display:flex;gap:6px;margin-top:10px;align-items:center;flex-wrap:wrap;">
+                                    <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;color:var(--muted);cursor:pointer;user-select:none;">
+                                        <input type="checkbox" id="sam-attach-pdf" style="cursor:pointer;accent-color:#63b3ed;">
+                                        📎 Attach Partnership Packages PDF
+                                    </label>
+                                    <div style="display:flex;gap:6px;margin-top:8px;align-items:center;flex-wrap:wrap;">
                                         <button class="sidebar-btn reply-btn" onclick="generateSamDraft()">🔄 AI Regenerate</button>
                                         <button class="sidebar-btn reply-btn" onclick="copySamDraft()">📋 Copy</button>
                                         <button class="sidebar-btn reply-btn" onclick="sendSamEmail()" style="background:rgba(99,179,237,0.15);color:#63b3ed;">📤 Send as Sam</button>
@@ -4745,6 +4749,8 @@ linkedin.com/in/samlevin/`;
     if (empty) empty.style.display = 'none';
     if (content) content.style.display = 'block';
     if (badge) { badge.style.display = 'inline-block'; badge.className = 'draft-badge drafted'; badge.textContent = 'drafted'; }
+    const pdfBox = document.getElementById('sam-attach-pdf');
+    if (pdfBox) pdfBox.checked = (key === 'rates');
     currentEditingCardData.sam_draft_body = body;
 }
 
@@ -4810,11 +4816,12 @@ async function sendSamEmail() {
         const subject = currentEditingCardData.draft_reply?.subject || '';
         const threadId = currentEditingCardData.gmail_thread_id || null;
 
+        const attachPdf = document.getElementById('sam-attach-pdf')?.checked || false;
         const isRatesEmail = ['engaged', 'rates-sent'].includes(currentEditingCardData.listId);
         const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ to, subject, body, threadId, from: 'sam', cc: 'scobleizer@gmail.com,UnalignedX@gmail.com,asherunaligned@gmail.com', attachPdf: isRatesEmail })
+            body: JSON.stringify({ to, subject, body, threadId, from: 'sam', cc: 'scobleizer@gmail.com,UnalignedX@gmail.com,asherunaligned@gmail.com', attachPdf })
         });
         const data = await resp.json();
         if (data.error) throw new Error(data.error);
