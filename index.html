@@ -462,8 +462,9 @@
         .card-invoice-paid-btn { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 6px; border: none; background: rgba(168,85,247,0.2); color: #a855f7; cursor: pointer; white-space: nowrap; }
 
         /* ─── QUICK ACTIONS ON HOVER ──────────────────────── */
-        .card-quick-actions { display: none; position: absolute; top: 8px; right: 8px; gap: 4px; z-index: 2; }
+        .card-quick-actions { display: none; position: absolute; top: 8px; right: 8px; gap: 4px; z-index: 2; align-items: center; }
         .card:hover .card-quick-actions { display: flex; }
+        .card-needs-reply .card-quick-actions { display: flex; }
         .card-quick-btn {
             background: rgba(13,15,28,0.92); border: 1px solid rgba(255,255,255,0.13);
             border-radius: 6px; padding: 4px 9px; font-size: 11px; cursor: pointer;
@@ -472,6 +473,11 @@
         }
         .card-quick-btn:hover { border-color: var(--accent); color: var(--accent); }
         .card-quick-btn.done-btn:hover { border-color: var(--green); color: var(--green); }
+        .reply-needed-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #34d399; flex-shrink: 0;
+            animation: reply-pulse 1.8s ease-in-out infinite;
+        }
 
         /* ─── COLUMN VALUE ─────────────────────────────────── */
         .list-value { font-size: 11px; color: #34d399; font-family: var(--font-mono); font-weight: 600; opacity: 0.8; }
@@ -3513,7 +3519,7 @@ function renderCard(cardData) {
     let priorityClass = 'card';
     if (cardData.listId === 'done') priorityClass = 'card priority-done';
     else if (cardData.priority) priorityClass = 'card priority-'+cardData.priority;
-    if (cardData.newReplyAt) priorityClass += ' card-new-reply';
+    if (cardData.newReplyAt) priorityClass += ' card-new-reply card-needs-reply';
     card.className = priorityClass;
     card.draggable = true; card.dataset.cardId = cardData.id; card.id = 'card-'+cardData.id;
 
@@ -3567,6 +3573,7 @@ function renderCard(cardData) {
     const voiceLabel = draftVoice === 'robert' ? 'Robert' : 'Sam';
     const quickActionsHtml = !isDone ? `
         <div class="card-quick-actions" onclick="event.stopPropagation()">
+            ${cardData.newReplyAt ? '<span class="reply-needed-dot" title="Reply needed"></span>' : ''}
             ${cardData.email ? `<button class="card-quick-btn" onclick="quickReply(${cardData.id})" title="Open reply draft">✉ Reply</button>` : ''}
             ${nextStage ? `<button class="card-quick-btn" onclick="quickMoveNext(${cardData.id})" title="Move to ${nextStage.title}">→ ${nextStage.title.split(' ')[0]}</button>` : ''}
             <button class="card-quick-btn done-btn" onclick="quickDone(${cardData.id})" title="Mark as Done">✓</button>
@@ -3577,7 +3584,6 @@ function renderCard(cardData) {
             <input type="checkbox" class="card-checkbox" data-id="${cardData.id}" onclick="handleCardCheckbox(event, '${cardData.id}')">
         </div>
         ${quickActionsHtml}
-        ${cardData.newReplyAt ? '<div class="new-reply-badge" style="display:block;margin-bottom:6px;">● NEW REPLY</div>' : ''}
         <div class="card-labels">${labelsHtml}</div>
         ${leadMetaHtml}
         <div class="card-content">
