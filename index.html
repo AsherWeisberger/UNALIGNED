@@ -1507,6 +1507,26 @@
 
         /* ─── STALE INDICATORS ────────────────────────────── */
         .card-stale { border-left: 3px solid #f87171 !important; }
+        .card-new-reply { border-left: 3px solid #34d399 !important; }
+        .new-reply-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 2px 7px;
+            border-radius: 999px;
+            background: rgba(52,211,153,0.15);
+            color: #34d399;
+            font-size: 10px;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            border: 1px solid rgba(52,211,153,0.35);
+            letter-spacing: 0.05em;
+            animation: reply-pulse 1.8s ease-in-out infinite;
+        }
+        @keyframes reply-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.45; }
+        }
         .stale-badge {
             display: inline-flex;
             align-items: center;
@@ -2627,6 +2647,7 @@ function normalizeSupabaseCard(row) {
         draft_reply: draft,
         draft_reply_status: row.draft_reply_status || 'pending',
         movedAt: row.moved_at || null,
+        newReplyAt: row.new_reply_at || null,
         originalEmail: emailThread,   // full email thread from email_thread column (priority), original_email (fallback), or description JSON
         dealType,
     };
@@ -3550,6 +3571,7 @@ function renderCard(cardData) {
     else if (cardData.priority) priorityClass = 'card priority-'+cardData.priority;
     // Add stale class for hot leads with no recent activity
     if (isStaleCard(cardData)) priorityClass += ' card-stale';
+    if (cardData.newReplyAt) priorityClass += ' card-new-reply';
     card.className = priorityClass;
     card.draggable = true; card.dataset.cardId = cardData.id; card.id = 'card-'+cardData.id;
 
@@ -3614,6 +3636,7 @@ function renderCard(cardData) {
             <input type="checkbox" class="card-checkbox" data-id="${cardData.id}" onclick="handleCardCheckbox(event, '${cardData.id}')">
         </div>
         ${isStaleCard(cardData) ? '<span class="stale-badge" style="position:absolute;top:8px;right:8px;z-index:3;">⚠️</span>' : ''}
+        ${cardData.newReplyAt ? '<span class="new-reply-badge" style="position:absolute;top:8px;left:8px;z-index:3;">● NEW REPLY</span>' : ''}
         ${quickActionsHtml}
         <div class="card-labels">${labelsHtml}</div>
         ${leadMetaHtml}
@@ -3821,6 +3844,14 @@ function openCardModal(cardId) {
         const p = palettes[h % palettes.length];
         avatarEl.style.background = p.bg;
         avatarEl.style.color = p.color;
+    }
+
+    // Clear new-reply flag when card is opened
+    if (currentEditingCardData.newReplyAt) {
+        currentEditingCardData.newReplyAt = null;
+        renderCard(currentEditingCardData);
+        supabase.from('cards').update({ new_reply_at: null }).eq('id', cardId)
+            .then(({ error }) => { if (error) console.warn('clear new_reply_at failed:', error.message); });
     }
 
     // Reset reply tabs to Robert each time modal opens

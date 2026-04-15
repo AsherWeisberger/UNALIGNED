@@ -496,12 +496,21 @@ def dedup_recent_cards(client):
                            "thread_ids": [delete.get("gmail_thread_id","")]})
         desc["agents"] = agents
 
+        # Flag card if new messages were merged AND the latest message is inbound (lead replied)
+        TEAM_SENDERS_DP = ["scobleizer@gmail.com", "samlevin@mac.com", "asherweisberger",
+                           "robert scoble", "sam levin", "asher weisberger", "unalignedx"]
+        latest_sender = (keep_t[-1].get("from") or "").lower() if keep_t else ""
+        latest_is_inbound = added > 0 and not any(t in latest_sender for t in TEAM_SENDERS_DP)
+
         if not DRY_RUN:
+            patch_payload = {"email_thread": keep_t,
+                             "description": json.dumps(desc, ensure_ascii=False)}
+            if latest_is_inbound:
+                patch_payload["new_reply_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             httpx.patch(
                 f"{SUPABASE_URL}/rest/v1/cards?id=eq.{keep['id']}",
                 headers=hdrs(),
-                json={"email_thread": keep_t,
-                      "description": json.dumps(desc, ensure_ascii=False)},
+                json=patch_payload,
                 timeout=15,
             )
             httpx.delete(
