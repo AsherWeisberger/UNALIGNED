@@ -546,6 +546,19 @@
         .sort-option { padding: 6px 10px; border-radius: 5px; cursor: pointer; font-size: 11px; color: var(--muted2); font-family: var(--font-mono); transition: all 0.1s; }
         .sort-option:hover { background: rgba(255,255,255,0.06); color: var(--text); }
         .sort-option.active { color: var(--accent); background: rgba(91,140,255,0.08); }
+        .dl-tab { padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border2); background: none; color: var(--muted); font-size: 12px; cursor: pointer; transition: all 0.1s; }
+        .dl-tab:hover { background: var(--surface2); color: var(--text); }
+        .dl-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+        .dl-day-header { font-size: 11px; font-weight: 700; color: var(--accent); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; margin: 16px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
+        .dl-day-header:first-child { margin-top: 0; }
+        .dl-entry { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+        .dl-entry:last-child { border-bottom: none; }
+        .dl-icon { font-size: 14px; width: 20px; flex-shrink: 0; margin-top: 1px; }
+        .dl-entry-body { flex: 1; min-width: 0; }
+        .dl-entry-who { font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .dl-entry-what { font-size: 11px; color: var(--muted); margin-top: 1px; line-height: 1.4; }
+        .dl-entry-time { font-size: 10px; color: var(--muted2); font-family: var(--font-mono); flex-shrink: 0; margin-top: 2px; }
+        .dl-empty { text-align: center; color: var(--muted); font-size: 13px; padding: 40px 0; }
 
         /* ─── CUSTOM SCROLLBARS ─────────────────────────────── */
         ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -1780,6 +1793,7 @@
                     🤖 <span id="api-cost-total">…</span>
                 </div>
                 <button class="view-toggle" id="strip-toggle-btn" onclick="toggleTopStrip()" title="Toggle top panel">▴</button>
+                <button class="view-toggle" id="daily-log-btn" onclick="openDailyLog()" title="Daily activity log">📋 Log</button>
                 <button class="view-toggle" id="global-sort-btn" onclick="cycleGlobalSort()" title="Sort all columns">⇅ Date</button>
                 <button class="view-toggle" id="view-toggle-btn" onclick="toggleViewMode()">⊞ Compact</button>
                 <button class="view-toggle" id="table-view-btn" onclick="toggleTableView()">☰ Table</button>
@@ -2321,6 +2335,25 @@ What would you like to know?</div>
     </div>
 
     <div class="sr-only" id="live-region" aria-live="polite"></div>
+
+    <!-- ── Daily Log Panel ── -->
+    <div id="daily-log-overlay" onclick="closeDailyLog(event)" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,0.55);backdrop-filter:blur(4px);">
+        <div id="daily-log-panel" onclick="event.stopPropagation()" style="position:fixed;top:0;right:0;height:100%;width:420px;max-width:95vw;background:var(--surface);border-left:1px solid var(--border2);display:flex;flex-direction:column;box-shadow:-8px 0 32px rgba(0,0,0,0.4);">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;border-bottom:1px solid var(--border);">
+                <div>
+                    <div style="font-size:16px;font-weight:700;color:var(--text);">📋 Activity Log</div>
+                    <div style="font-size:11px;color:var(--muted);margin-top:2px;">What happened today and recently</div>
+                </div>
+                <button onclick="closeDailyLog()" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px 8px;">✕</button>
+            </div>
+            <div style="display:flex;gap:6px;padding:10px 18px;border-bottom:1px solid var(--border);">
+                <button class="dl-tab active" id="dl-tab-today" onclick="switchLogTab('today')">Today</button>
+                <button class="dl-tab" id="dl-tab-week" onclick="switchLogTab('week')">Last 7 Days</button>
+                <button class="dl-tab" id="dl-tab-all" onclick="switchLogTab('all')">All Time</button>
+            </div>
+            <div id="daily-log-body" style="flex:1;overflow-y:auto;padding:14px 18px;"></div>
+        </div>
+    </div>
 
 </div><!-- /#app -->
 
@@ -5753,6 +5786,114 @@ window.quickSendRates=quickSendRates;
 window.quickMoveNext=quickMoveNext;
 window.quickDone=quickDone;
 window.quickDead=quickDead;
+
+// ── Daily Activity Log ─────────────────────────────────────────
+let _logTab = 'today';
+
+function openDailyLog() {
+    document.getElementById('daily-log-overlay').style.display = 'block';
+    renderDailyLog();
+}
+function closeDailyLog(e) {
+    if (e && e.target !== document.getElementById('daily-log-overlay')) return;
+    document.getElementById('daily-log-overlay').style.display = 'none';
+}
+function switchLogTab(tab) {
+    _logTab = tab;
+    ['today','week','all'].forEach(t => {
+        document.getElementById('dl-tab-'+t).classList.toggle('active', t === tab);
+    });
+    renderDailyLog();
+}
+
+function renderDailyLog() {
+    const body = document.getElementById('daily-log-body');
+    const now = new Date();
+    const todayStr = now.toDateString();
+    const weekAgo = now.getTime() - 7 * 24 * 60 * 60 * 1000;
+
+    // Collect all events from all cards
+    const events = [];
+    Object.values(cardsData).forEach(card => {
+        const who = card.contactName || card.title || 'Unknown';
+        const biz = card.businessName ? ` · ${card.businessName}` : '';
+        const label = who + biz;
+
+        (card.activity || []).forEach(act => {
+            if (!act || !act.time) return;
+            const t = new Date(act.time);
+            if (_logTab === 'today' && t.toDateString() !== todayStr) return;
+            if (_logTab === 'week' && t.getTime() < weekAgo) return;
+            const action = (act.action || '').toLowerCase();
+            let icon = '•';
+            if (action.includes('import') || action.includes('created')) icon = '🆕';
+            else if (action.includes('moved') || action.includes('auto-moved')) icon = '➡️';
+            else if (action.includes('draft') || action.includes('approved')) icon = '✅';
+            else if (action.includes('reply') || action.includes('replied')) icon = '✉️';
+            else if (action.includes('dead') || action.includes('archive')) icon = '🗑️';
+            else if (action.includes('invoice')) icon = '💰';
+            else if (action.includes('rated') || action.includes('rates')) icon = '💲';
+            events.push({ t, icon, label, action: act.action, user: act.user || '', cardId: card.id });
+        });
+
+        // New reply events from new_reply_at
+        if (card.newReplyAt) {
+            const t = new Date(card.newReplyAt);
+            if (_logTab === 'today' && t.toDateString() !== todayStr) return;
+            if (_logTab === 'week' && t.getTime() < weekAgo) return;
+            // Only show if not already captured in activity
+            const alreadyLogged = (card.activity||[]).some(a => a.action && a.action.toLowerCase().includes('reply'));
+            if (!alreadyLogged) {
+                events.push({ t, icon: '📬', label, action: 'New inbound reply received', user: 'Lead', cardId: card.id });
+            }
+        }
+    });
+
+    // Sort newest first
+    events.sort((a, b) => b.t - a.t);
+
+    if (!events.length) {
+        body.innerHTML = `<div class="dl-empty">${_logTab === 'today' ? 'No activity recorded today yet.' : 'No activity found.'}</div>`;
+        return;
+    }
+
+    // Group by date
+    const groups = {};
+    events.forEach(ev => {
+        const dateKey = ev.t.toDateString();
+        if (!groups[dateKey]) groups[dateKey] = [];
+        groups[dateKey].push(ev);
+    });
+
+    let html = '';
+    Object.entries(groups).forEach(([dateKey, evs]) => {
+        const d = new Date(dateKey);
+        const isToday = d.toDateString() === todayStr;
+        const isYesterday = d.toDateString() === new Date(now.getTime() - 86400000).toDateString();
+        const label = isToday ? 'Today' : isYesterday ? 'Yesterday' : d.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+        html += `<div class="dl-day-header">${label} <span style="font-weight:400;opacity:0.6;">(${evs.length} event${evs.length!==1?'s':''})</span></div>`;
+        evs.forEach(ev => {
+            const timeStr = ev.t.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'});
+            html += `<div class="dl-entry" onclick="openCardById(${ev.cardId})" style="cursor:pointer;">
+                <div class="dl-icon">${ev.icon}</div>
+                <div class="dl-entry-body">
+                    <div class="dl-entry-who">${escapeHtml(ev.label)}</div>
+                    <div class="dl-entry-what">${escapeHtml(ev.action)}</div>
+                </div>
+                <div class="dl-entry-time">${timeStr}</div>
+            </div>`;
+        });
+    });
+    body.innerHTML = html;
+}
+
+function openCardById(id) {
+    if (cardsData[id]) openCard(cardsData[id]);
+}
+
+window.openDailyLog = openDailyLog;
+window.closeDailyLog = closeDailyLog;
+window.switchLogTab = switchLogTab;
 window.toggleListCollapse=toggleListCollapse;
 window.cycleGlobalSort=cycleGlobalSort;
 window.openSortMenu=openSortMenu;
