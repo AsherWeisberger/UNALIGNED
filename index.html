@@ -3172,7 +3172,7 @@ function updateBoardScrollBtns() {
     if (!board || !left || !right) return;
     // Hide both if in table view or board not visible
     const inTableView = document.getElementById('table-view')?.style.display !== 'none';
-    const modalOpen   = document.getElementById('card-modal-overlay')?.style.display !== 'none';
+    const modalOpen   = document.getElementById('card-modal-overlay')?.classList.contains('active');
     if (inTableView || modalOpen) {
         left.classList.add('bsb-hidden');
         right.classList.add('bsb-hidden');
