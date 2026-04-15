@@ -5234,7 +5234,22 @@ function updateCardCount() {
         const badge = document.getElementById('count-'+stage.id);
         if (badge) badge.textContent = count;
         const valEl = document.getElementById('value-'+stage.id);
-        if (valEl) valEl.textContent = '';
+        if (valEl) {
+            const showTotal = ['invoice-sent','done','paid-out'].includes(stage.id);
+            if (showTotal) {
+                let total = 0;
+                stageCards.forEach(c => {
+                    const raw = String(c.estimatedValue || '').trim();
+                    // Only count if it looks like a clean number (optional $ and commas, no other text)
+                    if (/^\$?[\d,]+(\.\d+)?$/.test(raw)) {
+                        total += parseFloat(raw.replace(/[^0-9.]/g, '')) || 0;
+                    }
+                });
+                valEl.textContent = total > 0 ? '$' + total.toLocaleString() : '';
+            } else {
+                valEl.textContent = '';
+            }
+        }
     });
     updateAssignedCount(); queueSaveBoardState();
 }
