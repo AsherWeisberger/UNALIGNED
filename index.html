@@ -2119,6 +2119,12 @@
                                     Robert Scoble — First Response
                                     <span id="draft-status-badge" class="draft-badge" style="display:none;"></span>
                                 </div>
+                                <select onchange="prefillRobertTemplate(this.value); this.value='';" style="width:100%;margin-bottom:8px;font-size:12px;padding:5px 8px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;cursor:pointer;">
+                                    <option value="">— Quick templates —</option>
+                                    <option value="loop-sam">🔗 Loop Sam In (CC fix)</option>
+                                    <option value="handoff">🤝 Hand off to Sam</option>
+                                    <option value="checkin">👋 Quick Check-In</option>
+                                </select>
                                 <div id="draft-loading" style="color:var(--muted);font-size:12px;font-family:var(--font-mono);display:none;">Generating…</div>
                                 <div id="draft-empty">
                                     No draft reply yet.
@@ -4383,7 +4389,7 @@ async function sendEmail() {
     document.getElementById('email-error-msg').style.display = 'none';
 
     try {
-        const threadId = currentEditingCardData?.gmailThreadId || currentEditingCardData?.threadId || null;
+        const threadId = currentEditingCardData?.gmail_thread_id || null;
         const fromSender = emailComposeVoice === 'robert' ? 'robert' : 'sam';
         const isRobert = fromSender === 'robert';
         const isRatesEmail = ['engaged', 'rates-sent'].includes(currentEditingCardData.listId);
@@ -4727,6 +4733,45 @@ linkedin.com/in/samlevin/`;
     currentEditingCardData.sam_draft_body = body;
 }
 
+function prefillRobertTemplate(key) {
+    if (!key || !currentEditingCardData) return;
+    const name = currentEditingCardData.contactName || 'there';
+
+    const templates = {
+        'loop-sam': {
+            subject: `Re: ${currentEditingCardData.draft_reply?.subject || currentEditingCardData.title || ''}`.replace(/^Re: Re:/i, 'Re:'),
+            body: `Hi ${name},\n\nApologies — I think my earlier CC to Sam may not have gone through. Looping him in now.\n\nSam handles all of our partnership details and will be your main point of contact from here. He's CC'd on this note.\n\nThanks for your patience!\n\nRobert`,
+        },
+        'handoff': {
+            subject: `Re: ${currentEditingCardData.draft_reply?.subject || currentEditingCardData.title || ''}`.replace(/^Re: Re:/i, 'Re:'),
+            body: `Hi ${name},\n\nWanted to properly introduce you to Sam Levin, my business partner who runs all of our partnerships day-to-day. He's CC'd here and will take it from this point.\n\nGreat connecting — you're in good hands.\n\nRobert`,
+        },
+        'checkin': {
+            subject: `Re: ${currentEditingCardData.draft_reply?.subject || currentEditingCardData.title || ''}`.replace(/^Re: Re:/i, 'Re:'),
+            body: `Hi ${name},\n\nJust checking in on my end — have you had a chance to connect with Sam? He runs all of this for me and would love to chat whenever you're ready.\n\nRobert`,
+        },
+    };
+
+    const tpl = templates[key];
+    if (!tpl) return;
+
+    const subjectEl = document.getElementById('modal-draft-subject');
+    const bodyEl = document.getElementById('modal-draft-body');
+    const emptyEl = document.getElementById('draft-empty');
+    const contentEl = document.getElementById('draft-content');
+    const badge = document.getElementById('draft-status-badge');
+
+    if (subjectEl) subjectEl.value = tpl.subject;
+    if (bodyEl) bodyEl.value = tpl.body;
+    if (emptyEl) emptyEl.style.display = 'none';
+    if (contentEl) contentEl.style.display = 'block';
+    if (badge) { badge.style.display = 'inline-block'; badge.className = 'draft-badge drafted'; badge.textContent = 'drafted'; }
+
+    if (!currentEditingCardData.draft_reply) currentEditingCardData.draft_reply = {};
+    currentEditingCardData.draft_reply.subject = tpl.subject;
+    currentEditingCardData.draft_reply.body = tpl.body;
+}
+
 function copySamDraft() {
     const body = document.getElementById('sam-draft-body')?.value || '';
     navigator.clipboard.writeText(body).then(() => {
@@ -4748,7 +4793,7 @@ async function sendSamEmail() {
 
     try {
         const subject = currentEditingCardData.draft_reply?.subject || '';
-        const threadId = currentEditingCardData.threadId || null;
+        const threadId = currentEditingCardData.gmail_thread_id || null;
 
         const isRatesEmail = ['engaged', 'rates-sent'].includes(currentEditingCardData.listId);
         const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail', {
@@ -4805,6 +4850,7 @@ window.regenerateEmailDraft = regenerateEmailDraft;
 window.sendEmail = sendEmail;
 window.generateSamDraft = generateSamDraft;
 window.prefillSamTemplate = prefillSamTemplate;
+window.prefillRobertTemplate = prefillRobertTemplate;
 window.copySamDraft = copySamDraft;
 window.sendSamEmail = sendSamEmail;
 
