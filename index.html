@@ -4452,7 +4452,50 @@ async function generateSamDraft() {
             }).join('\n\n');
         }
 
-        const prompt = `You are Sam Levin, business partner at Unaligned. Be warm, professional, and concise. Always respond with valid JSON only.\n\nDraft an email reply as Sam Levin from UnalignedX@gmail.com.\n\nRECIPIENT:\n- Name: ${card.contactName || 'Unknown'}\n- Email: ${card.email || 'Unknown'}\n- Business: ${card.businessName || 'Unknown'}\n\nORIGINAL MESSAGE:\n${card.description || '(No message)'}${threadContext}\n\nRespond ONLY with JSON:\n{"body": "email body text"}\n\nRequirements:\n- Body: warm and professional; 2-3 short paragraphs\n- IMPORTANT: The email body MUST end with this exact signature block (include it verbatim, with a blank line before it):\n\nSam Levin, Partner\nUnaligned\n+1-415-827-3870\nhttps://unaligned.io\nhttps://x.com/samlevin\nlinkedin.com/in/samlevin/\n\n- Do NOT include any text outside the JSON.\n- Do NOT generate a subject line (it stays on the original thread)`;
+        const RATES_TEMPLATE = `I'm Sam Levin, Robert's business partner at Unaligned. Great to connect.
+
+Quick background on our reach:
+
+The Unaligned weekly newsletter has over 5,000 subscribers with an open rate of 50%.
+
+The real engagement occurs with X.
+
+Very recently, Elon Musk reposted Robert's X post receiving over 59M views.
+(Link: https://x.com/Scobleizer/status/2033399288932585940?s=20)
+
+Current Partnership Packages:
+
+Tier 1    $5,995/mo    2x written X + 1x LinkedIn + 2x retweets + newsletter
+Tier 2 ⭐  $3,995/mo    1x written X + 1x LinkedIn + 1x retweet + newsletter
+Tier 3    $2,995/mo    1x written X + 1x LinkedIn + newsletter
+Tier 4    $1,995/post  1x written X post only
+Tier 5    $1,195/post  1x retweet only (you provide all assets)
+
+Before we move forward, we'd love to get a clearer picture of your company and what you're promoting. Please send over your website, your X/LinkedIn handle, the content assets you'd like posted (video, caption, hashtags, posting dates), and a short brief on the campaign.
+
+New clients pay in full before content goes live. Once you've completed your first campaign with us, future campaigns are invoiced on the day the post goes live — that's the benefit of becoming an ongoing partner.
+
+Wire transfer preferred. PayPal also accepted.
+
+Let me know which tier fits your goals and we'll get moving.
+
+Cheers,
+Sam & Robert
+
+Sam Levin, Partner
+Unaligned
++1-415-827-3870
+https://unaligned.io
+https://x.com/samlevin
+linkedin.com/in/samlevin/`;
+
+        let prompt;
+        if (card.listId === 'engaged') {
+            // Rates email — only generate personalized opening line, append canonical template verbatim
+            prompt = `You are Sam Levin at Unaligned. Write ONLY a short personalized opening greeting for a rates email. Always respond with valid JSON only.\n\nRECIPIENT:\n- Name: ${card.contactName || 'there'}\n- Business: ${card.businessName || 'Unknown'}\n\nCONTEXT:\n${card.description || '(No message)'}${threadContext}\n\nRespond ONLY with JSON:\n{"opening": "Hi [name or personalized reference],"}\n\nRequirements:\n- The opening field must be a single short greeting line ending with a comma, e.g. "Hi John," or "Hi Maria, loved what you're building with [product],"\n- Reference their product/company/thread if there's enough context, otherwise just use their name\n- Do NOT include anything beyond the opening line\n- Do NOT include any text outside the JSON`;
+        } else {
+            prompt = `You are Sam Levin, business partner at Unaligned. Be warm, professional, and concise. Always respond with valid JSON only.\n\nDraft an email reply as Sam Levin from UnalignedX@gmail.com.\n\nRECIPIENT:\n- Name: ${card.contactName || 'Unknown'}\n- Email: ${card.email || 'Unknown'}\n- Business: ${card.businessName || 'Unknown'}\n\nORIGINAL MESSAGE:\n${card.description || '(No message)'}${threadContext}\n\nRespond ONLY with JSON:\n{"body": "email body text"}\n\nRequirements:\n- Body: warm and professional; 2-3 short paragraphs\n- IMPORTANT: The email body MUST end with this exact signature block (include it verbatim, with a blank line before it):\n\nSam Levin, Partner\nUnaligned\n+1-415-827-3870\nhttps://unaligned.io\nhttps://x.com/samlevin\nlinkedin.com/in/samlevin/\n\n- Do NOT include any text outside the JSON.\n- Do NOT generate a subject line (it stays on the original thread)`;
+        }
 
         const SVC_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhibnB3cGh4anVydnR5ZGV6d2doIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTQxNDUzMiwiZXhwIjoyMDkwOTkwNTMyfQ.kAoOUyyqIsPGtbrBhQNEf9Zcb6FX4kq72XdpdJqf0L0';
         const res = await fetch('https://hbnpwphxjurvtydezwgh.supabase.co/functions/v1/generate-draft', {
@@ -4470,9 +4513,17 @@ async function generateSamDraft() {
         let cleaned = text.replace(/^```json\s*/i,'').replace(/^```\s*/i,'').replace(/\s*```$/i,'').trim();
         const reply = JSON.parse(cleaned);
 
-        currentEditingCardData.sam_draft_body = reply.body;
+        let draftBody;
+        if (card.listId === 'engaged') {
+            // Stitch opening line onto the canonical rates template
+            draftBody = (reply.opening || 'Hi,') + '\n\n' + RATES_TEMPLATE;
+        } else {
+            draftBody = reply.body;
+        }
 
-        document.getElementById('sam-draft-body').value = reply.body;
+        currentEditingCardData.sam_draft_body = draftBody;
+
+        document.getElementById('sam-draft-body').value = draftBody;
         const badge = document.getElementById('sam-draft-badge');
         if (badge) { badge.style.display = 'inline-block'; badge.className = 'draft-badge drafted'; badge.textContent = 'drafted'; }
         content.style.display = 'block';
@@ -4507,10 +4558,11 @@ async function sendSamEmail() {
         const subject = currentEditingCardData.draft_reply?.subject || '';
         const threadId = currentEditingCardData.threadId || null;
 
+        const isRatesEmail = currentEditingCardData.listId === 'engaged';
         const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ to, subject, body, threadId, from: 'sam', cc: 'UnalignedX@gmail.com,samlevin@mac.com,asherunaligned@gmail.com' })
+            body: JSON.stringify({ to, subject, body, threadId, from: 'sam', cc: 'UnalignedX@gmail.com,samlevin@mac.com,asherunaligned@gmail.com', attachPdf: isRatesEmail })
         });
         const data = await resp.json();
         if (data.error) throw new Error(data.error);
