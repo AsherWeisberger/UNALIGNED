@@ -3461,21 +3461,10 @@ function rejectDraft() {
     const card  = cardsData[_approvalCardId];
     const reason = (document.getElementById('approval-reject-reason')?.value || '').trim();
 
-    // Log feedback — fire and forget
-    fetch('http://localhost:5000/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            card_id:          _approvalCardId,
-            action:           'rejected',
-            voice:            card?.draft_reply?.voice || 'sam',
-            thread_state:     card?.draft_reply?.thread_state || '',
-            original_subject: _approvalOriginalSubject,
-            original_body:    _approvalOriginalBody,
-            rejection_reason: reason,
-            to:               card?.email || ''
-        })
-    }).catch(() => {});
+    if (card) {
+        card.activity = Array.isArray(card.activity) ? card.activity : [];
+        card.activity.unshift({ user: currentProfile?.name||'Sam', initials: currentProfile?.initials||'SL', action: `✗ Draft rejected${reason ? ': ' + reason : ''}`, time: new Date().toISOString() });
+    }
 
     if (card) {
         card.draft_reply_status = 'rejected';
@@ -3499,24 +3488,31 @@ async function approveDraft() {
     sendBtn.textContent = '⏳ Sending…';
     errEl.style.display = 'none';
 
+    const card = cardsData[_approvalCardId];
+    const to = card?.email || '';
+    if (!to) { errEl.textContent = '⚠️ No email address on this card.'; errEl.style.display = 'block'; return; }
+
     try {
-        const resp = await fetch('http://localhost:5000/approve', {
+        const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ card_id: _approvalCardId, subject, body })
+            body: JSON.stringify({
+                to, subject, body,
+                from: 'sam',
+                cc: 'scobleizer@gmail.com,UnalignedX@gmail.com,samlevin@mac.com,asherunaligned@gmail.com'
+            })
         });
         const data = await resp.json();
         if (data.error) throw new Error(data.error);
 
-        // Update card locally
-        const card = cardsData[_approvalCardId];
         if (card) {
             card.draft_reply_status = 'sent';
-            card.lastActivity = new Date().toISOString();
+            card.new_reply_at = null;
+            card.newReplyAt = null;
             card.activity = Array.isArray(card.activity) ? card.activity : [];
             card.activity.unshift({
-                user: currentProfile?.name || 'User',
-                initials: currentProfile?.initials || '?',
+                user: currentProfile?.name || 'Sam',
+                initials: currentProfile?.initials || 'SL',
                 action: `📧 Approved & sent: ${subject}`,
                 time: new Date().toISOString()
             });
@@ -3525,34 +3521,13 @@ async function approveDraft() {
         }
 
         sendBtn.textContent = '✓ Sent!';
-        showEmailToast(`✅ Sent as ${data.voice === 'robert' ? 'Robert' : 'Sam'} → ${data.to}`);
-
-        // Feedback logging — detect edits, fire and forget
-        const wasEdited = subject !== _approvalOriginalSubject || body !== _approvalOriginalBody;
-        fetch('http://localhost:5000/feedback', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                card_id:          _approvalCardId,
-                action:           wasEdited ? 'approved_with_edits' : 'approved',
-                voice:            data.voice,
-                thread_state:     card?.draft_reply?.thread_state || '',
-                original_subject: _approvalOriginalSubject,
-                original_body:    _approvalOriginalBody,
-                final_subject:    subject,
-                final_body:       body,
-                to:               data.to
-            })
-        }).catch(() => {});
-
+        showEmailToast(`✅ Approved & sent as Sam → ${to}`);
         setTimeout(closeApprovalModal, 1200);
 
     } catch (e) {
         sendBtn.disabled = false;
         sendBtn.textContent = '✅ Approve & Send';
-        errEl.innerHTML = e.message.includes('fetch') || e.message.includes('Failed')
-            ? '⚠️ Approval server not running.<br>Run: <code style="background:rgba(255,255,255,0.1);padding:2px 6px;border-radius:4px;">source run_daily_scraper.sh && python3 email_server.py</code>'
-            : '⚠️ ' + e.message;
+        errEl.textContent = '⚠️ ' + e.message;
         errEl.style.display = 'block';
     }
 }
