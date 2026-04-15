@@ -2124,7 +2124,7 @@
                                     <div style="display:flex;gap:6px;margin-top:10px;align-items:center;flex-wrap:wrap;">
                                         <button class="sidebar-btn reply-btn" onclick="regenerateDraft()" id="btn-regen">🔄 Regenerate</button>
                                         <button class="sidebar-btn reply-btn" onclick="copyDraft()">📋 Copy</button>
-                                        <button class="sidebar-btn reply-btn" onclick="openEmailComposer()" id="btn-send-email" style="background:rgba(52,211,153,0.15);color:#34d399;">📤 Send Email</button>
+                                        <button class="sidebar-btn reply-btn" onclick="openEmailComposer('robert')" id="btn-send-email" style="background:rgba(52,211,153,0.15);color:#34d399;">📤 Send Email</button>
                                         <select class="contact-input" id="modal-draft-status" style="font-size:11px;padding:4px 8px;width:auto;margin:0;">
                                             <option value="pending">Pending</option>
                                             <option value="drafted">Drafted</option>
@@ -4152,7 +4152,7 @@ async function regenerateDraft() {
 
 let emailComposeCardId = null;
 
-function openEmailComposer() {
+function openEmailComposer(forceVoice) {
     if (!currentEditingCardData) return;
     emailComposeCardId = currentEditingCardData.id;
     const card = currentEditingCardData;
@@ -4162,8 +4162,8 @@ function openEmailComposer() {
     const body = document.getElementById('modal-draft-body')?.value || card.draft_reply?.body || '';
     const to = card.email || '';
 
-    // Voice label
-    const voice = (card.draft_reply && typeof card.draft_reply === 'object') ? (card.draft_reply.voice || 'sam') : 'sam';
+    // Voice: use forced voice if provided (from tab button), otherwise fall back to draft voice
+    const voice = forceVoice || ((card.draft_reply && typeof card.draft_reply === 'object') ? (card.draft_reply.voice || 'sam') : 'sam');
     const voiceName = voice === 'robert' ? 'Robert Scoble' : 'Sam Levin';
     const voiceEl = document.getElementById('email-voice-label');
     if (voiceEl) voiceEl.textContent = voiceName;
