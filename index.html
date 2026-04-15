@@ -3820,7 +3820,7 @@ function drop(ev) {
     const oLN = boardConfig.find(l=>l.id===oldListId)?.title||oldListId;
     targetCard.activity = Array.isArray(targetCard.activity)?targetCard.activity:[];
     targetCard.activity.unshift({user:currentProfile.name,initials:currentProfile.initials,action:`moved from ${oLN} to ${nLN}`,time:new Date().toISOString()});
-    updateCardCount(); updateFlowMap(); saveBoardState(true, [cardId]);
+    renderAllCards(); updateCardCount(); updateFlowMap(); saveBoardState(true, [cardId]);
 }
 
 // ── Filters ────────────────────────────────────────
@@ -4412,6 +4412,14 @@ async function sendEmail() {
 
         if (currentEditingCardData) {
             currentEditingCardData.draft_reply_status = 'sent';
+
+            // Save thread ID back to card so follow-up emails (e.g. Sam after Robert) can thread correctly
+            if (data.threadId && !currentEditingCardData.gmail_thread_id) {
+                currentEditingCardData.gmail_thread_id = data.threadId;
+                supabase.from('cards').update({ gmail_thread_id: data.threadId }).eq('id', currentEditingCardData.id)
+                    .then(({ error }) => { if (error) console.warn('save threadId failed:', error.message); });
+            }
+
             // Add to visible email thread immediately (placeholder until morning scrape replaces it)
             if (!Array.isArray(currentEditingCardData.originalEmail)) currentEditingCardData.originalEmail = [];
             currentEditingCardData.originalEmail.push({
@@ -4427,10 +4435,17 @@ async function sendEmail() {
                 action: `📧 Sent reply: ${subject}`,
                 time: new Date().toISOString()
             });
+            // Clear new-reply flag — we just replied, card moves to ⏳ Waiting on Them
+            if (currentEditingCardData.newReplyAt) {
+                currentEditingCardData.newReplyAt = null;
+                supabase.from('cards').update({ new_reply_at: null }).eq('id', currentEditingCardData.id)
+                    .then(({ error }) => { if (error) console.warn('clear new_reply_at failed:', error.message); });
+            }
             const badge = document.getElementById('draft-status-badge');
             if (badge) { badge.style.display = 'inline-block'; badge.className = 'draft-badge sent'; badge.textContent = 'sent'; }
             queueSaveBoardState();
             renderThread();
+            renderAllCards();
         }
 
         setTimeout(closeEmailCompose, 1500);
@@ -4804,6 +4819,13 @@ async function sendSamEmail() {
         const data = await resp.json();
         if (data.error) throw new Error(data.error);
 
+        // Save thread ID back if not already set (e.g. manually created card, or first outbound)
+        if (data.threadId && !currentEditingCardData.gmail_thread_id) {
+            currentEditingCardData.gmail_thread_id = data.threadId;
+            supabase.from('cards').update({ gmail_thread_id: data.threadId }).eq('id', currentEditingCardData.id)
+                .then(({ error }) => { if (error) console.warn('save threadId (sam) failed:', error.message); });
+        }
+
         // Add to visible email thread immediately (placeholder until morning scrape)
         if (!Array.isArray(currentEditingCardData.originalEmail)) currentEditingCardData.originalEmail = [];
         currentEditingCardData.originalEmail.push({
@@ -4821,8 +4843,15 @@ async function sendSamEmail() {
             time: new Date().toISOString()
         });
 
+        // Clear new-reply flag — we just replied, card moves to ⏳ Waiting on Them
+        if (currentEditingCardData.newReplyAt) {
+            currentEditingCardData.newReplyAt = null;
+            supabase.from('cards').update({ new_reply_at: null }).eq('id', currentEditingCardData.id)
+                .then(({ error }) => { if (error) console.warn('clear new_reply_at (sam) failed:', error.message); });
+        }
         queueSaveBoardState();
         renderThread();
+        renderAllCards();
 
         const badge = document.getElementById('sam-draft-badge');
         if (badge) { badge.style.display = 'inline-block'; badge.className = 'draft-badge sent'; badge.textContent = 'sent'; }
