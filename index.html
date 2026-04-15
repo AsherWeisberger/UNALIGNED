@@ -1506,7 +1506,6 @@
         }
 
         /* ─── STALE INDICATORS ────────────────────────────── */
-        .card-stale { border-left: 3px solid #f87171 !important; }
         .card-new-reply { border-left: 3px solid #34d399 !important; }
         .new-reply-badge {
             display: inline-flex;
@@ -1527,34 +1526,6 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.45; }
         }
-        .stale-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 2px 8px;
-            border-radius: 999px;
-            background: rgba(248,113,113,0.12);
-            color: #f87171;
-            font-size: 11px;
-            font-weight: 600;
-            font-family: var(--font-mono);
-            border: 1px solid rgba(248,113,113,0.3);
-        }
-        .stale-header-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            padding: 3px 10px;
-            border-radius: 999px;
-            background: rgba(248,113,113,0.1);
-            color: #f87171;
-            font-size: 11px;
-            font-weight: 600;
-            font-family: var(--font-mono);
-            border: 1px solid rgba(248,113,113,0.3);
-            cursor: default;
-        }
-        .stale-header-badge:hover { background: rgba(248,113,113,0.18); }
 
         /* ─── UNIFIED ACTIVITY + TASKS SECTION ───────────────── */
         .unified-activity {
@@ -1771,7 +1742,6 @@
                 <div class="stats">
                     <span id="total-cards">0 cards</span>
                     <span id="assigned-count">0 assigned to you</span>
-                    <span id="stale-count-badge" class="stale-header-badge" style="display:none;">⚠️ <span id="stale-count">0</span> stale</span>
                 </div>
             </div>
             <div class="header-right">
@@ -1912,10 +1882,6 @@
                     <select id="tv-assignee" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:13px;cursor:pointer;outline:none;" onchange="renderTableView()">
                       <option value="">All Assignees</option>
                     </select>
-                    <label style="display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:12px;cursor:pointer;white-space:nowrap;">
-                        <input type="checkbox" id="tv-stale-only" onchange="renderTableView()" style="accent-color:var(--accent);cursor:pointer;">
-                        ⚠️ Stale only
-                    </label>
                     <button onclick="exportTableCSV()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer;margin-left:auto;">Export CSV</button>
                     <span id="tv-count" style="font-size:12px;color:var(--muted);white-space:nowrap;"></span>
                   </div>
@@ -2740,37 +2706,6 @@ let currentActivityType = '';
 const syncState = { status: 'synced', lastSyncedAt: null, errorMessage: '' };
 
 // ── Stale Lead Detection ─────────────────────────────
-function isStaleCard(card) {
-    if (card.priority !== 'hot') return false;
-    const now = Date.now();
-    const THREE_DAYS = 3 * 24 * 60 * 60 * 1000;
-    if (card.lastActivity) {
-        const last = new Date(card.lastActivity).getTime();
-        return (now - last) > THREE_DAYS;
-    }
-    // Fallback: check emailDate as proxy for last contact
-    if (card.emailDate) {
-        const emailDate = new Date(card.emailDate).getTime();
-        return (now - emailDate) > THREE_DAYS;
-    }
-    // No activity data at all — treat as stale for hot leads
-    return false;
-}
-
-function computeStaleCount() {
-    return Object.values(cardsData).filter(isStaleCard).length;
-}
-
-function updateStaleBadge() {
-    const count = computeStaleCount();
-    const badge = document.getElementById('stale-count-badge');
-    const countEl = document.getElementById('stale-count');
-    if (badge && countEl) {
-        countEl.textContent = count;
-        badge.style.display = count > 0 ? 'inline-flex' : 'none';
-    }
-}
-
 function renderDailyBriefing() {
     const el = document.getElementById('daily-briefing');
     if (!el) return;
@@ -3162,7 +3097,6 @@ function markBoardReady() {
     document.body.classList.remove('board-loading');
     const el = document.getElementById('board-loading');
     if (el) el.remove();
-    updateStaleBadge();
     renderDailyBriefing();
     // Restore deal type toggle state
     setDealTypeFilter(window._dealTypeFilter || 'all');
@@ -3373,7 +3307,7 @@ async function saveBoardStateNow() {
     await saveBoardState(true);
 }
 
-function refreshBoard() { initBoardStructure(); renderAllCards(); updateCardCount(); updateFlowMap(); updateStaleBadge(); setTimeout(updateBoardScrollBtns, 100); }
+function refreshBoard() { initBoardStructure(); renderAllCards(); updateCardCount(); updateFlowMap(); setTimeout(updateBoardScrollBtns, 100); }
 
 // Delegated click on board — opens card modal when any card is clicked (but not checkbox)
 document.addEventListener('click', e => {
@@ -3577,8 +3511,6 @@ function renderCard(cardData) {
     let priorityClass = 'card';
     if (cardData.listId === 'done') priorityClass = 'card priority-done';
     else if (cardData.priority) priorityClass = 'card priority-'+cardData.priority;
-    // Add stale class for hot leads with no recent activity
-    if (isStaleCard(cardData)) priorityClass += ' card-stale';
     if (cardData.newReplyAt) priorityClass += ' card-new-reply';
     card.className = priorityClass;
     card.draggable = true; card.dataset.cardId = cardData.id; card.id = 'card-'+cardData.id;
@@ -3642,7 +3574,6 @@ function renderCard(cardData) {
         <div class="card-checkbox-wrap">
             <input type="checkbox" class="card-checkbox" data-id="${cardData.id}" onclick="handleCardCheckbox(event, '${cardData.id}')">
         </div>
-        ${isStaleCard(cardData) ? '<span class="stale-badge" style="position:absolute;top:8px;right:8px;z-index:3;">⚠️</span>' : ''}
         ${quickActionsHtml}
         ${cardData.newReplyAt ? '<div class="new-reply-badge" style="display:block;margin-bottom:6px;">● NEW REPLY</div>' : ''}
         <div class="card-labels">${labelsHtml}</div>
@@ -4810,7 +4741,6 @@ function addActivity(action) {
     currentEditingCardData.activity.unshift({ user: currentProfile.name, initials: currentProfile.initials, action, time: new Date().toISOString() });
     currentEditingCardData.lastActivity = new Date().toISOString();
     renderUnifiedActivity();
-    updateStaleBadge();
 }
 
 function addUnifiedItem() {
@@ -4973,7 +4903,6 @@ async function bulkUpdatePriority(priority) {
     await saveBoardState(true);
     renderKanban();
     renderTableView();
-    updateStaleBadge();
     clearSelection();
 }
 
@@ -5010,7 +4939,6 @@ function bulkDelete() {
     renderTableView();
     updateCardCount();
     updateFlowMap();
-    updateStaleBadge();
     clearSelection();
 }
 
@@ -5516,13 +5444,11 @@ function tvGetFiltered() {
     const stage=(document.getElementById('tv-stage')||{value:''}).value;
     const priority=(document.getElementById('tv-priority')||{value:''}).value;
     const fAssignee=(document.getElementById('tv-assignee')||{value:''}).value;
-    const staleOnly=(document.getElementById('tv-stale-only')||{checked:false}).checked;
     return Object.values(cardsData||{}).filter(c=>{
         if(q){const h=[c.contactName,c.title,c.email,c.businessName,c.description,c.phone,c.assignee].filter(Boolean).join(' ').toLowerCase();if(!h.includes(q))return false;}
         if(stage&&c.listId!==stage)return false;
         if(priority&&c.priority!==priority)return false;
         if(fAssignee&&c.assignee!==fAssignee)return false;
-        if(staleOnly&&!isStaleCard(c))return false;
         return true;
     });
 }
@@ -5561,11 +5487,9 @@ function renderTableView() {
         const act=tvLastAct(c);
         const isOverdue=c.dueDate&&new Date(c.dueDate)<new Date();
         const stageOpts=Object.entries(stageMap).map(([k,v])=>`<option value="${k}"${k===c.listId?' selected':''}>${v.label}</option>`).join('');
-        const isStale = isStaleCard(c);
-        const rowClass = isStale ? 'tv-row-stale' : '';
-        return`<tr style="border-bottom:1px solid var(--surface2);" data-cid="${c.id}" class="${rowClass}">
+        return`<tr style="border-bottom:1px solid var(--surface2);" data-cid="${c.id}">
           <td class="tv-checkbox-cell" style="padding:7px 4px;vertical-align:top;"><input type="checkbox" class="tv-row-checkbox" data-id="${c.id}" onclick="handleTvRowCheckbox(event,'${c.id}')" style="accent-color:var(--accent);cursor:pointer;width:15px;height:15px;"></td>
-          <td style="padding:7px 10px;vertical-align:top;font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;${isStale?'color:#f87171;':''}" onclick="openCardModal('${c.id}')">${isStale?'⚠️ ':''}${escapeHtml(c.contactName||c.title||'—')}</td>
+          <td style="padding:7px 10px;vertical-align:top;font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.contactName||c.title||'—')}</td>
           <td style="padding:7px 10px;vertical-align:top;color:var(--muted);font-size:14px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.businessName||'—')}</td>
           <td style="padding:7px 10px;vertical-align:top;font-size:14px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${c.email?`<a href="mailto:${c.email}" style="color:#4facfe;text-decoration:none;">${escapeHtml(c.email)}</a>`:'—'}</td>
           <td style="padding:7px 10px;vertical-align:top;font-size:11px;color:var(--muted);white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${tvDate(c)}</td>
