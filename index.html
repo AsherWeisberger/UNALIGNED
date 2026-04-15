@@ -640,6 +640,7 @@
         .email-reply-dock { border-top: 1px solid var(--border2); flex-shrink: 0; background: var(--surface); }
         .reply-dock-tabs { display: flex; border-bottom: 1px solid var(--border); }
         .reply-dock-tab { padding: 10px 22px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; background: none; color: var(--muted2); border-bottom: 2px solid transparent; transition: all 0.15s; font-family: var(--font-body); position: relative; top: 1px; }
+        .reply-btn { width: auto !important; padding: 5px 13px !important; margin-top: 0 !important; font-size: 11px !important; border-radius: 6px !important; }
         .reply-dock-tab:hover { color: var(--text); }
         .reply-dock-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
         .reply-dock-panel { padding: 16px 20px; max-height: 580px; overflow-y: auto; }
@@ -2098,11 +2099,11 @@
                                 <div id="draft-content" style="display:none;">
                                     <input type="text" class="contact-input" id="modal-draft-subject" placeholder="Subject line…" style="margin-bottom:8px;">
                                     <textarea class="description-textarea" id="modal-draft-body" placeholder="Draft reply body…" style="min-height:320px;resize:vertical;"></textarea>
-                                    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
-                                        <button class="sidebar-btn" onclick="regenerateDraft()" id="btn-regen" style="font-size:12px;">🔄 Regenerate</button>
-                                        <button class="sidebar-btn" onclick="copyDraft()" style="font-size:12px;">📋 Copy</button>
-                                        <button class="sidebar-btn" onclick="openEmailComposer()" id="btn-send-email" style="font-size:12px;background:rgba(52,211,153,0.15);color:#34d399;">📤 Send Email</button>
-                                        <select class="contact-input" id="modal-draft-status" style="font-size:12px;padding:6px 10px;">
+                                    <div style="display:flex;gap:6px;margin-top:10px;align-items:center;flex-wrap:wrap;">
+                                        <button class="sidebar-btn reply-btn" onclick="regenerateDraft()" id="btn-regen">🔄 Regenerate</button>
+                                        <button class="sidebar-btn reply-btn" onclick="copyDraft()">📋 Copy</button>
+                                        <button class="sidebar-btn reply-btn" onclick="openEmailComposer()" id="btn-send-email" style="background:rgba(52,211,153,0.15);color:#34d399;">📤 Send Email</button>
+                                        <select class="contact-input" id="modal-draft-status" style="font-size:11px;padding:4px 8px;width:auto;margin:0;">
                                             <option value="pending">Pending</option>
                                             <option value="drafted">Drafted</option>
                                             <option value="approved">Approved</option>
@@ -2128,10 +2129,10 @@
                                 </div>
                                 <div id="sam-draft-content" style="display:none;">
                                     <textarea class="description-textarea" id="sam-draft-body" placeholder="Sam's reply…" style="min-height:320px;resize:vertical;"></textarea>
-                                    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
-                                        <button class="sidebar-btn" onclick="generateSamDraft()" style="font-size:12px;">🔄 Regenerate</button>
-                                        <button class="sidebar-btn" onclick="copySamDraft()" style="font-size:12px;">📋 Copy</button>
-                                        <button class="sidebar-btn" onclick="sendSamEmail()" style="font-size:12px;background:rgba(99,179,237,0.15);color:#63b3ed;">📤 Send as Sam</button>
+                                    <div style="display:flex;gap:6px;margin-top:10px;align-items:center;flex-wrap:wrap;">
+                                        <button class="sidebar-btn reply-btn" onclick="generateSamDraft()">🔄 Regenerate</button>
+                                        <button class="sidebar-btn reply-btn" onclick="copySamDraft()">📋 Copy</button>
+                                        <button class="sidebar-btn reply-btn" onclick="sendSamEmail()" style="background:rgba(99,179,237,0.15);color:#63b3ed;">📤 Send as Sam</button>
                                     </div>
                                     <div id="sam-email-error" style="color:#fc8181;font-size:12px;display:none;margin-top:8px;"></div>
                                 </div>
