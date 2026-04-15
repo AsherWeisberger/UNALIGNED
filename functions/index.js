@@ -58,7 +58,7 @@ async function getSamTransporter() {
   return samTransporter;
 }
 
-async function sendViaSam(to, subject, body, cc) {
+async function sendViaSam(to, subject, body, cc, attachments) {
   const t = await getSamTransporter();
   const snap = await db.collection('_secrets').doc('sam_gmail').get();
   const { email } = snap.data();
@@ -68,6 +68,7 @@ async function sendViaSam(to, subject, body, cc) {
     cc: cc || undefined,
     subject,
     text: body,
+    attachments: attachments || [],
   });
   return 'sent via SMTP';
 }
@@ -94,7 +95,7 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
   if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
-  const { to, subject, body, cc, from } = req.body || {};
+  const { to, subject, body, cc, from, attachPdf } = req.body || {};
 
   if (!to || !subject || !body) {
     res.status(400).json({ error: 'Missing to, subject, or body' });
@@ -106,8 +107,18 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
     const effectiveCC = cc || defaultCC;
     let messageId;
 
+    let attachments = [];
+    if (attachPdf) {
+      const pdfUrl = 'https://unaligned-fc556.web.app/Unaligned_Partnership_Packages.pdf';
+      const pdfResp = await fetch(pdfUrl);
+      if (pdfResp.ok) {
+        const pdfBuffer = Buffer.from(await pdfResp.arrayBuffer());
+        attachments = [{ filename: 'Unaligned_Partnership_Packages.pdf', content: pdfBuffer, contentType: 'application/pdf' }];
+      }
+    }
+
     if (from === 'sam' || from === 'unalignedx') {
-      messageId = await sendViaSam(to, subject, body, effectiveCC);
+      messageId = await sendViaSam(to, subject, body, effectiveCC, attachments);
     } else {
       messageId = await sendViaRobert(to, subject, body, effectiveCC);
     }
