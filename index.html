@@ -452,6 +452,7 @@
         .card-priority.warm { background: rgba(245,158,11,0.12); color: #f59e0b; }
         .card-priority.cold { background: rgba(59,130,246,0.12); color: #3b82f6; }
         .card-source { padding: 2px 7px; border-radius: 6px; font-size: 12px; background: rgba(255,255,255,0.07); color: var(--muted2); }
+        .card-source-inline { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
         .card-value { padding: 2px 7px; border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--green); background: rgba(52,211,153,0.1); font-family: var(--font-mono); }
 
         /* ─── STAGE AGE ────────────────────────────────────── */
@@ -3603,13 +3604,12 @@ function renderCard(cardData) {
             <input type="checkbox" class="card-checkbox" data-id="${cardData.id}" onclick="handleCardCheckbox(event, '${cardData.id}')">
         </div>
         ${quickActionsHtml}
-        ${leadMetaHtml}
         <div class="card-content">
             <div class="card-who">${escapeHtml(whoText)}</div>${bizText}
             <div class="card-what-why">${whatText}${whyText}</div>
         </div>
         <div class="card-footer">
-            <div class="card-meta">${checklistHtml}${dueDateHtml}${ageHtml}</div>
+            <div class="card-meta">${leadMetaHtml ? `<span class="card-source-inline">${(cardData.leadSource ? cardData.leadSource : '') + (cardData.emailDate ? ' · ' + fmtEmailDate(cardData.emailDate) : '')}</span>` : ''}${cardData.estimatedValue ? `<span class="card-value">$${cardData.estimatedValue}</span>` : ''}${checklistHtml}${dueDateHtml}${ageHtml}</div>
             <div style="display:flex;align-items:center;gap:4px;">${footerRightHtml}</div>
         </div>
     `;
