@@ -468,6 +468,8 @@
         .card-age.age-old   { background: rgba(239,68,68,0.08);   color: #ef4444; }
         .card-approve-btn { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 6px; border: none; background: rgba(52,211,153,0.2); color: #34d399; cursor: pointer; white-space: nowrap; }
         .card-invoice-paid-btn { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 6px; border: none; background: rgba(168,85,247,0.2); color: #a855f7; cursor: pointer; white-space: nowrap; }
+        .card-rates-btn { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 6px; border: none; background: rgba(245,158,11,0.18); color: #f59e0b; cursor: pointer; white-space: nowrap; }
+        .card-quick-btn.dead-btn:hover { border-color: #ef4444; color: #ef4444; }
 
         /* ─── QUICK ACTIONS ON HOVER ──────────────────────── */
         .card-quick-actions {
@@ -3514,6 +3516,13 @@ function quickReply(cardId) {
     openCardModal(cardId);
     setTimeout(() => draftAndOpenComposer(), 250);
 }
+function quickSendRates(cardId) {
+    openCardModal(cardId);
+    setTimeout(() => {
+        switchReplyTab('sam');
+        prefillSamTemplate('rates');
+    }, 300);
+}
 function quickMoveNext(cardId) {
     const card = cardsData[cardId];
     if (!card) return;
@@ -3521,6 +3530,7 @@ function quickMoveNext(cardId) {
     if (idx >= 0 && idx < boardConfig.length - 1) moveCardToList(cardId, boardConfig[idx + 1].id);
 }
 function quickDone(cardId) { moveCardToList(cardId, 'done'); }
+function quickDead(cardId) { moveCardToList(cardId, 'dead-leads'); }
 
 // ── Render Card ────────────────────────────────────
 function renderCard(cardData) {
@@ -3585,15 +3595,19 @@ function renderCard(cardData) {
     const hasPendingDraft = !isDone && cardData.draft_reply && (cardData.draft_reply_status === 'drafted' || cardData.draft_reply_status === 'pending');
     const draftVoice = (cardData.draft_reply && typeof cardData.draft_reply === 'object') ? (cardData.draft_reply.voice || 'sam') : 'sam';
     const voiceLabel = draftVoice === 'robert' ? 'Robert' : 'Sam';
+    const isEngaged = cardData.listId === 'engaged';
+    const isRatesSent = cardData.listId === 'rates-sent';
+
     // Don't show hover quick-actions when footer already has persistent reply buttons
     const quickActionsHtml = (!isDone && !cardData.newReplyAt) ? `
         <div class="card-quick-actions" onclick="event.stopPropagation()">
             ${cardData.email ? `<button class="card-quick-btn" onclick="quickReply(${cardData.id})" title="Open reply draft">✉ Reply</button>` : ''}
             ${nextStage ? `<button class="card-quick-btn" onclick="quickMoveNext(${cardData.id})" title="Move to ${nextStage.title}">→ ${nextStage.title.split(' ')[0]}</button>` : ''}
             <button class="card-quick-btn done-btn" onclick="quickDone(${cardData.id})" title="Mark as Done">✓</button>
+            <button class="card-quick-btn dead-btn" onclick="quickDead(${cardData.id})" title="Move to Dead Leads">✕ Dead</button>
         </div>` : '';
 
-    // Footer right: reply-needed actions take priority, then invoice/approve/assignee
+    // Footer right: reply-needed actions take priority, then rates/invoice/approve/assignee
     let footerRightHtml;
     if (cardData.newReplyAt && !isDone) {
         footerRightHtml = `
@@ -3602,6 +3616,8 @@ function renderCard(cardData) {
                 ${cardData.email ? `<button class="card-quick-btn" onclick="quickReply(${cardData.id})">✉ Reply</button>` : ''}
                 ${nextStage ? `<button class="card-quick-btn" onclick="quickMoveNext(${cardData.id})">→ ${nextStage.title.split(' ')[0]}</button>` : ''}
             </div>`;
+    } else if ((isEngaged || isRatesSent) && !hasPendingDraft) {
+        footerRightHtml = `<button class="card-rates-btn" onclick="event.stopPropagation();quickSendRates(${cardData.id})" title="Open rates email template">$ Rates</button>`;
     } else if (cardData.listId === 'done' || boardConfig.find(l=>l.id===cardData.listId)?.title?.toLowerCase().includes('invoice')) {
         footerRightHtml = `<button class="card-invoice-paid-btn" onclick="event.stopPropagation();markInvoicePaid(${cardData.id})" title="Mark invoice as paid — moves to Paid Out">💰 Invoice Paid</button>`;
     } else if (hasPendingDraft) {
