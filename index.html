@@ -4562,7 +4562,7 @@ async function sendSamEmail() {
         const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ to, subject, body, threadId, from: 'sam', cc: 'UnalignedX@gmail.com,samlevin@mac.com,asherunaligned@gmail.com', attachPdf: isRatesEmail })
+            body: JSON.stringify({ to, subject, body, threadId, from: 'sam', cc: 'scobleizer@gmail.com,UnalignedX@gmail.com,samlevin@mac.com,asherunaligned@gmail.com', attachPdf: isRatesEmail })
         });
         const data = await resp.json();
         if (data.error) throw new Error(data.error);
