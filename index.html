@@ -4310,6 +4310,7 @@ async function sendEmail() {
         const threadId = currentEditingCardData?.gmailThreadId || currentEditingCardData?.threadId || null;
         const fromSender = emailComposeVoice === 'robert' ? 'robert' : 'sam';
         const isRobert = fromSender === 'robert';
+        const isRatesEmail = ['engaged', 'rates-sent'].includes(currentEditingCardData.listId);
 
         const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail', {
             method: 'POST',
@@ -4317,7 +4318,8 @@ async function sendEmail() {
             body: JSON.stringify({
                 to, subject, body, threadId,
                 from: fromSender,
-                cc: 'scobleizer@gmail.com,UnalignedX@gmail.com,samlevin@mac.com,asherunaligned@gmail.com'
+                cc: 'scobleizer@gmail.com,UnalignedX@gmail.com,samlevin@mac.com,asherunaligned@gmail.com',
+                attachPdf: isRatesEmail
             })
         });
         const data = await resp.json();
