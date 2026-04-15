@@ -3549,7 +3549,7 @@ function renderCard(cardData) {
     {
         const sHtml = cardData.leadSource ? (cardData.emailDate ? `<span class="card-source">${cardData.leadSource} · ${fmtEmailDate(cardData.emailDate)}</span>` : `<span class="card-source">${cardData.leadSource}</span>`) : (cardData.emailDate ? `<span class="card-source">${fmtEmailDate(cardData.emailDate)}</span>` : '');
         const vHtml = cardData.estimatedValue ? `<span class="card-value">$${cardData.estimatedValue}</span>` : '';
-        leadMetaHtml = `<div class="card-lead-meta">${sHtml}${vHtml}${labelsHtml ? `<span class="card-labels" style="margin-left:2px;">${labelsHtml}</span>` : ''}</div>`;
+        leadMetaHtml = `<div class="card-lead-meta">${sHtml}${vHtml}</div>`;
     }
 
     // Build compact card display: WHO — WHAT — WHY
