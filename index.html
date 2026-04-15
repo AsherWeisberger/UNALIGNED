@@ -464,7 +464,7 @@
         /* ─── QUICK ACTIONS ON HOVER ──────────────────────── */
         .card-quick-actions { display: none; position: absolute; top: 8px; right: 8px; gap: 4px; z-index: 2; align-items: center; }
         .card:hover .card-quick-actions { display: flex; }
-        .card-needs-reply .card-quick-actions { display: flex; }
+        .card-reply-actions { display: flex; align-items: center; gap: 5px; }
         .card-quick-btn {
             background: rgba(13,15,28,0.92); border: 1px solid rgba(255,255,255,0.13);
             border-radius: 6px; padding: 4px 9px; font-size: 11px; cursor: pointer;
@@ -3519,7 +3519,7 @@ function renderCard(cardData) {
     let priorityClass = 'card';
     if (cardData.listId === 'done') priorityClass = 'card priority-done';
     else if (cardData.priority) priorityClass = 'card priority-'+cardData.priority;
-    if (cardData.newReplyAt) priorityClass += ' card-new-reply card-needs-reply';
+    if (cardData.newReplyAt) priorityClass += ' card-new-reply';
     card.className = priorityClass;
     card.draggable = true; card.dataset.cardId = cardData.id; card.id = 'card-'+cardData.id;
 
@@ -3564,7 +3564,7 @@ function renderCard(cardData) {
         ageHtml = `<span class="card-age ${ageCls}">${ageDays}d</span>`;
     }
 
-    // Quick action buttons (hidden, shown on hover via CSS)
+    // Quick action buttons (hover-only, absolute positioned)
     const nextStageIdx = boardConfig.findIndex(l => l.id === cardData.listId);
     const nextStage = nextStageIdx >= 0 && nextStageIdx < boardConfig.length - 1 ? boardConfig[nextStageIdx + 1] : null;
     const isDone = cardData.listId === 'done' || cardData.listId === 'paid-out';
@@ -3573,11 +3573,27 @@ function renderCard(cardData) {
     const voiceLabel = draftVoice === 'robert' ? 'Robert' : 'Sam';
     const quickActionsHtml = !isDone ? `
         <div class="card-quick-actions" onclick="event.stopPropagation()">
-            ${cardData.newReplyAt ? '<span class="reply-needed-dot" title="Reply needed"></span>' : ''}
             ${cardData.email ? `<button class="card-quick-btn" onclick="quickReply(${cardData.id})" title="Open reply draft">✉ Reply</button>` : ''}
             ${nextStage ? `<button class="card-quick-btn" onclick="quickMoveNext(${cardData.id})" title="Move to ${nextStage.title}">→ ${nextStage.title.split(' ')[0]}</button>` : ''}
             <button class="card-quick-btn done-btn" onclick="quickDone(${cardData.id})" title="Mark as Done">✓</button>
         </div>` : '';
+
+    // Footer right: reply-needed actions take priority, then invoice/approve/assignee
+    let footerRightHtml;
+    if (cardData.newReplyAt && !isDone) {
+        footerRightHtml = `
+            <div class="card-reply-actions" onclick="event.stopPropagation()">
+                <span class="reply-needed-dot"></span>
+                ${cardData.email ? `<button class="card-quick-btn" onclick="quickReply(${cardData.id})">✉ Reply</button>` : ''}
+                ${nextStage ? `<button class="card-quick-btn" onclick="quickMoveNext(${cardData.id})">→ ${nextStage.title.split(' ')[0]}</button>` : ''}
+            </div>`;
+    } else if (cardData.listId === 'done' || boardConfig.find(l=>l.id===cardData.listId)?.title?.toLowerCase().includes('invoice')) {
+        footerRightHtml = `<button class="card-invoice-paid-btn" onclick="event.stopPropagation();markInvoicePaid(${cardData.id})" title="Mark invoice as paid — moves to Paid Out">💰 Invoice Paid</button>`;
+    } else if (hasPendingDraft) {
+        footerRightHtml = `<button class="card-approve-btn" onclick="event.stopPropagation();quickApproveAndSend(${cardData.id})" title="Approve & Send draft">✅ Approve ${voiceLabel}</button>`;
+    } else {
+        footerRightHtml = assigneeHtml;
+    }
 
     card.innerHTML = `
         <div class="card-checkbox-wrap">
@@ -3592,10 +3608,7 @@ function renderCard(cardData) {
         </div>
         <div class="card-footer">
             <div class="card-meta">${checklistHtml}${dueDateHtml}${ageHtml}</div>
-            <div style="display:flex;align-items:center;gap:4px;">
-                ${(cardData.listId === 'done' || boardConfig.find(l=>l.id===cardData.listId)?.title?.toLowerCase().includes('invoice')) ? `<button class="card-invoice-paid-btn" onclick="event.stopPropagation();markInvoicePaid(${cardData.id})" title="Mark invoice as paid — moves to Paid Out">💰 Invoice Paid</button>` : ''}
-                ${hasPendingDraft ? `<button class="card-approve-btn" onclick="event.stopPropagation();quickApproveAndSend(${cardData.id})" title="Approve & Send draft">✅ Approve ${voiceLabel}</button>` : assigneeHtml}
-            </div>
+            <div style="display:flex;align-items:center;gap:4px;">${footerRightHtml}</div>
         </div>
     `;
 
