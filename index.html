@@ -428,11 +428,11 @@
         .card.priority-cold { border-left-color: #3b82f6; }
         .card.priority-done { background: rgba(52,211,153,0.04); border-left-color: #34d399; border-color: rgba(52,211,153,0.15); }
 
-        .card-labels { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 8px; }
+        .card-labels { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
         .card-label-text {
-            padding: 2px 8px; border-radius: 999px;
-            font-size: 10px; font-weight: 600; color: #fff;
-            font-family: var(--font-mono);
+            padding: 1px 6px; border-radius: 999px;
+            font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.75);
+            font-family: var(--font-mono); opacity: 0.55;
         }
         .card-content { font-size: 15px; color: var(--text); line-height: 1.4; flex: 1; }
         .card-who { font-weight: 600; margin-bottom: 4px; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -3058,6 +3058,7 @@ function renderAllCards() {
     });
     Object.values(cardsData).filter(c => !boardConfig.find(s=>s.id===c.listId)).forEach(card => renderCard(card));
     applyFilters();
+    requestAnimationFrame(() => updateBoardScrollBtns());
 }
 
 async function loadState() {
@@ -3197,6 +3198,7 @@ function initBoardScrollBtns() {
     setTimeout(updateBoardScrollBtns, 100);
     setTimeout(updateBoardScrollBtns, 500);
     setTimeout(updateBoardScrollBtns, 1500);
+    setTimeout(updateBoardScrollBtns, 3000);
 }
 window.initBoardScrollBtns = initBoardScrollBtns;
 
@@ -3544,10 +3546,10 @@ function renderCard(cardData) {
     }
 
     let leadMetaHtml = '';
-    if (cardData.leadSource || cardData.estimatedValue || cardData.emailDate) {
+    {
         const sHtml = cardData.leadSource ? (cardData.emailDate ? `<span class="card-source">${cardData.leadSource} · ${fmtEmailDate(cardData.emailDate)}</span>` : `<span class="card-source">${cardData.leadSource}</span>`) : (cardData.emailDate ? `<span class="card-source">${fmtEmailDate(cardData.emailDate)}</span>` : '');
         const vHtml = cardData.estimatedValue ? `<span class="card-value">$${cardData.estimatedValue}</span>` : '';
-        leadMetaHtml = `<div class="card-lead-meta">${sHtml}${vHtml}</div>`;
+        leadMetaHtml = `<div class="card-lead-meta">${sHtml}${vHtml}${labelsHtml ? `<span class="card-labels" style="margin-left:2px;">${labelsHtml}</span>` : ''}</div>`;
     }
 
     // Build compact card display: WHO — WHAT — WHY
@@ -3600,7 +3602,6 @@ function renderCard(cardData) {
             <input type="checkbox" class="card-checkbox" data-id="${cardData.id}" onclick="handleCardCheckbox(event, '${cardData.id}')">
         </div>
         ${quickActionsHtml}
-        <div class="card-labels">${labelsHtml}</div>
         ${leadMetaHtml}
         <div class="card-content">
             <div class="card-who">${escapeHtml(whoText)}${bizText}</div>
