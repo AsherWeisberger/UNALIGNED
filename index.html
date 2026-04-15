@@ -582,7 +582,7 @@
         .card-modal {
             background: var(--surface);
             border-radius: var(--radius-lg);
-            width: min(680px, 95%); max-height: 90vh;
+            width: min(980px, 97%); max-height: 92vh;
             color: var(--text); box-shadow: var(--shadow-lg);
             border: 1px solid var(--border2);
             display: none; position: relative;
@@ -621,8 +621,28 @@
         }
         .card-modal-close:hover { background: #ef4444; color: #fff; }
 
-        .card-modal-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; flex: 1; }
+        .card-modal-body { padding: 0; display: flex; flex-direction: row; gap: 0; overflow: hidden; flex: 1; min-height: 0; }
         .card-modal-main { display: flex; flex-direction: column; gap: 16px; }
+
+        /* ─── EMAIL-CLIENT MODAL LAYOUT ──────────────────── */
+        .email-header-left { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+        .email-header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+        .email-sender-avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; flex-shrink: 0; background: rgba(91,140,255,0.2); color: var(--accent); font-family: var(--font-body); }
+        .email-info-sidebar { width: 264px; flex-shrink: 0; border-right: 1px solid var(--border); overflow-y: auto; padding: 14px 12px; display: flex; flex-direction: column; gap: 12px; }
+        .email-thread-pane { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+        .email-thread-scroll { flex: 1; overflow-y: auto; }
+        .email-thread-header { padding: 10px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; flex-shrink: 0; position: sticky; top: 0; background: var(--surface); z-index: 1; }
+        .email-thread-header-label { font-size: 11px; font-weight: 600; color: var(--muted2); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; }
+        .email-thread-header-count { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
+        .email-contact-row { display: flex; align-items: flex-start; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--border); }
+        .email-contact-row:last-child { border-bottom: none; padding-bottom: 0; }
+        .email-field-label { font-size: 10px; font-family: var(--font-mono); text-transform: uppercase; color: var(--muted); width: 56px; flex-shrink: 0; padding-top: 2px; letter-spacing: 0.04em; }
+        .email-reply-dock { border-top: 1px solid var(--border2); flex-shrink: 0; background: var(--surface); }
+        .reply-dock-tabs { display: flex; border-bottom: 1px solid var(--border); }
+        .reply-dock-tab { padding: 8px 18px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; background: none; color: var(--muted2); border-bottom: 2px solid transparent; transition: all 0.15s; font-family: var(--font-body); position: relative; top: 1px; }
+        .reply-dock-tab:hover { color: var(--text); }
+        .reply-dock-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+        .reply-dock-panel { padding: 14px 16px; max-height: 320px; overflow-y: auto; }
 
         .modal-section {
             background: var(--surface2); border-radius: 10px; padding: 16px;
@@ -713,109 +733,44 @@
             opacity: 0.4;
         }
 
-        /* Email Thread — clean, readable conversation view */
-        #thread-list { display: flex; flex-direction: column; gap: 0; }
-
-        .contact-info-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-        .contact-info-grid .contact-info-item:last-child:nth-child(odd) {
-            grid-column: 1 / -1;
-        }
-        .contact-info-item {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-        .contact-info-label {
-            font-size: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            font-family: var(--font-mono);
-            color: var(--muted2);
-        }
-        .contact-info-value {
-            font-size: 13px;
-            color: var(--text);
-            font-family: var(--font-mono);
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        .contact-info-value a {
-            color: #4facfe;
-            text-decoration: none;
-            word-break: break-all;
-        }
+        /* ─── GMAIL-STYLE EMAIL THREAD ───────────────────── */
+        #thread-list { display: flex; flex-direction: column; }
+        .contact-info-value { font-size: 12px; color: var(--text); font-family: var(--font-mono); display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; word-break: break-all; }
+        .contact-info-value a { color: #4facfe; text-decoration: none; word-break: break-all; }
         .contact-info-value a:hover { text-decoration: underline; }
         .contact-info-value .no-data { color: var(--muted2); font-style: italic; font-size: 12px; }
-        .contact-copy-btn {
-            background: none;
-            border: none;
-            color: var(--muted2);
-            cursor: pointer;
-            font-size: 12px;
-            padding: 2px 4px;
-            border-radius: 3px;
-            flex-shrink: 0;
-        }
+        .contact-copy-btn { background: none; border: none; color: var(--muted2); cursor: pointer; font-size: 12px; padding: 2px 4px; border-radius: 3px; flex-shrink: 0; }
         .contact-copy-btn:hover { color: #4facfe; background: rgba(79,172,254,0.1); }
-        .thread-email {
-            background: var(--surface2);
-            border-radius: 10px;
-            padding: 14px 16px;
-            border: 1px solid var(--border);
-            position: relative;
-        }
-        .thread-email + .thread-email { margin-top: 10px; }
 
-        /* Colored left border by sender */
-        .thread-email.from-lead  { border-left: 3px solid #fbbf24; }
-        .thread-email.from-robert { border-left: 3px solid #34d399; }
-        .thread-email.from-sam   { border-left: 3px solid #63b3ed; }
+        /* Thread email row */
+        .thread-email { border-bottom: 1px solid var(--border); }
+        .thread-email:last-child { border-bottom: none; }
+        .thread-email-header { display: flex; align-items: flex-start; gap: 10px; padding: 11px 18px; cursor: pointer; user-select: none; transition: background 0.1s; }
+        .thread-email-header:hover { background: rgba(255,255,255,0.03); }
 
-        .thread-email-header {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 8px;
-            flex-wrap: wrap;
-        }
-        .thread-sender {
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            padding: 2px 8px;
-            border-radius: 20px;
-        }
-        .thread-sender.lead  { background: rgba(251,191,36,0.15); color: #fbbf24; }
-        .thread-sender.robert { background: rgba(52,211,153,0.15); color: #34d399; }
-        .thread-sender.sam   { background: rgba(99,179,237,0.15); color: #63b3ed; }
+        /* Avatar circles */
+        .thread-avatar { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; font-family: var(--font-body); }
+        .thread-avatar.lead    { background: rgba(251,191,36,0.2);  color: #fbbf24; }
+        .thread-avatar.robert  { background: rgba(52,211,153,0.2);  color: #34d399; }
+        .thread-avatar.sam     { background: rgba(99,179,237,0.2);  color: #63b3ed; }
+        .thread-avatar.unaligned, .thread-avatar.asher { background: rgba(168,85,247,0.2); color: #a78bfa; }
 
-        .thread-timestamp {
-            font-size: 11px;
-            color: var(--muted);
-            font-family: var(--font-mono);
-        }
-        .thread-subject {
-            font-size: 12px;
-            color: var(--text-dim);
-            font-style: italic;
-            margin-bottom: 10px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .thread-body {
-            font-size: 13px;
-            line-height: 1.65;
-            color: var(--text);
-            white-space: pre-wrap;
-            word-break: break-word;
-        }
+        /* Thread meta */
+        .thread-meta { flex: 1; min-width: 0; }
+        .thread-meta-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+        .thread-name { font-size: 13px; font-weight: 600; color: var(--text); }
+        .thread-timestamp { font-size: 11px; color: var(--muted); font-family: var(--font-mono); flex-shrink: 0; }
+        .thread-meta-sub { font-size: 11px; color: var(--muted2); margin-top: 2px; }
+
+        /* Snippet shown when collapsed */
+        .thread-snippet { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 460px; margin-top: 2px; display: none; }
+        .thread-email.collapsed .thread-snippet { display: block; }
+        .thread-email.collapsed .thread-meta-sub { display: none; }
+
+        /* Body */
+        .thread-body-wrapper { padding: 0 18px 14px 62px; }
+        .thread-email.collapsed .thread-body-wrapper { display: none; }
+        .thread-body { font-size: 13px; line-height: 1.65; color: var(--text); white-space: pre-wrap; word-break: break-word; max-height: 420px; overflow-y: auto; }
 
         #draft-reply-section { border-color: rgba(91,140,255,0.2); }
 
@@ -1367,6 +1322,10 @@
             .card-modal { width: 100% !important; height: 100% !important; max-width: 100% !important; max-height: 100% !important; border-radius: 0 !important; }
             .card-modal.active { animation: none !important; }
             .card-modal-header { position: sticky; top: 0; z-index: 10; background: var(--surface); }
+            .card-modal-body { flex-direction: column !important; overflow-y: auto !important; }
+            .email-info-sidebar { width: 100% !important; border-right: none !important; border-bottom: 1px solid var(--border); max-height: 280px; flex-shrink: 0; }
+            .email-thread-pane { flex: none !important; width: 100%; }
+            .reply-dock-panel { max-height: none !important; }
 
             /* ── Mobile column nav bar ── */
             #mobile-col-nav {
@@ -1953,20 +1912,73 @@
     <!-- ─── CARD MODAL ───────────────────────────────────── -->
     <div class="modal-overlay" id="card-modal-overlay" onclick="closeCardModal(event)">
         <div class="card-modal" id="card-modal" onclick="event.stopPropagation()">
+
+            <!-- ── Header: avatar + title + actions ── -->
             <div class="card-modal-header">
-                <div class="card-modal-title-section">
-                    <input type="text" class="card-modal-title" id="modal-card-title" placeholder="Card title…">
-                    <div class="card-modal-subtitle">in <span id="modal-list-name">list</span> &bull; <span id="modal-created-info"></span> &bull; First contact: <span id="modal-first-contact" style="color:#4facfe;"></span></div>
+                <div class="email-header-left">
+                    <div class="email-sender-avatar" id="modal-sender-avatar">?</div>
+                    <div class="card-modal-title-section">
+                        <input type="text" class="card-modal-title" id="modal-card-title" placeholder="Card title…">
+                        <div class="card-modal-subtitle">in <span id="modal-list-name">list</span> &bull; <span id="modal-created-info"></span> &bull; First contact: <span id="modal-first-contact" style="color:#4facfe;"></span></div>
+                    </div>
                 </div>
-                <button class="card-modal-save" onclick="saveCardAndClose()">Save</button>
-                <button class="card-modal-close" onclick="closeCardModal()">×</button>
+                <div class="email-header-actions">
+                    <button class="card-modal-save" onclick="saveCardAndClose()">Save</button>
+                    <button class="card-modal-close" onclick="closeCardModal()">×</button>
+                </div>
             </div>
+
+            <!-- ── Two-pane body ── -->
             <div class="card-modal-body">
-                <div class="card-modal-main">
-                    <!-- WHO / WHAT / WHY / VALUE — all in one textarea -->
-                    <!-- Lead Details — structured 2×2 grid -->
-                    <div class="modal-section" id="lead-details-section">
-                        <div class="modal-section-title">📋 Lead Details</div>
+
+                <!-- LEFT: Contact & Lead sidebar -->
+                <div class="email-info-sidebar">
+
+                    <!-- Contact card -->
+                    <div class="modal-section" id="contact-info-section" style="padding:12px;">
+                        <div class="modal-section-title" style="margin-bottom:8px;">Contact</div>
+                        <div id="contact-info-grid">
+                            <div class="email-contact-row">
+                                <span class="email-field-label">Email</span>
+                                <div class="contact-info-value" id="contact-email">
+                                    <a href="#" id="contact-email-link" target="_blank"></a>
+                                    <button class="contact-copy-btn" onclick="copyContactField('email')" title="Copy">📋</button>
+                                </div>
+                            </div>
+                            <div class="email-contact-row">
+                                <span class="email-field-label">Phone</span>
+                                <div class="contact-info-value" id="contact-phone">
+                                    <span class="no-data" id="contact-phone-value">—</span>
+                                    <button class="contact-copy-btn" onclick="copyContactField('phone')" title="Copy" id="phone-copy-btn" style="display:none;">📋</button>
+                                </div>
+                            </div>
+                            <div class="email-contact-row">
+                                <span class="email-field-label">LinkedIn</span>
+                                <div class="contact-info-value" id="contact-linkedin">
+                                    <a href="#" id="contact-linkedin-link" target="_blank">View Profile</a>
+                                    <button class="contact-copy-btn" onclick="copyContactField('linkedin')" title="Copy">📋</button>
+                                </div>
+                            </div>
+                            <div class="email-contact-row">
+                                <span class="email-field-label">Website</span>
+                                <div class="contact-info-value" id="contact-website">
+                                    <span class="no-data" id="contact-website-value">—</span>
+                                    <button class="contact-copy-btn" onclick="copyContactField('website')" title="Copy" id="website-copy-btn" style="display:none;">📋</button>
+                                </div>
+                            </div>
+                            <div class="email-contact-row" style="border-bottom:none;padding-bottom:0;">
+                                <span class="email-field-label">Location</span>
+                                <div class="contact-info-value" id="contact-location">
+                                    <span class="no-data" id="contact-location-value">—</span>
+                                    <button class="contact-copy-btn" onclick="copyContactField('location')" title="Copy" id="location-copy-btn" style="display:none;">📋</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Lead Intel: WHO / WHAT / WHY / VALUE -->
+                    <div class="modal-section" id="lead-details-section" style="padding:12px;">
+                        <div class="modal-section-title" style="margin-bottom:8px;">Lead Intel</div>
                         <div class="lead-details-grid">
                             <div class="lead-field">
                                 <span class="lead-field-label who">WHO</span>
@@ -1978,82 +1990,42 @@
                             <div class="lead-field">
                                 <span class="lead-field-label what">WHAT</span>
                                 <textarea class="lead-field-input" id="lead-what" rows="1"
-                                    placeholder="Intent type · product interest"
+                                    placeholder="Intent type · product"
                                     oninput="autoResize(this); syncLeadDetails()"
                                     onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('lead-why').focus()}"></textarea>
                             </div>
                             <div class="lead-field">
                                 <span class="lead-field-label why">WHY</span>
                                 <textarea class="lead-field-input" id="lead-why" rows="1"
-                                    placeholder="Their message · hook · pain point"
+                                    placeholder="Hook · pain point"
                                     oninput="autoResize(this); syncLeadDetails()"
                                     onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('lead-value').focus()}"></textarea>
                             </div>
                             <div class="lead-field">
                                 <span class="lead-field-label value">VALUE</span>
                                 <textarea class="lead-field-input" id="lead-value" rows="1"
-                                    placeholder="Deal size · urgency · LTV"
+                                    placeholder="Deal size · urgency"
                                     oninput="autoResize(this); syncLeadDetails()"
                                     onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('lead-who').focus()}"></textarea>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Contact Information -->
-                    <div class="modal-section" id="contact-info-section">
-                        <div class="modal-section-title">📞 Contact Information</div>
-                        <div class="contact-info-grid" id="contact-info-grid">
-                            <div class="contact-info-item">
-                                <div class="contact-info-label">📧 Email</div>
-                                <div class="contact-info-value" id="contact-email">
-                                    <a href="#" id="contact-email-link" target="_blank"></a>
-                                    <button class="contact-copy-btn" onclick="copyContactField('email')" title="Copy">📋</button>
-                                </div>
+                    <!-- Assignee + Due Date -->
+                    <div class="modal-section" style="padding:12px;">
+                        <div style="display:flex;flex-direction:column;gap:10px;">
+                            <div>
+                                <div class="modal-section-title" style="margin-bottom:5px;">Assignee</div>
+                                <div class="modal-assignee-display" id="modal-assignee" style="display:flex;align-items:center;gap:8px;"></div>
                             </div>
-                            <div class="contact-info-item">
-                                <div class="contact-info-label">📱 Phone</div>
-                                <div class="contact-info-value" id="contact-phone">
-                                    <span class="no-data" id="contact-phone-value">Not provided</span>
-                                    <button class="contact-copy-btn" onclick="copyContactField('phone')" title="Copy" id="phone-copy-btn" style="display:none;">📋</button>
-                                </div>
-                            </div>
-                            <div class="contact-info-item">
-                                <div class="contact-info-label">💼 LinkedIn</div>
-                                <div class="contact-info-value" id="contact-linkedin">
-                                    <a href="#" id="contact-linkedin-link" target="_blank">View Profile</a>
-                                    <button class="contact-copy-btn" onclick="copyContactField('linkedin')" title="Copy">📋</button>
-                                </div>
-                            </div>
-                            <div class="contact-info-item">
-                                <div class="contact-info-label">🌐 Website</div>
-                                <div class="contact-info-value" id="contact-website">
-                                    <span class="no-data" id="contact-website-value">Not provided</span>
-                                    <button class="contact-copy-btn" onclick="copyContactField('website')" title="Copy" id="website-copy-btn" style="display:none;">📋</button>
-                                </div>
-                            </div>
-                            <div class="contact-info-item" style="grid-column:1/-1;">
-                                <div class="contact-info-label">📍 Location</div>
-                                <div class="contact-info-value" id="contact-location">
-                                    <span class="no-data" id="contact-location-value">Not provided</span>
-                                    <button class="contact-copy-btn" onclick="copyContactField('location')" title="Copy" id="location-copy-btn" style="display:none;">📋</button>
-                                </div>
+                            <div>
+                                <div class="modal-section-title" style="margin-bottom:5px;">Due Date</div>
+                                <input type="date" class="contact-input" id="due-date-input" onchange="updateDueDate()" style="margin-bottom:0;">
                             </div>
                         </div>
                     </div>
 
-                    <!-- Email Thread (includes original lead + all replies, oldest→newest) -->
-                    <div class="modal-section" id="thread-section" style="display:none;">
-                        <div class="modal-section-title" style="display:flex;align-items:center;gap:8px;">
-                            💬 Email Conversation
-                            <span id="thread-count" style="font-size:11px;color:var(--muted);"></span>
-                        </div>
-                        <div id="thread-empty" style="color:var(--muted);font-size:12px;font-family:var(--font-mono);display:none;">
-                            No emails in thread yet. Send the first draft to start the chain.
-                        </div>
-                        <div id="thread-list"></div>
-                    </div>
-
-                    <!-- ── UNIFIED ACTIVITY + TASKS ───────────────────── -->
+                    <!-- Activity & Tasks -->
                     <div class="unified-activity" id="unified-activity">
                         <div class="unified-activity-header">
                             <span class="unified-activity-title">Activity &amp; Tasks</span>
@@ -2077,76 +2049,98 @@
                         </div>
                     </div>
 
-                    <!-- Assignee + Due Date — compact inline row -->
-                    <div style="display:flex;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--border);margin-top:4px;">
-                        <div style="flex:1;">
-                            <div style="font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:0.06em;font-family:var(--font-mono);margin-bottom:6px;">Assignee</div>
-                            <div class="modal-assignee-display" id="modal-assignee" style="display:flex;align-items:center;gap:8px;"></div>
-                        </div>
-                        <div style="flex:1;">
-                            <div style="font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:0.06em;font-family:var(--font-mono);margin-bottom:6px;">Due Date</div>
-                            <input type="date" class="contact-input" id="due-date-input" onchange="updateDueDate()" style="margin-bottom:0;">
-                        </div>
-                    </div>
-
-                    <!-- Robert Scoble Email Reply -->
-                    <div class="modal-section" id="draft-reply-section">
-                        <div class="modal-section-title" style="display:flex;align-items:center;gap:8px;">
-                            ✉️ ROBERT SCOBLE EMAIL REPLY - FIRST RESPONSE
-                            <span id="draft-status-badge" class="draft-badge" style="display:none;"></span>
-                        </div>
-                        <div id="draft-loading" style="color:var(--muted);font-size:12px;font-family:var(--font-mono);display:none;">Generating…</div>
-                        <div id="draft-empty" style="color:var(--muted);font-size:12px;font-family:var(--font-mono);">
-                            No draft reply yet.
-                            <button class="sidebar-btn" onclick="draftAndOpenComposer()" id="btn-draft-send" style="font-size:12px;background:rgba(52,211,153,0.12);color:#34d399;display:block;margin-top:10px;">✨ Draft &amp; Send</button>
-                            <button class="sidebar-btn" onclick="regenerateDraft()" style="margin-top:8px;font-size:12px;display:block;">✨ Generate Draft</button>
-                        </div>
-                        <div id="draft-content" style="display:none;">
-                            <input type="text" class="contact-input" id="modal-draft-subject" placeholder="Subject line…" style="margin-bottom:8px;">
-                            <textarea class="description-textarea" id="modal-draft-body" placeholder="Draft reply body…" style="min-height:140px;resize:vertical;"></textarea>
-                            <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
-                                <button class="sidebar-btn" onclick="regenerateDraft()" id="btn-regen" style="font-size:12px;">🔄 Regenerate</button>
-                                <button class="sidebar-btn" onclick="copyDraft()" style="font-size:12px;">📋 Copy</button>
-                                <button class="sidebar-btn" onclick="openEmailComposer()" id="btn-send-email" style="font-size:12px;background:rgba(52,211,153,0.15);color:#34d399;">📤 Send Email</button>
-                                <select class="contact-input" id="modal-draft-status" style="font-size:12px;padding:6px 10px;">
-                                    <option value="pending">Pending</option>
-                                    <option value="drafted">Drafted</option>
-                                    <option value="approved">Approved</option>
-                                    <option value="sent">Sent</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div id="draft-error" style="display:none;color:#f87171;font-size:12px;font-family:var(--font-mono);"></div>
-                    </div>
-
-                    <!-- Sam Levin's Reply via UnalignedX -->
-                    <div class="modal-section" id="sam-draft-section">
-                        <div class="modal-section-title" style="display:flex;align-items:center;gap:8px;">
-                            ✉️ SAM LEVIN EMAIL REPLY
-                            <span style="font-size:11px;color:var(--muted);font-weight:400;">via UnalignedX</span>
-                            <span id="sam-draft-badge" class="draft-badge" style="display:none;"></span>
-                        </div>
-                        <div id="sam-draft-loading" style="color:var(--muted);font-size:12px;font-family:var(--font-mono);display:none;">Generating…</div>
-                        <div id="sam-draft-empty">
-                            <p style="color:var(--muted);font-size:12px;font-family:var(--font-mono);margin:0 0 10px;">Sam Levin replies after the initial outreach.</p>
-                            <button class="sidebar-btn" onclick="generateSamDraft()" style="font-size:12px;background:rgba(99,179,237,0.12);color:#63b3ed;display:block;">✨ Generate Sam's Draft</button>
-                        </div>
-                        <div id="sam-draft-content" style="display:none;">
-                            <textarea class="description-textarea" id="sam-draft-body" placeholder="Sam's reply…" style="min-height:100px;resize:vertical;"></textarea>
-                            <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
-                                <button class="sidebar-btn" onclick="generateSamDraft()" style="font-size:12px;">🔄 Regenerate</button>
-                                <button class="sidebar-btn" onclick="copySamDraft()" style="font-size:12px;">📋 Copy</button>
-                                <button class="sidebar-btn" onclick="sendSamEmail()" style="font-size:12px;background:rgba(99,179,237,0.15);color:#63b3ed;">📤 Send as Sam</button>
-                            </div>
-                            <div id="sam-email-error" style="color:#fc8181;font-size:12px;display:none;margin-top:8px;"></div>
-                        </div>
-                    </div>
-
-                    <div class="modal-section" style="border-color:rgba(248,113,113,0.2);">
+                    <!-- Delete -->
+                    <div class="modal-section" style="border-color:rgba(248,113,113,0.2);padding:10px;">
                         <button class="delete-card-btn" onclick="deleteCard()">🗑 Delete Card</button>
                     </div>
-                </div>
-            </div>
+
+                </div><!-- /email-info-sidebar -->
+
+                <!-- RIGHT: Thread + Reply -->
+                <div class="email-thread-pane">
+
+                    <!-- Thread scroll area -->
+                    <div class="email-thread-scroll">
+                        <div id="thread-section" style="display:none;">
+                            <div class="email-thread-header">
+                                <span class="email-thread-header-label">Thread</span>
+                                <span id="thread-count" class="email-thread-header-count"></span>
+                            </div>
+                            <div id="thread-empty" style="color:var(--muted);font-size:12px;font-family:var(--font-mono);display:none;padding:16px 18px;">
+                                No emails in thread yet.
+                            </div>
+                            <div id="thread-list"></div>
+                        </div>
+                    </div>
+
+                    <!-- Reply dock: tabbed Robert | Sam compose -->
+                    <div class="email-reply-dock">
+                        <div class="reply-dock-tabs">
+                            <button class="reply-dock-tab active" id="tab-robert" onclick="switchReplyTab('robert')">↩ Robert</button>
+                            <button class="reply-dock-tab" id="tab-sam" onclick="switchReplyTab('sam')">↩ Sam</button>
+                        </div>
+
+                        <!-- Robert compose -->
+                        <div class="reply-dock-panel" id="reply-panel-robert">
+                            <div class="modal-section" id="draft-reply-section" style="border-color:rgba(91,140,255,0.2);padding:12px;">
+                                <div class="modal-section-title" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                                    Robert Scoble — First Response
+                                    <span id="draft-status-badge" class="draft-badge" style="display:none;"></span>
+                                </div>
+                                <div id="draft-loading" style="color:var(--muted);font-size:12px;font-family:var(--font-mono);display:none;">Generating…</div>
+                                <div id="draft-empty">
+                                    No draft reply yet.
+                                    <button class="sidebar-btn" onclick="draftAndOpenComposer()" id="btn-draft-send" style="font-size:12px;background:rgba(52,211,153,0.12);color:#34d399;display:block;margin-top:10px;">✨ Draft &amp; Send</button>
+                                    <button class="sidebar-btn" onclick="regenerateDraft()" style="margin-top:8px;font-size:12px;display:block;">✨ Generate Draft</button>
+                                </div>
+                                <div id="draft-content" style="display:none;">
+                                    <input type="text" class="contact-input" id="modal-draft-subject" placeholder="Subject line…" style="margin-bottom:8px;">
+                                    <textarea class="description-textarea" id="modal-draft-body" placeholder="Draft reply body…" style="min-height:120px;resize:vertical;"></textarea>
+                                    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+                                        <button class="sidebar-btn" onclick="regenerateDraft()" id="btn-regen" style="font-size:12px;">🔄 Regenerate</button>
+                                        <button class="sidebar-btn" onclick="copyDraft()" style="font-size:12px;">📋 Copy</button>
+                                        <button class="sidebar-btn" onclick="openEmailComposer()" id="btn-send-email" style="font-size:12px;background:rgba(52,211,153,0.15);color:#34d399;">📤 Send Email</button>
+                                        <select class="contact-input" id="modal-draft-status" style="font-size:12px;padding:6px 10px;">
+                                            <option value="pending">Pending</option>
+                                            <option value="drafted">Drafted</option>
+                                            <option value="approved">Approved</option>
+                                            <option value="sent">Sent</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div id="draft-error" style="display:none;color:#f87171;font-size:12px;font-family:var(--font-mono);"></div>
+                            </div>
+                        </div>
+
+                        <!-- Sam compose -->
+                        <div class="reply-dock-panel" id="reply-panel-sam" style="display:none;">
+                            <div class="modal-section" id="sam-draft-section" style="padding:12px;">
+                                <div class="modal-section-title" style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                                    Sam Levin <span style="font-size:11px;color:var(--muted);font-weight:400;">via UnalignedX</span>
+                                    <span id="sam-draft-badge" class="draft-badge" style="display:none;"></span>
+                                </div>
+                                <div id="sam-draft-loading" style="color:var(--muted);font-size:12px;font-family:var(--font-mono);display:none;">Generating…</div>
+                                <div id="sam-draft-empty">
+                                    <p style="color:var(--muted);font-size:12px;font-family:var(--font-mono);margin:0 0 10px;">Sam replies after the initial outreach.</p>
+                                    <button class="sidebar-btn" onclick="generateSamDraft()" style="font-size:12px;background:rgba(99,179,237,0.12);color:#63b3ed;display:block;">✨ Generate Sam's Draft</button>
+                                </div>
+                                <div id="sam-draft-content" style="display:none;">
+                                    <textarea class="description-textarea" id="sam-draft-body" placeholder="Sam's reply…" style="min-height:100px;resize:vertical;"></textarea>
+                                    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+                                        <button class="sidebar-btn" onclick="generateSamDraft()" style="font-size:12px;">🔄 Regenerate</button>
+                                        <button class="sidebar-btn" onclick="copySamDraft()" style="font-size:12px;">📋 Copy</button>
+                                        <button class="sidebar-btn" onclick="sendSamEmail()" style="font-size:12px;background:rgba(99,179,237,0.15);color:#63b3ed;">📤 Send as Sam</button>
+                                    </div>
+                                    <div id="sam-email-error" style="color:#fc8181;font-size:12px;display:none;margin-top:8px;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div><!-- /email-reply-dock -->
+
+                </div><!-- /email-thread-pane -->
+
+            </div><!-- /card-modal-body -->
         </div>
     </div>
 
@@ -3806,6 +3800,28 @@ function openCardModal(cardId) {
 
     document.getElementById('modal-card-title').value = currentEditingCardData.title;
     document.getElementById('modal-card-title').oninput = e=>{currentEditingCardData.title=e.target.value;renderCard(currentEditingCardData);updateFlowMap();};
+
+    // Set sender avatar with color derived from contact name
+    const avatarEl = document.getElementById('modal-sender-avatar');
+    if (avatarEl) {
+        const name = currentEditingCardData.contactName || currentEditingCardData.title || '?';
+        avatarEl.textContent = name.charAt(0).toUpperCase();
+        const palettes = [
+            { bg:'rgba(91,140,255,0.22)',  color:'#5b8cff' },
+            { bg:'rgba(52,211,153,0.22)',  color:'#34d399' },
+            { bg:'rgba(251,191,36,0.22)',  color:'#fbbf24' },
+            { bg:'rgba(168,85,247,0.22)',  color:'#a78bfa' },
+            { bg:'rgba(248,113,113,0.22)', color:'#f87171' },
+            { bg:'rgba(99,179,237,0.22)',  color:'#63b3ed' },
+        ];
+        let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+        const p = palettes[h % palettes.length];
+        avatarEl.style.background = p.bg;
+        avatarEl.style.color = p.color;
+    }
+
+    // Reset reply tabs to Robert each time modal opens
+    switchReplyTab('robert');
     document.getElementById('modal-list-name').textContent = boardConfig.find(l=>l.id===currentEditingCardData.listId)?.title||'List';
     document.getElementById('modal-created-info').textContent = `Created by ${currentEditingCardData.createdBy} · ${timeAgo(new Date(currentEditingCardData.createdAt))}`;
 
@@ -3837,10 +3853,10 @@ function openCardModal(cardId) {
     // Scroll modal body to top on open
     requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-            const body = document.querySelector('.card-modal-body');
-            if (body) {
-                body.scrollTop = 0;
-            }
+            const scroll = document.querySelector('.email-thread-scroll');
+            if (scroll) scroll.scrollTop = 0;
+            const sidebar = document.querySelector('.email-info-sidebar');
+            if (sidebar) sidebar.scrollTop = 0;
         });
     });
 }
@@ -4369,23 +4385,37 @@ function renderThread() {
     count.textContent = `${total} email${total !== 1 ? 's' : ''}`;
 
     list.innerHTML = sorted.map((email, i) => {
-        const isFirst = i === 0;
         const isLast = i === sorted.length - 1;
         const dir = detectSender(email.from);
-        const senderLabel = dir === 'robert' ? 'Robert Scoble' : dir === 'sam' ? 'Sam Levin' : dir === 'unaligned' ? 'UNALIGNED' : dir === 'asher' ? 'ASHER W' : 'Lead';
+        const contactName = currentEditingCardData.contactName || 'Lead';
+        const senderLabel = dir === 'robert' ? 'Robert Scoble' : dir === 'sam' ? 'Sam Levin' : dir === 'unaligned' ? 'UNALIGNED' : dir === 'asher' ? 'Asher W' : contactName;
+        const avatarInitial = dir === 'robert' ? 'R' : dir === 'sam' ? 'S' : dir === 'unaligned' ? 'U' : dir === 'asher' ? 'A' : (contactName.charAt(0).toUpperCase() || 'L');
+        const toLine = (dir === 'lead') ? 'to Robert Scoble, Sam Levin' : `to ${contactName}`;
         const date = email.date ? new Date(email.date) : null;
         const dateStr = date ? date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
         const timeStr = date ? date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
         const fullDateStr = date ? date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+        const bodyText = decodeHtml(email.body || email.snippet || '');
+        const snippet = escHtml(bodyText.replace(/\n/g, ' ').slice(0, 110)) + (bodyText.length > 110 ? '…' : '');
+        const latestBadge = isLast ? '<span style="font-size:10px;background:rgba(91,140,255,0.15);color:var(--accent);padding:1px 7px;border-radius:99px;margin-left:6px;font-family:var(--font-mono);">latest</span>' : '';
+        const collapsedClass = isLast ? '' : ' collapsed';
 
         return `
-            <div class="thread-email from-${dir}" id="thread-email-${i}">
-                <div class="thread-email-header">
-                    <span class="thread-sender ${dir}">${escHtml(senderLabel)}</span>
-                    <span class="thread-timestamp" title="${escHtml(fullDateStr)}">${escHtml(dateStr)}${dateStr && timeStr ? ' · ' : ''}${escHtml(timeStr)}</span>
-                    ${isLast ? '<span style="font-size:10px;color:var(--accent);margin-left:4px;">← latest</span>' : ''}
+            <div class="thread-email from-${dir}${collapsedClass}" id="thread-email-${i}">
+                <div class="thread-email-header" onclick="this.closest('.thread-email').classList.toggle('collapsed')">
+                    <div class="thread-avatar ${dir}">${avatarInitial}</div>
+                    <div class="thread-meta">
+                        <div class="thread-meta-top">
+                            <span class="thread-name">${escHtml(senderLabel)}${latestBadge}</span>
+                            <span class="thread-timestamp" title="${escHtml(fullDateStr)}">${escHtml(dateStr)}${dateStr && timeStr ? ' · ' : ''}${escHtml(timeStr)}</span>
+                        </div>
+                        <div class="thread-meta-sub">${escHtml(toLine)}</div>
+                        <div class="thread-snippet">${snippet}</div>
+                    </div>
                 </div>
-                <div class="thread-body">${escHtml(decodeHtml(email.body || email.snippet || ''))}</div>
+                <div class="thread-body-wrapper">
+                    <div class="thread-body">${escHtml(bodyText)}</div>
+                </div>
             </div>
         `;
     }).join('');
@@ -4607,6 +4637,16 @@ window.sendEmail = sendEmail;
 window.generateSamDraft = generateSamDraft;
 window.copySamDraft = copySamDraft;
 window.sendSamEmail = sendSamEmail;
+
+function switchReplyTab(tab) {
+    ['robert','sam'].forEach(p => {
+        const panel = document.getElementById(`reply-panel-${p}`);
+        const btn = document.getElementById(`tab-${p}`);
+        if (panel) panel.style.display = p === tab ? 'block' : 'none';
+        if (btn) btn.classList.toggle('active', p === tab);
+    });
+}
+window.switchReplyTab = switchReplyTab;
 
 function renderAssignee() {
     const c = document.getElementById('modal-assignee');
