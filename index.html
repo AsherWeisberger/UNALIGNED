@@ -3509,6 +3509,14 @@ async function approveDraft() {
             card.draft_reply_status = 'sent';
             card.new_reply_at = null;
             card.newReplyAt = null;
+            // Add to visible email thread immediately (placeholder until morning scrape)
+            if (!Array.isArray(card.originalEmail)) card.originalEmail = [];
+            card.originalEmail.push({
+                from: 'Sam Levin <UnalignedX@gmail.com>',
+                subject: subject,
+                date: new Date().toISOString(),
+                body: body,
+            });
             card.activity = Array.isArray(card.activity) ? card.activity : [];
             card.activity.unshift({
                 user: currentProfile?.name || 'Sam',
@@ -4330,12 +4338,13 @@ async function sendEmail() {
 
         if (currentEditingCardData) {
             currentEditingCardData.draft_reply_status = 'sent';
-            if (!currentEditingCardData.thread) currentEditingCardData.thread = [];
-            currentEditingCardData.thread.push({
-                direction: fromSender,
+            // Add to visible email thread immediately (placeholder until morning scrape replaces it)
+            if (!Array.isArray(currentEditingCardData.originalEmail)) currentEditingCardData.originalEmail = [];
+            currentEditingCardData.originalEmail.push({
                 from: isRobert ? 'Robert Scoble <scobleizer@gmail.com>' : 'Sam Levin <UnalignedX@gmail.com>',
-                to, subject, body,
-                date: new Date().toISOString()
+                subject: subject,
+                date: new Date().toISOString(),
+                body: body,
             });
             currentEditingCardData.activity = Array.isArray(currentEditingCardData.activity) ? currentEditingCardData.activity : [];
             currentEditingCardData.activity.unshift({
@@ -4684,18 +4693,15 @@ async function sendSamEmail() {
         const data = await resp.json();
         if (data.error) throw new Error(data.error);
 
-        // Add to thread
-        if (!currentEditingCardData.thread) currentEditingCardData.thread = [];
-        currentEditingCardData.thread.push({
-            direction: 'sam',
+        // Add to visible email thread immediately (placeholder until morning scrape)
+        if (!Array.isArray(currentEditingCardData.originalEmail)) currentEditingCardData.originalEmail = [];
+        currentEditingCardData.originalEmail.push({
             from: 'Sam Levin <UnalignedX@gmail.com>',
-            to: to,
-            subject: subject,
+            subject: subject || '',
+            date: new Date().toISOString(),
             body: body,
-            date: new Date().toISOString()
         });
 
-        // Log activity
         currentEditingCardData.activity = Array.isArray(currentEditingCardData.activity) ? currentEditingCardData.activity : [];
         currentEditingCardData.activity.unshift({
             user: 'Sam L',
