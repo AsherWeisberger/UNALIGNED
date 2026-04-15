@@ -642,7 +642,7 @@
         .reply-dock-tab { padding: 10px 22px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; background: none; color: var(--muted2); border-bottom: 2px solid transparent; transition: all 0.15s; font-family: var(--font-body); position: relative; top: 1px; }
         .reply-dock-tab:hover { color: var(--text); }
         .reply-dock-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-        .reply-dock-panel { padding: 16px 20px; max-height: 440px; overflow-y: auto; }
+        .reply-dock-panel { padding: 16px 20px; max-height: 580px; overflow-y: auto; }
 
         .modal-section {
             background: var(--surface2); border-radius: 10px; padding: 16px;
@@ -2097,7 +2097,7 @@
                                 </div>
                                 <div id="draft-content" style="display:none;">
                                     <input type="text" class="contact-input" id="modal-draft-subject" placeholder="Subject line…" style="margin-bottom:8px;">
-                                    <textarea class="description-textarea" id="modal-draft-body" placeholder="Draft reply body…" style="min-height:120px;resize:vertical;"></textarea>
+                                    <textarea class="description-textarea" id="modal-draft-body" placeholder="Draft reply body…" style="min-height:320px;resize:vertical;"></textarea>
                                     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
                                         <button class="sidebar-btn" onclick="regenerateDraft()" id="btn-regen" style="font-size:12px;">🔄 Regenerate</button>
                                         <button class="sidebar-btn" onclick="copyDraft()" style="font-size:12px;">📋 Copy</button>
@@ -2127,7 +2127,7 @@
                                     <button class="sidebar-btn" onclick="generateSamDraft()" style="font-size:12px;background:rgba(99,179,237,0.12);color:#63b3ed;display:block;">✨ Generate Sam's Draft</button>
                                 </div>
                                 <div id="sam-draft-content" style="display:none;">
-                                    <textarea class="description-textarea" id="sam-draft-body" placeholder="Sam's reply…" style="min-height:100px;resize:vertical;"></textarea>
+                                    <textarea class="description-textarea" id="sam-draft-body" placeholder="Sam's reply…" style="min-height:320px;resize:vertical;"></textarea>
                                     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
                                         <button class="sidebar-btn" onclick="generateSamDraft()" style="font-size:12px;">🔄 Regenerate</button>
                                         <button class="sidebar-btn" onclick="copySamDraft()" style="font-size:12px;">📋 Copy</button>
