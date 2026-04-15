@@ -2143,14 +2143,22 @@
                                     <span id="sam-draft-badge" class="draft-badge" style="display:none;"></span>
                                 </div>
                                 <div id="sam-draft-loading" style="color:var(--muted);font-size:12px;font-family:var(--font-mono);display:none;">Generating…</div>
+                                <select onchange="prefillSamTemplate(this.value); this.value='';" style="width:100%;margin-bottom:8px;font-size:12px;padding:5px 8px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;cursor:pointer;">
+                                    <option value="">— Quick templates —</option>
+                                    <option value="rates">📋 Rates Email</option>
+                                    <option value="followup1">🔁 Follow-up #1 (no reply)</option>
+                                    <option value="followup2">🔁 Follow-up #2 (second nudge)</option>
+                                    <option value="assets">✅ Assets Received</option>
+                                    <option value="invoice-ready">💰 Ready to Invoice</option>
+                                    <option value="invoice-sent">📨 Invoice Sent — Confirm</option>
+                                </select>
                                 <div id="sam-draft-empty">
-                                    <p style="color:var(--muted);font-size:12px;font-family:var(--font-mono);margin:0 0 10px;">Sam replies after the initial outreach.</p>
-                                    <button class="sidebar-btn" onclick="generateSamDraft()" style="font-size:12px;background:rgba(99,179,237,0.12);color:#63b3ed;display:block;">✨ Generate Sam's Draft</button>
+                                    <button class="sidebar-btn" onclick="generateSamDraft()" style="font-size:12px;background:rgba(99,179,237,0.12);color:#63b3ed;display:block;">✨ AI Generate Draft</button>
                                 </div>
                                 <div id="sam-draft-content" style="display:none;">
                                     <textarea class="description-textarea" id="sam-draft-body" placeholder="Sam's reply…" style="min-height:320px;resize:vertical;"></textarea>
                                     <div style="display:flex;gap:6px;margin-top:10px;align-items:center;flex-wrap:wrap;">
-                                        <button class="sidebar-btn reply-btn" onclick="generateSamDraft()">🔄 Regenerate</button>
+                                        <button class="sidebar-btn reply-btn" onclick="generateSamDraft()">🔄 AI Regenerate</button>
                                         <button class="sidebar-btn reply-btn" onclick="copySamDraft()">📋 Copy</button>
                                         <button class="sidebar-btn reply-btn" onclick="sendSamEmail()" style="background:rgba(99,179,237,0.15);color:#63b3ed;">📤 Send as Sam</button>
                                     </div>
@@ -4604,6 +4612,73 @@ linkedin.com/in/samlevin/`;
     }
 }
 
+function prefillSamTemplate(key) {
+    if (!key || !currentEditingCardData) return;
+    const name = currentEditingCardData.contactName || 'there';
+    const SIG = `\nSam Levin, Partner\nUnaligned\n+1-415-827-3870\nhttps://unaligned.io`;
+
+    const RATES_TEMPLATE = `I'm Sam Levin, Robert's business partner at Unaligned. Great to connect.
+
+Quick background on our reach:
+
+The Unaligned weekly newsletter has over 5,000 subscribers with an open rate of 50%.
+
+The real engagement occurs with X.
+
+Very recently, Elon Musk reposted Robert's X post receiving over 59M views.
+(Link: https://x.com/Scobleizer/status/2033399288932585940?s=20)
+
+Current Partnership Packages:
+
+Tier 1    $5,995/mo    2x written X + 1x LinkedIn + 2x retweets + newsletter
+Tier 2 ⭐  $3,995/mo    1x written X + 1x LinkedIn + 1x retweet + newsletter
+Tier 3    $2,995/mo    1x written X + 1x LinkedIn + newsletter
+Tier 4    $1,995/post  1x written X post only
+Tier 5    $1,195/post  1x retweet only (you provide all assets)
+
+Before we move forward, we'd love to get a clearer picture of your company and what you're promoting. Please send over your website, your X/LinkedIn handle, the content assets you'd like posted (video, caption, hashtags, posting dates), and a short brief on the campaign.
+
+New clients pay in full before content goes live. Once you've completed your first campaign with us, future campaigns are invoiced on the day the post goes live — that's the benefit of becoming an ongoing partner.
+
+Wire transfer only.
+
+Let me know which tier fits your goals and we'll get moving.
+
+Cheers,
+Sam & Robert
+${SIG}
+https://x.com/samlevin
+linkedin.com/in/samlevin/`;
+
+    const templates = {
+        rates: `Hi ${name},\n\n${RATES_TEMPLATE}`,
+
+        followup1: `Hi ${name},\n\nJust circling back on the rates I sent over — wanted to make sure it didn't get buried.\n\nLet me know if you have any questions or if a different tier fits your budget better. Happy to work through it.\n\nCheers,\nSam & Robert\n${SIG}`,
+
+        followup2: `Hi ${name},\n\nOne last follow-up from my end. Still think this could be a great fit and want to make sure you had a chance to review what we sent.\n\nIf the timing isn't right, no worries at all — just let us know either way.\n\nCheers,\nSam & Robert\n${SIG}`,
+
+        assets: `Hi ${name},\n\nGot everything — thanks for sending those over. We'll review the brief and assets and come back to you shortly with next steps.\n\nLooking forward to putting this together.\n\nCheers,\nSam & Robert\n${SIG}`,
+
+        'invoice-ready': `Hi ${name},\n\nWe're all set on our end. I'll be sending over the invoice shortly — once payment clears, we'll lock in the posting date and get everything scheduled.\n\nLet me know if you have any questions in the meantime.\n\nCheers,\nSam & Robert\n${SIG}`,
+
+        'invoice-sent': `Hi ${name},\n\nJust wanted to confirm the invoice was sent to this email. Please let me know once you've had a chance to process it and we'll get things moving on our end.\n\nCheers,\nSam & Robert\n${SIG}`,
+    };
+
+    const body = templates[key];
+    if (!body) return;
+
+    const ta = document.getElementById('sam-draft-body');
+    const empty = document.getElementById('sam-draft-empty');
+    const content = document.getElementById('sam-draft-content');
+    const badge = document.getElementById('sam-draft-badge');
+
+    if (ta) ta.value = body;
+    if (empty) empty.style.display = 'none';
+    if (content) content.style.display = 'block';
+    if (badge) { badge.style.display = 'inline-block'; badge.className = 'draft-badge drafted'; badge.textContent = 'drafted'; }
+    currentEditingCardData.sam_draft_body = body;
+}
+
 function copySamDraft() {
     const body = document.getElementById('sam-draft-body')?.value || '';
     navigator.clipboard.writeText(body).then(() => {
@@ -4684,6 +4759,7 @@ window.draftAndOpenComposer = draftAndOpenComposer;
 window.regenerateEmailDraft = regenerateEmailDraft;
 window.sendEmail = sendEmail;
 window.generateSamDraft = generateSamDraft;
+window.prefillSamTemplate = prefillSamTemplate;
 window.copySamDraft = copySamDraft;
 window.sendSamEmail = sendSamEmail;
 
