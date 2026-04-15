@@ -4307,8 +4307,10 @@ async function sendEmail() {
 
     try {
         const threadId = currentEditingCardData?.gmailThreadId || currentEditingCardData?.threadId || null;
-        const isSam = currentProfile?.name?.toLowerCase().includes('sam') || currentProfile?.initials === 'SL';
-        const fromSender = isSam ? 'sam' : 'robert';
+        // Use the voice shown in the modal header ("Sending as: Robert Scoble / Sam Levin")
+        const voiceLabel = document.getElementById('email-voice-label')?.textContent || '';
+        const isRobert = voiceLabel.toLowerCase().includes('robert');
+        const fromSender = isRobert ? 'robert' : 'sam';
 
         const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail', {
             method: 'POST',
@@ -4330,7 +4332,7 @@ async function sendEmail() {
             if (!currentEditingCardData.thread) currentEditingCardData.thread = [];
             currentEditingCardData.thread.push({
                 direction: fromSender,
-                from: isSam ? 'Sam Levin <UnalignedX@gmail.com>' : 'Robert Scoble <scobleizer@gmail.com>',
+                from: isRobert ? 'Robert Scoble <scobleizer@gmail.com>' : 'Sam Levin <UnalignedX@gmail.com>',
                 to, subject, body,
                 date: new Date().toISOString()
             });
