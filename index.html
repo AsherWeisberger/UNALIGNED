@@ -3598,12 +3598,11 @@ function renderCard(cardData) {
     const isEngaged = cardData.listId === 'engaged';
     const isRatesSent = cardData.listId === 'rates-sent';
 
-    // Don't show hover quick-actions when footer already has persistent reply buttons
-    const quickActionsHtml = (!isDone && !cardData.newReplyAt) ? `
+    // Only show hover quick-actions when footer has no meaningful action (just assignee avatar)
+    const hasFooterAction = cardData.newReplyAt || hasPendingDraft || isEngaged || isRatesSent;
+    const quickActionsHtml = (!isDone && !hasFooterAction) ? `
         <div class="card-quick-actions" onclick="event.stopPropagation()">
-            ${cardData.email ? `<button class="card-quick-btn" onclick="quickReply(${cardData.id})" title="Open reply draft">✉ Reply</button>` : ''}
             ${nextStage ? `<button class="card-quick-btn" onclick="quickMoveNext(${cardData.id})" title="Move to ${nextStage.title}">→ ${nextStage.title.split(' ')[0]}</button>` : ''}
-            <button class="card-quick-btn done-btn" onclick="quickDone(${cardData.id})" title="Mark as Done">✓</button>
             <button class="card-quick-btn dead-btn" onclick="quickDead(${cardData.id})" title="Move to Dead Leads">✕ Dead</button>
         </div>` : '';
 
