@@ -4151,6 +4151,7 @@ async function regenerateDraft() {
 // ── Email Composer ──────────────────────────────────
 
 let emailComposeCardId = null;
+let emailComposeVoice = 'sam';
 
 function openEmailComposer(forceVoice) {
     if (!currentEditingCardData) return;
@@ -4163,8 +4164,8 @@ function openEmailComposer(forceVoice) {
     const to = card.email || '';
 
     // Voice: use forced voice if provided (from tab button), otherwise fall back to draft voice
-    const voice = forceVoice || ((card.draft_reply && typeof card.draft_reply === 'object') ? (card.draft_reply.voice || 'sam') : 'sam');
-    const voiceName = voice === 'robert' ? 'Robert Scoble' : 'Sam Levin';
+    emailComposeVoice = forceVoice || ((card.draft_reply && typeof card.draft_reply === 'object') ? (card.draft_reply.voice || 'sam') : 'sam');
+    const voiceName = emailComposeVoice === 'robert' ? 'Robert Scoble' : 'Sam Levin';
     const voiceEl = document.getElementById('email-voice-label');
     if (voiceEl) voiceEl.textContent = voiceName;
 
@@ -4183,15 +4184,15 @@ function openEmailComposer(forceVoice) {
     document.getElementById('email-subject').focus();
 }
 
-function draftAndOpenComposer() {
+function draftAndOpenComposer(forceVoice) {
     if (!currentEditingCardData) return;
-    // If no draft exists, generate one then open composer
+    const v = forceVoice || 'robert';
     if (!currentEditingCardData.draft_reply?.subject && !currentEditingCardData.draft_reply?.body) {
         regenerateDraft().then(() => {
-            setTimeout(openEmailComposer, 300);
+            setTimeout(() => openEmailComposer(v), 300);
         });
     } else {
-        openEmailComposer();
+        openEmailComposer(v);
     }
 }
 
@@ -4307,10 +4308,8 @@ async function sendEmail() {
 
     try {
         const threadId = currentEditingCardData?.gmailThreadId || currentEditingCardData?.threadId || null;
-        // Use the voice shown in the modal header ("Sending as: Robert Scoble / Sam Levin")
-        const voiceLabel = document.getElementById('email-voice-label')?.textContent || '';
-        const isRobert = voiceLabel.toLowerCase().includes('robert');
-        const fromSender = isRobert ? 'robert' : 'sam';
+        const fromSender = emailComposeVoice === 'robert' ? 'robert' : 'sam';
+        const isRobert = fromSender === 'robert';
 
         const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail', {
             method: 'POST',
