@@ -4625,7 +4625,13 @@ async function sendSamEmail() {
 
         const badge = document.getElementById('sam-draft-badge');
         if (badge) { badge.style.display = 'inline-block'; badge.className = 'draft-badge sent'; badge.textContent = 'sent'; }
-        showEmailToast('✅ Reply sent as Sam Levin');
+
+        if (isRatesEmail) {
+            moveCardToList(currentEditingCard, 'rates-sent');
+            showEmailToast('✅ Rates sent — card moved to RATES SENT');
+        } else {
+            showEmailToast('✅ Reply sent as Sam Levin');
+        }
     } catch (e) {
         if (err) { err.textContent = '⚠️ ' + e.message; err.style.display = 'block'; }
     }
