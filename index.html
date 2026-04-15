@@ -2972,7 +2972,7 @@ function openSortMenu(stageId, evt) {
     const wrap = btn.closest('.list-sort-wrap');
     if (!wrap) return;
     const current = (window._columnSort||{})[stageId] || 'default';
-    const opts = [{key:'default',label:'Default (date)'},{key:'priority',label:'Priority'},{key:'value',label:'Value ($$)'},{key:'age',label:'Age (oldest)'}];
+    const opts = [{key:'default',label:'Default (date)'},{key:'reply',label:'Needs reply first'},{key:'priority',label:'Priority'},{key:'value',label:'Value ($$)'},{key:'age',label:'Age (oldest)'}];
     const menu = document.createElement('div');
     menu.className = 'sort-dropdown';
     menu.innerHTML = opts.map(o=>`<div class="sort-option ${o.key===current?'active':''}" onclick="setColumnSort('${stageId}','${o.key}')">${o.label}</div>`).join('');
@@ -3023,8 +3023,8 @@ function initBoardStructure() {
 }
 
 window._globalSort = 'date';
-const _globalSortCycle = ['date','az','value'];
-const _globalSortLabels = {date:'⇅ Date', az:'⇅ A–Z', value:'⇅ Value'};
+const _globalSortCycle = ['date','reply','az','value'];
+const _globalSortLabels = {date:'⇅ Date', reply:'⇅ Needs Reply', az:'⇅ A–Z', value:'⇅ Value'};
 function cycleGlobalSort() {
     const idx = _globalSortCycle.indexOf(window._globalSort);
     window._globalSort = _globalSortCycle[(idx+1) % _globalSortCycle.length];
@@ -3038,9 +3038,20 @@ const _sortFns = {
     priority: (a,b) => { const o={hot:0,warm:1,cold:2}; return (o[a.priority]??3)-(o[b.priority]??3); },
     value:    (a,b) => { const pv=s=>parseFloat(String(s||'').replace(/[^0-9.]/g,''))||0; return pv(b.estimatedValue)-pv(a.estimatedValue); },
     age:      (a,b) => new Date(a.movedAt||a.createdAt||0).getTime()-new Date(b.movedAt||b.createdAt||0).getTime(),
+    reply:    (a,b) => {
+        // Cards awaiting reply (newReplyAt set) always float to top, newest reply first
+        const ar = a.newReplyAt ? new Date(a.newReplyAt).getTime() : 0;
+        const br = b.newReplyAt ? new Date(b.newReplyAt).getTime() : 0;
+        if (ar && !br) return -1;
+        if (!ar && br) return 1;
+        if (ar && br) return br - ar;
+        // Fallback: most recent email activity
+        return new Date(b.emailDate||b.createdAt||0).getTime() - new Date(a.emailDate||a.createdAt||0).getTime();
+    },
     default:  (a,b) => {
         if (window._globalSort === 'az') return (a.contactName||a.title||'').localeCompare(b.contactName||b.title||'');
         if (window._globalSort === 'value') { const pv=s=>parseFloat(String(s||'').replace(/[^0-9.]/g,''))||0; return pv(b.estimatedValue)-pv(a.estimatedValue); }
+        if (window._globalSort === 'reply') { const ar=a.newReplyAt?new Date(a.newReplyAt).getTime():0,br=b.newReplyAt?new Date(b.newReplyAt).getTime():0; if(ar&&!br)return -1;if(!ar&&br)return 1;if(ar&&br)return br-ar; return new Date(b.emailDate||b.createdAt||0).getTime()-new Date(a.emailDate||a.createdAt||0).getTime(); }
         const at=new Date(a?.emailDate||a?.createdAt||0).getTime(),bt=new Date(b?.emailDate||b?.createdAt||0).getTime(); return bt-at;
     }
 };
