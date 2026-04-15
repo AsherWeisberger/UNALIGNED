@@ -3854,10 +3854,10 @@ function openCardModal(cardId) {
             .then(({ error }) => { if (error) console.warn('clear new_reply_at failed:', error.message); });
     }
 
-    // Default tab: Sam for engaged (she sends rates), Robert for everything else
-    const defaultTab = currentEditingCardData.listId === 'engaged' ? 'sam' : 'robert';
+    // Default tab: Sam for engaged/rates-sent (Sam sends rates), Robert for everything else
+    const defaultTab = ['engaged', 'rates-sent'].includes(currentEditingCardData.listId) ? 'sam' : 'robert';
     switchReplyTab(defaultTab);
-    // Auto-generate Sam's rates draft when opening an engaged card with no draft yet
+    // Auto-generate Sam's rates draft when opening an engaged or rates-sent card with no draft yet
     if (defaultTab === 'sam' && !currentEditingCardData.sam_draft_body) {
         setTimeout(() => generateSamDraft(), 150);
     }
@@ -4559,7 +4559,7 @@ https://x.com/samlevin
 linkedin.com/in/samlevin/`;
 
         let prompt;
-        if (card.listId === 'engaged') {
+        if (['engaged', 'rates-sent'].includes(card.listId)) {
             // Rates email — only generate personalized opening line, append canonical template verbatim
             prompt = `You are Sam Levin at Unaligned. Write ONLY a short personalized opening greeting for a rates email. Always respond with valid JSON only.\n\nRECIPIENT:\n- Name: ${card.contactName || 'there'}\n- Business: ${card.businessName || 'Unknown'}\n\nCONTEXT:\n${card.description || '(No message)'}${threadContext}\n\nRespond ONLY with JSON:\n{"opening": "Hi [name or personalized reference],"}\n\nRequirements:\n- The opening field must be a single short greeting line ending with a comma, e.g. "Hi John," or "Hi Maria, loved what you're building with [product],"\n- Reference their product/company/thread if there's enough context, otherwise just use their name\n- Do NOT include anything beyond the opening line\n- Do NOT include any text outside the JSON`;
         } else {
@@ -4583,7 +4583,7 @@ linkedin.com/in/samlevin/`;
         const reply = JSON.parse(cleaned);
 
         let draftBody;
-        if (card.listId === 'engaged') {
+        if (['engaged', 'rates-sent'].includes(card.listId)) {
             // Stitch opening line onto the canonical rates template
             draftBody = (reply.opening || 'Hi,') + '\n\n' + RATES_TEMPLATE;
         } else {
@@ -4627,7 +4627,7 @@ async function sendSamEmail() {
         const subject = currentEditingCardData.draft_reply?.subject || '';
         const threadId = currentEditingCardData.threadId || null;
 
-        const isRatesEmail = currentEditingCardData.listId === 'engaged';
+        const isRatesEmail = ['engaged', 'rates-sent'].includes(currentEditingCardData.listId);
         const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -4663,8 +4663,12 @@ async function sendSamEmail() {
         if (badge) { badge.style.display = 'inline-block'; badge.className = 'draft-badge sent'; badge.textContent = 'sent'; }
 
         if (isRatesEmail) {
-            moveCardToList(currentEditingCard, 'rates-sent');
-            showEmailToast('✅ Rates sent — card moved to RATES SENT');
+            if (currentEditingCardData.listId === 'engaged') {
+                moveCardToList(currentEditingCard, 'rates-sent');
+                showEmailToast('✅ Rates sent — card moved to RATES SENT');
+            } else {
+                showEmailToast('✅ Rates re-sent as Sam Levin');
+            }
         } else {
             showEmailToast('✅ Reply sent as Sam Levin');
         }
