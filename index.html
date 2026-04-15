@@ -1954,6 +1954,7 @@
                     </div>
                 </div>
                 <div class="email-header-actions">
+                    <button class="card-modal-save" id="modal-needs-reply-btn" onclick="toggleNeedsReply()" title="Mark as needs reply / clear reply flag" style="background:transparent;border:1px solid var(--border);color:var(--muted);font-size:13px;padding:4px 10px;border-radius:6px;cursor:pointer;">🔔 Needs Reply</button>
                     <button class="card-modal-save" onclick="saveCardAndClose()">Save</button>
                     <button class="card-modal-close" onclick="closeCardModal()">×</button>
                 </div>
@@ -3919,13 +3920,7 @@ function openCardModal(cardId) {
         avatarEl.style.color = p.color;
     }
 
-    // Clear new-reply flag when card is opened
-    if (currentEditingCardData.newReplyAt) {
-        currentEditingCardData.newReplyAt = null;
-        renderAllCards();
-        supabase.from('cards').update({ new_reply_at: null }).eq('id', cardId)
-            .then(({ error }) => { if (error) console.warn('clear new_reply_at failed:', error.message); });
-    }
+    // new_reply_at is intentionally NOT cleared on open — it clears only when a reply is sent
 
     // Default tab: Sam for engaged/rates-sent (Sam sends rates), Robert for everything else
     const defaultTab = ['engaged', 'rates-sent'].includes(currentEditingCardData.listId) ? 'sam' : 'robert';
@@ -3936,6 +3931,7 @@ function openCardModal(cardId) {
     }
     document.getElementById('modal-list-name').textContent = boardConfig.find(l=>l.id===currentEditingCardData.listId)?.title||'List';
     document.getElementById('modal-created-info').textContent = `Created by ${currentEditingCardData.createdBy} · ${timeAgo(new Date(currentEditingCardData.createdAt))}`;
+    _updateNeedsReplyBtn();
 
     // Show first contact date prominently
     // First contact: use oldest email in thread (first array entry)
@@ -3971,6 +3967,26 @@ function openCardModal(cardId) {
             if (sidebar) sidebar.scrollTop = 0;
         });
     });
+}
+
+function _updateNeedsReplyBtn() {
+    const btn = document.getElementById('modal-needs-reply-btn');
+    if (!btn || !currentEditingCardData) return;
+    const active = !!currentEditingCardData.newReplyAt;
+    btn.style.color = active ? '#34d399' : 'var(--muted)';
+    btn.style.borderColor = active ? 'rgba(52,211,153,0.5)' : 'var(--border)';
+    btn.textContent = active ? '🔔 Needs Reply' : '🔕 Mark Needs Reply';
+}
+
+function toggleNeedsReply() {
+    if (!currentEditingCardData) return;
+    const now = new Date().toISOString();
+    const wasSet = !!currentEditingCardData.newReplyAt;
+    currentEditingCardData.newReplyAt = wasSet ? null : now;
+    supabase.from('cards').update({ new_reply_at: currentEditingCardData.newReplyAt }).eq('id', currentEditingCardData.id)
+        .then(({ error }) => { if (error) console.warn('toggle new_reply_at failed:', error.message); });
+    _updateNeedsReplyBtn();
+    renderAllCards();
 }
 
 // Track which card IDs have email data (preloaded at startup)
