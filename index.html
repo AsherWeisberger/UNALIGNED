@@ -546,6 +546,12 @@
         .sort-option { padding: 6px 10px; border-radius: 5px; cursor: pointer; font-size: 11px; color: var(--muted2); font-family: var(--font-mono); transition: all 0.1s; }
         .sort-option:hover { background: rgba(255,255,255,0.06); color: var(--text); }
         .sort-option.active { color: var(--accent); background: rgba(91,140,255,0.08); }
+        .col-group-divider { display: flex; align-items: center; justify-content: space-between; padding: 5px 4px 3px; margin: 10px 0 4px; border-bottom: 1px solid; font-size: 10px; font-weight: 700; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.07em; pointer-events: none; user-select: none; }
+        .col-group-divider:first-child { margin-top: 2px; }
+        .col-group-divider.group-1 { color: #34d399; border-color: rgba(52,211,153,0.35); }
+        .col-group-divider.group-2 { color: #f59e0b; border-color: rgba(245,158,11,0.3); }
+        .col-group-divider.group-3 { color: var(--muted2); border-color: rgba(255,255,255,0.07); }
+        .col-group-badge { background: rgba(255,255,255,0.07); border-radius: 10px; padding: 1px 6px; font-size: 10px; }
         .dl-tab { padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border2); background: none; color: var(--muted); font-size: 12px; cursor: pointer; transition: all 0.1s; }
         .dl-tab:hover { background: var(--surface2); color: var(--text); }
         .dl-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
@@ -3089,6 +3095,19 @@ const _sortFns = {
     }
 };
 let _boardFirstRender = true;
+const _SKIP_GROUP_STAGES = new Set(['done','paid-out','dead-leads']);
+
+function getCardGroup(card) {
+    if (card.newReplyAt) return 1;
+    const thread = Array.isArray(card.originalEmail) ? card.originalEmail : [];
+    const hasSent = thread.some(e => {
+        if (e.direction === 'robert' || e.direction === 'sam') return true;
+        const f = (e.from || '').toLowerCase();
+        return f.includes('scobleizer') || f.includes('unalignedx') || f.includes('samlevin@mac') || f.includes('sam levin') || f.includes('robert scoble');
+    });
+    return hasSent ? 2 : 3;
+}
+
 function renderAllCards() {
     document.querySelectorAll('.cards-container').forEach(c => c.innerHTML='');
     const doAnimate = _boardFirstRender;
@@ -3098,19 +3117,52 @@ function renderAllCards() {
         const stageCards = Object.values(cardsData).filter(c => c.listId === stage.id);
         const sortKey = (window._columnSort||{})[stage.id] || 'default';
         stageCards.sort(_sortFns[sortKey]||_sortFns.default);
-        stageCards.forEach(card => {
-            renderCard(card);
-            if (doAnimate) {
-                const el = document.getElementById('card-'+card.id);
-                // Don't add card-animate to hot cards — hotPulse animation has higher specificity
-                // and overrides it, leaving the class as a hidden trap that fires on drag
-                if (el && !el.classList.contains('priority-hot')) {
-                    el.classList.add('card-animate');
-                    el.style.animationDelay = Math.min(gi*20,400)+'ms';
+
+        if (_SKIP_GROUP_STAGES.has(stage.id) || stageCards.length === 0) {
+            stageCards.forEach(card => {
+                renderCard(card);
+                if (doAnimate) {
+                    const el = document.getElementById('card-'+card.id);
+                    if (el && !el.classList.contains('priority-hot')) {
+                        el.classList.add('card-animate');
+                        el.style.animationDelay = Math.min(gi*20,400)+'ms';
+                    }
                 }
-            }
-            gi++;
-        });
+                gi++;
+            });
+        } else {
+            const g1 = stageCards.filter(c => getCardGroup(c) === 1);
+            const g2 = stageCards.filter(c => getCardGroup(c) === 2);
+            const g3 = stageCards.filter(c => getCardGroup(c) === 3);
+            const numNonEmpty = [g1,g2,g3].filter(g => g.length > 0).length;
+            const container = document.getElementById(stage.id+'-cards');
+            const groupDefs = [
+                { cards: g1, cls: 'group-1', label: '⚡ Needs Reply' },
+                { cards: g2, cls: 'group-2', label: '⏳ Waiting on Them' },
+                { cards: g3, cls: 'group-3', label: '💤 No Contact Yet' },
+            ];
+            groupDefs.forEach(({ cards, cls, label }) => {
+                if (cards.length === 0) return;
+                if (numNonEmpty > 1 && container) {
+                    const div = document.createElement('div');
+                    div.className = `col-group-divider ${cls}`;
+                    div.innerHTML = `<span>${label}</span><span class="col-group-badge">${cards.length}</span>`;
+                    container.appendChild(div);
+                }
+                cards.forEach(card => {
+                    renderCard(card);
+                    if (doAnimate) {
+                        const el = document.getElementById('card-'+card.id);
+                        if (el && !el.classList.contains('priority-hot')) {
+                            el.classList.add('card-animate');
+                            el.style.animationDelay = Math.min(gi*20,400)+'ms';
+                        }
+                    }
+                    gi++;
+                });
+            });
+        }
+
         const sortBtn = document.getElementById('sort-btn-'+stage.id);
         if (sortBtn) sortBtn.style.color = sortKey !== 'default' ? 'var(--accent)' : '';
     });
