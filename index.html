@@ -3643,8 +3643,8 @@ function renderCard(cardData) {
             <input type="checkbox" class="card-checkbox" data-id="${cardData.id}" onclick="handleCardCheckbox(event, '${cardData.id}')">
         </div>
         ${isStaleCard(cardData) ? '<span class="stale-badge" style="position:absolute;top:8px;right:8px;z-index:3;">⚠️</span>' : ''}
-        ${cardData.newReplyAt ? '<span class="new-reply-badge" style="position:absolute;top:8px;left:8px;z-index:3;">● NEW REPLY</span>' : ''}
         ${quickActionsHtml}
+        ${cardData.newReplyAt ? '<div class="new-reply-badge" style="display:block;margin-bottom:6px;">● NEW REPLY</div>' : ''}
         <div class="card-labels">${labelsHtml}</div>
         ${leadMetaHtml}
         <div class="card-content">
