@@ -49,10 +49,10 @@
         #app { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
 
         /* ─── SCROLLBAR ───────────────────────────────────── */
-        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar { width: 3px; height: 3px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 99px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
 
         /* ─── LOGIN ───────────────────────────────────────── */
         .modal-overlay {
@@ -280,55 +280,51 @@
         }
 
         /* ─── PIPELINE STATS BAR ─────────────────────────── */
+        /* ─── PIPELINE BAR ────────────────────────────────── */
         .pipeline-bar {
-            display: flex; align-items: center; gap: 12px;
-            padding: 10px 16px;
+            display: flex; align-items: stretch;
             background: var(--surface); border-radius: var(--radius);
-            margin-bottom: 8px;
-            flex-wrap: wrap;
-            border: 1px solid rgba(52,211,153,0.15);
+            border: 1px solid var(--border);
+            margin-bottom: 8px; overflow: hidden;
         }
-        .pipeline-bar-label {
-            font-size: 11px; font-weight: 700;
-            text-transform: uppercase; letter-spacing: 0.6px;
-            color: #34d399; white-space: nowrap;
+        .pb-stat {
+            display: flex; flex-direction: column; justify-content: center; gap: 1px;
+            padding: 10px 18px 10px 16px;
+            border-right: 1px solid var(--border); flex-shrink: 0;
         }
-        .pipeline-bar-total {
-            font-size: 22px; font-weight: 800;
-            color: #34d399; line-height: 1;
-            font-family: var(--font-display);
+        .pb-stat-num {
+            font-size: 20px; font-weight: 800; line-height: 1;
+            color: #34d399; font-family: var(--font-display);
+            font-variant-numeric: tabular-nums;
         }
-        .pipeline-bar-sub {
-            font-size: 11px; color: var(--muted);
-            font-family: var(--font-mono);
+        .pb-stat-lbl {
+            font-size: 10px; font-weight: 700; white-space: nowrap;
+            text-transform: uppercase; letter-spacing: 0.08em;
+            color: var(--muted); font-family: var(--font-mono);
         }
-        .pipeline-bar-platforms {
-            display: flex; gap: 6px; flex-wrap: wrap; align-items: center;
+        .pb-sources {
+            display: flex; gap: 5px; flex-wrap: wrap; align-items: center;
+            padding: 8px 14px; flex: 1;
         }
+        .pb-meta {
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 16px; border-left: 1px solid var(--border);
+            flex-shrink: 0; font-size: 11px; color: var(--muted);
+            font-family: var(--font-mono); white-space: nowrap;
+        }
+        .pb-time { color: var(--muted2); }
         .pipeline-platform-btn {
             font-size: 11px; font-weight: 600;
             padding: 3px 10px; border-radius: 20px;
             border: 1px solid var(--border);
-            background: var(--surface2); color: var(--text-dim);
-            cursor: pointer; transition: all 0.15s;
-            font-family: var(--font-mono);
+            background: var(--surface2); color: var(--muted2);
+            cursor: pointer; transition: all 0.15s; font-family: var(--font-mono);
         }
         .pipeline-platform-btn:hover { border-color: var(--accent); color: var(--accent); }
-        .pipeline-platform-btn.active {
-            background: rgba(52,211,153,0.15);
-            border-color: #34d399; color: #34d399;
-        }
-        .pipeline-bar-empty {
-            font-size: 12px; color: var(--muted);
-            font-family: var(--font-mono);
-        }
-        .pipeline-bar-time {
-            margin-left: auto; font-size: 10px; color: var(--muted);
-            font-family: var(--font-mono); white-space: nowrap;
-        }
-        .pipeline-bar-loading {
-            font-size: 12px; color: var(--muted); font-style: italic;
-        }
+        .pipeline-platform-btn.active { background: rgba(52,211,153,0.15); border-color: #34d399; color: #34d399; }
+        .pipeline-platform-btn strong { font-variant-numeric: tabular-nums; }
+        .pipeline-bar-empty { font-size: 12px; color: var(--muted); font-family: var(--font-mono); padding: 10px 16px; }
+        .pipeline-bar-loading { font-size: 12px; color: var(--muted); font-style: italic; padding: 10px 16px; }
 
         .flow-node {
             min-width: 120px; background: var(--bg2);
@@ -392,8 +388,10 @@
             overflow: hidden;
         }
 
-        .list-accent { height: 3px; margin: -14px -14px 14px; border-radius: 18px 18px 0 0; }
-        .list-count-badge { font-size: 13px; font-weight: 700; padding: 2px 8px; border-radius: 99px; font-family: var(--font-mono); line-height: 1; }
+        .list-accent { height: 3px; margin: -14px -14px 0; border-radius: 18px 18px 0 0; }
+        .list-capacity-bar { height: 2px; margin: 0 -14px 14px; background: rgba(255,255,255,0.04); overflow: hidden; }
+        .list-capacity-fill { height: 100%; border-radius: 0 2px 2px 0; transition: width 0.6s cubic-bezier(0.34,1.3,0.64,1), background 0.6s; }
+        .list-count-badge { font-size: 13px; font-weight: 700; padding: 2px 8px; border-radius: 99px; font-family: var(--font-mono); line-height: 1; font-variant-numeric: tabular-nums; }
 
         .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
         .list-title { font-size: 14px; font-weight: 700; font-family: var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; }
@@ -434,7 +432,7 @@
 
         .card.priority-hot { background: rgba(239,68,68,0.06); border-left-color: #ef4444; border-color: rgba(239,68,68,0.2); }
         .card.priority-warm { background: rgba(245,158,11,0.06); border-left-color: #f59e0b; border-color: rgba(245,158,11,0.2); }
-        .card.priority-cold { border-left-color: #3b82f6; }
+        .card.priority-cold { background: rgba(59,130,246,0.05); border-left-color: #3b82f6; border-color: rgba(59,130,246,0.18); }
         .card.priority-done { background: rgba(52,211,153,0.04); border-left-color: #34d399; border-color: rgba(52,211,153,0.15); }
 
         .card-labels { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
@@ -468,10 +466,10 @@
             text-align: right; line-height: 1.5; pointer-events: none; opacity: 0.7;
         }
         body.bulk-mode .card-source-date, .card.selected .card-source-date { display: none; }
-        .card-value { padding: 2px 7px; border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--green); background: rgba(52,211,153,0.1); font-family: var(--font-mono); white-space: nowrap; flex-shrink: 0; }
+        .card-value { padding: 2px 7px; border-radius: 6px; font-size: 12px; font-weight: 600; color: var(--green); background: rgba(52,211,153,0.1); font-family: var(--font-mono); white-space: nowrap; flex-shrink: 0; font-variant-numeric: tabular-nums; }
 
         /* ─── STAGE AGE ────────────────────────────────────── */
-        .card-age { font-size: 12px; font-family: var(--font-mono); padding: 2px 7px; border-radius: 6px; }
+        .card-age { font-size: 11px; font-family: var(--font-mono); padding: 2px 7px; border-radius: 6px; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
         .card-age.age-fresh { background: rgba(52,211,153,0.08); color: #34d399; }
         .card-age.age-warn  { background: rgba(245,158,11,0.08);  color: #f59e0b; }
         .card-age.age-old   { background: rgba(239,68,68,0.08);   color: #ef4444; }
@@ -555,12 +553,17 @@
         .sort-option { padding: 6px 10px; border-radius: 5px; cursor: pointer; font-size: 11px; color: var(--muted2); font-family: var(--font-mono); transition: all 0.1s; }
         .sort-option:hover { background: rgba(255,255,255,0.06); color: var(--text); }
         .sort-option.active { color: var(--accent); background: rgba(91,140,255,0.08); }
-        .col-group-divider { display: flex; align-items: center; justify-content: space-between; padding: 5px 4px 3px; margin: 10px 0 4px; border-bottom: 1px solid; font-size: 10px; font-weight: 700; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.07em; pointer-events: none; user-select: none; }
+        .col-group-divider { display: flex; align-items: center; gap: 7px; padding: 9px 0 4px; margin: 6px 0 2px; font-size: 10px; font-weight: 700; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; pointer-events: none; user-select: none; white-space: nowrap; }
+        .col-group-divider::before { content: ''; flex: 0 0 6px; height: 1px; border-radius: 1px; }
+        .col-group-divider::after  { content: ''; flex: 1; height: 1px; border-radius: 1px; }
         .col-group-divider:first-child { margin-top: 2px; }
-        .col-group-divider.group-1 { color: #34d399; border-color: rgba(52,211,153,0.35); }
-        .col-group-divider.group-2 { color: #f59e0b; border-color: rgba(245,158,11,0.3); }
-        .col-group-divider.group-3 { color: var(--muted2); border-color: rgba(255,255,255,0.07); }
-        .col-group-badge { background: rgba(255,255,255,0.07); border-radius: 10px; padding: 1px 6px; font-size: 10px; }
+        .col-group-divider.group-1 { color: #34d399; }
+        .col-group-divider.group-1::before, .col-group-divider.group-1::after { background: rgba(52,211,153,0.28); }
+        .col-group-divider.group-2 { color: #f59e0b; }
+        .col-group-divider.group-2::before, .col-group-divider.group-2::after { background: rgba(245,158,11,0.24); }
+        .col-group-divider.group-3 { color: var(--muted2); }
+        .col-group-divider.group-3::before, .col-group-divider.group-3::after { background: rgba(255,255,255,0.08); }
+        .col-group-badge { background: rgba(255,255,255,0.07); border-radius: 99px; padding: 1px 7px; font-size: 10px; font-variant-numeric: tabular-nums; }
         .dl-tab { padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border2); background: none; color: var(--muted); font-size: 12px; cursor: pointer; transition: all 0.1s; }
         .dl-tab:hover { background: var(--surface2); color: var(--text); }
         .dl-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
@@ -575,11 +578,7 @@
         .dl-entry-time { font-size: 10px; color: var(--muted2); font-family: var(--font-mono); flex-shrink: 0; margin-top: 2px; }
         .dl-empty { text-align: center; color: var(--muted); font-size: 13px; padding: 40px 0; }
 
-        /* ─── CUSTOM SCROLLBARS ─────────────────────────────── */
-        ::-webkit-scrollbar { width: 5px; height: 5px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 99px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+        /* ─── CUSTOM SCROLLBARS (duplicate removed — see top of CSS) ── */
 
         /* ─── LABEL COLORS ────────────────────────────────── */
         .card-label-text.red, .label-tag.red, .label-color.red { background: #ef4444; }
@@ -1750,6 +1749,34 @@
             padding: 7px 8px !important;
             text-align: center;
         }
+        /* ─── SHORTCUTS MODAL ─────────────────────────────── */
+        #shortcuts-modal {
+            position: fixed; inset: 0;
+            background: rgba(7,8,15,0.76);
+            backdrop-filter: blur(8px);
+            z-index: 9999;
+            display: none; align-items: center; justify-content: center;
+        }
+        .shortcuts-panel {
+            background: var(--surface); border: 1px solid var(--border2);
+            border-radius: 14px; width: 340px;
+            box-shadow: var(--shadow-lg); overflow: hidden;
+            animation: modalIn 0.18s cubic-bezier(0.34,1.2,0.64,1) both;
+        }
+        .shortcuts-panel-head {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 18px; border-bottom: 1px solid var(--border);
+        }
+        .shortcuts-panel-head span { font-size: 12px; font-weight: 700; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted2); }
+        .shortcuts-panel-head button { background: rgba(255,255,255,0.08); border: none; color: var(--muted); cursor: pointer; width: 26px; height: 26px; border-radius: 6px; font-size: 11px; transition: all 0.1s; }
+        .shortcuts-panel-head button:hover { background: #ef4444; color: #fff; }
+        .shortcuts-body { padding: 8px 8px 12px; }
+        .shortcut-section-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-family: var(--font-mono); padding: 8px 10px 4px; }
+        .shortcut-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border-radius: 7px; }
+        .shortcut-row:hover { background: rgba(255,255,255,0.03); }
+        .shortcut-row > span { font-size: 13px; color: var(--muted2); }
+        .shortcut-row kbd { display: inline-flex; align-items: center; justify-content: center; background: var(--surface2); border: 1px solid var(--border2); border-radius: 6px; padding: 3px 9px; font-size: 11px; font-family: var(--font-mono); color: var(--text); font-weight: 600; min-width: 36px; text-align: center; box-shadow: 0 2px 0 rgba(0,0,0,0.35); white-space: nowrap; }
+
     </style>
 </head>
 <body>
@@ -3063,6 +3090,7 @@ function initBoardStructure() {
         list.dataset.listId = stage.id;
         list.innerHTML = `
             <div class="list-accent" style="background:${stage.color};"></div>
+            <div class="list-capacity-bar"><div class="list-capacity-fill" id="cap-${stage.id}"></div></div>
             <div class="list-header">
                 <div style="display:flex;align-items:center;gap:8px;">
                     <h3 class="list-title" style="color:${stage.color};cursor:pointer;" onclick="toggleListCollapse('${stage.id}')" title="Click to collapse">${stage.title}</h3>
@@ -3192,6 +3220,17 @@ function renderAllCards() {
     });
     Object.values(cardsData).filter(c => !boardConfig.find(s=>s.id===c.listId)).forEach(card => renderCard(card));
     applyFilters();
+    // Update capacity bars — proportional fill relative to fullest column
+    const _capCounts = {};
+    boardConfig.forEach(s => { _capCounts[s.id] = Object.values(cardsData).filter(c => c.listId === s.id).length; });
+    const _maxCap = Math.max(1, ...Object.values(_capCounts));
+    boardConfig.forEach(s => {
+        const fill = document.getElementById('cap-' + s.id);
+        if (!fill) return;
+        const pct = Math.round((_capCounts[s.id] / _maxCap) * 100);
+        fill.style.width = pct + '%';
+        fill.style.background = (s.color || '#5b8cff') + '80';
+    });
     requestAnimationFrame(() => updateBoardScrollBtns());
 }
 
@@ -5722,9 +5761,14 @@ function executeCommand(id) {
 
 document.addEventListener('keydown', e=>{
     if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();openCommandPalette();}
-    if(e.key==='Escape'){document.getElementById('profile-modal').classList.remove('active');document.getElementById('label-modal').classList.remove('active');document.getElementById('assignee-modal').classList.remove('active');document.getElementById('command-palette-modal')?.classList.remove('active');closeCardModal();}
+    if(e.key==='Escape'){document.getElementById('profile-modal').classList.remove('active');document.getElementById('label-modal').classList.remove('active');document.getElementById('assignee-modal').classList.remove('active');document.getElementById('command-palette-modal')?.classList.remove('active');closeCardModal();hideShortcuts();}
     if(e.key==='Enter'&&e.target.id==='unified-input')addUnifiedItem();
+    if(e.key==='?'&&!e.target.closest('input,textarea,select,[contenteditable]')){e.preventDefault();showShortcuts();}
 });
+
+function showShortcuts(){ const m=document.getElementById('shortcuts-modal'); if(m){m.style.display='flex';} }
+function hideShortcuts(){ const m=document.getElementById('shortcuts-modal'); if(m){m.style.display='none';} }
+window.showShortcuts=showShortcuts; window.hideShortcuts=hideShortcuts;
 
 // ── Add Card/List ──────────────────────────────────
 function showAddCardForm(listId) {
@@ -5896,7 +5940,6 @@ function renderPipelineBarFromCards(lastRun) {
     const bar = document.getElementById('pipeline-bar');
     if (!bar) return;
 
-    // Count leads by source from already-loaded cardsData
     const platforms = {};
     let totalLeads = 0;
     Object.values(cardsData).forEach(card => {
@@ -5906,43 +5949,38 @@ function renderPipelineBarFromCards(lastRun) {
     });
 
     if (totalLeads === 0) {
-        bar.innerHTML = '<span class="pipeline-bar-empty">No leads yet. Run the Gmail pipeline to get started.</span>';
+        bar.innerHTML = '<span class="pipeline-bar-empty">No leads yet — run the Gmail pipeline to get started.</span>';
         return;
     }
 
     const sortedPlatforms = Object.keys(platforms).sort();
-
     const sourceButtons = sortedPlatforms.map(src => {
         const count = platforms[src] || 0;
         const icon = {GMAIL:'📧',LINKEDIN:'💼',X:'🐦',REFERRAL:'🤝',WEBSITE:'🌐'}[src] || '📊';
         const active = pipelineSourceFilter === src ? ' active' : '';
-        return `<button class="pipeline-platform-btn${active}" onclick="setPipelineSourceFilter('${src}')">${icon} ${src} (${count})</button>`;
+        return `<button class="pipeline-platform-btn${active}" onclick="setPipelineSourceFilter('${src}')">${icon} ${src} <strong>${count}</strong></button>`;
     }).join('');
 
     const allActive = pipelineSourceFilter === null ? ' active' : '';
-    const allBtns = `<button class="pipeline-platform-btn${allActive}" onclick="setPipelineSourceFilter(null)">📊 All (${totalLeads})</button>` + sourceButtons;
+    const allBtns = `<button class="pipeline-platform-btn${allActive}" onclick="setPipelineSourceFilter(null)">All <strong>${totalLeads}</strong></button>` + sourceButtons;
 
-    // Enrich with run metadata if available
-    let metaStr = '';
+    let metaHtml = '';
     if (lastRun) {
         const emails = lastRun.emails_scraped || 0;
         const extracted = lastRun.leads_extracted || 0;
         const imported = lastRun.imported || 0;
-        metaStr = `${emails} emails &rarr; ${extracted} extracted &rarr; ${imported} imported (last run)`;
         const runDate = lastRun.timestamp ? new Date(lastRun.timestamp) : null;
-        if (runDate) {
-            metaStr += ` &bull; <span class="pipeline-bar-time">${runDate.toLocaleDateString()} ${runDate.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>`;
-        }
-    } else {
-        metaStr = `<span class="pipeline-bar-empty">Run pipeline to see extraction stats</span>`;
+        const timeStr = runDate ? runDate.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '';
+        metaHtml = `<span>${emails}→${extracted}→${imported}</span>${timeStr ? `<span class="pb-time">${timeStr}</span>` : ''}`;
     }
 
     bar.innerHTML = `
-        <span class="pipeline-bar-label">Pipeline</span>
-        <span class="pipeline-bar-total">${totalLeads}</span>
-        <span class="pipeline-bar-sub">leads</span>
-        <div class="pipeline-bar-platforms">${allBtns}</div>
-        <div style="font-size:11px;color:var(--muted);font-family:var(--font-mono);">${metaStr}</div>
+        <div class="pb-stat">
+            <span class="pb-stat-num">${totalLeads}</span>
+            <span class="pb-stat-lbl">Total Leads</span>
+        </div>
+        <div class="pb-sources">${allBtns}</div>
+        ${metaHtml ? `<div class="pb-meta">${metaHtml}</div>` : ''}
     `;
 }
 
@@ -6465,5 +6503,26 @@ if (loginInput) loginInput.addEventListener('keydown', e => checkLogin(e));
 if (loginBtn) loginBtn.addEventListener('click', () => attemptLogin());
 
 </script>
+
+    <!-- ─── SHORTCUTS MODAL ─────────────────────────────────── -->
+    <div id="shortcuts-modal" onclick="hideShortcuts()">
+        <div class="shortcuts-panel" onclick="event.stopPropagation()">
+            <div class="shortcuts-panel-head">
+                <span>Keyboard Shortcuts</span>
+                <button onclick="hideShortcuts()">✕</button>
+            </div>
+            <div class="shortcuts-body">
+                <div class="shortcut-section-lbl">Navigation</div>
+                <div class="shortcut-row"><span>Command palette</span><kbd>⌘ K</kbd></div>
+                <div class="shortcut-row"><span>Show shortcuts</span><kbd>?</kbd></div>
+                <div class="shortcut-row"><span>Close / cancel</span><kbd>Esc</kbd></div>
+                <div class="shortcut-section-lbl">Board</div>
+                <div class="shortcut-row"><span>Compact / expanded view</span><kbd>View btn</kbd></div>
+                <div class="shortcut-row"><span>Sync Gmail inbox</span><kbd>Sync btn</kbd></div>
+                <div class="shortcut-row"><span>Submit new item</span><kbd>Enter</kbd></div>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>
