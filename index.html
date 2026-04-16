@@ -6642,8 +6642,68 @@ function openRobertReview() {
     _rrIndex = 0;
     const overlay = document.getElementById('robert-review-overlay');
     overlay.style.display = 'flex';
+    if (!localStorage.getItem('rr_robert_onboarded')) {
+        rrShowOnboarding();
+    } else {
+        rrRender();
+    }
+}
+
+function rrShowOnboarding() {
+    const progress = document.getElementById('rr-progress');
+    const content  = document.getElementById('rr-content');
+    const prevBtn  = document.getElementById('rr-prev-btn');
+    const nextBtn  = document.getElementById('rr-next-btn');
+    progress.textContent = 'First time setup';
+    prevBtn.disabled = true;
+    nextBtn.disabled = true;
+    content.innerHTML = `
+        <div style="padding:8px 0 24px;">
+            <div style="font-size:22px;font-weight:800;font-family:var(--font-display);color:var(--text);margin-bottom:6px;">Hey Robert 👋</div>
+            <div style="font-size:14px;color:var(--muted);margin-bottom:28px;line-height:1.6;">Here's exactly how your review queue works. Takes 30 seconds to learn.</div>
+
+            <div style="display:flex;flex-direction:column;gap:16px;margin-bottom:32px;">
+                <div style="display:flex;gap:14px;align-items:flex-start;">
+                    <div style="width:32px;height:32px;border-radius:50%;background:rgba(91,140,255,0.15);border:1px solid rgba(91,140,255,0.3);display:flex;align-items:center;justify-content:center;font-weight:800;color:#5b8cff;font-size:14px;flex-shrink:0;">1</div>
+                    <div>
+                        <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:3px;">A new lead comes in</div>
+                        <div style="font-size:13px;color:var(--muted);line-height:1.5;">Someone emailed asking about a sponsorship. You'll see their name, company, and what they said. Read it — 10 seconds.</div>
+                    </div>
+                </div>
+                <div style="display:flex;gap:14px;align-items:flex-start;">
+                    <div style="width:32px;height:32px;border-radius:50%;background:rgba(91,140,255,0.15);border:1px solid rgba(91,140,255,0.3);display:flex;align-items:center;justify-content:center;font-weight:800;color:#5b8cff;font-size:14px;flex-shrink:0;">2</div>
+                    <div>
+                        <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:3px;">A draft reply is ready for you</div>
+                        <div style="font-size:13px;color:var(--muted);line-height:1.5;">The system wrote a first reply in your voice — warm, personal, handing off to Sam. Read it. If it sounds like you, hit <strong style="color:#34d399;">Approve & Send</strong>. If not, hit <strong style="color:#f87171;">Reject</strong> and a new one gets written.</div>
+                    </div>
+                </div>
+                <div style="display:flex;gap:14px;align-items:flex-start;">
+                    <div style="width:32px;height:32px;border-radius:50%;background:rgba(91,140,255,0.15);border:1px solid rgba(91,140,255,0.3);display:flex;align-items:center;justify-content:center;font-weight:800;color:#5b8cff;font-size:14px;flex-shrink:0;">3</div>
+                    <div>
+                        <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:3px;">Sam takes it from there</div>
+                        <div style="font-size:13px;color:var(--muted);line-height:1.5;">Once you approve, Sam gets looped in automatically. He handles rates, negotiation, invoicing — everything after your first hello. You're done.</div>
+                    </div>
+                </div>
+                <div style="display:flex;gap:14px;align-items:flex-start;">
+                    <div style="width:32px;height:32px;border-radius:50%;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);display:flex;align-items:center;justify-content:center;font-weight:800;color:#f59e0b;font-size:14px;flex-shrink:0;">!</div>
+                    <div>
+                        <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:3px;">One rule: never approve anything that feels off</div>
+                        <div style="font-size:13px;color:var(--muted);line-height:1.5;">If the draft doesn't match the conversation, if the name is wrong, or if it just doesn't feel right — reject it. Better to regenerate than send something sloppy. Your name is on it.</div>
+                    </div>
+                </div>
+            </div>
+
+            <button onclick="rrDismissOnboarding()" style="width:100%;padding:14px;border-radius:10px;border:none;cursor:pointer;background:linear-gradient(135deg,#5b8cff,#34d399);color:#fff;font-size:15px;font-weight:800;font-family:var(--font-display);">
+                Got it — show me the queue →
+            </button>
+        </div>`;
+}
+
+function rrDismissOnboarding() {
+    localStorage.setItem('rr_robert_onboarded', '1');
     rrRender();
 }
+window.rrDismissOnboarding = rrDismissOnboarding;
 
 function closeRobertReview(event) {
     if (event && event.target !== document.getElementById('robert-review-overlay')) return;
