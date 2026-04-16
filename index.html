@@ -287,6 +287,129 @@
             background: rgba(91,140,255,0.08);
         }
 
+        /* ─── HALLOWEEN MODE ──────────────────────────────── */
+        @keyframes fog-drift {
+            0%,100% { opacity:0.75; transform:translateX(0); }
+            50%      { opacity:1;    transform:translateX(-12px); }
+        }
+        @keyframes pumpkin-pulse {
+            0%,100% { box-shadow: 0 0 8px rgba(255,100,0,0.4), 0 0 24px rgba(255,80,0,0.2); }
+            50%      { box-shadow: 0 0 18px rgba(255,120,0,0.7), 0 0 48px rgba(255,60,0,0.35); }
+        }
+        @keyframes ghost-bob {
+            0%,100% { transform: translateY(0) rotate(-2deg); }
+            50%      { transform: translateY(-8px) rotate(2deg); }
+        }
+        @keyframes hw-flicker {
+            0%,100%  { opacity:1; }
+            88%       { opacity:1; }
+            89%       { opacity:0.92; }
+            90%       { opacity:1; }
+            95%       { opacity:0.96; }
+            96%       { opacity:1; }
+        }
+        body.halloween-mode {
+            color-scheme: dark;
+            --bg:          #0b0514;
+            --bg2:         #110820;
+            --surface:     #160c28;
+            --surface2:    #1e1235;
+            --border:      rgba(180,80,255,0.15);
+            --border2:     rgba(180,80,255,0.28);
+            --text:        #f0deff;
+            --muted:       rgba(200,160,255,0.5);
+            --muted2:      rgba(210,175,255,0.7);
+            --accent:      #ff7b00;
+            --accent-glow: rgba(255,123,0,0.3);
+            --green:       #a0ff60;
+            --green-glow:  rgba(160,255,96,0.2);
+            --shadow:      0 4px 24px rgba(80,0,120,0.35);
+            --shadow-lg:   0 12px 48px rgba(0,0,0,0.7);
+            --overlay-bg:  rgba(8,3,18,0.88);
+            --btn-fg:      #0b0514;
+            --quick-btn-bg: rgba(22,12,40,0.95);
+            --quick-btn-border: rgba(180,80,255,0.25);
+            animation: hw-flicker 8s infinite;
+        }
+        body.halloween-mode .header {
+            background: #0d0620;
+            border-bottom: 1px solid rgba(180,80,255,0.2);
+        }
+        body.halloween-mode .board-title {
+            color: #ff7b00;
+            text-shadow: 0 0 20px rgba(255,123,0,0.55);
+        }
+        body.halloween-mode .list {
+            background: #120820;
+            border: 1px solid rgba(180,80,255,0.12);
+        }
+        body.halloween-mode .list-title {
+            color: #c084fc;
+            text-shadow: 0 0 10px rgba(192,132,252,0.3);
+        }
+        body.halloween-mode .list-accent-bar { background: linear-gradient(135deg,#ff7b00,#a855f7) !important; }
+        body.halloween-mode .col-count-badge {
+            background: rgba(168,85,247,0.15);
+            color: #c084fc;
+        }
+        body.halloween-mode .card {
+            background: #160c28;
+            border: 1px solid rgba(180,80,255,0.14);
+            border-left: 3px solid rgba(168,85,247,0.35);
+        }
+        body.halloween-mode .card:hover {
+            border-color: rgba(180,80,255,0.4);
+            box-shadow: 0 0 16px rgba(168,85,247,0.15);
+        }
+        body.halloween-mode .card-who { color: #f0deff; }
+        body.halloween-mode .card-biz { color: rgba(200,160,255,0.65); }
+        body.halloween-mode .card-why-snippet { color: rgba(200,160,255,0.5); }
+        body.halloween-mode .card-intent-tag {
+            background: rgba(168,85,247,0.12);
+            color: #c084fc;
+            border: 1px solid rgba(168,85,247,0.3);
+        }
+        /* Hot card: jack-o-lantern pulse */
+        body.halloween-mode .card.priority-hot {
+            border-left-color: #ff6b00;
+            animation: pumpkin-pulse 2.2s ease-in-out infinite;
+        }
+        body.halloween-mode .card.priority-warm { border-left-color: #fbbf24; }
+        body.halloween-mode .card.priority-cold { border-left-color: #818cf8; }
+        body.halloween-mode .card.priority-done { border-left-color: #a0ff60; }
+        body.halloween-mode .card-age.age-fresh { background: rgba(160,255,96,0.1);  color: #a0ff60; }
+        body.halloween-mode .card-age.age-warn  { background: rgba(251,191,36,0.1);  color: #fbbf24; }
+        body.halloween-mode .card-age.age-old   { background: rgba(255,107,0,0.1);   color: #ff6b00; }
+        body.halloween-mode .card-quick-btn {
+            background: var(--quick-btn-bg);
+            border-color: var(--quick-btn-border);
+            color: #c084fc;
+        }
+        body.halloween-mode .card-delete-quick {
+            background: rgba(22,12,40,0.95);
+            border-color: rgba(180,80,255,0.2);
+            color: rgba(200,160,255,0.5);
+        }
+        body.halloween-mode .card-approve-btn { background: rgba(160,255,96,0.12); color: #a0ff60; }
+        body.halloween-mode .view-toggle { color: rgba(200,160,255,0.7); border-color: rgba(180,80,255,0.2); }
+        body.halloween-mode .view-toggle:hover,
+        body.halloween-mode .view-toggle.active { background: rgba(168,85,247,0.12); color: #c084fc; border-color: rgba(180,80,255,0.45); }
+        body.halloween-mode .profile-btn { border-color: rgba(180,80,255,0.25); color: #f0deff; }
+        body.halloween-mode .filter-bar { background: #0d0620; border-color: rgba(180,80,255,0.15); }
+        body.halloween-mode .filter-input, body.halloween-mode .filter-select {
+            background: #160c28; border-color: rgba(180,80,255,0.2); color: #f0deff;
+        }
+        body.halloween-mode input::placeholder,
+        body.halloween-mode textarea::placeholder { color: rgba(200,160,255,0.3); }
+        body.halloween-mode .daily-briefing-strip { background: rgba(168,85,247,0.07); border-color: rgba(180,80,255,0.18); }
+        body.halloween-mode .reply-needed-dot { background: #ff7b00; box-shadow: 0 0 6px #ff7b00; }
+        body.halloween-mode .card-reply-actions .card-quick-btn { border-color: rgba(255,123,0,0.4); color: #ff7b00; }
+        body.halloween-mode .card-modal, body.halloween-mode #shortcuts-modal > div { background: #160c28; border-color: rgba(180,80,255,0.22); }
+        body.halloween-mode .card-modal-title { color: #ff7b00; }
+        body.halloween-mode .modal-section { border-color: rgba(180,80,255,0.12) !important; }
+        body.halloween-mode .login-container { background: #160c28; border-color: rgba(180,80,255,0.3); }
+        body.halloween-mode .login-title { color: #ff7b00; text-shadow: 0 0 18px rgba(255,123,0,0.5); }
+
         html { overscroll-behavior: none; height: 100%; scroll-behavior: auto; }
 
         body {
@@ -2192,6 +2315,46 @@
     opacity:0.09;filter:brightness(4) saturate(0);
     transition:opacity 0.4s;
 "><img src="unaligned_logo.png" style="height:38px;"></div>
+
+<!-- ─── HALLOWEEN MODE LAYERS ──────────────────────────── -->
+<canvas id="hw-bg-canvas" style="position:fixed;inset:0;pointer-events:none;z-index:0;display:none;"></canvas>
+<canvas id="hw-fall-canvas" style="position:fixed;inset:0;pointer-events:none;z-index:2;display:none;"></canvas>
+<!-- fog strip at bottom -->
+<div id="hw-fog" style="position:fixed;bottom:0;left:0;right:0;height:140px;pointer-events:none;z-index:3;display:none;
+    background:linear-gradient(transparent,rgba(15,5,30,0.75));
+    animation:fog-drift 9s ease-in-out infinite;"></div>
+<!-- moon glow top-right -->
+<div id="hw-moon" style="position:fixed;top:-80px;right:-80px;width:280px;height:280px;pointer-events:none;z-index:0;display:none;
+    border-radius:50%;
+    background:radial-gradient(circle,rgba(255,220,120,0.18) 0%,rgba(255,180,60,0.07) 45%,transparent 70%);
+    filter:blur(8px);"></div>
+<!-- cobweb top-left -->
+<svg id="hw-web-tl" width="160" height="160" viewBox="0 0 160 160" style="position:fixed;top:0;left:0;pointer-events:none;z-index:5;display:none;opacity:0.35;">
+  <g stroke="#c4a0ff" stroke-width="0.8" fill="none">
+    <line x1="0" y1="0" x2="160" y2="80"/><line x1="0" y1="0" x2="120" y2="160"/><line x1="0" y1="0" x2="60" y2="160"/><line x1="0" y1="0" x2="0" y2="160"/><line x1="0" y1="0" x2="160" y2="160"/><line x1="0" y1="0" x2="160" y2="30"/>
+    <path d="M20,10 Q10,20 25,25 Q15,40 35,42 Q20,65 45,65 Q30,95 60,92 Q42,130 75,125"/>
+    <path d="M40,5 Q30,25 50,28 Q35,50 58,52 Q40,80 68,78 Q50,115 82,110"/>
+    <path d="M70,3 Q55,28 75,30 Q58,55 80,57 Q62,88 90,85 Q70,122 100,118"/>
+    <path d="M100,2 Q82,30 100,32 Q82,58 105,60 Q88,92 115,88"/>
+    <path d="M130,2 Q110,28 128,30 Q112,55 132,57"/>
+  </g>
+</svg>
+<!-- cobweb top-right -->
+<svg id="hw-web-tr" width="160" height="160" viewBox="0 0 160 160" style="position:fixed;top:0;right:0;pointer-events:none;z-index:5;display:none;opacity:0.35;transform:scaleX(-1);">
+  <g stroke="#c4a0ff" stroke-width="0.8" fill="none">
+    <line x1="0" y1="0" x2="160" y2="80"/><line x1="0" y1="0" x2="120" y2="160"/><line x1="0" y1="0" x2="60" y2="160"/><line x1="0" y1="0" x2="0" y2="160"/><line x1="0" y1="0" x2="160" y2="160"/><line x1="0" y1="0" x2="160" y2="30"/>
+    <path d="M20,10 Q10,20 25,25 Q15,40 35,42 Q20,65 45,65 Q30,95 60,92 Q42,130 75,125"/>
+    <path d="M40,5 Q30,25 50,28 Q35,50 58,52 Q40,80 68,78 Q50,115 82,110"/>
+    <path d="M70,3 Q55,28 75,30 Q58,55 80,57 Q62,88 90,85 Q70,122 100,118"/>
+    <path d="M100,2 Q82,30 100,32 Q82,58 105,60 Q88,92 115,88"/>
+    <path d="M130,2 Q110,28 128,30 Q112,55 132,57"/>
+  </g>
+</svg>
+<!-- UNALIGNED watermark halloween -->
+<div id="hw-watermark" style="position:fixed;bottom:28px;right:36px;z-index:4;pointer-events:none;display:none;
+    opacity:0.13;filter:sepia(1) hue-rotate(300deg) saturate(3) brightness(1.4);">
+  <img src="unaligned_logo.png" style="height:38px;">
+</div>
 
 <!-- ─── MATRIX LOGIN SCENE ─────────────────────────────── -->
 <div id="matrix-overlay">
@@ -7207,6 +7370,283 @@ function mtxModeStop() {
     mtxShowWatermark(false);
 }
 
+// ── Halloween Mode Engine ─────────────────────────────────────
+const HW = { bgRAF: null, fallRAF: null, active: false };
+const _hwDrops = [];
+
+// Draw a bat at (x,y) with wing phase
+function hwDrawBat(ctx, x, y, wingPhase, size, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(x, y);
+    const flap = Math.sin(wingPhase) * size * 0.55;
+
+    // body
+    ctx.fillStyle = '#1a0a2e';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, size * 0.28, size * 0.18, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // left wing
+    ctx.fillStyle = '#210d3a';
+    ctx.beginPath();
+    ctx.moveTo(-size * 0.1, 0);
+    ctx.quadraticCurveTo(-size * 0.75, -flap, -size, size * 0.05);
+    ctx.quadraticCurveTo(-size * 0.55, size * 0.22, -size * 0.25, size * 0.1);
+    ctx.quadraticCurveTo(-size * 0.45, -flap * 0.3, -size * 0.1, 0);
+    ctx.fill();
+
+    // right wing
+    ctx.beginPath();
+    ctx.moveTo(size * 0.1, 0);
+    ctx.quadraticCurveTo(size * 0.75, -flap, size, size * 0.05);
+    ctx.quadraticCurveTo(size * 0.55, size * 0.22, size * 0.25, size * 0.1);
+    ctx.quadraticCurveTo(size * 0.45, -flap * 0.3, size * 0.1, 0);
+    ctx.fill();
+
+    // ears
+    ctx.fillStyle = '#1a0a2e';
+    ctx.beginPath();
+    ctx.moveTo(-size*0.18, -size*0.12);
+    ctx.lineTo(-size*0.26, -size*0.32);
+    ctx.lineTo(-size*0.08, -size*0.12);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(size*0.18, -size*0.12);
+    ctx.lineTo(size*0.26, -size*0.32);
+    ctx.lineTo(size*0.08, -size*0.12);
+    ctx.fill();
+
+    // eyes
+    ctx.fillStyle = '#ff7b00';
+    ctx.shadowColor = '#ff7b00';
+    ctx.shadowBlur = 4;
+    ctx.beginPath();
+    ctx.arc(-size*0.1, -size*0.02, size*0.055, 0, Math.PI*2);
+    ctx.arc(size*0.1, -size*0.02, size*0.055, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.restore();
+}
+
+// Draw a ghost at (x,y)
+function hwDrawGhost(ctx, x, y, size, alpha, phase) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(x, y + Math.sin(phase) * 4);
+
+    // glow
+    ctx.shadowColor = 'rgba(200,180,255,0.6)';
+    ctx.shadowBlur = 18;
+
+    // body
+    const grad = ctx.createRadialGradient(0, -size*0.3, 0, 0, 0, size);
+    grad.addColorStop(0, 'rgba(230,210,255,0.92)');
+    grad.addColorStop(1, 'rgba(180,150,255,0.55)');
+    ctx.fillStyle = grad;
+
+    ctx.beginPath();
+    ctx.arc(0, -size*0.4, size*0.55, Math.PI, 0);
+    ctx.lineTo(size*0.55, size*0.5);
+    // wavy bottom — 3 humps
+    ctx.quadraticCurveTo(size*0.37, size*0.7, size*0.18, size*0.48);
+    ctx.quadraticCurveTo(0, size*0.7, -size*0.18, size*0.48);
+    ctx.quadraticCurveTo(-size*0.37, size*0.7, -size*0.55, size*0.5);
+    ctx.lineTo(-size*0.55, -size*0.4);
+    ctx.closePath();
+    ctx.fill();
+
+    // eyes
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(30,10,60,0.85)';
+    ctx.beginPath();
+    ctx.ellipse(-size*0.2, -size*0.35, size*0.13, size*0.16, -0.2, 0, Math.PI*2);
+    ctx.ellipse(size*0.2, -size*0.35, size*0.13, size*0.16, 0.2, 0, Math.PI*2);
+    ctx.fill();
+
+    // mouth
+    ctx.beginPath();
+    ctx.arc(0, -size*0.12, size*0.12, 0.2, Math.PI-0.2);
+    ctx.strokeStyle = 'rgba(30,10,60,0.7)';
+    ctx.lineWidth = size*0.06;
+    ctx.stroke();
+
+    ctx.restore();
+}
+
+function hwStartBg() {
+    const canvas = document.getElementById('hw-bg-canvas');
+    if (!canvas) return;
+    canvas.style.display = 'block';
+    const ctx = canvas.getContext('2d');
+    let W, H;
+
+    function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+    resize();
+    window._hwBgResize = resize;
+    window.addEventListener('resize', resize);
+
+    // bats: { x, y, vx, vy, phase, size, alpha, flipX }
+    const bats = Array.from({length: 14}, (_, i) => ({
+        x: Math.random() * W,
+        y: 60 + Math.random() * (H * 0.55),
+        vx: (0.6 + Math.random() * 1.1) * (Math.random() > 0.5 ? 1 : -1),
+        vy: 0,
+        baseY: 60 + Math.random() * (H * 0.55),
+        phase: Math.random() * Math.PI * 2,
+        waveAmp: 25 + Math.random() * 40,
+        waveFreq: 0.008 + Math.random() * 0.012,
+        wingPhase: Math.random() * Math.PI * 2,
+        size: 14 + Math.random() * 22,
+        alpha: 0.55 + Math.random() * 0.4,
+        tick: Math.random() * 1000,
+    }));
+
+    // ghosts: { x, y, vx, phase, size, alpha }
+    const ghosts = Array.from({length: 4}, () => ({
+        x: Math.random() * W,
+        y: H * 0.3 + Math.random() * H * 0.4,
+        vx: (0.2 + Math.random() * 0.35) * (Math.random() > 0.5 ? 1 : -1),
+        phase: Math.random() * Math.PI * 2,
+        size: 22 + Math.random() * 28,
+        alpha: 0.12 + Math.random() * 0.18,
+        tick: Math.random() * 1000,
+    }));
+
+    function draw() {
+        if (!HW.active) return;
+        ctx.clearRect(0, 0, W, H);
+
+        // draw ghosts first (behind bats)
+        ghosts.forEach(g => {
+            g.tick++;
+            g.x += g.vx;
+            g.phase += 0.018;
+            if (g.x > W + 60)  g.x = -60;
+            if (g.x < -60) g.x = W + 60;
+            hwDrawGhost(ctx, g.x, g.y, g.size, g.alpha, g.phase);
+        });
+
+        // draw bats
+        bats.forEach(b => {
+            b.tick++;
+            b.wingPhase += 0.22;
+            b.x += b.vx;
+            b.y = b.baseY + Math.sin(b.tick * b.waveFreq) * b.waveAmp;
+
+            if (b.x > W + 80)  { b.x = -80; b.baseY = 60 + Math.random() * (H * 0.5); }
+            if (b.x < -80) { b.x = W + 80; b.baseY = 60 + Math.random() * (H * 0.5); }
+
+            ctx.save();
+            if (b.vx < 0) { ctx.translate(b.x, b.y); ctx.scale(-1,1); ctx.translate(-b.x,-b.y); }
+            hwDrawBat(ctx, b.x, b.y, b.wingPhase, b.size, b.alpha);
+            ctx.restore();
+        });
+
+        HW.bgRAF = requestAnimationFrame(draw);
+    }
+    draw();
+}
+
+function hwStopBg() {
+    cancelAnimationFrame(HW.bgRAF);
+    const c = document.getElementById('hw-bg-canvas');
+    if (c) { c.style.display='none'; c.getContext('2d').clearRect(0,0,c.width,c.height); }
+    window.removeEventListener('resize', window._hwBgResize);
+}
+
+function hwStartFall() {
+    const canvas = document.getElementById('hw-fall-canvas');
+    if (!canvas) return;
+    canvas.style.display = 'block';
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const ctx = canvas.getContext('2d');
+    window._hwFallResize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
+    window.addEventListener('resize', window._hwFallResize);
+
+    // Halloween symbols that float UP from cards
+    const SYMBOLS = ['💀','🦇','👻','🕷️','🕸️','🎃','☠️','🌙'];
+    let spawnTick = 0;
+
+    function frame() {
+        if (!HW.active) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        spawnTick++;
+
+        if (spawnTick % 18 === 0) {
+            const cards = document.querySelectorAll('.card');
+            cards.forEach(card => {
+                if (Math.random() > 0.08) return;
+                const r = card.getBoundingClientRect();
+                if (!r.width) return;
+                _hwDrops.push({
+                    x: r.left + Math.random() * r.width,
+                    y: r.top + r.height * 0.3,
+                    sym: SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)],
+                    alpha: 0.85,
+                    vy: -(0.6 + Math.random() * 1.0),   // float UP
+                    vx: (Math.random() - 0.5) * 0.6,
+                    size: 10 + Math.random() * 10,
+                    rot: (Math.random() - 0.5) * 0.3,
+                    rotV: (Math.random() - 0.5) * 0.04,
+                    angle: 0,
+                });
+            });
+        }
+
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'center';
+        for (let i = _hwDrops.length - 1; i >= 0; i--) {
+            const d = _hwDrops[i];
+            d.y   += d.vy;
+            d.x   += d.vx;
+            d.vy  *= 0.995;        // slow as they rise (gravity)
+            d.alpha -= 0.012;
+            d.angle += d.rotV;
+            if (d.alpha <= 0) { _hwDrops.splice(i, 1); continue; }
+            ctx.save();
+            ctx.globalAlpha = d.alpha;
+            ctx.translate(d.x, d.y);
+            ctx.rotate(d.angle);
+            ctx.font = `${d.size}px serif`;
+            ctx.fillText(d.sym, 0, 0);
+            ctx.restore();
+        }
+        HW.fallRAF = requestAnimationFrame(frame);
+    }
+    frame();
+}
+
+function hwStopFall() {
+    cancelAnimationFrame(HW.fallRAF);
+    _hwDrops.length = 0;
+    const c = document.getElementById('hw-fall-canvas');
+    if (c) { c.style.display='none'; c.getContext('2d').clearRect(0,0,c.width,c.height); }
+    window.removeEventListener('resize', window._hwFallResize);
+}
+
+function hwShowOverlays(on) {
+    ['hw-fog','hw-moon','hw-web-tl','hw-web-tr','hw-watermark'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = on ? 'block' : 'none';
+    });
+}
+
+function hwModeStart() {
+    HW.active = true;
+    hwStartBg();
+    hwStartFall();
+    hwShowOverlays(true);
+}
+
+function hwModeStop() {
+    HW.active = false;
+    hwStopBg();
+    hwStopFall();
+    hwShowOverlays(false);
+}
+
 // ── Daily Activity Log ─────────────────────────────────────────
 let _logTab = 'today';
 
@@ -7632,9 +8072,9 @@ const ASHER_SETTINGS_DEFAULTS = {
 };
 
 // ── Theme Toggle (dark / light / matrix) ─────────────────────
-const THEME_CYCLE = ['dark', 'light', 'matrix'];
-const THEME_ICONS = { dark: '☀️', light: '💊', matrix: '🌑' };
-const THEME_TITLES = { dark: 'Switch to Light', light: 'Switch to Matrix', matrix: 'Switch to Dark' };
+const THEME_CYCLE = ['dark', 'light', 'matrix', 'halloween'];
+const THEME_ICONS = { dark: '☀️', light: '💊', matrix: '🎃', halloween: '🌑' };
+const THEME_TITLES = { dark: 'Switch to Light', light: 'Switch to Matrix', matrix: 'Switch to Halloween', halloween: 'Switch to Dark' };
 
 function applyTheme(theme) {
     const wasMatrix = document.body.classList.contains('matrix-mode');
@@ -7645,11 +8085,17 @@ function applyTheme(theme) {
     if (btn) { btn.textContent = THEME_ICONS[theme]; btn.title = THEME_TITLES[theme]; }
     localStorage.setItem('ui_theme', theme);
     // start/stop matrix engine
+    const wasHalloween = document.body.classList.contains('halloween-mode') || (theme === 'halloween');
     if (theme === 'matrix' && !wasMatrix) {
-        // defer until MTX functions are defined (may be called on load before script runs)
         setTimeout(() => { if (typeof mtxModeStart === 'function') mtxModeStart(); }, 50);
     } else if (theme !== 'matrix' && wasMatrix) {
         if (typeof mtxModeStop === 'function') mtxModeStop();
+    }
+    // start/stop halloween engine
+    if (theme === 'halloween') {
+        setTimeout(() => { if (typeof hwModeStart === 'function') hwModeStart(); }, 50);
+    } else {
+        if (typeof hwModeStop === 'function') hwModeStop();
     }
 }
 function toggleLightMode() {
@@ -7664,6 +8110,11 @@ function toggleLightMode() {
     if (saved === 'matrix') {
         window.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => { if (typeof mtxModeStart === 'function') mtxModeStart(); }, 200);
+        }, { once: true });
+    }
+    if (saved === 'halloween') {
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => { if (typeof hwModeStart === 'function') hwModeStart(); }, 200);
         }, { once: true });
     }
 })();
