@@ -263,6 +263,66 @@
             position: relative; z-index: 2; /* stacks above board during animation */
         }
 
+        /* ─── CENTIPEDE ──────────────────────────────────── */
+        #centi-wrap {
+            overflow: hidden; height: 44px; position: relative;
+            margin: 0; pointer-events: none; user-select: none;
+        }
+        @keyframes centi-crawl {
+            from { transform: translateX(calc(100vw + 340px)); }
+            to   { transform: translateX(-420px); }
+        }
+        @keyframes centi-bob {
+            from { transform: translateY(0px); }
+            to   { transform: translateY(-7px); }
+        }
+        #centipede {
+            display: inline-flex; align-items: flex-end;
+            white-space: nowrap; position: absolute; bottom: 6px;
+            animation: centi-crawl 22s linear infinite;
+        }
+        .centi-seg {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 28px; height: 28px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px; font-weight: 900; letter-spacing: 0;
+            border: 2px solid var(--cc, #34d399);
+            background: var(--cb, rgba(52,211,153,0.1));
+            color: var(--cc, #34d399);
+            margin: 0 0px; border-radius: 3px; position: relative;
+            animation: centi-bob 0.32s ease-in-out infinite alternate;
+            animation-delay: calc(var(--ci, 0) * 0.07s);
+            box-shadow: 0 0 6px var(--cc, #34d399), inset 0 0 6px rgba(0,0,0,0.4);
+            text-shadow: 0 0 8px var(--cc, #34d399);
+        }
+        /* pixel legs via box-shadow */
+        .centi-seg::before {
+            content: ''; position: absolute; width: 2px; height: 2px;
+            top: 50%; left: 50%; transform: translate(-50%,-50%);
+            box-shadow:
+                -15px -4px 0 1px var(--cc),
+                -15px  4px 0 1px var(--cc),
+                 15px -4px 0 1px var(--cc),
+                 15px  4px 0 1px var(--cc);
+            opacity: 0.45;
+        }
+        /* connector spine between segments */
+        .centi-seg + .centi-seg {
+            margin-left: 6px;
+        }
+        .centi-seg + .centi-seg::after {
+            content: ''; position: absolute;
+            left: -7px; top: 50%; transform: translateY(-50%);
+            width: 7px; height: 3px;
+            background: var(--cc); opacity: 0.5;
+            border-radius: 0;
+        }
+        .centi-head {
+            border-radius: 6px 3px 3px 6px;
+            width: 34px;
+        }
+        @media (max-width: 640px) { #centi-wrap { display: none; } }
+
         /* ─── FLOW MAP ────────────────────────────────────── */
         .flow-map {
             display: flex; align-items: center; gap: 10px;
@@ -1827,6 +1887,22 @@
             <div class="main-scroll">
                 <!-- Collapsible strip — hides on scroll down, reveals on scroll up -->
                 <div id="board-top-strip">
+
+                <!-- 8-bit UNALIGNED centipede -->
+                <div id="centi-wrap">
+                    <div id="centipede">
+                        <div class="centi-seg centi-head" style="--ci:0;--cc:#34d399;--cb:rgba(52,211,153,0.12);">◈U</div>
+                        <div class="centi-seg" style="--ci:1;--cc:#34d399;--cb:rgba(52,211,153,0.10);">N</div>
+                        <div class="centi-seg" style="--ci:2;--cc:#4ade80;--cb:rgba(74,222,128,0.10);">A</div>
+                        <div class="centi-seg" style="--ci:3;--cc:#60a5fa;--cb:rgba(96,165,250,0.10);">L</div>
+                        <div class="centi-seg" style="--ci:4;--cc:#818cf8;--cb:rgba(129,140,248,0.10);">I</div>
+                        <div class="centi-seg" style="--ci:5;--cc:#c084fc;--cb:rgba(192,132,252,0.10);">G</div>
+                        <div class="centi-seg" style="--ci:6;--cc:#f472b6;--cb:rgba(244,114,182,0.10);">N</div>
+                        <div class="centi-seg" style="--ci:7;--cc:#fb923c;--cb:rgba(251,146,60,0.10);">E</div>
+                        <div class="centi-seg" style="--ci:8;--cc:#facc15;--cb:rgba(250,204,21,0.10);">D</div>
+                        <div class="centi-seg" style="--ci:9;--cc:#34d399;--cb:rgba(52,211,153,0.08);">·</div>
+                    </div>
+                </div>
 
                 <!-- Board Card Search -->
                 <div id="board-search-bar" style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface2);border-radius:8px;max-width:360px;margin:0 12px 6px;">
@@ -5998,21 +6074,14 @@ async function syncGmail() {
     btn.textContent = '⏳ Syncing…';
     btn.disabled = true;
     try {
-        const resp = await fetch('http://localhost:5000/scrape', { method: 'POST' });
-        if (!resp.ok) {
-            const d = await resp.json().catch(() => ({}));
-            throw new Error(d.error || `Server error ${resp.status}`);
-        }
-        btn.textContent = '✅ Synced!';
+        const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/syncInbox', { method: 'POST' });
+        const d = await resp.json().catch(() => ({}));
+        if (!resp.ok) throw new Error(d.error || `Server error ${resp.status}`);
+        btn.textContent = `✅ Synced! +${d.newReplies||0} replies`;
         await loadState();
     } catch (e) {
-        if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
-            btn.textContent = '⚠️ Server offline';
-            showEmailToast('⚠️ Run: python3 email_server.py to enable sync', true);
-        } else {
-            btn.textContent = '⚠️ Error';
-            showEmailToast('⚠️ Sync failed: ' + e.message, true);
-        }
+        btn.textContent = '⚠️ Error';
+        showEmailToast('⚠️ Sync failed: ' + e.message, true);
     } finally {
         setTimeout(() => { btn.textContent = '🔄 Sync'; btn.disabled = false; }, 3000);
     }
