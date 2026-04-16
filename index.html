@@ -109,10 +109,10 @@
         /* ─── MATRIX MODE ─────────────────────────────────── */
         body.matrix-mode {
             color-scheme: dark;
-            --bg:          #010904;
-            --bg2:         #020d06;
-            --surface:     #061209;
-            --surface2:    #0b1e0f;
+            --bg:          #000000;
+            --bg2:         #050505;
+            --surface:     #0a0a0a;
+            --surface2:    #111111;
             --border:      rgba(0,255,65,0.12);
             --border2:     rgba(0,255,65,0.22);
             --text:        #b8ffcb;
@@ -153,7 +153,7 @@
             text-shadow: 0 0 18px rgba(0,255,65,0.5);
         }
         body.matrix-mode .list {
-            background: #060f08;
+            background: #0a0a0a;
             border: 1px solid rgba(0,255,65,0.1);
         }
         body.matrix-mode .list-header {
@@ -167,7 +167,7 @@
         }
         body.matrix-mode .list-accent-bar { background: #00ff41 !important; }
         body.matrix-mode .card {
-            background: #08160a;
+            background: #080808;
             border: 1px solid rgba(0,255,65,0.12);
             border-left: 3px solid rgba(0,255,65,0.25);
             box-shadow: 0 1px 6px rgba(0,255,65,0.06);
@@ -7004,12 +7004,16 @@ function mtxStartBg() {
     if (!canvas) return;
     canvas.style.display = 'block';
     const ctx = canvas.getContext('2d');
-    let W, H, cols, drops;
+    const CHARS = 'ｦｧｨｩｪｫｬｭｮｯｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const COL_W = 16;
+    let W, H, cols, drops, speeds;
+
     function resize() {
         W = canvas.width  = window.innerWidth;
         H = canvas.height = window.innerHeight;
-        cols  = Math.floor(W / 20);
-        drops = Array(cols).fill(0).map(() => Math.random() * -50);
+        cols   = Math.floor(W / COL_W);
+        drops  = Array(cols).fill(0).map(() => Math.random() * -(H / 16));
+        speeds = Array(cols).fill(0).map(() => 0.4 + Math.random() * 0.9);
     }
     resize();
     window._mtxBgResize = resize;
@@ -7017,23 +7021,40 @@ function mtxStartBg() {
 
     function draw() {
         if (!MTX.active) return;
-        ctx.fillStyle = 'rgba(1,9,4,0.18)';
+        // long phosphor trail — key to the movie look
+        ctx.fillStyle = 'rgba(0,0,0,0.04)';
         ctx.fillRect(0, 0, W, H);
+
         drops.forEach((y, i) => {
-            // leading char brighter
-            ctx.font = '14px DM Mono, monospace';
+            const px = i * COL_W;
+            const py = y * 16;
+            const ch = () => CHARS[Math.floor(Math.random() * CHARS.length)];
+
+            // leading char: bright white
+            ctx.font = 'bold 15px DM Mono, monospace';
             ctx.fillStyle = '#ffffff';
-            ctx.globalAlpha = 0.9;
-            ctx.fillText(MTX.CHARS[Math.floor(Math.random() * MTX.CHARS.length)], i * 20, y * 14);
-            // trail
-            ctx.fillStyle = '#00ff41';
-            ctx.globalAlpha = 0.35;
-            ctx.fillText(MTX.CHARS[Math.floor(Math.random() * MTX.CHARS.length)], i * 20, (y - 1) * 14);
-            ctx.globalAlpha = 0.15;
-            ctx.fillText(MTX.CHARS[Math.floor(Math.random() * MTX.CHARS.length)], i * 20, (y - 3) * 14);
             ctx.globalAlpha = 1;
-            if (y * 14 > H && Math.random() > 0.97) drops[i] = 0;
-            drops[i] += 0.5;
+            ctx.fillText(ch(), px, py);
+
+            // second char: bright green
+            ctx.font = '14px DM Mono, monospace';
+            ctx.fillStyle = '#00ff41';
+            ctx.globalAlpha = 0.9;
+            ctx.fillText(ch(), px, py - 16);
+
+            // third: medium green
+            ctx.fillStyle = '#00cc33';
+            ctx.globalAlpha = 0.65;
+            ctx.fillText(ch(), px, py - 32);
+
+            ctx.globalAlpha = 1;
+
+            // reset column
+            drops[i] += speeds[i];
+            if (py > H + 16 && Math.random() > 0.975) {
+                drops[i] = Math.random() * -20;
+                speeds[i] = 0.4 + Math.random() * 0.9;
+            }
         });
         MTX.bgRAF = requestAnimationFrame(draw);
     }
@@ -7057,48 +7078,60 @@ function mtxStartFall() {
     canvas.width  = window.innerWidth;
     canvas.height = window.innerHeight;
     const ctx = canvas.getContext('2d');
+    const CHARS = 'ｦｧｨｩｪｫｬｭｮｯｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789';
+    const COL_W = 14;
 
     window._mtxFallResize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
     window.addEventListener('resize', window._mtxFallResize);
 
+    // Each drop: { x, y, trail: [{char,alpha}], speed, isAccent }
     let spawnTick = 0;
+
     function frame() {
         if (!MTX.active) return;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // spawn new drops from card positions
         spawnTick++;
-        if (spawnTick % 4 === 0) {
+        if (spawnTick % 3 === 0) {
             const cards = document.querySelectorAll('.card');
             cards.forEach(card => {
-                if (Math.random() > 0.15) return; // only some cards each frame
+                if (Math.random() > 0.12) return;
                 const r = card.getBoundingClientRect();
-                if (r.width === 0) return;
-                const x = r.left + Math.random() * r.width;
-                const y = r.top;
+                if (r.width === 0 || r.height === 0) return;
+                // snap to column grid, spawn from BOTTOM edge of card
+                const col = Math.floor((r.left + Math.random() * r.width) / COL_W);
+                const x = col * COL_W;
+                const y = r.bottom;
                 _fallDrops.push({
                     x, y,
-                    char: MTX.CHARS[Math.floor(Math.random() * MTX.CHARS.length)],
-                    alpha: 0.9,
-                    speed: 1.2 + Math.random() * 2.2,
-                    // UNALIGNED accent: 15% chance of blue drop
-                    isAccent: Math.random() < 0.15,
+                    chars: [CHARS[Math.floor(Math.random() * CHARS.length)]],
+                    alpha: 1.0,
+                    speed: 1.8 + Math.random() * 2.0,
+                    isAccent: Math.random() < 0.12,
+                    age: 0,
                 });
             });
         }
 
-        // draw + age drops
+        ctx.font = '13px DM Mono, monospace';
         for (let i = _fallDrops.length - 1; i >= 0; i--) {
             const d = _fallDrops[i];
+            d.age++;
+            d.y += d.speed;
+            d.alpha -= 0.022;
+            if (Math.random() > 0.8) d.chars[0] = CHARS[Math.floor(Math.random() * CHARS.length)];
+
+            if (d.alpha <= 0) { _fallDrops.splice(i, 1); continue; }
+
+            // leading char
             ctx.globalAlpha = d.alpha;
-            ctx.font = '13px DM Mono, monospace';
             ctx.fillStyle = d.isAccent ? '#5b8cff' : '#00ff41';
-            ctx.fillText(d.char, d.x, d.y);
-            // randomize char as it falls
-            if (Math.random() > 0.85) d.char = MTX.CHARS[Math.floor(Math.random() * MTX.CHARS.length)];
-            d.y    += d.speed;
-            d.alpha -= 0.018;
-            if (d.alpha <= 0) _fallDrops.splice(i, 1);
+            ctx.fillText(d.chars[0], d.x, d.y);
+
+            // fading trail char above
+            ctx.globalAlpha = d.alpha * 0.45;
+            ctx.fillStyle = d.isAccent ? '#2244aa' : '#008f11';
+            ctx.fillText(CHARS[Math.floor(Math.random() * CHARS.length)], d.x, d.y - 14);
         }
         ctx.globalAlpha = 1;
         MTX.fallRAF = requestAnimationFrame(frame);
