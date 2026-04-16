@@ -3257,124 +3257,246 @@ function markBoardReady() {
     setTimeout(playStormIntro, 200);
 }
 
-// ── Header FX (aurora plasma) ────────────────────────────────────────────────
+// ── Header FX (electric crash) ───────────────────────────────────────────────
 function initHeaderFx() {
     const canvas = document.getElementById('header-fx');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
+    let raf;
+
+    // ── Build letter positions ──────────────────────────────────────────────
+    const TEXT = 'UNALIGNED';
+    let letters = [], sparks = [], arcs = [], melts = [];
+    let phase = 'crash', startTime = null;
+    let lastArcAt = 0, nextArcIn = 500;
+
+    function buildLetters() {
+        const w = canvas.width, h = canvas.height;
+        const fontSize = Math.max(22, Math.floor(h * 0.63));
+        const font = `900 ${fontSize}px "Arial Black","Helvetica Neue",Arial,sans-serif`;
+        ctx.font = font;
+        const widths = TEXT.split('').map(c => ctx.measureText(c).width);
+        const gap = fontSize * 0.06;
+        const totalW = widths.reduce((s,v)=>s+v,0) + gap*(TEXT.length-1);
+        let x = (w - totalW) / 2;
+        const baseY = h * 0.79;
+        letters = TEXT.split('').map((char, i) => {
+            const cw = widths[i], cx = x + cw/2;
+            x += cw + gap;
+            return {
+                char, fontSize, font,
+                finalX: cx, finalY: baseY,
+                x: cx,
+                y: -fontSize * (0.5 + i * 0.18 + Math.random() * 0.25),
+                vy: 1.8 + Math.random() * 2.2,
+                landed: false, landAt: null, glow: 0,
+                nextMelt: 0, width: cw,
+            };
+        });
+        phase = 'crash'; startTime = null;
+        sparks = []; arcs = []; melts = [];
+    }
 
     function resize() {
-        canvas.width  = canvas.offsetWidth;
-        canvas.height = canvas.offsetHeight;
+        canvas.width  = canvas.offsetWidth  || 800;
+        canvas.height = canvas.offsetHeight || 64;
+        buildLetters();
     }
     resize();
     window.addEventListener('resize', resize);
 
-    // Wave layers: [speed, amplitude, frequency, phaseOffset, alpha]
-    const waves = [
-        { speed: 0.0008, amp: 0.38, freq: 1.7,  phase: 0,    hue: 195, sat: 90, lit: 55, alpha: 0.55 },
-        { speed: 0.0013, amp: 0.28, freq: 2.6,  phase: 1.2,  hue: 210, sat: 80, lit: 60, alpha: 0.45 },
-        { speed: 0.0006, amp: 0.45, freq: 1.1,  phase: 2.5,  hue: 180, sat: 100,lit: 50, alpha: 0.35 },
-        { speed: 0.0018, amp: 0.20, freq: 3.4,  phase: 0.7,  hue: 220, sat: 85, lit: 65, alpha: 0.30 },
-        { speed: 0.0010, amp: 0.32, freq: 2.0,  phase: 4.1,  hue: 170, sat: 95, lit: 55, alpha: 0.25 },
-    ];
-
-    // Floating particles
-    const PART_COUNT = 28;
-    const parts = Array.from({ length: PART_COUNT }, () => ({
-        x: Math.random(),
-        y: Math.random(),
-        r: 0.6 + Math.random() * 1.6,
-        vx: (Math.random() - 0.5) * 0.00015,
-        vy: -0.00008 - Math.random() * 0.00012,
-        alpha: 0.3 + Math.random() * 0.5,
-    }));
-
-    let t = 0;
-    let raf;
-
-    function draw() {
-        const W = canvas.width, H = canvas.height;
-        ctx.clearRect(0, 0, W, H);
-
-        // Dark background gradient
-        const bg = ctx.createLinearGradient(0, 0, 0, H);
-        bg.addColorStop(0, '#0a0e16');
-        bg.addColorStop(1, '#060810');
-        ctx.fillStyle = bg;
-        ctx.fillRect(0, 0, W, H);
-
-        // Draw each wave as a filled shape from bottom up
-        waves.forEach(w => {
-            const pts = [];
-            const steps = Math.ceil(W / 2) + 1;
-            for (let i = 0; i <= steps; i++) {
-                const x = (i / steps) * W;
-                const nx = i / steps; // 0..1
-                const y = H * (0.55 + w.amp * 0.5 * Math.sin(nx * Math.PI * 2 * w.freq + t * w.speed * 1000 + w.phase));
-                pts.push([x, y]);
-            }
-
-            // Filled aurora ribbon
-            const grad = ctx.createLinearGradient(0, 0, 0, H);
-            grad.addColorStop(0, `hsla(${w.hue}, ${w.sat}%, ${w.lit}%, 0)`);
-            grad.addColorStop(0.4, `hsla(${w.hue}, ${w.sat}%, ${w.lit}%, ${w.alpha})`);
-            grad.addColorStop(1, `hsla(${w.hue}, ${w.sat}%, ${w.lit * 0.6}%, ${w.alpha * 0.3})`);
-
-            ctx.beginPath();
-            ctx.moveTo(0, H);
-            pts.forEach(([x, y]) => ctx.lineTo(x, y));
-            ctx.lineTo(W, H);
-            ctx.closePath();
-            ctx.fillStyle = grad;
-            ctx.fill();
-
-            // Glowing crest line
-            ctx.beginPath();
-            pts.forEach(([x, y], i) => i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y));
-            ctx.strokeStyle = `hsla(${w.hue}, 100%, 82%, ${w.alpha * 0.9})`;
-            ctx.lineWidth = 1.2;
-            ctx.shadowColor = `hsl(${w.hue}, 100%, 70%)`;
-            ctx.shadowBlur = 8;
-            ctx.stroke();
-            ctx.shadowBlur = 0;
-        });
-
-        // Particles
-        parts.forEach(p => {
-            p.x += p.vx;
-            p.y += p.vy;
-            if (p.y < -0.05) { p.y = 1.05; p.x = Math.random(); }
-            if (p.x < 0 || p.x > 1) { p.x = ((p.x % 1) + 1) % 1; }
-            const px = p.x * W, py = p.y * H;
-            ctx.beginPath();
-            ctx.arc(px, py, p.r, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(160, 220, 255, ${p.alpha})`;
-            ctx.shadowColor = 'rgba(120, 200, 255, 0.8)';
-            ctx.shadowBlur = 6;
-            ctx.fill();
-            ctx.shadowBlur = 0;
-        });
-
-        // Subtle bottom glow border
-        const border = ctx.createLinearGradient(0, 0, W, 0);
-        border.addColorStop(0,   'transparent');
-        border.addColorStop(0.3, 'rgba(80, 180, 255, 0.25)');
-        border.addColorStop(0.7, 'rgba(80, 180, 255, 0.25)');
-        border.addColorStop(1,   'transparent');
-        ctx.fillStyle = border;
-        ctx.fillRect(0, H - 2, W, 2);
-
-        t += 16;
-        raf = requestAnimationFrame(draw);
+    // ── Fractal lightning path ──────────────────────────────────────────────
+    function lightningPts(x1,y1,x2,y2,rough,depth) {
+        if (depth===0) return [[x1,y1],[x2,y2]];
+        const mx=(x1+x2)/2+(Math.random()-0.5)*rough;
+        const my=(y1+y2)/2+(Math.random()-0.5)*rough*0.45;
+        return [
+            ...lightningPts(x1,y1,mx,my,rough*0.55,depth-1).slice(0,-1),
+            ...lightningPts(mx,my,x2,y2,rough*0.55,depth-1),
+        ];
     }
 
-    draw();
+    function addArc() {
+        if (letters.length < 2) return;
+        const i = Math.floor(Math.random()*letters.length);
+        let j = Math.floor(Math.random()*(letters.length-1)); if(j>=i) j++;
+        const a=letters[i], b=letters[j];
+        const rough = Math.abs(b.finalX-a.finalX)*0.38;
+        const ay = a.finalY - a.fontSize*0.48, by = b.finalY - b.fontSize*0.48;
+        const pts = lightningPts(a.finalX, ay, b.finalX, by, rough, 4);
+        arcs.push({ pts, life:1, decay: 0.055+Math.random()*0.055 });
+        // branch ~35%
+        if (Math.random()<0.35) {
+            const mi = Math.floor(pts.length/2);
+            const [bx,by2] = pts[mi];
+            arcs.push({
+                pts: lightningPts(bx,by2, bx+(Math.random()-0.5)*28, by2+Math.random()*14, 8, 2),
+                life: 0.65, decay: 0.1+Math.random()*0.08,
+            });
+        }
+        addSparks(a.finalX, a.finalY-a.fontSize*0.25, 7);
+        addSparks(b.finalX, b.finalY-b.fontSize*0.25, 7);
+    }
 
-    // Pause when tab is hidden (save CPU)
+    function addSparks(x, y, n) {
+        for (let k=0;k<n;k++) {
+            const ang = Math.random()*Math.PI*2;
+            const spd = 0.9+Math.random()*4;
+            sparks.push({
+                x, y,
+                vx: Math.cos(ang)*spd,
+                vy: Math.sin(ang)*spd - 2,
+                life: 0.7+Math.random()*0.3,
+                decay: 0.035+Math.random()*0.05,
+                r: 0.8+Math.random()*1.6,
+            });
+        }
+    }
+
+    // ── Ambient static sparks off letters ──────────────────────────────────
+    let nextStaticAt = 0;
+    function addStaticSparks(now) {
+        if (now < nextStaticAt) return;
+        nextStaticAt = now + 180 + Math.random()*320;
+        const l = letters[Math.floor(Math.random()*letters.length)];
+        if (!l || !l.landed) return;
+        const ex = l.finalX + (Math.random()-0.5)*l.width*0.5;
+        const ey = l.finalY - l.fontSize*(0.1+Math.random()*0.65);
+        addSparks(ex, ey, 2+Math.floor(Math.random()*3));
+    }
+
+    // ── Draw one letter ─────────────────────────────────────────────────────
+    function drawLetter(l) {
+        ctx.save();
+        ctx.font = l.font;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+        const g = l.glow;
+        // Outer glow halo
+        ctx.shadowColor = 'rgba(70,190,255,1)';
+        ctx.shadowBlur = 8 + g*18;
+        const v = Math.floor(150 + g*105);
+        ctx.fillStyle = `rgb(${v},${v+18},255)`;
+        ctx.fillText(l.char, l.x, l.y);
+        // Bright core overlay
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = `rgba(255,255,255,${0.18+g*0.52})`;
+        ctx.fillText(l.char, l.x, l.y);
+        ctx.restore();
+    }
+
+    // ── Main render loop ────────────────────────────────────────────────────
+    function frame(now) {
+        if (!startTime) startTime = now;
+        const elapsed = now - startTime;
+        const w = canvas.width, h = canvas.height;
+
+        // Background
+        ctx.fillStyle = '#06080e';
+        ctx.fillRect(0,0,w,h);
+
+        // Stormy bg pulse in steady state
+        if (phase === 'steady') {
+            const pulse = 0.025+0.018*Math.sin(now*0.0022);
+            const bg = ctx.createRadialGradient(w/2,h*0.6,0,w/2,h*0.6,w*0.55);
+            bg.addColorStop(0,`rgba(10,60,160,${pulse})`);
+            bg.addColorStop(1,'transparent');
+            ctx.fillStyle = bg; ctx.fillRect(0,0,w,h);
+        }
+
+        // ── Letters ──────────────────────────────────────────────────────
+        let allDone = true;
+        letters.forEach((l, idx) => {
+            if (elapsed < idx*60) { allDone=false; return; }
+            if (!l.landed) {
+                allDone = false;
+                l.y += l.vy;
+                l.vy *= 1.05; // gravity
+                if (l.y >= l.finalY) {
+                    l.y = l.finalY; l.landed = true; l.landAt = now; l.glow = 1;
+                    addSparks(l.finalX, l.finalY-l.fontSize*0.1, 26);
+                    ctx.fillStyle = 'rgba(140,215,255,0.28)'; ctx.fillRect(0,0,w,h);
+                }
+            } else {
+                const age = (now-l.landAt)/1000;
+                l.glow = age<0.45 ? 1-age*1.4 : 0.20+0.13*Math.sin(now*0.0019+idx*0.95);
+                // Melt drips
+                if (phase==='steady' && now>l.nextMelt) {
+                    l.nextMelt = now+700+Math.random()*3200;
+                    melts.push({
+                        x: l.finalX+(Math.random()-0.5)*l.width*0.5,
+                        y: l.finalY+1, vy:0.5+Math.random()*0.7,
+                        r: 1.2+Math.random()*1.8, life:1,
+                        decay:0.022+Math.random()*0.022,
+                    });
+                }
+            }
+            drawLetter(l);
+        });
+
+        if (allDone && letters.every(l=>l.landed)) phase='steady';
+
+        // ── Arcs ─────────────────────────────────────────────────────────
+        if (phase==='steady' && now-lastArcAt>nextArcIn) {
+            addArc(); lastArcAt=now; nextArcIn=350+Math.random()*1100;
+        }
+        arcs = arcs.filter(a=>a.life>0.03);
+        arcs.forEach(a => {
+            a.life -= a.decay;
+            // glow pass
+            ctx.beginPath();
+            a.pts.forEach(([x,y],i)=>i===0?ctx.moveTo(x,y):ctx.lineTo(x,y));
+            ctx.strokeStyle=`rgba(60,170,255,${a.life*0.55})`;
+            ctx.lineWidth=3; ctx.shadowColor='rgba(60,170,255,0.9)'; ctx.shadowBlur=12;
+            ctx.stroke();
+            // bright core
+            ctx.beginPath();
+            a.pts.forEach(([x,y],i)=>i===0?ctx.moveTo(x,y):ctx.lineTo(x,y));
+            ctx.strokeStyle=`rgba(230,245,255,${a.life*0.95})`;
+            ctx.lineWidth=0.9; ctx.shadowBlur=3; ctx.stroke();
+            ctx.shadowBlur=0;
+        });
+
+        // ── Sparks ───────────────────────────────────────────────────────
+        if (phase==='steady') addStaticSparks(now);
+        sparks = sparks.filter(s=>s.life>0.05);
+        sparks.forEach(s => {
+            s.x+=s.vx; s.y+=s.vy; s.vy+=0.13; s.vx*=0.96; s.life-=s.decay;
+            ctx.beginPath();
+            ctx.arc(s.x,s.y,s.r*Math.sqrt(s.life),0,Math.PI*2);
+            ctx.fillStyle=`rgba(150,225,255,${s.life})`;
+            ctx.shadowColor='rgba(100,200,255,0.8)'; ctx.shadowBlur=4;
+            ctx.fill(); ctx.shadowBlur=0;
+        });
+
+        // ── Melt drips ───────────────────────────────────────────────────
+        melts = melts.filter(m=>m.life>0.04);
+        melts.forEach(m => {
+            m.y+=m.vy; m.vy+=0.06; m.life-=m.decay;
+            const stretch = 1+m.vy*0.35;
+            ctx.save();
+            ctx.translate(m.x,m.y); ctx.scale(1,stretch);
+            ctx.beginPath(); ctx.arc(0,0,m.r,0,Math.PI*2);
+            ctx.fillStyle=`rgba(50,165,255,${m.life*0.88})`;
+            ctx.shadowColor='rgba(50,165,255,0.6)'; ctx.shadowBlur=5;
+            ctx.fill(); ctx.shadowBlur=0; ctx.restore();
+        });
+
+        // Bottom glow border
+        const bl = ctx.createLinearGradient(0,0,w,0);
+        bl.addColorStop(0,'transparent');
+        bl.addColorStop(0.25,'rgba(70,175,255,0.38)');
+        bl.addColorStop(0.75,'rgba(70,175,255,0.38)');
+        bl.addColorStop(1,'transparent');
+        ctx.fillStyle=bl; ctx.fillRect(0,h-2,w,2);
+
+        raf = requestAnimationFrame(frame);
+    }
+
+    raf = requestAnimationFrame(frame);
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) cancelAnimationFrame(raf);
-        else draw();
+        else { raf = requestAnimationFrame(frame); }
     });
 }
 
