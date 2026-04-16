@@ -1921,9 +1921,6 @@
                     🤖 <span id="api-cost-total">…</span>
                 </div>
                 <button class="view-toggle" id="strip-toggle-btn" onclick="toggleTopStrip()" title="Toggle top panel">▴</button>
-                <button class="view-toggle" id="robert-review-btn" onclick="openRobertReview()" title="Robert's guided review queue" style="position:relative;">
-                    📋 Review <span id="robert-review-badge" style="display:none;position:absolute;top:-4px;right:-4px;background:#ef4444;color:#fff;font-size:9px;font-weight:800;border-radius:99px;padding:1px 5px;font-family:var(--font-mono);"></span>
-                </button>
                 <button class="view-toggle" id="gmail-sync-btn" onclick="syncGmail()" title="Scrape Gmail + refresh board">🔄 Sync</button>
                 <button class="view-toggle" id="daily-log-btn" onclick="openDailyLog()" title="Daily activity log">📋 Log</button>
                 <button class="view-toggle" id="global-sort-btn" onclick="cycleGlobalSort()" title="Sort all columns">⇅ Date</button>
@@ -4467,10 +4464,17 @@ function setDealTypeFilter(type) {
 window.setDealTypeFilter = setDealTypeFilter;
 
 // ── Card Modal ─────────────────────────────────────
-function openCardModal(cardId) {
+function openCardModal(cardId, skipReview) {
     currentEditingCard = cardId;
     currentEditingCardData = cardsData[cardId];
     if (!currentEditingCardData) return;
+
+    // If card is new or first-touch, open the guided review for it instead
+    if (!skipReview && ['new','first-touch'].includes(currentEditingCardData.listId)) {
+        openRobertReviewForCard(cardId);
+        return;
+    }
+
     const overlay = document.getElementById('card-modal-overlay');
     const modal = document.getElementById('card-modal');
     overlay.classList.add('active'); overlay.style.display='flex';
@@ -6649,6 +6653,24 @@ function openRobertReview() {
     }
 }
 
+// Opens the full card modal directly, bypassing the review intercept
+function openCardModalFull(cardId) { openCardModal(cardId, true); }
+window.openCardModalFull = openCardModalFull;
+
+function openRobertReviewForCard(cardId) {
+    _rrCards = Object.values(cardsData)
+        .filter(c => c.listId === 'new' || c.listId === 'first-touch')
+        .sort((a,b) => (b.newReplyAt ? 1 : 0) - (a.newReplyAt ? 1 : 0));
+    _rrIndex = Math.max(0, _rrCards.findIndex(c => c.id == cardId));
+    document.getElementById('robert-review-overlay').style.display = 'flex';
+    if (!localStorage.getItem('rr_robert_onboarded')) {
+        rrShowOnboarding();
+    } else {
+        rrRender();
+    }
+}
+window.openRobertReviewForCard = openRobertReviewForCard;
+
 function rrShowOnboarding() {
     const progress = document.getElementById('rr-progress');
     const content  = document.getElementById('rr-content');
@@ -6749,12 +6771,12 @@ function rrRender() {
             <div class="rr-actions">
                 <button class="rr-btn-approve" onclick="rrApproveDraft('${card.id}')">✅ Approve & Send</button>
                 <button class="rr-btn-reject"  onclick="rrRejectDraft('${card.id}')">✕ Reject Draft</button>
-                <button class="rr-btn-open"    onclick="closeRobertReview();openCardModal('${card.id}')">Open Card</button>
+                <button class="rr-btn-open"    onclick="closeRobertReview();openCardModalFull('${card.id}')">Open Full Card</button>
             </div>`;
     } else {
         draftHtml = `
             <div class="rr-actions">
-                <button class="rr-btn-open" onclick="closeRobertReview();openCardModal('${card.id}')">Open Full Card →</button>
+                <button class="rr-btn-open" onclick="closeRobertReview();openCardModalFull('${card.id}')">Open Full Card →</button>
             </div>`;
     }
 
