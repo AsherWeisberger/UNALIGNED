@@ -32,7 +32,79 @@
             --font-display: 'Syne', sans-serif;
             --font-body:    'DM Sans', sans-serif;
             --font-mono:    'DM Mono', monospace;
+            --overlay-bg:  rgba(7,8,15,0.82);
+            --btn-fg:      #07080f;
+            --quick-btn-bg: rgba(13,15,28,0.92);
+            --quick-btn-border: rgba(255,255,255,0.13);
         }
+
+        /* ─── LIGHT MODE ──────────────────────────────────── */
+        body.light-mode {
+            color-scheme: light;
+            --bg:          #f0f2f8;
+            --bg2:         #e4e8f2;
+            --surface:     #ffffff;
+            --surface2:    #f7f8fc;
+            --border:      rgba(0,0,0,0.08);
+            --border2:     rgba(0,0,0,0.14);
+            --text:        #0f1117;
+            --muted:       #6b7280;
+            --muted2:      #8b95a6;
+            --accent:      #3b6ef5;
+            --accent-glow: rgba(59,110,245,0.18);
+            --green:       #10b981;
+            --green-glow:  rgba(16,185,129,0.15);
+            --shadow:      0 4px 24px rgba(0,0,0,0.10);
+            --shadow-lg:   0 12px 48px rgba(0,0,0,0.16);
+            --overlay-bg:  rgba(15,17,23,0.55);
+            --btn-fg:      #ffffff;
+            --quick-btn-bg: rgba(255,255,255,0.92);
+            --quick-btn-border: rgba(0,0,0,0.14);
+        }
+        body.light-mode .card-quick-btn {
+            background: var(--quick-btn-bg);
+            border-color: var(--quick-btn-border);
+            color: var(--text);
+        }
+        body.light-mode .card-delete-quick {
+            background: rgba(255,255,255,0.88);
+            border-color: rgba(0,0,0,0.12);
+            color: var(--muted);
+        }
+        body.light-mode .modal-overlay,
+        body.light-mode #card-modal-overlay,
+        body.light-mode #profile-modal,
+        body.light-mode #label-picker-overlay,
+        body.light-mode #assignee-modal,
+        body.light-mode #asher-settings-overlay {
+            background: var(--overlay-bg) !important;
+        }
+        body.light-mode .list {
+            background: #e8ebf4;
+        }
+        body.light-mode .cards-container.drag-over {
+            background: rgba(59,110,245,0.07);
+        }
+        body.light-mode .card {
+            box-shadow: 0 1px 4px rgba(0,0,0,0.10);
+        }
+        body.light-mode .card.priority-hot {
+            border-left-color: #ef4444;
+            box-shadow: 0 0 0 1px rgba(239,68,68,0.15), 0 1px 4px rgba(0,0,0,0.10);
+        }
+        body.light-mode .priority-hot .card-who { color: #dc2626; }
+        body.light-mode input, body.light-mode textarea, body.light-mode select {
+            background: var(--surface2);
+            color: var(--text);
+            border-color: var(--border2);
+        }
+        body.light-mode .login-btn {
+            color: #fff;
+        }
+        body.light-mode #matrix-overlay { background: #e8f0e8; }
+        body.light-mode #matrix-line1 { color: #006622; text-shadow: 0 0 12px rgba(0,102,34,0.4); }
+        body.light-mode #matrix-line2 { color: #008833; text-shadow: none; }
+        body.light-mode #matrix-canvas { opacity: 0.25; }
 
         html { overscroll-behavior: none; height: 100%; scroll-behavior: auto; }
 
@@ -57,7 +129,7 @@
         /* ─── LOGIN ───────────────────────────────────────── */
         .modal-overlay {
             position: fixed; inset: 0;
-            background: rgba(7,8,15,0.85);
+            background: var(--overlay-bg);
             backdrop-filter: blur(12px);
             display: none; align-items: center; justify-content: center;
             z-index: 1000; padding: 20px; overflow-y: auto;
@@ -539,8 +611,8 @@
         .card-delete-quick {
             position: absolute; top: 6px; right: 6px;
             width: 22px; height: 22px; border-radius: 5px;
-            border: 1px solid rgba(255,255,255,0.1);
-            background: rgba(13,15,28,0.85);
+            border: 1px solid var(--quick-btn-border);
+            background: var(--quick-btn-bg);
             color: var(--muted); font-size: 13px; line-height: 1;
             cursor: pointer; display: flex; align-items: center; justify-content: center;
             opacity: 0; transition: opacity 0.12s ease, color 0.12s ease, border-color 0.12s ease;
@@ -558,7 +630,7 @@
         .card:hover .card-quick-actions { max-height: 34px; opacity: 1; margin-top: 6px; }
         .card-reply-actions { display: flex; align-items: center; gap: 5px; }
         .card-quick-btn {
-            background: rgba(13,15,28,0.92); border: 1px solid rgba(255,255,255,0.13);
+            background: var(--quick-btn-bg); border: 1px solid var(--quick-btn-border);
             border-radius: 6px; padding: 4px 9px; font-size: 11px; cursor: pointer;
             color: var(--muted2); transition: all 0.15s; font-family: var(--font-mono);
             white-space: nowrap; line-height: 1.3;
@@ -1847,7 +1919,7 @@
         /* ─── SHORTCUTS MODAL ─────────────────────────────── */
         #shortcuts-modal {
             position: fixed; inset: 0;
-            background: rgba(7,8,15,0.76);
+            background: var(--overlay-bg);
             backdrop-filter: blur(8px);
             z-index: 9999;
             display: none; align-items: center; justify-content: center;
@@ -2001,6 +2073,7 @@
                 <button class="view-toggle" id="global-sort-btn" onclick="cycleGlobalSort()" title="Sort all columns">⇅ Date</button>
                 <button class="view-toggle" id="view-toggle-btn" onclick="toggleViewMode()">⊞ Compact</button>
                 <button class="view-toggle" id="table-view-btn" onclick="toggleTableView()">☰ Table</button>
+                <button class="view-toggle" id="light-mode-btn" onclick="toggleLightMode()" title="Toggle light/dark mode">☀️</button>
                 <button class="view-toggle" id="asher-settings-btn" onclick="openAsherSettings()" title="Builder settings" style="display:none;font-size:15px;">⚙</button>
                 <button class="profile-btn" id="profile-btn" onclick="openProfileModal()">
                     <span class="avatar" id="current-avatar">AW</span>
@@ -7143,6 +7216,24 @@ const ASHER_SETTINGS_DEFAULTS = {
     review_intercept: true,   // new/first-touch cards open review by default
     col_info_default: false,  // column info strips collapsed by default
 };
+
+// ── Light Mode ────────────────────────────────────────────────
+function applyLightMode(on) {
+    document.body.classList.toggle('light-mode', on);
+    const btn = document.getElementById('light-mode-btn');
+    if (btn) btn.textContent = on ? '🌙' : '☀️';
+}
+function toggleLightMode() {
+    const on = !document.body.classList.contains('light-mode');
+    localStorage.setItem('light_mode', on ? '1' : '0');
+    applyLightMode(on);
+}
+// Apply on load
+(function() {
+    const saved = localStorage.getItem('light_mode');
+    if (saved === '1') applyLightMode(true);
+})();
+window.toggleLightMode = toggleLightMode;
 
 function getAsherSetting(key) {
     const stored = localStorage.getItem('asher_setting_' + key);
