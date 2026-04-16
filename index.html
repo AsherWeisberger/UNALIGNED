@@ -1862,6 +1862,20 @@
             background: var(--surface2); color: var(--text); font-size: 13px;
         }
 
+        .settings-reset-btn {
+            padding: 5px 14px; border-radius: 7px; border: 1px solid var(--border);
+            background: transparent; color: var(--muted); font-size: 12px;
+            cursor: pointer; white-space: nowrap; transition: all 0.15s; flex-shrink: 0;
+        }
+        .settings-reset-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .settings-reset-btn.done { color: #34d399; border-color: rgba(52,211,153,0.4); }
+        .settings-toggle-btn {
+            padding: 5px 14px; border-radius: 7px; font-size: 12px; font-weight: 700;
+            cursor: pointer; border: none; transition: all 0.15s; flex-shrink: 0;
+        }
+        .settings-toggle-btn.on  { background: rgba(52,211,153,0.18); color: #34d399; }
+        .settings-toggle-btn.off { background: rgba(255,255,255,0.06); color: var(--muted); }
+
     </style>
 </head>
 <body>
@@ -1931,6 +1945,7 @@
                 <button class="view-toggle" id="global-sort-btn" onclick="cycleGlobalSort()" title="Sort all columns">⇅ Date</button>
                 <button class="view-toggle" id="view-toggle-btn" onclick="toggleViewMode()">⊞ Compact</button>
                 <button class="view-toggle" id="table-view-btn" onclick="toggleTableView()">☰ Table</button>
+                <button class="view-toggle" id="asher-settings-btn" onclick="openAsherSettings()" title="Builder settings" style="display:none;font-size:15px;">⚙</button>
                 <button class="profile-btn" id="profile-btn" onclick="openProfileModal()">
                     <span class="avatar" id="current-avatar">AW</span>
                     <span id="current-profile-name">Asher W</span>
@@ -3231,6 +3246,13 @@ function initBoardStructure() {
             <div class="cards-container" id="${stage.id}-cards" data-list="${stage.id}" ondrop="drop(event)" ondragover="allowDrop(event)" ondragleave="dragLeave(event)"></div>
             <button class="add-card-btn" onclick="showAddCardForm('${stage.id}')">+ Add card</button>
         `;
+        // Open info strip by default if setting is on
+        if (getAsherSetting('col_info_default') && info.desc) {
+            const strip = list.querySelector('.col-info-strip');
+            const btn   = list.querySelector('.col-info-btn');
+            if (strip) strip.style.display = 'flex';
+            if (btn)   btn.classList.add('active');
+        }
         boardLists.appendChild(list);
     });
 }
@@ -3417,6 +3439,8 @@ function markBoardReady() {
     initHeaderFx();
     updateRobertReviewBadge();
     setTimeout(playStormIntro, 200);
+    const sb = document.getElementById('asher-settings-btn');
+    if (sb) sb.style.display = (currentProfile.name === 'Asher W') ? '' : 'none';
 }
 
 // ── Header FX (electric crash) ───────────────────────────────────────────────
@@ -4510,7 +4534,7 @@ function openCardModal(cardId, skipReview) {
     if (!currentEditingCardData) return;
 
     // If card is new or first-touch, open the guided review for it instead
-    if (!skipReview && ['new','first-touch'].includes(currentEditingCardData.listId)) {
+    if (!skipReview && getAsherSetting('review_intercept') && ['new','first-touch'].includes(currentEditingCardData.listId)) {
         openRobertReviewForCard(cardId);
         return;
     }
@@ -5987,6 +6011,8 @@ function deleteList(listId) {
 function openProfileModal() { document.getElementById('profile-modal').classList.add('active'); }
 function closeProfileModal(event) { if(!event||event.target===document.getElementById('profile-modal')) document.getElementById('profile-modal').classList.remove('active'); }
 function selectProfile(name,initials,el) {
+    const sb = document.getElementById('asher-settings-btn');
+    if (sb) sb.style.display = (name === 'Asher W') ? '' : 'none';
     currentProfile={name,initials};
     document.getElementById('current-avatar').textContent=initials;
     document.getElementById('current-profile-name').textContent=name;
@@ -6927,6 +6953,71 @@ window.rrNext = rrNext;
 window.rrApproveDraft = rrApproveDraft;
 window.rrRejectDraft  = rrRejectDraft;
 
+// ── Asher's Settings Panel ──────────────────────────────
+const ASHER_SETTINGS_DEFAULTS = {
+    review_intercept: true,   // new/first-touch cards open review by default
+    col_info_default: false,  // column info strips collapsed by default
+};
+
+function getAsherSetting(key) {
+    const stored = localStorage.getItem('asher_setting_' + key);
+    if (stored === null) return ASHER_SETTINGS_DEFAULTS[key] ?? false;
+    return stored === 'true';
+}
+function setAsherSetting(key, val) {
+    localStorage.setItem('asher_setting_' + key, String(val));
+}
+
+function openAsherSettings() {
+    document.getElementById('asher-settings-overlay').style.display = 'flex';
+    // Sync toggle button states
+    ['review_intercept','col_info_default'].forEach(key => {
+        const el = document.getElementById('toggle-' + key.replace(/_/g,'-'));
+        if (el) {
+            const on = getAsherSetting(key);
+            el.textContent = on ? 'ON' : 'OFF';
+            el.className = 'settings-toggle-btn ' + (on ? 'on' : 'off');
+        }
+    });
+}
+
+function closeAsherSettings(event) {
+    if (event && event.target !== document.getElementById('asher-settings-overlay')) return;
+    document.getElementById('asher-settings-overlay').style.display = 'none';
+}
+
+function resetTour(key, btn) {
+    localStorage.removeItem(key);
+    if (btn) { btn.textContent = 'Done ✓'; btn.classList.add('done'); setTimeout(() => { btn.textContent = 'Reset'; btn.classList.remove('done'); }, 1800); }
+}
+
+function resetAllTours(btn) {
+    ['rr_robert_onboarded','card_modal_toured'].forEach(k => localStorage.removeItem(k));
+    if (btn) { btn.textContent = '✓ All tours reset'; setTimeout(() => { btn.textContent = 'Reset all tours at once'; }, 1800); }
+}
+
+function toggleSetting(key, btn) {
+    const current = getAsherSetting(key);
+    const next = !current;
+    setAsherSetting(key, next);
+    btn.textContent = next ? 'ON' : 'OFF';
+    btn.className = 'settings-toggle-btn ' + (next ? 'on' : 'off');
+}
+
+function showLocalStorageDump() {
+    const keys = Object.keys(localStorage).sort();
+    const dump = keys.map(k => `${k}: ${localStorage.getItem(k)}`).join('\n');
+    alert(dump || '(empty)');
+}
+
+window.openAsherSettings  = openAsherSettings;
+window.closeAsherSettings = closeAsherSettings;
+window.resetTour          = resetTour;
+window.resetAllTours      = resetAllTours;
+window.toggleSetting      = toggleSetting;
+window.getAsherSetting    = getAsherSetting;
+window.showLocalStorageDump = showLocalStorageDump;
+
 </script>
 
     <!-- ─── ROBERT'S REVIEW MODAL ───────────────────────────────────── -->
@@ -6952,6 +7043,81 @@ window.rrRejectDraft  = rrRejectDraft;
             <!-- Card content -->
             <div id="rr-content" style="flex:1;overflow-y:auto;padding:20px 22px;"></div>
 
+        </div>
+    </div>
+
+    <!-- ─── ASHER SETTINGS MODAL ─────────────────────────────────── -->
+    <div class="modal-overlay" id="asher-settings-overlay" onclick="closeAsherSettings(event)" style="display:none;z-index:1200;">
+        <div id="asher-settings-modal" onclick="event.stopPropagation()" style="
+            background:var(--surface); border-radius:16px; width:min(520px,95vw);
+            max-height:85vh; overflow-y:auto;
+            border:1px solid var(--border); box-shadow:0 24px 80px rgba(0,0,0,0.6);
+            display:flex; flex-direction:column;">
+
+            <!-- Header -->
+            <div style="padding:20px 24px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-shrink:0; position:sticky; top:0; background:var(--surface); z-index:1;">
+                <div>
+                    <div style="font-size:17px;font-weight:800;font-family:var(--font-display);color:var(--text);">⚙ Builder Settings</div>
+                    <div style="font-size:12px;color:var(--muted);margin-top:2px;">Only visible to Asher W</div>
+                </div>
+                <button onclick="closeAsherSettings()" style="background:transparent;border:none;color:var(--muted);font-size:22px;cursor:pointer;padding:2px 8px;line-height:1;">×</button>
+            </div>
+
+            <!-- Body -->
+            <div style="padding:20px 24px; display:flex; flex-direction:column; gap:24px;">
+
+                <!-- Section: Tours & Onboarding -->
+                <div>
+                    <div style="font-size:11px;font-weight:700;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:12px;">Tours &amp; Onboarding</div>
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface2);border-radius:9px;border:1px solid var(--border);">
+                            <div>
+                                <div style="font-size:13px;font-weight:600;color:var(--text);">Robert's review walkthrough</div>
+                                <div style="font-size:11px;color:var(--muted);margin-top:1px;">Step-by-step intro shown when Robert first opens the review queue</div>
+                            </div>
+                            <button onclick="resetTour('rr_robert_onboarded',this)" class="settings-reset-btn">Reset</button>
+                        </div>
+                        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface2);border-radius:9px;border:1px solid var(--border);">
+                            <div>
+                                <div style="font-size:13px;font-weight:600;color:var(--text);">Card modal tour</div>
+                                <div style="font-size:11px;color:var(--muted);margin-top:1px;">Walkthrough of card tools shown the first time a full card is opened</div>
+                            </div>
+                            <button onclick="resetTour('card_modal_toured',this)" class="settings-reset-btn">Reset</button>
+                        </div>
+                        <button onclick="resetAllTours(this)" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:12px;cursor:pointer;font-family:var(--font-mono);">Reset all tours at once</button>
+                    </div>
+                </div>
+
+                <!-- Section: Pipeline Behavior -->
+                <div>
+                    <div style="font-size:11px;font-weight:700;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:12px;">Pipeline Behavior</div>
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface2);border-radius:9px;border:1px solid var(--border);">
+                            <div>
+                                <div style="font-size:13px;font-weight:600;color:var(--text);">Review intercept for New &amp; First Touch</div>
+                                <div style="font-size:11px;color:var(--muted);margin-top:1px;">When ON: clicking those cards opens the guided review. Turn OFF to open the full card directly.</div>
+                            </div>
+                            <button id="toggle-review-intercept" onclick="toggleSetting('review_intercept',this)" class="settings-toggle-btn" style="min-width:52px;"></button>
+                        </div>
+                        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface2);border-radius:9px;border:1px solid var(--border);">
+                            <div>
+                                <div style="font-size:13px;font-weight:600;color:var(--text);">Column info strips visible by default</div>
+                                <div style="font-size:11px;color:var(--muted);margin-top:1px;">Show the ? info strip open on all columns when the board loads</div>
+                            </div>
+                            <button id="toggle-col-info-default" onclick="toggleSetting('col_info_default',this)" class="settings-toggle-btn" style="min-width:52px;"></button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section: Debug -->
+                <div>
+                    <div style="font-size:11px;font-weight:700;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);margin-bottom:12px;">Debug</div>
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                        <button onclick="showLocalStorageDump()" style="text-align:left;padding:10px 14px;background:var(--surface2);border-radius:9px;border:1px solid var(--border);color:var(--muted);font-size:12px;cursor:pointer;font-family:var(--font-mono);width:100%;">View all localStorage keys →</button>
+                    </div>
+                </div>
+
+            </div>
         </div>
     </div>
 
