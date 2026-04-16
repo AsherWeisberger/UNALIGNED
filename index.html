@@ -414,7 +414,12 @@
         .list-capacity-fill { height: 100%; border-radius: 0 2px 2px 0; transition: width 0.6s cubic-bezier(0.34,1.3,0.64,1), background 0.6s; }
         .list-count-badge { font-size: 13px; font-weight: 700; padding: 2px 8px; border-radius: 99px; font-family: var(--font-mono); line-height: 1; font-variant-numeric: tabular-nums; }
 
-        .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .col-info-strip { margin: 0 0 10px; padding: 8px 10px; border-radius: 7px; background: rgba(255,255,255,0.03); display: flex; flex-direction: column; gap: 3px; }
+        .col-info-who   { font-size: 10px; font-weight: 700; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.07em; }
+        .col-info-desc  { font-size: 12px; color: var(--muted); line-height: 1.4; }
+        .col-info-next  { font-size: 11px; color: var(--muted2); line-height: 1.4; margin-top: 1px; }
+        .col-info-btn.active { background: rgba(91,140,255,0.18) !important; color: var(--accent) !important; border-color: rgba(91,140,255,0.35) !important; }
         .list-title { font-size: 14px; font-weight: 700; font-family: var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; }
         .list-meta { font-size: 12px; color: var(--muted); margin-top: 2px; font-family: var(--font-mono); }
 
@@ -3156,6 +3161,16 @@ function openSortMenu(stageId, evt) {
     }, 0);
 }
 
+function toggleColInfo(stageId) {
+    const strip = document.getElementById('col-info-'+stageId);
+    const btn   = document.getElementById('col-info-btn-'+stageId);
+    if (!strip) return;
+    const open = strip.style.display === 'none' || !strip.style.display;
+    strip.style.display = open ? 'flex' : 'none';
+    if (btn) btn.classList.toggle('active', open);
+}
+window.toggleColInfo = toggleColInfo;
+
 function setColumnSort(stageId, key) {
     if (!window._columnSort) window._columnSort = {};
     window._columnSort[stageId] = key;
@@ -3163,10 +3178,29 @@ function setColumnSort(stageId, key) {
     renderAllCards();
 }
 
+const STAGE_COLUMN_INFO = {
+    'new':          { who:'🟠 Robert',  desc:'Brand new inbound leads — nobody has replied yet.',                                  next:'Robert approves the draft reply → moves to First Touch' },
+    'first-touch':  { who:'🔵 Sam',     desc:'Robert broke the ice. Sam is up next with rates.',                                   next:'Sam sends the rates email → moves to Rates Sent' },
+    'engaged':      { who:'🔵 Sam',     desc:'Back-and-forth happening, but formal pricing hasn\'t been sent yet.',                next:'Sam sends the rates package → moves to Rates Sent' },
+    'rates-sent':   { who:'⏳ Waiting', desc:'Sam sent our partnership packages. Ball is in their court.',                         next:'They reply with interest or questions → moves to Negotiating' },
+    'negotiating':  { who:'🔵 Sam',     desc:'They responded to pricing. Working out the final terms and tier.',                   next:'Both sides agree on a deal → Sam sends the invoice → Invoice Sent' },
+    'invoice-sent': { who:'⏳ Waiting', desc:'Deal agreed. Invoice is out. Waiting on payment to clear.',                         next:'Payment received → moves to Done. New clients pay in full upfront.' },
+    'done':         { who:'✅ Done',    desc:'Content has been delivered and published.',                                          next:'Payment confirmed → moves to Paid Out' },
+    'paid-out':     { who:'💰 Paid',    desc:'Payment received. Campaign complete.',                                               next:'Reach out about future campaigns or ask for a testimonial.' },
+    'dead-leads':   { who:'❌ Dead',    desc:'Not moving forward — went cold, said no, or ghosted for 6+ weeks.',                  next:'No action needed. May re-engage in the future.' },
+};
+
 function initBoardStructure() {
     const boardLists = document.getElementById('board-lists');
     boardLists.innerHTML = '';
     boardConfig.forEach(stage => {
+        const info = STAGE_COLUMN_INFO[stage.id] || {};
+        const infoHtml = info.desc ? `
+            <div class="col-info-strip" id="col-info-${stage.id}" style="display:none;border-left:2px solid ${stage.color}44;">
+                <div class="col-info-who" style="color:${stage.color};">${info.who || ''}</div>
+                <div class="col-info-desc">${info.desc}</div>
+                <div class="col-info-next"><span style="color:${stage.color};font-weight:700;">→</span> ${info.next}</div>
+            </div>` : '';
         const list = document.createElement('div');
         list.className = 'list';
         list.dataset.listId = stage.id;
@@ -3181,6 +3215,7 @@ function initBoardStructure() {
                     ${stage.id === 'discovery' ? `<button class="col-add-lead-btn" onclick="showAddCardForm('discovery')" title="Add new lead">+</button>` : ''}
                 </div>
                 <div class="list-actions">
+                    ${info.desc ? `<button class="list-menu-btn col-info-btn" id="col-info-btn-${stage.id}" title="What is this stage?" onclick="toggleColInfo('${stage.id}')">?</button>` : ''}
                     <div class="list-sort-wrap">
                         <button class="list-menu-btn" id="sort-btn-${stage.id}" title="Sort column" onclick="openSortMenu('${stage.id}',event)">↕</button>
                     </div>
@@ -3188,6 +3223,7 @@ function initBoardStructure() {
                     <button class="list-menu-btn danger" title="Delete" onclick="deleteList('${stage.id}')">✕</button>
                 </div>
             </div>
+            ${infoHtml}
             <div class="cards-container" id="${stage.id}-cards" data-list="${stage.id}" ondrop="drop(event)" ondragover="allowDrop(event)" ondragleave="dragLeave(event)"></div>
             <button class="add-card-btn" onclick="showAddCardForm('${stage.id}')">+ Add card</button>
         `;
