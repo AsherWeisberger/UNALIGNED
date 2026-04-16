@@ -1799,6 +1799,7 @@
                     🤖 <span id="api-cost-total">…</span>
                 </div>
                 <button class="view-toggle" id="strip-toggle-btn" onclick="toggleTopStrip()" title="Toggle top panel">▴</button>
+                <button class="view-toggle" id="gmail-sync-btn" onclick="syncGmail()" title="Scrape Gmail + refresh board">🔄 Sync</button>
                 <button class="view-toggle" id="daily-log-btn" onclick="openDailyLog()" title="Daily activity log">📋 Log</button>
                 <button class="view-toggle" id="global-sort-btn" onclick="cycleGlobalSort()" title="Sort all columns">⇅ Date</button>
                 <button class="view-toggle" id="view-toggle-btn" onclick="toggleViewMode()">⊞ Compact</button>
@@ -5990,6 +5991,33 @@ function openCardById(id) {
 }
 
 window.openDailyLog = openDailyLog;
+
+async function syncGmail() {
+    const btn = document.getElementById('gmail-sync-btn');
+    if (!btn) return;
+    btn.textContent = '⏳ Syncing…';
+    btn.disabled = true;
+    try {
+        const resp = await fetch('http://localhost:5000/scrape', { method: 'POST' });
+        if (!resp.ok) {
+            const d = await resp.json().catch(() => ({}));
+            throw new Error(d.error || `Server error ${resp.status}`);
+        }
+        btn.textContent = '✅ Synced!';
+        await loadState();
+    } catch (e) {
+        if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
+            btn.textContent = '⚠️ Server offline';
+            showEmailToast('⚠️ Run: python3 email_server.py to enable sync', true);
+        } else {
+            btn.textContent = '⚠️ Error';
+            showEmailToast('⚠️ Sync failed: ' + e.message, true);
+        }
+    } finally {
+        setTimeout(() => { btn.textContent = '🔄 Sync'; btn.disabled = false; }, 3000);
+    }
+}
+window.syncGmail = syncGmail;
 window.closeDailyLog = closeDailyLog;
 window.switchLogTab = switchLogTab;
 window.toggleListCollapse=toggleListCollapse;
