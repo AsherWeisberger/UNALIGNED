@@ -4277,15 +4277,7 @@ function quickDone(cardId) { moveCardToList(cardId, 'done'); }
 function quickDead(cardId) { moveCardToList(cardId, 'dead-leads'); }
 
 function quickDeleteCard(cardId) {
-    if (!confirm('Delete this card? This cannot be undone.')) return;
-    const el = document.getElementById('card-' + cardId);
-    if (el) el.remove();
-    delete cardsData[cardId];
-    updateCardCount();
-    queueSaveBoardState();
-    supabase.from('cards').delete().eq('id', cardId).then(({error}) => {
-        if (error) console.error('Delete error:', error);
-    });
+    moveCardToList(cardId, 'dead-leads');
 }
 
 // ── Render Card ────────────────────────────────────
@@ -4388,7 +4380,7 @@ function renderCard(cardData) {
         </div>` : '';
 
     card.innerHTML = `
-        <button class="card-delete-quick" onclick="event.stopPropagation();quickDeleteCard(${cardData.id})" title="Delete card">🗑</button>
+        <button class="card-delete-quick" onclick="event.stopPropagation();quickDeleteCard(${cardData.id})" title="Move to Dead Leads">🗑</button>
         <div class="card-checkbox-wrap">
             <input type="checkbox" class="card-checkbox" data-id="${cardData.id}" onclick="handleCardCheckbox(event, '${cardData.id}')">
         </div>
