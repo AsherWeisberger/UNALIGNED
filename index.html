@@ -253,6 +253,40 @@
         body.matrix-mode .login-container { background: #061209; border-color: rgba(0,255,65,0.25); }
         body.matrix-mode .login-title { color: #00ff41; text-shadow: 0 0 16px rgba(0,255,65,0.5); }
 
+        /* ─── MATRIX GLITCH ANIMATIONS ───────────────────── */
+        @keyframes glitch-clip-a {
+            0%   { clip-path: inset(12% 0 74% 0); transform: translate(-4px, 0); }
+            25%  { clip-path: inset(55% 0 30% 0); transform: translate(3px, 0); }
+            50%  { clip-path: inset(82% 0 5%  0); transform: translate(-2px, 0); }
+            75%  { clip-path: inset(38% 0 48% 0); transform: translate(5px, 0); }
+            100% { clip-path: inset(12% 0 74% 0); transform: translate(-4px, 0); }
+        }
+        @keyframes glitch-clip-b {
+            0%   { clip-path: inset(65% 0 10% 0); transform: translate(4px, 0); filter: hue-rotate(90deg) brightness(1.4); }
+            33%  { clip-path: inset(20% 0 60% 0); transform: translate(-3px, 0); filter: hue-rotate(180deg) brightness(1.6); }
+            66%  { clip-path: inset(45% 0 40% 0); transform: translate(6px, 0); filter: hue-rotate(270deg) brightness(1.3); }
+            100% { clip-path: inset(65% 0 10% 0); transform: translate(4px, 0); filter: hue-rotate(90deg) brightness(1.4); }
+        }
+        @keyframes matrix-flicker {
+            0%,100% { opacity:1; }
+            92%      { opacity:1; }
+            93%      { opacity:0.85; }
+            94%      { opacity:1; }
+            96%      { opacity:0.9; }
+            97%      { opacity:1; }
+        }
+        body.matrix-mode #app {
+            animation: matrix-flicker 6s infinite;
+        }
+        body.matrix-mode.glitch-burst #matrix-glitch-a {
+            animation: glitch-clip-a 0.12s steps(1) 3;
+            background: rgba(0,255,65,0.07);
+        }
+        body.matrix-mode.glitch-burst #matrix-glitch-b {
+            animation: glitch-clip-b 0.09s steps(1) 4;
+            background: rgba(91,140,255,0.08);
+        }
+
         html { overscroll-behavior: none; height: 100%; scroll-behavior: auto; }
 
         body {
@@ -2143,6 +2177,21 @@
     </style>
 </head>
 <body>
+
+<!-- ─── MATRIX MODE LAYERS ──────────────────────────────── -->
+<!-- persistent rain canvas behind the board -->
+<canvas id="matrix-bg-canvas" style="position:fixed;inset:0;pointer-events:none;z-index:0;display:none;"></canvas>
+<!-- glitch layers -->
+<div id="matrix-glitch-a" style="position:fixed;inset:0;pointer-events:none;z-index:1;display:none;opacity:0;"></div>
+<div id="matrix-glitch-b" style="position:fixed;inset:0;pointer-events:none;z-index:1;display:none;opacity:0;"></div>
+<!-- card letter-fall canvas (over board, under modals) -->
+<canvas id="matrix-fall-canvas" style="position:fixed;inset:0;pointer-events:none;z-index:2;display:none;"></canvas>
+<!-- UNALIGNED watermark -->
+<div id="matrix-watermark" style="
+    position:fixed;bottom:28px;right:36px;z-index:3;pointer-events:none;display:none;
+    opacity:0.09;filter:brightness(4) saturate(0);
+    transition:opacity 0.4s;
+"><img src="unaligned_logo.png" style="height:38px;"></div>
 
 <!-- ─── MATRIX LOGIN SCENE ─────────────────────────────── -->
 <div id="matrix-overlay">
@@ -6940,6 +6989,191 @@ function matrixFinish() {
 function matrixSkip() { matrixFinish(); }
 window.matrixSkip = matrixSkip;
 
+// ── Matrix Mode: Background Rain + Card Falls + Glitch ────────
+const MTX = {
+    bgRAF: null,
+    fallRAF: null,
+    glitchTimer: null,
+    active: false,
+    CHARS: 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ@#$%&<>[]{}',
+};
+
+// ── Background rain canvas ──────────────────────────────
+function mtxStartBg() {
+    const canvas = document.getElementById('matrix-bg-canvas');
+    if (!canvas) return;
+    canvas.style.display = 'block';
+    const ctx = canvas.getContext('2d');
+    let W, H, cols, drops;
+    function resize() {
+        W = canvas.width  = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+        cols  = Math.floor(W / 20);
+        drops = Array(cols).fill(0).map(() => Math.random() * -50);
+    }
+    resize();
+    window._mtxBgResize = resize;
+    window.addEventListener('resize', resize);
+
+    function draw() {
+        if (!MTX.active) return;
+        ctx.fillStyle = 'rgba(1,9,4,0.18)';
+        ctx.fillRect(0, 0, W, H);
+        drops.forEach((y, i) => {
+            // leading char brighter
+            ctx.font = '14px DM Mono, monospace';
+            ctx.fillStyle = '#ffffff';
+            ctx.globalAlpha = 0.9;
+            ctx.fillText(MTX.CHARS[Math.floor(Math.random() * MTX.CHARS.length)], i * 20, y * 14);
+            // trail
+            ctx.fillStyle = '#00ff41';
+            ctx.globalAlpha = 0.35;
+            ctx.fillText(MTX.CHARS[Math.floor(Math.random() * MTX.CHARS.length)], i * 20, (y - 1) * 14);
+            ctx.globalAlpha = 0.15;
+            ctx.fillText(MTX.CHARS[Math.floor(Math.random() * MTX.CHARS.length)], i * 20, (y - 3) * 14);
+            ctx.globalAlpha = 1;
+            if (y * 14 > H && Math.random() > 0.97) drops[i] = 0;
+            drops[i] += 0.5;
+        });
+        MTX.bgRAF = requestAnimationFrame(draw);
+    }
+    draw();
+}
+
+function mtxStopBg() {
+    cancelAnimationFrame(MTX.bgRAF);
+    const canvas = document.getElementById('matrix-bg-canvas');
+    if (canvas) { canvas.style.display = 'none'; const ctx = canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width,canvas.height); }
+    window.removeEventListener('resize', window._mtxBgResize);
+}
+
+// ── Card letter-fall canvas ─────────────────────────────
+const _fallDrops = []; // { x, y, char, alpha, speed, col }
+
+function mtxStartFall() {
+    const canvas = document.getElementById('matrix-fall-canvas');
+    if (!canvas) return;
+    canvas.style.display = 'block';
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const ctx = canvas.getContext('2d');
+
+    window._mtxFallResize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
+    window.addEventListener('resize', window._mtxFallResize);
+
+    let spawnTick = 0;
+    function frame() {
+        if (!MTX.active) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // spawn new drops from card positions
+        spawnTick++;
+        if (spawnTick % 4 === 0) {
+            const cards = document.querySelectorAll('.card');
+            cards.forEach(card => {
+                if (Math.random() > 0.15) return; // only some cards each frame
+                const r = card.getBoundingClientRect();
+                if (r.width === 0) return;
+                const x = r.left + Math.random() * r.width;
+                const y = r.top;
+                _fallDrops.push({
+                    x, y,
+                    char: MTX.CHARS[Math.floor(Math.random() * MTX.CHARS.length)],
+                    alpha: 0.9,
+                    speed: 1.2 + Math.random() * 2.2,
+                    // UNALIGNED accent: 15% chance of blue drop
+                    isAccent: Math.random() < 0.15,
+                });
+            });
+        }
+
+        // draw + age drops
+        for (let i = _fallDrops.length - 1; i >= 0; i--) {
+            const d = _fallDrops[i];
+            ctx.globalAlpha = d.alpha;
+            ctx.font = '13px DM Mono, monospace';
+            ctx.fillStyle = d.isAccent ? '#5b8cff' : '#00ff41';
+            ctx.fillText(d.char, d.x, d.y);
+            // randomize char as it falls
+            if (Math.random() > 0.85) d.char = MTX.CHARS[Math.floor(Math.random() * MTX.CHARS.length)];
+            d.y    += d.speed;
+            d.alpha -= 0.018;
+            if (d.alpha <= 0) _fallDrops.splice(i, 1);
+        }
+        ctx.globalAlpha = 1;
+        MTX.fallRAF = requestAnimationFrame(frame);
+    }
+    frame();
+}
+
+function mtxStopFall() {
+    cancelAnimationFrame(MTX.fallRAF);
+    _fallDrops.length = 0;
+    const canvas = document.getElementById('matrix-fall-canvas');
+    if (canvas) { canvas.style.display = 'none'; const ctx = canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width,canvas.height); }
+    window.removeEventListener('resize', window._mtxFallResize);
+}
+
+// ── Glitch bursts ───────────────────────────────────────
+function mtxStartGlitch() {
+    const ga = document.getElementById('matrix-glitch-a');
+    const gb = document.getElementById('matrix-glitch-b');
+    if (ga) ga.style.display = 'block';
+    if (gb) gb.style.display = 'block';
+
+    function burst() {
+        if (!MTX.active) return;
+        // random interval 3–11s
+        const next = 3000 + Math.random() * 8000;
+        MTX.glitchTimer = setTimeout(() => {
+            document.body.classList.add('glitch-burst');
+            if (ga) ga.style.opacity = '1';
+            if (gb) gb.style.opacity = '1';
+            setTimeout(() => {
+                document.body.classList.remove('glitch-burst');
+                if (ga) ga.style.opacity = '0';
+                if (gb) gb.style.opacity = '0';
+            }, 360);
+            burst();
+        }, next);
+    }
+    burst();
+}
+
+function mtxStopGlitch() {
+    clearTimeout(MTX.glitchTimer);
+    document.body.classList.remove('glitch-burst');
+    const ga = document.getElementById('matrix-glitch-a');
+    const gb = document.getElementById('matrix-glitch-b');
+    if (ga) { ga.style.display = 'none'; ga.style.opacity = '0'; }
+    if (gb) { gb.style.display = 'none'; gb.style.opacity = '0'; }
+}
+
+// ── Watermark ───────────────────────────────────────────
+function mtxShowWatermark(on) {
+    const el = document.getElementById('matrix-watermark');
+    if (!el) return;
+    el.style.display = on ? 'block' : 'none';
+    el.style.opacity = on ? '0.09' : '0';
+}
+
+// ── Master on/off ───────────────────────────────────────
+function mtxModeStart() {
+    MTX.active = true;
+    mtxStartBg();
+    mtxStartFall();
+    mtxStartGlitch();
+    mtxShowWatermark(true);
+}
+
+function mtxModeStop() {
+    MTX.active = false;
+    mtxStopBg();
+    mtxStopFall();
+    mtxStopGlitch();
+    mtxShowWatermark(false);
+}
+
 // ── Daily Activity Log ─────────────────────────────────────────
 let _logTab = 'today';
 
@@ -7370,22 +7604,35 @@ const THEME_ICONS = { dark: '☀️', light: '💊', matrix: '🌑' };
 const THEME_TITLES = { dark: 'Switch to Light', light: 'Switch to Matrix', matrix: 'Switch to Dark' };
 
 function applyTheme(theme) {
+    const wasMatrix = document.body.classList.contains('matrix-mode');
     document.body.classList.remove('light-mode', 'matrix-mode');
     if (theme === 'light')  document.body.classList.add('light-mode');
     if (theme === 'matrix') document.body.classList.add('matrix-mode');
     const btn = document.getElementById('light-mode-btn');
     if (btn) { btn.textContent = THEME_ICONS[theme]; btn.title = THEME_TITLES[theme]; }
     localStorage.setItem('ui_theme', theme);
+    // start/stop matrix engine
+    if (theme === 'matrix' && !wasMatrix) {
+        // defer until MTX functions are defined (may be called on load before script runs)
+        setTimeout(() => { if (typeof mtxModeStart === 'function') mtxModeStart(); }, 50);
+    } else if (theme !== 'matrix' && wasMatrix) {
+        if (typeof mtxModeStop === 'function') mtxModeStop();
+    }
 }
 function toggleLightMode() {
     const cur = localStorage.getItem('ui_theme') || 'dark';
     const next = THEME_CYCLE[(THEME_CYCLE.indexOf(cur) + 1) % THEME_CYCLE.length];
     applyTheme(next);
 }
-// Apply on load
+// Apply on load — matrix engine starts after DOM ready
 (function() {
     const saved = localStorage.getItem('ui_theme') || (localStorage.getItem('light_mode') === '1' ? 'light' : 'dark');
     applyTheme(saved);
+    if (saved === 'matrix') {
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => { if (typeof mtxModeStart === 'function') mtxModeStart(); }, 200);
+        }, { once: true });
+    }
 })();
 window.toggleLightMode = toggleLightMode;
 
