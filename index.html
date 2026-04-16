@@ -2087,6 +2087,10 @@
             <!-- ── Stage Context Milestone ── -->
             <div id="stage-context-banner" style="display:none;"></div>
 
+            <!-- ── First-time card tour overlay ── -->
+            <div id="card-tour-overlay" style="display:none;position:absolute;inset:0;z-index:50;background:var(--surface);border-radius:0 0 14px 14px;overflow-y:auto;padding:24px 28px 32px;">
+            </div>
+
             <!-- ── Two-pane body ── -->
             <div class="card-modal-body">
 
@@ -4517,6 +4521,7 @@ function openCardModal(cardId, skipReview) {
     modal.classList.add('active'); modal.style.display='flex';
     updateBoardScrollBtns();
     renderStageContext(currentEditingCardData);
+    maybeShowCardTour();
 
     // DEBUG: log email data for this card
     console.log('[openCardModal] cardId:', cardId, 'originalEmail count:', (currentEditingCardData.originalEmail||[]).length, 'first snippet:', (currentEditingCardData.originalEmail&&currentEditingCardData.originalEmail[0]?.snippet||'none').slice(0,60));
@@ -6692,6 +6697,73 @@ function openRobertReview() {
 // Opens the full card modal directly, bypassing the review intercept
 function openCardModalFull(cardId) { openCardModal(cardId, true); }
 window.openCardModalFull = openCardModalFull;
+
+function maybeShowCardTour() {
+    if (localStorage.getItem('card_modal_toured')) return;
+    const overlay = document.getElementById('card-tour-overlay');
+    if (!overlay) return;
+    overlay.style.display = 'block';
+    overlay.innerHTML = `
+        <div style="max-width:560px;margin:0 auto;">
+            <div style="font-size:21px;font-weight:800;font-family:var(--font-display);color:var(--text);margin-bottom:5px;">Here's what you're looking at 👇</div>
+            <div style="font-size:13px;color:var(--muted);margin-bottom:26px;line-height:1.5;">Every card has the same layout. Here's what each part does.</div>
+
+            <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:30px;">
+
+                <div style="display:flex;gap:14px;align-items:flex-start;">
+                    <div style="width:30px;height:30px;border-radius:8px;background:rgba(91,140,255,0.15);border:1px solid rgba(91,140,255,0.3);display:flex;align-items:center;justify-content:center;font-weight:800;color:#5b8cff;font-size:13px;flex-shrink:0;">1</div>
+                    <div>
+                        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:2px;">Stage banner (top, colored bar)</div>
+                        <div style="font-size:12px;color:var(--muted);line-height:1.5;">Tells you what stage this deal is in, who owns the next action (Robert or Sam), and exactly what needs to happen to move it forward.</div>
+                    </div>
+                </div>
+
+                <div style="display:flex;gap:14px;align-items:flex-start;">
+                    <div style="width:30px;height:30px;border-radius:8px;background:rgba(91,140,255,0.15);border:1px solid rgba(91,140,255,0.3);display:flex;align-items:center;justify-content:center;font-weight:800;color:#5b8cff;font-size:13px;flex-shrink:0;">2</div>
+                    <div>
+                        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:2px;">Left sidebar — Contact &amp; Lead Intel</div>
+                        <div style="font-size:12px;color:var(--muted);line-height:1.5;">The lead's email, phone, LinkedIn, and website. Below that: WHO they are, WHAT they want, WHY it's a good fit, and the deal VALUE. These are auto-filled by the AI and editable.</div>
+                    </div>
+                </div>
+
+                <div style="display:flex;gap:14px;align-items:flex-start;">
+                    <div style="width:30px;height:30px;border-radius:8px;background:rgba(91,140,255,0.15);border:1px solid rgba(91,140,255,0.3);display:flex;align-items:center;justify-content:center;font-weight:800;color:#5b8cff;font-size:13px;flex-shrink:0;">3</div>
+                    <div>
+                        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:2px;">Right pane — Full email thread</div>
+                        <div style="font-size:12px;color:var(--muted);line-height:1.5;">Every email in the conversation, in order. Read this before approving any draft — it's the full context of the relationship so far.</div>
+                    </div>
+                </div>
+
+                <div style="display:flex;gap:14px;align-items:flex-start;">
+                    <div style="width:30px;height:30px;border-radius:8px;background:rgba(52,211,153,0.15);border:1px solid rgba(52,211,153,0.3);display:flex;align-items:center;justify-content:center;font-weight:800;color:#34d399;font-size:13px;flex-shrink:0;">4</div>
+                    <div>
+                        <div style="font-size:13px;font-weight:700;color:#34d399;margin-bottom:2px;">Draft reply (green section, when ready)</div>
+                        <div style="font-size:12px;color:var(--muted);line-height:1.5;">When a reply has been drafted, it shows here. Read it carefully. Edit it if anything sounds off. Then hit <strong style="color:#34d399;">Approve &amp; Send</strong> to send it, or <strong style="color:#f87171;">Reject</strong> to get a new draft generated tomorrow.</div>
+                    </div>
+                </div>
+
+                <div style="display:flex;gap:14px;align-items:flex-start;">
+                    <div style="width:30px;height:30px;border-radius:8px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);display:flex;align-items:center;justify-content:center;font-weight:800;color:#f59e0b;font-size:13px;flex-shrink:0;">!</div>
+                    <div>
+                        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:2px;">🔔 Needs Reply button (top right of card)</div>
+                        <div style="font-size:12px;color:var(--muted);line-height:1.5;">If someone replied and you want to flag it for follow-up, hit this. The card will float to the top of the column so it doesn't get buried.</div>
+                    </div>
+                </div>
+
+            </div>
+
+            <button onclick="dismissCardTour()" style="width:100%;padding:13px;border-radius:10px;border:none;cursor:pointer;background:linear-gradient(135deg,#5b8cff,#34d399);color:#fff;font-size:14px;font-weight:800;font-family:var(--font-display);">
+                Got it — show me the card →
+            </button>
+        </div>`;
+}
+
+function dismissCardTour() {
+    localStorage.setItem('card_modal_toured', '1');
+    const overlay = document.getElementById('card-tour-overlay');
+    if (overlay) overlay.style.display = 'none';
+}
+window.dismissCardTour = dismissCardTour;
 
 function openRobertReviewForCard(cardId) {
     _rrCards = Object.values(cardsData)
