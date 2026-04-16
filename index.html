@@ -265,62 +265,84 @@
 
         /* ─── CENTIPEDE ──────────────────────────────────── */
         #centi-wrap {
-            overflow: hidden; height: 44px; position: relative;
+            overflow: visible; height: 52px; position: relative;
             margin: 0; pointer-events: none; user-select: none;
         }
         @keyframes centi-crawl {
-            from { transform: translateX(calc(100vw + 340px)); }
-            to   { transform: translateX(-420px); }
+            from { transform: translateX(calc(100vw + 380px)); }
+            to   { transform: translateX(-450px); }
         }
         @keyframes centi-bob {
             from { transform: translateY(0px); }
-            to   { transform: translateY(-7px); }
+            to   { transform: translateY(-5px); }
+        }
+        @keyframes leg-a {
+            from { opacity: 0.7; }
+            to   { opacity: 0;   }
+        }
+        @keyframes leg-b {
+            from { opacity: 0;   }
+            to   { opacity: 0.7; }
         }
         #centipede {
-            display: inline-flex; align-items: flex-end;
-            white-space: nowrap; position: absolute; bottom: 6px;
-            animation: centi-crawl 22s linear infinite;
+            display: inline-flex; align-items: center;
+            white-space: nowrap; position: absolute; top: 12px;
+            animation: centi-crawl 24s linear infinite;
         }
         .centi-seg {
             display: inline-flex; align-items: center; justify-content: center;
-            width: 28px; height: 28px;
+            width: 26px; height: 26px;
             font-family: 'Courier New', Courier, monospace;
-            font-size: 13px; font-weight: 900; letter-spacing: 0;
-            border: 2px solid var(--cc, #34d399);
-            background: var(--cb, rgba(52,211,153,0.1));
-            color: var(--cc, #34d399);
-            margin: 0 0px; border-radius: 3px; position: relative;
-            animation: centi-bob 0.32s ease-in-out infinite alternate;
-            animation-delay: calc(var(--ci, 0) * 0.07s);
-            box-shadow: 0 0 4px rgba(255,255,255,0.15), inset 0 0 4px rgba(0,0,0,0.5);
-            text-shadow: none;
+            font-size: 12px; font-weight: 900;
+            border: 2px solid var(--cc, #ccc);
+            background: var(--cb, rgba(255,255,255,0.06));
+            color: var(--cc, #ccc);
+            margin: 0 3px; border-radius: 2px; position: relative;
+            animation: centi-bob 0.3s ease-in-out infinite alternate;
+            animation-delay: calc(var(--ci, 0) * 0.06s);
+            box-shadow: inset 0 0 4px rgba(0,0,0,0.6);
         }
-        /* pixel legs via box-shadow */
+        /* Legs position A — angled down-outward */
         .centi-seg::before {
-            content: ''; position: absolute; width: 2px; height: 2px;
-            top: 50%; left: 50%; transform: translate(-50%,-50%);
-            box-shadow:
-                -15px -4px 0 1px var(--cc),
-                -15px  4px 0 1px var(--cc),
-                 15px -4px 0 1px var(--cc),
-                 15px  4px 0 1px var(--cc);
-            opacity: 0.35;
-        }
-        /* connector spine between segments */
-        .centi-seg + .centi-seg {
-            margin-left: 6px;
-        }
-        .centi-seg + .centi-seg::after {
             content: ''; position: absolute;
-            left: -7px; top: 50%; transform: translateY(-50%);
-            width: 7px; height: 2px;
-            background: var(--cc); opacity: 0.4;
-            border-radius: 0;
+            width: 0; height: 0; top: 0; left: 0;
+            box-shadow:
+                -4px  6px 0 1.5px var(--cc),
+                -8px  9px 0 1.5px var(--cc),
+                -12px 11px 0 1.5px var(--cc),
+                -4px 18px 0 1.5px var(--cc),
+                -8px 21px 0 1.5px var(--cc),
+                -12px 24px 0 1.5px var(--cc),
+                30px  6px 0 1.5px var(--cc),
+                34px  9px 0 1.5px var(--cc),
+                38px 11px 0 1.5px var(--cc),
+                30px 18px 0 1.5px var(--cc),
+                34px 21px 0 1.5px var(--cc),
+                38px 24px 0 1.5px var(--cc);
+            animation: leg-a 0.3s ease-in-out infinite alternate;
+            animation-delay: calc(var(--ci, 0) * 0.06s);
         }
-        .centi-head {
-            border-radius: 6px 3px 3px 6px;
-            width: 34px;
+        /* Legs position B — angled more horizontally (kicked forward) */
+        .centi-seg::after {
+            content: ''; position: absolute;
+            width: 0; height: 0; top: 0; left: 0;
+            box-shadow:
+                -5px  4px 0 1.5px var(--cc),
+                -9px  5px 0 1.5px var(--cc),
+                -13px 5px 0 1.5px var(--cc),
+                -5px 21px 0 1.5px var(--cc),
+                -9px 23px 0 1.5px var(--cc),
+                -13px 26px 0 1.5px var(--cc),
+                31px  4px 0 1.5px var(--cc),
+                35px  5px 0 1.5px var(--cc),
+                39px  5px 0 1.5px var(--cc),
+                31px 21px 0 1.5px var(--cc),
+                35px 23px 0 1.5px var(--cc),
+                39px 26px 0 1.5px var(--cc);
+            animation: leg-b 0.3s ease-in-out infinite alternate;
+            animation-delay: calc(var(--ci, 0) * 0.06s);
         }
+        .centi-head { border-radius: 5px 2px 2px 5px; width: 32px; }
         @media (max-width: 640px) { #centi-wrap { display: none; } }
 
         /* ─── FLOW MAP ────────────────────────────────────── */
