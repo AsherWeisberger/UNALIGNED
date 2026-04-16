@@ -504,6 +504,37 @@
         .card-rates-btn { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 6px; border: none; background: rgba(245,158,11,0.18); color: #f59e0b; cursor: pointer; white-space: nowrap; }
         .card-quick-btn.dead-btn:hover { border-color: #ef4444; color: #ef4444; }
 
+        /* ─── MATRIX LOGIN SCENE ─────────────────────── */
+        #matrix-overlay {
+            position: fixed; inset: 0; z-index: 9999;
+            background: #000; display: none; flex-direction: column;
+            align-items: center; justify-content: center;
+            font-family: 'DM Mono', monospace;
+        }
+        #matrix-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+        #matrix-msg-wrap {
+            position: relative; z-index: 2; text-align: center;
+            display: flex; flex-direction: column; align-items: center; gap: 18px;
+        }
+        #matrix-line1 {
+            font-size: clamp(28px, 5vw, 52px); font-weight: 700; color: #00ff41;
+            text-shadow: 0 0 20px #00ff41, 0 0 40px #00ff41;
+            letter-spacing: 0.12em; min-height: 1.2em;
+        }
+        #matrix-line2 {
+            font-size: clamp(14px, 2.2vw, 22px); color: #00cc33;
+            text-shadow: 0 0 10px #00cc33; letter-spacing: 0.08em;
+            min-height: 1.4em; max-width: 600px; line-height: 1.5;
+        }
+        #matrix-skip {
+            position: absolute; bottom: 28px; right: 32px; z-index: 3;
+            font-size: 12px; color: rgba(0,200,50,0.45); cursor: pointer;
+            font-family: 'DM Mono', monospace; letter-spacing: 0.06em;
+            border: none; background: transparent;
+            transition: color 0.2s;
+        }
+        #matrix-skip:hover { color: #00ff41; }
+
         /* ─── CARD DELETE BUTTON ──────────────────────── */
         .card-delete-quick {
             position: absolute; top: 6px; right: 6px;
@@ -1893,6 +1924,17 @@
     </style>
 </head>
 <body>
+
+<!-- ─── MATRIX LOGIN SCENE ─────────────────────────────── -->
+<div id="matrix-overlay">
+    <canvas id="matrix-canvas"></canvas>
+    <div id="matrix-msg-wrap">
+        <div id="matrix-line1"></div>
+        <div id="matrix-line2"></div>
+    </div>
+    <button id="matrix-skip" onclick="matrixSkip()">[ skip ]</button>
+</div>
+
 <div id="app">
 
     <!-- ─── LOGIN MODAL ─────────────────────────────────── -->
@@ -6038,6 +6080,7 @@ function selectProfile(name,initials,el) {
     document.querySelectorAll('.profile-option').forEach(o=>o.classList.remove('active'));
     el.classList.add('active');
     updateAssignedCount(); closeProfileModal();
+    if (name === 'Sam L' || name === 'Robert S') startMatrixScene(name);
 }
 
 // ── Metrics ────────────────────────────────────────
@@ -6554,6 +6597,128 @@ window.quickMoveNext=quickMoveNext;
 window.quickDone=quickDone;
 window.quickDead=quickDead;
 window.quickDeleteCard=quickDeleteCard;
+
+// ── Matrix Login Scene ────────────────────────────────────────
+let _matrixRAF = null;
+let _matrixTimeout = [];
+let _matrixDone = false;
+
+function startMatrixScene(name) {
+    _matrixDone = false;
+    const overlay = document.getElementById('matrix-overlay');
+    const canvas  = document.getElementById('matrix-canvas');
+    const line1   = document.getElementById('matrix-line1');
+    const line2   = document.getElementById('matrix-line2');
+    overlay.style.display = 'flex';
+    line1.textContent = '';
+    line2.textContent = '';
+
+    // ── canvas rain ──────────────────────────────────────────
+    const ctx = canvas.getContext('2d');
+    const chars = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ@#$%&';
+    let W, H, cols, drops;
+
+    function resize() {
+        W = canvas.width  = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+        cols  = Math.floor(W / 16);
+        drops = Array(cols).fill(1);
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    function drawRain() {
+        if (_matrixDone) return;
+        ctx.fillStyle = 'rgba(0,0,0,0.05)';
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = '#00ff41';
+        ctx.font = '15px DM Mono, monospace';
+        drops.forEach((y, i) => {
+            const ch = chars[Math.floor(Math.random() * chars.length)];
+            ctx.fillText(ch, i * 16, y * 16);
+            if (y * 16 > H && Math.random() > 0.975) drops[i] = 0;
+            drops[i]++;
+        });
+        _matrixRAF = requestAnimationFrame(drawRain);
+    }
+    drawRain();
+
+    // ── typewriter helper ─────────────────────────────────────
+    function type(el, text, speed, cb) {
+        el.textContent = '';
+        let i = 0;
+        function tick() {
+            if (_matrixDone) return;
+            el.textContent += text[i++];
+            if (i < text.length) _matrixTimeout.push(setTimeout(tick, speed));
+            else if (cb) _matrixTimeout.push(setTimeout(cb, 300));
+        }
+        tick();
+    }
+
+    // ── message sequence ──────────────────────────────────────
+    const first  = name.split(' ')[0].toUpperCase();
+    const isSam  = name === 'Sam L';
+
+    // pull some real stats
+    const allCards   = Object.values(cardsData);
+    const hotCount   = allCards.filter(c => c.priority === 'hot' && !['done','paid-out','dead-leads'].includes(c.listId)).length;
+    const newToday   = allCards.filter(c => { try { return new Date(c.createdAt) > new Date(Date.now()-86400000); } catch(e){return false;} }).length;
+    const staleCount = allCards.filter(c => { try { const d=stageAgeDays(c); return d!==null && d>=7 && !['done','paid-out','dead-leads'].includes(c.listId); } catch(e){return false;} }).length;
+
+    const lines = isSam ? [
+        { t: 600,  l: 1, text: `WAKE UP, ${first}...`,          speed: 80 },
+        { t: 2800, l: 2, text: 'THE PIPELINE HAS YOU.',          speed: 55 },
+        { t: 4800, l: 1, text: 'FOLLOW THE MONEY 🐰',            speed: 70 },
+        { t: 6600, l: 2, text: 'Knock, knock.',                  speed: 60 },
+        { t: 8200, l: 1, text: `${first}?`,                      speed: 90 },
+        { t: 9500, l: 2, text: hotCount > 0
+            ? `You have ${hotCount} hot lead${hotCount>1?'s':''} going cold.`
+            : `You have ${staleCount} leads going stale.`,       speed: 45 },
+        { t: 11200,l: 1, text: 'They\'re waiting.',              speed: 70 },
+        { t: 12800,l: 2, text: 'No pressure.',                   speed: 60 },
+        { t: 14200,l: 1, text: 'LET\'S CLOSE SOME DEALS. 💰',   speed: 55 },
+    ] : [
+        { t: 600,  l: 1, text: `WAKE UP, ${first}...`,          speed: 80 },
+        { t: 2800, l: 2, text: 'THE TIMELINE HAS YOU.',          speed: 55 },
+        { t: 4800, l: 1, text: 'THERE IS NO SPOON.',             speed: 70 },
+        { t: 6600, l: 2, text: 'Knock, knock.',                  speed: 60 },
+        { t: 8200, l: 1, text: `${first}?`,                      speed: 90 },
+        { t: 9500, l: 2, text: newToday > 0
+            ? `${newToday} new lead${newToday>1?'s':''} came in today.`
+            : `Everyone wants a piece of you.`,                  speed: 45 },
+        { t: 11200,l: 1, text: 'They\'re not wrong.',            speed: 70 },
+        { t: 12800,l: 2, text: 'One Robert Scoble. No clones.',  speed: 55 },
+        { t: 14200,l: 1, text: 'GOOD MORNING. 🚀',               speed: 60 },
+    ];
+
+    lines.forEach(({ t, l, text, speed }) => {
+        _matrixTimeout.push(setTimeout(() => {
+            if (!_matrixDone) type(l === 1 ? line1 : line2, text, speed);
+        }, t));
+    });
+
+    // ── end scene after 16.5s ─────────────────────────────────
+    _matrixTimeout.push(setTimeout(() => matrixFinish(), 16500));
+}
+
+function matrixFinish() {
+    if (_matrixDone) return;
+    _matrixDone = true;
+    cancelAnimationFrame(_matrixRAF);
+    _matrixTimeout.forEach(clearTimeout);
+    const overlay = document.getElementById('matrix-overlay');
+    overlay.style.transition = 'opacity 0.8s ease';
+    overlay.style.opacity = '0';
+    setTimeout(() => {
+        overlay.style.display = 'none';
+        overlay.style.opacity = '1';
+        overlay.style.transition = '';
+    }, 850);
+}
+
+function matrixSkip() { matrixFinish(); }
+window.matrixSkip = matrixSkip;
 
 // ── Daily Activity Log ─────────────────────────────────────────
 let _logTab = 'today';
