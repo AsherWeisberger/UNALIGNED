@@ -292,8 +292,8 @@
             margin: 0 0px; border-radius: 3px; position: relative;
             animation: centi-bob 0.32s ease-in-out infinite alternate;
             animation-delay: calc(var(--ci, 0) * 0.07s);
-            box-shadow: 0 0 6px var(--cc, #34d399), inset 0 0 6px rgba(0,0,0,0.4);
-            text-shadow: 0 0 8px var(--cc, #34d399);
+            box-shadow: 0 0 4px rgba(255,255,255,0.15), inset 0 0 4px rgba(0,0,0,0.5);
+            text-shadow: none;
         }
         /* pixel legs via box-shadow */
         .centi-seg::before {
@@ -304,7 +304,7 @@
                 -15px  4px 0 1px var(--cc),
                  15px -4px 0 1px var(--cc),
                  15px  4px 0 1px var(--cc);
-            opacity: 0.45;
+            opacity: 0.35;
         }
         /* connector spine between segments */
         .centi-seg + .centi-seg {
@@ -313,8 +313,8 @@
         .centi-seg + .centi-seg::after {
             content: ''; position: absolute;
             left: -7px; top: 50%; transform: translateY(-50%);
-            width: 7px; height: 3px;
-            background: var(--cc); opacity: 0.5;
+            width: 7px; height: 2px;
+            background: var(--cc); opacity: 0.4;
             border-radius: 0;
         }
         .centi-head {
@@ -1891,16 +1891,16 @@
                 <!-- 8-bit UNALIGNED centipede -->
                 <div id="centi-wrap">
                     <div id="centipede">
-                        <div class="centi-seg centi-head" style="--ci:0;--cc:#34d399;--cb:rgba(52,211,153,0.12);">◈U</div>
-                        <div class="centi-seg" style="--ci:1;--cc:#34d399;--cb:rgba(52,211,153,0.10);">N</div>
-                        <div class="centi-seg" style="--ci:2;--cc:#4ade80;--cb:rgba(74,222,128,0.10);">A</div>
-                        <div class="centi-seg" style="--ci:3;--cc:#60a5fa;--cb:rgba(96,165,250,0.10);">L</div>
-                        <div class="centi-seg" style="--ci:4;--cc:#818cf8;--cb:rgba(129,140,248,0.10);">I</div>
-                        <div class="centi-seg" style="--ci:5;--cc:#c084fc;--cb:rgba(192,132,252,0.10);">G</div>
-                        <div class="centi-seg" style="--ci:6;--cc:#f472b6;--cb:rgba(244,114,182,0.10);">N</div>
-                        <div class="centi-seg" style="--ci:7;--cc:#fb923c;--cb:rgba(251,146,60,0.10);">E</div>
-                        <div class="centi-seg" style="--ci:8;--cc:#facc15;--cb:rgba(250,204,21,0.10);">D</div>
-                        <div class="centi-seg" style="--ci:9;--cc:#34d399;--cb:rgba(52,211,153,0.08);">·</div>
+                        <div class="centi-seg centi-head" style="--ci:0;--cc:#e5e5e5;--cb:rgba(255,255,255,0.08);">◈U</div>
+                        <div class="centi-seg" style="--ci:1;--cc:#d4d4d4;--cb:rgba(255,255,255,0.06);">N</div>
+                        <div class="centi-seg" style="--ci:2;--cc:#c0c0c0;--cb:rgba(255,255,255,0.05);">A</div>
+                        <div class="centi-seg" style="--ci:3;--cc:#a8a8a8;--cb:rgba(255,255,255,0.05);">L</div>
+                        <div class="centi-seg" style="--ci:4;--cc:#909090;--cb:rgba(255,255,255,0.04);">I</div>
+                        <div class="centi-seg" style="--ci:5;--cc:#a8a8a8;--cb:rgba(255,255,255,0.05);">G</div>
+                        <div class="centi-seg" style="--ci:6;--cc:#c0c0c0;--cb:rgba(255,255,255,0.05);">N</div>
+                        <div class="centi-seg" style="--ci:7;--cc:#d4d4d4;--cb:rgba(255,255,255,0.06);">E</div>
+                        <div class="centi-seg" style="--ci:8;--cc:#e5e5e5;--cb:rgba(255,255,255,0.08);">D</div>
+                        <div class="centi-seg" style="--ci:9;--cc:#888;--cb:rgba(255,255,255,0.03);">·</div>
                     </div>
                 </div>
 
