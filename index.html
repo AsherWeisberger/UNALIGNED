@@ -106,6 +106,153 @@
         body.light-mode #matrix-line2 { color: #008833; text-shadow: none; }
         body.light-mode #matrix-canvas { opacity: 0.25; }
 
+        /* ─── MATRIX MODE ─────────────────────────────────── */
+        body.matrix-mode {
+            color-scheme: dark;
+            --bg:          #010904;
+            --bg2:         #020d06;
+            --surface:     #061209;
+            --surface2:    #0b1e0f;
+            --border:      rgba(0,255,65,0.12);
+            --border2:     rgba(0,255,65,0.22);
+            --text:        #b8ffcb;
+            --muted:       rgba(0,255,65,0.45);
+            --muted2:      rgba(0,255,65,0.65);
+            --accent:      #5b8cff;
+            --accent-glow: rgba(91,140,255,0.3);
+            --green:       #00ff41;
+            --green-glow:  rgba(0,255,65,0.25);
+            --shadow:      0 4px 24px rgba(0,255,65,0.08);
+            --shadow-lg:   0 12px 48px rgba(0,0,0,0.7);
+            --overlay-bg:  rgba(0,10,4,0.88);
+            --btn-fg:      #010904;
+            --quick-btn-bg: rgba(6,18,9,0.96);
+            --quick-btn-border: rgba(0,255,65,0.2);
+            font-family: 'DM Mono', monospace;
+        }
+
+        /* scanline overlay */
+        body.matrix-mode::before {
+            content: '';
+            position: fixed; inset: 0; pointer-events: none; z-index: 9997;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 3px,
+                rgba(0,255,65,0.018) 3px,
+                rgba(0,255,65,0.018) 4px
+            );
+        }
+
+        body.matrix-mode .header {
+            background: #020d06;
+            border-bottom: 1px solid rgba(0,255,65,0.18);
+        }
+        body.matrix-mode .board-title {
+            color: #00ff41;
+            text-shadow: 0 0 18px rgba(0,255,65,0.5);
+        }
+        body.matrix-mode .list {
+            background: #060f08;
+            border: 1px solid rgba(0,255,65,0.1);
+        }
+        body.matrix-mode .list-header {
+            border-bottom: 1px solid rgba(0,255,65,0.12);
+        }
+        body.matrix-mode .list-title {
+            color: #00ff41;
+            text-shadow: 0 0 10px rgba(0,255,65,0.35);
+            font-family: 'DM Mono', monospace;
+            letter-spacing: 0.05em;
+        }
+        body.matrix-mode .list-accent-bar { background: #00ff41 !important; }
+        body.matrix-mode .card {
+            background: #08160a;
+            border: 1px solid rgba(0,255,65,0.12);
+            border-left: 3px solid rgba(0,255,65,0.25);
+            box-shadow: 0 1px 6px rgba(0,255,65,0.06);
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        body.matrix-mode .card:hover {
+            border-color: rgba(0,255,65,0.35);
+            box-shadow: 0 0 14px rgba(0,255,65,0.12);
+        }
+        body.matrix-mode .card-who {
+            color: #00ff41;
+            text-shadow: 0 0 8px rgba(0,255,65,0.3);
+        }
+        body.matrix-mode .card-biz { color: rgba(0,255,65,0.6); }
+        body.matrix-mode .card-why-snippet { color: rgba(0,255,65,0.5); }
+        body.matrix-mode .card-intent-tag {
+            background: rgba(0,255,65,0.1);
+            color: #00ff41;
+            border: 1px solid rgba(0,255,65,0.25);
+        }
+        body.matrix-mode .card.priority-hot {
+            border-left-color: #ff4141;
+            box-shadow: 0 0 14px rgba(255,65,65,0.15);
+        }
+        body.matrix-mode .card.priority-warm { border-left-color: #ffcc00; }
+        body.matrix-mode .card.priority-cold { border-left-color: #00e5ff; }
+        body.matrix-mode .card.priority-done { border-left-color: #00ff41; }
+        body.matrix-mode .card-age.age-fresh { background: rgba(0,255,65,0.12); color: #00ff41; }
+        body.matrix-mode .card-age.age-warn  { background: rgba(255,204,0,0.1); color: #ffcc00; }
+        body.matrix-mode .card-age.age-old   { background: rgba(255,65,65,0.1); color: #ff4141; }
+        body.matrix-mode .card-quick-btn {
+            background: var(--quick-btn-bg);
+            border-color: var(--quick-btn-border);
+            color: #00ff41;
+            font-family: 'DM Mono', monospace;
+        }
+        body.matrix-mode .card-delete-quick {
+            background: rgba(6,18,9,0.95);
+            border-color: rgba(0,255,65,0.2);
+            color: rgba(0,255,65,0.5);
+        }
+        body.matrix-mode .card-approve-btn {
+            background: rgba(0,255,65,0.15);
+            color: #00ff41;
+        }
+        body.matrix-mode .view-toggle {
+            color: rgba(0,255,65,0.7);
+            border-color: rgba(0,255,65,0.18);
+        }
+        body.matrix-mode .view-toggle:hover,
+        body.matrix-mode .view-toggle.active {
+            background: rgba(0,255,65,0.1);
+            color: #00ff41;
+            border-color: rgba(0,255,65,0.4);
+        }
+        body.matrix-mode .profile-btn {
+            border-color: rgba(0,255,65,0.2);
+            color: #00ff41;
+        }
+        body.matrix-mode .col-count-badge {
+            background: rgba(0,255,65,0.12);
+            color: #00ff41;
+        }
+        body.matrix-mode .card-source, body.matrix-mode .card-value { color: rgba(0,255,65,0.55); }
+        body.matrix-mode .filter-bar { background: #020d06; border-color: rgba(0,255,65,0.12); }
+        body.matrix-mode .filter-input, body.matrix-mode .filter-select {
+            background: #06120a;
+            border-color: rgba(0,255,65,0.18);
+            color: #00ff41;
+        }
+        body.matrix-mode input::placeholder, body.matrix-mode textarea::placeholder { color: rgba(0,255,65,0.3); }
+        body.matrix-mode .header-search input { color: #00ff41; }
+        body.matrix-mode .daily-briefing-strip { background: rgba(0,255,65,0.06); border-color: rgba(0,255,65,0.15); }
+        /* UNALIGNED accent blue lights — buttons, links, badges */
+        body.matrix-mode .reply-needed-dot { background: #5b8cff; box-shadow: 0 0 6px #5b8cff; }
+        body.matrix-mode .card-reply-actions .card-quick-btn { border-color: rgba(91,140,255,0.4); color: #5b8cff; }
+        body.matrix-mode .stale-badge { color: #ffcc00; }
+        /* modal glass */
+        body.matrix-mode .card-modal,
+        body.matrix-mode #shortcuts-modal > div { background: #06120a; border-color: rgba(0,255,65,0.2); }
+        body.matrix-mode .card-modal-title { color: #00ff41; }
+        body.matrix-mode .modal-section { border-color: rgba(0,255,65,0.12) !important; }
+        body.matrix-mode .login-container { background: #061209; border-color: rgba(0,255,65,0.25); }
+        body.matrix-mode .login-title { color: #00ff41; text-shadow: 0 0 16px rgba(0,255,65,0.5); }
+
         html { overscroll-behavior: none; height: 100%; scroll-behavior: auto; }
 
         body {
@@ -7217,21 +7364,28 @@ const ASHER_SETTINGS_DEFAULTS = {
     col_info_default: false,  // column info strips collapsed by default
 };
 
-// ── Light Mode ────────────────────────────────────────────────
-function applyLightMode(on) {
-    document.body.classList.toggle('light-mode', on);
+// ── Theme Toggle (dark / light / matrix) ─────────────────────
+const THEME_CYCLE = ['dark', 'light', 'matrix'];
+const THEME_ICONS = { dark: '☀️', light: '💊', matrix: '🌑' };
+const THEME_TITLES = { dark: 'Switch to Light', light: 'Switch to Matrix', matrix: 'Switch to Dark' };
+
+function applyTheme(theme) {
+    document.body.classList.remove('light-mode', 'matrix-mode');
+    if (theme === 'light')  document.body.classList.add('light-mode');
+    if (theme === 'matrix') document.body.classList.add('matrix-mode');
     const btn = document.getElementById('light-mode-btn');
-    if (btn) btn.textContent = on ? '🌙' : '☀️';
+    if (btn) { btn.textContent = THEME_ICONS[theme]; btn.title = THEME_TITLES[theme]; }
+    localStorage.setItem('ui_theme', theme);
 }
 function toggleLightMode() {
-    const on = !document.body.classList.contains('light-mode');
-    localStorage.setItem('light_mode', on ? '1' : '0');
-    applyLightMode(on);
+    const cur = localStorage.getItem('ui_theme') || 'dark';
+    const next = THEME_CYCLE[(THEME_CYCLE.indexOf(cur) + 1) % THEME_CYCLE.length];
+    applyTheme(next);
 }
 // Apply on load
 (function() {
-    const saved = localStorage.getItem('light_mode');
-    if (saved === '1') applyLightMode(true);
+    const saved = localStorage.getItem('ui_theme') || (localStorage.getItem('light_mode') === '1' ? 'light' : 'dark');
+    applyTheme(saved);
 })();
 window.toggleLightMode = toggleLightMode;
 
