@@ -7374,106 +7374,207 @@ function mtxModeStop() {
 const HW = { bgRAF: null, fallRAF: null, active: false };
 const _hwDrops = [];
 
-// Draw a bat at (x,y) with wing phase
-function hwDrawBat(ctx, x, y, wingPhase, size, alpha) {
+/* ── Draw helpers ── */
+
+function hwDrawWisp(ctx, x, y, size, hue, alpha, flicker) {
+    const f = 0.82 + Math.sin(flicker) * 0.18;
+    ctx.save();
+    // outer atmospheric halo
+    const halo = ctx.createRadialGradient(x, y, 0, x, y, size * 3.2);
+    halo.addColorStop(0,   `hsla(${hue},90%,72%,${0.38 * alpha * f})`);
+    halo.addColorStop(0.45,`hsla(${hue},80%,58%,${0.12 * alpha})`);
+    halo.addColorStop(1,   `hsla(${hue},70%,45%,0)`);
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(x, y, size * 3.2, 0, Math.PI * 2);
+    ctx.fill();
+    // inner core
+    const core = ctx.createRadialGradient(x, y, 0, x, y, size);
+    core.addColorStop(0,   `hsla(${hue},100%,96%,${0.95 * alpha * f})`);
+    core.addColorStop(0.35,`hsla(${hue},95%,78%,${0.75 * alpha * f})`);
+    core.addColorStop(0.7, `hsla(${hue},85%,58%,${0.35 * alpha})`);
+    core.addColorStop(1,   `hsla(${hue},80%,45%,0)`);
+    ctx.fillStyle = core;
+    ctx.beginPath();
+    ctx.arc(x, y, size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+}
+
+function hwDrawSkull(ctx, x, y, size, alpha) {
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.translate(x, y);
-    const flap = Math.sin(wingPhase) * size * 0.55;
+    ctx.shadowColor = 'rgba(200,160,255,0.6)';
+    ctx.shadowBlur = size * 1.2;
 
-    // body
-    ctx.fillStyle = '#1a0a2e';
+    // cranium
+    ctx.fillStyle = '#e8e0ff';
     ctx.beginPath();
-    ctx.ellipse(0, 0, size * 0.28, size * 0.18, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // left wing
-    ctx.fillStyle = '#210d3a';
-    ctx.beginPath();
-    ctx.moveTo(-size * 0.1, 0);
-    ctx.quadraticCurveTo(-size * 0.75, -flap, -size, size * 0.05);
-    ctx.quadraticCurveTo(-size * 0.55, size * 0.22, -size * 0.25, size * 0.1);
-    ctx.quadraticCurveTo(-size * 0.45, -flap * 0.3, -size * 0.1, 0);
+    ctx.arc(x, y - size * 0.08, size * 0.52, 0, Math.PI * 2);
     ctx.fill();
 
-    // right wing
+    // cheekbones / jaw
     ctx.beginPath();
-    ctx.moveTo(size * 0.1, 0);
-    ctx.quadraticCurveTo(size * 0.75, -flap, size, size * 0.05);
-    ctx.quadraticCurveTo(size * 0.55, size * 0.22, size * 0.25, size * 0.1);
-    ctx.quadraticCurveTo(size * 0.45, -flap * 0.3, size * 0.1, 0);
+    ctx.moveTo(x - size * 0.38, y + size * 0.18);
+    ctx.bezierCurveTo(x - size * 0.42, y + size * 0.52, x - size * 0.18, y + size * 0.62, x, y + size * 0.62);
+    ctx.bezierCurveTo(x + size * 0.18, y + size * 0.62, x + size * 0.42, y + size * 0.52, x + size * 0.38, y + size * 0.18);
+    ctx.closePath();
     ctx.fill();
 
-    // ears
-    ctx.fillStyle = '#1a0a2e';
+    // eye sockets
+    ctx.fillStyle = '#0b0514';
+    ctx.shadowBlur = 0;
     ctx.beginPath();
-    ctx.moveTo(-size*0.18, -size*0.12);
-    ctx.lineTo(-size*0.26, -size*0.32);
-    ctx.lineTo(-size*0.08, -size*0.12);
+    ctx.ellipse(x - size * 0.19, y - size * 0.12, size * 0.145, size * 0.17, -0.15, 0, Math.PI * 2);
     ctx.fill();
     ctx.beginPath();
-    ctx.moveTo(size*0.18, -size*0.12);
-    ctx.lineTo(size*0.26, -size*0.32);
-    ctx.lineTo(size*0.08, -size*0.12);
+    ctx.ellipse(x + size * 0.19, y - size * 0.12, size * 0.145, size * 0.17, 0.15, 0, Math.PI * 2);
     ctx.fill();
 
-    // eyes
-    ctx.fillStyle = '#ff7b00';
-    ctx.shadowColor = '#ff7b00';
-    ctx.shadowBlur = 4;
+    // nose cavity
     ctx.beginPath();
-    ctx.arc(-size*0.1, -size*0.02, size*0.055, 0, Math.PI*2);
-    ctx.arc(size*0.1, -size*0.02, size*0.055, 0, Math.PI*2);
+    ctx.moveTo(x, y + size * 0.12);
+    ctx.lineTo(x - size * 0.09, y + size * 0.26);
+    ctx.lineTo(x + size * 0.09, y + size * 0.26);
+    ctx.closePath();
     ctx.fill();
+
+    // teeth (3 rectangles)
+    for (let t = -1; t <= 1; t++) {
+        ctx.beginPath();
+        ctx.roundRect(x + t * size * 0.2 - size * 0.08, y + size * 0.34, size * 0.14, size * 0.22, size * 0.03);
+        ctx.fill();
+    }
 
     ctx.restore();
 }
 
-// Draw a ghost at (x,y)
-function hwDrawGhost(ctx, x, y, size, alpha, phase) {
+function hwDrawGhostFull(ctx, x, y, size, alpha, phase) {
     ctx.save();
+    const bob = Math.sin(phase) * 5;
+    ctx.translate(x, y + bob);
     ctx.globalAlpha = alpha;
-    ctx.translate(x, y + Math.sin(phase) * 4);
 
-    // glow
-    ctx.shadowColor = 'rgba(200,180,255,0.6)';
-    ctx.shadowBlur = 18;
+    // outer glow
+    ctx.shadowColor = 'rgba(200,180,255,0.7)';
+    ctx.shadowBlur = size * 1.4;
 
-    // body
-    const grad = ctx.createRadialGradient(0, -size*0.3, 0, 0, 0, size);
-    grad.addColorStop(0, 'rgba(230,210,255,0.92)');
-    grad.addColorStop(1, 'rgba(180,150,255,0.55)');
+    // body gradient
+    const grad = ctx.createRadialGradient(0, -size * 0.2, 0, 0, 0, size * 1.1);
+    grad.addColorStop(0,   'rgba(235,218,255,0.96)');
+    grad.addColorStop(0.45,'rgba(200,175,255,0.82)');
+    grad.addColorStop(0.8, 'rgba(170,140,255,0.55)');
+    grad.addColorStop(1,   'rgba(140,110,240,0)');
     ctx.fillStyle = grad;
 
+    // head + body
     ctx.beginPath();
-    ctx.arc(0, -size*0.4, size*0.55, Math.PI, 0);
-    ctx.lineTo(size*0.55, size*0.5);
-    // wavy bottom — 3 humps
-    ctx.quadraticCurveTo(size*0.37, size*0.7, size*0.18, size*0.48);
-    ctx.quadraticCurveTo(0, size*0.7, -size*0.18, size*0.48);
-    ctx.quadraticCurveTo(-size*0.37, size*0.7, -size*0.55, size*0.5);
-    ctx.lineTo(-size*0.55, -size*0.4);
+    ctx.arc(0, -size * 0.42, size * 0.52, Math.PI, 0);
+    ctx.lineTo(size * 0.52, size * 0.38);
+    // 3-scallop wavy hem
+    ctx.bezierCurveTo(size*0.52, size*0.6, size*0.28, size*0.72, size*0.17, size*0.55);
+    ctx.bezierCurveTo(size*0.06, size*0.38, -size*0.06, size*0.38, -size*0.17, size*0.55);
+    ctx.bezierCurveTo(-size*0.28, size*0.72, -size*0.52, size*0.6, -size*0.52, size*0.38);
+    ctx.lineTo(-size*0.52, -size*0.42);
     ctx.closePath();
     ctx.fill();
 
-    // eyes
+    // tail wisp
     ctx.shadowBlur = 0;
-    ctx.fillStyle = 'rgba(30,10,60,0.85)';
+    const tailGrad = ctx.createLinearGradient(0, size*0.4, 0, size*1.1);
+    tailGrad.addColorStop(0, 'rgba(185,155,255,0.55)');
+    tailGrad.addColorStop(1, 'rgba(160,120,255,0)');
+    ctx.fillStyle = tailGrad;
     ctx.beginPath();
-    ctx.ellipse(-size*0.2, -size*0.35, size*0.13, size*0.16, -0.2, 0, Math.PI*2);
-    ctx.ellipse(size*0.2, -size*0.35, size*0.13, size*0.16, 0.2, 0, Math.PI*2);
+    ctx.ellipse(0, size * 0.72, size * 0.14, size * 0.4, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // mouth
+    // eyes (glowing)
+    ctx.shadowColor = '#ff7b00';
+    ctx.shadowBlur = size * 0.5;
+    ctx.fillStyle = '#ff7b00';
     ctx.beginPath();
-    ctx.arc(0, -size*0.12, size*0.12, 0.2, Math.PI-0.2);
-    ctx.strokeStyle = 'rgba(30,10,60,0.7)';
-    ctx.lineWidth = size*0.06;
+    ctx.ellipse(-size*0.2, -size*0.4, size*0.12, size*0.14, -0.25, 0, Math.PI*2);
+    ctx.ellipse( size*0.2, -size*0.4, size*0.12, size*0.14,  0.25, 0, Math.PI*2);
+    ctx.fill();
+
+    // open mouth
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(20,5,50,0.8)';
+    ctx.lineWidth = size * 0.065;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(0, -size * 0.2, size * 0.15, 0.3, Math.PI - 0.3);
     ctx.stroke();
 
     ctx.restore();
 }
 
+function hwDrawBatPro(ctx, x, y, wingPhase, size, alpha, flipX) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(x, y);
+    if (flipX) ctx.scale(-1, 1);
+
+    const flap = Math.sin(wingPhase);
+    const liftL = flap * size * 0.48;
+    const liftR = flap * size * 0.48;
+
+    ctx.shadowColor = 'rgba(80,0,120,0.5)';
+    ctx.shadowBlur = size * 0.6;
+    ctx.fillStyle = '#150822';
+
+    // left wing — membrane with finger bones implied by bezier curves
+    ctx.beginPath();
+    ctx.moveTo(-size * 0.05, 0);
+    ctx.bezierCurveTo(-size * 0.3, -liftL * 0.4, -size * 0.65, -liftL * 0.8, -size * 0.95, -liftL * 0.5);
+    ctx.bezierCurveTo(-size * 0.85, -liftL * 0.1, -size * 1.05, liftL * 0.15, -size * 0.9, size * 0.22);
+    ctx.bezierCurveTo(-size * 0.65, size * 0.32, -size * 0.3, size * 0.18, -size * 0.05, size * 0.08);
+    ctx.closePath();
+    ctx.fill();
+
+    // right wing
+    ctx.beginPath();
+    ctx.moveTo(size * 0.05, 0);
+    ctx.bezierCurveTo(size * 0.3, -liftR * 0.4, size * 0.65, -liftR * 0.8, size * 0.95, -liftR * 0.5);
+    ctx.bezierCurveTo(size * 0.85, -liftR * 0.1, size * 1.05, liftR * 0.15, size * 0.9, size * 0.22);
+    ctx.bezierCurveTo(size * 0.65, size * 0.32, size * 0.3, size * 0.18, size * 0.05, size * 0.08);
+    ctx.closePath();
+    ctx.fill();
+
+    // body
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#1e0a30';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, size * 0.22, size * 0.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // pointy ears
+    ctx.fillStyle = '#150822';
+    ctx.beginPath();
+    ctx.moveTo(-size*0.1, -size*0.2);
+    ctx.lineTo(-size*0.22, -size*0.46);
+    ctx.lineTo(-size*0.02, -size*0.2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(size*0.1, -size*0.2);
+    ctx.lineTo(size*0.22, -size*0.46);
+    ctx.lineTo(size*0.02, -size*0.2);
+    ctx.fill();
+
+    // eyes — glowing orange
+    ctx.shadowColor = '#ff8800';
+    ctx.shadowBlur = size * 0.5;
+    ctx.fillStyle = '#ff8800';
+    ctx.beginPath();
+    ctx.arc(-size*0.09, -size*0.04, size*0.055, 0, Math.PI*2);
+    ctx.arc( size*0.09, -size*0.04, size*0.055, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.restore();
+}
+
+/* ── Background: bats + ghosts + will-o-wisps ── */
 function hwStartBg() {
     const canvas = document.getElementById('hw-bg-canvas');
     if (!canvas) return;
@@ -7481,66 +7582,95 @@ function hwStartBg() {
     const ctx = canvas.getContext('2d');
     let W, H;
 
-    function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
+    function resize() {
+        W = canvas.width  = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+    }
     resize();
     window._hwBgResize = resize;
     window.addEventListener('resize', resize);
 
-    // bats: { x, y, vx, vy, phase, size, alpha, flipX }
-    const bats = Array.from({length: 14}, (_, i) => ({
-        x: Math.random() * W,
-        y: 60 + Math.random() * (H * 0.55),
-        vx: (0.6 + Math.random() * 1.1) * (Math.random() > 0.5 ? 1 : -1),
-        vy: 0,
-        baseY: 60 + Math.random() * (H * 0.55),
-        phase: Math.random() * Math.PI * 2,
-        waveAmp: 25 + Math.random() * 40,
-        waveFreq: 0.008 + Math.random() * 0.012,
+    // bats
+    const bats = Array.from({length: 12}, () => ({
+        x:       Math.random() * W,
+        baseY:   H * 0.05 + Math.random() * H * 0.5,
+        vx:      (0.55 + Math.random() * 1.1) * (Math.random() > 0.5 ? 1 : -1),
+        waveAmp: 22 + Math.random() * 45,
+        waveFreq:0.007 + Math.random() * 0.011,
         wingPhase: Math.random() * Math.PI * 2,
-        size: 14 + Math.random() * 22,
-        alpha: 0.55 + Math.random() * 0.4,
-        tick: Math.random() * 1000,
+        size:    16 + Math.random() * 24,
+        alpha:   0.55 + Math.random() * 0.4,
+        tick:    Math.random() * 1000,
     }));
 
-    // ghosts: { x, y, vx, phase, size, alpha }
-    const ghosts = Array.from({length: 4}, () => ({
-        x: Math.random() * W,
-        y: H * 0.3 + Math.random() * H * 0.4,
-        vx: (0.2 + Math.random() * 0.35) * (Math.random() > 0.5 ? 1 : -1),
+    // ghosts — sparse, slow, very translucent
+    const ghosts = Array.from({length: 3}, () => ({
+        x:     Math.random() * W,
+        y:     H * 0.25 + Math.random() * H * 0.45,
+        vx:    (0.18 + Math.random() * 0.28) * (Math.random() > 0.5 ? 1 : -1),
         phase: Math.random() * Math.PI * 2,
-        size: 22 + Math.random() * 28,
-        alpha: 0.12 + Math.random() * 0.18,
-        tick: Math.random() * 1000,
+        size:  30 + Math.random() * 35,
+        alpha: 0.10 + Math.random() * 0.14,
+        tick:  Math.random() * 1000,
+    }));
+
+    // will-o-wisps — the Disney magic element
+    // hues: 140 (green), 280 (purple), 35 (orange)
+    const wispHues = [140, 140, 280, 280, 35, 140, 280];
+    const wisps = wispHues.map((hue, i) => ({
+        x:       Math.random() * W,
+        y:       H * 0.1 + Math.random() * H * 0.75,
+        hue,
+        size:    6 + Math.random() * 14,
+        alpha:   0.55 + Math.random() * 0.45,
+        vx:      (Math.random() - 0.5) * 0.5,
+        vy:      (Math.random() - 0.5) * 0.3,
+        flicker: Math.random() * Math.PI * 2,
+        flickerSpeed: 0.04 + Math.random() * 0.06,
+        wander:  Math.random() * Math.PI * 2,
+        wanderSpeed: 0.008 + Math.random() * 0.012,
     }));
 
     function draw() {
         if (!HW.active) return;
-        ctx.clearRect(0, 0, W, H);
+        // soft persistence trail for motion blur feel
+        ctx.fillStyle = 'rgba(5,3,12,0.18)';
+        ctx.fillRect(0, 0, W, H);
 
-        // draw ghosts first (behind bats)
+        // wisps first (deepest layer)
+        wisps.forEach(w => {
+            w.flicker  += w.flickerSpeed;
+            w.wander   += w.wanderSpeed;
+            w.vx = Math.cos(w.wander) * 0.5;
+            w.vy = Math.sin(w.wander) * 0.3 - 0.08; // slight upward drift
+            w.x += w.vx;
+            w.y += w.vy;
+            if (w.x < -80)  w.x = W + 80;
+            if (w.x > W+80) w.x = -80;
+            if (w.y < -60)  w.y = H + 60;
+            if (w.y > H+60) w.y = -60;
+            hwDrawWisp(ctx, w.x, w.y, w.size, w.hue, w.alpha, w.flicker);
+        });
+
+        // ghosts
         ghosts.forEach(g => {
             g.tick++;
             g.x += g.vx;
-            g.phase += 0.018;
-            if (g.x > W + 60)  g.x = -60;
-            if (g.x < -60) g.x = W + 60;
-            hwDrawGhost(ctx, g.x, g.y, g.size, g.alpha, g.phase);
+            g.phase += 0.016;
+            if (g.x > W + 80)  g.x = -80;
+            if (g.x < -80) g.x = W + 80;
+            hwDrawGhostFull(ctx, g.x, g.y, g.size, g.alpha, g.phase);
         });
 
-        // draw bats
+        // bats (front layer)
         bats.forEach(b => {
             b.tick++;
-            b.wingPhase += 0.22;
+            b.wingPhase += 0.19;
             b.x += b.vx;
-            b.y = b.baseY + Math.sin(b.tick * b.waveFreq) * b.waveAmp;
-
-            if (b.x > W + 80)  { b.x = -80; b.baseY = 60 + Math.random() * (H * 0.5); }
-            if (b.x < -80) { b.x = W + 80; b.baseY = 60 + Math.random() * (H * 0.5); }
-
-            ctx.save();
-            if (b.vx < 0) { ctx.translate(b.x, b.y); ctx.scale(-1,1); ctx.translate(-b.x,-b.y); }
-            hwDrawBat(ctx, b.x, b.y, b.wingPhase, b.size, b.alpha);
-            ctx.restore();
+            const y = b.baseY + Math.sin(b.tick * b.waveFreq) * b.waveAmp;
+            if (b.x > W + 100) { b.x = -100; b.baseY = H*0.05 + Math.random()*H*0.5; }
+            if (b.x < -100)    { b.x = W+100; b.baseY = H*0.05 + Math.random()*H*0.5; }
+            hwDrawBatPro(ctx, b.x, y, b.wingPhase, b.size, b.alpha, b.vx < 0);
         });
 
         HW.bgRAF = requestAnimationFrame(draw);
@@ -7555,6 +7685,7 @@ function hwStopBg() {
     window.removeEventListener('resize', window._hwBgResize);
 }
 
+/* ── Card particles: skulls + wisps float UP ── */
 function hwStartFall() {
     const canvas = document.getElementById('hw-fall-canvas');
     if (!canvas) return;
@@ -7562,57 +7693,63 @@ function hwStartFall() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     const ctx = canvas.getContext('2d');
-    window._hwFallResize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
+    window._hwFallResize = () => { canvas.width=window.innerWidth; canvas.height=window.innerHeight; };
     window.addEventListener('resize', window._hwFallResize);
 
-    // Halloween symbols that float UP from cards
-    const SYMBOLS = ['💀','🦇','👻','🕷️','🕸️','🎃','☠️','🌙'];
+    // particle types: 'skull' | 'wisp'
     let spawnTick = 0;
+    const WISP_HUES = [140, 280, 35];
 
     function frame() {
         if (!HW.active) return;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         spawnTick++;
 
-        if (spawnTick % 18 === 0) {
+        if (spawnTick % 20 === 0) {
             const cards = document.querySelectorAll('.card');
             cards.forEach(card => {
-                if (Math.random() > 0.08) return;
+                if (Math.random() > 0.09) return;
                 const r = card.getBoundingClientRect();
-                if (!r.width) return;
+                if (!r.width || !r.height) return;
+                const isSkull = Math.random() > 0.45;
                 _hwDrops.push({
-                    x: r.left + Math.random() * r.width,
-                    y: r.top + r.height * 0.3,
-                    sym: SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)],
-                    alpha: 0.85,
-                    vy: -(0.6 + Math.random() * 1.0),   // float UP
-                    vx: (Math.random() - 0.5) * 0.6,
-                    size: 10 + Math.random() * 10,
-                    rot: (Math.random() - 0.5) * 0.3,
-                    rotV: (Math.random() - 0.5) * 0.04,
-                    angle: 0,
+                    x:     r.left + r.width * 0.15 + Math.random() * r.width * 0.7,
+                    y:     r.top + r.height * 0.4,
+                    type:  isSkull ? 'skull' : 'wisp',
+                    hue:   WISP_HUES[Math.floor(Math.random() * WISP_HUES.length)],
+                    size:  isSkull ? (7 + Math.random() * 8) : (4 + Math.random() * 7),
+                    alpha: 0.82,
+                    vy:    -(0.55 + Math.random() * 0.9),
+                    vx:    (Math.random() - 0.5) * 0.55,
+                    flicker: Math.random() * Math.PI * 2,
+                    angle: (Math.random()-0.5)*0.4,
+                    rotV:  (Math.random()-0.5)*0.03,
                 });
             });
         }
 
-        ctx.textBaseline = 'middle';
-        ctx.textAlign = 'center';
         for (let i = _hwDrops.length - 1; i >= 0; i--) {
             const d = _hwDrops[i];
-            d.y   += d.vy;
-            d.x   += d.vx;
-            d.vy  *= 0.995;        // slow as they rise (gravity)
-            d.alpha -= 0.012;
+            d.y     += d.vy;
+            d.x     += d.vx;
+            d.vy    *= 0.994;
+            d.alpha -= 0.013;
+            d.flicker += 0.08;
             d.angle += d.rotV;
             if (d.alpha <= 0) { _hwDrops.splice(i, 1); continue; }
+
             ctx.save();
-            ctx.globalAlpha = d.alpha;
             ctx.translate(d.x, d.y);
             ctx.rotate(d.angle);
-            ctx.font = `${d.size}px serif`;
-            ctx.fillText(d.sym, 0, 0);
+            if (d.type === 'skull') {
+                hwDrawSkull(ctx, 0, 0, d.size, d.alpha);
+            } else {
+                ctx.translate(-d.x, -d.y); // undo translate for absolute coords
+                hwDrawWisp(ctx, d.x, d.y, d.size, d.hue, d.alpha, d.flicker);
+            }
             ctx.restore();
         }
+
         HW.fallRAF = requestAnimationFrame(frame);
     }
     frame();
