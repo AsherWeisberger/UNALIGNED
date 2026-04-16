@@ -146,6 +146,27 @@
 
         .header-left { display: flex; flex-direction: column; gap: 2px; }
 
+        .header-center {
+            flex: 1; display: flex; align-items: center; justify-content: center;
+            padding: 0 24px; max-width: 480px; margin: 0 auto;
+        }
+        .header-search {
+            display: flex; align-items: center; gap: 8px;
+            width: 100%; max-width: 360px;
+            background: var(--surface2); border: 1px solid var(--border);
+            border-radius: 8px; padding: 7px 12px;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .header-search:focus-within {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(91,140,255,0.15);
+        }
+        .header-search input {
+            background: transparent; border: none; outline: none;
+            color: var(--text); font-size: 13px; width: 100%;
+        }
+        .header-search input::placeholder { color: var(--muted); }
+
         .logo {
             font-family: var(--font-display);
             font-size: 28px; font-weight: 800; letter-spacing: -0.5px;
@@ -1274,6 +1295,7 @@
             .subtitle { display: none; }
             .logo { font-size: 20px; }
             .stats { display: none !important; }
+            .header-center { display: none !important; }
             .sync-indicator { display: none; }
             .view-toggle { display: none; } /* compact + table + strip-toggle hidden on phone; tablets (>640px) see them all */
             #current-profile-name { display: none; }
@@ -1821,6 +1843,12 @@
                     <span id="assigned-count">0 assigned to you</span>
                 </div>
             </div>
+            <div class="header-center">
+                <div class="header-search">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted);flex-shrink:0;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <input type="text" id="board-card-search" placeholder="Search cards…" oninput="filters.search=this.value.toLowerCase();applyFilters();" autocomplete="off" spellcheck="false">
+                </div>
+            </div>
             <div class="header-right">
                 <div class="sync-indicator sync-connecting" id="sync-indicator" data-sync-indicator title="Connecting…">
                     <span class="sync-dot"></span>
@@ -1866,13 +1894,6 @@
 
                 <!-- Header FX canvas -->
                 <div id="header-fx-wrap"><canvas id="header-fx"></canvas></div>
-
-                <!-- Board Card Search -->
-                <div id="board-search-bar" style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface2);border-radius:8px;max-width:360px;margin:0 12px 6px;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                    <input type="text" id="board-card-search" placeholder="Search cards…" oninput="filters.search=this.value.toLowerCase();applyFilters();"
-                        style="background:transparent;border:none;color:var(--text);font-size:13px;outline:none;width:100%;">
-                </div>
 
                 <div id="daily-briefing" class="daily-briefing" style="display:none;"></div>
 
