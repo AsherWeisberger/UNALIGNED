@@ -4688,7 +4688,7 @@ linkedin.com/in/samlevin/`;
 
 function prefillSamTemplate(key) {
     if (!key || !currentEditingCardData) return;
-    const name = currentEditingCardData.contactName || 'there';
+    const name = (currentEditingCardData.contactName || 'there').split(' ')[0];
     const SIG = `\nSam Levin, Partner\nUnaligned\n+1-415-827-3870\nhttps://unaligned.io`;
 
     const RATES_TEMPLATE = `I'm Sam Levin, Robert's business partner at Unaligned. Great to connect.
@@ -4756,7 +4756,7 @@ linkedin.com/in/samlevin/`;
 
 function prefillRobertTemplate(key) {
     if (!key || !currentEditingCardData) return;
-    const name = currentEditingCardData.contactName || 'there';
+    const name = (currentEditingCardData.contactName || 'there').split(' ')[0];
 
     const templates = {
         'loop-sam': {
