@@ -663,6 +663,29 @@
             align-items: center; border-bottom: 1px solid var(--border);
             position: sticky; top: 0; background: var(--surface); z-index: 10;
         }
+        #stage-context-banner {
+            padding: 10px 22px;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface);
+            display: flex; align-items: flex-start; gap: 14px;
+            flex-shrink: 0;
+        }
+        .scb-stage-pill {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 3px 10px; border-radius: 99px;
+            font-size: 11px; font-weight: 700; font-family: var(--font-mono);
+            text-transform: uppercase; letter-spacing: 0.07em;
+            white-space: nowrap; flex-shrink: 0;
+        }
+        .scb-body { flex: 1; min-width: 0; }
+        .scb-status { font-size: 13px; color: var(--text); line-height: 1.4; margin-bottom: 4px; }
+        .scb-action { font-size: 12px; color: var(--muted); line-height: 1.4; }
+        .scb-payment {
+            margin-top: 8px; padding: 7px 11px;
+            background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25);
+            border-radius: 7px; font-size: 12px; color: #f59e0b; line-height: 1.5;
+        }
+
         .card-modal-title-section { flex: 1; min-width: 0; }
         .card-modal-title {
             border: none; font-size: 19px; font-weight: 700;
@@ -1799,6 +1822,41 @@
         .shortcut-row > span { font-size: 13px; color: var(--muted2); }
         .shortcut-row kbd { display: inline-flex; align-items: center; justify-content: center; background: var(--surface2); border: 1px solid var(--border2); border-radius: 6px; padding: 3px 9px; font-size: 11px; font-family: var(--font-mono); color: var(--text); font-weight: 600; min-width: 36px; text-align: center; box-shadow: 0 2px 0 rgba(0,0,0,0.35); white-space: nowrap; }
 
+        #rr-content .rr-label { font-size: 10px; font-weight: 700; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 5px; }
+        #rr-content .rr-name  { font-size: 22px; font-weight: 800; color: var(--text); font-family: var(--font-display); margin-bottom: 2px; }
+        #rr-content .rr-company { font-size: 14px; color: var(--muted); margin-bottom: 18px; }
+        #rr-content .rr-guidance {
+            padding: 12px 16px; border-radius: 10px; margin-bottom: 18px;
+            font-size: 13px; line-height: 1.5;
+            border-left: 3px solid var(--accent);
+            background: rgba(91,140,255,0.07);
+            color: var(--text);
+        }
+        #rr-content .rr-email-box {
+            background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+            padding: 14px 16px; font-size: 13px; color: var(--muted); line-height: 1.6;
+            max-height: 200px; overflow-y: auto; white-space: pre-wrap; margin-bottom: 18px;
+            font-family: var(--font-mono);
+        }
+        #rr-content .rr-draft-box {
+            background: rgba(52,211,153,0.05); border: 1px solid rgba(52,211,153,0.2); border-radius: 10px;
+            padding: 14px 16px; font-size: 13px; color: var(--text); line-height: 1.6;
+            max-height: 220px; overflow-y: auto; white-space: pre-wrap; margin-bottom: 16px;
+        }
+        #rr-content .rr-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        #rr-content .rr-btn-approve {
+            flex: 1; padding: 12px; border-radius: 10px; border: none; cursor: pointer;
+            background: #34d399; color: #0a0a12; font-weight: 800; font-size: 14px;
+        }
+        #rr-content .rr-btn-reject {
+            flex: 1; padding: 12px; border-radius: 10px; border: 1px solid rgba(239,68,68,0.4); cursor: pointer;
+            background: rgba(239,68,68,0.08); color: #f87171; font-weight: 700; font-size: 14px;
+        }
+        #rr-content .rr-btn-open {
+            padding: 12px 20px; border-radius: 10px; border: 1px solid var(--border); cursor: pointer;
+            background: var(--surface2); color: var(--text); font-size: 13px;
+        }
+
     </style>
 </head>
 <body>
@@ -1863,6 +1921,9 @@
                     🤖 <span id="api-cost-total">…</span>
                 </div>
                 <button class="view-toggle" id="strip-toggle-btn" onclick="toggleTopStrip()" title="Toggle top panel">▴</button>
+                <button class="view-toggle" id="robert-review-btn" onclick="openRobertReview()" title="Robert's guided review queue" style="position:relative;">
+                    📋 Review <span id="robert-review-badge" style="display:none;position:absolute;top:-4px;right:-4px;background:#ef4444;color:#fff;font-size:9px;font-weight:800;border-radius:99px;padding:1px 5px;font-family:var(--font-mono);"></span>
+                </button>
                 <button class="view-toggle" id="gmail-sync-btn" onclick="syncGmail()" title="Scrape Gmail + refresh board">🔄 Sync</button>
                 <button class="view-toggle" id="daily-log-btn" onclick="openDailyLog()" title="Daily activity log">📋 Log</button>
                 <button class="view-toggle" id="global-sort-btn" onclick="cycleGlobalSort()" title="Sort all columns">⇅ Date</button>
@@ -2020,6 +2081,9 @@
                     <button class="card-modal-close" onclick="closeCardModal()">×</button>
                 </div>
             </div>
+
+            <!-- ── Stage Context Milestone ── -->
+            <div id="stage-context-banner" style="display:none;"></div>
 
             <!-- ── Two-pane body ── -->
             <div class="card-modal-body">
@@ -3314,6 +3378,7 @@ function markBoardReady() {
     if (btn) btn.textContent = '⇅ Date';
     renderAllCards();
     initHeaderFx();
+    updateRobertReviewBadge();
     setTimeout(playStormIntro, 200);
 }
 
@@ -3769,6 +3834,35 @@ function boardScrollStep(dir) {
 }
 window.boardScrollStep = boardScrollStep;
 
+// ── Stage Context Milestone ─────────────────────────────────────────────────
+const STAGE_CONTEXT = {
+    'new':          { emoji:'🆕', label:'New',          color:'#6b7280', bg:'rgba(107,114,128,0.15)', status:'Just came in — no one has replied yet.',                                                       action:'Robert: Send a warm first reply and hand off to Sam at the end.' },
+    'first-touch':  { emoji:'👋', label:'First Touch',  color:'#f97316', bg:'rgba(249,115,22,0.12)',  status:'Robert already replied. Sam is next.',                                                           action:'Sam: Send the rates email. Robert has already warmed them up — they know you\'re coming.' },
+    'engaged':      { emoji:'💬', label:'Engaged',      color:'#8b5cf6', bg:'rgba(139,92,246,0.12)',  status:'Active back-and-forth. Rates haven\'t been formally sent yet.',                                  action:'Sam: Review the thread and send rates, or keep the conversation going.' },
+    'rates-sent':   { emoji:'📋', label:'Rates Sent',   color:'#3b82f6', bg:'rgba(59,130,246,0.12)',  status:'Sam sent our partnership packages. Ball is in their court.',                                    action:'Wait. If no reply in 5+ days, Sam sends a short follow-up nudge.' },
+    'negotiating':  { emoji:'🤝', label:'Negotiating',  color:'#ec4899', bg:'rgba(236,72,153,0.12)',  status:'They responded to pricing and are working out terms.',                                           action:'Sam: Answer their specific questions. Rates are non-negotiable — redirect to the right tier.' },
+    'invoice-sent': { emoji:'🧾', label:'Invoice Sent', color:'#10b981', bg:'rgba(16,185,129,0.12)',  status:'Deal agreed. Invoice is out. Waiting on payment.',                                               action:'Wait for payment to clear before scheduling content.', payment:true },
+    'done':         { emoji:'✅', label:'Done',         color:'#34d399', bg:'rgba(52,211,153,0.12)',  status:'Content has been delivered.',                                                                    action:'Follow up to confirm they\'re happy. Ask about future campaigns.' },
+    'paid-out':     { emoji:'💰', label:'Paid Out',     color:'#fbbf24', bg:'rgba(251,191,36,0.12)',  status:'Payment received. Deal complete.',                                                               action:'All done. Consider asking for a testimonial or next campaign.' },
+    'dead-leads':   { emoji:'❌', label:'Dead Lead',    color:'#6b7280', bg:'rgba(107,114,128,0.1)',  status:'Not moving forward.',                                                                            action:'No action needed.' },
+};
+
+function renderStageContext(card) {
+    const el = document.getElementById('stage-context-banner');
+    if (!el) return;
+    const ctx = STAGE_CONTEXT[card.listId];
+    if (!ctx) { el.style.display = 'none'; return; }
+    el.style.display = 'flex';
+    const paymentHtml = ctx.payment ? `<div class="scb-payment">💳 <strong>Payment terms:</strong> New clients pay in full before content goes live. Existing clients are invoiced on the day the post goes live.</div>` : '';
+    el.innerHTML = `
+        <span class="scb-stage-pill" style="color:${ctx.color};background:${ctx.bg};">${ctx.emoji} ${ctx.label}</span>
+        <div class="scb-body">
+            <div class="scb-status">${ctx.status}</div>
+            <div class="scb-action">${ctx.action}</div>
+            ${paymentHtml}
+        </div>`;
+}
+
 function updateBoardScrollBtns() {
     const board = document.getElementById('board');
     const left  = document.getElementById('bsb-left');
@@ -3923,7 +4017,7 @@ async function saveBoardStateNow() {
     await saveBoardState(true);
 }
 
-function refreshBoard() { initBoardStructure(); renderAllCards(); updateCardCount(); updateFlowMap(); setTimeout(updateBoardScrollBtns, 100); }
+function refreshBoard() { initBoardStructure(); renderAllCards(); updateCardCount(); updateFlowMap(); setTimeout(updateBoardScrollBtns, 100); updateRobertReviewBadge(); }
 
 // Delegated click on board — opens card modal when any card is clicked (but not checkbox)
 document.addEventListener('click', e => {
@@ -4382,6 +4476,7 @@ function openCardModal(cardId) {
     overlay.classList.add('active'); overlay.style.display='flex';
     modal.classList.add('active'); modal.style.display='flex';
     updateBoardScrollBtns();
+    renderStageContext(currentEditingCardData);
 
     // DEBUG: log email data for this card
     console.log('[openCardModal] cardId:', cardId, 'originalEmail count:', (currentEditingCardData.originalEmail||[]).length, 'first snippet:', (currentEditingCardData.originalEmail&&currentEditingCardData.originalEmail[0]?.snippet||'none').slice(0,60));
@@ -6523,7 +6618,152 @@ const loginBtn = document.getElementById('login-submit-btn');
 if (loginInput) loginInput.addEventListener('keydown', e => checkLogin(e));
 if (loginBtn) loginBtn.addEventListener('click', () => attemptLogin());
 
+// ── Robert's Review Mode ────────────────────────────────
+let _rrCards = [];
+let _rrIndex = 0;
+
+const RR_GUIDANCE = {
+    'new':         'This is a brand new lead — no one has contacted them yet. Review their email below. If it looks like a genuine sponsorship inquiry, approve the draft reply from Robert.',
+    'first-touch': 'Robert already sent his first reply. This card is now waiting on Sam to follow up with rates. Robert can review the thread to stay in the loop, but no action needed from Robert here.',
+};
+
+function updateRobertReviewBadge() {
+    const badge = document.getElementById('robert-review-badge');
+    if (!badge) return;
+    const count = Object.values(cardsData).filter(c => c.listId === 'new' || c.listId === 'first-touch').length;
+    if (count > 0) { badge.textContent = count; badge.style.display = 'inline'; }
+    else { badge.style.display = 'none'; }
+}
+
+function openRobertReview() {
+    _rrCards = Object.values(cardsData)
+        .filter(c => c.listId === 'new' || c.listId === 'first-touch')
+        .sort((a,b) => (b.newReplyAt ? 1 : 0) - (a.newReplyAt ? 1 : 0));
+    _rrIndex = 0;
+    const overlay = document.getElementById('robert-review-overlay');
+    overlay.style.display = 'flex';
+    rrRender();
+}
+
+function closeRobertReview(event) {
+    if (event && event.target !== document.getElementById('robert-review-overlay')) return;
+    document.getElementById('robert-review-overlay').style.display = 'none';
+}
+
+function rrPrev() { if (_rrIndex > 0) { _rrIndex--; rrRender(); } }
+function rrNext() { if (_rrIndex < _rrCards.length - 1) { _rrIndex++; rrRender(); } }
+
+function rrRender() {
+    const progress = document.getElementById('rr-progress');
+    const content  = document.getElementById('rr-content');
+    const prevBtn  = document.getElementById('rr-prev-btn');
+    const nextBtn  = document.getElementById('rr-next-btn');
+    if (!_rrCards.length) {
+        progress.textContent = 'All clear — nothing to review.';
+        content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--muted);font-size:15px;">🎉 No cards in New or First Touch right now.</div>';
+        prevBtn.disabled = nextBtn.disabled = true;
+        return;
+    }
+    const card = _rrCards[_rrIndex];
+    const stageCtx = STAGE_CONTEXT[card.listId] || {};
+    const guidance = RR_GUIDANCE[card.listId] || 'Review this card and take action if needed.';
+    progress.textContent = `Card ${_rrIndex + 1} of ${_rrCards.length}`;
+    prevBtn.disabled = _rrIndex === 0;
+    nextBtn.disabled = _rrIndex === _rrCards.length - 1;
+
+    // Get latest email from thread
+    const thread = card.originalEmail || [];
+    const latestEmail = thread.length ? thread[thread.length - 1] : null;
+    const emailPreview = latestEmail ? (latestEmail.body || latestEmail.snippet || '(No body)').slice(0, 800) : '(No email stored)';
+    const emailFrom = latestEmail ? (latestEmail.from || latestEmail.sender || '?') : '';
+
+    // Draft section
+    let draftHtml = '';
+    const draft = card.draftReply;
+    const draftStatus = card.draftReplyStatus;
+    if (draft && draftStatus === 'pending') {
+        const draftBody = typeof draft === 'string' ? draft : (draft.body || JSON.stringify(draft));
+        draftHtml = `
+            <div class="rr-label" style="color:#34d399;">✉ Draft Reply Ready — Approve or Reject</div>
+            <div class="rr-draft-box">${escapeHtml(draftBody)}</div>
+            <div class="rr-actions">
+                <button class="rr-btn-approve" onclick="rrApproveDraft('${card.id}')">✅ Approve & Send</button>
+                <button class="rr-btn-reject"  onclick="rrRejectDraft('${card.id}')">✕ Reject Draft</button>
+                <button class="rr-btn-open"    onclick="closeRobertReview();openCardModal('${card.id}')">Open Card</button>
+            </div>`;
+    } else {
+        draftHtml = `
+            <div class="rr-actions">
+                <button class="rr-btn-open" onclick="closeRobertReview();openCardModal('${card.id}')">Open Full Card →</button>
+            </div>`;
+    }
+
+    content.innerHTML = `
+        <div class="rr-label">${stageCtx.emoji || ''} ${stageCtx.label || card.listId}</div>
+        <div class="rr-name">${escapeHtml(card.contactName || card.title || '—')}</div>
+        <div class="rr-company">${escapeHtml(card.businessName || '—')}</div>
+        <div class="rr-guidance">${guidance}</div>
+        ${emailFrom ? `<div class="rr-label">Latest email from ${escapeHtml(emailFrom)}</div>` : ''}
+        <div class="rr-email-box">${escapeHtml(emailPreview)}${emailPreview.length >= 800 ? '\n…(truncated)' : ''}</div>
+        ${draftHtml}
+    `;
+}
+
+async function rrApproveDraft(cardId) {
+    // Delegate to existing quickApproveAndSend
+    await quickApproveAndSend(cardId);
+    // Remove from queue and re-render
+    _rrCards = _rrCards.filter(c => c.id != cardId);
+    if (_rrIndex >= _rrCards.length) _rrIndex = Math.max(0, _rrCards.length - 1);
+    rrRender();
+    updateRobertReviewBadge();
+}
+
+async function rrRejectDraft(cardId) {
+    const card = cardsData[cardId];
+    if (!card) return;
+    card.draftReplyStatus = 'rejected';
+    await supabase.from('cards').update({ draft_reply_status: 'rejected', draft_reply: null }).eq('id', cardId);
+    _rrCards = _rrCards.filter(c => c.id != cardId);
+    if (_rrIndex >= _rrCards.length) _rrIndex = Math.max(0, _rrCards.length - 1);
+    rrRender();
+    updateRobertReviewBadge();
+}
+
+window.openRobertReview  = openRobertReview;
+window.closeRobertReview = closeRobertReview;
+window.rrPrev = rrPrev;
+window.rrNext = rrNext;
+window.rrApproveDraft = rrApproveDraft;
+window.rrRejectDraft  = rrRejectDraft;
+
 </script>
+
+    <!-- ─── ROBERT'S REVIEW MODAL ───────────────────────────────────── -->
+    <div class="modal-overlay" id="robert-review-overlay" onclick="closeRobertReview(event)" style="display:none;">
+        <div id="robert-review-modal" onclick="event.stopPropagation()" style="
+            background:var(--surface); border-radius:16px; width:min(680px,95vw);
+            max-height:88vh; display:flex; flex-direction:column; overflow:hidden;
+            border:1px solid var(--border); box-shadow:0 24px 80px rgba(0,0,0,0.6);">
+
+            <!-- Header -->
+            <div style="padding:18px 22px 14px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; flex-shrink:0;">
+                <div>
+                    <div style="font-size:16px;font-weight:800;font-family:var(--font-display);color:var(--text);">Robert's Review Queue</div>
+                    <div style="font-size:12px;color:var(--muted);margin-top:2px;" id="rr-progress">Loading…</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <button onclick="rrPrev()" id="rr-prev-btn" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;">← Prev</button>
+                    <button onclick="rrNext()" id="rr-next-btn" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;">Next →</button>
+                    <button onclick="closeRobertReview()" style="background:transparent;border:none;color:var(--muted);font-size:22px;cursor:pointer;padding:2px 6px;line-height:1;">×</button>
+                </div>
+            </div>
+
+            <!-- Card content -->
+            <div id="rr-content" style="flex:1;overflow-y:auto;padding:20px 22px;"></div>
+
+        </div>
+    </div>
 
     <!-- ─── SHORTCUTS MODAL ─────────────────────────────────── -->
     <div id="shortcuts-modal" onclick="hideShortcuts()">
