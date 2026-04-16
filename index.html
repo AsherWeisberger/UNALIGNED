@@ -263,87 +263,14 @@
             position: relative; z-index: 2; /* stacks above board during animation */
         }
 
-        /* ─── CENTIPEDE ──────────────────────────────────── */
-        #centi-wrap {
-            overflow: visible; height: 52px; position: relative;
-            margin: 0; pointer-events: none; user-select: none;
+        /* ─── HEADER FX ──────────────────────────────────── */
+        #header-fx-wrap {
+            width: 100%; height: 64px; position: relative;
+            margin: 0 0 2px; border-radius: 8px; overflow: hidden;
+            pointer-events: none; user-select: none; flex-shrink: 0;
         }
-        @keyframes centi-crawl {
-            from { transform: translateX(calc(100vw + 380px)); }
-            to   { transform: translateX(-450px); }
-        }
-        @keyframes centi-bob {
-            from { transform: translateY(0px); }
-            to   { transform: translateY(-5px); }
-        }
-        @keyframes leg-a {
-            from { opacity: 0.7; }
-            to   { opacity: 0;   }
-        }
-        @keyframes leg-b {
-            from { opacity: 0;   }
-            to   { opacity: 0.7; }
-        }
-        #centipede {
-            display: inline-flex; align-items: center;
-            white-space: nowrap; position: absolute; top: 12px;
-            animation: centi-crawl 24s linear infinite;
-        }
-        .centi-seg {
-            display: inline-flex; align-items: center; justify-content: center;
-            width: 26px; height: 26px;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 12px; font-weight: 900;
-            border: 2px solid var(--cc, #ccc);
-            background: var(--cb, rgba(255,255,255,0.06));
-            color: var(--cc, #ccc);
-            margin: 0 3px; border-radius: 2px; position: relative;
-            animation: centi-bob 0.3s ease-in-out infinite alternate;
-            animation-delay: calc(var(--ci, 0) * 0.06s);
-            box-shadow: inset 0 0 4px rgba(0,0,0,0.6);
-        }
-        /* Legs position A — angled down-outward */
-        .centi-seg::before {
-            content: ''; position: absolute;
-            width: 0; height: 0; top: 0; left: 0;
-            box-shadow:
-                -4px  6px 0 1.5px var(--cc),
-                -8px  9px 0 1.5px var(--cc),
-                -12px 11px 0 1.5px var(--cc),
-                -4px 18px 0 1.5px var(--cc),
-                -8px 21px 0 1.5px var(--cc),
-                -12px 24px 0 1.5px var(--cc),
-                30px  6px 0 1.5px var(--cc),
-                34px  9px 0 1.5px var(--cc),
-                38px 11px 0 1.5px var(--cc),
-                30px 18px 0 1.5px var(--cc),
-                34px 21px 0 1.5px var(--cc),
-                38px 24px 0 1.5px var(--cc);
-            animation: leg-a 0.3s ease-in-out infinite alternate;
-            animation-delay: calc(var(--ci, 0) * 0.06s);
-        }
-        /* Legs position B — angled more horizontally (kicked forward) */
-        .centi-seg::after {
-            content: ''; position: absolute;
-            width: 0; height: 0; top: 0; left: 0;
-            box-shadow:
-                -5px  4px 0 1.5px var(--cc),
-                -9px  5px 0 1.5px var(--cc),
-                -13px 5px 0 1.5px var(--cc),
-                -5px 21px 0 1.5px var(--cc),
-                -9px 23px 0 1.5px var(--cc),
-                -13px 26px 0 1.5px var(--cc),
-                31px  4px 0 1.5px var(--cc),
-                35px  5px 0 1.5px var(--cc),
-                39px  5px 0 1.5px var(--cc),
-                31px 21px 0 1.5px var(--cc),
-                35px 23px 0 1.5px var(--cc),
-                39px 26px 0 1.5px var(--cc);
-            animation: leg-b 0.3s ease-in-out infinite alternate;
-            animation-delay: calc(var(--ci, 0) * 0.06s);
-        }
-        .centi-head { border-radius: 5px 2px 2px 5px; width: 32px; }
-        @media (max-width: 640px) { #centi-wrap { display: none; } }
+        #header-fx { width: 100%; height: 100%; display: block; }
+        @media (max-width: 640px) { #header-fx-wrap { height: 44px; } }
 
         /* ─── FLOW MAP ────────────────────────────────────── */
         .flow-map {
@@ -1910,21 +1837,8 @@
                 <!-- Collapsible strip — hides on scroll down, reveals on scroll up -->
                 <div id="board-top-strip">
 
-                <!-- 8-bit UNALIGNED centipede -->
-                <div id="centi-wrap">
-                    <div id="centipede">
-                        <div class="centi-seg centi-head" style="--ci:0;--cc:#e5e5e5;--cb:rgba(255,255,255,0.08);">◈U</div>
-                        <div class="centi-seg" style="--ci:1;--cc:#d4d4d4;--cb:rgba(255,255,255,0.06);">N</div>
-                        <div class="centi-seg" style="--ci:2;--cc:#c0c0c0;--cb:rgba(255,255,255,0.05);">A</div>
-                        <div class="centi-seg" style="--ci:3;--cc:#a8a8a8;--cb:rgba(255,255,255,0.05);">L</div>
-                        <div class="centi-seg" style="--ci:4;--cc:#909090;--cb:rgba(255,255,255,0.04);">I</div>
-                        <div class="centi-seg" style="--ci:5;--cc:#a8a8a8;--cb:rgba(255,255,255,0.05);">G</div>
-                        <div class="centi-seg" style="--ci:6;--cc:#c0c0c0;--cb:rgba(255,255,255,0.05);">N</div>
-                        <div class="centi-seg" style="--ci:7;--cc:#d4d4d4;--cb:rgba(255,255,255,0.06);">E</div>
-                        <div class="centi-seg" style="--ci:8;--cc:#e5e5e5;--cb:rgba(255,255,255,0.08);">D</div>
-                        <div class="centi-seg" style="--ci:9;--cc:#888;--cb:rgba(255,255,255,0.03);">·</div>
-                    </div>
-                </div>
+                <!-- Header FX canvas -->
+                <div id="header-fx-wrap"><canvas id="header-fx"></canvas></div>
 
                 <!-- Board Card Search -->
                 <div id="board-search-bar" style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--surface2);border-radius:8px;max-width:360px;margin:0 12px 6px;">
@@ -3339,7 +3253,129 @@ function markBoardReady() {
     const btn = document.getElementById('global-sort-btn');
     if (btn) btn.textContent = '⇅ Date';
     renderAllCards();
+    initHeaderFx();
     setTimeout(playStormIntro, 200);
+}
+
+// ── Header FX (aurora plasma) ────────────────────────────────────────────────
+function initHeaderFx() {
+    const canvas = document.getElementById('header-fx');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    function resize() {
+        canvas.width  = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    // Wave layers: [speed, amplitude, frequency, phaseOffset, alpha]
+    const waves = [
+        { speed: 0.0008, amp: 0.38, freq: 1.7,  phase: 0,    hue: 195, sat: 90, lit: 55, alpha: 0.55 },
+        { speed: 0.0013, amp: 0.28, freq: 2.6,  phase: 1.2,  hue: 210, sat: 80, lit: 60, alpha: 0.45 },
+        { speed: 0.0006, amp: 0.45, freq: 1.1,  phase: 2.5,  hue: 180, sat: 100,lit: 50, alpha: 0.35 },
+        { speed: 0.0018, amp: 0.20, freq: 3.4,  phase: 0.7,  hue: 220, sat: 85, lit: 65, alpha: 0.30 },
+        { speed: 0.0010, amp: 0.32, freq: 2.0,  phase: 4.1,  hue: 170, sat: 95, lit: 55, alpha: 0.25 },
+    ];
+
+    // Floating particles
+    const PART_COUNT = 28;
+    const parts = Array.from({ length: PART_COUNT }, () => ({
+        x: Math.random(),
+        y: Math.random(),
+        r: 0.6 + Math.random() * 1.6,
+        vx: (Math.random() - 0.5) * 0.00015,
+        vy: -0.00008 - Math.random() * 0.00012,
+        alpha: 0.3 + Math.random() * 0.5,
+    }));
+
+    let t = 0;
+    let raf;
+
+    function draw() {
+        const W = canvas.width, H = canvas.height;
+        ctx.clearRect(0, 0, W, H);
+
+        // Dark background gradient
+        const bg = ctx.createLinearGradient(0, 0, 0, H);
+        bg.addColorStop(0, '#0a0e16');
+        bg.addColorStop(1, '#060810');
+        ctx.fillStyle = bg;
+        ctx.fillRect(0, 0, W, H);
+
+        // Draw each wave as a filled shape from bottom up
+        waves.forEach(w => {
+            const pts = [];
+            const steps = Math.ceil(W / 2) + 1;
+            for (let i = 0; i <= steps; i++) {
+                const x = (i / steps) * W;
+                const nx = i / steps; // 0..1
+                const y = H * (0.55 + w.amp * 0.5 * Math.sin(nx * Math.PI * 2 * w.freq + t * w.speed * 1000 + w.phase));
+                pts.push([x, y]);
+            }
+
+            // Filled aurora ribbon
+            const grad = ctx.createLinearGradient(0, 0, 0, H);
+            grad.addColorStop(0, `hsla(${w.hue}, ${w.sat}%, ${w.lit}%, 0)`);
+            grad.addColorStop(0.4, `hsla(${w.hue}, ${w.sat}%, ${w.lit}%, ${w.alpha})`);
+            grad.addColorStop(1, `hsla(${w.hue}, ${w.sat}%, ${w.lit * 0.6}%, ${w.alpha * 0.3})`);
+
+            ctx.beginPath();
+            ctx.moveTo(0, H);
+            pts.forEach(([x, y]) => ctx.lineTo(x, y));
+            ctx.lineTo(W, H);
+            ctx.closePath();
+            ctx.fillStyle = grad;
+            ctx.fill();
+
+            // Glowing crest line
+            ctx.beginPath();
+            pts.forEach(([x, y], i) => i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y));
+            ctx.strokeStyle = `hsla(${w.hue}, 100%, 82%, ${w.alpha * 0.9})`;
+            ctx.lineWidth = 1.2;
+            ctx.shadowColor = `hsl(${w.hue}, 100%, 70%)`;
+            ctx.shadowBlur = 8;
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        });
+
+        // Particles
+        parts.forEach(p => {
+            p.x += p.vx;
+            p.y += p.vy;
+            if (p.y < -0.05) { p.y = 1.05; p.x = Math.random(); }
+            if (p.x < 0 || p.x > 1) { p.x = ((p.x % 1) + 1) % 1; }
+            const px = p.x * W, py = p.y * H;
+            ctx.beginPath();
+            ctx.arc(px, py, p.r, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(160, 220, 255, ${p.alpha})`;
+            ctx.shadowColor = 'rgba(120, 200, 255, 0.8)';
+            ctx.shadowBlur = 6;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        });
+
+        // Subtle bottom glow border
+        const border = ctx.createLinearGradient(0, 0, W, 0);
+        border.addColorStop(0,   'transparent');
+        border.addColorStop(0.3, 'rgba(80, 180, 255, 0.25)');
+        border.addColorStop(0.7, 'rgba(80, 180, 255, 0.25)');
+        border.addColorStop(1,   'transparent');
+        ctx.fillStyle = border;
+        ctx.fillRect(0, H - 2, W, 2);
+
+        t += 16;
+        raf = requestAnimationFrame(draw);
+    }
+
+    draw();
+
+    // Pause when tab is hidden (save CPU)
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) cancelAnimationFrame(raf);
+        else draw();
+    });
 }
 
 // ── Storm Intro ──────────────────────────────────────────────────────────────
