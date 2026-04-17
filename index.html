@@ -1820,13 +1820,16 @@
             .header-divider { display: none; }
             #current-profile-name { display: none; }
             .profile-btn { padding: 4px 8px; flex-shrink: 0; }
-            /* API cost: fills the gap, compact */
+            /* header-right: only show cost + avatar, nothing else */
+            .header-right { gap: 6px; flex-shrink: 0; overflow: hidden; }
             #api-cost-widget {
                 font-size: 10px !important; padding: 3px 7px !important;
-                flex: 1; text-align: right; overflow: hidden;
-                text-overflow: ellipsis; white-space: nowrap;
+                max-width: 190px; overflow: hidden;
+                text-overflow: ellipsis; white-space: nowrap; flex-shrink: 1;
             }
-            /* Daily briefing — hidden on mobile, takes too much space */
+            /* header-left: wordmark takes only what it needs */
+            .header-left { flex-shrink: 0; }
+            /* Daily briefing — hidden on mobile */
             #daily-briefing { display: none !important; }
 
             /* ── Hide non-essentials — board needs all the space ── */
