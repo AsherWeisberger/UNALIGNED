@@ -6588,7 +6588,7 @@ async function loadApiCostWidget() {
     const BASELINE_COST = 151.81;
     const BASELINE_IN   = 4_480_000;
     const BASELINE_OUT  = 1_120_000;
-    el.textContent = `$170.27 · ~6.7M tokens`;
+    el.textContent = `$220.00`;
     try {
         const ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhibnB3cGh4anVydnR5ZGV6d2doIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MTQ1MzIsImV4cCI6MjA5MDk5MDUzMn0.p5E48__GlGqjC17Z28q8fYFK-qV8CmiidYIP02vGe4s";
         const res  = await fetch(`${SUPABASE_URL}/rest/v1/_secrets?id=eq.usage_stats&select=anthropic_key`, {
