@@ -8505,19 +8505,22 @@ function _gcalClientId(){ return localStorage.getItem('gcal_client_id') || ''; }
 function _gcalCalId()   { return localStorage.getItem('gcal_cal_id') || 'primary'; }
 function _gcalValid()   { return !!_gcalToken() && Date.now() < _gcalExpiry() - 60_000; }
 
-async function _gcalFetchClientIdFromSupabase() {
+async function _gcalFetchFromSupabase() {
     try {
-        const { data } = await supabase.from('_secrets').select('gcal_client_id').eq('id', 'config').single();
-        const id = data?.gcal_client_id?.trim();
-        if (id) { localStorage.setItem('gcal_client_id', id); return id; }
-    } catch(e) { /* column may not exist yet */ }
-    return '';
+        const { data } = await supabase.from('_secrets')
+            .select('gcal_client_id,gcal_access_token,gcal_token_expiry')
+            .eq('id', 'config').single();
+        if (!data) return;
+        if (data.gcal_client_id)   localStorage.setItem('gcal_client_id',    data.gcal_client_id.trim());
+        if (data.gcal_access_token) localStorage.setItem('gcal_access_token', data.gcal_access_token);
+        if (data.gcal_token_expiry) localStorage.setItem('gcal_token_expiry', data.gcal_token_expiry);
+    } catch(e) { /* silent */ }
 }
 
-async function _gcalSaveClientIdToSupabase(clientId) {
+async function _gcalSaveToSupabase(patch) {
     try {
-        await supabase.from('_secrets').update({ gcal_client_id: clientId }).eq('id', 'config');
-    } catch(e) { /* silent — localStorage is the fallback */ }
+        await supabase.from('_secrets').update(patch).eq('id', 'config');
+    } catch(e) { /* silent */ }
 }
 
 function toggleGcalPanel() {
@@ -8531,10 +8534,10 @@ function toggleGcalPanel() {
 }
 
 async function _gcalRender() {
-    if (!_gcalClientId()) {
+    if (!_gcalClientId() || !_gcalValid()) {
         const body = document.getElementById('gcal-body');
         if (body) body.innerHTML = '<div class="gcal-loading">Loading…</div>';
-        await _gcalFetchClientIdFromSupabase();
+        await _gcalFetchFromSupabase();
     }
     if (!_gcalClientId()) { showGcalSetup(); return; }
     if (!_gcalValid())    { showGcalConnect(); return; }
@@ -8564,7 +8567,7 @@ function saveGcalSetup() {
     if (!clientId) { document.getElementById('gcal-cid-input').style.borderColor = '#f87171'; return; }
     localStorage.setItem('gcal_client_id', clientId);
     localStorage.setItem('gcal_cal_id', calId);
-    _gcalSaveClientIdToSupabase(clientId);
+    _gcalSaveToSupabase({ gcal_client_id: clientId });
     _gcalTokenClient = null;
     showGcalConnect();
 }
@@ -8590,8 +8593,10 @@ function gcalSignIn() {
             scope: GCAL_SCOPES,
             callback: (resp) => {
                 if (resp.error) { console.warn('[gcal]', resp.error); return; }
+                const expiry = String(Date.now() + (resp.expires_in || 3600) * 1000);
                 localStorage.setItem('gcal_access_token', resp.access_token);
-                localStorage.setItem('gcal_token_expiry', String(Date.now() + (resp.expires_in || 3600) * 1000));
+                localStorage.setItem('gcal_token_expiry', expiry);
+                _gcalSaveToSupabase({ gcal_access_token: resp.access_token, gcal_token_expiry: expiry });
                 loadGcalEvents(true);
             }
         });
