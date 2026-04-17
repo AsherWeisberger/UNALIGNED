@@ -1797,21 +1797,19 @@
         /* ── PHONE (≤640px) ──────────────────────────────── */
         @media (max-width: 640px) {
 
-            /* ── Header: sits below Dynamic Island, single compact row ── */
+            /* ── Header: properly below Dynamic Island ── */
             header {
-                padding: calc(env(safe-area-inset-top) + 10px) 16px 10px;
-                flex-wrap: nowrap; gap: 12px; min-height: 0;
+                padding: max(56px, env(safe-area-inset-top, 56px)) 16px 8px;
+                flex-wrap: nowrap; gap: 10px; min-height: 0;
             }
-            /* Logo slot → hide canvas, show plain text wordmark */
+            /* Kill the canvas — show plain text wordmark instead */
+            #header-fx-wrap  { display: none !important; }
             #header-logo-slot { display: none !important; }
             .header-left::before {
                 content: 'UNALIGNED';
                 font-family: var(--font-display);
-                font-size: 17px; font-weight: 800;
-                letter-spacing: 0.08em;
-                background: linear-gradient(135deg,#fff 0%,#a5b4fc 100%);
-                -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-                flex-shrink: 0;
+                font-size: 16px; font-weight: 800; letter-spacing: 0.08em;
+                color: #fff; flex-shrink: 0;
             }
             .header-left { flex-direction: row; align-items: center; gap: 0; }
             .stats { display: none !important; }
@@ -1821,15 +1819,15 @@
             .hdr-btn-group { display: none; }
             .header-divider { display: none; }
             #current-profile-name { display: none; }
-            .profile-btn { padding: 5px 8px; flex-shrink: 0; }
-            /* API cost widget: visible but compact */
+            .profile-btn { padding: 4px 8px; flex-shrink: 0; }
+            /* API cost: fills the gap, compact */
             #api-cost-widget {
                 font-size: 10px !important; padding: 3px 7px !important;
-                white-space: nowrap; flex: 1; text-align: right;
-                overflow: hidden; text-overflow: ellipsis;
+                flex: 1; text-align: right; overflow: hidden;
+                text-overflow: ellipsis; white-space: nowrap;
             }
-            /* dt-toggle (Pipeline/Network filter) — show compact on mobile */
-            #dt-toggle-group { display: flex !important; padding: 0 !important; flex-shrink: 0; }
+            /* Daily briefing — hidden on mobile, takes too much space */
+            #daily-briefing { display: none !important; }
 
             /* ── Hide non-essentials — board needs all the space ── */
             .flow-map       { display: none !important; }
@@ -4052,6 +4050,11 @@ function markBoardReady() {
 
 // ── Header FX (electric crash) ───────────────────────────────────────────────
 function initHeaderFx() {
+    if (window.innerWidth <= 640) {
+        const wrap = document.getElementById('header-fx-wrap');
+        if (wrap) wrap.style.display = 'none';
+        return;
+    }
     const canvas = document.getElementById('header-fx');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
