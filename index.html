@@ -1791,18 +1791,33 @@
                 right: 0 !important;
                 z-index: 600 !important;
                 display: block !important;
-                max-height: min(280px, 42vh);
+                max-height: 55vh;
                 overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
                 border-radius: 16px 16px 0 0 !important;
-                box-shadow: 0 -4px 24px rgba(0,0,0,0.4);
+                box-shadow: 0 -4px 24px rgba(0,0,0,0.5);
                 border-bottom: none !important;
             }
-            .gcal-panel-mobile-overlay .gcal-day-col { padding: 8px 8px 10px; }
-            .gcal-panel-mobile-overlay .gcal-day-name { font-size: 11px; }
-            .gcal-panel-mobile-overlay .gcal-day-date { font-size: 10px; margin-bottom: 6px; }
-            .gcal-panel-mobile-overlay .gcal-event-title { font-size: 11px; }
-            .gcal-panel-mobile-overlay .gcal-event-time { font-size: 10px; min-width: 36px; }
-            .gcal-panel-mobile-overlay .gcal-event { padding: 2px 0; }
+            /* Stack days vertically instead of 3 side-by-side columns */
+            .gcal-panel-mobile-overlay .gcal-days {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 0;
+            }
+            .gcal-panel-mobile-overlay .gcal-day-col {
+                padding: 10px 16px 12px;
+                border-right: none !important;
+                border-bottom: 1px solid var(--border);
+            }
+            .gcal-panel-mobile-overlay .gcal-day-col:last-child { border-bottom: none; }
+            /* Day label row: name + date inline */
+            .gcal-panel-mobile-overlay .gcal-day-name { font-size: 12px; display: inline; }
+            .gcal-panel-mobile-overlay .gcal-day-date { font-size: 11px; display: inline; margin-left: 6px; margin-bottom: 0; }
+            /* After the inline header, push events below */
+            .gcal-panel-mobile-overlay .gcal-day-col > *:nth-child(3) { margin-top: 8px; }
+            .gcal-panel-mobile-overlay .gcal-event-title { font-size: 13px; }
+            .gcal-panel-mobile-overlay .gcal-event-time { font-size: 11px; min-width: 44px; }
+            .gcal-panel-mobile-overlay .gcal-event { padding: 3px 0; }
         }
 
         /* ─── MOBILE ──────────────────────────────────────── */
@@ -1858,6 +1873,29 @@
             .filters-mobile { display: none !important; }
             .ask-hubble-section { display: none !important; }
 
+            /* ── Mobile filter bar ── */
+            #mobile-filter-bar {
+                display: flex !important;
+                align-items: center;
+                gap: 8px;
+                padding: 6px 16px;
+                background: var(--bg);
+                border-bottom: 1px solid var(--border);
+                flex-shrink: 0;
+            }
+            .mfb-btn {
+                font-size: 12px;
+                font-family: var(--font-mono);
+                font-weight: 600;
+                padding: 5px 12px;
+                border: none;
+                background: transparent;
+                color: var(--muted);
+                cursor: pointer;
+            }
+            .mfb-btn.dt-btn.dt-active { color: var(--text); background: var(--surface2); }
+            #api-cost-widget { max-width: 130px !important; font-size: 9px !important; }
+
             /* ── main-scroll: no padding, board is the full page ── */
             .main-scroll { padding: 0; gap: 0; overflow: hidden; display: flex; flex-direction: column; }
             /* ── board-scroll-wrap must stretch to fill remaining height ── */
@@ -1905,12 +1943,20 @@
                 top: 0;
                 z-index: 3;
                 background: var(--surface);
-                padding: 14px 0 10px;
+                padding: 10px 0 8px;
                 margin-bottom: 0;
                 border-bottom: 1px solid var(--border);
                 flex-shrink: 0;
-                touch-action: pan-x; /* swipe on header → scrolls board to next column */
+                touch-action: pan-x;
             }
+            /* Count + title side by side instead of stacked */
+            .list-header > div:first-child {
+                flex-direction: row !important;
+                align-items: center !important;
+                gap: 10px !important;
+            }
+            .list-count-badge { font-size: 22px !important; }
+            .list-header > div:first-child > div { margin-top: 0 !important; }
 
             /* ── Cards: own vertical scroll, isolated from horizontal column snap ── */
             .cards-container {
@@ -2588,6 +2634,16 @@
 
         <main>
             <div class="main-scroll">
+                <!-- Mobile-only filter/tools bar -->
+                <div id="mobile-filter-bar" style="display:none;">
+                    <span id="mfb-dt-toggle" style="display:flex;border-radius:8px;overflow:hidden;border:1px solid var(--border);">
+                        <button class="mfb-btn dt-btn dt-active" id="mfb-btn-all" onclick="setDealTypeFilter('all');document.querySelectorAll('.mfb-btn.dt-btn').forEach(b=>b.classList.remove('dt-active'));this.classList.add('dt-active');">All</button>
+                        <button class="mfb-btn dt-btn" id="mfb-btn-deal" onclick="setDealTypeFilter('deal');document.querySelectorAll('.mfb-btn.dt-btn').forEach(b=>b.classList.remove('dt-active'));this.classList.add('dt-active');">Pipeline</button>
+                        <button class="mfb-btn dt-btn" id="mfb-btn-rel" onclick="setDealTypeFilter('relationship');document.querySelectorAll('.mfb-btn.dt-btn').forEach(b=>b.classList.remove('dt-active'));this.classList.add('dt-active');">Network</button>
+                    </span>
+                    <button class="mfb-btn" onclick="toggleViewMode()" title="Compact view">⊞</button>
+                    <button class="mfb-btn" onclick="toggleLightMode()" title="Light/dark">☀️</button>
+                </div>
                 <!-- Collapsible strip — hides on scroll down, reveals on scroll up -->
                 <div id="board-top-strip">
 
@@ -5241,6 +5297,12 @@ function setDealTypeFilter(type) {
     ['all','deal','relationship'].forEach(t => {
         const btn = document.getElementById('dt-btn-' + t);
         if (btn) btn.classList.toggle('dt-active', t === type);
+    });
+    // sync mobile filter bar
+    const map = {all:'mfb-btn-all', deal:'mfb-btn-deal', relationship:'mfb-btn-rel'};
+    Object.entries(map).forEach(([t, id]) => {
+        const b = document.getElementById(id);
+        if (b) b.classList.toggle('dt-active', t === type);
     });
     applyFilters();
     updateCardCount();
