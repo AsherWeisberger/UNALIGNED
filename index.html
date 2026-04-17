@@ -4103,8 +4103,9 @@ function markBoardReady() {
     const el = document.getElementById('board-loading');
     if (el) el.remove();
     renderDailyBriefing();
-    // Restore deal type toggle state
-    setDealTypeFilter(window._dealTypeFilter || 'all');
+    // Restore deal type toggle state (call after DOM ready so mobile bar syncs too)
+    const _initialFilter = window._dealTypeFilter || 'all';
+    setDealTypeFilter(_initialFilter);
     loadViewMode();
     initScrollHide();
     initColDots();
@@ -5298,7 +5299,7 @@ window.applyFilters = applyFilters;
 window.filters = filters;
 
 // ── Pipeline / Network toggle ───────────────────────────────
-window._dealTypeFilter = localStorage.getItem('dealTypeFilter') || 'all';
+window._dealTypeFilter = 'all'; // always start on All
 function setDealTypeFilter(type) {
     window._dealTypeFilter = type;
     localStorage.setItem('dealTypeFilter', type);
