@@ -523,26 +523,21 @@
         }
 
         .header-left { display: flex; flex-direction: row; align-items: center; gap: 16px; }
-        .header-wordmark {
-            font-family: 'Bebas Neue', var(--font-display);
-            font-size: 22px; font-weight: 400; letter-spacing: 0.07em;
-            white-space: nowrap; display: inline-flex; align-items: baseline; gap: 2px;
-            /* Diagonal cut lines — mimic the official logo slash marks */
-            color: transparent;
-            -webkit-background-clip: text; background-clip: text;
-            background-image: linear-gradient(
-                113deg,
-                var(--text) 0%,
-                var(--text) calc(26% - 1.5px),
-                transparent calc(26% - 1.5px), transparent calc(26% + 1.5px),
-                var(--text) calc(26% + 1.5px),
-                var(--text) calc(60% - 1.5px),
-                transparent calc(60% - 1.5px), transparent calc(60% + 1.5px),
-                var(--text) calc(60% + 1.5px),
-                var(--text) 100%
-            );
+        .header-wordmark { display: none; } /* replaced by .header-logo-img */
+
+        /* Real logo — black bg becomes invisible via screen blend mode in dark mode */
+        .header-logo-img {
+            height: 36px; width: auto;
+            mix-blend-mode: screen;      /* black = transparent, white logo shows through */
+            display: block; flex-shrink: 0;
         }
+        body.light-mode .header-logo-img {
+            mix-blend-mode: multiply;    /* inverts: white = transparent, shows dark logo */
+            filter: invert(1);           /* invert so the logo is dark on light background */
+        }
+
         .header-wordmark sup {
+            display: none; /* no longer used */
             font-size: 9px; letter-spacing: 0; opacity: 0.6;
             vertical-align: super; font-family: var(--font-body);
         }
@@ -1820,7 +1815,7 @@
             .view-toggle { display: none; } /* compact + table + strip-toggle hidden on phone; tablets (>640px) see them all */
             .hdr-btn-group { display: none; }
             .header-divider { display: none; }
-            .header-wordmark { font-size: 13px; letter-spacing: 0.05em; }
+            .header-logo-img { height: 26px; }
             #current-profile-name { display: none; }
             .profile-btn { padding: 5px 7px; }
 
@@ -2472,7 +2467,7 @@
 
         <header>
             <div class="header-left">
-                <span class="header-wordmark">UNALIGNED<sup>™</sup></span>
+                <img src="logo.jpg" alt="UNALIGNED" class="header-logo-img">
                 <div class="stats">
                     <span id="total-cards">0 cards</span>
                     <span id="assigned-count">0 assigned to you</span>
