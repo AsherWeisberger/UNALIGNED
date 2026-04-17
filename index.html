@@ -695,9 +695,9 @@
 
         /* ─── FLOW MAP ────────────────────────────────────── */
         .flow-map {
-            display: flex; align-items: center; gap: 10px;
-            padding: 14px 16px;
+            display: flex; align-items: stretch;
             background: var(--surface); border-radius: var(--radius);
+            border: 1px solid var(--border); overflow: hidden;
         }
 
         /* ─── PIPELINE STATS BAR ─────────────────────────── */
@@ -748,22 +748,18 @@
         .pipeline-bar-loading { font-size: 12px; color: var(--muted); font-style: italic; padding: 10px 16px; }
 
         .flow-node {
-            min-width: 120px; background: var(--bg2);
-            border-radius: 10px; padding: 12px 14px;
-            display: flex; flex-direction: column; gap: 3px;
-            border: 1px solid var(--border); flex-shrink: 0;
-            height: auto;
+            display: flex; flex-direction: column; justify-content: center; gap: 3px;
+            padding: 9px 16px; flex-shrink: 0; cursor: default;
+            border-right: 1px solid var(--border);
+            transition: background 0.12s;
         }
-        .flow-node h4 { font-size: 11px; font-weight: 600; font-family: var(--font-mono); color: var(--muted2); text-transform: uppercase; letter-spacing: 0.05em; }
-        .flow-node span { font-size: 11px; color: var(--muted); }
-        .flow-node strong { font-size: 22px; font-weight: 700; font-family: var(--font-display); color: var(--text); }
-        .flow-node.overloaded { border-color: #f87171; }
-
-        .flow-connector {
-            height: 1px; width: 24px;
-            background: linear-gradient(90deg, transparent, var(--border2), transparent);
-            flex-shrink: 0;
-        }
+        .flow-node:last-child { border-right: none; }
+        .flow-node:hover { background: rgba(255,255,255,0.03); }
+        .flow-node h4 { font-size: 10px; font-weight: 700; font-family: var(--font-mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; white-space: nowrap; }
+        .flow-node span { display: none; }
+        .flow-node strong { font-size: 20px; font-weight: 800; font-family: var(--font-display); line-height: 1.1; font-variant-numeric: tabular-nums; }
+        .flow-node.overloaded h4 { color: #f87171; }
+        .flow-connector { display: none; }
 
         /* ─── BOARD ───────────────────────────────────────── */
         .board-scroll-wrap { position: relative; }
@@ -6725,12 +6721,14 @@ function updateAssignedCount() {
 
 function updateFlowMap() {
     const map=document.getElementById('flow-map'); map.innerHTML='';
-    boardConfig.forEach((stage,i)=>{
+    boardConfig.forEach((stage)=>{
         const count=Object.values(cardsData).filter(c=>c.listId===stage.id).length;
         const node=document.createElement('div'); node.className='flow-node';
-        node.innerHTML=`<h4>${stage.title}</h4><span>${stage.description}</span><strong style="color:${stage.color};">${count}</strong>`;
+        node.title=`${stage.title}\n${stage.description}`;
+        node.innerHTML=`<h4>${stage.title}</h4><strong style="color:${stage.color};">${count}</strong>`;
+        node.onclick=()=>{ const col=document.querySelector(`.list[data-list-id="${stage.id}"]`); if(col) col.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'}); };
+        node.style.cursor='pointer';
         map.appendChild(node);
-        if(i<boardConfig.length-1){const conn=document.createElement('div');conn.className='flow-connector';map.appendChild(conn);}
     });
 }
 
