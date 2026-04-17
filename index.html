@@ -514,13 +514,31 @@
         header {
             flex-shrink: 0;
             display: flex; align-items: center; justify-content: space-between;
-            padding: max(18px, env(safe-area-inset-top)) clamp(16px,4vw,40px) 14px;
+            padding: max(14px, env(safe-area-inset-top)) clamp(16px,4vw,36px) 12px;
             border-bottom: 1px solid var(--border);
             background: var(--bg);
             position: relative; z-index: 10;
+            gap: 16px;
         }
 
-        .header-left { display: flex; flex-direction: column; gap: 2px; }
+        .header-left { display: flex; flex-direction: row; align-items: center; gap: 16px; }
+        .header-wordmark {
+            font-family: var(--font-display); font-size: 16px; font-weight: 800;
+            letter-spacing: 0.08em; color: var(--text); opacity: 0.9;
+            white-space: nowrap;
+        }
+        .header-divider { width: 1px; height: 18px; background: var(--border2); flex-shrink: 0; margin: 0 2px; }
+        .hdr-btn-group {
+            display: flex; align-items: center;
+            border: 1px solid var(--border2); border-radius: 8px;
+            overflow: hidden; flex-shrink: 0; background: var(--surface);
+        }
+        .hdr-btn-group .view-toggle {
+            border-radius: 0; border: none; border-right: 1px solid var(--border2);
+            background: transparent; padding: 6px 11px;
+        }
+        .hdr-btn-group .view-toggle:last-child { border-right: none; }
+        .hdr-btn-group .view-toggle:hover { background: var(--surface2); }
 
         .header-center {
             flex: 1; display: flex; align-items: center; justify-content: center;
@@ -543,16 +561,11 @@
         }
         .header-search input::placeholder { color: var(--muted); }
 
-        .logo {
-            font-family: var(--font-display);
-            font-size: 28px; font-weight: 800; letter-spacing: -0.5px;
-            background: linear-gradient(135deg, #5b8cff, #34d399);
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-        }
+        .logo { display: none; } /* replaced by .header-wordmark */
 
-        .subtitle { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
+        .subtitle { display: none; } /* removed from header */
 
-        .stats { display: flex; gap: 16px; font-size: 14px; color: var(--muted2); font-family: var(--font-mono); margin-top: 2px; }
+        .stats { display: flex; gap: 12px; font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
 
         .header-right { display: flex; align-items: center; gap: 8px; }
 
@@ -1762,6 +1775,9 @@
             .header-center { display: none !important; }
             .sync-indicator { display: none; }
             .view-toggle { display: none; } /* compact + table + strip-toggle hidden on phone; tablets (>640px) see them all */
+            .hdr-btn-group { display: none; }
+            .header-divider { display: none; }
+            .header-wordmark { font-size: 13px; letter-spacing: 0.05em; }
             #current-profile-name { display: none; }
             .profile-btn { padding: 5px 7px; }
 
@@ -2413,10 +2429,7 @@
 
         <header>
             <div class="header-left">
-                <div>
-                    <h1 class="logo">FLOW</h1>
-                    <p class="subtitle">// by Asher Weisberger</p>
-                </div>
+                <span class="header-wordmark">UNALIGNED</span>
                 <div class="stats">
                     <span id="total-cards">0 cards</span>
                     <span id="assigned-count">0 assigned to you</span>
@@ -2429,26 +2442,47 @@
                 </div>
             </div>
             <div class="header-right">
+                <!-- Status: sync dot + API cost -->
                 <div class="sync-indicator sync-connecting" id="sync-indicator" data-sync-indicator title="Connecting…">
                     <span class="sync-dot"></span>
                     <span data-sync-text>Connecting…</span>
                 </div>
-                <span class="view-toggle" id="dt-toggle-group" style="padding:0;gap:0;overflow:hidden;" title="Switch between revenue pipeline and relationship network">
-                    <button class="dt-btn dt-active" id="dt-btn-all" onclick="setDealTypeFilter('all')">All</button>
-                    <button class="dt-btn" id="dt-btn-deal" onclick="setDealTypeFilter('deal')">💼 Pipeline</button>
-                    <button class="dt-btn" id="dt-btn-relationship" onclick="setDealTypeFilter('relationship')">🤝 Network</button>
-                </span>
                 <div id="api-cost-widget" title="Total Claude API spend since project start" style="font-size:11px;font-family:var(--font-mono);color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 9px;white-space:nowrap;cursor:default;">
                     🤖 <span id="api-cost-total">…</span>
                 </div>
-                <button class="view-toggle" id="strip-toggle-btn" onclick="toggleTopStrip()" title="Toggle top panel">▴</button>
-                <button class="view-toggle" id="gmail-sync-btn" onclick="syncGmail()" title="Scrape Gmail + refresh board">🔄 Sync</button>
-                <button class="view-toggle" id="daily-log-btn" onclick="openDailyLog()" title="Daily activity log">📋 Log</button>
-                <button class="view-toggle" id="global-sort-btn" onclick="cycleGlobalSort()" title="Sort all columns">⇅ Date</button>
-                <button class="view-toggle" id="view-toggle-btn" onclick="toggleViewMode()">⊞ Compact</button>
-                <button class="view-toggle" id="table-view-btn" onclick="toggleTableView()">☰ Table</button>
-                <button class="view-toggle" id="light-mode-btn" onclick="toggleLightMode()" title="Toggle light/dark mode">☀️</button>
-                <button class="view-toggle" id="asher-settings-btn" onclick="openAsherSettings()" title="Builder settings" style="display:none;font-size:15px;">⚙</button>
+
+                <div class="header-divider"></div>
+
+                <!-- Filter: All / Pipeline / Network -->
+                <span class="view-toggle" id="dt-toggle-group" style="padding:0;gap:0;overflow:hidden;border-radius:8px;" title="Switch between revenue pipeline and relationship network">
+                    <button class="dt-btn dt-active" id="dt-btn-all" onclick="setDealTypeFilter('all')">All</button>
+                    <button class="dt-btn" id="dt-btn-deal" onclick="setDealTypeFilter('deal')">Pipeline</button>
+                    <button class="dt-btn" id="dt-btn-relationship" onclick="setDealTypeFilter('relationship')">Network</button>
+                </span>
+
+                <div class="header-divider"></div>
+
+                <!-- View mode: Compact / Table / Strip -->
+                <div class="hdr-btn-group">
+                    <button class="view-toggle" id="view-toggle-btn" onclick="toggleViewMode()" title="Toggle compact view">⊞ Compact</button>
+                    <button class="view-toggle" id="table-view-btn" onclick="toggleTableView()" title="Toggle table view">☰ Table</button>
+                    <button class="view-toggle" id="strip-toggle-btn" onclick="toggleTopStrip()" title="Toggle top panel" style="padding:6px 10px;">▴</button>
+                </div>
+
+                <div class="header-divider"></div>
+
+                <!-- Actions: Sync / Log / Sort -->
+                <div class="hdr-btn-group">
+                    <button class="view-toggle" id="gmail-sync-btn" onclick="syncGmail()" title="Scrape Gmail + refresh board" style="padding:6px 10px;">🔄</button>
+                    <button class="view-toggle" id="daily-log-btn" onclick="openDailyLog()" title="Daily activity log" style="padding:6px 10px;">📋</button>
+                    <button class="view-toggle" id="global-sort-btn" onclick="cycleGlobalSort()" title="Sort all columns">⇅ Date</button>
+                </div>
+
+                <div class="header-divider"></div>
+
+                <!-- User -->
+                <button class="view-toggle" id="light-mode-btn" onclick="toggleLightMode()" title="Toggle light/dark mode" style="padding:6px 10px;">☀️</button>
+                <button class="view-toggle" id="asher-settings-btn" onclick="openAsherSettings()" title="Builder settings" style="display:none;font-size:15px;padding:6px 10px;">⚙</button>
                 <button class="profile-btn" id="profile-btn" onclick="openProfileModal()">
                     <span class="avatar" id="current-avatar">AW</span>
                     <span id="current-profile-name">Asher W</span>
@@ -4171,13 +4205,7 @@ function initHeaderFx() {
             ctx.fill(); ctx.shadowBlur=0; ctx.restore();
         });
 
-        // Bottom glow border
-        const bl = ctx.createLinearGradient(0,0,w,0);
-        bl.addColorStop(0,'transparent');
-        bl.addColorStop(0.25,'rgba(70,175,255,0.38)');
-        bl.addColorStop(0.75,'rgba(70,175,255,0.38)');
-        bl.addColorStop(1,'transparent');
-        ctx.fillStyle=bl; ctx.fillRect(0,h-2,w,2);
+        // Bottom glow border removed
 
         raf = requestAnimationFrame(frame);
     }
