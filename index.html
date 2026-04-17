@@ -975,6 +975,21 @@
         }
         .card.priority-hot:not(.dragging) { animation: hotPulse 2.5s ease-in-out infinite; }
 
+        /* ─── NEW LEAD GOLD GLOW ─────────────────────────────── */
+        @keyframes goldPulse {
+            0%,100% { box-shadow: 0 1px 3px rgba(0,0,0,0.3), 0 0 0px rgba(255,200,50,0); }
+            50%      { box-shadow: 0 1px 3px rgba(0,0,0,0.3), 0 0 20px 5px rgba(255,200,50,0.3), 0 0 6px 1px rgba(255,220,80,0.15); }
+        }
+        .card.card-new-lead:not(.dragging) {
+            border-left-color: #f5c842 !important;
+            border-color: rgba(245,200,66,0.28) !important;
+            animation: goldPulse 2.8s ease-in-out infinite;
+        }
+        .card.card-new-lead .card-who { color: #f5c842; }
+        body.light-mode .card.card-new-lead .card-who { color: #b8860b; }
+        body.matrix-mode .card.card-new-lead { box-shadow: 0 0 16px rgba(255,224,102,0.22) !important; }
+        body.halloween-mode .card.card-new-lead { animation: goldPulse 2.8s ease-in-out infinite !important; }
+
         /* ─── MODAL ENTRANCE ────────────────────────────────── */
         @keyframes modalIn { from { opacity:0; transform:translateY(16px) scale(0.97); } to { opacity:1; transform:translateY(0) scale(1); } }
         .card-modal.active { animation: modalIn 0.22s cubic-bezier(0.34,1.2,0.64,1) both !important; }
@@ -4766,6 +4781,7 @@ function renderCard(cardData) {
     if (cardData.listId === 'done') priorityClass = 'card priority-done';
     else if (cardData.priority) priorityClass = 'card priority-'+cardData.priority;
     if (cardData.newReplyAt) priorityClass += ' card-new-reply';
+    if (cardData.listId === 'new') priorityClass += ' card-new-lead';
     card.className = priorityClass;
     card.draggable = true; card.dataset.cardId = cardData.id; card.id = 'card-'+cardData.id;
 
