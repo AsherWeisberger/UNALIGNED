@@ -1819,7 +1819,9 @@
             .ask-hubble-section { display: none !important; }
 
             /* ── main-scroll: no padding, board is the full page ── */
-            .main-scroll { padding: 0; gap: 0; overflow: hidden; }
+            .main-scroll { padding: 0; gap: 0; overflow: hidden; display: flex; flex-direction: column; }
+            /* ── board-scroll-wrap must stretch to fill remaining height ── */
+            .board-scroll-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
             /* ── Board: flex:1 so it fills space left after dynamic-island-aware header ── */
             .board {
@@ -1878,7 +1880,6 @@
                 touch-action: pan-y;
                 -webkit-overflow-scrolling: touch;
                 min-height: 0 !important;
-                height: 0 !important;
                 padding: 10px 0 100px;
                 gap: 10px;
             }
