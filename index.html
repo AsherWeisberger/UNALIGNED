@@ -1783,7 +1783,21 @@
         .gcal-setup-input { font-size: 11px; font-family: var(--font-mono); padding: 6px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); width: 380px; max-width: 100%; }
         .gcal-loading { font-size: 12px; color: var(--muted); padding: 14px 16px; font-family: var(--font-mono); }
         #gcal-toggle-btn.active { background: rgba(52,211,153,0.15); color: #34d399; border-color: rgba(52,211,153,0.4); }
-        @media (max-width: 640px) { .gcal-panel { display: none !important; } }
+        @media (max-width: 640px) {
+            .gcal-panel-mobile-overlay {
+                position: fixed !important;
+                bottom: 76px !important;
+                left: 0 !important;
+                right: 0 !important;
+                z-index: 600 !important;
+                display: block !important;
+                max-height: 60vh;
+                overflow-y: auto;
+                border-radius: 16px 16px 0 0 !important;
+                box-shadow: 0 -4px 24px rgba(0,0,0,0.4);
+                border-bottom: none !important;
+            }
+        }
 
         /* ─── MOBILE ──────────────────────────────────────── */
         /* ── TABLET (iPad, 641–1024px) ──────────────────── */
@@ -2553,7 +2567,7 @@
                     <button onclick="document.getElementById('board-card-search').closest('.header-center') && document.getElementById('board-card-search').focus(); document.querySelector('.header-center').style.display='flex';" ontouchend="var s=document.getElementById('board-card-search');s.closest('div').style.cssText='display:flex!important;position:fixed;top:0;left:0;right:0;z-index:9999;background:var(--bg);padding:12px 16px;';s.focus();" style="background:none;border:none;color:var(--muted2);font-size:18px;cursor:pointer;padding:2px 6px;">🔍</button>
                     <button onclick="syncGmail()" style="background:none;border:none;color:var(--muted2);font-size:18px;cursor:pointer;padding:2px 6px;">🔄</button>
                     <button onclick="openDailyLog()" style="background:none;border:none;color:var(--muted2);font-size:18px;cursor:pointer;padding:2px 6px;">📋</button>
-                    <button onclick="toggleGcalPanel(); document.getElementById('gcal-panel').scrollIntoView({behavior:'smooth'});" style="background:none;border:none;color:var(--muted2);font-size:18px;cursor:pointer;padding:2px 6px;">📅</button>
+                    <button onclick="toggleGcalPanel();" style="background:none;border:none;color:var(--muted2);font-size:18px;cursor:pointer;padding:2px 6px;">📅</button>
                     <button onclick="openProfileModal()" style="background:none;border:none;color:var(--muted2);font-size:18px;cursor:pointer;padding:2px 6px;">👤</button>
                 </div>
             </div>
@@ -8564,7 +8578,37 @@ function toggleGcalPanel() {
     const panel = document.getElementById('gcal-panel');
     if (!panel) return;
     _gcalPanelOpen = !_gcalPanelOpen;
-    panel.style.display = _gcalPanelOpen ? '' : 'none';
+
+    const isMobile = window.innerWidth <= 640;
+    if (isMobile) {
+        if (_gcalPanelOpen) {
+            // detach from strip and append to body as fixed overlay
+            document.body.appendChild(panel);
+            panel.classList.add('gcal-panel-mobile-overlay');
+            panel.style.display = '';
+            // add close button if not already present
+            if (!document.getElementById('gcal-mobile-close')) {
+                const closeBtn = document.createElement('button');
+                closeBtn.id = 'gcal-mobile-close';
+                closeBtn.innerHTML = '✕';
+                closeBtn.style.cssText = 'position:absolute;top:10px;right:14px;background:none;border:none;color:var(--muted2);font-size:18px;cursor:pointer;z-index:1;';
+                closeBtn.onclick = () => toggleGcalPanel();
+                panel.style.position = 'fixed';
+                panel.insertBefore(closeBtn, panel.firstChild);
+            }
+        } else {
+            panel.classList.remove('gcal-panel-mobile-overlay');
+            panel.style.display = 'none';
+            // move back to board-top-strip
+            const strip = document.getElementById('board-top-strip');
+            if (strip) strip.appendChild(panel);
+            const closeBtn = document.getElementById('gcal-mobile-close');
+            if (closeBtn) closeBtn.remove();
+        }
+    } else {
+        panel.style.display = _gcalPanelOpen ? '' : 'none';
+    }
+
     const btn = document.getElementById('gcal-toggle-btn');
     if (btn) btn.classList.toggle('active', _gcalPanelOpen);
     if (_gcalPanelOpen) _gcalRender();
