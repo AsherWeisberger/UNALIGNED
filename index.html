@@ -8197,20 +8197,26 @@ window.openDailyLog = openDailyLog;
 
 async function syncGmail() {
     const btn = document.getElementById('gmail-sync-btn');
-    if (!btn) return;
-    btn.textContent = '⏳ Syncing…';
-    btn.disabled = true;
+    if (btn) { btn.textContent = '⏳ Syncing…'; btn.disabled = true; }
+    // mobile nav sync button feedback
+    const mobileBtn = document.querySelector('#mobile-col-nav button[onclick="syncGmail()"]');
+    if (mobileBtn) { mobileBtn.textContent = '⏳'; mobileBtn.disabled = true; }
     try {
         const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/syncInbox', { method: 'POST' });
         const d = await resp.json().catch(() => ({}));
         if (!resp.ok) throw new Error(d.error || `Server error ${resp.status}`);
-        btn.textContent = `✅ Synced! +${d.newReplies||0} replies`;
+        if (btn) btn.textContent = `✅ +${d.newReplies||0}`;
+        if (mobileBtn) mobileBtn.textContent = '✅';
         await loadState();
     } catch (e) {
-        btn.textContent = '⚠️ Error';
+        if (btn) btn.textContent = '⚠️ Error';
+        if (mobileBtn) mobileBtn.textContent = '⚠️';
         showEmailToast('⚠️ Sync failed: ' + e.message, true);
     } finally {
-        setTimeout(() => { btn.textContent = '🔄 Sync'; btn.disabled = false; }, 3000);
+        setTimeout(() => {
+            if (btn) { btn.textContent = '🔄 Sync'; btn.disabled = false; }
+            if (mobileBtn) { mobileBtn.textContent = '🔄'; mobileBtn.disabled = false; }
+        }, 3000);
     }
 }
 window.syncGmail = syncGmail;
