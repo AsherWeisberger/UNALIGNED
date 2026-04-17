@@ -8436,6 +8436,166 @@ window.toggleSetting      = toggleSetting;
 window.getAsherSetting    = getAsherSetting;
 window.showLocalStorageDump = showLocalStorageDump;
 
+// ─── ROBERT'S GOOGLE CALENDAR ────────────────────────────────────────────────
+const GCAL_SCOPES = 'https://www.googleapis.com/auth/calendar.readonly';
+let _gcalTokenClient = null;
+let _gcalPanelOpen   = false;
+
+function _gcalToken()   { return localStorage.getItem('gcal_access_token'); }
+function _gcalExpiry()  { return parseInt(localStorage.getItem('gcal_token_expiry') || '0', 10); }
+function _gcalClientId(){ return localStorage.getItem('gcal_client_id') || ''; }
+function _gcalCalId()   { return localStorage.getItem('gcal_cal_id') || 'primary'; }
+function _gcalValid()   { return !!_gcalToken() && Date.now() < _gcalExpiry() - 60_000; }
+
+function toggleGcalPanel() {
+    const panel = document.getElementById('gcal-panel');
+    if (!panel) return;
+    _gcalPanelOpen = !_gcalPanelOpen;
+    panel.style.display = _gcalPanelOpen ? '' : 'none';
+    const btn = document.getElementById('gcal-toggle-btn');
+    if (btn) btn.classList.toggle('active', _gcalPanelOpen);
+    if (_gcalPanelOpen) _gcalRender();
+}
+
+function _gcalRender() {
+    if (!_gcalClientId()) { showGcalSetup(); return; }
+    if (!_gcalValid())    { showGcalConnect(); return; }
+    loadGcalEvents();
+}
+
+function showGcalSetup() {
+    const savedCal = _gcalCalId() === 'primary' ? '' : _gcalCalId();
+    document.getElementById('gcal-body').innerHTML = `
+        <div class="gcal-connect-wrap">
+            <div style="font-size:12px;color:var(--muted);font-family:var(--font-mono);">One-time setup — enter your Google OAuth Client ID.</div>
+            <input class="gcal-setup-input" id="gcal-cid-input" placeholder="OAuth Client ID (…apps.googleusercontent.com)" value="${_gcalClientId()}">
+            <input class="gcal-setup-input" id="gcal-calid-input" placeholder="Calendar ID (blank = primary)" value="${savedCal}">
+            <div style="display:flex;gap:8px;align-items:center;">
+                <button class="gcal-connect-btn" onclick="saveGcalSetup()">Save &amp; Connect</button>
+                ${_gcalClientId() ? '<button onclick="showGcalConnect()" style="background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;font-family:var(--font-mono);">Cancel</button>' : ''}
+            </div>
+            <div style="font-size:10px;color:var(--muted);font-family:var(--font-mono);max-width:480px;line-height:1.6;">
+                Google Cloud Console → enable Calendar API → create OAuth 2.0 web credential → add <code style="background:var(--surface2);padding:1px 4px;border-radius:3px;">${location.origin}</code> as an authorized JavaScript origin.
+            </div>
+        </div>`;
+}
+
+function saveGcalSetup() {
+    const clientId = (document.getElementById('gcal-cid-input').value || '').trim();
+    const calId    = (document.getElementById('gcal-calid-input').value || '').trim() || 'primary';
+    if (!clientId) { document.getElementById('gcal-cid-input').style.borderColor = '#f87171'; return; }
+    localStorage.setItem('gcal_client_id', clientId);
+    localStorage.setItem('gcal_cal_id', calId);
+    _gcalTokenClient = null;
+    showGcalConnect();
+}
+
+function showGcalConnect() {
+    document.getElementById('gcal-body').innerHTML = `
+        <div class="gcal-connect-wrap">
+            <div style="font-size:12px;color:var(--muted);font-family:var(--font-mono);">Authorize read access to Robert's Google Calendar.</div>
+            <button class="gcal-connect-btn" onclick="gcalSignIn()">Connect Google Calendar</button>
+            <button onclick="showGcalSetup()" style="background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;font-family:var(--font-mono);">⚙ Change settings</button>
+        </div>`;
+}
+
+function gcalSignIn() {
+    if (!window.google?.accounts?.oauth2) {
+        const s = document.getElementById('gcal-status-text');
+        if (s) s.textContent = 'GIS not loaded — try again in a moment';
+        return;
+    }
+    if (!_gcalTokenClient) {
+        _gcalTokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: _gcalClientId(),
+            scope: GCAL_SCOPES,
+            callback: (resp) => {
+                if (resp.error) { console.warn('[gcal]', resp.error); return; }
+                localStorage.setItem('gcal_access_token', resp.access_token);
+                localStorage.setItem('gcal_token_expiry', String(Date.now() + (resp.expires_in || 3600) * 1000));
+                loadGcalEvents(true);
+            }
+        });
+    }
+    _gcalTokenClient.requestAccessToken({ prompt: '' });
+}
+
+async function loadGcalEvents(force = false) {
+    const body = document.getElementById('gcal-body');
+    if (!body) return;
+    if (!_gcalValid()) { gcalSignIn(); return; }
+
+    body.innerHTML = '<div class="gcal-loading">Loading events…</div>';
+
+    const now  = new Date();
+    const days = [-1, 0, 1].map(offset => { const d = new Date(now); d.setDate(now.getDate() + offset); return d; });
+    const labels   = ['Yesterday', 'Today', 'Tomorrow'];
+    const dateStrs = days.map(d => d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}));
+
+    const rangeStart = new Date(days[0]); rangeStart.setHours(0, 0, 0, 0);
+    const rangeEnd   = new Date(days[2]); rangeEnd.setHours(23, 59, 59, 999);
+
+    try {
+        const calId = encodeURIComponent(_gcalCalId());
+        const url = `https://www.googleapis.com/calendar/v3/calendars/${calId}/events`
+            + `?timeMin=${rangeStart.toISOString()}&timeMax=${rangeEnd.toISOString()}`
+            + `&singleEvents=true&orderBy=startTime&maxResults=100`;
+
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${_gcalToken()}` } });
+
+        if (res.status === 401) {
+            localStorage.removeItem('gcal_access_token');
+            localStorage.removeItem('gcal_token_expiry');
+            showGcalConnect();
+            return;
+        }
+        if (!res.ok) throw new Error(`Calendar API ${res.status}`);
+
+        const data   = await res.json();
+        const events = data.items || [];
+
+        const statusEl = document.getElementById('gcal-status-text');
+        if (statusEl) statusEl.textContent = `Updated ${new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}`;
+
+        const cols = days.map((day, i) => {
+            const dayStart = new Date(day); dayStart.setHours(0, 0, 0, 0);
+            const dayEnd   = new Date(day); dayEnd.setHours(23, 59, 59, 999);
+
+            const dayEvts = events.filter(e => {
+                const raw = e.start.dateTime || e.start.date;
+                const d   = new Date(raw);
+                return d >= dayStart && d <= dayEnd;
+            });
+
+            const evtHtml = dayEvts.length === 0
+                ? '<div class="gcal-empty">No events</div>'
+                : dayEvts.map(e => {
+                    const isAllDay = !!e.start.date && !e.start.dateTime;
+                    const timeStr  = isAllDay
+                        ? 'all day'
+                        : new Date(e.start.dateTime).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true}).toLowerCase().replace(' ','');
+                    const title = (e.summary || '(no title)').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+                    return `<div class="gcal-event"><div class="gcal-event-dot${isAllDay?' allday':''}"></div><div style="min-width:0;"><div class="gcal-event-time">${timeStr}</div><div class="gcal-event-title">${title}</div></div></div>`;
+                }).join('');
+
+            return `<div class="gcal-day-col${i===1?' gcal-today':''}"><div class="gcal-day-label">${labels[i]}<span class="gcal-day-date">${dateStrs[i]}</span></div>${evtHtml}</div>`;
+        });
+
+        body.innerHTML = `<div class="gcal-days">${cols.join('')}</div>`;
+
+    } catch(err) {
+        console.error('[gcal]', err);
+        body.innerHTML = `<div class="gcal-loading" style="color:#f87171;">Failed to load — ${err.message}</div>`;
+    }
+}
+
+window.toggleGcalPanel = toggleGcalPanel;
+window.loadGcalEvents  = loadGcalEvents;
+window.gcalSignIn      = gcalSignIn;
+window.saveGcalSetup   = saveGcalSetup;
+window.showGcalSetup   = showGcalSetup;
+window.showGcalConnect = showGcalConnect;
+
 </script>
 
     <!-- ─── ROBERT'S REVIEW MODAL ───────────────────────────────────── -->
