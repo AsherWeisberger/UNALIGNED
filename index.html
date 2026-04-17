@@ -8505,6 +8505,21 @@ function _gcalClientId(){ return localStorage.getItem('gcal_client_id') || ''; }
 function _gcalCalId()   { return localStorage.getItem('gcal_cal_id') || 'primary'; }
 function _gcalValid()   { return !!_gcalToken() && Date.now() < _gcalExpiry() - 60_000; }
 
+async function _gcalFetchClientIdFromSupabase() {
+    try {
+        const { data } = await supabase.from('_secrets').select('gcal_client_id').eq('id', 'config').single();
+        const id = data?.gcal_client_id?.trim();
+        if (id) { localStorage.setItem('gcal_client_id', id); return id; }
+    } catch(e) { /* column may not exist yet */ }
+    return '';
+}
+
+async function _gcalSaveClientIdToSupabase(clientId) {
+    try {
+        await supabase.from('_secrets').update({ gcal_client_id: clientId }).eq('id', 'config');
+    } catch(e) { /* silent — localStorage is the fallback */ }
+}
+
 function toggleGcalPanel() {
     const panel = document.getElementById('gcal-panel');
     if (!panel) return;
@@ -8515,7 +8530,12 @@ function toggleGcalPanel() {
     if (_gcalPanelOpen) _gcalRender();
 }
 
-function _gcalRender() {
+async function _gcalRender() {
+    if (!_gcalClientId()) {
+        const body = document.getElementById('gcal-body');
+        if (body) body.innerHTML = '<div class="gcal-loading">Loading…</div>';
+        await _gcalFetchClientIdFromSupabase();
+    }
     if (!_gcalClientId()) { showGcalSetup(); return; }
     if (!_gcalValid())    { showGcalConnect(); return; }
     loadGcalEvents();
@@ -8544,6 +8564,7 @@ function saveGcalSetup() {
     if (!clientId) { document.getElementById('gcal-cid-input').style.borderColor = '#f87171'; return; }
     localStorage.setItem('gcal_client_id', clientId);
     localStorage.setItem('gcal_cal_id', calId);
+    _gcalSaveClientIdToSupabase(clientId);
     _gcalTokenClient = null;
     showGcalConnect();
 }
