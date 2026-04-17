@@ -1830,7 +1830,7 @@
                 overflow-y: hidden;
                 scroll-snap-type: x mandatory;
                 -webkit-overflow-scrolling: touch;
-                touch-action: pan-x;
+                touch-action: pan-x pan-y;
                 align-items: stretch;
                 padding: 0;
                 gap: 0;
@@ -1854,6 +1854,7 @@
                 border-right: none !important;
                 border-top: none !important;
                 padding: 0 16px !important;
+                touch-action: pan-y;
             }
 
             /* ── Column title: sticky so it's always visible while scrolling cards ── */
@@ -1872,11 +1873,12 @@
             /* ── Cards: own vertical scroll, isolated from horizontal column snap ── */
             .cards-container {
                 flex: 1 !important;
-                overflow-y: auto !important;
+                overflow-y: scroll !important;
                 overscroll-behavior-y: contain;
                 touch-action: pan-y;
                 -webkit-overflow-scrolling: touch;
                 min-height: 0 !important;
+                height: 0 !important;
                 padding: 10px 0 100px;
                 gap: 10px;
             }
