@@ -1830,7 +1830,7 @@
                 overflow-y: hidden;
                 scroll-snap-type: x mandatory;
                 -webkit-overflow-scrolling: touch;
-                touch-action: pan-x pan-y;
+                touch-action: pan-x;
                 align-items: stretch;
                 padding: 0;
                 gap: 0;
@@ -1877,7 +1877,7 @@
                 touch-action: pan-y;
                 -webkit-overflow-scrolling: touch;
                 min-height: 0 !important;
-                padding: 10px 0 80px;
+                padding: 10px 0 100px;
                 gap: 10px;
             }
 
@@ -1915,12 +1915,12 @@
                 display: flex !important;
                 position: fixed;
                 bottom: 0; left: 0; right: 0;
-                height: 54px;
+                height: 76px;
                 background: var(--surface);
                 border-top: 1px solid var(--border);
                 align-items: center;
                 justify-content: space-between;
-                padding: 0 8px;
+                padding: 0 8px env(safe-area-inset-bottom);
                 z-index: 200;
                 gap: 8px;
             }
@@ -2524,7 +2524,16 @@
 
         <div id="mobile-col-nav" style="display:none;">
             <button id="col-nav-prev" onclick="colNavStep(-1)">&#8592;</button>
-            <div id="col-dots"></div>
+            <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;">
+                <div id="col-dots"></div>
+                <div style="display:flex;gap:10px;align-items:center;">
+                    <button onclick="document.getElementById('board-card-search').closest('.header-center') && document.getElementById('board-card-search').focus(); document.querySelector('.header-center').style.display='flex';" ontouchend="var s=document.getElementById('board-card-search');s.closest('div').style.cssText='display:flex!important;position:fixed;top:0;left:0;right:0;z-index:9999;background:var(--bg);padding:12px 16px;';s.focus();" style="background:none;border:none;color:var(--muted2);font-size:18px;cursor:pointer;padding:2px 6px;">🔍</button>
+                    <button onclick="syncGmail()" style="background:none;border:none;color:var(--muted2);font-size:18px;cursor:pointer;padding:2px 6px;">🔄</button>
+                    <button onclick="openDailyLog()" style="background:none;border:none;color:var(--muted2);font-size:18px;cursor:pointer;padding:2px 6px;">📋</button>
+                    <button onclick="toggleGcalPanel(); document.getElementById('gcal-panel').scrollIntoView({behavior:'smooth'});" style="background:none;border:none;color:var(--muted2);font-size:18px;cursor:pointer;padding:2px 6px;">📅</button>
+                    <button onclick="openProfileModal()" style="background:none;border:none;color:var(--muted2);font-size:18px;cursor:pointer;padding:2px 6px;">👤</button>
+                </div>
+            </div>
             <button id="col-nav-next" onclick="colNavStep(1)">&#8594;</button>
         </div>
 
@@ -4014,7 +4023,7 @@ function markBoardReady() {
     renderAllCards();
     initHeaderFx();
     updateRobertReviewBadge();
-    setTimeout(playStormIntro, 200);
+    // storm intro disabled
     const sb = document.getElementById('asher-settings-btn');
     if (sb) sb.style.display = (currentProfile.name === 'Asher W') ? '' : 'none';
 }
