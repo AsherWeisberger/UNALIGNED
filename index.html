@@ -4133,6 +4133,8 @@ function initHeaderFx() {
         if (!wrap || !slot) return;
         slot.appendChild(wrap);
         wrap.style.cssText = 'position:relative;width:100%;height:100%;margin:0;border-radius:6px;overflow:hidden;pointer-events:none;user-select:none;';
+        // Play boot sequence once canvas is sized and steady
+        setTimeout(() => playHeaderBootSequence(), 200);
     }
 
     const canvas = document.getElementById('header-fx');
@@ -4145,6 +4147,7 @@ function initHeaderFx() {
     let letters = [], sparks = [], arcs = [], melts = [];
     let phase = 'crash', startTime = null;
     let lastArcAt = 0, nextArcIn = 500;
+    let _boot = null; // boot sequence state
 
     function buildLetters() {
         const w = canvas.width, h = canvas.height;
@@ -4254,17 +4257,18 @@ function initHeaderFx() {
         ctx.font = l.font;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'alphabetic';
-        const g = l.glow;
+        const displayChar = (_boot && l._bootChar !== undefined) ? l._bootChar : l.char;
+        const g = Math.min(2.5, (_boot && l._bootGlow !== undefined) ? l._bootGlow : l.glow);
         // Outer glow halo
         ctx.shadowColor = 'rgba(70,190,255,1)';
-        ctx.shadowBlur = 8 + g*18;
-        const v = Math.floor(150 + g*105);
-        ctx.fillStyle = `rgb(${v},${v+18},255)`;
-        ctx.fillText(l.char, l.x, l.y);
+        ctx.shadowBlur = 8 + g * 18;
+        const v = Math.min(255, Math.floor(150 + g * 105));
+        ctx.fillStyle = `rgb(${v},${Math.min(255,v+18)},255)`;
+        ctx.fillText(displayChar, l.x, l.y);
         // Bright core overlay
         ctx.shadowBlur = 0;
-        ctx.fillStyle = `rgba(255,255,255,${0.18+g*0.52})`;
-        ctx.fillText(l.char, l.x, l.y);
+        ctx.fillStyle = `rgba(255,255,255,${Math.min(1, 0.18 + g * 0.52)})`;
+        ctx.fillText(displayChar, l.x, l.y);
         ctx.restore();
     }
 
@@ -4301,8 +4305,10 @@ function initHeaderFx() {
                     ctx.fillStyle = 'rgba(140,215,255,0.08)'; ctx.fillRect(0,0,w,h);
                 }
             } else {
-                const age = (now-l.landAt)/1000;
-                l.glow = age<0.45 ? 1-age*1.4 : 0.20+0.13*Math.sin(now*0.0019+idx*0.95);
+                if (!_boot) {
+                    const age = (now-l.landAt)/1000;
+                    l.glow = age<0.45 ? 1-age*1.4 : 0.20+0.13*Math.sin(now*0.0019+idx*0.95);
+                }
                 // Melt drips
                 if (phase==='steady' && now>l.nextMelt) {
                     l.nextMelt = now+700+Math.random()*3200;
@@ -4318,6 +4324,57 @@ function initHeaderFx() {
         });
 
         if (allDone && letters.every(l=>l.landed)) phase='steady';
+
+        // ── Boot sequence tick ────────────────────────────────────────────
+        if (_boot) {
+            const bt = now - _boot.t0;
+            // Scramble unlocked chars every 55ms
+            if (now > _boot.nextScramble) {
+                _boot.nextScramble = now + 55;
+                letters.forEach(l => {
+                    if (!l._locked) {
+                        l._bootChar = _boot.glyphs[Math.floor(Math.random() * _boot.glyphs.length)];
+                        l._bootGlow = 0.08 + 0.12 * Math.random();
+                    }
+                });
+            }
+            // Wave: lock letters left→right starting at 500ms, 55ms apart
+            const waveStart = 500, waveStep = 55;
+            letters.forEach((l, i) => {
+                const lockAt = waveStart + i * waveStep;
+                if (bt >= lockAt && !l._locked) {
+                    l._locked = true;
+                    l._bootChar = l.char;
+                    l._bootGlow = 2.2;
+                    addSparks(l.finalX, l.finalY - l.fontSize * 0.35, 20);
+                    // flash bg
+                    ctx.fillStyle = 'rgba(100,200,255,0.06)';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                }
+                if (l._locked) {
+                    const lockAge = bt - (waveStart + i * waveStep);
+                    l._bootGlow = Math.max(0.2, 2.2 - lockAge * 0.0032);
+                }
+            });
+            // Surge: rapid arcs after last letter locks
+            const lastLockAt = waveStart + (letters.length - 1) * waveStep;
+            if (bt >= lastLockAt + 30 && !_boot.surged) {
+                _boot.surged = true;
+                for (let k = 0; k < 7; k++) setTimeout(() => { if (phase==='steady') addArc(); }, k * 45);
+                // Full-width charge sweep visual
+                const sw = canvas.width, sh = canvas.height;
+                const sg = ctx.createLinearGradient(0, 0, sw, 0);
+                sg.addColorStop(0,'rgba(60,170,255,0)');
+                sg.addColorStop(0.5,'rgba(60,170,255,0.18)');
+                sg.addColorStop(1,'rgba(60,170,255,0)');
+                ctx.fillStyle = sg; ctx.fillRect(0, 0, sw, sh);
+            }
+            // End boot
+            if (bt >= lastLockAt + 700) {
+                letters.forEach(l => { delete l._bootChar; delete l._bootGlow; delete l._locked; });
+                _boot = null;
+            }
+        }
 
         // ── Arcs ─────────────────────────────────────────────────────────
         if (phase==='steady' && now-lastArcAt>nextArcIn) {
@@ -4375,6 +4432,19 @@ function initHeaderFx() {
         if (document.hidden) cancelAnimationFrame(raf);
         else { raf = requestAnimationFrame(frame); }
     });
+
+    // ── Boot sequence: scramble → wave lock-in → surge ──────────────────────
+    function playHeaderBootSequence() {
+        if (!letters.length || phase !== 'steady') return;
+        const glyphs = 'XQZWVKJYR#@$!&*+-~<>?|^';
+        letters.forEach(l => {
+            l._bootChar = glyphs[Math.floor(Math.random() * glyphs.length)];
+            l._bootGlow = 0.1;
+            l._locked   = false;
+        });
+        _boot = { t0: performance.now(), glyphs, nextScramble: performance.now(), surged: false };
+    }
+    window._playHeaderBoot = playHeaderBootSequence;
 
     // ── Fly logo to header slot after animation settles ─────────────────────
     function flyLogoToHeader() {
@@ -4442,6 +4512,8 @@ function initHeaderFx() {
                 'user-select:none',
             ].join(';');
             resize(); // rebuild letters at the new small canvas size
+            // Boot sequence plays once settled in header
+            setTimeout(playHeaderBootSequence, 150);
             // Smooth collapse of the strip placeholder
             ph.style.height = '0';
             setTimeout(() => ph.remove(), 450);
