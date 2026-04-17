@@ -1791,12 +1791,18 @@
                 right: 0 !important;
                 z-index: 600 !important;
                 display: block !important;
-                max-height: 60vh;
+                max-height: min(280px, 42vh);
                 overflow-y: auto;
                 border-radius: 16px 16px 0 0 !important;
                 box-shadow: 0 -4px 24px rgba(0,0,0,0.4);
                 border-bottom: none !important;
             }
+            .gcal-panel-mobile-overlay .gcal-day-col { padding: 8px 8px 10px; }
+            .gcal-panel-mobile-overlay .gcal-day-name { font-size: 11px; }
+            .gcal-panel-mobile-overlay .gcal-day-date { font-size: 10px; margin-bottom: 6px; }
+            .gcal-panel-mobile-overlay .gcal-event-title { font-size: 11px; }
+            .gcal-panel-mobile-overlay .gcal-event-time { font-size: 10px; min-width: 36px; }
+            .gcal-panel-mobile-overlay .gcal-event { padding: 2px 0; }
         }
 
         /* ─── MOBILE ──────────────────────────────────────── */
