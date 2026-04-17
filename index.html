@@ -523,21 +523,11 @@
         }
 
         .header-left { display: flex; flex-direction: row; align-items: center; gap: 16px; }
-        .header-wordmark { display: none; } /* replaced by .header-logo-img */
-
-        /* Real logo — black bg becomes invisible via screen blend mode in dark mode */
-        .header-logo-img {
-            height: 36px; width: auto;
-            mix-blend-mode: screen;      /* black = transparent, white logo shows through */
-            display: block; flex-shrink: 0;
-        }
-        body.light-mode .header-logo-img {
-            mix-blend-mode: multiply;    /* inverts: white = transparent, shows dark logo */
-            filter: invert(1);           /* invert so the logo is dark on light background */
-        }
+        .header-wordmark { display: none; } /* replaced by #header-logo-slot */
+        .header-logo-img { display: none; } /* unused */
 
         .header-wordmark sup {
-            display: none; /* no longer used */
+            display: none;
             font-size: 9px; letter-spacing: 0; opacity: 0.6;
             vertical-align: super; font-family: var(--font-body);
         }
@@ -689,12 +679,19 @@
 
         /* ─── HEADER FX ──────────────────────────────────── */
         #header-fx-wrap {
-            width: 100%; height: 64px; position: relative;
+            width: 100%; height: 110px; position: relative;
             margin: 0 0 2px; border-radius: 8px; overflow: hidden;
             pointer-events: none; user-select: none; flex-shrink: 0;
+            transition: none; /* JS handles the fly transition */
         }
         #header-fx { width: 100%; height: 100%; display: block; }
-        @media (max-width: 640px) { #header-fx-wrap { height: 44px; } }
+        @media (max-width: 640px) { #header-fx-wrap { height: 70px; } }
+
+        /* Slot in header-left where the logo lands */
+        #header-logo-slot {
+            width: 220px; height: 44px; flex-shrink: 0;
+            border-radius: 6px; overflow: hidden; position: relative;
+        }
 
         /* ─── FLOW MAP ────────────────────────────────────── */
         .flow-map {
@@ -2467,7 +2464,7 @@
 
         <header>
             <div class="header-left">
-                <img src="logo.jpg" alt="UNALIGNED" class="header-logo-img">
+                <div id="header-logo-slot"></div>
                 <div class="stats">
                     <span id="total-cards">0 cards</span>
                     <span id="assigned-count">0 assigned to you</span>
@@ -4182,7 +4179,7 @@ function initHeaderFx() {
                 if (l.y >= l.finalY) {
                     l.y = l.finalY; l.landed = true; l.landAt = now; l.glow = 1;
                     addSparks(l.finalX, l.finalY-l.fontSize*0.1, 26);
-                    ctx.fillStyle = 'rgba(140,215,255,0.28)'; ctx.fillRect(0,0,w,h);
+                    ctx.fillStyle = 'rgba(140,215,255,0.08)'; ctx.fillRect(0,0,w,h);
                 }
             } else {
                 const age = (now-l.landAt)/1000;
@@ -4259,6 +4256,79 @@ function initHeaderFx() {
         if (document.hidden) cancelAnimationFrame(raf);
         else { raf = requestAnimationFrame(frame); }
     });
+
+    // ── Fly logo to header slot after animation settles ─────────────────────
+    function flyLogoToHeader() {
+        const wrap = document.getElementById('header-fx-wrap');
+        const slot = document.getElementById('header-logo-slot');
+        if (!wrap || !slot || wrap.dataset.settled) return;
+        wrap.dataset.settled = '1';
+
+        const fromRect = wrap.getBoundingClientRect();
+        const toRect   = slot.getBoundingClientRect();
+
+        // Target: fill the slot
+        const targetH = toRect.height || 44;
+        const targetW = toRect.width  || 220;
+        const targetTop  = toRect.top;
+        const targetLeft = toRect.left;
+
+        // Pin wrap as fixed at its current viewport position
+        wrap.style.cssText = [
+            'position:fixed',
+            `top:${fromRect.top}px`,
+            `left:${fromRect.left}px`,
+            `width:${fromRect.width}px`,
+            `height:${fromRect.height}px`,
+            'margin:0', 'padding:0',
+            'z-index:9999',
+            'pointer-events:none',
+            'border-radius:8px',
+            'overflow:hidden',
+        ].join(';');
+
+        // Placeholder keeps the strip height while wrap is flying
+        const ph = document.createElement('div');
+        ph.style.cssText = `height:${fromRect.height}px;flex-shrink:0;transition:height 0.45s ease;overflow:hidden;`;
+        wrap.parentNode.insertBefore(ph, wrap);
+
+        // Force reflow before starting transition
+        wrap.offsetHeight;
+
+        // Start CSS transition to header slot position + size
+        wrap.style.transition = [
+            'top 0.82s cubic-bezier(0.4,0,0.2,1)',
+            'left 0.82s cubic-bezier(0.4,0,0.2,1)',
+            'width 0.82s cubic-bezier(0.4,0,0.2,1)',
+            'height 0.82s cubic-bezier(0.4,0,0.2,1)',
+            'border-radius 0.5s ease',
+        ].join(',');
+
+        wrap.style.top    = targetTop  + 'px';
+        wrap.style.left   = targetLeft + 'px';
+        wrap.style.width  = targetW    + 'px';
+        wrap.style.height = targetH    + 'px';
+
+        // After fly completes: settle into header DOM
+        wrap.addEventListener('transitionend', () => {
+            slot.appendChild(wrap);
+            wrap.style.cssText = [
+                'position:relative',
+                'width:100%',
+                'height:100%',
+                'border-radius:6px',
+                'overflow:hidden',
+                'pointer-events:none',
+                'user-select:none',
+            ].join(';');
+            resize(); // rebuild letters at the new small canvas size
+            // Smooth collapse of the strip placeholder
+            ph.style.height = '0';
+            setTimeout(() => ph.remove(), 450);
+        }, { once: true });
+    }
+
+    setTimeout(flyLogoToHeader, 3200);
 }
 
 // ── Storm Intro ──────────────────────────────────────────────────────────────
