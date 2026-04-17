@@ -4940,7 +4940,22 @@ function moveCardToList(cardId,newListId) {
         const r = el ? el.getBoundingClientRect() : null;
         spawnConfetti(r ? r.left+r.width/2 : window.innerWidth/2, r ? r.top+r.height/2 : window.innerHeight/2);
     }
-    addActivity(`moved from ${boardConfig.find(l=>l.id===oldListId)?.title||oldListId} to ${boardConfig.find(l=>l.id===newListId)?.title||newListId}`);
+    // Write activity directly to the card — addActivity() requires an open modal
+    // and throws when called from quick-action buttons
+    const actEntry = {
+        user: currentProfile.name, initials: currentProfile.initials,
+        action: `moved from ${boardConfig.find(l=>l.id===oldListId)?.title||oldListId} to ${boardConfig.find(l=>l.id===newListId)?.title||newListId}`,
+        time: new Date().toISOString()
+    };
+    card.activity = Array.isArray(card.activity) ? card.activity : [];
+    card.activity.unshift(actEntry);
+    card.lastActivity = actEntry.time;
+    // Keep modal in sync if it's open on this same card
+    if (currentEditingCardData && currentEditingCardData.id === cardId) {
+        currentEditingCardData.activity = card.activity;
+        currentEditingCardData.lastActivity = card.lastActivity;
+        renderUnifiedActivity();
+    }
     renderAllCards(); updateCardCount(); updateFlowMap(); saveBoardState(true, [cardId]);
 }
 
