@@ -6695,10 +6695,11 @@ async function loadApiCostWidget() {
         const haikuCost       = (pipeHaikuIn  / 1_000_000 * 0.80) + (pipeHaikuOut  / 1_000_000 * 4.00);
         const pipelineCost    = opusCost + haikuCost;
         const total           = baseline + pipelineCost;
-        const totalTok        = baseInTok + baseOutTok + pipeInTok + pipeOutTok + pipeHaikuIn + pipeHaikuOut;
-        const tokStr          = totalTok >= 1_000_000 ? (totalTok/1_000_000).toFixed(1)+'M' : (totalTok/1000).toFixed(0)+'K';
-        el.textContent = `$${total.toFixed(2)} · ~${tokStr} tokens`;
-        el.parentElement.title = `Claude API spend since project start\n\nTotal: $${total.toFixed(2)} · ~${tokStr} tokens\n\nBaseline (est.): $${baseline.toFixed(2)} · ~${((baseInTok+baseOutTok)/1_000_000).toFixed(1)}M tokens\nPipeline Opus: $${opusCost.toFixed(4)} · ${(pipeInTok+pipeOutTok).toLocaleString()} tokens\nPipeline Haiku: $${haikuCost.toFixed(4)} · ${(pipeHaikuIn+pipeHaikuOut).toLocaleString()} tokens\nPipeline runs logged: ${stats.pipeline_runs||0}`;
+        const totalIn         = baseInTok  + pipeInTok  + pipeHaikuIn;
+        const totalOut        = baseOutTok + pipeOutTok + pipeHaikuOut;
+        const fmt = n => n >= 1_000_000 ? (n/1_000_000).toFixed(1)+'M' : (n/1000).toFixed(0)+'K';
+        el.textContent = `$${total.toFixed(2)} · ${fmt(totalIn)} in / ${fmt(totalOut)} out`;
+        el.parentElement.title = `Claude API spend since project start\n\nTotal: $${total.toFixed(2)}\nInput:  ${totalIn.toLocaleString()} tokens  ($15/M Opus · $0.80/M Haiku)\nOutput: ${totalOut.toLocaleString()} tokens  ($75/M Opus · $4/M Haiku)\n\nBaseline est.: $${baseline.toFixed(2)}\nPipeline Opus:  $${opusCost.toFixed(4)} · ${pipeInTok.toLocaleString()} in / ${pipeOutTok.toLocaleString()} out\nPipeline Haiku: $${haikuCost.toFixed(4)} · ${pipeHaikuIn.toLocaleString()} in / ${pipeHaikuOut.toLocaleString()} out\nPipeline runs: ${stats.pipeline_runs||0}`;
     } catch(e) {
         console.warn('[api-cost-widget]', e.message);
         // Keep the baseline value already shown
