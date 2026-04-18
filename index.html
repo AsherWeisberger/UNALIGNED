@@ -5116,6 +5116,8 @@ function renderCard(cardData) {
     else if (cardData.priority) priorityClass = 'card priority-'+cardData.priority;
     if (cardData.newReplyAt) priorityClass += ' card-new-reply';
     if (cardData.listId === 'new') priorityClass += ' card-new-lead';
+    // Gold flash for freshly scraped cards that haven't been touched yet
+    if (!cardData.movedAt) priorityClass += ' card-new-lead';
     card.className = priorityClass;
     card.draggable = true; card.dataset.cardId = cardData.id; card.id = 'card-'+cardData.id;
 
