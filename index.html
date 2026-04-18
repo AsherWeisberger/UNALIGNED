@@ -2497,15 +2497,6 @@
 @keyframes lockSpin { to { transform: rotate(360deg); } }
 </style>
 <script>
-(function() {
-    // Auto-unlock if a valid key is already stored
-    const stored = localStorage.getItem('unaligned_anthropic_key');
-    if (stored && stored.startsWith('sk-ant-')) {
-        const ls = document.getElementById('lockscreen');
-        if (ls) ls.style.display = 'none';
-    }
-})();
-
 async function unlockWithKey() {
     const input = document.getElementById('lock-key-input');
     const status = document.getElementById('lock-status');
