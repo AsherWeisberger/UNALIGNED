@@ -2447,6 +2447,28 @@
 </head>
 <body>
 
+<!-- ─── LOCKSCREEN ──────────────────────────────────────── -->
+<div id="lockscreen" style="
+    position:fixed;inset:0;z-index:99999;
+    background:#06080e;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    font-family:'Arial Black','Helvetica Neue',Arial,sans-serif;
+    pointer-events:all;
+    user-select:none;
+">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:28px;max-width:360px;padding:0 32px;text-align:center;">
+        <div style="font-size:13px;font-weight:800;letter-spacing:0.22em;color:rgba(255,255,255,0.18);text-transform:uppercase;font-family:monospace;">UNALIGNED</div>
+        <div style="width:48px;height:48px;border-radius:50%;border:2px solid rgba(249,115,22,0.3);border-top-color:#f97316;animation:lockSpin 1.1s linear infinite;"></div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="font-size:18px;font-weight:700;color:#f97316;letter-spacing:0.04em;font-family:monospace;">Pending API Key Refresh</div>
+            <div style="font-size:12px;color:rgba(255,255,255,0.35);font-family:monospace;line-height:1.6;">Access is temporarily restricted.<br>Please check back shortly.</div>
+        </div>
+    </div>
+</div>
+<style>
+@keyframes lockSpin { to { transform: rotate(360deg); } }
+</style>
+
 <!-- ─── MATRIX MODE LAYERS ──────────────────────────────── -->
 <!-- persistent rain canvas behind the board -->
 <canvas id="matrix-bg-canvas" style="position:fixed;inset:0;pointer-events:none;z-index:0;display:none;"></canvas>
