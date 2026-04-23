@@ -2188,6 +2188,9 @@
 
         /* ─── STALE INDICATORS ────────────────────────────── */
         .card-new-reply { border-left: 3px solid #34d399 !important; }
+        .card-assignee-sam    { border-top: 3px solid #764ba2 !important; }
+        .card-assignee-robert { border-top: 3px solid #f5576c !important; }
+        .card-assignee-asher  { border-top: 3px solid #4facfe !important; }
         .new-reply-badge {
             display: inline-flex;
             align-items: center;
@@ -5134,6 +5137,9 @@ function renderCard(cardData) {
     else if (cardData.priority) priorityClass = 'card priority-'+cardData.priority;
     if (cardData.newReplyAt) priorityClass += ' card-new-reply';
     if (cardData.bookmarked) priorityClass += ' card-bookmarked';
+    if (cardData.assignee === 'Sam L')    priorityClass += ' card-assignee-sam';
+    if (cardData.assignee === 'Robert S') priorityClass += ' card-assignee-robert';
+    if (cardData.assignee === 'Asher W')  priorityClass += ' card-assignee-asher';
     if (cardData.listId === 'new') priorityClass += ' card-new-lead';
     // Gold flash for freshly scraped cards that haven't been touched yet
     if (!cardData.movedAt) priorityClass += ' card-new-lead';
