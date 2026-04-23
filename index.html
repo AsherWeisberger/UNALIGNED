@@ -945,6 +945,21 @@
         .card:hover .card-delete-quick { opacity: 1; }
         .card-delete-quick:hover { color: #ef4444 !important; border-color: #ef4444 !important; background: rgba(239,68,68,0.12) !important; }
 
+        .card-bookmark-btn {
+            position: absolute; top: 6px; right: 32px;
+            width: 22px; height: 22px; border-radius: 5px;
+            border: 1px solid var(--quick-btn-border);
+            background: var(--quick-btn-bg);
+            color: var(--muted); font-size: 13px; line-height: 1;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            opacity: 0; transition: opacity 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+            z-index: 3;
+        }
+        .card:hover .card-bookmark-btn { opacity: 0.7; }
+        .card-bookmark-btn.is-bookmarked { opacity: 1 !important; color: #f59e0b !important; border-color: rgba(245,158,11,0.5) !important; }
+        .card-bookmark-btn:hover { color: #f59e0b !important; border-color: rgba(245,158,11,0.5) !important; background: rgba(245,158,11,0.12) !important; }
+        .card-bookmarked { border-left: 3px solid #f59e0b !important; }
+
         /* ─── QUICK ACTIONS ON HOVER ──────────────────────── */
         .card-quick-actions {
             display: flex; gap: 4px; align-items: center; justify-content: flex-end;
@@ -2770,6 +2785,7 @@
                     </div>
                 </div>
                 <div class="email-header-actions">
+                    <button class="card-modal-save" id="modal-bookmark-btn" onclick="toggleBookmark(currentEditingCard)" title="Bookmark this card" style="background:transparent;border:1px solid var(--border);color:var(--muted);font-size:13px;padding:4px 10px;border-radius:6px;cursor:pointer;">☆ Bookmark</button>
                     <button class="card-modal-save" id="modal-needs-reply-btn" onclick="toggleNeedsReply()" title="Mark as needs reply / clear reply flag" style="background:transparent;border:1px solid var(--border);color:var(--muted);font-size:13px;padding:4px 10px;border-radius:6px;cursor:pointer;">🔔 Needs Reply</button>
                     <button class="card-modal-save" onclick="saveCardAndClose()">Save</button>
                     <button class="card-modal-close" onclick="closeCardModal()">×</button>
@@ -3517,6 +3533,7 @@ function normalizeSupabaseCard(row) {
         draft_reply_status: row.draft_reply_status || 'pending',
         movedAt: row.moved_at || null,
         newReplyAt: row.new_reply_at || null,
+        bookmarked: row.is_bookmarked || false,
         originalEmail: emailThread,   // full email thread from email_thread column (priority), original_email (fallback), or description JSON
         dealType,
     };
@@ -3575,6 +3592,7 @@ function cardToSupabaseRow(card) {
         draft_reply: card.draft_reply || null,
         draft_reply_status: card.draft_reply_status || 'pending',
         moved_at: card.movedAt || null,
+        is_bookmarked: card.bookmarked || false,
         owner: card.owner || '',
         email_thread: (card.originalEmail && Array.isArray(card.originalEmail) && card.originalEmail.length > 0)
             ? card.originalEmail
@@ -5115,6 +5133,7 @@ function renderCard(cardData) {
     if (cardData.listId === 'done') priorityClass = 'card priority-done';
     else if (cardData.priority) priorityClass = 'card priority-'+cardData.priority;
     if (cardData.newReplyAt) priorityClass += ' card-new-reply';
+    if (cardData.bookmarked) priorityClass += ' card-bookmarked';
     if (cardData.listId === 'new') priorityClass += ' card-new-lead';
     // Gold flash for freshly scraped cards that haven't been touched yet
     if (!cardData.movedAt) priorityClass += ' card-new-lead';
@@ -5207,6 +5226,7 @@ function renderCard(cardData) {
 
     card.innerHTML = `
         <button class="card-delete-quick" onclick="event.stopPropagation();quickDeleteCard(${cardData.id})" title="Move to Dead Leads">🗑</button>
+        <button class="card-bookmark-btn${cardData.bookmarked ? ' is-bookmarked' : ''}" onclick="event.stopPropagation();toggleBookmark(${cardData.id})" title="${cardData.bookmarked ? 'Remove bookmark' : 'Bookmark this card'}">${cardData.bookmarked ? '★' : '☆'}</button>
         <div class="card-checkbox-wrap">
             <input type="checkbox" class="card-checkbox" data-id="${cardData.id}" onclick="handleCardCheckbox(event, '${cardData.id}')">
         </div>
@@ -5457,6 +5477,7 @@ function openCardModal(cardId, skipReview) {
     document.getElementById('modal-list-name').textContent = boardConfig.find(l=>l.id===currentEditingCardData.listId)?.title||'List';
     document.getElementById('modal-created-info').textContent = `Created by ${currentEditingCardData.createdBy} · ${timeAgo(new Date(currentEditingCardData.createdAt))}`;
     _updateNeedsReplyBtn();
+    _updateBookmarkBtn();
 
     // Show first contact date prominently
     // First contact: use oldest email in thread (first array entry)
@@ -5512,6 +5533,25 @@ function toggleNeedsReply() {
         .then(({ error }) => { if (error) console.warn('toggle new_reply_at failed:', error.message); });
     _updateNeedsReplyBtn();
     renderAllCards();
+}
+
+function _updateBookmarkBtn() {
+    const btn = document.getElementById('modal-bookmark-btn');
+    if (!btn || !currentEditingCardData) return;
+    const active = !!currentEditingCardData.bookmarked;
+    btn.style.color = active ? '#f59e0b' : 'var(--muted)';
+    btn.style.borderColor = active ? 'rgba(245,158,11,0.5)' : 'var(--border)';
+    btn.textContent = active ? '★ Bookmarked' : '☆ Bookmark';
+}
+
+function toggleBookmark(cardId) {
+    const card = cardsData[cardId];
+    if (!card) return;
+    card.bookmarked = !card.bookmarked;
+    supabase.from('cards').update({ is_bookmarked: card.bookmarked }).eq('id', card.id)
+        .then(({ error }) => { if (error) console.warn('toggle is_bookmarked failed:', error.message); });
+    if (currentEditingCardData && currentEditingCardData.id === cardId) _updateBookmarkBtn();
+    renderCard(card);
 }
 
 // Track which card IDs have email data (preloaded at startup)
