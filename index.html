@@ -4911,7 +4911,7 @@ async function saveBoardState(force=false, dirtyIds=null) {
         }
         setSyncState('synced', { syncedAt: new Date() });
     } catch(error) {
-        console.error('Failed to save', error);
+        console.error('Failed to save — message:', error?.message, '| code:', error?.code, '| details:', error?.details, '| hint:', error?.hint, '| full:', error);
         setSyncState('error', { errorMessage: 'Failed to save. Changes stay on this device until sync resumes.' });
     }
 }
