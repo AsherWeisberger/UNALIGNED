@@ -5550,8 +5550,18 @@ function toggleBookmark(cardId) {
     card.bookmarked = !card.bookmarked;
     supabase.from('cards').update({ is_bookmarked: card.bookmarked }).eq('id', card.id)
         .then(({ error }) => { if (error) console.warn('toggle is_bookmarked failed:', error.message); });
-    if (currentEditingCardData && currentEditingCardData.id === cardId) _updateBookmarkBtn();
-    renderCard(card);
+    // Update DOM in-place so card doesn't jump to bottom of list
+    const el = document.getElementById('card-' + cardId);
+    if (el) {
+        el.classList.toggle('card-bookmarked', card.bookmarked);
+        const btn = el.querySelector('.card-bookmark-btn');
+        if (btn) {
+            btn.textContent = card.bookmarked ? '★' : '☆';
+            btn.classList.toggle('is-bookmarked', card.bookmarked);
+            btn.title = card.bookmarked ? 'Remove bookmark' : 'Bookmark this card';
+        }
+    }
+    if (currentEditingCardData && currentEditingCardData.id == cardId) _updateBookmarkBtn();
 }
 
 // Track which card IDs have email data (preloaded at startup)
