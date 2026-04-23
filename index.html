@@ -3544,27 +3544,29 @@ function normalizeSupabaseCard(row) {
 
 // Converts the board's card object to a Supabase row
 function cardToSupabaseRow(card) {
-    // If the card has a full email thread (originalEmail), preserve it as JSON envelope
-    // by merging the new description into the existing JSON structure
+    // Keep only the 30 most recent emails, bodies capped at 2000 chars each,
+    // to stay under Supabase's row-size limit.
+    const trimThread = (thread) => {
+        if (!Array.isArray(thread) || thread.length === 0) return null;
+        return thread.slice(-30).map(m => ({
+            ...m,
+            body: typeof m.body === 'string' ? m.body.slice(0, 2000) : m.body,
+        }));
+    };
+
+    // Preserve any non-thread metadata in the description envelope but strip
+    // email_thread from it — the thread now lives exclusively in email_thread column.
     let description = card.description || '';
-    if (card.originalEmail && Array.isArray(card.originalEmail) && card.originalEmail.length > 0) {
-        // Try to load existing JSON envelope from the stored card
-        const existing = cardsData[card.id];
-        const existingDesc = existing?.description || '';
-        if (typeof existingDesc === 'string' && existingDesc.trim().startsWith('{')) {
-            try {
-                const env = JSON.parse(existingDesc);
-                env.rich_description = description;
-                description = JSON.stringify(env);
-            } catch (e) {
-                // Couldn't parse — just save plain description
-            }
-        } else {
-            // No existing envelope — build new one
-            description = JSON.stringify({
-                rich_description: description,
-                email_thread: card.originalEmail,
-            });
+    const existing = cardsData[card.id];
+    const existingDesc = existing?.description || '';
+    if (typeof existingDesc === 'string' && existingDesc.trim().startsWith('{')) {
+        try {
+            const env = JSON.parse(existingDesc);
+            delete env.email_thread;
+            env.rich_description = description;
+            description = JSON.stringify(env);
+        } catch (e) {
+            // Couldn't parse — just save plain description
         }
     }
 
@@ -3597,9 +3599,7 @@ function cardToSupabaseRow(card) {
         moved_at: card.movedAt || null,
         is_bookmarked: card.bookmarked || false,
         owner: card.owner || '',
-        email_thread: (card.originalEmail && Array.isArray(card.originalEmail) && card.originalEmail.length > 0)
-            ? card.originalEmail
-            : null,
+        email_thread: trimThread(card.originalEmail),
     };
 }
 
