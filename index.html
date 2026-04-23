@@ -3597,7 +3597,7 @@ function cardToSupabaseRow(card) {
         draft_reply: card.draft_reply || null,
         draft_reply_status: card.draft_reply_status || 'pending',
         moved_at: card.movedAt || null,
-        is_bookmarked: card.bookmarked || false,
+
         owner: card.owner || '',
         email_thread: trimThread(card.originalEmail),
     };
