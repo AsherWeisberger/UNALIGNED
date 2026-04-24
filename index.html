@@ -2202,6 +2202,26 @@
             100% { box-shadow: 0 0 0 0px rgba(255,200,50,0); }
         }
         .card-return-flash { animation: cardReturnFlash 1.2s ease-out forwards !important; }
+
+        /* ─── AI INBOX ───────────────────────────────────── */
+        .inbox-item {
+            display: flex; flex-direction: column; gap: 5px;
+            padding: 11px 13px; border-radius: 10px;
+            background: var(--surface2); border: 1px solid var(--border);
+            cursor: pointer; transition: border-color 0.15s, background 0.15s;
+        }
+        .inbox-item:hover { border-color: var(--accent); background: var(--surface3, var(--surface2)); }
+        .inbox-item-top { display: flex; align-items: center; gap: 8px; }
+        .inbox-item-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .inbox-item-dot.reply  { background: #34d399; box-shadow: 0 0 6px rgba(52,211,153,0.6); }
+        .inbox-item-dot.new    { background: #f5c842; box-shadow: 0 0 6px rgba(245,200,66,0.6); }
+        .inbox-item-name { font-size: 13px; font-weight: 700; color: var(--text); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .inbox-item-stage { font-size: 10px; font-family: var(--font-mono); font-weight: 700; padding: 2px 7px; border-radius: 999px; flex-shrink: 0; text-transform: uppercase; letter-spacing: 0.04em; }
+        .inbox-item-co { font-size: 11px; color: var(--muted); }
+        .inbox-item-action { font-size: 11px; font-weight: 600; color: var(--accent); }
+        .inbox-item-snippet { font-size: 11px; color: var(--muted2, var(--muted)); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .inbox-section-hdr { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); padding: 4px 2px 2px; margin-top: 4px; }
+        .inbox-empty { text-align: center; color: var(--muted); font-size: 13px; padding: 40px 20px; }
         .card-assignee-sam    { border-top: 3px solid #764ba2 !important; }
         .card-assignee-robert { border-top: 3px solid #f5576c !important; }
         .card-assignee-asher  { border-top: 3px solid #4facfe !important; }
@@ -2606,6 +2626,12 @@
                     <button class="dt-btn" id="dt-btn-deal" onclick="setDealTypeFilter('deal')">Pipeline</button>
                     <button class="dt-btn" id="dt-btn-relationship" onclick="setDealTypeFilter('relationship')">Network</button>
                 </span>
+
+                <!-- AI Inbox -->
+                <button class="view-toggle" id="ai-inbox-btn" onclick="toggleAiInbox()" title="AI Inbox — replies and new leads needing attention" style="padding:6px 12px;position:relative;font-weight:600;">
+                    📬 Inbox
+                    <span id="ai-inbox-badge" style="display:none;position:absolute;top:-5px;right:-5px;background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:999px;min-width:18px;height:18px;line-height:18px;text-align:center;padding:0 4px;font-family:var(--font-mono);"></span>
+                </button>
 
                 <div class="header-divider"></div>
 
@@ -3209,6 +3235,18 @@ What would you like to know?</div>
     </div>
 
     <div class="sr-only" id="live-region" aria-live="polite"></div>
+
+    <!-- ── AI Inbox Panel ── -->
+    <div id="ai-inbox-panel" style="position:fixed;top:0;right:0;height:100%;width:420px;max-width:95vw;background:var(--surface);border-left:1px solid var(--border2);display:none;flex-direction:column;box-shadow:-8px 0 32px rgba(0,0,0,0.45);z-index:1100;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;border-bottom:1px solid var(--border);flex-shrink:0;">
+            <div>
+                <div style="font-size:16px;font-weight:700;color:var(--text);">📬 AI Inbox</div>
+                <div style="font-size:11px;color:var(--muted);margin-top:2px;" id="ai-inbox-subtitle">Replies and new leads needing attention</div>
+            </div>
+            <button onclick="toggleAiInbox()" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px 8px;">✕</button>
+        </div>
+        <div id="ai-inbox-body" style="flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
 
     <!-- ── Docs Panel ── -->
     <div id="docs-panel" onclick="event.stopPropagation()" style="position:fixed;top:0;right:0;height:100%;width:380px;max-width:95vw;background:var(--surface);border-left:1px solid var(--border2);display:none;flex-direction:column;box-shadow:-8px 0 32px rgba(0,0,0,0.4);z-index:1100;">
@@ -4992,7 +5030,7 @@ async function saveBoardStateNow() {
     await saveBoardState(true);
 }
 
-function refreshBoard() { initBoardStructure(); renderAllCards(); updateCardCount(); updateFlowMap(); setTimeout(updateBoardScrollBtns, 100); updateRobertReviewBadge(); }
+function refreshBoard() { initBoardStructure(); renderAllCards(); updateCardCount(); updateFlowMap(); setTimeout(updateBoardScrollBtns, 100); updateRobertReviewBadge(); updateAiInboxBadge(); }
 
 // Delegated click on board — opens card modal when any card is clicked (but not checkbox)
 document.addEventListener('click', e => {
@@ -8426,6 +8464,134 @@ function toggleDocsPanel() {
     document.getElementById('docs-panel-btn').classList.toggle('active', !open);
 }
 window.toggleDocsPanel = toggleDocsPanel;
+
+// ── AI Inbox ──────────────────────────────────────────────────
+const STAGE_LABELS = {
+    'new': { label: 'New', color: '#f5c842', bg: 'rgba(245,200,66,0.12)' },
+    'first-touch': { label: 'First Touch', color: '#60a5fa', bg: 'rgba(96,165,250,0.12)' },
+    'engaged': { label: 'Engaged', color: '#a78bfa', bg: 'rgba(167,139,250,0.12)' },
+    'rates-sent': { label: 'Rates Sent', color: '#f97316', bg: 'rgba(249,115,22,0.12)' },
+    'negotiating': { label: 'Negotiating', color: '#fb923c', bg: 'rgba(251,146,60,0.12)' },
+    'invoice-sent': { label: 'Invoice Sent', color: '#34d399', bg: 'rgba(52,211,153,0.12)' },
+    'done': { label: 'Done', color: '#6b7280', bg: 'rgba(107,114,128,0.12)' },
+};
+
+function getInboxItems() {
+    const all = Object.values(cardsData);
+    const replies = [], newLeads = [];
+    for (const c of all) {
+        if (c.newReplyAt) {
+            replies.push(c);
+        } else if (c.listId === 'new' && !c.movedAt) {
+            newLeads.push(c);
+        }
+    }
+    replies.sort((a,b) => new Date(b.newReplyAt).getTime() - new Date(a.newReplyAt).getTime());
+    newLeads.sort((a,b) => new Date(b.emailDate||b.createdAt||0).getTime() - new Date(a.emailDate||a.createdAt||0).getTime());
+    return { replies, newLeads };
+}
+
+function getActionLabel(card) {
+    if (card.listId === 'invoice-sent') return '💰 Chase payment';
+    if (card.listId === 'negotiating') return '🤝 Respond to counter';
+    if (card.listId === 'rates-sent') return '📩 Follow up on rates';
+    if (card.listId === 'engaged') return '💬 Keep conversation going';
+    if (card.listId === 'first-touch') return '✉️ Reply to intro';
+    if (card.listId === 'new') return '👀 Review new lead';
+    return '💬 Needs attention';
+}
+
+function getLastSnippet(card) {
+    const thread = Array.isArray(card.originalEmail) ? card.originalEmail : [];
+    if (!thread.length) return card.intent || '';
+    const last = thread[thread.length - 1];
+    return (last.body || last.snippet || '').replace(/\s+/g,' ').trim().slice(0, 160);
+}
+
+function renderAiInbox() {
+    const body = document.getElementById('ai-inbox-body');
+    const subtitle = document.getElementById('ai-inbox-subtitle');
+    if (!body) return;
+
+    const { replies, newLeads } = getInboxItems();
+    const total = replies.length + newLeads.length;
+
+    subtitle.textContent = total
+        ? `${total} item${total>1?'s':''} need${total===1?'s':''} your attention`
+        : 'All caught up';
+
+    // Update badge
+    const badge = document.getElementById('ai-inbox-badge');
+    if (badge) {
+        badge.textContent = total > 0 ? (total > 99 ? '99+' : total) : '';
+        badge.style.display = total > 0 ? 'block' : 'none';
+    }
+
+    if (!total) {
+        body.innerHTML = '<div class="inbox-empty">✅ All caught up — nothing needs attention right now.</div>';
+        return;
+    }
+
+    function makeItem(card, type) {
+        const stage = STAGE_LABELS[card.listId] || { label: card.listId, color: '#6b7280', bg: 'rgba(107,114,128,0.12)' };
+        const name = card.contactName || card.title || 'Unknown';
+        const co = card.businessName || '';
+        const snippet = getLastSnippet(card);
+        const action = getActionLabel(card);
+        const div = document.createElement('div');
+        div.className = 'inbox-item';
+        div.onclick = () => { openCardModal(card.id); };
+        div.innerHTML = `
+            <div class="inbox-item-top">
+                <div class="inbox-item-dot ${type}"></div>
+                <div class="inbox-item-name">${name}</div>
+                <div class="inbox-item-stage" style="color:${stage.color};background:${stage.bg};">${stage.label}</div>
+            </div>
+            ${co ? `<div class="inbox-item-co">${co}</div>` : ''}
+            <div class="inbox-item-action">${action}</div>
+            ${snippet ? `<div class="inbox-item-snippet">${snippet}</div>` : ''}
+        `;
+        return div;
+    }
+
+    body.innerHTML = '';
+
+    if (replies.length) {
+        const hdr = document.createElement('div');
+        hdr.className = 'inbox-section-hdr';
+        hdr.textContent = `💬 Replies — ${replies.length}`;
+        body.appendChild(hdr);
+        replies.forEach(c => body.appendChild(makeItem(c, 'reply')));
+    }
+
+    if (newLeads.length) {
+        const hdr = document.createElement('div');
+        hdr.className = 'inbox-section-hdr';
+        hdr.textContent = `✨ New Leads — ${newLeads.length}`;
+        body.appendChild(hdr);
+        newLeads.forEach(c => body.appendChild(makeItem(c, 'new')));
+    }
+}
+
+function toggleAiInbox() {
+    const panel = document.getElementById('ai-inbox-panel');
+    const open = panel.style.display === 'flex';
+    panel.style.display = open ? 'none' : 'flex';
+    document.getElementById('ai-inbox-btn').classList.toggle('active', !open);
+    if (!open) renderAiInbox();
+}
+window.toggleAiInbox = toggleAiInbox;
+
+function updateAiInboxBadge() {
+    const { replies, newLeads } = getInboxItems();
+    const total = replies.length + newLeads.length;
+    const badge = document.getElementById('ai-inbox-badge');
+    if (badge) {
+        badge.textContent = total > 0 ? (total > 99 ? '99+' : total) : '';
+        badge.style.display = total > 0 ? 'block' : 'none';
+    }
+}
+window.updateAiInboxBadge = updateAiInboxBadge;
 window.switchLogTab = switchLogTab;
 window.toggleListCollapse=toggleListCollapse;
 window.cycleGlobalSort=cycleGlobalSort;
