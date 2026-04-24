@@ -697,8 +697,12 @@ async def extract_all(
                 log.info(f"  Chunk {chunk_idx}: {written} new cards written to board.")
 
             # Mark as written so later chunks don't re-insert
-            for lead in new_leads:
-                existing_ids.add(str(lead.get("email_id", "")))
+            for card in cards:
+                eid = str(card.get("email_id", ""))
+                tid = str(card.get("gmail_thread_id", ""))
+                existing_ids.add(eid)
+                if tid:
+                    existing_thread_map[tid] = {"list_id": card.get("list_id", ""), "email_id": eid}
 
             total_extracted += len(leads)
             total_written   += written
