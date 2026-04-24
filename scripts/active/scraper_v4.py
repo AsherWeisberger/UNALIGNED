@@ -753,15 +753,17 @@ def build_card(lead: dict, original_email: dict, conversation: list[dict]) -> di
         "action": "imported from Gmail",
     }]
 
+    list_id = (
+        "rates-sent" if thread_has_reply(conversation) and has_pricing_signal(conversation, lead)
+        else "engaged"  if thread_has_reply(conversation)
+        else COLUMN_MAP.get(intent, "first-touch")
+    )
+
     return {
         "email_id":           lead.get("email_id", original_email.get("id", "")),
         "gmail_thread_id":    original_email.get("gmail_thread_id", ""),
         "title":              _clean(lead.get("title"), "No Subject"),
-        "list_id":            (
-            "rates-sent" if thread_has_reply(conversation) and has_pricing_signal(conversation, lead)
-            else "engaged"  if thread_has_reply(conversation)
-            else COLUMN_MAP.get(intent, "first-touch")
-        ),
+        "list_id":            list_id,
         "contact_name":       _clean(lead.get("name"), from_name) or from_name,
         "email":              _clean(lead.get("email_addr"), sender_email) or sender_email,
         "phone":              _clean(lead.get("phone"), ""),
@@ -782,7 +784,7 @@ def build_card(lead: dict, original_email: dict, conversation: list[dict]) -> di
         "owner":              "",
         "labels":             labels_list,
         "reply_hook":         _clean(lead.get("reply_hook"), ""),
-        "moved_at":           None,   # NULL = flashes gold until card is touched on the board
+        "moved_at":           None if list_id == "new" else datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
 
 
