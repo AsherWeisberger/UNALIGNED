@@ -2187,7 +2187,21 @@
         }
 
         /* ─── STALE INDICATORS ────────────────────────────── */
-        .card-new-reply { border-left: 3px solid #34d399 !important; }
+        .card-new-reply {
+            border-left-color: #34d399 !important;
+            border-color: rgba(52,211,153,0.28) !important;
+            animation: replyPulse 2.8s ease-in-out infinite;
+        }
+        @keyframes replyPulse {
+            0%,100% { box-shadow: 0 1px 3px rgba(0,0,0,0.3), 0 0 0px rgba(52,211,153,0); }
+            50%      { box-shadow: 0 1px 3px rgba(0,0,0,0.3), 0 0 18px 5px rgba(52,211,153,0.25), 0 0 6px 1px rgba(52,211,153,0.12); }
+        }
+        .card-new-reply:not(.dragging) { animation: replyPulse 2.8s ease-in-out infinite; }
+        @keyframes cardReturnFlash {
+            0%   { box-shadow: 0 0 0 3px rgba(255,200,50,0.9); }
+            100% { box-shadow: 0 0 0 0px rgba(255,200,50,0); }
+        }
+        .card-return-flash { animation: cardReturnFlash 1.2s ease-out forwards !important; }
         .card-assignee-sam    { border-top: 3px solid #764ba2 !important; }
         .card-assignee-robert { border-top: 3px solid #f5576c !important; }
         .card-assignee-asher  { border-top: 3px solid #4facfe !important; }
@@ -2578,7 +2592,7 @@
                 <!-- Status: sync dot + API cost -->
                 <div class="sync-indicator sync-connecting" id="sync-indicator" data-sync-indicator title="Connecting…">
                     <span class="sync-dot"></span>
-                    <span data-sync-text>Connecting…</span>
+                    <span data-sync-text>Connecting…</span><span data-sync-time style="opacity:0.6;margin-left:2px;"></span>
                 </div>
                 <div id="api-cost-widget" title="Total Claude API spend since project start" style="font-size:11px;font-family:var(--font-mono);color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 9px;white-space:nowrap;cursor:default;">
                     🤖 <span id="api-cost-total">…</span>
@@ -2643,7 +2657,7 @@
         <div class="sync-warning" id="sync-warning" role="alert" aria-live="polite"></div>
         <div class="sync-indicator sync-connecting sync-indicator-floating" id="sync-indicator-floating" data-sync-indicator title="Connecting…">
             <span class="sync-dot"></span>
-            <span data-sync-text>Connecting…</span>
+            <span data-sync-text>Connecting…</span><span data-sync-time style="opacity:0.6;margin-left:2px;"></span>
         </div>
 
         <main>
@@ -3693,11 +3707,16 @@ function renderSyncState() {
     const warning = document.getElementById('sync-warning');
     const classMap = { connecting:'sync-connecting', saving:'sync-saving', synced:'sync-synced', error:'sync-error' };
     const labelMap = { connecting:'Connecting…', saving:'Saving…', synced:'Synced', error:'Offline' };
+    const timeStr = syncState.lastSyncedAt
+        ? '· ' + new Date(syncState.lastSyncedAt).toLocaleTimeString([], { hour:'numeric', minute:'2-digit' })
+        : '';
     indicators.forEach(el => {
         ['sync-connecting','sync-saving','sync-synced','sync-error'].forEach(c => el.classList.remove(c));
         el.classList.add(classMap[syncState.status] || 'sync-connecting');
         const textEl = el.querySelector('[data-sync-text]');
         if (textEl) textEl.textContent = labelMap[syncState.status] || 'Connecting…';
+        const timeEl = el.querySelector('[data-sync-time]');
+        if (timeEl) timeEl.textContent = syncState.status === 'synced' ? timeStr : '';
     });
     if (!warning) return;
     if (syncState.status === 'error') { warning.textContent = syncState.errorMessage; warning.classList.add('visible'); }
@@ -4021,6 +4040,9 @@ const _sortFns = {
         if (window._globalSort === 'az') return (a.contactName||a.title||'').localeCompare(b.contactName||b.title||'');
         if (window._globalSort === 'value') { const pv=s=>parseFloat(String(s||'').replace(/[^0-9.]/g,''))||0; return pv(b.estimatedValue)-pv(a.estimatedValue); }
         if (window._globalSort === 'reply') { const ar=a.newReplyAt?new Date(a.newReplyAt).getTime():0,br=b.newReplyAt?new Date(b.newReplyAt).getTime():0; if(ar&&!br)return -1;if(!ar&&br)return 1;if(ar&&br)return br-ar; return new Date(b.emailDate||b.createdAt||0).getTime()-new Date(a.emailDate||a.createdAt||0).getTime(); }
+        // Default: new-reply cards always float to top, then by date
+        const ar=a.newReplyAt?new Date(a.newReplyAt).getTime():0, br=b.newReplyAt?new Date(b.newReplyAt).getTime():0;
+        if(ar&&!br)return -1; if(!ar&&br)return 1; if(ar&&br)return br-ar;
         const at=new Date(a?.emailDate||a?.createdAt||0).getTime(),bt=new Date(b?.emailDate||b?.createdAt||0).getTime(); return bt-at;
     }
 };
@@ -5630,12 +5652,22 @@ function saveCardAndClose() {
 
 function closeCardModal(event) {
     if (!event || event.target===document.getElementById('card-modal-overlay')) {
+        const lastId = currentEditingCard;
         document.getElementById('card-modal-overlay').classList.remove('active');
         document.getElementById('card-modal-overlay').style.display='none';
         document.getElementById('card-modal').style.display='none';
         document.getElementById('card-modal').classList.remove('active');
         currentEditingCard=null; currentEditingCardData=null;
         updateBoardScrollBtns();
+        // Scroll back to the card and flash it so you can find your place
+        if (lastId) {
+            const el = document.querySelector(`.card[data-card-id="${lastId}"]`);
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+                el.classList.add('card-return-flash');
+                setTimeout(() => el.classList.remove('card-return-flash'), 1300);
+            }
+        }
     }
 }
 
