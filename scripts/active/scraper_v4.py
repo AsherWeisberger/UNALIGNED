@@ -172,7 +172,7 @@ def _parse_date_display(raw_date: str) -> str:
         return ""
     try:
         dt = parsedate_to_datetime(raw_date)
-        return dt.astimezone(timezone.utc).strftime("%b %d, %Y")
+        return dt.astimezone(timezone.utc).strftime("%b %d, %Y %I:%M %p")
     except Exception:
         match = re.search(r"\d{1,2}\s+\w+\s+\d{4}", raw_date)
         if match:
@@ -188,7 +188,7 @@ def _parse_date_iso(raw_date: str) -> str:
         return ""
     try:
         dt = parsedate_to_datetime(raw_date)
-        return dt.astimezone(timezone.utc).strftime("%Y-%m-%d")
+        return dt.astimezone(timezone.utc).isoformat()
     except Exception:
         return ""
 

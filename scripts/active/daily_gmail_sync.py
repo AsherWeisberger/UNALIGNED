@@ -12,7 +12,8 @@ import re
 import time
 import pickle
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 
 # ─── LOGGING ────────────────────────────────────────────────────────────────
 _LOG_FILE = os.path.expanduser('~/.config/google-credentials/daily_sync.log')
@@ -161,6 +162,15 @@ def decode_body(payload):
         except: pass
     return body
 
+def _parse_rfc_date(raw: str) -> str:
+    """Convert RFC 2822 date header to ISO 8601 so JS new Date() gets the time too."""
+    if not raw:
+        return ''
+    try:
+        return parsedate_to_datetime(raw).astimezone(timezone.utc).isoformat()
+    except Exception:
+        return raw
+
 def format_gmail_email(msg):
     """Convert Gmail message to our email format."""
     headers = {}
@@ -178,7 +188,7 @@ def format_gmail_email(msg):
         'from': from_name or email_addr,
         'email': email_addr,
         'subject': headers.get('subject', ''),
-        'date': headers.get('date', ''),
+        'date': _parse_rfc_date(headers.get('date', '')),
         'body': body[:2000],
         'snippet': msg.get('snippet', ''),
         'gmail_thread_id': msg.get('threadId', ''),
