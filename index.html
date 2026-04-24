@@ -2235,6 +2235,11 @@
         .cv-section-hdr:first-child { border-top:none; margin-top:0; }
         .cv-reply-dot { width:7px; height:7px; border-radius:50%; background:#34d399; box-shadow:0 0 5px rgba(52,211,153,0.7); flex-shrink:0; }
         .cv-camp-section-hdr { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); padding:6px 4px 3px; border-bottom:1px solid var(--border); margin-bottom:2px; display:flex; align-items:center; gap:6px; }
+        .cv-camp-actions { display:flex; align-items:center; gap:5px; margin-top:7px; }
+        .cv-stage-select { background:var(--surface); border:1px solid var(--border); border-radius:5px; color:var(--text); font-size:11px; padding:3px 6px; cursor:pointer; outline:none; flex:1; min-width:0; }
+        .cv-stage-select:focus { border-color:var(--accent); }
+        .cv-del-btn { background:none; border:1px solid var(--border); border-radius:5px; color:var(--muted); font-size:11px; padding:3px 7px; cursor:pointer; flex-shrink:0; transition:background 0.15s,color 0.15s,border-color 0.15s; }
+        .cv-del-btn:hover { background:rgba(239,68,68,0.12); border-color:rgba(239,68,68,0.4); color:#ef4444; }
         .cv-reply-banner { background:rgba(52,211,153,0.08); border:1px solid rgba(52,211,153,0.3); border-radius:8px; padding:10px 14px; display:flex; align-items:center; gap:10px; font-size:13px; color:#34d399; font-weight:600; }
         .cv-reply-banner-dot { width:9px; height:9px; border-radius:50%; background:#34d399; box-shadow:0 0 8px rgba(52,211,153,0.8); flex-shrink:0; animation:replyPulse 2s infinite; }
         .cv-company-list { flex:1; overflow-y:auto; }
@@ -8810,6 +8815,11 @@ function renderCvMiddle() {
             const contact    = card.contactName || card.title || 'Unknown';
             const hasReply   = !!card.newReplyAt;
             const isSelected = card.id === _cvSelectedCardId;
+
+            const stageOptions = boardConfig.map(l =>
+                `<option value="${l.id}" ${l.id === card.listId ? 'selected' : ''}>${l.title}</option>`
+            ).join('');
+
             const row = document.createElement('div');
             row.className = 'cv-camp-row' + (isSelected ? ' selected' : '') + (hasReply ? ' has-reply' : '');
             row.id = 'cv-camp-row-' + card.id;
@@ -8818,6 +8828,10 @@ function renderCvMiddle() {
                 <span class="cv-camp-stage" style="border-color:${stageColor}55;color:${stageColor};">${escapeHtml(stageName)}</span>
                 ${card.email ? `<div class="cv-camp-email">${escapeHtml(card.email)}</div>` : ''}
                 ${card.emailDate ? `<div class="cv-camp-date">${fmtEmailDate(card.emailDate)}</div>` : ''}
+                <div class="cv-camp-actions" onclick="event.stopPropagation()">
+                    <select class="cv-stage-select" onchange="cvMoveCard(${card.id}, this.value)">${stageOptions}</select>
+                    <button class="cv-del-btn" onclick="cvDeleteCampaign(${card.id})" title="Move to Dead Leads">✕ Dead</button>
+                </div>
             `;
             row.addEventListener('click', () => selectCvCampaign(card.id));
             list.appendChild(row);
@@ -8837,6 +8851,31 @@ function selectCvCampaign(cardId) {
     renderCvDetail();
 }
 window.selectCvCampaign = selectCvCampaign;
+
+function cvMoveCard(cardId, newListId) {
+    if (!newListId || !cardsData[cardId]) return;
+    moveCardToList(cardId, newListId);
+    // Refresh companies view after board state updates
+    setTimeout(() => {
+        _cvGroups = _cvBuildGroups();
+        renderCvLeft(document.getElementById('cv-search')?.value || '');
+        renderCvMiddle();
+        if (_cvSelectedCardId === cardId) renderCvDetail();
+    }, 300);
+}
+window.cvMoveCard = cvMoveCard;
+
+function cvDeleteCampaign(cardId) {
+    moveCardToList(cardId, 'dead-leads');
+    if (_cvSelectedCardId === cardId) { _cvSelectedCardId = null; }
+    setTimeout(() => {
+        _cvGroups = _cvBuildGroups();
+        renderCvLeft(document.getElementById('cv-search')?.value || '');
+        renderCvMiddle();
+        renderCvDetail();
+    }, 300);
+}
+window.cvDeleteCampaign = cvDeleteCampaign;
 
 function renderCvDetail() {
     const detail = document.getElementById('cv-detail');
@@ -8889,8 +8928,10 @@ function renderCvDetail() {
                 ${card.emailDate ? `<div class="cv-detail-meta-item">📅 <strong>${fmtEmailDate(card.emailDate)}</strong></div>` : ''}
                 ${card.leadSource ? `<div class="cv-detail-meta-item">📌 <strong>${escapeHtml(card.leadSource)}</strong></div>` : ''}
             </div>
-            <div class="cv-detail-actions">
+            <div class="cv-detail-actions" onclick="event.stopPropagation()">
                 <button class="cv-open-btn" onclick="openCardModal(${card.id})">Open Full Card →</button>
+                <select class="cv-stage-select" style="flex:none;width:auto;font-size:12px;padding:6px 10px;" onchange="cvMoveCard(${card.id}, this.value)">${boardConfig.map(l=>`<option value="${l.id}" ${l.id===card.listId?'selected':''}>${l.title}</option>`).join('')}</select>
+                <button class="cv-del-btn" style="padding:6px 12px;font-size:12px;" onclick="cvDeleteCampaign(${card.id})" title="Move to Dead Leads">✕ Dead</button>
             </div>
             ${card.description ? `<div><div class="cv-thread-title">Notes</div><div class="cv-desc-box">${escapeHtml(card.description)}</div></div>` : ''}
             <div>
