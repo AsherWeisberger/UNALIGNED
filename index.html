@@ -2224,7 +2224,7 @@
         .inbox-empty { text-align: center; color: var(--muted); font-size: 13px; padding: 40px 20px; }
 
         /* ── Companies Tree View ── */
-        #companies-view { display:none; flex:1; min-height:0; overflow-y:auto; padding:24px 32px; background:var(--bg); }
+        #companies-view { display:none; width:100%; min-height:0; overflow-y:auto; padding:24px 32px; background:var(--bg); box-sizing:border-box; }
         #companies-view .cv-toolbar { display:flex; align-items:center; gap:12px; margin-bottom:20px; }
         #companies-view .cv-toolbar h2 { font-size:18px; font-weight:700; color:var(--text); margin:0; flex:1; }
         #companies-view .cv-toolbar span { font-size:13px; color:var(--muted); }
@@ -8633,8 +8633,11 @@ function toggleCompaniesView() {
     const panel = document.getElementById('companies-view');
     const btn = document.getElementById('companies-view-btn');
     const boardWrap = document.querySelector('.board-scroll-wrap');
-    panel.style.display = _companiesViewOpen ? 'flex' : 'none';
+    panel.style.display = _companiesViewOpen ? 'block' : 'none';
     if (boardWrap) boardWrap.style.display = _companiesViewOpen ? 'none' : '';
+    // Also hide table view if open
+    const tvFilters = document.getElementById('tv-filters');
+    if (tvFilters && _companiesViewOpen) tvFilters.style.display = 'none';
     btn.classList.toggle('active', _companiesViewOpen);
     if (_companiesViewOpen) renderCompaniesTree();
 }
