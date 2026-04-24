@@ -2222,6 +2222,45 @@
         .inbox-item-snippet { font-size: 11px; color: var(--muted2, var(--muted)); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         .inbox-section-hdr { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); padding: 4px 2px 2px; margin-top: 4px; }
         .inbox-empty { text-align: center; color: var(--muted); font-size: 13px; padding: 40px 20px; }
+
+        /* ── Companies Tree View ── */
+        #companies-view { display:none; flex:1; min-height:0; overflow-y:auto; padding:24px 32px; background:var(--bg); }
+        #companies-view .cv-toolbar { display:flex; align-items:center; gap:12px; margin-bottom:20px; }
+        #companies-view .cv-toolbar h2 { font-size:18px; font-weight:700; color:var(--text); margin:0; flex:1; }
+        #companies-view .cv-toolbar span { font-size:13px; color:var(--muted); }
+        #companies-view .cv-search { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:7px 12px; color:var(--text); font-size:13px; width:220px; outline:none; }
+        #companies-view .cv-search:focus { border-color:var(--accent); }
+        .cv-grid { display:flex; flex-direction:column; gap:6px; }
+        .cv-company { background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; transition:border-color 0.15s; }
+        .cv-company:hover { border-color:var(--border2); }
+        .cv-company.expanded { border-color:rgba(91,140,255,0.35); }
+        .cv-company.has-reply { border-left:3px solid #34d399; }
+        .cv-company.has-new { border-left:3px solid #f5c842; }
+        .cv-company-header { display:flex; align-items:center; gap:12px; padding:14px 16px; cursor:pointer; user-select:none; }
+        .cv-company-header:hover { background:rgba(255,255,255,0.02); }
+        .cv-company-left { flex:1; min-width:0; }
+        .cv-company-name { font-size:15px; font-weight:700; color:var(--text); margin-bottom:5px; }
+        .cv-contacts { display:flex; flex-wrap:wrap; gap:4px; }
+        .cv-contact-chip { font-size:11px; color:var(--muted2); background:rgba(255,255,255,0.05); border-radius:4px; padding:2px 7px; white-space:nowrap; }
+        .cv-company-right { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+        .cv-value { font-size:12px; font-weight:700; color:#34d399; font-family:var(--font-mono); }
+        .cv-count { font-size:11px; font-weight:700; color:var(--accent); background:rgba(91,140,255,0.12); border-radius:4px; padding:2px 8px; }
+        .cv-chevron { font-size:12px; color:var(--muted); transition:transform 0.2s; }
+        .cv-company.expanded .cv-chevron { transform:rotate(90deg); }
+        .cv-campaigns { border-top:1px solid var(--border); padding:12px; display:flex; flex-direction:column; gap:8px; }
+        .cv-campaign-card { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:12px 14px; cursor:pointer; transition:border-color 0.15s, background 0.15s; }
+        .cv-campaign-card:hover { border-color:var(--accent); background:rgba(91,140,255,0.04); }
+        .cv-campaign-card.has-reply { border-left:3px solid #34d399; }
+        .cv-campaign-top { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:4px; }
+        .cv-campaign-contact { font-size:13px; font-weight:700; color:var(--text); }
+        .cv-stage-pill { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; border:1px solid; border-radius:999px; padding:2px 8px; flex-shrink:0; }
+        .cv-campaign-email { font-size:11px; color:var(--muted); font-family:var(--font-mono); margin-bottom:4px; }
+        .cv-campaign-snippet { font-size:12px; color:var(--muted2); line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+        .cv-campaign-footer { display:flex; align-items:center; justify-content:space-between; margin-top:8px; font-size:11px; font-family:var(--font-mono); }
+        .cv-campaign-value { color:#34d399; font-weight:700; }
+        .cv-campaign-date { color:var(--muted); }
+        .cv-empty { text-align:center; color:var(--muted); padding:60px 20px; font-size:14px; }
+
         .card-assignee-sam    { border-top: 3px solid #764ba2 !important; }
         .card-assignee-robert { border-top: 3px solid #f5576c !important; }
         .card-assignee-asher  { border-top: 3px solid #4facfe !important; }
@@ -2627,6 +2666,9 @@
                     <button class="dt-btn" id="dt-btn-relationship" onclick="setDealTypeFilter('relationship')">Network</button>
                 </span>
 
+                <!-- Companies Tree View -->
+                <button class="view-toggle" id="companies-view-btn" onclick="toggleCompaniesView()" title="Companies — see all companies and their campaigns" style="padding:6px 12px;font-weight:600;">🏢 Companies</button>
+
                 <!-- AI Inbox -->
                 <button class="view-toggle" id="ai-inbox-btn" onclick="toggleAiInbox()" title="AI Inbox — replies and new leads needing attention" style="padding:6px 12px;position:relative;font-weight:600;">
                     📬 Inbox
@@ -2772,6 +2814,16 @@
                             Add list
                         </button>
                     </section>
+                </div>
+
+                <!-- ── Companies Tree View Panel ── -->
+                <div id="companies-view">
+                    <div class="cv-toolbar">
+                        <h2>🏢 Companies</h2>
+                        <span id="cv-summary"></span>
+                        <input class="cv-search" id="cv-search" type="text" placeholder="Search company…" oninput="filterCompaniesTree(this.value)">
+                    </div>
+                    <div class="cv-grid" id="cv-grid"></div>
                 </div>
 
                 <!-- ── Table Filters — sticky bar, must be outside overflow-x container ── -->
@@ -8572,6 +8624,135 @@ function renderAiInbox() {
         newLeads.forEach(c => body.appendChild(makeItem(c, 'new')));
     }
 }
+
+// ── Companies Tree View ────────────────────────────────────────────────────
+let _companiesViewOpen = false;
+
+function toggleCompaniesView() {
+    _companiesViewOpen = !_companiesViewOpen;
+    const panel = document.getElementById('companies-view');
+    const btn = document.getElementById('companies-view-btn');
+    const boardWrap = document.querySelector('.board-scroll-wrap');
+    panel.style.display = _companiesViewOpen ? 'flex' : 'none';
+    if (boardWrap) boardWrap.style.display = _companiesViewOpen ? 'none' : '';
+    btn.classList.toggle('active', _companiesViewOpen);
+    if (_companiesViewOpen) renderCompaniesTree();
+}
+window.toggleCompaniesView = toggleCompaniesView;
+
+function _normalizeCoKey(str) {
+    return (str || '').toLowerCase().trim();
+}
+
+function renderCompaniesTree(filterStr) {
+    const groups = new Map();
+    for (const card of Object.values(cardsData)) {
+        const key = _normalizeCoKey(card.businessName || card.title || '');
+        if (!key) continue;
+        if (!groups.has(key)) groups.set(key, { displayName: card.businessName || card.title || 'Unknown', campaigns: [] });
+        groups.get(key).campaigns.push(card);
+    }
+
+    const stagePri = ['negotiating','invoice-sent','rates-sent','engaged','first-touch','new','done','paid-out','dead-leads'];
+    const sorted = Array.from(groups.values()).sort((a,b) => {
+        // Sort: multi-campaign first, then by highest stage, then alpha
+        if (b.campaigns.length !== a.campaigns.length) return b.campaigns.length - a.campaigns.length;
+        const aBest = Math.min(...a.campaigns.map(c => { const i = stagePri.indexOf(c.listId); return i < 0 ? 99 : i; }));
+        const bBest = Math.min(...b.campaigns.map(c => { const i = stagePri.indexOf(c.listId); return i < 0 ? 99 : i; }));
+        return aBest - bBest || a.displayName.localeCompare(b.displayName);
+    });
+
+    const f = (filterStr || '').toLowerCase().trim();
+    const visible = f ? sorted.filter(g => g.displayName.toLowerCase().includes(f) || g.campaigns.some(c => (c.contactName||'').toLowerCase().includes(f))) : sorted;
+
+    const grid = document.getElementById('cv-grid');
+    grid.innerHTML = '';
+
+    const summary = document.getElementById('cv-summary');
+    if (summary) summary.textContent = `${visible.length} companies · ${visible.reduce((s,g)=>s+g.campaigns.length,0)} campaigns`;
+
+    if (visible.length === 0) {
+        grid.innerHTML = '<div class="cv-empty">No companies match your search.</div>';
+        return;
+    }
+
+    for (const group of visible) {
+        const key = group.displayName.replace(/[^a-z0-9]/gi,'').toLowerCase();
+        const hasReply = group.campaigns.some(c => c.newReplyAt);
+        const hasNew   = group.campaigns.some(c => !c.movedAt && c.listId === 'new');
+        const totalVal = group.campaigns.reduce((s,c) => s+(parseFloat(c.estimatedValue)||0), 0);
+        const valHtml  = totalVal > 0 ? `<span class="cv-value">${fmtCardValue(totalVal)}</span>` : '';
+
+        const chips = group.campaigns.map(c => {
+            const name = c.contactName || c.title || '?';
+            return `<span class="cv-contact-chip">${escapeHtml(name)}</span>`;
+        }).join('');
+
+        const div = document.createElement('div');
+        div.className = 'cv-company' + (hasReply ? ' has-reply' : '') + (hasNew ? ' has-new' : '');
+        div.id = 'cv-company-' + key;
+        div.innerHTML = `
+            <div class="cv-company-header" onclick="toggleCompanyExpand('${key}')">
+                <div class="cv-company-left">
+                    <div class="cv-company-name">${escapeHtml(group.displayName)}</div>
+                    <div class="cv-contacts">${chips}</div>
+                </div>
+                <div class="cv-company-right">
+                    ${valHtml}
+                    ${group.campaigns.length > 1 ? `<span class="cv-count">${group.campaigns.length}</span>` : ''}
+                    <span class="cv-chevron">▸</span>
+                </div>
+            </div>
+            <div class="cv-campaigns" id="cv-campaigns-${key}" style="display:none;">
+                ${group.campaigns.map(c => _buildCvCampaignCard(c)).join('')}
+            </div>
+        `;
+        grid.appendChild(div);
+    }
+}
+
+function _buildCvCampaignCard(card) {
+    const stageConf = boardConfig.find(l => l.id === card.listId);
+    const stageName  = stageConf?.title || card.listId;
+    const stageColor = stageConf?.color || '#5b8cff';
+    const contact    = card.contactName || card.title || 'Unknown';
+    const email      = card.email || '';
+    const val        = card.estimatedValue ? fmtCardValue(card.estimatedValue) : '';
+    const date       = card.emailDate ? fmtEmailDate(card.emailDate) : '';
+    const snippet    = (card.description || '').slice(0, 140);
+    const replyClass = card.newReplyAt ? ' has-reply' : '';
+    return `
+        <div class="cv-campaign-card${replyClass}" onclick="openCardModal(${card.id})">
+            <div class="cv-campaign-top">
+                <span class="cv-campaign-contact">${escapeHtml(contact)}</span>
+                <span class="cv-stage-pill" style="border-color:${stageColor}55;color:${stageColor};">${escapeHtml(stageName)}</span>
+            </div>
+            ${email ? `<div class="cv-campaign-email">${escapeHtml(email)}</div>` : ''}
+            ${snippet ? `<div class="cv-campaign-snippet">${escapeHtml(snippet)}</div>` : ''}
+            <div class="cv-campaign-footer">
+                <span class="cv-campaign-value">${val ? '$'+val : ''}</span>
+                <span class="cv-campaign-date">${escapeHtml(date)}</span>
+            </div>
+        </div>
+    `;
+}
+
+function toggleCompanyExpand(key) {
+    const campaigns = document.getElementById('cv-campaigns-' + key);
+    const company   = document.getElementById('cv-company-' + key);
+    if (!campaigns || !company) return;
+    const isOpen = campaigns.style.display !== 'none';
+    campaigns.style.display = isOpen ? 'none' : 'flex';
+    campaigns.style.flexDirection = 'column';
+    company.classList.toggle('expanded', !isOpen);
+}
+window.toggleCompanyExpand = toggleCompanyExpand;
+
+function filterCompaniesTree(val) {
+    renderCompaniesTree(val);
+}
+window.filterCompaniesTree = filterCompaniesTree;
+// ── End Companies Tree View ────────────────────────────────────────────────
 
 function toggleAiInbox() {
     const panel = document.getElementById('ai-inbox-panel');
