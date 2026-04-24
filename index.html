@@ -2291,6 +2291,28 @@
         .cv-desc-box { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:12px 14px; font-size:13px; color:var(--muted2); line-height:1.55; }
         .cv-reply-banner { background:rgba(52,211,153,0.08); border:1px solid rgba(52,211,153,0.3); border-radius:8px; padding:10px 14px; display:flex; align-items:center; gap:10px; font-size:13px; color:#34d399; font-weight:600; }
         .cv-reply-banner-dot { width:8px; height:8px; border-radius:50%; background:#34d399; box-shadow:0 0 7px rgba(52,211,153,0.8); flex-shrink:0; animation:replyPulse 2s infinite; }
+        /* Full detail expanded view */
+        .cv-left, .cv-middle { transition:width 0.22s cubic-bezier(0.4,0,0.2,1), opacity 0.18s; }
+        .cv-left.cv-collapsed, .cv-middle.cv-collapsed { width:0 !important; opacity:0; overflow:hidden; }
+        .cv-full-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 20px; border-bottom:1px solid var(--border); background:var(--surface); flex-shrink:0; }
+        .cv-back-btn { background:none; border:1px solid var(--border); border-radius:6px; color:var(--muted); font-size:12px; padding:5px 12px; cursor:pointer; display:flex; align-items:center; gap:5px; }
+        .cv-back-btn:hover { border-color:var(--accent); color:var(--text); }
+        .cv-full-body { flex:1; overflow-y:auto; padding:24px 32px; display:flex; flex-direction:column; gap:18px; }
+        .cv-full-inner { max-width:760px; display:flex; flex-direction:column; gap:18px; }
+        .cv-full-contact { display:flex; align-items:center; gap:16px; }
+        .cv-full-avatar { width:52px; height:52px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:22px; font-weight:700; flex-shrink:0; }
+        .cv-full-name { font-size:22px; font-weight:700; color:var(--text); }
+        .cv-full-sub { font-size:13px; color:var(--muted); margin-top:3px; }
+        .cv-full-section-title { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); margin-bottom:8px; }
+        .cv-full-msg { background:var(--surface2); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+        .cv-full-msg-hdr { display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:10px 14px 8px; border-bottom:1px solid var(--border); background:var(--surface); }
+        .cv-full-msg-from { font-size:12px; font-weight:700; color:var(--text); }
+        .cv-full-msg-date { font-size:10px; color:var(--muted); font-family:var(--font-mono); flex-shrink:0; }
+        .cv-full-msg-body { padding:12px 14px; font-size:13px; color:var(--muted2); line-height:1.6; white-space:pre-wrap; word-break:break-word; }
+        .cv-notes-area { width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; color:var(--text); font-size:13px; line-height:1.55; resize:vertical; min-height:80px; font-family:inherit; box-sizing:border-box; outline:none; }
+        .cv-notes-area:focus { border-color:var(--accent); }
+        .cv-notes-save-btn { background:var(--accent); color:#fff; border:none; border-radius:6px; padding:6px 14px; font-size:12px; font-weight:600; cursor:pointer; align-self:flex-end; }
+        .cv-notes-save-btn:hover { opacity:0.85; }
 
         .card-assignee-sam    { border-top: 3px solid #764ba2 !important; }
         .card-assignee-robert { border-top: 3px solid #f5576c !important; }
@@ -8868,6 +8890,7 @@ window.cvMoveCard = cvMoveCard;
 function cvDeleteCampaign(cardId) {
     moveCardToList(cardId, 'dead-leads');
     if (_cvSelectedCardId === cardId) { _cvSelectedCardId = null; }
+    cvCloseFullDetail();
     setTimeout(() => {
         _cvGroups = _cvBuildGroups();
         renderCvLeft(document.getElementById('cv-search')?.value || '');
@@ -8876,6 +8899,115 @@ function cvDeleteCampaign(cardId) {
     }, 300);
 }
 window.cvDeleteCampaign = cvDeleteCampaign;
+
+function cvOpenFullDetail(cardId) {
+    _cvSelectedCardId = cardId;
+    const card = cardsData[cardId];
+    if (!card) return;
+
+    // Collapse left + middle to give full width to detail
+    document.querySelector('.cv-left')?.classList.add('cv-collapsed');
+    document.querySelector('.cv-middle')?.classList.add('cv-collapsed');
+
+    const sc       = boardConfig.find(l => l.id === card.listId);
+    const stageName  = sc?.title || card.listId;
+    const stageColor = sc?.color || '#5b8cff';
+    const contact    = card.contactName || card.title || '?';
+    const company    = card.businessName || '';
+
+    const palettes = [
+        {bg:'rgba(91,140,255,0.22)',color:'#5b8cff'},{bg:'rgba(52,211,153,0.22)',color:'#34d399'},
+        {bg:'rgba(251,191,36,0.22)',color:'#fbbf24'},{bg:'rgba(168,85,247,0.22)',color:'#a78bfa'},
+        {bg:'rgba(248,113,113,0.22)',color:'#f87171'},{bg:'rgba(99,179,237,0.22)',color:'#63b3ed'},
+    ];
+    let h=0; for (const ch of contact) h=(h*31+ch.charCodeAt(0))>>>0;
+    const pal = palettes[h % palettes.length];
+
+    const emails = Array.isArray(card.originalEmail) ? card.originalEmail : (card.originalEmail ? [card.originalEmail] : []);
+    const fullThreadHtml = emails.length > 0
+        ? emails.map(em => {
+            const body = (em.body || em.snippet || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            const from = escapeHtml(em.from || em.email || '?');
+            let dateStr = '';
+            if (em.date) { try { const d=new Date(em.date); dateStr=isNaN(d)?em.date:d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}); } catch(e){dateStr=em.date;} }
+            return `<div class="cv-full-msg"><div class="cv-full-msg-hdr"><span class="cv-full-msg-from">${from}</span><span class="cv-full-msg-date">${escapeHtml(dateStr)}</span></div><div class="cv-full-msg-body">${body}</div></div>`;
+        }).join('')
+        : '<div style="color:var(--muted);font-size:13px;padding:16px 0;">No email thread on file.</div>';
+
+    const stageOpts = boardConfig.map(l=>`<option value="${l.id}"${l.id===card.listId?' selected':''}>${l.title}</option>`).join('');
+
+    const detail = document.getElementById('cv-detail');
+    // Replace detail with a flex-column full-height layout
+    detail.style.padding = '0';
+    detail.style.gap = '0';
+    detail.innerHTML = `
+        <!-- Top bar -->
+        <div class="cv-full-bar">
+            <button class="cv-back-btn" onclick="cvCloseFullDetail()">← Back</button>
+            <div style="display:flex;align-items:center;gap:8px;" onclick="event.stopPropagation()">
+                ${card.newReplyAt ? `<span style="color:#34d399;font-size:12px;font-weight:700;">⚡ Needs Reply</span>` : ''}
+                <select class="cv-stage-select" style="font-size:12px;padding:5px 10px;" onchange="cvMoveCard(${card.id},this.value)">${stageOpts}</select>
+                <button class="cv-del-btn" style="padding:5px 12px;" onclick="cvDeleteCampaign(${card.id})">✕ Dead</button>
+            </div>
+        </div>
+        <!-- Scrollable body -->
+        <div class="cv-full-body">
+            <div class="cv-full-inner">
+                ${card.newReplyAt ? `<div class="cv-reply-banner"><span class="cv-reply-banner-dot"></span> They replied — this needs your response</div>` : ''}
+                <!-- Contact header -->
+                <div class="cv-full-contact">
+                    <div class="cv-full-avatar" style="background:${pal.bg};color:${pal.color};">${escapeHtml(contact.charAt(0).toUpperCase())}</div>
+                    <div>
+                        <div class="cv-full-name">${escapeHtml(contact)}</div>
+                        <div class="cv-full-sub">${escapeHtml(company)} &nbsp;·&nbsp; <span style="color:${stageColor};font-weight:700;">${escapeHtml(stageName)}</span></div>
+                    </div>
+                </div>
+                <!-- Metadata -->
+                <div class="cv-detail-meta">
+                    ${card.email ? `<div class="cv-detail-meta-item">✉ <strong>${escapeHtml(card.email)}</strong></div>` : ''}
+                    ${card.estimatedValue ? `<div class="cv-detail-meta-item">💰 <strong style="color:#34d399;">$${fmtCardValue(card.estimatedValue)}</strong></div>` : ''}
+                    ${card.emailDate ? `<div class="cv-detail-meta-item">📅 <strong>${fmtEmailDate(card.emailDate)}</strong></div>` : ''}
+                    ${card.leadSource ? `<div class="cv-detail-meta-item">📌 <strong>${escapeHtml(card.leadSource)}</strong></div>` : ''}
+                    ${card.intent ? `<div class="cv-detail-meta-item">🎯 <strong>${escapeHtml(card.intent)}</strong></div>` : ''}
+                </div>
+                <!-- Notes -->
+                <div>
+                    <div class="cv-full-section-title">Notes</div>
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                        <textarea class="cv-notes-area" id="cv-notes-area-${card.id}" placeholder="Add notes…">${escapeHtml(card.description||'')}</textarea>
+                        <button class="cv-notes-save-btn" onclick="cvSaveNotes(${card.id})">Save Notes</button>
+                    </div>
+                </div>
+                <!-- Full email thread -->
+                <div>
+                    <div class="cv-full-section-title">Email Thread &nbsp;<span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;">(${emails.length} message${emails.length!==1?'s':''})</span></div>
+                    <div style="display:flex;flex-direction:column;gap:8px;">${fullThreadHtml}</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+window.cvOpenFullDetail = cvOpenFullDetail;
+
+function cvCloseFullDetail() {
+    document.querySelector('.cv-left')?.classList.remove('cv-collapsed');
+    document.querySelector('.cv-middle')?.classList.remove('cv-collapsed');
+    const detail = document.getElementById('cv-detail');
+    detail.style.padding = '';
+    detail.style.gap = '';
+    renderCvDetail();
+}
+window.cvCloseFullDetail = cvCloseFullDetail;
+
+function cvSaveNotes(cardId) {
+    const ta = document.getElementById('cv-notes-area-' + cardId);
+    if (!ta || !cardsData[cardId]) return;
+    cardsData[cardId].description = ta.value;
+    saveBoardState();
+    ta.style.borderColor = '#34d399';
+    setTimeout(() => { if (ta) ta.style.borderColor = ''; }, 1200);
+}
+window.cvSaveNotes = cvSaveNotes;
 
 function renderCvDetail() {
     const detail = document.getElementById('cv-detail');
@@ -8929,7 +9061,7 @@ function renderCvDetail() {
                 ${card.leadSource ? `<div class="cv-detail-meta-item">📌 <strong>${escapeHtml(card.leadSource)}</strong></div>` : ''}
             </div>
             <div class="cv-detail-actions" onclick="event.stopPropagation()">
-                <button class="cv-open-btn" onclick="openCardModal(${card.id})">Open Full Card →</button>
+                <button class="cv-open-btn" onclick="cvOpenFullDetail(${card.id})">Open Full Card →</button>
                 <select class="cv-stage-select" style="flex:none;width:auto;font-size:12px;padding:6px 10px;" onchange="cvMoveCard(${card.id}, this.value)">${boardConfig.map(l=>`<option value="${l.id}" ${l.id===card.listId?'selected':''}>${l.title}</option>`).join('')}</select>
                 <button class="cv-del-btn" style="padding:6px 12px;font-size:12px;" onclick="cvDeleteCampaign(${card.id})" title="Move to Dead Leads">✕ Dead</button>
             </div>
