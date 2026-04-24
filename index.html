@@ -2231,6 +2231,12 @@
         .cv-search { width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:7px; padding:6px 10px; color:var(--text); font-size:12px; outline:none; box-sizing:border-box; }
         .cv-search:focus { border-color:var(--accent); }
         .cv-left-count { font-size:10px; color:var(--muted); padding:4px 10px 6px; font-family:var(--font-mono); }
+        .cv-section-hdr { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; padding:8px 12px 4px; color:var(--muted); border-top:1px solid var(--border); margin-top:2px; }
+        .cv-section-hdr:first-child { border-top:none; margin-top:0; }
+        .cv-reply-dot { width:7px; height:7px; border-radius:50%; background:#34d399; box-shadow:0 0 5px rgba(52,211,153,0.7); flex-shrink:0; }
+        .cv-camp-section-hdr { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); padding:6px 4px 3px; border-bottom:1px solid var(--border); margin-bottom:2px; display:flex; align-items:center; gap:6px; }
+        .cv-reply-banner { background:rgba(52,211,153,0.08); border:1px solid rgba(52,211,153,0.3); border-radius:8px; padding:10px 14px; display:flex; align-items:center; gap:10px; font-size:13px; color:#34d399; font-weight:600; }
+        .cv-reply-banner-dot { width:9px; height:9px; border-radius:50%; background:#34d399; box-shadow:0 0 8px rgba(52,211,153,0.8); flex-shrink:0; animation:replyPulse 2s infinite; }
         .cv-company-list { flex:1; overflow-y:auto; }
         .cv-co-row { display:flex; align-items:center; padding:9px 12px; cursor:pointer; border-left:3px solid transparent; transition:background 0.1s, border-color 0.1s; user-select:none; gap:8px; }
         .cv-co-row:hover { background:rgba(255,255,255,0.04); }
@@ -8707,20 +8713,43 @@ function renderCvLeft(filterStr) {
         ? _cvGroups.filter(g => g.displayName.toLowerCase().includes(f) || g.campaigns.some(c => (c.contactName||'').toLowerCase().includes(f)))
         : _cvGroups;
 
+    const needsReply = visible.filter(g => g.campaigns.some(c => c.newReplyAt));
+    const rest       = visible.filter(g => !g.campaigns.some(c => c.newReplyAt));
+
     const countEl = document.getElementById('cv-left-count');
     if (countEl) countEl.textContent = `${visible.length} companies · ${visible.reduce((s,g)=>s+g.campaigns.length,0)} campaigns`;
 
     const list = document.getElementById('cv-company-list');
     list.innerHTML = '';
-    for (const group of visible) {
-        const hasReply = group.campaigns.some(c => c.newReplyAt);
-        const row = document.createElement('div');
+
+    function addRow(group) {
+        const hasReply  = group.campaigns.some(c => c.newReplyAt);
         const isSelected = group.key === _cvSelectedCompanyKey;
+        const row = document.createElement('div');
         row.className = 'cv-co-row' + (isSelected ? ' selected' : '') + (hasReply ? ' has-reply' : '');
         row.id = 'cv-co-row-' + group.key.replace(/[^a-z0-9]/gi,'');
-        row.innerHTML = `<span class="cv-co-name">${escapeHtml(group.displayName)}</span><span class="cv-co-count">${group.campaigns.length}</span>`;
+        row.innerHTML = `
+            ${hasReply ? '<span class="cv-reply-dot"></span>' : ''}
+            <span class="cv-co-name">${escapeHtml(group.displayName)}</span>
+            <span class="cv-co-count">${group.campaigns.length}</span>
+        `;
         row.addEventListener('click', () => selectCvCompany(group.key));
         list.appendChild(row);
+    }
+
+    if (needsReply.length > 0) {
+        const hdr = document.createElement('div');
+        hdr.className = 'cv-section-hdr';
+        hdr.textContent = `⚡ Needs Reply (${needsReply.length})`;
+        list.appendChild(hdr);
+        needsReply.forEach(addRow);
+    }
+    if (rest.length > 0) {
+        const hdr = document.createElement('div');
+        hdr.className = 'cv-section-hdr';
+        hdr.textContent = rest.length === visible.length ? 'All Companies' : 'Other Companies';
+        list.appendChild(hdr);
+        rest.forEach(addRow);
     }
 }
 
@@ -8741,39 +8770,62 @@ window.selectCvCompany = selectCvCompany;
 
 function renderCvMiddle() {
     const group = _cvGroups.find(g => g.key === _cvSelectedCompanyKey);
-    const hdr = document.getElementById('cv-middle-header');
+    const hdr  = document.getElementById('cv-middle-header');
     const list = document.getElementById('cv-campaign-list');
-    if (!group) { hdr.innerHTML = '<div class="cv-middle-company" style="color:var(--muted);">← Select a company</div>'; list.innerHTML = '<div class="cv-middle-empty">No company selected</div>'; return; }
+    if (!group) {
+        hdr.innerHTML = '<div class="cv-middle-company" style="color:var(--muted);">← Select a company</div>';
+        list.innerHTML = '<div class="cv-middle-empty">No company selected</div>';
+        return;
+    }
 
-    hdr.innerHTML = `<div class="cv-middle-company">${escapeHtml(group.displayName)}</div><div class="cv-middle-sub">${group.campaigns.length} campaign${group.campaigns.length!==1?'s':''}</div>`;
+    const replyCount = group.campaigns.filter(c => c.newReplyAt).length;
+    hdr.innerHTML = `
+        <div class="cv-middle-company">${escapeHtml(group.displayName)}</div>
+        <div class="cv-middle-sub">${group.campaigns.length} campaign${group.campaigns.length!==1?'s':''}${replyCount>0?` · <span style="color:#34d399;font-weight:700;">${replyCount} need${replyCount===1?'s':''} reply</span>`:''}
+        </div>`;
     list.innerHTML = '';
 
-    const stagePri = ['negotiating','invoice-sent','rates-sent','engaged','first-touch','new','done','paid-out','dead-leads'];
-    const sorted = [...group.campaigns].sort((a,b) => {
-        const ai = stagePri.indexOf(a.listId); const bi = stagePri.indexOf(b.listId);
+    const closedStages = new Set(['done','paid-out','dead-leads']);
+    const needsReply  = group.campaigns.filter(c => c.newReplyAt);
+    const inProgress  = group.campaigns.filter(c => !c.newReplyAt && !closedStages.has(c.listId));
+    const closed      = group.campaigns.filter(c => !c.newReplyAt && closedStages.has(c.listId));
+
+    const stagePri = ['negotiating','invoice-sent','rates-sent','engaged','first-touch','new'];
+    const byStage  = arr => [...arr].sort((a,b) => {
+        const ai=stagePri.indexOf(a.listId); const bi=stagePri.indexOf(b.listId);
         return (ai<0?99:ai) - (bi<0?99:bi);
     });
 
-    for (const card of sorted) {
-        const sc = boardConfig.find(l => l.id === card.listId);
-        const stageName  = sc?.title || card.listId;
-        const stageColor = sc?.color || '#5b8cff';
-        const contact    = card.contactName || card.title || 'Unknown';
-        const hasReply   = !!card.newReplyAt;
-        const isSelected = card.id === _cvSelectedCardId;
-
-        const row = document.createElement('div');
-        row.className = 'cv-camp-row' + (isSelected ? ' selected' : '') + (hasReply ? ' has-reply' : '');
-        row.id = 'cv-camp-row-' + card.id;
-        row.innerHTML = `
-            <div class="cv-camp-contact">${escapeHtml(contact)}</div>
-            <span class="cv-camp-stage" style="border-color:${stageColor}55;color:${stageColor};">${escapeHtml(stageName)}</span>
-            ${card.email ? `<div class="cv-camp-email">${escapeHtml(card.email)}</div>` : ''}
-            ${card.emailDate ? `<div class="cv-camp-date">${fmtEmailDate(card.emailDate)}</div>` : ''}
-        `;
-        row.addEventListener('click', () => selectCvCampaign(card.id));
-        list.appendChild(row);
+    function addSection(label, campaigns) {
+        if (campaigns.length === 0) return;
+        const sh = document.createElement('div');
+        sh.className = 'cv-camp-section-hdr';
+        sh.innerHTML = label;
+        list.appendChild(sh);
+        for (const card of campaigns) {
+            const sc = boardConfig.find(l => l.id === card.listId);
+            const stageName  = sc?.title || card.listId;
+            const stageColor = sc?.color || '#5b8cff';
+            const contact    = card.contactName || card.title || 'Unknown';
+            const hasReply   = !!card.newReplyAt;
+            const isSelected = card.id === _cvSelectedCardId;
+            const row = document.createElement('div');
+            row.className = 'cv-camp-row' + (isSelected ? ' selected' : '') + (hasReply ? ' has-reply' : '');
+            row.id = 'cv-camp-row-' + card.id;
+            row.innerHTML = `
+                <div class="cv-camp-contact">${hasReply ? '<span class="cv-reply-dot" style="display:inline-block;vertical-align:middle;margin-right:5px;"></span>' : ''}${escapeHtml(contact)}</div>
+                <span class="cv-camp-stage" style="border-color:${stageColor}55;color:${stageColor};">${escapeHtml(stageName)}</span>
+                ${card.email ? `<div class="cv-camp-email">${escapeHtml(card.email)}</div>` : ''}
+                ${card.emailDate ? `<div class="cv-camp-date">${fmtEmailDate(card.emailDate)}</div>` : ''}
+            `;
+            row.addEventListener('click', () => selectCvCampaign(card.id));
+            list.appendChild(row);
+        }
     }
+
+    addSection('⚡ Needs Reply', needsReply);
+    addSection('📋 In Progress', byStage(inProgress));
+    addSection('✓ Closed', closed);
 }
 
 function selectCvCampaign(cardId) {
@@ -8821,6 +8873,7 @@ function renderCvDetail() {
         : '<div style="color:var(--muted);font-size:12px;padding:12px 0;">No email thread on file</div>';
 
     detail.innerHTML = `
+        ${card.newReplyAt ? `<div class="cv-reply-banner"><span class="cv-reply-banner-dot"></span> They replied — this needs your response</div>` : ''}
         <div class="cv-detail-header">
             <div class="cv-detail-avatar" style="background:${pal.bg};color:${pal.color};">${escapeHtml(contact.charAt(0).toUpperCase())}</div>
             <div>
