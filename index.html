@@ -1377,13 +1377,28 @@
         #card-modal-overlay.cv-side-panel .card-modal { width:72%; min-width:720px; max-width:1100px; height:100%; max-height:100%; border-radius:16px 0 0 16px; margin:0; border-right:none; border-top:none; border-bottom:none; animation:slideFromRight 0.26s cubic-bezier(0.4,0,0.2,1) both !important; }
 
         /* ── MODAL DESIGN ENHANCEMENTS ── */
-        .card-modal-title { font-size: 18px !important; font-weight: 700 !important; letter-spacing: -0.01em !important; }
-        .card-modal-subtitle { font-size: 12px !important; margin-top: 5px !important; color: var(--muted) !important; }
-        .lead-details-grid { gap: 12px 20px !important; }
-        .lead-field { gap: 5px !important; }
-        .lead-field-input { font-size: 13px !important; padding: 3px 0 5px !important; }
+        /* Stage pill — large, prominent, colored */
+        .modal-stage-pill { display:inline-flex; align-items:center; padding:5px 16px; border-radius:99px; font-size:14px; font-weight:700; letter-spacing:0.04em; border:1px solid; margin-right:10px; flex-shrink:0; font-family:var(--font-mono); }
+        /* Subtitle row */
+        .card-modal-subtitle { display:flex !important; align-items:center !important; flex-wrap:wrap !important; gap:4px 0 !important; margin-top:8px !important; font-size:13px !important; color:var(--muted) !important; }
+        .modal-contact-dates { font-size:13px; color:var(--muted); }
+        /* Card title */
+        .card-modal-title { font-size:20px !important; font-weight:700 !important; letter-spacing:-0.01em !important; }
+        /* Sidebar sections — generous padding */
+        .modal-section { padding:24px 22px !important; }
+        .modal-section-title { font-size:11px !important; margin-bottom:16px !important; letter-spacing:0.1em !important; }
+        /* Contact rows */
+        .email-contact-row { padding:10px 0 !important; }
+        .email-field-label { font-size:11px !important; width:68px !important; padding-top:1px !important; }
+        .contact-info-value { font-size:14px !important; }
+        /* Lead Intel — vertical list */
+        .lead-details-grid { grid-template-columns:1fr !important; gap:16px !important; }
+        .lead-field { gap:6px !important; }
+        .lead-field-label { font-size:11px !important; }
+        .lead-field-input { font-size:14px !important; padding:4px 0 7px !important; line-height:1.5 !important; }
+        /* Draft section */
         #draft-reply-section { background: transparent !important; border: none !important; padding: 0 !important; border-radius: 0 !important; }
-        #draft-reply-section .modal-section-title { font-size: 13px !important; text-transform: none !important; letter-spacing: 0 !important; color: var(--text) !important; font-weight: 700 !important; margin-bottom: 14px !important; }
+        #draft-reply-section .modal-section-title { font-size: 14px !important; text-transform: none !important; letter-spacing: 0 !important; color: var(--text) !important; font-weight: 700 !important; margin-bottom: 14px !important; }
         #modal-draft-body { min-height: 220px !important; font-size: 14px !important; line-height: 1.7 !important; }
         #modal-draft-subject { font-size: 13px !important; padding: 9px 13px !important; }
         #draft-content > div:last-child { padding-top: 14px !important; border-top: 1px solid rgba(255,255,255,0.07) !important; gap: 8px !important; }
@@ -1392,13 +1407,9 @@
         #btn-send-email { padding: 9px 22px !important; font-weight: 700 !important; background: rgba(52,211,153,0.15) !important; border: 1px solid rgba(52,211,153,0.35) !important; color: #34d399 !important; }
         #btn-send-email:hover { background: rgba(52,211,153,0.28) !important; }
         #stage-context-banner { padding: 11px 28px !important; border-bottom: 1px solid rgba(255,255,255,0.07) !important; }
-        .unified-activity { border-bottom: 1px solid rgba(255,255,255,0.06); }
-        .unified-activity-header { padding: 20px 20px 0 !important; }
-        .unified-input-row { padding: 10px 20px !important; }
-        .unified-timeline { padding: 0 20px 16px !important; }
-        input[type="date"]#due-date-input { font-size: 13px !important; padding: 8px 11px !important; }
-        .delete-card-btn { border-radius: 8px !important; font-size: 12px !important; padding: 10px !important; }
-        .draft-badge { font-size: 11px !important; padding: 3px 9px !important; border-radius: 99px !important; }
+        input[type="date"]#due-date-input { font-size: 14px !important; padding: 9px 12px !important; }
+        .delete-card-btn { border-radius: 8px !important; font-size: 13px !important; padding: 11px !important; }
+        .draft-badge { font-size: 12px !important; padding: 3px 10px !important; border-radius: 99px !important; }
 
         /* Due date */
         input[type="date"].contact-input { cursor: pointer; }
@@ -2978,7 +2989,12 @@
                     <div class="email-sender-avatar" id="modal-sender-avatar">?</div>
                     <div class="card-modal-title-section">
                         <input type="text" class="card-modal-title" id="modal-card-title" placeholder="Card title…">
-                        <div class="card-modal-subtitle">in <span id="modal-list-name">list</span> &bull; <span id="modal-created-info"></span> &bull; First contact: <span id="modal-first-contact" style="color:#4facfe;"></span></div>
+                        <div class="card-modal-subtitle">
+                            <span class="modal-stage-pill" id="modal-stage-pill"></span>
+                            <span id="modal-created-info" style="display:none;"></span>
+                            <span id="modal-list-name" style="display:none;"></span>
+                            <span class="modal-contact-dates" id="modal-contact-dates"></span>
+                        </div>
                     </div>
                 </div>
                 <div class="email-header-actions">
@@ -3003,8 +3019,8 @@
                 <div class="email-info-sidebar">
 
                     <!-- Contact card -->
-                    <div class="modal-section" id="contact-info-section" style="padding:12px;">
-                        <div class="modal-section-title" style="margin-bottom:8px;">Contact</div>
+                    <div class="modal-section" id="contact-info-section">
+                        <div class="modal-section-title">Contact</div>
                         <div id="contact-info-grid">
                             <div class="email-contact-row">
                                 <span class="email-field-label">Email</span>
@@ -3045,8 +3061,8 @@
                     </div>
 
                     <!-- Lead Intel: WHO / WHAT / WHY / VALUE -->
-                    <div class="modal-section" id="lead-details-section" style="padding:12px;">
-                        <div class="modal-section-title" style="margin-bottom:8px;">Lead Intel</div>
+                    <div class="modal-section" id="lead-details-section">
+                        <div class="modal-section-title">Lead Intel</div>
                         <div class="lead-details-grid">
                             <div class="lead-field">
                                 <span class="lead-field-label who">WHO</span>
@@ -3080,7 +3096,7 @@
                     </div>
 
                     <!-- Assignee + Due Date -->
-                    <div class="modal-section" style="padding:12px;">
+                    <div class="modal-section">
                         <div style="display:flex;flex-direction:column;gap:10px;">
                             <div>
                                 <div class="modal-section-title" style="margin-bottom:5px;">Assignee</div>
@@ -3093,28 +3109,11 @@
                         </div>
                     </div>
 
-                    <!-- Activity & Tasks -->
-                    <div class="unified-activity" id="unified-activity">
-                        <div class="unified-activity-header">
-                            <span class="unified-activity-title">Activity &amp; Tasks</span>
-                            <span class="unified-activity-count" id="unified-count"></span>
-                        </div>
-                        <div class="unified-input-row">
-                            <select class="unified-type-select" id="unified-type">
-                                <option value="Task">☐ Task</option>
-                                <option value="Email">📧 Email</option>
-                                <option value="Call">📞 Call</option>
-                                <option value="Note">📝 Note</option>
-                                <option value="Demo">🎥 Demo</option>
-                                <option value="Meeting">🤝 Meeting</option>
-                                <option value="Follow-up">📅 Follow-up</option>
-                            </select>
-                            <input type="text" class="unified-input" id="unified-input" placeholder="Add a note or task…" onkeydown="if(event.key==='Enter')addUnifiedItem()">
-                            <button class="unified-add-btn" onclick="addUnifiedItem()">Add</button>
-                        </div>
-                        <div class="unified-timeline" id="unified-timeline">
-                            <div class="unified-empty" id="unified-empty">Nothing yet — add the first item above.</div>
-                        </div>
+                    <!-- Activity & Tasks (hidden) -->
+                    <div id="unified-activity" style="display:none;">
+                        <div class="unified-activity-header"><span class="unified-activity-title">Activity &amp; Tasks</span><span class="unified-activity-count" id="unified-count"></span></div>
+                        <div class="unified-input-row"><select class="unified-type-select" id="unified-type"><option value="Task">☐ Task</option></select><input type="text" class="unified-input" id="unified-input" placeholder="Add a note or task…" onkeydown="if(event.key==='Enter')addUnifiedItem()"><button class="unified-add-btn" onclick="addUnifiedItem()">Add</button></div>
+                        <div class="unified-timeline" id="unified-timeline"><div class="unified-empty" id="unified-empty">Nothing yet.</div></div>
                     </div>
 
                     <!-- Delete -->
@@ -5727,27 +5726,34 @@ function openCardModal(cardId, skipReview) {
     if (defaultTab === 'sam' && !currentEditingCardData.sam_draft_body) {
         setTimeout(() => generateSamDraft(), 150);
     }
-    document.getElementById('modal-list-name').textContent = boardConfig.find(l=>l.id===currentEditingCardData.listId)?.title||'List';
-    document.getElementById('modal-created-info').textContent = `Created by ${currentEditingCardData.createdBy} · ${timeAgo(new Date(currentEditingCardData.createdAt))}`;
+    // Stage pill — prominent colored badge
+    const _listCfg = boardConfig.find(l=>l.id===currentEditingCardData.listId);
+    document.getElementById('modal-list-name').textContent = _listCfg?.title||'';
+    const _stagePill = document.getElementById('modal-stage-pill');
+    if (_stagePill && _listCfg) {
+        _stagePill.textContent = _listCfg.title;
+        const _c = _listCfg.color || '#5b8cff';
+        _stagePill.style.color = _c;
+        _stagePill.style.background = _c + '22';
+        _stagePill.style.borderColor = _c + '55';
+    }
     _updateNeedsReplyBtn();
     _updateBookmarkBtn();
 
-    // Show first contact date prominently
-    // First contact: use oldest email in thread (first array entry)
+    // First contact + Last contact dates
     const emailArr = currentEditingCardData.originalEmail;
-    const firstEmailDate = Array.isArray(emailArr) && emailArr.length > 0 ? emailArr[0].date : null;
-    const firstContact = firstEmailDate || currentEditingCardData.firstEmailDate || currentEditingCardData.emailDate;
-    const firstContactEl = document.getElementById('modal-first-contact');
-    if (firstContact && firstContactEl) {
-        try {
-            const d = new Date(firstContact);
-            if (!isNaN(d)) {
-                firstContactEl.textContent = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-            }
-        } catch(e) {
-            firstContactEl.textContent = fmtEmailDate(firstContact);
-        }
+    const _fmtD = d => { try { const dt=new Date(d); return isNaN(dt)?fmtEmailDate(d):dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); } catch(e){return fmtEmailDate(d);} };
+    const firstContact = (Array.isArray(emailArr)&&emailArr.length>0?emailArr[0].date:null) || currentEditingCardData.firstEmailDate || currentEditingCardData.emailDate;
+    const lastContact  = (Array.isArray(emailArr)&&emailArr.length>0?emailArr[emailArr.length-1].date:null) || currentEditingCardData.lastEmailDate;
+    const _datesEl = document.getElementById('modal-contact-dates');
+    if (_datesEl) {
+        const parts = [];
+        if (firstContact) parts.push(`First contact: <span style="color:#4facfe;">${_fmtD(firstContact)}</span>`);
+        if (lastContact && lastContact !== firstContact) parts.push(`Last contact: <span style="color:#4facfe;">${_fmtD(lastContact)}</span>`);
+        _datesEl.innerHTML = parts.join(' &nbsp;·&nbsp; ');
     }
+    const firstContactEl = document.getElementById('modal-first-contact');
+    if (firstContactEl && firstContact) firstContactEl.textContent = _fmtD(firstContact);
     renderLeadDetails();
     renderContactInfo();
     document.getElementById('due-date-input').value = currentEditingCardData.dueDate||'';
