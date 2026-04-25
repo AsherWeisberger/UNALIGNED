@@ -2452,6 +2452,21 @@
         .cv-reply-preview { flex-shrink:0; border-top:1px solid rgba(255,255,255,0.07); padding:14px 22px; }
         .cv-reply-preview-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:var(--muted); font-family:var(--font-mono); margin-bottom:8px; }
         .cv-reply-preview-body { font-size:13px; line-height:1.7; color:var(--muted2); white-space:pre-wrap; max-height:90px; overflow:hidden; mask-image:linear-gradient(to bottom,black 40%,transparent 100%); -webkit-mask-image:linear-gradient(to bottom,black 40%,transparent 100%); margin-bottom:10px; }
+        /* Confirm danger modal */
+        #cv-confirm-overlay { position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);z-index:9999;display:none;align-items:center;justify-content:center; }
+        #cv-confirm-overlay.active { display:flex; }
+        .cv-confirm-box { background:var(--surface);border:1px solid rgba(239,68,68,0.35);border-radius:14px;padding:28px 28px 22px;max-width:400px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.5);animation:modalIn 0.18s ease both; }
+        .cv-confirm-icon { font-size:32px;margin-bottom:12px; }
+        .cv-confirm-title { font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px; }
+        .cv-confirm-msg { font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:22px; }
+        .cv-confirm-actions { display:flex;gap:10px;justify-content:flex-end; }
+        .cv-confirm-cancel { background:none;border:1px solid var(--border);border-radius:7px;padding:8px 18px;font-size:13px;color:var(--muted);cursor:pointer;font-weight:600; }
+        .cv-confirm-cancel:hover { background:rgba(255,255,255,0.06); }
+        .cv-confirm-ok { background:#ef4444;border:none;border-radius:7px;padding:8px 18px;font-size:13px;color:#fff;cursor:pointer;font-weight:700; }
+        .cv-confirm-ok:hover { background:#dc2626; }
+        .cv-camp-delete-btn { background:none;border:none;color:var(--muted);font-size:13px;cursor:pointer;padding:2px 4px;border-radius:4px;flex-shrink:0;opacity:0;transition:opacity 0.15s; }
+        .cv-camp-row:hover .cv-camp-delete-btn { opacity:1; }
+        .cv-camp-delete-btn:hover { color:#ef4444; }
         .cv-detail-empty { color:var(--muted); font-size:14px; text-align:center; padding:80px 20px; }
         .cv-detail-header { display:flex; align-items:center; gap:14px; }
         .cv-detail-avatar { width:42px; height:42px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:17px; font-weight:700; flex-shrink:0; }
@@ -3547,6 +3562,19 @@ What would you like to know?</div>
     <div class="sr-only" id="live-region" aria-live="polite"></div>
 
     <!-- ── AI Inbox Panel ── -->
+    <!-- Danger confirm modal -->
+    <div id="cv-confirm-overlay" onclick="if(event.target===this)closeCvConfirm()">
+        <div class="cv-confirm-box">
+            <div class="cv-confirm-icon">⚠️</div>
+            <div class="cv-confirm-title" id="cv-confirm-title">Delete Permanently?</div>
+            <div class="cv-confirm-msg" id="cv-confirm-msg"></div>
+            <div class="cv-confirm-actions">
+                <button class="cv-confirm-cancel" onclick="closeCvConfirm()">Cancel</button>
+                <button class="cv-confirm-ok" id="cv-confirm-ok">Delete Permanently</button>
+            </div>
+        </div>
+    </div>
+
     <div id="ai-inbox-panel" style="position:fixed;top:0;right:0;height:100%;width:420px;max-width:95vw;background:var(--surface);border-left:1px solid var(--border2);display:none;flex-direction:column;box-shadow:-8px 0 32px rgba(0,0,0,0.45);z-index:1100;">
         <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;border-bottom:1px solid var(--border);flex-shrink:0;">
             <div>
@@ -9150,6 +9178,7 @@ function renderCvMiddle() {
                     ${hasReply ? '<span class="cv-reply-dot" style="display:inline-block;flex-shrink:0;"></span>' : ''}
                     <span class="cv-camp-contact">${escapeHtml(contact)}</span>
                     <span class="cv-camp-stage" style="border-color:${stageColor}55;color:${stageColor};background:${stageColor}11;">${escapeHtml(stageName)}</span>
+                    <button class="cv-camp-delete-btn" onclick="event.stopPropagation();cvPermanentDeleteCampaign(${card.id})" title="Delete this campaign permanently">🗑</button>
                 </div>
                 ${metaParts.length ? `<div class="cv-camp-meta">${metaParts.map(escapeHtml).join(' · ')}</div>` : ''}
             `;
@@ -9198,27 +9227,68 @@ function cvDeleteCampaign(cardId) {
 }
 window.cvDeleteCampaign = cvDeleteCampaign;
 
+function showCvConfirm(title, msg, onOk) {
+    document.getElementById('cv-confirm-title').textContent = title;
+    document.getElementById('cv-confirm-msg').textContent = msg;
+    const ok = document.getElementById('cv-confirm-ok');
+    ok.onclick = () => { closeCvConfirm(); onOk(); };
+    document.getElementById('cv-confirm-overlay').classList.add('active');
+}
+function closeCvConfirm() {
+    document.getElementById('cv-confirm-overlay').classList.remove('active');
+}
+window.showCvConfirm = showCvConfirm;
+window.closeCvConfirm = closeCvConfirm;
+
 function cvDeleteCompany(companyKey) {
     const group = _cvGroups.find(g => g.key === companyKey);
     if (!group) return;
     const name = group.displayName;
     const count = group.campaigns.length;
-    if (!confirm(`Permanently delete "${name}" and all ${count} campaign${count!==1?'s':''}? This cannot be undone.`)) return;
-    group.campaigns.forEach(card => {
-        const el = document.getElementById('card-' + card.id);
-        if (el) el.remove();
-        delete cardsData[card.id];
-    });
-    _cvSelectedCompanyKey = null;
-    _cvSelectedCardId = null;
-    updateCardCount();
-    queueSaveBoardState();
-    _cvGroups = _cvBuildGroups();
-    renderCvLeft(document.getElementById('cv-search')?.value || '');
-    renderCvMiddle();
-    renderCvDetail();
+    showCvConfirm(
+        `Delete "${name}"?`,
+        `This will permanently delete all ${count} campaign${count!==1?'s':''} associated with ${name}. This action cannot be undone.`,
+        () => {
+            group.campaigns.forEach(card => {
+                const el = document.getElementById('card-' + card.id);
+                if (el) el.remove();
+                delete cardsData[card.id];
+            });
+            _cvSelectedCompanyKey = null;
+            _cvSelectedCardId = null;
+            updateCardCount();
+            queueSaveBoardState();
+            _cvGroups = _cvBuildGroups();
+            renderCvLeft(document.getElementById('cv-search')?.value || '');
+            renderCvMiddle();
+            renderCvDetail();
+        }
+    );
 }
 window.cvDeleteCompany = cvDeleteCompany;
+
+function cvPermanentDeleteCampaign(cardId) {
+    const card = cardsData[cardId];
+    if (!card) return;
+    const name = card.contactName || card.title || 'this campaign';
+    showCvConfirm(
+        `Delete "${name}"?`,
+        `This will permanently delete this campaign. It cannot be recovered.`,
+        () => {
+            const el = document.getElementById('card-' + cardId);
+            if (el) el.remove();
+            delete cardsData[cardId];
+            if (_cvSelectedCardId === cardId) _cvSelectedCardId = null;
+            updateCardCount();
+            queueSaveBoardState();
+            _cvGroups = _cvBuildGroups();
+            renderCvLeft(document.getElementById('cv-search')?.value || '');
+            renderCvMiddle();
+            renderCvDetail();
+        }
+    );
+}
+window.cvPermanentDeleteCampaign = cvPermanentDeleteCampaign;
 
 function cvOpenFullDetail(cardId) {
     _cvSelectedCardId = cardId;
