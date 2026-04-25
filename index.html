@@ -1375,6 +1375,9 @@
         @keyframes slideFromRight { from { transform:translateX(100%); opacity:0; } to { transform:translateX(0); opacity:1; } }
         #card-modal-overlay.cv-side-panel { justify-content:flex-end; align-items:stretch; padding:0; background:rgba(0,0,0,0.18); backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px); }
         #card-modal-overlay.cv-side-panel .card-modal { width:72%; min-width:720px; max-width:1100px; height:100%; max-height:100%; border-radius:16px 0 0 16px; margin:0; border-right:none; border-top:none; border-bottom:none; animation:slideFromRight 0.26s cubic-bezier(0.4,0,0.2,1) both !important; }
+        #card-modal-overlay.cv-side-panel #contact-info-section,
+        #card-modal-overlay.cv-side-panel #lead-details-section,
+        #card-modal-overlay.cv-side-panel #assignee-section { display:none !important; }
 
         /* ── MODAL DESIGN ENHANCEMENTS ── */
         /* Stage pill — large, prominent, colored */
@@ -3105,7 +3108,7 @@
                     </div>
 
                     <!-- Assignee + Due Date -->
-                    <div class="modal-section">
+                    <div class="modal-section" id="assignee-section">
                         <div style="display:flex;flex-direction:column;gap:10px;">
                             <div>
                                 <div class="modal-section-title" style="margin-bottom:5px;">Assignee</div>
@@ -9105,11 +9108,11 @@ function renderCvDetail() {
             <span class="cvd-val">${href ? `<a href="${href}" target="_blank" style="color:#4facfe;text-decoration:none;">${escapeHtml(val)}</a>` : escapeHtml(val)}</span>
         </div>` : '';
 
-    const liRow = (label, cls, val) => val ? `
+    const liRow = (label, cls, val) => `
         <div class="cvd-li-row">
             <span class="lead-field-label ${cls}">${label}</span>
-            <span class="cvd-li-val">${escapeHtml(val)}</span>
-        </div>` : '';
+            <span class="cvd-li-val">${val ? escapeHtml(val) : '<span style="color:var(--muted);font-style:italic;">—</span>'}</span>
+        </div>`;
 
     detail.innerHTML = `
         <div class="cv-detail-inner">
