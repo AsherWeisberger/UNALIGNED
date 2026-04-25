@@ -1371,6 +1371,11 @@
         .sidebar-btn:hover { background: rgba(255,255,255,0.1); }
         .sidebar-btn.danger { background: rgba(248,113,113,0.08); color: #fca5a5; }
 
+        /* ── COMPANIES VIEW — RIGHT SIDE PANEL MODE ── */
+        @keyframes slideFromRight { from { transform:translateX(100%); opacity:0; } to { transform:translateX(0); opacity:1; } }
+        #card-modal-overlay.cv-side-panel { justify-content:flex-end; align-items:stretch; padding:0; background:rgba(0,0,0,0.18); backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px); }
+        #card-modal-overlay.cv-side-panel .card-modal { width:72%; min-width:720px; max-width:1100px; height:100%; max-height:100%; border-radius:16px 0 0 16px; margin:0; border-right:none; border-top:none; border-bottom:none; animation:slideFromRight 0.26s cubic-bezier(0.4,0,0.2,1) both !important; }
+
         /* ── MODAL DESIGN ENHANCEMENTS ── */
         .card-modal-title { font-size: 18px !important; font-weight: 700 !important; letter-spacing: -0.01em !important; }
         .card-modal-subtitle { font-size: 12px !important; margin-top: 5px !important; color: var(--muted) !important; }
@@ -5836,10 +5841,16 @@ function saveCardAndClose() {
     currentEditingCard=null; currentEditingCardData=null;
 }
 
+function cvOpenCardPanel(cardId) {
+    document.getElementById('card-modal-overlay').classList.add('cv-side-panel');
+    openCardModal(cardId);
+}
+window.cvOpenCardPanel = cvOpenCardPanel;
+
 function closeCardModal(event) {
     if (!event || event.target===document.getElementById('card-modal-overlay')) {
         const lastId = currentEditingCard;
-        document.getElementById('card-modal-overlay').classList.remove('active');
+        document.getElementById('card-modal-overlay').classList.remove('active','cv-side-panel');
         document.getElementById('card-modal-overlay').style.display='none';
         document.getElementById('card-modal').style.display='none';
         document.getElementById('card-modal').classList.remove('active');
@@ -9083,7 +9094,7 @@ function renderCvDetail() {
                 ${card.leadSource ? `<div class="cv-detail-meta-item">📌 <strong>${escapeHtml(card.leadSource)}</strong></div>` : ''}
             </div>
             <div class="cv-detail-actions" onclick="event.stopPropagation()">
-                <button class="cv-open-btn" onclick="openCardModal(${card.id})">Open Full Card →</button>
+                <button class="cv-open-btn" onclick="cvOpenCardPanel(${card.id})">Open Full Card →</button>
                 <select class="cv-stage-select" style="flex:none;width:auto;font-size:12px;padding:6px 10px;" onchange="cvMoveCard(${card.id}, this.value)">${boardConfig.map(l=>`<option value="${l.id}" ${l.id===card.listId?'selected':''}>${l.title}</option>`).join('')}</select>
                 <button class="cv-del-btn" style="padding:6px 12px;font-size:12px;" onclick="cvDeleteCampaign(${card.id})" title="Move to Dead Leads">✕ Dead</button>
             </div>
