@@ -3075,6 +3075,8 @@
                                 <option value="za">Z → A</option>
                                 <option value="campaigns">Most campaigns</option>
                                 <option value="replies">Needs reply first</option>
+                                <option value="newest">Newest → Oldest</option>
+                                <option value="oldest2">Oldest → Newest</option>
                                 <option value="dead">Dead leads only</option>
                             </select>
                         </div>
@@ -6478,6 +6480,20 @@ async function sendEmail() {
     }
 }
 
+// ── Attachment chips ───────────────────────────────
+function renderAttachmentChips(attachments) {
+    if (!attachments || attachments.length === 0) return '';
+    const SERVER = 'http://localhost:5000';
+    const icons = { 'application/pdf': '📄', 'image/png': '🖼', 'image/jpeg': '🖼', 'image/gif': '🖼', 'image/webp': '🖼' };
+    const chips = attachments.map(a => {
+        const icon = icons[a.mimeType] || '📎';
+        const kb = a.size ? ` · ${Math.round(a.size/1024)}KB` : '';
+        const url = `${SERVER}/attachment?msgId=${encodeURIComponent(a.messageId)}&attachId=${encodeURIComponent(a.attachId)}&filename=${encodeURIComponent(a.filename)}&mimeType=${encodeURIComponent(a.mimeType)}`;
+        return `<a href="${url}" target="_blank" download="${escHtml(a.filename)}" style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;background:rgba(91,140,255,0.10);border:1px solid rgba(91,140,255,0.25);border-radius:6px;font-size:12px;color:var(--accent);text-decoration:none;white-space:nowrap;" title="Download ${escHtml(a.filename)}">${icon} ${escHtml(a.filename)}${escHtml(kb)}</a>`;
+    }).join('');
+    return `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">${chips}</div>`;
+}
+
 // ── Email Thread ───────────────────────────────────
 // Renders unified conversation from email_thread JSONB — original first, then replies
 function renderThread() {
@@ -6552,6 +6568,7 @@ function renderThread() {
                 </div>
                 <div class="thread-body-wrapper">
                     <div class="thread-body">${escHtml(bodyText)}</div>
+                    ${renderAttachmentChips(email.attachments)}
                 </div>
             </div>
         `;
@@ -8950,6 +8967,16 @@ function _cvSortGroups(groups) {
             const br = b.campaigns.filter(c=>c.newReplyAt).length;
             return br - ar || b.campaigns.length - a.campaigns.length;
         });
+        case 'newest': return sorted.sort((a,b) => {
+            const ac = Math.max(...a.campaigns.map(c => new Date(c.createdAt||0).getTime()));
+            const bc = Math.max(...b.campaigns.map(c => new Date(c.createdAt||0).getTime()));
+            return bc - ac;
+        });
+        case 'oldest2': return sorted.sort((a,b) => {
+            const ac = Math.min(...a.campaigns.map(c => new Date(c.createdAt||0).getTime()));
+            const bc = Math.min(...b.campaigns.map(c => new Date(c.createdAt||0).getTime()));
+            return ac - bc;
+        });
         case 'dead': return sorted
             .map(g => ({ ...g, campaigns: g.campaigns.filter(c => c.listId === 'dead-leads') }))
             .filter(g => g.campaigns.length > 0)
@@ -9038,7 +9065,7 @@ function renderCvLeft(filterStr) {
         needsReply.forEach(addRow);
     }
     if (rest.length > 0) {
-        const labels = { stage:'All Companies', recent:'Most Recent', oldest:'Oldest First', az:'A → Z', za:'Z → A', campaigns:'By Volume', replies:'All Companies', dead:'Dead Leads' };
+        const labels = { stage:'All Companies', recent:'Most Recent', oldest:'Oldest First', newest:'Newest → Oldest', oldest2:'Oldest → Newest', az:'A → Z', za:'Z → A', campaigns:'By Volume', replies:'All Companies', dead:'Dead Leads' };
         const hdr = document.createElement('div');
         hdr.className = 'cv-section-hdr';
         hdr.textContent = needsReply.length > 0 ? 'Other Companies' : (labels[_cvSortMode] || 'All Companies');
@@ -9356,6 +9383,7 @@ function renderCvDetail() {
                     </div>
                     <div class="thread-body-wrapper">
                         <div class="thread-body">${escHtml(bodyText)}</div>
+                        ${renderAttachmentChips(email.attachments)}
                     </div>
                 </div>`;
         }).join('');
