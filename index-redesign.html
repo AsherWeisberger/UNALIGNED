@@ -81,28 +81,29 @@
         /* ─── LIGHT MODE ──────────────────────────────────────── */
         body.light-mode {
             color-scheme: light;
-            --bg:        #f5f5f7;
-            --bg2:       #ebebef;
+            /* Notion-style light palette */
+            --bg:        #ffffff;
+            --bg2:       #fafafa;
             --surface:   #ffffff;
-            --surface2:  #f8f8fa;
-            --surface3:  #f0f0f4;
-            --border:    rgba(0,0,0,0.07);
-            --border2:   rgba(0,0,0,0.13);
-            --text:      #111116;
-            --muted:     #6b7280;
-            --muted2:    #8b94a6;
-            --accent:         #4f46e5;
-            --accent-subtle:  rgba(79,70,229,0.10);
-            --accent-glow:    rgba(79,70,229,0.15);
-            --green:       #10b981;
-            --green-glow:  rgba(16,185,129,0.12);
-            --shadow:    0 1px 3px rgba(0,0,0,0.08);
-            --shadow-md: 0 4px 16px rgba(0,0,0,0.10);
-            --shadow-lg: 0 12px 40px rgba(0,0,0,0.14);
-            --overlay-bg:       rgba(0,0,0,0.45);
+            --surface2:  #f7f7f7;
+            --surface3:  #f0f0ee;
+            --border:    #ebebea;
+            --border2:   #d9d9d8;
+            --text:      #37352f;
+            --muted:     #787774;
+            --muted2:    #9b9a97;
+            --accent:         #5e6ad2;
+            --accent-subtle:  rgba(94,106,210,0.08);
+            --accent-glow:    rgba(94,106,210,0.15);
+            --green:       #0f9d58;
+            --green-glow:  rgba(15,157,88,0.10);
+            --shadow:    0 1px 3px rgba(0,0,0,0.06);
+            --shadow-md: 0 4px 16px rgba(0,0,0,0.08);
+            --shadow-lg: 0 12px 40px rgba(0,0,0,0.12);
+            --overlay-bg:       rgba(0,0,0,0.35);
             --btn-fg:           #ffffff;
-            --quick-btn-bg:     rgba(255,255,255,0.95);
-            --quick-btn-border: rgba(0,0,0,0.12);
+            --quick-btn-bg:     rgba(255,255,255,0.98);
+            --quick-btn-border: rgba(0,0,0,0.10);
         }
         body.light-mode .card-quick-btn {
             background: var(--quick-btn-bg);
@@ -313,6 +314,12 @@
 
         #app { height:100%; display:flex; flex-direction:column; overflow:hidden; }
 
+
+        /* ─── GLOBAL SMOOTH TRANSITIONS ────────────────── */
+        button:active { transform:scale(0.97);transition:transform 50ms ease; }
+        @keyframes viewFadeIn { from{opacity:0.7} to{opacity:1} }
+        #board, #companies-view, #table-view { animation:viewFadeIn 100ms ease both; }
+
         /* ─── SCROLLBAR ──────────────────────────────────── */
         ::-webkit-scrollbar { width:3px; height:3px; }
         ::-webkit-scrollbar-track { background:transparent; }
@@ -483,7 +490,7 @@
         }
         .header-search input::placeholder { color:var(--muted); }
 
-        .header-right { display:flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0; }
+        .header-right { display:flex;align-items:center;gap:8px;margin-left:auto;flex-shrink:0; }
 
         /* Small icon buttons in header */
         .view-toggle {
@@ -493,10 +500,11 @@
             border:1px solid var(--border2);
             border-radius:var(--radius);
             cursor:pointer;font-size:11px;color:var(--muted2);
-            flex-shrink:0;transition:all 0.12s;font-family:var(--font-mono);
+            flex-shrink:0;transition:background 120ms ease,border-color 120ms ease,color 120ms ease;font-family:var(--font-mono);
         }
         .view-toggle:hover { background:var(--surface2);color:var(--text); }
         .view-toggle.active { background:var(--surface2);color:var(--text);border-color:var(--border2); }
+        .view-toggle:active { transform:scale(0.97);transition:transform 50ms; }
 
         .hdr-btn-group {
             display:flex;align-items:center;
@@ -510,7 +518,50 @@
         .hdr-btn-group .view-toggle:last-child { border-right:none; }
         .hdr-btn-group .view-toggle:hover { background:var(--surface2); }
 
-        /* Pipeline / Network toggle */
+        /* ── 3-tab segmented control (Board / Companies / Table) ── */
+        .view-seg-group {
+            display:flex;align-items:center;gap:2px;
+            background:var(--surface2);
+            border:1px solid var(--border);
+            border-radius:8px;
+            padding:3px;
+            flex-shrink:0;
+        }
+        .view-seg-btn {
+            padding:5px 14px;
+            border:none;background:transparent;
+            border-radius:6px;
+            cursor:pointer;font-size:12px;font-weight:500;
+            color:var(--muted);
+            font-family:var(--font-body);
+            transition:background 120ms ease,color 120ms ease,box-shadow 120ms ease;
+            white-space:nowrap;
+        }
+        .view-seg-btn:hover { color:var(--text); }
+        .view-seg-btn.active {
+            background:var(--bg);
+            color:var(--text);
+            font-weight:600;
+            box-shadow:0 1px 3px rgba(0,0,0,0.18),0 0 0 1px rgba(255,255,255,0.06);
+        }
+        .view-seg-btn:active { transform:scale(0.97);transition:transform 50ms; }
+        body.light-mode .view-seg-btn.active {
+            box-shadow:0 1px 3px rgba(0,0,0,0.12),0 0 0 1px var(--border);
+        }
+
+        /* Theme toggle button (sun/moon) */
+        .theme-toggle-btn {
+            width:30px;height:30px;border-radius:var(--radius);
+            border:1px solid var(--border2);
+            background:transparent;color:var(--muted);
+            display:flex;align-items:center;justify-content:center;
+            cursor:pointer;font-size:14px;flex-shrink:0;
+            transition:background 120ms ease,color 120ms ease,border-color 120ms ease;
+        }
+        .theme-toggle-btn:hover { background:var(--surface2);color:var(--text); }
+        .theme-toggle-btn:active { transform:scale(0.97);transition:transform 50ms; }
+
+        /* Pipeline / Network toggle — hidden but keep in DOM */
         .dt-btn {
             padding:5px 9px;background:transparent;border:none;
             cursor:pointer;font-size:11px;color:var(--muted2);
@@ -724,11 +775,17 @@
 
         .list-meta { font-size:11px;color:var(--muted);margin-top:1px;font-family:var(--font-mono); }
 
-        .list-actions { display:flex;align-items:center;gap:3px; }
+        .list-actions {
+            display:flex;align-items:center;gap:3px;
+            /* Hide column action buttons by default; show on column header hover */
+            opacity:0;
+            transition:opacity 100ms ease;
+        }
+        .list-header:hover .list-actions { opacity:1; }
         .list-menu-btn {
             border:none;background:transparent;cursor:pointer;
             font-size:12px;color:var(--muted);padding:3px 5px;
-            border-radius:var(--radius);transition:all 0.12s;
+            border-radius:var(--radius);transition:background 100ms ease,color 100ms ease;
         }
         .list-menu-btn:hover { background:rgba(255,255,255,0.07);color:var(--text); }
         .list-menu-btn.danger:hover { color:#f87171;background:rgba(248,113,113,0.08); }
@@ -773,7 +830,17 @@
             box-shadow:0 3px 12px rgba(0,0,0,0.35);
             border-color:var(--border2);
         }
-        .card.dragging { opacity:0.4;transform:rotate(1deg); }
+        /* Drag — scale + shadow lift + slight rotation */
+        .card.dragging {
+            opacity:0.55;
+            transform:scale(1.02) rotate(4deg);
+            box-shadow:0 12px 40px rgba(0,0,0,0.35);
+            transition:transform 80ms ease,box-shadow 80ms ease;
+            will-change:transform;
+            cursor:grabbing;
+            z-index:9999;
+        }
+        .card { will-change:transform; }
 
         /* Priority — only a small dot/indicator, no left border */
         .card.priority-hot  { border-color:rgba(239,68,68,0.22); }
@@ -1042,16 +1109,19 @@
         .card-modal {
             background: var(--bg);
             border-radius: var(--radius-lg);
-            width: min(980px, 97%);
+            width: calc(100vw - 80px);
+            max-width: 920px;
             max-height: 92vh;
+            margin: 40px auto;
             color: var(--text);
             box-shadow: 0 24px 80px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.07);
             border: 1px solid rgba(255,255,255,0.08);
             display:none;position:relative;flex-direction:column;
         }
         .card-modal.active { display:flex !important; }
-        @keyframes modalIn { from{opacity:0;transform:translateY(12px) scale(0.97)} to{opacity:1;transform:translateY(0) scale(1)} }
-        .card-modal.active { animation:modalIn 0.2s cubic-bezier(0.34,1.2,0.64,1) both !important; }
+        /* Modal entrance: scale from 0.96 + fade, 180ms ease-out */
+        @keyframes modalIn { from{opacity:0;transform:translateY(8px) scale(0.96)} to{opacity:1;transform:translateY(0) scale(1)} }
+        .card-modal.active { animation:modalIn 0.18s cubic-bezier(0,0,0.2,1) both !important; will-change:transform,opacity; }
 
         .card-modal-header {
             padding:16px 24px;display:flex;justify-content:space-between;
@@ -1210,8 +1280,8 @@
         .lead-field-input:focus { outline:none;border-bottom-color:var(--accent); }
         .lead-field-input::placeholder { color:var(--muted2);opacity:0.55; }
 
-        /* ─── EMAIL THREAD ───────────────────────────────── */
-        #thread-list { display:flex;flex-direction:column; }
+        /* ─── EMAIL THREAD (Notion-mail style) ─────────────── */
+        #thread-list { display:flex;flex-direction:column;gap:10px;padding:16px 20px 20px; }
         .contact-info-value { font-size:12px !important;color:var(--text);font-family:var(--font-mono);display:flex;align-items:center;gap:5px;flex:1;min-width:0;word-break:break-all; }
         .contact-info-value a { color:var(--accent);text-decoration:none;word-break:break-all; }
         .contact-info-value a:hover { text-decoration:underline; }
@@ -1219,38 +1289,83 @@
         .contact-copy-btn { background:none;border:none;color:var(--muted2);cursor:pointer;font-size:10px;padding:1px 3px;border-radius:2px;flex-shrink:0; }
         .contact-copy-btn:hover { color:var(--accent);background:var(--accent-subtle); }
 
-        /* Thread rows */
-        .thread-email { border-bottom:1px solid rgba(255,255,255,0.04); }
-        .thread-email:last-child { border-bottom:none; }
-        .thread-email-header { display:flex;align-items:flex-start;gap:12px;padding:14px 24px;cursor:pointer;user-select:none;transition:background 0.1s; }
-        .thread-email-header:hover { background:rgba(255,255,255,0.02); }
+        /* Thread email card — subtle border, no heavy dividers */
+        .thread-email {
+            border:1px solid var(--border);
+            border-radius:10px;
+            overflow:hidden;
+            transition:border-color 120ms ease;
+        }
+        .thread-email:hover { border-color:var(--border2); }
+        .thread-email.collapsed { border-color:var(--border); }
 
-        .thread-avatar { width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;font-family:var(--font-body); }
+        .thread-email-header {
+            display:flex;align-items:flex-start;gap:12px;
+            padding:14px 18px;
+            cursor:pointer;user-select:none;
+            transition:background 100ms ease;
+        }
+        .thread-email-header:hover { background:rgba(255,255,255,0.02); }
+        body.light-mode .thread-email-header:hover { background:rgba(0,0,0,0.02); }
+
+        /* Sender avatar — 32px */
+        .thread-avatar {
+            width:32px;height:32px;border-radius:50%;
+            display:flex;align-items:center;justify-content:center;
+            font-size:12px;font-weight:700;flex-shrink:0;font-family:var(--font-body);
+        }
         .thread-avatar.lead     { background:rgba(251,191,36,0.16);color:#fbbf24; }
         .thread-avatar.robert   { background:rgba(52,211,153,0.16);color:#34d399; }
         .thread-avatar.sam      { background:rgba(99,179,237,0.16);color:#63b3ed; }
         .thread-avatar.unaligned,.thread-avatar.asher { background:rgba(168,85,247,0.16);color:#a78bfa; }
 
         .thread-meta { flex:1;min-width:0; }
-        .thread-meta-top { display:flex;align-items:baseline;justify-content:space-between;gap:6px; }
-        .thread-name { font-size:13px;font-weight:700;color:var(--text); }
-        .thread-timestamp { font-size:10px;color:var(--muted);font-family:var(--font-mono);flex-shrink:0; }
-        .thread-meta-sub { font-size:11px;color:var(--muted2);margin-top:3px;line-height:1.5; }
+        .thread-meta-top { display:flex;align-items:baseline;justify-content:space-between;gap:8px; }
+        /* Sender name — Inter 600, 14px */
+        .thread-name { font-size:14px;font-weight:600;color:var(--text); }
+        /* Timestamp — mono, 11px, muted, right */
+        .thread-timestamp { font-size:11px;color:var(--muted);font-family:var(--font-mono);flex-shrink:0; }
+        /* Recipient line — 12px muted */
+        .thread-meta-sub { font-size:12px;color:var(--muted);margin-top:2px;line-height:1.5; }
 
+        /* Collapsed: single-line snippet preview */
         .thread-snippet { font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:560px;margin-top:3px;display:none; }
         .thread-email.collapsed .thread-snippet { display:block; }
         .thread-email.collapsed .thread-meta-sub { display:none; }
 
-        /* Email body — Inter, not mono */
-        .thread-body-wrapper { padding:2px 24px 18px 70px; }
+        /* Email body — 14px Inter, 1.65 line-height */
+        .thread-body-wrapper { padding:4px 18px 18px 62px; }
         .thread-email.collapsed .thread-body-wrapper { display:none; }
         .thread-body {
-            font-size:13px;line-height:1.7;color:var(--muted2);
-            font-family:var(--font-body);  /* Inter, not mono */
-            white-space:pre-wrap;word-break:break-word;max-height:480px;overflow-y:auto;
+            font-size:14px;
+            line-height:1.65;
+            color:var(--text);
+            font-family:var(--font-body);
+            white-space:pre-wrap;word-break:break-word;
+            max-height:540px;overflow-y:auto;
         }
-        /* Quoted text */
-        .email-quote-block { border-left:2px solid var(--border2);padding-left:10px;color:var(--muted);margin:8px 0; }
+        .thread-body p + p { margin-top:16px; }
+
+        /* Quoted text — subtle left border, collapsed by default */
+        .email-quote-block {
+            display:block;
+            border-left:3px solid var(--border2);
+            padding-left:12px;
+            color:var(--muted);
+            margin:10px 0;
+            font-size:13px;
+            line-height:1.6;
+        }
+        /* Quote toggle button */
+        .email-quote-toggle {
+            display:inline-flex;align-items:center;gap:4px;
+            background:var(--surface2);border:1px solid var(--border);
+            border-radius:4px;padding:1px 8px;font-size:11px;
+            color:var(--muted);cursor:pointer;margin:4px 0;
+            font-family:var(--font-mono);
+            transition:background 100ms,color 100ms;
+        }
+        .email-quote-toggle:hover { background:var(--surface3);color:var(--text); }
 
         /* Draft section */
         #draft-reply-section { background:transparent !important;border:none !important;padding:0 !important;border-radius:0 !important; }
@@ -1276,7 +1391,7 @@
         #card-modal-overlay.cv-side-panel .email-thread-pane { flex:1 !important; }
         #card-modal-overlay.cv-side-panel .email-thread-header { padding:18px 36px; }
         #card-modal-overlay.cv-side-panel .thread-email-header { padding:20px 36px;gap:16px; }
-        #card-modal-overlay.cv-side-panel .thread-body-wrapper { padding:12px 36px 24px 88px; }
+        #card-modal-overlay.cv-side-panel .thread-body-wrapper { padding:8px 36px 20px 60px; }
         #card-modal-overlay.cv-side-panel .thread-name { font-size:14px; }
         #card-modal-overlay.cv-side-panel .thread-body { font-size:14px;line-height:1.8; }
         #card-modal-overlay.cv-side-panel .thread-meta-sub { font-size:12px;margin-top:4px; }
@@ -1558,30 +1673,43 @@
 
         /* ─── COMPANIES VIEW ─────────────────────────────── */
         #companies-view { display:none;width:100%;height:100%;min-height:0;background:var(--bg);box-sizing:border-box;flex-direction:row; }
-        .cv-left { width:200px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--surface);overflow:hidden; }
-        .cv-left-search { padding:9px 9px 7px;border-bottom:1px solid var(--border);flex-shrink:0; }
-        .cv-search { width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 9px;color:var(--text);font-size:11px;outline:none;box-sizing:border-box; }
+        /* Left rail — widened to 300px à la Notion sidebar */
+        .cv-left { width:300px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--surface);overflow:hidden; }
+        .cv-left-search { padding:12px 10px 8px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;gap:6px; }
+        .cv-search { width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--text);font-size:13px;outline:none;box-sizing:border-box;transition:border-color 120ms; }
         .cv-search:focus { border-color:var(--accent); }
-        .cv-left-count { font-size:9px;color:var(--muted);padding:3px 9px 5px;font-family:var(--font-mono); }
-        .cv-section-hdr { font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;padding:7px 11px 3px;color:var(--muted);border-top:1px solid var(--border);margin-top:2px; }
+        .cv-left-count { font-size:11px;color:var(--muted);padding:4px 10px 6px;letter-spacing:0; }
+        .cv-section-hdr { font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;padding:8px 12px 4px;color:var(--muted);border-top:1px solid var(--border);margin-top:2px; }
         .cv-section-hdr:first-child { border-top:none;margin-top:0; }
-        .cv-reply-dot { width:6px;height:6px;border-radius:50%;background:#34d399;box-shadow:0 0 4px rgba(52,211,153,0.65);flex-shrink:0; }
-        .cv-camp-section-hdr { font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);padding:13px 4px 5px;display:flex;align-items:center;gap:5px; }
+        /* Status dot — only for unread/activity */
+        .cv-reply-dot { width:7px;height:7px;border-radius:50%;background:#34d399;flex-shrink:0; }
+        .cv-camp-section-hdr { font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);padding:13px 4px 5px;display:flex;align-items:center;gap:5px; }
         .cv-camp-actions { display:none; }
         .cv-stage-select { background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:10px;padding:2px 5px;cursor:pointer;outline:none;flex:1;min-width:0; }
         .cv-stage-select:focus { border-color:var(--accent); }
-        .cv-del-btn { background:none;border:1px solid var(--border);border-radius:4px;color:var(--muted);font-size:10px;padding:2px 6px;cursor:pointer;flex-shrink:0;transition:background 0.12s,color 0.12s,border-color 0.12s; }
+        .cv-del-btn { background:none;border:1px solid var(--border);border-radius:4px;color:var(--muted);font-size:10px;padding:2px 6px;cursor:pointer;flex-shrink:0;transition:background 120ms,color 120ms,border-color 120ms; }
         .cv-del-btn:hover { background:rgba(239,68,68,0.10);border-color:rgba(239,68,68,0.35);color:#ef4444; }
         .cv-reply-banner { background:rgba(52,211,153,0.07);border:1px solid rgba(52,211,153,0.28);border-radius:var(--radius);padding:9px 12px;display:flex;align-items:center;gap:9px;font-size:12px;color:#34d399;font-weight:600; }
         .cv-reply-banner-dot { width:8px;height:8px;border-radius:50%;background:#34d399;box-shadow:0 0 7px rgba(52,211,153,0.8);flex-shrink:0;animation:replyPulse 2s infinite; }
         .cv-company-list { flex:1;overflow-y:auto; }
-        .cv-co-row { display:flex;align-items:center;padding:8px 11px;cursor:pointer;border-left:3px solid transparent;transition:background 0.08s,border-color 0.08s;user-select:none;gap:7px; }
-        .cv-co-row:hover { background:rgba(255,255,255,0.03); }
+        /* Company rows — 36px, clean hover, Notion-style selected */
+        .cv-co-row {
+            display:flex;align-items:center;
+            height:36px;padding:0 12px;
+            cursor:pointer;
+            border-left:3px solid transparent;
+            transition:background 100ms ease,border-color 100ms ease;
+            user-select:none;gap:8px;
+        }
+        .cv-co-row:hover { background:rgba(255,255,255,0.05); }
+        body.light-mode .cv-co-row:hover { background:rgba(0,0,0,0.04); }
         .cv-co-row.selected { background:var(--accent-subtle);border-left-color:var(--accent); }
         .cv-co-row.has-reply { border-left-color:#34d399; }
         .cv-co-row.selected.has-reply { background:rgba(52,211,153,0.07);border-left-color:#34d399; }
-        .cv-co-name { font-size:12px;font-weight:600;color:var(--text);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
-        .cv-co-count { font-size:9px;font-weight:700;color:var(--muted);background:rgba(255,255,255,0.05);border-radius:10px;padding:1px 5px;flex-shrink:0; }
+        .cv-co-name { font-size:13px;font-weight:500;color:var(--text);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+        /* Count badge — subtle pill */
+        .cv-co-count { font-size:11px;font-weight:500;color:var(--muted);background:rgba(255,255,255,0.06);border-radius:99px;padding:1px 7px;flex-shrink:0;border:1px solid var(--border); }
+        body.light-mode .cv-co-count { background:rgba(0,0,0,0.05); }
         .cv-middle { width:240px;flex-shrink:0;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden; }
         .cv-middle-header { padding:16px 14px 12px;border-bottom:1px solid var(--border);flex-shrink:0; }
         .cv-middle-company { font-size:17px;font-weight:700;color:var(--text);letter-spacing:-0.01em; }
@@ -1626,7 +1754,15 @@
         .cv-camp-delete-btn { background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;padding:2px 3px;border-radius:4px;flex-shrink:0;opacity:0;transition:opacity 0.12s; }
         .cv-camp-row:hover .cv-camp-delete-btn { opacity:1; }
         .cv-camp-delete-btn:hover { color:#ef4444; }
-        .cv-detail-empty { color:var(--muted);font-size:13px;text-align:center;padding:70px 18px; }
+        .cv-detail-empty {
+            color:var(--muted);font-size:13px;text-align:center;
+            padding:70px 18px;
+            display:flex;flex-direction:column;align-items:center;gap:12px;
+            justify-content:center;
+        }
+        .cv-empty-icon { font-size:32px;opacity:0.4; }
+        .cv-empty-text { font-size:14px;color:var(--muted);font-weight:500; }
+        .cv-empty-sub  { font-size:12px;color:var(--muted2); }
         .cv-detail-header { display:flex;align-items:center;gap:12px; }
         .cv-detail-avatar { width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;flex-shrink:0; }
         .cv-detail-name { font-size:15px;font-weight:700;color:var(--text); }
@@ -1869,62 +2005,63 @@
                 </div>
             </div>
             <div class="header-right">
-                <!-- Status: sync dot + API cost -->
+                <!-- 3-tab segmented control -->
+                <div class="view-seg-group" id="main-view-seg">
+                    <button class="view-seg-btn active" id="seg-btn-board" onclick="switchMainView('board')" title="Kanban board">Board</button>
+                    <button class="view-seg-btn" id="seg-btn-companies" onclick="switchMainView('companies')" title="Companies view">Companies</button>
+                    <button class="view-seg-btn" id="seg-btn-table" onclick="switchMainView('table')" title="Table view">Table</button>
+                </div>
+
+                <div class="header-divider"></div>
+
+                <!-- AI Inbox icon -->
+                <button class="view-toggle" id="ai-inbox-btn" onclick="toggleAiInbox()" title="AI Inbox — replies and new leads needing attention" style="position:relative;padding:5px 10px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    <span id="ai-inbox-badge" style="display:none;position:absolute;top:-4px;right:-4px;background:#ef4444;color:#fff;font-size:9px;font-weight:700;border-radius:999px;min-width:16px;height:16px;line-height:16px;text-align:center;padding:0 3px;font-family:var(--font-mono);"></span>
+                </button>
+
+                <!-- Sync / Refresh icon -->
+                <button class="view-toggle" id="gmail-sync-btn" onclick="syncGmail()" title="Sync Gmail" style="padding:5px 8px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
+                </button>
+
+                <!-- Sort -->
+                <button class="view-toggle" id="global-sort-btn" onclick="cycleGlobalSort()" title="Sort all columns" style="padding:5px 9px;">⇅ Date</button>
+
+                <!-- Status: sync dot -->
                 <div class="sync-indicator sync-connecting" id="sync-indicator" data-sync-indicator title="Connecting…">
                     <span class="sync-dot"></span>
                     <span data-sync-text>Connecting…</span><span data-sync-time style="opacity:0.6;margin-left:2px;"></span>
                 </div>
-                <div id="api-cost-widget" title="Total Claude API spend since project start" style="font-size:11px;font-family:var(--font-mono);color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 9px;white-space:nowrap;cursor:default;">
-                    🤖 <span id="api-cost-total">…</span>
-                </div>
 
-                <div class="header-divider"></div>
-
-                <!-- Filter: All / Pipeline / Network -->
-                <span class="view-toggle" id="dt-toggle-group" style="padding:0;gap:0;overflow:hidden;border-radius:8px;" title="Switch between revenue pipeline and relationship network">
-                    <button class="dt-btn dt-active" id="dt-btn-all" onclick="setDealTypeFilter('all')">All</button>
-                    <button class="dt-btn" id="dt-btn-deal" onclick="setDealTypeFilter('deal')">Pipeline</button>
-                    <button class="dt-btn" id="dt-btn-relationship" onclick="setDealTypeFilter('relationship')">Network</button>
-                </span>
-
-                <!-- Companies Tree View -->
-                <button class="view-toggle" id="companies-view-btn" onclick="toggleCompaniesView()" title="Companies — see all companies and their campaigns" style="padding:6px 12px;font-weight:600;">Companies</button>
-
-                <!-- AI Inbox -->
-                <button class="view-toggle" id="ai-inbox-btn" onclick="toggleAiInbox()" title="AI Inbox — replies and new leads needing attention" style="padding:6px 12px;position:relative;font-weight:600;">
-                    Inbox
-                    <span id="ai-inbox-badge" style="display:none;position:absolute;top:-5px;right:-5px;background:#ef4444;color:#fff;font-size:10px;font-weight:700;border-radius:999px;min-width:18px;height:18px;line-height:18px;text-align:center;padding:0 4px;font-family:var(--font-mono);"></span>
+                <!-- Theme toggle (sun/moon) -->
+                <button class="theme-toggle-btn" id="light-mode-btn" onclick="toggleLightMode()" title="Toggle light/dark mode">
+                    <svg id="theme-icon-moon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                    <svg id="theme-icon-sun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
                 </button>
 
-                <div class="header-divider"></div>
+                <!-- Builder settings (hidden by default) -->
+                <button class="view-toggle" id="asher-settings-btn" onclick="openAsherSettings()" title="Builder settings" style="display:none;font-size:15px;padding:5px 9px;">⚙</button>
 
-                <!-- View mode: Compact / Table / Strip -->
-                <div class="hdr-btn-group">
-                    <button class="view-toggle" id="view-toggle-btn" onclick="toggleViewMode()" title="Toggle compact view">⊞ Compact</button>
-                    <button class="view-toggle" id="table-view-btn" onclick="toggleTableView()" title="Toggle table view">☰ Table</button>
-                    <button class="view-toggle" id="strip-toggle-btn" onclick="toggleTopStrip()" title="Toggle top panel" style="padding:6px 10px;">▴</button>
-                </div>
-
-                <div class="header-divider"></div>
-
-                <!-- Actions: Sync / Log / Sort -->
-                <div class="hdr-btn-group">
-                    <button class="view-toggle" id="docs-panel-btn" onclick="toggleDocsPanel()" title="Team documents" style="padding:6px 10px;">Docs</button>
-                    <button class="view-toggle" id="gmail-sync-btn" onclick="syncGmail()" title="Scrape Gmail + refresh board" style="padding:6px 10px;">🔄</button>
-                    <button class="view-toggle" id="daily-log-btn" onclick="openDailyLog()" title="Daily activity log" style="padding:6px 10px;">📋</button>
-                    <button class="view-toggle" id="gcal-toggle-btn" onclick="toggleGcalPanel()" title="Robert's Google Calendar" style="padding:6px 10px;">📅</button>
-                    <button class="view-toggle" id="global-sort-btn" onclick="cycleGlobalSort()" title="Sort all columns">⇅ Date</button>
-                </div>
-
-                <div class="header-divider"></div>
-
-                <!-- User -->
-                <button class="view-toggle" id="light-mode-btn" onclick="toggleLightMode()" title="Toggle light/dark mode" style="padding:6px 10px;">☀️</button>
-                <button class="view-toggle" id="asher-settings-btn" onclick="openAsherSettings()" title="Builder settings" style="display:none;font-size:15px;padding:6px 10px;">⚙</button>
+                <!-- Avatar / profile -->
                 <button class="profile-btn" id="profile-btn" onclick="openProfileModal()">
                     <span class="avatar" id="current-avatar">AW</span>
                     <span id="current-profile-name">Asher W</span>
                 </button>
+
+                <!-- Hidden: preserve old button IDs so JS still works -->
+                <span style="display:none;">
+                    <button id="companies-view-btn" onclick="toggleCompaniesView()"></button>
+                    <button id="view-toggle-btn" onclick="toggleViewMode()"></button>
+                    <button id="table-view-btn" onclick="toggleTableView()"></button>
+                    <button id="strip-toggle-btn" onclick="toggleTopStrip()"></button>
+                    <button id="docs-panel-btn" onclick="toggleDocsPanel()"></button>
+                    <button id="daily-log-btn" onclick="openDailyLog()"></button>
+                    <button id="gcal-toggle-btn" onclick="toggleGcalPanel()"></button>
+                    <button id="dt-btn-all" onclick="setDealTypeFilter('all')"></button>
+                    <button id="dt-btn-deal" onclick="setDealTypeFilter('deal')"></button>
+                    <button id="dt-btn-relationship" onclick="setDealTypeFilter('relationship')"></button>
+                </span>
             </div>
         </header>
 
@@ -1944,9 +2081,10 @@
         </div>
 
         <div class="sync-warning" id="sync-warning" role="alert" aria-live="polite"></div>
-        <div class="sync-indicator sync-connecting sync-indicator-floating" id="sync-indicator-floating" data-sync-indicator title="Connecting…">
+        <div class="sync-indicator sync-connecting sync-indicator-floating" id="sync-indicator-floating" data-sync-indicator title="Connecting…" style="gap:8px;">
             <span class="sync-dot"></span>
             <span data-sync-text>Connecting…</span><span data-sync-time style="opacity:0.6;margin-left:2px;"></span>
+            <span id="api-cost-widget" title="Total Claude API spend" style="font-family:var(--font-mono);font-size:10px;opacity:0.7;margin-left:4px;padding-left:8px;border-left:1px solid rgba(255,255,255,0.15);">🤖 <span id="api-cost-total">…</span></span>
         </div>
 
         <main>
@@ -2012,7 +2150,7 @@
                         ➡ Move to
                         <select id="bulk-move-select" onchange="bulkMoveToList(this.value);this.value='';" style="background:transparent;border:none;color:inherit;font-size:12px;font-weight:600;cursor:pointer;outline:none;margin-left:2px;">
                             <option value="">Choose…</option>
-                            <option value="unreplied">NEW — NO REPLY</option>
+                            <option value="unreplied">NEW</option>
                             <option value="discovery">LEAD IN</option>
                             <option value="build">IN PROGRESS</option>
                             <option value="review">REVIEW</option>
@@ -2071,7 +2209,11 @@
                     <!-- RIGHT: card detail -->
                     <div class="cv-right">
                         <div class="cv-detail" id="cv-detail">
-                            <div class="cv-detail-empty">Select a campaign to view details</div>
+                            <div class="cv-detail-empty">
+                                <div class="cv-empty-icon">📧</div>
+                                <div class="cv-empty-text">Select a company to begin</div>
+                                <div class="cv-empty-sub">Choose from the list on the left</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -2084,7 +2226,7 @@
                       oninput="renderTableView()">
                     <select id="tv-stage" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:13px;cursor:pointer;outline:none;" onchange="renderTableView()">
                       <option value="">All Stages</option>
-                      <option value="unreplied">New — No Reply</option>
+                      <option value="unreplied">New</option>
                       <option value="discovery">Lead In</option>
                       <option value="build">In Progress</option>
                       <option value="review">Review</option>
@@ -2136,10 +2278,16 @@
                     </div>
                 </div>
                 <div class="email-header-actions">
-                    <button class="card-modal-save" id="modal-bookmark-btn" onclick="toggleBookmark(currentEditingCard)" title="Bookmark this card" style="background:transparent;border:1px solid var(--border);color:var(--muted);font-size:13px;padding:4px 10px;border-radius:6px;cursor:pointer;">☆ Bookmark</button>
-                    <button class="card-modal-save" id="modal-needs-reply-btn" onclick="toggleNeedsReply()" title="Mark as needs reply / clear reply flag" style="background:transparent;border:1px solid var(--border);color:var(--muted);font-size:13px;padding:4px 10px;border-radius:6px;cursor:pointer;">🔔 Needs Reply</button>
+                    <button class="card-modal-save" id="modal-bookmark-btn" onclick="toggleBookmark(currentEditingCard)" title="Bookmark this card" style="background:transparent;border:1px solid var(--border);color:var(--muted);font-size:13px;padding:4px 10px;border-radius:6px;cursor:pointer;">☆</button>
+                    <button class="card-modal-save" id="modal-needs-reply-btn" onclick="toggleNeedsReply()" title="Mark as needs reply / clear reply flag" style="background:transparent;border:1px solid var(--border);color:var(--muted);font-size:13px;padding:4px 10px;border-radius:6px;cursor:pointer;">🔔</button>
                     <button class="card-modal-save" onclick="saveCardAndClose()">Save</button>
-                    <button class="delete-card-btn" onclick="deleteCard()" style="padding:6px 12px;font-size:13px;border-radius:6px;">🗑 Delete</button>
+                    <!-- ··· overflow menu (Delete lives here) -->
+                    <div style="position:relative;display:inline-block;" id="modal-overflow-wrap">
+                        <button class="card-modal-close" id="modal-overflow-btn" onclick="toggleModalOverflow()" title="More options" style="font-size:18px;letter-spacing:1px;">···</button>
+                        <div id="modal-overflow-menu" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.35);z-index:200;min-width:160px;padding:4px;">
+                            <button onclick="if(confirm('Delete this card? This cannot be undone.')){closeModalOverflow();deleteCard();}" style="display:flex;width:100%;align-items:center;gap:8px;padding:8px 12px;border:none;background:transparent;color:#f87171;font-size:13px;cursor:pointer;border-radius:6px;font-family:var(--font-body);" onmouseover="this.style.background='rgba(239,68,68,0.08)'" onmouseout="this.style.background='transparent'">🗑 Delete card</button>
+                        </div>
+                    </div>
                     <button class="card-modal-close" onclick="closeCardModal()">×</button>
                 </div>
             </div>
@@ -5019,6 +5167,31 @@ function cvOpenCardPanel(cardId) {
 }
 window.cvOpenCardPanel = cvOpenCardPanel;
 
+// ── Modal overflow menu (Delete / more actions) ──
+function toggleModalOverflow() {
+    const menu = document.getElementById('modal-overflow-menu');
+    if (!menu) return;
+    const isOpen = menu.style.display !== 'none';
+    menu.style.display = isOpen ? 'none' : 'block';
+    if (!isOpen) {
+        // Close on next outside click
+        setTimeout(() => {
+            document.addEventListener('click', function _close(e) {
+                if (!document.getElementById('modal-overflow-wrap')?.contains(e.target)) {
+                    closeModalOverflow();
+                    document.removeEventListener('click', _close);
+                }
+            });
+        }, 0);
+    }
+}
+function closeModalOverflow() {
+    const menu = document.getElementById('modal-overflow-menu');
+    if (menu) menu.style.display = 'none';
+}
+window.toggleModalOverflow = toggleModalOverflow;
+window.closeModalOverflow = closeModalOverflow;
+
 function closeCardModal(event) {
     if (!event || event.target===document.getElementById('card-modal-overlay')) {
         const lastId = currentEditingCard;
@@ -6402,7 +6575,7 @@ function updateCardCount() {
         const stageCards = Object.values(cardsData).filter(c=>c.listId===stage.id && (window._dealTypeFilter==='all'||c.dealType===window._dealTypeFilter));
         const count = stageCards.length;
         const badge = document.getElementById('count-'+stage.id);
-        if (badge) badge.textContent = count;
+        if (badge) badge.textContent = count > 0 ? `(${count})` : '(0)';
         const valEl = document.getElementById('value-'+stage.id);
         if (valEl) {
             const showTotal = ['invoice-sent','done','paid-out'].includes(stage.id);
@@ -6580,12 +6753,16 @@ function toggleViewMode() {
 }
 function loadViewMode() {
     const saved=localStorage.getItem('flowViewMode');
-    if(saved==='compact'){isCompactView=true;document.getElementById('board').classList.add('compact-view');document.getElementById('view-toggle-btn').textContent='⊡ Expanded';}
+    if(saved==='compact'){isCompactView=true;document.getElementById('board').classList.add('compact-view');}
+    // Restore last active tab
+    if (saved === 'companies' || saved === 'table') {
+        setTimeout(() => { if (typeof switchMainView === 'function') switchMainView(saved); }, 800);
+    }
 }
 
 // ── Table View ───────────────────────────────────────────────
 let isTableView = false;
-const stageMap = { 'unreplied':{label:'NEW — NO REPLY',color:'#f97316'},'discovery':{label:'LEAD IN',color:'#94a3b8'},'build':{label:'IN PROGRESS',color:'#3b82f6'},'review':{label:'REVIEW',color:'#fbbf24'},'done':{label:'DONE',color:'#34d399'},'paid-out':{label:'PAID OUT',color:'#a855f7'},'anything-else':{label:'DEAD LEADS',color:'#6b7280'} };
+const stageMap = { 'unreplied':{label:'NEW',color:'#f97316'},'discovery':{label:'LEAD IN',color:'#94a3b8'},'build':{label:'IN PROGRESS',color:'#3b82f6'},'review':{label:'REVIEW',color:'#fbbf24'},'done':{label:'DONE',color:'#34d399'},'paid-out':{label:'PAID OUT',color:'#a855f7'},'anything-else':{label:'DEAD LEADS',color:'#6b7280'} };
 const avatarGradients = { 'Asher W':'linear-gradient(135deg,#4facfe,#00f2fe)','Robert S':'linear-gradient(135deg,#f093fb,#f5576c)','Sam L':'linear-gradient(135deg,#667eea,#764ba2)' };
 function tvInitials(n){if(!n)return'?';return n.split(' ').map(x=>x[0]).join('').toUpperCase().slice(0,2);}
 function tvGradient(n){return avatarGradients[n]||'linear-gradient(135deg,#6b7280,#4b5563)';}
@@ -6653,15 +6830,13 @@ const TV_COLS = [
   {k:'_received',   l:'Date',         w:90},
   {k:'phone',        l:'Phone',       w:120},
   {k:'listId',       l:'Stage',        w:110},
-  {k:'estimatedValue',l:'Deal Value', w:100},
   {k:'priority',     l:'Priority',     w:80},
   {k:'_assignee',   l:'Assignee',     w:120},
-  {k:'leadSource',   l:'Source',       w:90},
   {k:'dueDate',      l:'Due',           w:90},
   {k:'title',        l:'Title',         w:200},
   {k:'description',  l:'Notes',         w:220},
   {k:'_activity',   l:'Last Activity', w:180},
-];
+]; // Deal Value + Source columns removed per user request (always $0 / always GMAIL)
 let tvSortKey='_received', tvSortAsc=false;
 function applyGlobalSortToTable() {
     if (window._globalSort === 'az')    { tvSortKey='contactName'; tvSortAsc=true; }
@@ -6670,27 +6845,29 @@ function applyGlobalSortToTable() {
 }
 
 function toggleTableView() {
-    isTableView=!isTableView;
-    const bv=document.getElementById('board');
-    const fm=document.getElementById('flow-map');
-    const tv=document.getElementById('table-view');
-    const tf=document.getElementById('tv-filters');
-    const btn=document.getElementById('table-view-btn');
-    if(isTableView){
-        bv.style.display='none';
-        fm.style.display='none';
-        tv.style.display='block';
-        if(tf) tf.style.display='block';
-        btn.textContent='⊞ Board';
-        renderTableView();
+    // Route through switchMainView for consistent tab state
+    if (typeof switchMainView === 'function') {
+        switchMainView(isTableView ? 'board' : 'table');
     } else {
-        bv.style.display='';
-        fm.style.display='';
-        tv.style.display='none';
-        if(tf) tf.style.display='none';
-        btn.textContent='☰ Table';
+        isTableView=!isTableView;
+        const bv=document.getElementById('board');
+        const fm=document.getElementById('flow-map');
+        const tv=document.getElementById('table-view');
+        const tf=document.getElementById('tv-filters');
+        if(isTableView){
+            bv.style.display='none';
+            fm.style.display='none';
+            tv.style.display='block';
+            if(tf) tf.style.display='block';
+            renderTableView();
+        } else {
+            bv.style.display='';
+            fm.style.display='';
+            tv.style.display='none';
+            if(tf) tf.style.display='none';
+        }
+        localStorage.setItem('flowViewMode',isTableView?'table':(isCompactView?'compact':'expanded'));
     }
-    localStorage.setItem('flowViewMode',isTableView?'table':(isCompactView?'compact':'expanded'));
 }
 
 function tvGetFiltered() {
@@ -6749,10 +6926,10 @@ function renderTableView() {
           <td style="padding:7px 10px;vertical-align:top;font-size:11px;color:var(--muted);white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${tvDate(c)}</td>
           <td style="padding:7px 10px;vertical-align:top;font-size:14px;color:var(--muted);cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.phone||'—')}</td>
           <td style="padding:7px 10px;vertical-align:top;cursor:default;" onclick="event.stopPropagation()"><select onchange="moveCardToList('${c.id}',this.value);this.value='${c.listId}';" style="background:${st.color}22;color:${st.color};border:1px solid ${st.color}55;border-radius:10px;padding:2px 6px;font-size:10px;font-weight:700;text-transform:uppercase;cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;">${stageOpts}</select></td>
-          <td style="padding:7px 10px;vertical-align:top;font-weight:600;color:#34d399;font-size:12px;cursor:pointer;" onclick="openCardModal('${c.id}')">$${Number(c.estimatedValue||0).toLocaleString()}</td>
+          
           <td style="padding:7px 10px;vertical-align:top;font-size:11px;font-weight:700;${c.priority==='hot'?'color:#ef4444':c.priority==='warm'?'color:#f59e0b':'color:#3b82f6'};cursor:pointer;" onclick="openCardModal('${c.id}')">${(c.priority||'—').toUpperCase()}</td>
           <td style="padding:7px 10px;vertical-align:top;font-size:14px;cursor:default;" onclick="event.stopPropagation()"><div style="display:flex;align-items:center;gap:6px;">${c.assignee?`<span style="width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;flex-shrink:0;background:${tvGradient(c.assignee)}">${tvInitials(c.assignee)}</span><span>${escapeHtml(c.assignee)}</span>`:'—'}</div></td>
-          <td style="padding:7px 10px;vertical-align:top;font-size:11px;color:var(--muted);cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.leadSource||'—')}</td>
+          
           <td style="padding:7px 10px;vertical-align:top;font-size:11px;color:${isOverdue?'#f87171':'var(--muted)'};cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.dueDate||'—')}</td>
           <td style="padding:7px 10px;vertical-align:top;font-size:14px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.title||'—')}</td>
           <td style="padding:7px 10px;vertical-align:top;font-size:14px;color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;" onclick="openCardModal('${c.id}')">${escapeHtml(c.description||'—')}</td>
@@ -7999,17 +8176,69 @@ function _cvBuildGroups() {
     });
 }
 
-function toggleCompaniesView() {
-    _companiesViewOpen = !_companiesViewOpen;
-    const panel   = document.getElementById('companies-view');
-    const btn     = document.getElementById('companies-view-btn');
-    const bWrap   = document.querySelector('.board-scroll-wrap');
+// ── 3-TAB VIEW SWITCHER ──
+// Board | Companies | Table — replaces the old scattered buttons
+function switchMainView(view) {
+    const board   = document.getElementById('board');
+    const flowMap = document.getElementById('flow-map');
+    const tv      = document.getElementById('table-view');
     const tvF     = document.getElementById('tv-filters');
-    panel.style.display = _companiesViewOpen ? 'flex' : 'none';
-    if (bWrap) bWrap.style.display = _companiesViewOpen ? 'none' : '';
-    if (tvF && _companiesViewOpen) tvF.style.display = 'none';
-    btn.classList.toggle('active', _companiesViewOpen);
-    if (_companiesViewOpen) { _cvGroups = _cvBuildGroups(); renderCvLeft(); }
+    const cv      = document.getElementById('companies-view');
+    const bWrap   = document.querySelector('.board-scroll-wrap');
+
+    // Reset everything
+    if (board)   board.style.display   = 'none';
+    if (flowMap) flowMap.style.display = 'none';
+    if (tv)      tv.style.display      = 'none';
+    if (tvF)     tvF.style.display     = 'none';
+    if (cv)      cv.style.display      = 'none';
+    if (bWrap)   bWrap.style.display   = 'none';
+
+    // Update tab active states
+    document.querySelectorAll('.view-seg-btn').forEach(b => b.classList.remove('active'));
+    const activeBtn = document.getElementById('seg-btn-' + view);
+    if (activeBtn) activeBtn.classList.add('active');
+
+    // Reset state flags
+    isTableView = false;
+    _companiesViewOpen = false;
+
+    if (view === 'board') {
+        if (board)   board.style.display   = '';
+        if (flowMap) flowMap.style.display = '';
+        if (bWrap)   bWrap.style.display   = '';
+        localStorage.setItem('flowViewMode', 'expanded');
+    } else if (view === 'companies') {
+        if (cv) cv.style.display = 'flex';
+        _companiesViewOpen = true;
+        _cvGroups = _cvBuildGroups();
+        renderCvLeft();
+        localStorage.setItem('flowViewMode', 'companies');
+    } else if (view === 'table') {
+        if (tv)  tv.style.display  = 'block';
+        if (tvF) tvF.style.display = 'block';
+        isTableView = true;
+        renderTableView();
+        localStorage.setItem('flowViewMode', 'table');
+    }
+}
+window.switchMainView = switchMainView;
+
+function toggleCompaniesView() {
+    if (typeof switchMainView === 'function') {
+        switchMainView(_companiesViewOpen ? 'board' : 'companies');
+    } else {
+        _companiesViewOpen = !_companiesViewOpen;
+        const panel   = document.getElementById('companies-view');
+        const btn     = document.getElementById('companies-view-btn');
+        const bWrap   = document.querySelector('.board-scroll-wrap');
+        const tvF     = document.getElementById('tv-filters');
+        panel.style.display = _companiesViewOpen ? 'flex' : 'none';
+        if (bWrap) bWrap.style.display = _companiesViewOpen ? 'none' : '';
+        if (tvF && _companiesViewOpen) tvF.style.display = 'none';
+        btn.classList.toggle('active', _companiesViewOpen);
+        if (_companiesViewOpen) { _cvGroups = _cvBuildGroups(); renderCvLeft(); }
+    }
 }
 window.toggleCompaniesView = toggleCompaniesView;
 
@@ -8037,8 +8266,9 @@ function renderCvLeft(filterStr) {
         const row = document.createElement('div');
         row.className = 'cv-co-row' + (isSelected ? ' selected' : '') + (hasReply ? ' has-reply' : '');
         row.id = 'cv-co-row-' + group.key.replace(/[^a-z0-9]/gi,'');
+        row.title = group.displayName; // Full name on hover
         row.innerHTML = `
-            ${hasReply ? '<span class="cv-reply-dot"></span>' : ''}
+            ${hasReply ? '<span class="cv-reply-dot" title="Recent activity"></span>' : ''}
             <span class="cv-co-name">${escapeHtml(group.displayName)}</span>
             <span class="cv-co-count">${group.campaigns.length}</span>
         `;
@@ -8359,7 +8589,7 @@ window.cvSaveNotes = cvSaveNotes;
 function renderCvDetail() {
     const detail = document.getElementById('cv-detail');
     if (!_cvSelectedCardId) {
-        detail.innerHTML = '<div class="cv-detail-empty">Select a campaign to view details</div>';
+        detail.innerHTML = '<div class="cv-detail-empty"><div class="cv-empty-icon">📧</div><div class="cv-empty-text">Select a company to begin</div><div class="cv-empty-sub">Choose from the list on the left</div></div>';
         return;
     }
     const card = cardsData[_cvSelectedCardId];
@@ -8752,6 +8982,18 @@ function closeRobertReview(event) {
     if (event && event.target !== document.getElementById('robert-review-overlay')) return;
     document.getElementById('robert-review-overlay').style.display = 'none';
 }
+// Escape key closes Robert Review + card tour
+document.addEventListener('keydown', function(e) {
+    if (e.key !== 'Escape') return;
+    const rrOverlay = document.getElementById('robert-review-overlay');
+    if (rrOverlay && rrOverlay.style.display === 'flex') {
+        rrOverlay.style.display = 'none'; return;
+    }
+    const tourOverlay = document.getElementById('card-tour-overlay');
+    if (tourOverlay && tourOverlay.style.display === 'block') {
+        dismissCardTour(); return;
+    }
+});
 
 function rrPrev() { if (_rrIndex > 0) { _rrIndex--; rrRender(); } }
 function rrNext() { if (_rrIndex < _rrCards.length - 1) { _rrIndex++; rrRender(); } }
@@ -8857,7 +9099,19 @@ function applyTheme(theme) {
     if (theme === 'light')  document.body.classList.add('light-mode');
     if (theme === 'matrix') document.body.classList.add('matrix-mode');
     const btn = document.getElementById('light-mode-btn');
-    if (btn) { btn.textContent = THEME_ICONS[theme]; btn.title = THEME_TITLES[theme]; }
+    if (btn) {
+        // Swap sun/moon SVG icons
+        const moonIcon = document.getElementById('theme-icon-moon');
+        const sunIcon  = document.getElementById('theme-icon-sun');
+        if (moonIcon && sunIcon) {
+            const isLight = (theme === 'light');
+            moonIcon.style.display = isLight ? 'none' : '';
+            sunIcon.style.display  = isLight ? '' : 'none';
+        } else {
+            btn.textContent = THEME_ICONS[theme];
+        }
+        btn.title = THEME_TITLES[theme];
+    }
     localStorage.setItem('ui_theme', theme);
     // start/stop matrix engine
     const wasHalloween = document.body.classList.contains('halloween-mode') || (theme === 'halloween');
@@ -8875,7 +9129,8 @@ function applyTheme(theme) {
 }
 function toggleLightMode() {
     const cur = localStorage.getItem('ui_theme') || 'dark';
-    const next = THEME_CYCLE[(THEME_CYCLE.indexOf(cur) + 1) % THEME_CYCLE.length];
+    // Sun/moon button only toggles between dark and light
+    const next = (cur === 'light') ? 'dark' : 'light';
     applyTheme(next);
 }
 // Apply on load — matrix engine starts after DOM ready
@@ -9199,30 +9454,46 @@ window.showGcalConnect = showGcalConnect;
             .replace(/&/g,'&amp;')
             .replace(/</g,'&lt;')
             .replace(/>/g,'&gt;');
-        // Restore < > for bracket URLs: &lt;https://...&gt;
+        // Restore bracket URLs: &lt;https://...&gt; → <a>
         html = html.replace(/&lt;(https?:\/\/[^&]+)&gt;/g, (_, url) =>
-            `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`
+            `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color:var(--accent);text-decoration:none;">${url}</a>`
         );
-        // Convert "^ * " bullets
+        // Also linkify bare https:// URLs not in brackets
+        html = html.replace(/(^|[\s\n])(https?:\/\/[^\s<>&]+)/g, (_, pre, url) =>
+            `${pre}<a href="${url}" target="_blank" rel="noopener noreferrer" style="color:var(--accent);text-decoration:none;">${url}</a>`
+        );
+        // Process lines: bullets, quoted blocks
         const lines = html.split('\n');
         const out = [];
         let inList = false;
+        let quoteLines = [];
+        let quoteId = 0;
+
+        function flushQuote() {
+            if (!quoteLines.length) return;
+            const id = 'qb-' + (++quoteId) + '-' + Math.random().toString(36).slice(2,6);
+            out.push(`<button class="email-quote-toggle" onclick="(function(btn){var qb=document.getElementById('${id}');if(!qb)return;var hidden=qb.style.display==='none';qb.style.display=hidden?'block':'none';btn.textContent=hidden?'\u25b2 Hide quote':'\u00b7\u00b7\u00b7';})(this)">\u00b7\u00b7\u00b7</button>`);
+            out.push(`<div id="${id}" class="email-quote-block" style="display:none;">` + quoteLines.join('<br>') + '</div>');
+            quoteLines = [];
+        }
+
         for (const line of lines) {
             const trimmed = line.trimStart();
             if (/^\* /.test(trimmed) || /^ \* /.test(line)) {
+                flushQuote();
                 if (!inList) { out.push('<ul>'); inList = true; }
                 out.push('<li>' + trimmed.replace(/^\* /, '') + '</li>');
+            } else if (/^&gt;/.test(trimmed)) {
+                if (inList) { out.push('</ul>'); inList = false; }
+                quoteLines.push(line.replace(/^&gt;\s?/, ''));
             } else {
                 if (inList) { out.push('</ul>'); inList = false; }
-                // Quoted lines
-                if (/^&gt;/.test(trimmed)) {
-                    out.push('<span class="email-quote-block">' + line + '</span>');
-                } else {
-                    out.push(line);
-                }
+                flushQuote();
+                out.push(line);
             }
         }
         if (inList) out.push('</ul>');
+        flushQuote();
         el.innerHTML = out.join('\n');
     }
 
