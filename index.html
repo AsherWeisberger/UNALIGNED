@@ -2331,8 +2331,17 @@
         .cv-middle-empty { color:var(--muted); font-size:13px; text-align:center; padding:40px 16px; }
         /* Right pane — card detail */
         .cv-right { flex:1; min-width:0; display:flex; flex-direction:column; overflow:hidden; background:var(--bg); }
-        .cv-detail { flex:1; overflow-y:auto; padding:24px 32px; display:flex; flex-direction:column; gap:14px; }
+        .cv-detail { flex:1; min-height:0; display:flex; flex-direction:column; overflow:hidden; padding:0; }
         .cv-detail-inner { max-width:680px; display:flex; flex-direction:column; gap:14px; }
+        .cv-full-panel { display:flex; flex-direction:column; height:100%; min-height:0; }
+        .cv-full-header { padding:16px 22px 14px; border-bottom:1px solid rgba(255,255,255,0.07); flex-shrink:0; display:flex; align-items:center; gap:14px; }
+        .cv-thread-scroll { flex:1; overflow-y:auto; min-height:0; }
+        .cv-thread-hdr { padding:12px 22px 10px; display:flex; align-items:center; gap:10px; border-bottom:1px solid rgba(255,255,255,0.06); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.09em; color:var(--muted); font-family:var(--font-mono); position:sticky; top:0; background:var(--bg); z-index:1; }
+        .cv-thread-list .thread-email-header { padding:16px 22px; }
+        .cv-thread-list .thread-body-wrapper { padding:10px 22px 20px 84px; }
+        .cv-reply-preview { flex-shrink:0; border-top:1px solid rgba(255,255,255,0.07); padding:16px 22px; }
+        .cv-reply-preview-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:var(--muted); font-family:var(--font-mono); margin-bottom:8px; }
+        .cv-reply-preview-body { font-size:13px; line-height:1.7; color:var(--muted2); white-space:pre-wrap; max-height:100px; overflow:hidden; mask-image:linear-gradient(to bottom,black 40%,transparent 100%); -webkit-mask-image:linear-gradient(to bottom,black 40%,transparent 100%); margin-bottom:12px; }
         .cv-detail-empty { color:var(--muted); font-size:14px; text-align:center; padding:80px 20px; }
         .cv-detail-header { display:flex; align-items:center; gap:14px; }
         .cv-detail-avatar { width:42px; height:42px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:17px; font-weight:700; flex-shrink:0; }
@@ -9091,7 +9100,7 @@ function renderCvDetail() {
     const contact    = card.contactName || card.title || '?';
     const company    = card.businessName || '';
 
-    // Avatar color
+    // Avatar palette
     const palettes = [
         {bg:'rgba(91,140,255,0.22)',color:'#5b8cff'},{bg:'rgba(52,211,153,0.22)',color:'#34d399'},
         {bg:'rgba(251,191,36,0.22)',color:'#fbbf24'},{bg:'rgba(168,85,247,0.22)',color:'#a78bfa'},
@@ -9100,89 +9109,84 @@ function renderCvDetail() {
     let h=0; for (const ch of contact) h=(h*31+ch.charCodeAt(0))>>>0;
     const pal = palettes[h % palettes.length];
 
-    // Email thread
-    const emails = Array.isArray(card.originalEmail) ? card.originalEmail : (card.originalEmail ? [card.originalEmail] : []);
-    const threadHtml = emails.length > 0
-        ? emails.map(em => {
-            const body = (em.body || em.snippet || '').slice(0, 400);
-            const from = em.from || em.email || '?';
-            const date = em.date ? (() => { try { const d=new Date(em.date); return isNaN(d)?em.date:d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}); } catch(e){return em.date;} })() : '';
-            return `<div class="cv-msg"><div class="cv-msg-header"><span class="cv-msg-from">${escapeHtml(from)}</span><span class="cv-msg-date">${escapeHtml(date)}</span></div><div class="cv-msg-body">${escapeHtml(body)}${(em.body||'').length>400?'…':''}</div></div>`;
-        }).join('')
-        : '<div style="color:var(--muted);font-size:12px;padding:12px 0;">No email thread on file</div>';
+    // Build thread HTML using the same classes as the modal
+    const emails = Array.isArray(card.originalEmail) ? card.originalEmail
+                 : (card.originalEmail ? [card.originalEmail] : []);
+    const sorted = [...emails].sort((a,b) => new Date(a.date||0) - new Date(b.date||0));
 
-    // Lead intel fields
-    const desc = card.description || '';
-    let ldWho   = extractLeadField(desc,'WHO')   || [card.contactName,card.businessName,card.jobTitle].filter(Boolean).join(' · ');
-    let ldWhat  = extractLeadField(desc,'WHAT')  || card.intent || card.leadSource || '';
-    let ldWhy   = extractLeadField(desc,'WHY')   || extractLeadField(desc,'WHY THEM') || desc.replace(/^WHO:.*$/mg,'').replace(/^WHAT:.*$/mg,'').replace(/^VALUE:.*$/mg,'').trim().slice(0, 200) || '';
-    let ldValue = extractLeadField(desc,'VALUE') || (card.estimatedValue ? `$${card.estimatedValue}` : '');
+    const threadHtml = sorted.length === 0
+        ? '<div style="color:var(--muted);font-size:13px;padding:24px 22px;">No email thread on file.</div>'
+        : sorted.map((email, i) => {
+            const isLast = i === sorted.length - 1;
+            const dir = detectSender(email.from);
+            const senderLabel = dir==='robert'?'Robert Scoble':dir==='sam'?'Sam Levin':dir==='unaligned'?'UNALIGNED':dir==='asher'?'Asher W':(contact||'Lead');
+            const avatarInitial = dir==='robert'?'R':dir==='sam'?'S':dir==='unaligned'?'U':dir==='asher'?'A':(contact.charAt(0).toUpperCase()||'L');
+            const toLine = dir==='lead' ? `to Robert Scoble, Sam Levin` : `to ${contact}`;
+            const date = email.date ? new Date(email.date) : null;
+            const dateStr = date ? date.toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
+            const timeStr = date ? date.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '';
+            const bodyText = decodeHtml(email.body || email.snippet || '');
+            const snippet = escHtml(bodyText.replace(/\n/g,' ').slice(0,110)) + (bodyText.length>110?'…':'');
+            const collapsedClass = isLast ? '' : ' collapsed';
+            return `
+                <div class="thread-email from-${dir}${collapsedClass}">
+                    <div class="thread-email-header" onclick="this.closest('.thread-email').classList.toggle('collapsed')">
+                        <div class="thread-avatar ${dir}">${avatarInitial}</div>
+                        <div class="thread-meta">
+                            <div class="thread-meta-top">
+                                <span class="thread-name">${escHtml(senderLabel)}</span>
+                                <span class="thread-timestamp">${escHtml(dateStr)}${dateStr&&timeStr?' · ':''}${escHtml(timeStr)}</span>
+                            </div>
+                            <div class="thread-meta-sub">${escHtml(toLine)}</div>
+                            <div class="thread-snippet">${snippet}</div>
+                        </div>
+                    </div>
+                    <div class="thread-body-wrapper">
+                        <div class="thread-body">${escHtml(bodyText)}</div>
+                    </div>
+                </div>`;
+        }).join('');
 
-    const row = (label, val, href) => val ? `
-        <div class="cvd-row">
-            <span class="cvd-label">${label}</span>
-            <span class="cvd-val">${href ? `<a href="${href}" target="_blank" style="color:#4facfe;text-decoration:none;">${escapeHtml(val)}</a>` : escapeHtml(val)}</span>
-        </div>` : '';
-
-    const liRow = (label, cls, val) => `
-        <div class="cvd-li-row">
-            <span class="lead-field-label ${cls}">${label}</span>
-            <span class="cvd-li-val">${val ? escapeHtml(val) : '<span style="color:var(--muted);font-style:italic;">—</span>'}</span>
+    // Draft preview
+    const draft = card.draft_reply;
+    const draftBody = (draft && typeof draft === 'object' && draft.body) ? draft.body
+                    : (typeof draft === 'string' ? draft : '');
+    const replyDock = draftBody ? `
+        <div class="cv-reply-preview" onclick="event.stopPropagation()">
+            <div class="cv-reply-preview-label">Draft Reply</div>
+            <div class="cv-reply-preview-body">${escHtml(draftBody.slice(0,500))}</div>
+            <button class="cv-open-btn" onclick="cvOpenCardPanel(${card.id})" style="width:100%;justify-content:center;">Edit & Send →</button>
+        </div>` : `
+        <div class="cv-reply-preview" onclick="event.stopPropagation()">
+            <button class="cv-open-btn" onclick="cvOpenCardPanel(${card.id})" style="width:100%;justify-content:center;">Compose Reply →</button>
         </div>`;
 
     detail.innerHTML = `
-        <div class="cv-detail-inner">
+        <div class="cv-full-panel">
 
-            ${card.newReplyAt ? `<div class="cv-reply-banner" style="margin:0 0 14px;"><span class="cv-reply-banner-dot"></span> They replied — this needs your response</div>` : ''}
+            ${card.newReplyAt ? `<div class="cv-reply-banner" style="border-radius:0;border-left:none;border-right:none;margin:0;"><span class="cv-reply-banner-dot"></span> They replied — this needs your response</div>` : ''}
 
-            <!-- Header: avatar + name + stage pill -->
-            <div class="cv-detail-header" style="margin-bottom:14px;">
-                <div class="cv-detail-avatar" style="background:${pal.bg};color:${pal.color};width:48px;height:48px;font-size:19px;">${escapeHtml(contact.charAt(0).toUpperCase())}</div>
-                <div style="min-width:0;">
-                    <div class="cv-detail-name" style="font-size:17px;font-weight:700;">${escapeHtml(contact)}</div>
-                    <div style="font-size:13px;color:var(--muted);margin-top:2px;">${escapeHtml(company)}</div>
-                    <span style="display:inline-flex;align-items:center;margin-top:6px;padding:4px 14px;border-radius:99px;font-size:12px;font-weight:700;letter-spacing:0.04em;background:${stageColor}22;color:${stageColor};border:1px solid ${stageColor}44;">${escapeHtml(stageName)}</span>
+            <!-- Header -->
+            <div class="cv-full-header">
+                <div class="cv-detail-avatar" style="background:${pal.bg};color:${pal.color};width:44px;height:44px;font-size:18px;flex-shrink:0;">${escHtml(contact.charAt(0).toUpperCase())}</div>
+                <div style="min-width:0;flex:1;">
+                    <div style="font-size:16px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(contact)}</div>
+                    <div style="font-size:12px;color:var(--muted);margin-top:1px;">${escHtml(company)}</div>
                 </div>
+                <span style="display:inline-flex;align-items:center;padding:4px 12px;border-radius:99px;font-size:11px;font-weight:700;letter-spacing:0.04em;flex-shrink:0;background:${stageColor}22;color:${stageColor};border:1px solid ${stageColor}44;">${escHtml(stageName)}</span>
             </div>
 
-            <!-- Contact -->
-            <div class="cvd-section">
-                <div class="cvd-section-title">Contact</div>
-                ${row('Email',    card.email,        card.email ? 'mailto:'+card.email : '')}
-                ${row('Phone',    card.phone,        '')}
-                ${row('LinkedIn', card.linkedin_url ? 'View Profile' : '', card.linkedin_url||'')}
-                ${row('Website',  card.website,      card.website||'')}
-                ${row('Location', card.location,     '')}
+            <!-- Thread -->
+            <div class="cv-thread-scroll">
+                <div class="cv-thread-hdr">
+                    <span>Thread</span>
+                    <span style="font-weight:400;letter-spacing:0;">${sorted.length} email${sorted.length!==1?'s':''}</span>
+                </div>
+                <div class="cv-thread-list">${threadHtml}</div>
             </div>
 
-            <!-- Lead Intel -->
-            <div class="cvd-section">
-                <div class="cvd-section-title">Lead Intel</div>
-                ${liRow('WHO',   'who',   ldWho)}
-                ${liRow('WHAT',  'what',  ldWhat)}
-                ${liRow('WHY',   'why',   ldWhy)}
-                ${liRow('VALUE', 'value', ldValue)}
-            </div>
-
-            <!-- Assignee -->
-            ${card.assignee ? `<div class="cvd-section">
-                <div class="cvd-section-title">Assignee</div>
-                <div class="cvd-row"><span class="cvd-label">Assigned</span><span class="cvd-val">${escapeHtml(card.assignee)}</span></div>
-            </div>` : ''}
-
-            <!-- Notes -->
-            <div class="cvd-section" style="border-bottom:none;">
-                <div class="cvd-section-title">Notes</div>
-                <textarea class="cv-notes-area" id="cv-notes-area-${card.id}" placeholder="Add notes…" style="width:100%;min-height:80px;">${escapeHtml(card.description||'')}</textarea>
-                <button class="cv-notes-save-btn" onclick="cvSaveNotes(${card.id})" style="margin-top:8px;">Save Notes</button>
-            </div>
-
-            <!-- Actions -->
-            <div class="cv-detail-actions" onclick="event.stopPropagation()" style="padding:14px 0 4px;border-top:1px solid rgba(255,255,255,0.07);">
-                <button class="cv-open-btn" onclick="cvOpenCardPanel(${card.id})">Open Full Card →</button>
-                <select class="cv-stage-select" style="flex:none;width:auto;font-size:12px;padding:6px 10px;" onchange="cvMoveCard(${card.id}, this.value)">${boardConfig.map(l=>`<option value="${l.id}" ${l.id===card.listId?'selected':''}>${l.title}</option>`).join('')}</select>
-                <button class="cv-del-btn" style="padding:6px 12px;font-size:12px;" onclick="cvDeleteCampaign(${card.id})" title="Move to Dead Leads">✕ Dead</button>
-            </div>
+            <!-- Reply dock -->
+            ${replyDock}
 
         </div>
     `;
