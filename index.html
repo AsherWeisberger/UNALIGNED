@@ -2358,6 +2358,10 @@
         .cvd-row { display:flex; align-items:flex-start; gap:10px; padding:5px 0; }
         .cvd-label { font-size:11px; font-family:var(--font-mono); text-transform:uppercase; color:var(--muted); width:64px; flex-shrink:0; padding-top:2px; letter-spacing:0.04em; }
         .cvd-val { font-size:14px; color:var(--text); flex:1; min-width:0; word-break:break-word; line-height:1.5; }
+        .cvd-li-row { display:flex; align-items:flex-start; gap:12px; padding:7px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
+        .cvd-li-row:last-child { border-bottom:none; }
+        .cvd-li-row .lead-field-label { font-size:11px; font-weight:700; letter-spacing:0.08em; width:46px; flex-shrink:0; padding-top:2px; }
+        .cvd-li-val { font-size:14px; color:var(--text); flex:1; min-width:0; word-break:break-word; line-height:1.6; }
         .cv-notes-save-btn { background:var(--accent); color:#fff; border:none; border-radius:6px; padding:6px 14px; font-size:12px; font-weight:600; cursor:pointer; align-self:flex-end; }
         .cv-notes-save-btn:hover { opacity:0.85; }
 
@@ -9101,6 +9105,12 @@ function renderCvDetail() {
             <span class="cvd-val">${href ? `<a href="${href}" target="_blank" style="color:#4facfe;text-decoration:none;">${escapeHtml(val)}</a>` : escapeHtml(val)}</span>
         </div>` : '';
 
+    const liRow = (label, cls, val) => val ? `
+        <div class="cvd-li-row">
+            <span class="lead-field-label ${cls}">${label}</span>
+            <span class="cvd-li-val">${escapeHtml(val)}</span>
+        </div>` : '';
+
     detail.innerHTML = `
         <div class="cv-detail-inner">
 
@@ -9129,10 +9139,10 @@ function renderCvDetail() {
             <!-- Lead Intel -->
             <div class="cvd-section">
                 <div class="cvd-section-title">Lead Intel</div>
-                ${row('WHO',   ldWho,   '')}
-                ${row('WHAT',  ldWhat,  '')}
-                ${row('WHY',   ldWhy,   '')}
-                ${row('VALUE', ldValue, '')}
+                ${liRow('WHO',   'who',   ldWho)}
+                ${liRow('WHAT',  'what',  ldWhat)}
+                ${liRow('WHY',   'why',   ldWhy)}
+                ${liRow('VALUE', 'value', ldValue)}
             </div>
 
             <!-- Assignee -->
