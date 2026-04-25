@@ -1022,6 +1022,114 @@
         }
         .card.card-new-lead .card-who { color: #f5c842; }
         body.light-mode .card.card-new-lead .card-who { color: #b8860b; }
+
+        /* ─── LIGHT MODE: comprehensive overrides ──────────────── */
+        /* Header */
+        body.light-mode .header-search { background: rgba(0,0,0,0.06); border-color: rgba(0,0,0,0.10); }
+        body.light-mode .header-divider { background: rgba(0,0,0,0.12); }
+        body.light-mode .view-toggle { color: var(--muted); }
+        body.light-mode .view-toggle.active { background: rgba(0,0,0,0.08); color: var(--text); }
+
+        /* Board lists */
+        body.light-mode .list-header { border-bottom-color: rgba(0,0,0,0.07); }
+        body.light-mode .list-accent-bar { opacity: 0.7; }
+        body.light-mode .add-card-btn { color: var(--muted); }
+        body.light-mode .add-card-btn:hover { background: rgba(0,0,0,0.05); color: var(--text); }
+
+        /* Cards */
+        body.light-mode .card { background: #ffffff; border-color: rgba(0,0,0,0.08); }
+        body.light-mode .card:hover { border-color: rgba(59,110,245,0.3); box-shadow: 0 2px 12px rgba(0,0,0,0.10); }
+        body.light-mode .card-who { color: #0f1117; }
+        body.light-mode .card-biz { color: #6b7280; }
+        body.light-mode .card-why-snippet { color: #6b7280; }
+        body.light-mode .card-intent-tag { background: rgba(0,0,0,0.06); color: #374151; border-color: rgba(0,0,0,0.10); }
+        body.light-mode .card-age { color: #6b7280; }
+
+        /* Modal */
+        body.light-mode .card-modal { background: #ffffff; border-color: rgba(0,0,0,0.10); }
+        body.light-mode .card-modal-header { border-bottom-color: rgba(0,0,0,0.08); background: #f8f9fb; }
+        body.light-mode .card-modal-title { color: #0f1117; }
+        body.light-mode .card-modal-subtitle { color: #6b7280; }
+        body.light-mode .card-modal-save { background: #3b6ef5; color: #fff; }
+        body.light-mode .card-modal-close { color: #6b7280; }
+        body.light-mode .card-modal-close:hover { background: rgba(0,0,0,0.06); }
+        body.light-mode .modal-section { border-color: rgba(0,0,0,0.07); }
+        body.light-mode .modal-section-title { color: #6b7280; }
+        body.light-mode .stage-context-banner { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.08); color: #374151; }
+
+        /* Email sidebar */
+        body.light-mode .email-info-sidebar { background: #f8f9fb; border-right-color: rgba(0,0,0,0.08); }
+        body.light-mode .contact-field-label { color: #6b7280; }
+        body.light-mode .contact-info-value { color: #0f1117; }
+        body.light-mode .lead-field-input { border-bottom-color: rgba(0,0,0,0.12); color: #0f1117; }
+        body.light-mode .lead-field-input:focus { border-bottom-color: #3b6ef5; }
+        body.light-mode .sidebar-btn { background: rgba(0,0,0,0.05); color: #374151; border-color: rgba(0,0,0,0.10); }
+        body.light-mode .sidebar-btn:hover { background: rgba(0,0,0,0.10); }
+
+        /* Thread */
+        body.light-mode .email-thread-pane { background: #ffffff; }
+        body.light-mode .email-thread-header { background: #f8f9fb; border-bottom-color: rgba(0,0,0,0.08); }
+        body.light-mode .email-thread-header-label { color: #6b7280; }
+        body.light-mode .thread-email { border-bottom-color: rgba(0,0,0,0.07); }
+        body.light-mode .thread-email-header:hover { background: rgba(0,0,0,0.025); }
+        body.light-mode .thread-name { color: #0f1117; }
+        body.light-mode .thread-meta-sub { color: #6b7280; }
+        body.light-mode .thread-snippet { color: #9ca3af; }
+        body.light-mode .thread-timestamp { color: #9ca3af; }
+        body.light-mode .thread-body { color: #374151; }
+        body.light-mode .thread-body-wrapper { background: transparent; }
+        body.light-mode .thread-avatar { color: #fff; }
+
+        /* Reply dock */
+        body.light-mode .email-reply-dock { background: #f8f9fb; border-top-color: rgba(59,110,245,0.2); }
+        body.light-mode .reply-dock-tabs { border-bottom-color: rgba(0,0,0,0.08); }
+        body.light-mode .reply-dock-tab { color: #6b7280; }
+        body.light-mode .reply-dock-tab:hover { color: #0f1117; }
+        body.light-mode .reply-dock-tab.active { color: #3b6ef5; border-bottom-color: #3b6ef5; }
+        body.light-mode .reply-dock-panel { background: transparent; }
+        body.light-mode .description-textarea { background: #ffffff; color: #0f1117; border-color: rgba(0,0,0,0.12); }
+        body.light-mode .contact-input { background: #ffffff; color: #0f1117; border-color: rgba(0,0,0,0.12); }
+        body.light-mode .reply-btn { background: rgba(0,0,0,0.05); color: #374151; border-color: rgba(0,0,0,0.10); }
+        body.light-mode .draft-badge { background: rgba(0,0,0,0.07); color: #374151; }
+
+        /* Companies view */
+        body.light-mode .cv-left { background: #f8f9fb; border-right-color: rgba(0,0,0,0.08); }
+        body.light-mode .cv-left-search input { background: rgba(0,0,0,0.05); color: #0f1117; border-color: rgba(0,0,0,0.10); }
+        body.light-mode .cv-co-row { color: #0f1117; }
+        body.light-mode .cv-co-row:hover { background: rgba(0,0,0,0.04); }
+        body.light-mode .cv-co-row.selected { background: rgba(59,110,245,0.08); }
+        body.light-mode .cv-middle { border-right-color: rgba(0,0,0,0.08); }
+        body.light-mode .cv-middle-header { border-bottom-color: rgba(0,0,0,0.08); }
+        body.light-mode .cv-camp-row { background: #ffffff; border-color: rgba(0,0,0,0.09); }
+        body.light-mode .cv-camp-row:hover { background: rgba(59,110,245,0.04); border-color: rgba(59,110,245,0.25); }
+        body.light-mode .cv-camp-row.selected { background: rgba(59,110,245,0.07); border-color: rgba(59,110,245,0.35); }
+        body.light-mode .cv-camp-contact { color: #0f1117; }
+        body.light-mode .cv-camp-meta { color: #6b7280; }
+        body.light-mode .cv-detail-col { background: #f8f9fb; border-right-color: rgba(0,0,0,0.08); }
+        body.light-mode .cv-thread-col { background: #ffffff; }
+        body.light-mode .cv-thread-hdr { background: #f8f9fb; border-bottom-color: rgba(0,0,0,0.08); color: #6b7280; }
+        body.light-mode .cv-thread-list .thread-email { border-bottom-color: rgba(0,0,0,0.06); }
+        body.light-mode .cv-reply-preview { background: #f8f9fb; border-top-color: rgba(0,0,0,0.08); }
+        body.light-mode .cvd-section { border-bottom-color: rgba(0,0,0,0.07); }
+        body.light-mode .cvd-section-title { color: #9ca3af; }
+        body.light-mode .cvd-val { color: #0f1117; }
+        body.light-mode .cvd-li-val { color: #0f1117; }
+        body.light-mode .cv-notes-area { background: #ffffff; color: #0f1117; border-color: rgba(0,0,0,0.12); }
+        body.light-mode .cv-reply-banner { background: rgba(52,211,153,0.12); border-color: rgba(52,211,153,0.3); color: #065f46; }
+        body.light-mode .cv-camp-section-hdr { color: #9ca3af; }
+
+        /* Side panels */
+        body.light-mode #ai-inbox-panel,
+        body.light-mode #docs-panel,
+        body.light-mode #daily-log-panel { background: #ffffff; border-left-color: rgba(0,0,0,0.10); box-shadow: -6px 0 24px rgba(0,0,0,0.10); }
+
+        /* Misc UI */
+        body.light-mode .delete-card-btn { background: transparent; color: #ef4444; border-color: rgba(239,68,68,0.25); }
+        body.light-mode .delete-card-btn:hover { background: #ef4444; color: #fff; }
+        body.light-mode .modal-contact-dates { color: #6b7280; }
+        body.light-mode .modal-stage-pill { filter: none; }
+        body.light-mode .unified-activity-header { border-bottom-color: rgba(0,0,0,0.08); }
+        body.light-mode .unified-activity-title { color: #0f1117; }
         body.matrix-mode .card.card-new-lead { box-shadow: 0 0 16px rgba(255,224,102,0.22) !important; }
         body.halloween-mode .card.card-new-lead { animation: goldPulse 2.8s ease-in-out infinite !important; }
 
