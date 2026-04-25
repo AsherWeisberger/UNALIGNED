@@ -8935,14 +8935,14 @@ function cvOpenFullDetail(cardId) {
 
     const stageOpts = boardConfig.map(l=>`<option value="${l.id}"${l.id===card.listId?' selected':''}>${l.title}</option>`).join('');
 
-    // Remove any prior overlay, then mount a new one over the entire companies-view panel
+    // Remove any prior overlay, then mount a fixed-position overlay over the companies panel
     document.getElementById('cv-full-overlay')?.remove();
     const host = document.getElementById('companies-view');
-    host.style.position = 'relative';
+    const rect = host.getBoundingClientRect();
 
     const overlay = document.createElement('div');
     overlay.id = 'cv-full-overlay';
-    overlay.style.cssText = 'position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;background:var(--bg);';
+    overlay.style.cssText = `position:fixed;top:${Math.round(rect.top)}px;left:${Math.round(rect.left)}px;width:${Math.round(rect.width)}px;height:${Math.round(rect.height)}px;z-index:1000;display:flex;flex-direction:column;background:var(--bg);overflow:hidden;`;
     overlay.innerHTML = `
         <div class="cv-full-bar">
             <button class="cv-back-btn" onclick="cvCloseFullDetail()">← Back</button>
@@ -8991,8 +8991,6 @@ function cvCloseFullDetail() {
     document.querySelector('.cv-left')?.classList.remove('cv-collapsed');
     document.querySelector('.cv-middle')?.classList.remove('cv-collapsed');
     document.getElementById('cv-full-overlay')?.remove();
-    const host = document.getElementById('companies-view');
-    host.style.position = '';
     renderCvDetail();
 }
 window.cvCloseFullDetail = cvCloseFullDetail;
