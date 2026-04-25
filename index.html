@@ -9057,7 +9057,7 @@ function renderCvDetail() {
                 ${card.leadSource ? `<div class="cv-detail-meta-item">📌 <strong>${escapeHtml(card.leadSource)}</strong></div>` : ''}
             </div>
             <div class="cv-detail-actions" onclick="event.stopPropagation()">
-                <button class="cv-open-btn" onclick="cvOpenFullDetail(${card.id})">Open Full Card →</button>
+                <button class="cv-open-btn" onclick="openCardModal(${card.id})">Open Full Card →</button>
                 <select class="cv-stage-select" style="flex:none;width:auto;font-size:12px;padding:6px 10px;" onchange="cvMoveCard(${card.id}, this.value)">${boardConfig.map(l=>`<option value="${l.id}" ${l.id===card.listId?'selected':''}>${l.title}</option>`).join('')}</select>
                 <button class="cv-del-btn" style="padding:6px 12px;font-size:12px;" onclick="cvDeleteCampaign(${card.id})" title="Move to Dead Leads">✕ Dead</button>
             </div>
