@@ -2296,8 +2296,8 @@
         .cv-section-hdr { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; padding:8px 12px 4px; color:var(--muted); border-top:1px solid var(--border); margin-top:2px; }
         .cv-section-hdr:first-child { border-top:none; margin-top:0; }
         .cv-reply-dot { width:7px; height:7px; border-radius:50%; background:#34d399; box-shadow:0 0 5px rgba(52,211,153,0.7); flex-shrink:0; }
-        .cv-camp-section-hdr { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:var(--muted); padding:6px 4px 3px; border-bottom:1px solid var(--border); margin-bottom:2px; display:flex; align-items:center; gap:6px; }
-        .cv-camp-actions { display:flex; align-items:center; gap:5px; margin-top:7px; }
+        .cv-camp-section-hdr { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:var(--muted); padding:16px 4px 6px; display:flex; align-items:center; gap:6px; }
+        .cv-camp-actions { display:none; }
         .cv-stage-select { background:var(--surface); border:1px solid var(--border); border-radius:5px; color:var(--text); font-size:11px; padding:3px 6px; cursor:pointer; outline:none; flex:1; min-width:0; }
         .cv-stage-select:focus { border-color:var(--accent); }
         .cv-del-btn { background:none; border:1px solid var(--border); border-radius:5px; color:var(--muted); font-size:11px; padding:3px 7px; cursor:pointer; flex-shrink:0; transition:background 0.15s,color 0.15s,border-color 0.15s; }
@@ -2314,18 +2314,20 @@
         .cv-co-count { font-size:10px; font-weight:700; color:var(--muted); background:rgba(255,255,255,0.06); border-radius:10px; padding:1px 6px; flex-shrink:0; }
         /* Middle pane — campaign list */
         .cv-middle { width:260px; flex-shrink:0; border-right:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; }
-        .cv-middle-header { padding:12px 14px 10px; border-bottom:1px solid var(--border); flex-shrink:0; }
-        .cv-middle-company { font-size:14px; font-weight:700; color:var(--text); }
-        .cv-middle-sub { font-size:11px; color:var(--muted); margin-top:2px; }
-        .cv-campaign-list { flex:1; overflow-y:auto; padding:8px; display:flex; flex-direction:column; gap:6px; }
-        .cv-camp-row { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; cursor:pointer; transition:border-color 0.15s, background 0.15s; border-left:3px solid transparent; }
-        .cv-camp-row:hover { border-color:rgba(91,140,255,0.4); background:rgba(91,140,255,0.04); }
+        .cv-middle-header { padding:18px 16px 14px; border-bottom:1px solid var(--border); flex-shrink:0; }
+        .cv-middle-company { font-size:20px; font-weight:800; color:var(--text); letter-spacing:-0.01em; }
+        .cv-middle-sub { font-size:12px; color:var(--muted); margin-top:4px; }
+        .cv-campaign-list { flex:1; overflow-y:auto; padding:10px 12px; display:flex; flex-direction:column; gap:6px; }
+        .cv-camp-row { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:13px 16px; cursor:pointer; transition:border-color 0.15s,background 0.15s; border-left:3px solid transparent; }
+        .cv-camp-row:hover { border-color:rgba(91,140,255,0.35); background:rgba(91,140,255,0.04); }
         .cv-camp-row.selected { border-color:rgba(91,140,255,0.5); background:rgba(91,140,255,0.08); border-left-color:var(--accent); }
         .cv-camp-row.has-reply { border-left-color:#34d399; }
-        .cv-camp-contact { font-size:13px; font-weight:700; color:var(--text); margin-bottom:4px; }
-        .cv-camp-stage { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; border:1px solid; border-radius:999px; padding:2px 7px; display:inline-block; margin-bottom:5px; }
-        .cv-camp-email { font-size:11px; color:var(--muted); font-family:var(--font-mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .cv-camp-date { font-size:10px; color:var(--muted2); margin-top:4px; font-family:var(--font-mono); }
+        .cv-camp-name-row { display:flex; align-items:center; gap:10px; margin-bottom:5px; }
+        .cv-camp-contact { font-size:15px; font-weight:700; color:var(--text); flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .cv-camp-stage { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; border:1px solid; border-radius:999px; padding:3px 9px; flex-shrink:0; }
+        .cv-camp-meta { font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .cv-camp-email { display:none; }
+        .cv-camp-date { display:none; }
         .cv-middle-empty { color:var(--muted); font-size:13px; text-align:center; padding:40px 16px; }
         /* Right pane — card detail */
         .cv-right { flex:1; min-width:0; display:flex; flex-direction:column; overflow:hidden; background:var(--bg); }
@@ -8913,24 +8915,25 @@ function renderCvMiddle() {
             const row = document.createElement('div');
             row.className = 'cv-camp-row' + (isSelected ? ' selected' : '') + (hasReply ? ' has-reply' : '');
             row.id = 'cv-camp-row-' + card.id;
+            const metaParts = [];
+            if (card.email) metaParts.push(card.email);
+            if (card.emailDate) metaParts.push(fmtEmailDate(card.emailDate));
             row.innerHTML = `
-                <div class="cv-camp-contact">${hasReply ? '<span class="cv-reply-dot" style="display:inline-block;vertical-align:middle;margin-right:5px;"></span>' : ''}${escapeHtml(contact)}</div>
-                <span class="cv-camp-stage" style="border-color:${stageColor}55;color:${stageColor};">${escapeHtml(stageName)}</span>
-                ${card.email ? `<div class="cv-camp-email">${escapeHtml(card.email)}</div>` : ''}
-                ${card.emailDate ? `<div class="cv-camp-date">${fmtEmailDate(card.emailDate)}</div>` : ''}
-                <div class="cv-camp-actions" onclick="event.stopPropagation()">
-                    <select class="cv-stage-select" onchange="cvMoveCard(${card.id}, this.value)">${stageOptions}</select>
-                    <button class="cv-del-btn" onclick="cvDeleteCampaign(${card.id})" title="Move to Dead Leads">✕ Dead</button>
+                <div class="cv-camp-name-row">
+                    ${hasReply ? '<span class="cv-reply-dot" style="display:inline-block;flex-shrink:0;"></span>' : ''}
+                    <span class="cv-camp-contact">${escapeHtml(contact)}</span>
+                    <span class="cv-camp-stage" style="border-color:${stageColor}55;color:${stageColor};background:${stageColor}11;">${escapeHtml(stageName)}</span>
                 </div>
+                ${metaParts.length ? `<div class="cv-camp-meta">${metaParts.map(escapeHtml).join(' · ')}</div>` : ''}
             `;
             row.addEventListener('click', () => selectCvCampaign(card.id));
             list.appendChild(row);
         }
     }
 
-    addSection('⚡ Needs Reply', needsReply);
-    addSection('📋 In Progress', byStage(inProgress));
-    addSection('✓ Closed', closed);
+    addSection('Needs Reply', needsReply);
+    addSection('In Progress', byStage(inProgress));
+    addSection('Closed', closed);
 }
 
 function selectCvCampaign(cardId) {
