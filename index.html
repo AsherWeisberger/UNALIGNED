@@ -2353,6 +2353,11 @@
         .cv-full-msg-body { padding:12px 14px; font-size:13px; color:var(--muted2); line-height:1.6; white-space:pre-wrap; word-break:break-word; }
         .cv-notes-area { width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; color:var(--text); font-size:13px; line-height:1.55; resize:vertical; min-height:80px; font-family:inherit; box-sizing:border-box; outline:none; }
         .cv-notes-area:focus { border-color:var(--accent); }
+        .cvd-section { padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06); }
+        .cvd-section-title { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:var(--muted); margin-bottom:10px; font-family:var(--font-mono); }
+        .cvd-row { display:flex; align-items:flex-start; gap:10px; padding:5px 0; }
+        .cvd-label { font-size:11px; font-family:var(--font-mono); text-transform:uppercase; color:var(--muted); width:64px; flex-shrink:0; padding-top:2px; letter-spacing:0.04em; }
+        .cvd-val { font-size:14px; color:var(--text); flex:1; min-width:0; word-break:break-word; line-height:1.5; }
         .cv-notes-save-btn { background:var(--accent); color:#fff; border:none; border-radius:6px; padding:6px 14px; font-size:12px; font-weight:600; cursor:pointer; align-self:flex-end; }
         .cv-notes-save-btn:hover { opacity:0.85; }
 
@@ -9083,32 +9088,73 @@ function renderCvDetail() {
         }).join('')
         : '<div style="color:var(--muted);font-size:12px;padding:12px 0;">No email thread on file</div>';
 
+    // Lead intel fields
+    const desc = card.description || '';
+    let ldWho   = extractLeadField(desc,'WHO')   || [card.contactName,card.businessName,card.jobTitle].filter(Boolean).join(' · ');
+    let ldWhat  = extractLeadField(desc,'WHAT')  || card.intent || card.leadSource || '';
+    let ldWhy   = extractLeadField(desc,'WHY')   || '';
+    let ldValue = extractLeadField(desc,'VALUE')  || (card.estimatedValue ? `$${card.estimatedValue}` : '');
+
+    const row = (label, val, href) => val ? `
+        <div class="cvd-row">
+            <span class="cvd-label">${label}</span>
+            <span class="cvd-val">${href ? `<a href="${href}" target="_blank" style="color:#4facfe;text-decoration:none;">${escapeHtml(val)}</a>` : escapeHtml(val)}</span>
+        </div>` : '';
+
     detail.innerHTML = `
         <div class="cv-detail-inner">
-            ${card.newReplyAt ? `<div class="cv-reply-banner"><span class="cv-reply-banner-dot"></span> They replied — this needs your response</div>` : ''}
-            <div class="cv-detail-header">
-                <div class="cv-detail-avatar" style="background:${pal.bg};color:${pal.color};">${escapeHtml(contact.charAt(0).toUpperCase())}</div>
-                <div>
-                    <div class="cv-detail-name">${escapeHtml(contact)}</div>
-                    <div class="cv-detail-company">${escapeHtml(company)} &nbsp;·&nbsp; <span style="color:${stageColor};font-weight:700;">${escapeHtml(stageName)}</span></div>
+
+            ${card.newReplyAt ? `<div class="cv-reply-banner" style="margin:0 0 14px;"><span class="cv-reply-banner-dot"></span> They replied — this needs your response</div>` : ''}
+
+            <!-- Header: avatar + name + stage pill -->
+            <div class="cv-detail-header" style="margin-bottom:14px;">
+                <div class="cv-detail-avatar" style="background:${pal.bg};color:${pal.color};width:48px;height:48px;font-size:19px;">${escapeHtml(contact.charAt(0).toUpperCase())}</div>
+                <div style="min-width:0;">
+                    <div class="cv-detail-name" style="font-size:17px;font-weight:700;">${escapeHtml(contact)}</div>
+                    <div style="font-size:13px;color:var(--muted);margin-top:2px;">${escapeHtml(company)}</div>
+                    <span style="display:inline-flex;align-items:center;margin-top:6px;padding:4px 14px;border-radius:99px;font-size:12px;font-weight:700;letter-spacing:0.04em;background:${stageColor}22;color:${stageColor};border:1px solid ${stageColor}44;">${escapeHtml(stageName)}</span>
                 </div>
             </div>
-            <div class="cv-detail-meta">
-                ${card.email ? `<div class="cv-detail-meta-item">✉ <strong>${escapeHtml(card.email)}</strong></div>` : ''}
-                ${card.estimatedValue ? `<div class="cv-detail-meta-item">💰 <strong style="color:#34d399;">$${fmtCardValue(card.estimatedValue)}</strong></div>` : ''}
-                ${card.emailDate ? `<div class="cv-detail-meta-item">📅 <strong>${fmtEmailDate(card.emailDate)}</strong></div>` : ''}
-                ${card.leadSource ? `<div class="cv-detail-meta-item">📌 <strong>${escapeHtml(card.leadSource)}</strong></div>` : ''}
+
+            <!-- Contact -->
+            <div class="cvd-section">
+                <div class="cvd-section-title">Contact</div>
+                ${row('Email',    card.email,        card.email ? 'mailto:'+card.email : '')}
+                ${row('Phone',    card.phone,        '')}
+                ${row('LinkedIn', card.linkedin_url ? 'View Profile' : '', card.linkedin_url||'')}
+                ${row('Website',  card.website,      card.website||'')}
+                ${row('Location', card.location,     '')}
             </div>
-            <div class="cv-detail-actions" onclick="event.stopPropagation()">
+
+            <!-- Lead Intel -->
+            <div class="cvd-section">
+                <div class="cvd-section-title">Lead Intel</div>
+                ${row('WHO',   ldWho,   '')}
+                ${row('WHAT',  ldWhat,  '')}
+                ${row('WHY',   ldWhy,   '')}
+                ${row('VALUE', ldValue, '')}
+            </div>
+
+            <!-- Assignee -->
+            ${card.assignee ? `<div class="cvd-section">
+                <div class="cvd-section-title">Assignee</div>
+                <div class="cvd-row"><span class="cvd-label">Assigned</span><span class="cvd-val">${escapeHtml(card.assignee)}</span></div>
+            </div>` : ''}
+
+            <!-- Notes -->
+            <div class="cvd-section" style="border-bottom:none;">
+                <div class="cvd-section-title">Notes</div>
+                <textarea class="cv-notes-area" id="cv-notes-area-${card.id}" placeholder="Add notes…" style="width:100%;min-height:80px;">${escapeHtml(card.description||'')}</textarea>
+                <button class="cv-notes-save-btn" onclick="cvSaveNotes(${card.id})" style="margin-top:8px;">Save Notes</button>
+            </div>
+
+            <!-- Actions -->
+            <div class="cv-detail-actions" onclick="event.stopPropagation()" style="padding:14px 0 4px;border-top:1px solid rgba(255,255,255,0.07);">
                 <button class="cv-open-btn" onclick="cvOpenCardPanel(${card.id})">Open Full Card →</button>
                 <select class="cv-stage-select" style="flex:none;width:auto;font-size:12px;padding:6px 10px;" onchange="cvMoveCard(${card.id}, this.value)">${boardConfig.map(l=>`<option value="${l.id}" ${l.id===card.listId?'selected':''}>${l.title}</option>`).join('')}</select>
                 <button class="cv-del-btn" style="padding:6px 12px;font-size:12px;" onclick="cvDeleteCampaign(${card.id})" title="Move to Dead Leads">✕ Dead</button>
             </div>
-            ${card.description ? `<div><div class="cv-thread-title">Notes</div><div class="cv-desc-box">${escapeHtml(card.description)}</div></div>` : ''}
-            <div>
-                <div class="cv-thread-title">Email Thread (${emails.length} message${emails.length!==1?'s':''})</div>
-                <div class="cv-thread">${threadHtml}</div>
-            </div>
+
         </div>
     `;
 }
