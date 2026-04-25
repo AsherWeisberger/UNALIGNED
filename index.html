@@ -3067,6 +3067,15 @@
                     <div class="cv-left">
                         <div class="cv-left-search">
                             <input class="cv-search" id="cv-search" type="text" placeholder="Search companies…" oninput="filterCvCompanies(this.value)">
+                            <select class="cv-sort-select" id="cv-sort-select" onchange="setCvSort(this.value)" style="margin-top:6px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 8px;color:var(--text);font-size:11px;outline:none;cursor:pointer;">
+                                <option value="stage">Pipeline stage</option>
+                                <option value="recent">Last emailed</option>
+                                <option value="oldest">First received</option>
+                                <option value="az">A → Z</option>
+                                <option value="za">Z → A</option>
+                                <option value="campaigns">Most campaigns</option>
+                                <option value="replies">Needs reply first</option>
+                            </select>
                         </div>
                         <div class="cv-left-count" id="cv-left-count"></div>
                         <div class="cv-company-list" id="cv-company-list"></div>
@@ -8908,8 +8917,48 @@ let _companiesViewOpen = false;
 let _cvSelectedCompanyKey = null;
 let _cvSelectedCardId = null;
 let _cvGroups = [];
+let _cvSortMode = 'stage';
 
 function _cvNormKey(str) { return (str || '').toLowerCase().trim(); }
+
+function setCvSort(mode) {
+    _cvSortMode = mode;
+    renderCvLeft(document.getElementById('cv-search')?.value || '');
+}
+window.setCvSort = setCvSort;
+
+function _cvSortGroups(groups) {
+    const stagePri = ['negotiating','invoice-sent','rates-sent','engaged','first-touch','new','done','paid-out','dead-leads'];
+    const latestDate = g => Math.max(...g.campaigns.map(c => {
+        const d = c.lastEmailDate || c.emailDate || c.createdAt;
+        return d ? new Date(d).getTime() : 0;
+    }));
+    const earliestDate = g => Math.min(...g.campaigns.map(c => {
+        const d = c.firstEmailDate || c.emailDate || c.createdAt;
+        return d ? new Date(d).getTime() : Infinity;
+    }));
+    const sorted = [...groups];
+    switch (_cvSortMode) {
+        case 'recent':   return sorted.sort((a,b) => latestDate(b) - latestDate(a));
+        case 'oldest':   return sorted.sort((a,b) => earliestDate(a) - earliestDate(b));
+        case 'az':       return sorted.sort((a,b) => a.displayName.localeCompare(b.displayName));
+        case 'za':       return sorted.sort((a,b) => b.displayName.localeCompare(a.displayName));
+        case 'campaigns':return sorted.sort((a,b) => b.campaigns.length - a.campaigns.length);
+        case 'replies':  return sorted.sort((a,b) => {
+            const ar = a.campaigns.filter(c=>c.newReplyAt).length;
+            const br = b.campaigns.filter(c=>c.newReplyAt).length;
+            return br - ar || b.campaigns.length - a.campaigns.length;
+        });
+        default: // 'stage'
+            return sorted.sort((a,b) => {
+                const aBest = Math.min(...a.campaigns.map(c => { const i=stagePri.indexOf(c.listId); return i<0?99:i; }));
+                const bBest = Math.min(...b.campaigns.map(c => { const i=stagePri.indexOf(c.listId); return i<0?99:i; }));
+                if (aBest !== bBest) return aBest - bBest;
+                if (b.campaigns.length !== a.campaigns.length) return b.campaigns.length - a.campaigns.length;
+                return a.displayName.localeCompare(b.displayName);
+            });
+    }
+}
 
 function _cvBuildGroups() {
     const map = new Map();
@@ -8945,12 +8994,15 @@ window.toggleCompaniesView = toggleCompaniesView;
 
 function renderCvLeft(filterStr) {
     const f = (filterStr || '').toLowerCase().trim();
-    const visible = f
+    const filtered = f
         ? _cvGroups.filter(g => g.displayName.toLowerCase().includes(f) || g.campaigns.some(c => (c.contactName||'').toLowerCase().includes(f)))
         : _cvGroups;
+    const visible = _cvSortGroups(filtered);
 
-    const needsReply = visible.filter(g => g.campaigns.some(c => c.newReplyAt));
-    const rest       = visible.filter(g => !g.campaigns.some(c => c.newReplyAt));
+    // When sorting by replies, don't split into sections — show one sorted list
+    const splitByReply = (_cvSortMode === 'stage' || _cvSortMode === 'replies');
+    const needsReply = splitByReply ? visible.filter(g => g.campaigns.some(c => c.newReplyAt)) : [];
+    const rest       = splitByReply ? visible.filter(g => !g.campaigns.some(c => c.newReplyAt)) : visible;
 
     const countEl = document.getElementById('cv-left-count');
     if (countEl) countEl.textContent = `${visible.length} companies · ${visible.reduce((s,g)=>s+g.campaigns.length,0)} campaigns`;
@@ -8981,9 +9033,10 @@ function renderCvLeft(filterStr) {
         needsReply.forEach(addRow);
     }
     if (rest.length > 0) {
+        const labels = { stage:'All Companies', recent:'Most Recent', oldest:'Oldest First', az:'A → Z', za:'Z → A', campaigns:'By Volume', replies:'All Companies' };
         const hdr = document.createElement('div');
         hdr.className = 'cv-section-hdr';
-        hdr.textContent = rest.length === visible.length ? 'All Companies' : 'Other Companies';
+        hdr.textContent = needsReply.length > 0 ? 'Other Companies' : (labels[_cvSortMode] || 'All Companies');
         list.appendChild(hdr);
         rest.forEach(addRow);
     }
