@@ -3075,6 +3075,7 @@
                                 <option value="za">Z → A</option>
                                 <option value="campaigns">Most campaigns</option>
                                 <option value="replies">Needs reply first</option>
+                                <option value="dead">Dead leads only</option>
                             </select>
                         </div>
                         <div class="cv-left-count" id="cv-left-count"></div>
@@ -8949,6 +8950,10 @@ function _cvSortGroups(groups) {
             const br = b.campaigns.filter(c=>c.newReplyAt).length;
             return br - ar || b.campaigns.length - a.campaigns.length;
         });
+        case 'dead': return sorted
+            .map(g => ({ ...g, campaigns: g.campaigns.filter(c => c.listId === 'dead-leads') }))
+            .filter(g => g.campaigns.length > 0)
+            .sort((a,b) => b.campaigns.length - a.campaigns.length);
         default: // 'stage'
             return sorted.sort((a,b) => {
                 const aBest = Math.min(...a.campaigns.map(c => { const i=stagePri.indexOf(c.listId); return i<0?99:i; }));
@@ -8999,7 +9004,7 @@ function renderCvLeft(filterStr) {
         : _cvGroups;
     const visible = _cvSortGroups(filtered);
 
-    // When sorting by replies, don't split into sections — show one sorted list
+    // When sorting by replies or stage, split into sections; dead mode shows only dead
     const splitByReply = (_cvSortMode === 'stage' || _cvSortMode === 'replies');
     const needsReply = splitByReply ? visible.filter(g => g.campaigns.some(c => c.newReplyAt)) : [];
     const rest       = splitByReply ? visible.filter(g => !g.campaigns.some(c => c.newReplyAt)) : visible;
@@ -9033,7 +9038,7 @@ function renderCvLeft(filterStr) {
         needsReply.forEach(addRow);
     }
     if (rest.length > 0) {
-        const labels = { stage:'All Companies', recent:'Most Recent', oldest:'Oldest First', az:'A → Z', za:'Z → A', campaigns:'By Volume', replies:'All Companies' };
+        const labels = { stage:'All Companies', recent:'Most Recent', oldest:'Oldest First', az:'A → Z', za:'Z → A', campaigns:'By Volume', replies:'All Companies', dead:'Dead Leads' };
         const hdr = document.createElement('div');
         hdr.className = 'cv-section-hdr';
         hdr.textContent = needsReply.length > 0 ? 'Other Companies' : (labels[_cvSortMode] || 'All Companies');
@@ -9069,8 +9074,12 @@ function renderCvMiddle() {
 
     const replyCount = group.campaigns.filter(c => c.newReplyAt).length;
     hdr.innerHTML = `
-        <div class="cv-middle-company">${escapeHtml(group.displayName)}</div>
-        <div class="cv-middle-sub">${group.campaigns.length} campaign${group.campaigns.length!==1?'s':''}${replyCount>0?` · <span style="color:#34d399;font-weight:700;">${replyCount} need${replyCount===1?'s':''} reply</span>`:''}
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+            <div style="min-width:0;">
+                <div class="cv-middle-company">${escapeHtml(group.displayName)}</div>
+                <div class="cv-middle-sub">${group.campaigns.length} campaign${group.campaigns.length!==1?'s':''}${replyCount>0?` · <span style="color:#34d399;font-weight:700;">${replyCount} need${replyCount===1?'s':''} reply</span>`:''}</div>
+            </div>
+            <button onclick="cvDeleteCompany('${group.key.replace(/'/g,"\\'")}')" title="Permanently delete all campaigns for this company" style="flex-shrink:0;margin-top:2px;background:none;border:1px solid rgba(239,68,68,0.3);color:#ef4444;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;" onmouseover="this.style.background='rgba(239,68,68,0.12)'" onmouseout="this.style.background='none'">🗑 Delete</button>
         </div>`;
     list.innerHTML = '';
 
@@ -9161,6 +9170,28 @@ function cvDeleteCampaign(cardId) {
     }, 300);
 }
 window.cvDeleteCampaign = cvDeleteCampaign;
+
+function cvDeleteCompany(companyKey) {
+    const group = _cvGroups.find(g => g.key === companyKey);
+    if (!group) return;
+    const name = group.displayName;
+    const count = group.campaigns.length;
+    if (!confirm(`Permanently delete "${name}" and all ${count} campaign${count!==1?'s':''}? This cannot be undone.`)) return;
+    group.campaigns.forEach(card => {
+        const el = document.getElementById('card-' + card.id);
+        if (el) el.remove();
+        delete cardsData[card.id];
+    });
+    _cvSelectedCompanyKey = null;
+    _cvSelectedCardId = null;
+    updateCardCount();
+    queueSaveBoardState();
+    _cvGroups = _cvBuildGroups();
+    renderCvLeft(document.getElementById('cv-search')?.value || '');
+    renderCvMiddle();
+    renderCvDetail();
+}
+window.cvDeleteCompany = cvDeleteCompany;
 
 function cvOpenFullDetail(cardId) {
     _cvSelectedCardId = cardId;
