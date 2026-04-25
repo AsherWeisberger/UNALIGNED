@@ -1124,20 +1124,22 @@
         .modal-overlay.active { align-items: flex-start; justify-content: center; padding-top: 40px; padding-bottom: 40px; }
 
         .card-modal {
-            background: var(--surface);
-            border-radius: var(--radius-lg);
-            width: min(1240px, 97%); max-height: 92vh;
-            color: var(--text); box-shadow: var(--shadow-lg);
-            border: 1px solid var(--border2);
+            background: var(--bg);
+            border-radius: 16px;
+            width: min(1340px, 97%); max-height: 92vh;
+            color: var(--text);
+            box-shadow: 0 32px 100px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.09);
             display: none; position: relative;
             flex-direction: column;
         }
         .card-modal.active { display: flex !important; }
 
         .card-modal-header {
-            padding: 20px 24px; display: flex; justify-content: space-between;
-            align-items: center; border-bottom: 1px solid var(--border);
+            padding: 18px 28px; display: flex; justify-content: space-between;
+            align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08);
             position: sticky; top: 0; background: var(--surface); z-index: 10;
+            gap: 16px;
         }
         #stage-context-banner {
             padding: 10px 22px;
@@ -1196,31 +1198,31 @@
         /* ─── EMAIL-CLIENT MODAL LAYOUT ──────────────────── */
         .email-header-left { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
         .email-header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-        .email-sender-avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; flex-shrink: 0; background: rgba(91,140,255,0.2); color: var(--accent); font-family: var(--font-body); }
-        .email-info-sidebar { width: 320px; flex-shrink: 0; border-right: 1px solid var(--border); overflow-y: auto; padding: 16px 14px; display: flex; flex-direction: column; gap: 14px; }
-        .email-thread-pane { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+        .email-sender-avatar { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 700; flex-shrink: 0; background: rgba(91,140,255,0.2); color: var(--accent); font-family: var(--font-body); }
+        .email-info-sidebar { width: 320px; flex-shrink: 0; border-right: 1px solid rgba(255,255,255,0.08); overflow-y: auto; padding: 0; display: flex; flex-direction: column; gap: 0; background: var(--surface); }
+        .email-thread-pane { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
         .email-thread-scroll { flex: 1; overflow-y: auto; }
-        .email-thread-header { padding: 12px 22px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; flex-shrink: 0; position: sticky; top: 0; background: var(--surface); z-index: 1; }
-        .email-thread-header-label { font-size: 14px; font-weight: 600; color: var(--muted2); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; }
-        .email-thread-header-count { font-size: 14px; color: var(--muted); font-family: var(--font-mono); }
-        .email-contact-row { display: flex; align-items: flex-start; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--border); }
+        .email-thread-header { padding: 14px 28px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; gap: 10px; flex-shrink: 0; position: sticky; top: 0; background: var(--surface); z-index: 1; }
+        .email-thread-header-label { font-size: 11px; font-weight: 700; color: var(--muted); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.09em; }
+        .email-thread-header-count { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
+        .email-contact-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
         .email-contact-row:last-child { border-bottom: none; padding-bottom: 0; }
-        .email-field-label { font-size: 10px; font-family: var(--font-mono); text-transform: uppercase; color: var(--muted); width: 56px; flex-shrink: 0; padding-top: 2px; letter-spacing: 0.04em; }
-        .email-reply-dock { border-top: 1px solid var(--border2); flex-shrink: 0; background: var(--surface); }
-        .reply-dock-tabs { display: flex; border-bottom: 1px solid var(--border); }
-        .reply-dock-tab { padding: 10px 22px; font-size: 15px; font-weight: 600; cursor: pointer; border: none; background: none; color: var(--muted2); border-bottom: 2px solid transparent; transition: all 0.15s; font-family: var(--font-body); position: relative; top: 1px; }
-        .reply-btn { width: auto !important; padding: 5px 13px !important; margin-top: 0 !important; font-size: 11px !important; border-radius: 6px !important; }
+        .email-field-label { font-size: 10px; font-family: var(--font-mono); text-transform: uppercase; color: var(--muted); width: 60px; flex-shrink: 0; padding-top: 2px; letter-spacing: 0.05em; }
+        .email-reply-dock { border-top: 2px solid rgba(91,140,255,0.18); flex-shrink: 0; background: var(--surface); }
+        .reply-dock-tabs { display: flex; border-bottom: 1px solid rgba(255,255,255,0.08); padding: 0 4px; }
+        .reply-dock-tab { padding: 13px 26px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; background: none; color: var(--muted); border-bottom: 2px solid transparent; transition: all 0.15s; font-family: var(--font-body); position: relative; top: 1px; }
+        .reply-btn { width: auto !important; padding: 8px 16px !important; margin-top: 0 !important; font-size: 12px !important; border-radius: 8px !important; font-weight: 600 !important; }
         .reply-dock-tab:hover { color: var(--text); }
         .reply-dock-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-        .reply-dock-panel { padding: 16px 20px; max-height: 580px; overflow-y: auto; }
+        .reply-dock-panel { padding: 22px 28px; max-height: 620px; overflow-y: auto; }
 
         .modal-section {
-            background: var(--surface2); border-radius: 10px; padding: 16px;
-            border: 1px solid var(--border);
+            background: transparent; border-radius: 0; padding: 20px 20px;
+            border: none; border-bottom: 1px solid rgba(255,255,255,0.06);
         }
         .modal-section-title {
-            font-size: 11px; font-weight: 600; margin-bottom: 10px;
-            color: var(--muted2); text-transform: uppercase; letter-spacing: 0.06em;
+            font-size: 10px; font-weight: 700; margin-bottom: 14px;
+            color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em;
             font-family: var(--font-mono);
         }
 
@@ -1305,7 +1307,7 @@
 
         /* ─── GMAIL-STYLE EMAIL THREAD ───────────────────── */
         #thread-list { display: flex; flex-direction: column; }
-        .contact-info-value { font-size: 14px; color: var(--text); font-family: var(--font-mono); display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; word-break: break-all; }
+        .contact-info-value { font-size: 13px; color: var(--text); font-family: var(--font-mono); display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; word-break: break-all; }
         .contact-info-value a { color: #4facfe; text-decoration: none; word-break: break-all; }
         .contact-info-value a:hover { text-decoration: underline; }
         .contact-info-value .no-data { color: var(--muted2); font-style: italic; font-size: 12px; }
@@ -1313,34 +1315,34 @@
         .contact-copy-btn:hover { color: #4facfe; background: rgba(79,172,254,0.1); }
 
         /* Thread email row */
-        .thread-email { border-bottom: 1px solid var(--border); }
+        .thread-email { border-bottom: 1px solid rgba(255,255,255,0.05); }
         .thread-email:last-child { border-bottom: none; }
-        .thread-email-header { display: flex; align-items: flex-start; gap: 12px; padding: 14px 22px; cursor: pointer; user-select: none; transition: background 0.1s; }
-        .thread-email-header:hover { background: rgba(255,255,255,0.03); }
+        .thread-email-header { display: flex; align-items: flex-start; gap: 14px; padding: 18px 28px; cursor: pointer; user-select: none; transition: background 0.12s; }
+        .thread-email-header:hover { background: rgba(255,255,255,0.025); }
 
         /* Avatar circles */
         .thread-avatar { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; flex-shrink: 0; font-family: var(--font-body); }
-        .thread-avatar.lead    { background: rgba(251,191,36,0.2);  color: #fbbf24; }
-        .thread-avatar.robert  { background: rgba(52,211,153,0.2);  color: #34d399; }
-        .thread-avatar.sam     { background: rgba(99,179,237,0.2);  color: #63b3ed; }
-        .thread-avatar.unaligned, .thread-avatar.asher { background: rgba(168,85,247,0.2); color: #a78bfa; }
+        .thread-avatar.lead    { background: rgba(251,191,36,0.18);  color: #fbbf24; }
+        .thread-avatar.robert  { background: rgba(52,211,153,0.18);  color: #34d399; }
+        .thread-avatar.sam     { background: rgba(99,179,237,0.18);  color: #63b3ed; }
+        .thread-avatar.unaligned, .thread-avatar.asher { background: rgba(168,85,247,0.18); color: #a78bfa; }
 
         /* Thread meta */
         .thread-meta { flex: 1; min-width: 0; }
         .thread-meta-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-        .thread-name { font-size: 14px; font-weight: 600; color: var(--text); }
-        .thread-timestamp { font-size: 12px; color: var(--muted); font-family: var(--font-mono); flex-shrink: 0; }
-        .thread-meta-sub { font-size: 12px; color: var(--muted2); margin-top: 3px; }
+        .thread-name { font-size: 14px; font-weight: 700; color: var(--text); }
+        .thread-timestamp { font-size: 11px; color: var(--muted); font-family: var(--font-mono); flex-shrink: 0; }
+        .thread-meta-sub { font-size: 12px; color: var(--muted2); margin-top: 4px; line-height: 1.5; }
 
         /* Snippet shown when collapsed */
-        .thread-snippet { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 560px; margin-top: 3px; display: none; }
+        .thread-snippet { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 600px; margin-top: 4px; display: none; }
         .thread-email.collapsed .thread-snippet { display: block; }
         .thread-email.collapsed .thread-meta-sub { display: none; }
 
         /* Body */
-        .thread-body-wrapper { padding: 0 22px 18px 74px; }
+        .thread-body-wrapper { padding: 2px 28px 22px 82px; }
         .thread-email.collapsed .thread-body-wrapper { display: none; }
-        .thread-body { font-size: 14px; line-height: 1.7; color: var(--text); white-space: pre-wrap; word-break: break-word; max-height: 500px; overflow-y: auto; }
+        .thread-body { font-size: 14px; line-height: 1.8; color: var(--muted2); white-space: pre-wrap; word-break: break-word; max-height: 500px; overflow-y: auto; }
 
         #draft-reply-section { border-color: rgba(91,140,255,0.2); }
 
@@ -1368,6 +1370,30 @@
         }
         .sidebar-btn:hover { background: rgba(255,255,255,0.1); }
         .sidebar-btn.danger { background: rgba(248,113,113,0.08); color: #fca5a5; }
+
+        /* ── MODAL DESIGN ENHANCEMENTS ── */
+        .card-modal-title { font-size: 18px !important; font-weight: 700 !important; letter-spacing: -0.01em !important; }
+        .card-modal-subtitle { font-size: 12px !important; margin-top: 5px !important; color: var(--muted) !important; }
+        .lead-details-grid { gap: 12px 20px !important; }
+        .lead-field { gap: 5px !important; }
+        .lead-field-input { font-size: 13px !important; padding: 3px 0 5px !important; }
+        #draft-reply-section { background: transparent !important; border: none !important; padding: 0 !important; border-radius: 0 !important; }
+        #draft-reply-section .modal-section-title { font-size: 13px !important; text-transform: none !important; letter-spacing: 0 !important; color: var(--text) !important; font-weight: 700 !important; margin-bottom: 14px !important; }
+        #modal-draft-body { min-height: 220px !important; font-size: 14px !important; line-height: 1.7 !important; }
+        #modal-draft-subject { font-size: 13px !important; padding: 9px 13px !important; }
+        #draft-content > div:last-child { padding-top: 14px !important; border-top: 1px solid rgba(255,255,255,0.07) !important; gap: 8px !important; }
+        #btn-regen { background: rgba(255,255,255,0.07) !important; color: var(--muted2) !important; border: 1px solid rgba(255,255,255,0.1) !important; padding: 9px 16px !important; }
+        #btn-regen:hover { background: rgba(255,255,255,0.12) !important; }
+        #btn-send-email { padding: 9px 22px !important; font-weight: 700 !important; background: rgba(52,211,153,0.15) !important; border: 1px solid rgba(52,211,153,0.35) !important; color: #34d399 !important; }
+        #btn-send-email:hover { background: rgba(52,211,153,0.28) !important; }
+        #stage-context-banner { padding: 11px 28px !important; border-bottom: 1px solid rgba(255,255,255,0.07) !important; }
+        .unified-activity { border-bottom: 1px solid rgba(255,255,255,0.06); }
+        .unified-activity-header { padding: 20px 20px 0 !important; }
+        .unified-input-row { padding: 10px 20px !important; }
+        .unified-timeline { padding: 0 20px 16px !important; }
+        input[type="date"]#due-date-input { font-size: 13px !important; padding: 8px 11px !important; }
+        .delete-card-btn { border-radius: 8px !important; font-size: 12px !important; padding: 10px !important; }
+        .draft-badge { font-size: 11px !important; padding: 3px 9px !important; border-radius: 99px !important; }
 
         /* Due date */
         input[type="date"].contact-input { cursor: pointer; }
