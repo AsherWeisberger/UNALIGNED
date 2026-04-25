@@ -9099,8 +9099,8 @@ function renderCvDetail() {
     const desc = card.description || '';
     let ldWho   = extractLeadField(desc,'WHO')   || [card.contactName,card.businessName,card.jobTitle].filter(Boolean).join(' · ');
     let ldWhat  = extractLeadField(desc,'WHAT')  || card.intent || card.leadSource || '';
-    let ldWhy   = extractLeadField(desc,'WHY')   || '';
-    let ldValue = extractLeadField(desc,'VALUE')  || (card.estimatedValue ? `$${card.estimatedValue}` : '');
+    let ldWhy   = extractLeadField(desc,'WHY')   || extractLeadField(desc,'WHY THEM') || desc.replace(/^WHO:.*$/mg,'').replace(/^WHAT:.*$/mg,'').replace(/^VALUE:.*$/mg,'').trim().slice(0, 200) || '';
+    let ldValue = extractLeadField(desc,'VALUE') || (card.estimatedValue ? `$${card.estimatedValue}` : '');
 
     const row = (label, val, href) => val ? `
         <div class="cvd-row">
