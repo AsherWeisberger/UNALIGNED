@@ -3013,6 +3013,7 @@
                     <button class="card-modal-save" id="modal-bookmark-btn" onclick="toggleBookmark(currentEditingCard)" title="Bookmark this card" style="background:transparent;border:1px solid var(--border);color:var(--muted);font-size:13px;padding:4px 10px;border-radius:6px;cursor:pointer;">☆ Bookmark</button>
                     <button class="card-modal-save" id="modal-needs-reply-btn" onclick="toggleNeedsReply()" title="Mark as needs reply / clear reply flag" style="background:transparent;border:1px solid var(--border);color:var(--muted);font-size:13px;padding:4px 10px;border-radius:6px;cursor:pointer;">🔔 Needs Reply</button>
                     <button class="card-modal-save" onclick="saveCardAndClose()">Save</button>
+                    <button class="delete-card-btn" onclick="deleteCard()" style="padding:6px 12px;font-size:13px;border-radius:6px;">🗑 Delete</button>
                     <button class="card-modal-close" onclick="closeCardModal()">×</button>
                 </div>
             </div>
@@ -3126,11 +3127,6 @@
                         <div class="unified-activity-header"><span class="unified-activity-title">Activity &amp; Tasks</span><span class="unified-activity-count" id="unified-count"></span></div>
                         <div class="unified-input-row"><select class="unified-type-select" id="unified-type"><option value="Task">☐ Task</option></select><input type="text" class="unified-input" id="unified-input" placeholder="Add a note or task…" onkeydown="if(event.key==='Enter')addUnifiedItem()"><button class="unified-add-btn" onclick="addUnifiedItem()">Add</button></div>
                         <div class="unified-timeline" id="unified-timeline"><div class="unified-empty" id="unified-empty">Nothing yet.</div></div>
-                    </div>
-
-                    <!-- Delete -->
-                    <div class="modal-section" style="border-color:rgba(248,113,113,0.2);padding:10px;">
-                        <button class="delete-card-btn" onclick="deleteCard()">🗑 Delete Card</button>
                     </div>
 
                 </div><!-- /email-info-sidebar -->
