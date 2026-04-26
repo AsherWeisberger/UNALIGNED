@@ -479,7 +479,7 @@
 
         body {
             font-family: var(--font-body);
-            font-size: 14px;
+            font-size: 16px;
             background: var(--bg);
             min-height: 100vh;
             height: 100%;
@@ -487,6 +487,11 @@
             overflow: hidden;
             -webkit-font-smoothing: antialiased;
         }
+        /* +2px global readability bump — nudges every relative size up without redoing every component */
+        body { line-height: 1.55; }
+        /* Stronger light-mode contrast (Notion-style) */
+        body.light-mode { color: #1f1f1f; }
+        body.light-mode .text-muted, body.light-mode .muted, body.light-mode [class*="muted"] { color: #5a5a5a; }
 
         #app { height:100%; display:flex; flex-direction:column; overflow:hidden; }
 
@@ -1919,21 +1924,33 @@
         .cv-reply-preview { flex-shrink:0;border-top:1px solid rgba(255,255,255,0.06);padding:12px 20px; }
         .cv-reply-preview-label { font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);font-family:var(--font-mono);margin-bottom:6px; }
         .cv-reply-preview-body { font-size:12px;line-height:1.65;color:var(--muted2);white-space:pre-wrap;max-height:80px;overflow:hidden;mask-image:linear-gradient(to bottom,black 40%,transparent 100%);-webkit-mask-image:linear-gradient(to bottom,black 40%,transparent 100%);margin-bottom:8px; }
-        /* Inline editable draft reply (Notion-style) */
-        .cv-reply-inline { flex-shrink:0;border-top:1px solid rgba(255,255,255,0.06);padding:14px 20px 16px;display:flex;flex-direction:column;gap:8px;background:var(--bg); }
-        .cv-reply-inline-hdr { display:flex;align-items:center;justify-content:space-between;gap:8px; }
-        .cv-reply-inline-label { font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);font-family:var(--font-mono); }
-        .cv-reply-inline-voice { font-size:10px;color:var(--muted);font-style:italic; }
-        .cv-reply-inline-subject { width:100%;background:transparent;border:none;outline:none;font-size:13px;font-weight:600;color:var(--text);font-family:var(--font);padding:2px 0;border-bottom:1px solid var(--border); }
+        /* Inline editable draft reply (Notion/Linear-style) — BIG, readable, with voice tabs */
+        .cv-reply-inline { flex-shrink:0;border-top:1px solid rgba(255,255,255,0.08);padding:14px 22px 18px;display:flex;flex-direction:column;gap:10px;background:var(--bg);min-height:380px;max-height:60vh; }
+        .cv-reply-inline-tabs { display:flex;align-items:center;gap:8px;flex-wrap:wrap; }
+        .cv-voice-tab { background:none;border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;transition:all 0.12s;font-family:var(--font); }
+        .cv-voice-tab:hover { color:var(--text);border-color:var(--text); }
+        .cv-voice-tab.active { background:var(--accent);color:#fff;border-color:var(--accent); }
+        .cv-template-select { background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:13px;color:var(--text);cursor:pointer;font-family:var(--font);min-width:170px; }
+        .cv-template-select:hover { border-color:var(--text); }
+        .cv-ai-btn { background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.35);border-radius:6px;padding:6px 12px;font-size:13px;font-weight:600;color:var(--accent);cursor:pointer;transition:all 0.12s;font-family:var(--font);margin-left:auto; }
+        .cv-ai-btn:hover { background:rgba(99,102,241,0.2); }
+        .cv-reply-inline-subject { width:100%;background:transparent;border:none;outline:none;font-size:15px;font-weight:600;color:var(--text);font-family:var(--font);padding:6px 2px;border-bottom:1px solid var(--border); }
         .cv-reply-inline-subject:focus { border-bottom-color:var(--accent); }
-        .cv-reply-inline-body { width:100%;min-height:90px;max-height:240px;background:transparent;border:none;outline:none;resize:none;font-size:13px;line-height:1.6;color:var(--text);font-family:var(--font);padding:4px 0; }
+        .cv-reply-inline-body { flex:1;width:100%;min-height:240px;background:transparent;border:none;outline:none;resize:vertical;font-size:15px;line-height:1.7;color:var(--text);font-family:var(--font);padding:8px 2px; }
         .cv-reply-inline-body::placeholder, .cv-reply-inline-subject::placeholder { color:var(--muted);opacity:0.7; }
-        .cv-reply-inline-actions { display:flex;gap:8px;justify-content:flex-end;margin-top:2px; }
-        .cv-reply-inline-secondary { background:none;border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;transition:all 0.12s; }
+        .cv-reply-inline-actions { display:flex;gap:8px;align-items:center;margin-top:4px; }
+        .cv-reply-inline-voice { font-size:12px;color:var(--muted);font-style:italic; }
+        .cv-reply-inline-voice strong { font-style:normal;color:var(--text);font-weight:600; }
+        .cv-reply-inline-secondary { background:none;border:1px solid var(--border);border-radius:6px;padding:8px 14px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;transition:all 0.12s;font-family:var(--font); }
         .cv-reply-inline-secondary:hover { color:var(--text);border-color:var(--text); }
         .cv-reply-inline-secondary.saved { color:#10b981;border-color:#10b98144; }
-        .cv-reply-inline-primary { background:var(--accent);border:none;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:600;color:#fff;cursor:pointer;transition:filter 0.12s;font-family:var(--font); }
+        .cv-reply-inline-primary { background:var(--accent);border:none;border-radius:6px;padding:8px 18px;font-size:13px;font-weight:600;color:#fff;cursor:pointer;transition:filter 0.12s;font-family:var(--font); }
         .cv-reply-inline-primary:hover { filter:brightness(1.1); }
+        /* Light-mode tweaks for the inline reply */
+        body.light-mode .cv-reply-inline { border-top-color:rgba(0,0,0,0.08);background:#fafafa; }
+        body.light-mode .cv-template-select { background:#fff;color:#1f1f1f; }
+        body.light-mode .cv-voice-tab { color:#5a5a5a; }
+        body.light-mode .cv-voice-tab.active { color:#fff; }
         #cv-confirm-overlay { position:fixed;inset:0;background:rgba(0,0,0,0.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);z-index:9999;display:none;align-items:center;justify-content:center; }
         #cv-confirm-overlay.active { display:flex; }
         .cv-confirm-box { background:var(--surface);border:1px solid rgba(239,68,68,0.32);border-radius:12px;padding:24px 24px 20px;max-width:380px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.5);animation:modalIn 0.16s ease both; }
@@ -5404,6 +5421,78 @@ function cvSendReplyInline(cardId) {
     }
 }
 window.cvSendReplyInline = cvSendReplyInline;
+
+// Switch the inline draft voice (Robert ⇄ Sam) — re-renders the detail panel
+function cvSwitchVoice(cardId, voice) {
+    const card = (typeof cards !== 'undefined' ? cards : []).find(c => c.id === cardId || String(c.id) === String(cardId));
+    if (!card) return;
+    // Save whatever's typed first
+    const subj = document.getElementById('cv-reply-subject-' + cardId)?.value || '';
+    const body = document.getElementById('cv-reply-body-' + cardId)?.value || '';
+    card.draft_reply = { subject: subj, body: body, voice: voice };
+    if (typeof saveBoardStateNow === 'function') { try { saveBoardStateNow(); } catch(e){} }
+    // Re-render detail to swap the template dropdown
+    if (typeof selectCvCampaign === 'function') selectCvCampaign(cardId);
+}
+window.cvSwitchVoice = cvSwitchVoice;
+
+// Apply a quick template to the inline reply (uses existing prefill functions when modal is mounted)
+function cvApplyTemplate(cardId, key) {
+    if (!key) return;
+    const card = (typeof cards !== 'undefined' ? cards : []).find(c => c.id === cardId || String(c.id) === String(cardId));
+    if (!card) return;
+    const voice = (card.draft_reply && card.draft_reply.voice) || 'sam';
+    // Open the modal silently so prefill functions can run, then read result back
+    if (typeof openCardModal === 'function') {
+        openCardModal(cardId);
+        setTimeout(() => {
+            try {
+                if (voice === 'robert' && typeof prefillRobertTemplate === 'function') prefillRobertTemplate(key);
+                else if (typeof prefillSamTemplate === 'function') prefillSamTemplate(key);
+                // Read back composed values
+                const subj = document.getElementById('modal-draft-subject')?.value || (card.draft_reply && card.draft_reply.subject) || '';
+                const body = document.getElementById(voice === 'robert' ? 'modal-draft-body' : 'sam-draft-body')?.value
+                          || (card.draft_reply && card.draft_reply.body) || '';
+                card.draft_reply = { subject: subj, body: body, voice: voice };
+                card.draft_reply_status = 'drafted';
+                if (typeof saveBoardStateNow === 'function') { try { saveBoardStateNow(); } catch(e){} }
+                // Close the modal we silently opened
+                if (typeof closeCardModal === 'function') closeCardModal();
+                // Re-render detail with new content
+                if (typeof selectCvCampaign === 'function') selectCvCampaign(cardId);
+            } catch(e) { console.warn('template apply failed', e); }
+        }, 180);
+    }
+}
+window.cvApplyTemplate = cvApplyTemplate;
+
+// AI generate draft inline (delegates to existing functions)
+function cvAiGenerate(cardId) {
+    const card = (typeof cards !== 'undefined' ? cards : []).find(c => c.id === cardId || String(c.id) === String(cardId));
+    if (!card) return;
+    const voice = (card.draft_reply && card.draft_reply.voice) || 'sam';
+    if (typeof openCardModal === 'function') {
+        openCardModal(cardId);
+        setTimeout(() => {
+            const fn = (voice === 'robert' && typeof regenerateDraft === 'function') ? regenerateDraft
+                     : (typeof generateSamDraft === 'function') ? generateSamDraft
+                     : null;
+            if (!fn) return;
+            Promise.resolve(fn()).then(() => {
+                setTimeout(() => {
+                    const subj = document.getElementById('modal-draft-subject')?.value || '';
+                    const body = document.getElementById(voice === 'robert' ? 'modal-draft-body' : 'sam-draft-body')?.value || '';
+                    card.draft_reply = { subject: subj, body: body, voice: voice };
+                    card.draft_reply_status = 'drafted';
+                    if (typeof saveBoardStateNow === 'function') { try { saveBoardStateNow(); } catch(e){} }
+                    if (typeof closeCardModal === 'function') closeCardModal();
+                    if (typeof selectCvCampaign === 'function') selectCvCampaign(cardId);
+                }, 200);
+            });
+        }, 180);
+    }
+}
+window.cvAiGenerate = cvAiGenerate;
 
 // ── Modal overflow menu (Delete / more actions) ──
 function toggleModalOverflow() {
@@ -8879,22 +8968,42 @@ function renderCvDetail() {
                 </div>`;
         }).join('');
 
-    // Draft reply — inline editable, no two-step popups
+    // Draft reply — inline, big, with voice tabs + quick templates (matches the proven full-card UI)
     const draft = card.draft_reply;
     const draftSubject = (draft && typeof draft === 'object' && draft.subject) ? draft.subject : '';
     const draftBody = (draft && typeof draft === 'object' && draft.body) ? draft.body
                     : (typeof draft === 'string' ? draft : '');
     const draftVoice = (draft && typeof draft === 'object' && draft.voice) ? draft.voice : 'sam';
-    const voiceLabel = draftVoice === 'robert' ? 'Robert Scoble' : 'Sam Levin';
+    const robertActive = draftVoice === 'robert';
+    const samActive = !robertActive;
+    const robertTemplates = `
+        <option value="">— Robert templates —</option>
+        <option value="loop-sam">🔗 Loop Sam In (CC fix)</option>
+        <option value="handoff">🤝 Hand off to Sam</option>
+        <option value="checkin">👋 Quick Check-In</option>`;
+    const samTemplates = `
+        <option value="">— Sam templates —</option>
+        <option value="rates">📋 Rates Email</option>
+        <option value="followup1">🔁 Follow-up #1 (no reply)</option>
+        <option value="followup2">🔁 Follow-up #2 (second nudge)</option>
+        <option value="assets">✅ Assets Received</option>
+        <option value="invoice-ready">💰 Ready to Invoice</option>
+        <option value="invoice-sent">📨 Invoice Sent — Confirm</option>`;
     const replyDock = `
         <div class="cv-reply-inline" onclick="event.stopPropagation()">
-            <div class="cv-reply-inline-hdr">
-                <span class="cv-reply-inline-label">Draft reply${draftBody ? '' : ' — empty'}</span>
-                <span class="cv-reply-inline-voice">as ${escHtml(voiceLabel)}</span>
+            <div class="cv-reply-inline-tabs">
+                <button class="cv-voice-tab${robertActive ? ' active' : ''}" onclick="cvSwitchVoice(${card.id},'robert')">↩ Robert</button>
+                <button class="cv-voice-tab${samActive ? ' active' : ''}" onclick="cvSwitchVoice(${card.id},'sam')">↩ Sam</button>
+                <select class="cv-template-select" id="cv-tpl-${card.id}" onchange="cvApplyTemplate(${card.id}, this.value); this.value='';">
+                    ${robertActive ? robertTemplates : samTemplates}
+                </select>
+                <button class="cv-ai-btn" onclick="cvAiGenerate(${card.id})" title="AI generate draft">✨ AI Draft</button>
             </div>
-            <input class="cv-reply-inline-subject" id="cv-reply-subject-${card.id}" placeholder="Subject" value="${escHtml(draftSubject)}" oninput="cvDraftDirty(${card.id})" />
-            <textarea class="cv-reply-inline-body" id="cv-reply-body-${card.id}" placeholder="Write your reply…" oninput="autoResize(this);cvDraftDirty(${card.id})">${escHtml(draftBody)}</textarea>
+            <input class="cv-reply-inline-subject" id="cv-reply-subject-${card.id}" placeholder="Subject line…" value="${escHtml(draftSubject)}" oninput="cvDraftDirty(${card.id})" />
+            <textarea class="cv-reply-inline-body" id="cv-reply-body-${card.id}" placeholder="Write your reply here…" oninput="autoResize(this);cvDraftDirty(${card.id})">${escHtml(draftBody)}</textarea>
             <div class="cv-reply-inline-actions">
+                <span class="cv-reply-inline-voice">Sending as <strong>${robertActive ? 'Robert Scoble' : 'Sam Levin'}</strong></span>
+                <div style="flex:1;"></div>
                 <button class="cv-reply-inline-secondary" onclick="cvSaveDraftInline(${card.id})" id="cv-reply-save-${card.id}">Save draft</button>
                 <button class="cv-reply-inline-primary" onclick="cvSendReplyInline(${card.id})">Send reply →</button>
             </div>
