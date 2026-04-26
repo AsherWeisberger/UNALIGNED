@@ -1919,6 +1919,21 @@
         .cv-reply-preview { flex-shrink:0;border-top:1px solid rgba(255,255,255,0.06);padding:12px 20px; }
         .cv-reply-preview-label { font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);font-family:var(--font-mono);margin-bottom:6px; }
         .cv-reply-preview-body { font-size:12px;line-height:1.65;color:var(--muted2);white-space:pre-wrap;max-height:80px;overflow:hidden;mask-image:linear-gradient(to bottom,black 40%,transparent 100%);-webkit-mask-image:linear-gradient(to bottom,black 40%,transparent 100%);margin-bottom:8px; }
+        /* Inline editable draft reply (Notion-style) */
+        .cv-reply-inline { flex-shrink:0;border-top:1px solid rgba(255,255,255,0.06);padding:14px 20px 16px;display:flex;flex-direction:column;gap:8px;background:var(--bg); }
+        .cv-reply-inline-hdr { display:flex;align-items:center;justify-content:space-between;gap:8px; }
+        .cv-reply-inline-label { font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);font-family:var(--font-mono); }
+        .cv-reply-inline-voice { font-size:10px;color:var(--muted);font-style:italic; }
+        .cv-reply-inline-subject { width:100%;background:transparent;border:none;outline:none;font-size:13px;font-weight:600;color:var(--text);font-family:var(--font);padding:2px 0;border-bottom:1px solid var(--border); }
+        .cv-reply-inline-subject:focus { border-bottom-color:var(--accent); }
+        .cv-reply-inline-body { width:100%;min-height:90px;max-height:240px;background:transparent;border:none;outline:none;resize:none;font-size:13px;line-height:1.6;color:var(--text);font-family:var(--font);padding:4px 0; }
+        .cv-reply-inline-body::placeholder, .cv-reply-inline-subject::placeholder { color:var(--muted);opacity:0.7; }
+        .cv-reply-inline-actions { display:flex;gap:8px;justify-content:flex-end;margin-top:2px; }
+        .cv-reply-inline-secondary { background:none;border:1px solid var(--border);border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;transition:all 0.12s; }
+        .cv-reply-inline-secondary:hover { color:var(--text);border-color:var(--text); }
+        .cv-reply-inline-secondary.saved { color:#10b981;border-color:#10b98144; }
+        .cv-reply-inline-primary { background:var(--accent);border:none;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:600;color:#fff;cursor:pointer;transition:filter 0.12s;font-family:var(--font); }
+        .cv-reply-inline-primary:hover { filter:brightness(1.1); }
         #cv-confirm-overlay { position:fixed;inset:0;background:rgba(0,0,0,0.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);z-index:9999;display:none;align-items:center;justify-content:center; }
         #cv-confirm-overlay.active { display:flex; }
         .cv-confirm-box { background:var(--surface);border:1px solid rgba(239,68,68,0.32);border-radius:12px;padding:24px 24px 20px;max-width:380px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.5);animation:modalIn 0.16s ease both; }
@@ -5351,6 +5366,44 @@ function cvOpenCardPanel(cardId) {
     openCardModal(cardId);
 }
 window.cvOpenCardPanel = cvOpenCardPanel;
+
+// ── Inline draft reply handlers (no two-step popups) ───────────────────────
+function cvDraftDirty(cardId) {
+    const btn = document.getElementById('cv-reply-save-' + cardId);
+    if (btn) { btn.classList.remove('saved'); btn.textContent = 'Save draft'; }
+}
+window.cvDraftDirty = cvDraftDirty;
+
+function cvSaveDraftInline(cardId) {
+    const card = (typeof cards !== 'undefined' ? cards : []).find(c => c.id === cardId || String(c.id) === String(cardId));
+    if (!card) return;
+    const subj = document.getElementById('cv-reply-subject-' + cardId)?.value || '';
+    const body = document.getElementById('cv-reply-body-' + cardId)?.value || '';
+    const prevVoice = (card.draft_reply && typeof card.draft_reply === 'object' && card.draft_reply.voice) ? card.draft_reply.voice : 'sam';
+    card.draft_reply = { subject: subj, body: body, voice: prevVoice };
+    card.draft_reply_status = 'drafted';
+    if (typeof saveBoardStateNow === 'function') { try { saveBoardStateNow(); } catch(e){} }
+    const btn = document.getElementById('cv-reply-save-' + cardId);
+    if (btn) { btn.classList.add('saved'); btn.textContent = '✓ Saved'; }
+}
+window.cvSaveDraftInline = cvSaveDraftInline;
+
+function cvSendReplyInline(cardId) {
+    // Save current text first, then hand off to the proven email composer
+    cvSaveDraftInline(cardId);
+    // Open the modal silently to set currentEditingCardData, then trigger composer
+    const card = (typeof cards !== 'undefined' ? cards : []).find(c => c.id === cardId || String(c.id) === String(cardId));
+    if (!card) return;
+    if (typeof openCardModal === 'function') {
+        openCardModal(cardId);
+        setTimeout(() => {
+            if (typeof openEmailComposer === 'function') {
+                openEmailComposer(card.draft_reply?.voice || 'sam');
+            }
+        }, 120);
+    }
+}
+window.cvSendReplyInline = cvSendReplyInline;
 
 // ── Modal overflow menu (Delete / more actions) ──
 function toggleModalOverflow() {
@@ -8826,18 +8879,25 @@ function renderCvDetail() {
                 </div>`;
         }).join('');
 
-    // Draft preview
+    // Draft reply — inline editable, no two-step popups
     const draft = card.draft_reply;
+    const draftSubject = (draft && typeof draft === 'object' && draft.subject) ? draft.subject : '';
     const draftBody = (draft && typeof draft === 'object' && draft.body) ? draft.body
                     : (typeof draft === 'string' ? draft : '');
-    const replyDock = draftBody ? `
-        <div class="cv-reply-preview" onclick="event.stopPropagation()">
-            <div class="cv-reply-preview-label">Draft Reply</div>
-            <div class="cv-reply-preview-body">${escHtml(draftBody.slice(0,500))}</div>
-            <button class="cv-open-btn" onclick="cvOpenCardPanel(${card.id})" style="width:100%;justify-content:center;">Edit & Send →</button>
-        </div>` : `
-        <div class="cv-reply-preview" onclick="event.stopPropagation()">
-            <button class="cv-open-btn" onclick="cvOpenCardPanel(${card.id})" style="width:100%;justify-content:center;">Compose Reply →</button>
+    const draftVoice = (draft && typeof draft === 'object' && draft.voice) ? draft.voice : 'sam';
+    const voiceLabel = draftVoice === 'robert' ? 'Robert Scoble' : 'Sam Levin';
+    const replyDock = `
+        <div class="cv-reply-inline" onclick="event.stopPropagation()">
+            <div class="cv-reply-inline-hdr">
+                <span class="cv-reply-inline-label">Draft reply${draftBody ? '' : ' — empty'}</span>
+                <span class="cv-reply-inline-voice">as ${escHtml(voiceLabel)}</span>
+            </div>
+            <input class="cv-reply-inline-subject" id="cv-reply-subject-${card.id}" placeholder="Subject" value="${escHtml(draftSubject)}" oninput="cvDraftDirty(${card.id})" />
+            <textarea class="cv-reply-inline-body" id="cv-reply-body-${card.id}" placeholder="Write your reply…" oninput="autoResize(this);cvDraftDirty(${card.id})">${escHtml(draftBody)}</textarea>
+            <div class="cv-reply-inline-actions">
+                <button class="cv-reply-inline-secondary" onclick="cvSaveDraftInline(${card.id})" id="cv-reply-save-${card.id}">Save draft</button>
+                <button class="cv-reply-inline-primary" onclick="cvSendReplyInline(${card.id})">Send reply →</button>
+            </div>
         </div>`;
 
     // Lead intel
@@ -8907,7 +8967,6 @@ function renderCvDetail() {
 
                 <!-- Actions -->
                 <div onclick="event.stopPropagation()" style="display:flex;flex-direction:column;gap:8px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.07);">
-                    <button class="cv-open-btn" onclick="cvOpenCardPanel(${card.id})" style="width:100%;justify-content:center;">Open Full Card →</button>
                     <div style="display:flex;gap:6px;">
                         <select class="cv-stage-select" style="flex:1;font-size:12px;padding:6px 8px;" onchange="cvMoveCard(${card.id},this.value)">${stageOpts}</select>
                         <button class="cv-del-btn" style="padding:6px 10px;font-size:12px;" onclick="cvDeleteCampaign(${card.id})">✕ Dead</button>
