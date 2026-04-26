@@ -128,7 +128,8 @@
         body.light-mode .card { background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
         body.light-mode .card:hover { border-color: rgba(99,102,241,0.3); box-shadow: 0 2px 10px rgba(0,0,0,0.10); }
         body.light-mode .card.priority-hot { border-color: rgba(239,68,68,0.25); }
-        body.light-mode .priority-hot .card-who { color: #dc2626; }
+        /* Keep card name in normal text color even when hot — use border + indicator instead of red text */
+        body.light-mode .priority-hot .card-who { color: var(--text); }
         body.light-mode input, body.light-mode textarea, body.light-mode select {
             background: var(--surface2); color: var(--text); border-color: var(--border2);
         }
@@ -190,6 +191,181 @@
         body.light-mode .add-card-btn:hover { background: rgba(0,0,0,0.05); color: var(--text); }
 
         /* ─── MATRIX MODE ─────────────────────────────────── */
+        /* ─── LIGHT MODE ADDITIONAL OVERRIDES (v3) ──────── */
+
+        /* Scrollbars */
+        body.light-mode ::-webkit-scrollbar-thumb { background:rgba(0,0,0,0.15); }
+        body.light-mode ::-webkit-scrollbar-thumb:hover { background:rgba(0,0,0,0.28); }
+
+        /* Header nav */
+        body.light-mode .view-toggle { color:var(--muted);border-color:var(--border2); }
+        body.light-mode .view-toggle:hover { background:var(--surface2);color:var(--text); }
+        body.light-mode .theme-toggle-btn { color:var(--muted);border-color:var(--border2); }
+        body.light-mode .theme-toggle-btn:hover { background:var(--surface2);color:var(--text); }
+        body.light-mode .profile-btn { background:var(--surface2);border-color:var(--border2);color:var(--text); }
+        body.light-mode .profile-btn:hover { background:var(--surface3); }
+
+        /* Segmented view control */
+        body.light-mode .view-seg-group { background:var(--surface3);border-color:var(--border); }
+        body.light-mode .view-seg-btn { color:var(--muted); }
+        body.light-mode .view-seg-btn:hover { color:var(--text); }
+
+        /* Pipeline bar */
+        body.light-mode .pipeline-bar { background:var(--surface);border-color:var(--border); }
+        body.light-mode .pb-stat-num { color:#0a6b47; }
+        body.light-mode .pipeline-platform-btn.active { background:rgba(15,157,88,0.10);border-color:#0f9d58;color:#0a6b47; }
+
+        /* Card text colors - critical for light mode readability */
+        body.light-mode .card-who { color:var(--text); }
+        body.light-mode .card-biz { color:var(--muted); }
+        body.light-mode .card-content { color:var(--text); }
+        body.light-mode .card-footer { border-top-color:var(--border);color:var(--muted); }
+        body.light-mode .card-source-date { color:var(--muted); }
+
+        /* Card age badges */
+        body.light-mode .card-age.age-fresh { background:rgba(15,157,88,0.08);color:#0a6b47; }
+        body.light-mode .card-age.age-warn  { background:rgba(217,119,6,0.08);color:#92400e; }
+        body.light-mode .card-age.age-old   { background:rgba(220,38,38,0.08);color:#b91c1c; }
+
+        /* Card value */
+        body.light-mode .card-value { background:rgba(15,157,88,0.08);color:#0a6b47; }
+
+        /* Card quick action buttons */
+        body.light-mode .card-quick-btn { background:rgba(255,255,255,0.98);border-color:rgba(0,0,0,0.10);color:var(--muted); }
+        body.light-mode .card-quick-btn:hover { border-color:var(--accent);color:var(--accent); }
+        body.light-mode .card-quick-btn.done-btn:hover { border-color:#0f9d58;color:#0f9d58; }
+        body.light-mode .card-quick-btn.dead-btn:hover { border-color:#dc2626;color:#dc2626; }
+
+        /* Column value label */
+        body.light-mode .list-value { color:#0a6b47; }
+
+        /* Col group dividers */
+        body.light-mode .col-group-divider.group-1 { color:rgba(15,157,88,0.7); }
+        body.light-mode .col-group-divider.group-1::after { background:rgba(15,157,88,0.18); }
+        body.light-mode .col-group-divider.group-2 { color:rgba(217,119,6,0.75); }
+        body.light-mode .col-group-divider.group-2::after { background:rgba(217,119,6,0.18); }
+        body.light-mode .col-group-divider.group-3 { color:var(--muted2); }
+        body.light-mode .col-group-divider.group-3::after { background:rgba(0,0,0,0.06); }
+        body.light-mode .col-group-badge { background:rgba(0,0,0,0.05);color:var(--muted); }
+
+        /* Add card / list buttons */
+        body.light-mode .add-card-btn { border-color:rgba(0,0,0,0.12);color:var(--muted); }
+        body.light-mode .add-card-btn:hover { border-color:var(--accent);color:var(--accent);background:var(--accent-subtle); }
+        body.light-mode .add-list-btn { border-color:rgba(0,0,0,0.14);color:var(--muted); }
+        body.light-mode .add-list-btn:hover { border-color:var(--accent);color:var(--accent); }
+
+        /* Sort dropdown */
+        body.light-mode .sort-dropdown { background:var(--surface2);border-color:var(--border2);box-shadow:0 4px 16px rgba(0,0,0,0.10); }
+        body.light-mode .sort-option { color:var(--muted2); }
+        body.light-mode .sort-option:hover { background:rgba(0,0,0,0.04);color:var(--text); }
+        body.light-mode .sort-option.active { color:var(--accent);background:var(--accent-subtle); }
+
+        /* Daily briefing */
+        body.light-mode .daily-briefing { background:rgba(94,106,210,0.04);border-color:rgba(94,106,210,0.12); }
+        body.light-mode .briefing-chip.urgent { background:rgba(220,38,38,0.07);color:#b91c1c;border-color:rgba(220,38,38,0.15); }
+        body.light-mode .briefing-chip.warn   { background:rgba(217,119,6,0.07);color:#92400e;border-color:rgba(217,119,6,0.15); }
+        body.light-mode .briefing-chip.new    { background:rgba(15,157,88,0.07);color:#0a6b47;border-color:rgba(15,157,88,0.15); }
+
+        /* Card modal extras */
+        body.light-mode .card-modal-close { background:rgba(0,0,0,0.05);color:var(--muted); }
+        body.light-mode .card-modal-close:hover { background:#dc2626;color:#fff; }
+        body.light-mode #stage-context-banner { background:var(--surface);border-bottom-color:var(--border); }
+        body.light-mode .scb-payment { background:rgba(217,119,6,0.06);border-color:rgba(217,119,6,0.22);color:#92400e; }
+
+        /* Lead field labels */
+        body.light-mode .lead-field-label.who   { color:#7c3aed; }
+        body.light-mode .lead-field-label.what  { color:#1d4ed8; }
+        body.light-mode .lead-field-label.why   { color:#065f46; }
+        body.light-mode .lead-field-label.value { color:#92400e; }
+
+        /* Draft buttons */
+        body.light-mode #btn-draft-send { background:rgba(15,157,88,0.10) !important;color:#0a6b47 !important; }
+        body.light-mode #btn-send-email { background:rgba(15,157,88,0.10) !important;border-color:rgba(15,157,88,0.25) !important;color:#0a6b47 !important; }
+
+        /* Draft badge variants */
+        body.light-mode .draft-badge.drafted  { background:rgba(180,83,9,0.10);color:#92400e; }
+        body.light-mode .draft-badge.approved { background:rgba(15,157,88,0.10);color:#0a6b47; }
+        body.light-mode .draft-badge.sent     { background:rgba(15,157,88,0.14);color:#065f46; }
+
+        /* New reply badge */
+        body.light-mode .new-reply-badge { background:rgba(15,157,88,0.10);color:#065f46;border-color:rgba(15,157,88,0.25); }
+
+        /* RR content */
+        body.light-mode #rr-content .rr-name  { color:var(--text); }
+        body.light-mode #rr-content .rr-guidance { background:var(--accent-subtle);border-left-color:var(--accent);color:var(--text); }
+        body.light-mode #rr-content .rr-email-box { background:var(--surface2);border-color:var(--border);color:var(--muted); }
+        body.light-mode #rr-content .rr-draft-box { background:rgba(15,157,88,0.04);border-color:rgba(15,157,88,0.18);color:var(--text); }
+        body.light-mode #rr-content .rr-btn-approve { background:#0f9d58;color:#fff; }
+        body.light-mode #rr-content .rr-btn-reject  { background:rgba(220,38,38,0.07);border-color:rgba(220,38,38,0.30);color:#dc2626; }
+        body.light-mode #rr-content .rr-btn-open    { background:var(--surface2);border-color:var(--border);color:var(--text); }
+
+        /* Unified activity */
+        body.light-mode .unified-activity { background:var(--surface2);border-color:var(--border); }
+        body.light-mode .unified-activity-header { border-bottom-color:var(--border); }
+        body.light-mode .unified-item { border-bottom-color:rgba(0,0,0,0.04); }
+        body.light-mode .unified-item:hover { background:rgba(0,0,0,0.02); }
+        body.light-mode .unified-input-row { background:rgba(0,0,0,0.03);border-bottom-color:var(--border); }
+        body.light-mode .activity-group-date { background:rgba(0,0,0,0.03);border-bottom-color:var(--border); }
+
+        /* Shortcuts modal */
+        body.light-mode .shortcuts-panel { background:var(--surface);border-color:var(--border2); }
+        body.light-mode .shortcuts-panel-head { border-bottom-color:var(--border); }
+        body.light-mode .shortcuts-panel-head button { background:rgba(0,0,0,0.05);color:var(--muted); }
+        body.light-mode .shortcuts-panel-head button:hover { background:#dc2626;color:#fff; }
+        body.light-mode .shortcut-row kbd { background:var(--surface2);border-color:var(--border2);color:var(--text);box-shadow:0 2px 0 rgba(0,0,0,0.10); }
+
+        /* Settings buttons */
+        body.light-mode .settings-toggle-btn.on  { background:rgba(15,157,88,0.12);color:#0a6b47; }
+        body.light-mode .settings-toggle-btn.off { background:rgba(0,0,0,0.06);color:var(--muted); }
+
+        /* CV companies view overrides */
+        body.light-mode .cv-section-hdr { color:var(--muted);border-top-color:var(--border); }
+        body.light-mode .cv-reply-banner { background:rgba(15,157,88,0.06);border-color:rgba(15,157,88,0.22);color:#065f46; }
+        body.light-mode .cv-reply-banner-dot { background:#0f9d58; }
+        body.light-mode .cv-reply-dot { background:#0f9d58; }
+        body.light-mode .cv-msg-body::after { background:linear-gradient(transparent,var(--surface)); }
+        body.light-mode .cvd-section { border-bottom-color:rgba(0,0,0,0.05); }
+        body.light-mode .cvd-label { color:var(--muted); }
+        body.light-mode .cvd-val { color:var(--text); }
+        body.light-mode .cv-full-bar { border-bottom-color:var(--border);background:var(--surface); }
+        body.light-mode .cv-back-btn { border-color:var(--border);color:var(--muted); }
+        body.light-mode .cv-back-btn:hover { border-color:var(--accent);color:var(--text); }
+        body.light-mode .cv-full-msg { background:var(--surface2);border-color:var(--border); }
+        body.light-mode .cv-full-msg-hdr { background:var(--surface);border-bottom-color:var(--border); }
+        body.light-mode .cv-full-name { color:var(--text); }
+
+        /* Bulk action bar */
+        body.light-mode .bulk-btn.danger { border-color:rgba(220,38,38,0.30);color:#dc2626; }
+        body.light-mode .bulk-btn.danger:hover { background:rgba(220,38,38,0.08);border-color:#dc2626; }
+
+        /* Inbox dots */
+        body.light-mode .inbox-item-dot.reply { background:#0f9d58; }
+        body.light-mode .inbox-item-dot.new   { background:#d97706; }
+
+        /* GCal */
+        body.light-mode .gcal-day-col.gcal-today .gcal-day-name { color:#0a6b47; }
+        body.light-mode .gcal-connect-btn { border-color:#0f9d58;background:rgba(15,157,88,0.08);color:#0a6b47; }
+        body.light-mode #gcal-toggle-btn.active { background:rgba(15,157,88,0.10);color:#0a6b47;border-color:rgba(15,157,88,0.30); }
+
+        /* CV confirm box */
+        body.light-mode .cv-confirm-box { background:var(--surface);border-color:rgba(220,38,38,0.28); }
+        body.light-mode .cv-confirm-cancel:hover { background:rgba(0,0,0,0.04); }
+
+        /* Email status dots */
+        body.light-mode .email-status-dot.sent    { background:#0f9d58; }
+        body.light-mode .email-status-dot.error   { background:#dc2626; }
+
+        /* Email toast */
+        body.light-mode .email-toast { background:var(--surface2);border-color:#0f9d58;color:#0a6b47; }
+        body.light-mode .email-toast.error { border-color:#dc2626;color:#b91c1c; }
+
+        /* Draft primary button wrapper (v3) */
+        body.light-mode #draft-primary-wrap button:first-child { background:rgba(15,157,88,0.10) !important;color:#0a6b47 !important;border-color:rgba(15,157,88,0.20) !important; }
+        body.light-mode #draft-primary-wrap button:last-of-type { background:rgba(15,157,88,0.10) !important;color:#0a6b47 !important;border-color:rgba(15,157,88,0.20) !important; }
+        body.light-mode #draft-variants-dd { background:var(--surface2);border-color:var(--border2); }
+        body.light-mode #draft-variants-dd button { color:var(--text); }
+        body.light-mode #draft-variants-dd button:hover { background:rgba(0,0,0,0.05); }
+
         body.matrix-mode {
             color-scheme: dark;
             --bg:          #000000;
@@ -843,7 +1019,9 @@
         .card { will-change:transform; }
 
         /* Priority — only a small dot/indicator, no left border */
-        .card.priority-hot  { border-color:rgba(239,68,68,0.22); }
+        .card.priority-hot  { border-color:rgba(239,68,68,0.30); }
+        /* Hot priority no longer recolors card name — the border + ::after dot signal urgency */
+        .priority-hot .card-who { color: var(--text); }
         .card.priority-warm { border-color:rgba(245,158,11,0.20); }
         .card.priority-cold { border-color:rgba(59,130,246,0.18); }
         .card.priority-done { border-color:rgba(52,211,153,0.15); }
@@ -1034,16 +1212,17 @@
         .sort-option.active { color:var(--accent);background:var(--accent-subtle); }
 
         /* Group dividers */
-        .col-group-divider { display:flex;align-items:center;gap:6px;padding:8px 0 4px;margin:8px 0 2px;font-size:11px;font-weight:700;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:0.09em;pointer-events:none;user-select:none;white-space:nowrap; }
+        /* In-column groupers (Needs Reply / Waiting / No Contact) — muted, not loud */
+        .col-group-divider { display:flex;align-items:center;gap:8px;padding:10px 4px 4px;margin:10px 0 4px;font-size:10px;font-weight:600;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:0.10em;pointer-events:none;user-select:none;white-space:nowrap;color:var(--muted2); }
         .col-group-divider::before { content:'';flex:0 0 0;height:1px;border-radius:1px; }
-        .col-group-divider::after  { content:'';flex:1;height:1px;border-radius:1px; }
-        .col-group-divider.group-1 { color:#34d399; }
-        .col-group-divider.group-1::before,.col-group-divider.group-1::after { background:rgba(52,211,153,0.35); }
-        .col-group-divider.group-2 { color:#f59e0b; }
-        .col-group-divider.group-2::before,.col-group-divider.group-2::after { background:rgba(245,158,11,0.3); }
+        .col-group-divider::after  { content:'';flex:1;height:1px;border-radius:1px;background:rgba(255,255,255,0.06); }
+        .col-group-divider.group-1 { color:rgba(52,211,153,0.7); }
+        .col-group-divider.group-1::after { background:rgba(52,211,153,0.18); }
+        .col-group-divider.group-2 { color:rgba(245,158,11,0.7); }
+        .col-group-divider.group-2::after { background:rgba(245,158,11,0.15); }
         .col-group-divider.group-3 { color:var(--muted2); }
-        .col-group-divider.group-3::before,.col-group-divider.group-3::after { background:rgba(255,255,255,0.10); }
-        .col-group-badge { background:rgba(255,255,255,0.08);border-radius:99px;padding:1px 7px;font-size:10px;font-weight:700;font-variant-numeric:tabular-nums; }
+        .col-group-divider.group-3::after { background:rgba(255,255,255,0.06); }
+        .col-group-badge { background:rgba(255,255,255,0.06);border-radius:99px;padding:0 6px;font-size:10px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--muted); }
 
         /* Daily log tabs */
         .dl-tab { padding:4px 10px;border-radius:5px;border:1px solid var(--border2);background:none;color:var(--muted);font-size:11px;cursor:pointer;transition:all 0.08s; }
@@ -2025,8 +2204,8 @@
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
                 </button>
 
-                <!-- Sort -->
-                <button class="view-toggle" id="global-sort-btn" onclick="cycleGlobalSort()" title="Sort all columns" style="padding:5px 9px;">⇅ Date</button>
+                <!-- Sort button removed (v3) — sort still accessible via column headers -->
+                <span id="global-sort-btn" style="display:none;">⇅ Date</span>
 
                 <!-- Status: sync dot -->
                 <div class="sync-indicator sync-connecting" id="sync-indicator" data-sync-indicator title="Connecting…">
@@ -2445,8 +2624,14 @@
                                 <div id="draft-loading" style="color:var(--muted);font-size:12px;font-family:var(--font-mono);display:none;">Generating…</div>
                                 <div id="draft-empty">
                                     No draft reply yet.
-                                    <button class="sidebar-btn" onclick="draftAndOpenComposer()" id="btn-draft-send" style="font-size:12px;background:rgba(52,211,153,0.12);color:#34d399;display:block;margin-top:10px;">✨ Draft &amp; Send</button>
-                                    <button class="sidebar-btn" onclick="regenerateDraft()" style="margin-top:8px;font-size:12px;display:block;">✨ Generate Draft</button>
+                                    <div style="display:flex;gap:0;margin-top:10px;position:relative;" id="draft-primary-wrap">
+                                        <button class="sidebar-btn" onclick="draftAndOpenComposer()" id="btn-draft-send" style="font-size:12px;background:rgba(52,211,153,0.12);color:#34d399;flex:1;border-right:none;border-radius:6px 0 0 6px;padding:7px 12px;">✨ Send draft</button>
+                                        <button onclick="document.getElementById('draft-variants-dd').style.display=document.getElementById('draft-variants-dd').style.display==='block'?'none':'block';event.stopPropagation();" style="background:rgba(52,211,153,0.12);color:#34d399;border:1px solid rgba(52,211,153,0.25);border-radius:0 6px 6px 0;padding:7px 9px;cursor:pointer;font-size:12px;flex-shrink:0;" title="More options">▾</button>
+                                        <div id="draft-variants-dd" style="display:none;position:absolute;top:calc(100% + 4px);right:0;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:3px;min-width:200px;box-shadow:var(--shadow-lg);z-index:50;">
+                                            <button onclick="draftAndOpenComposer();document.getElementById('draft-variants-dd').style.display='none';" style="display:block;width:100%;text-align:left;padding:7px 10px;background:transparent;border:none;border-radius:4px;cursor:pointer;font-size:12px;color:var(--text);font-family:var(--font-body);">✨ Generate then send</button>
+                                            <button onclick="regenerateDraft();document.getElementById('draft-variants-dd').style.display='none';" style="display:block;width:100%;text-align:left;padding:7px 10px;background:transparent;border:none;border-radius:4px;cursor:pointer;font-size:12px;color:var(--muted);font-family:var(--font-body);">📝 Generate only (don't send)</button>
+                                        </div>
+                                    </div>
                                 </div>
                                 <div id="draft-content" style="display:none;">
                                     <input type="text" class="contact-input" id="modal-draft-subject" placeholder="Subject line…" style="margin-bottom:8px;">
@@ -8276,19 +8461,11 @@ function renderCvLeft(filterStr) {
         list.appendChild(row);
     }
 
+    // v3: No ⚡ NEEDS REPLY banner — per-row dots indicate reply status
     if (needsReply.length > 0) {
-        const hdr = document.createElement('div');
-        hdr.className = 'cv-section-hdr';
-        hdr.textContent = `⚡ Needs Reply (${needsReply.length})`;
-        list.appendChild(hdr);
         needsReply.forEach(addRow);
     }
     if (rest.length > 0) {
-        const labels = { stage:'All Companies', recent:'Most Recent', oldest:'Oldest First', newest:'Newest → Oldest', oldest2:'Oldest → Newest', az:'A → Z', za:'Z → A', campaigns:'By Volume', replies:'All Companies', dead:'Dead Leads' };
-        const hdr = document.createElement('div');
-        hdr.className = 'cv-section-hdr';
-        hdr.textContent = needsReply.length > 0 ? 'Other Companies' : (labels[_cvSortMode] || 'All Companies');
-        list.appendChild(hdr);
         rest.forEach(addRow);
     }
 }
@@ -8325,7 +8502,7 @@ function renderCvMiddle() {
                 <div class="cv-middle-company">${escapeHtml(group.displayName)}</div>
                 <div class="cv-middle-sub">${group.campaigns.length} campaign${group.campaigns.length!==1?'s':''}${replyCount>0?` · <span style="color:#34d399;font-weight:700;">${replyCount} need${replyCount===1?'s':''} reply</span>`:''}</div>
             </div>
-            <button onclick="cvDeleteCompany('${group.key.replace(/'/g,"\\'")}')" title="Permanently delete all campaigns for this company" style="flex-shrink:0;margin-top:2px;background:none;border:1px solid rgba(239,68,68,0.3);color:#ef4444;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;" onmouseover="this.style.background='rgba(239,68,68,0.12)'" onmouseout="this.style.background='none'">🗑 Delete</button>
+            <button onclick="cvDeleteCompany('${group.key.replace(/'/g,"\\'")}')" title="Delete all campaigns for this company" style="flex-shrink:0;margin-top:2px;background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:4px 8px;font-size:13px;cursor:pointer;white-space:nowrap;line-height:1;transition:background 120ms,color 120ms,border-color 120ms;" onmouseover="this.style.background='rgba(220,38,38,0.08)';this.style.borderColor='rgba(220,38,38,0.28)';this.style.color='#dc2626'" onmouseout="this.style.background='none';this.style.borderColor='var(--border)';this.style.color='var(--muted)'">🗑</button>
         </div>`;
     list.innerHTML = '';
 
@@ -9665,5 +9842,13 @@ window.showGcalConnect = showGcalConnect;
         </div>
     </div>
 
+
+<script>
+// v3: Close draft variants dropdown when clicking outside
+document.addEventListener('click', function() {
+    var dd = document.getElementById('draft-variants-dd');
+    if (dd) dd.style.display = 'none';
+});
+</script>
 </body>
 </html>
