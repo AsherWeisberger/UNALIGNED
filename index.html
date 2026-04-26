@@ -5391,8 +5391,22 @@ function cvDraftDirty(cardId) {
 }
 window.cvDraftDirty = cvDraftDirty;
 
+// Helper: locate a card by id from whatever store the app uses (cardsData dict, or a global `cards` array fallback)
+function _cvFindCard(cardId) {
+    const idStr = String(cardId);
+    if (typeof cardsData !== 'undefined' && cardsData) {
+        if (cardsData[cardId]) return cardsData[cardId];
+        if (cardsData[idStr]) return cardsData[idStr];
+        for (const k in cardsData) { if (String(k) === idStr) return cardsData[k]; }
+    }
+    if (typeof window.cards !== 'undefined' && Array.isArray(window.cards)) {
+        return window.cards.find(c => String(c.id) === idStr);
+    }
+    return null;
+}
+
 function cvSaveDraftInline(cardId) {
-    const card = (typeof cards !== 'undefined' ? cards : []).find(c => c.id === cardId || String(c.id) === String(cardId));
+    const card = _cvFindCard(cardId);
     if (!card) return;
     const subj = document.getElementById('cv-reply-subject-' + cardId)?.value || '';
     const body = document.getElementById('cv-reply-body-' + cardId)?.value || '';
@@ -5409,7 +5423,7 @@ function cvSendReplyInline(cardId) {
     // Save current text first, then hand off to the proven email composer
     cvSaveDraftInline(cardId);
     // Open the modal silently to set currentEditingCardData, then trigger composer
-    const card = (typeof cards !== 'undefined' ? cards : []).find(c => c.id === cardId || String(c.id) === String(cardId));
+    const card = _cvFindCard(cardId);
     if (!card) return;
     if (typeof openCardModal === 'function') {
         openCardModal(cardId);
@@ -5424,22 +5438,23 @@ window.cvSendReplyInline = cvSendReplyInline;
 
 // Switch the inline draft voice (Robert ⇄ Sam) — re-renders the detail panel
 function cvSwitchVoice(cardId, voice) {
-    const card = (typeof cards !== 'undefined' ? cards : []).find(c => c.id === cardId || String(c.id) === String(cardId));
-    if (!card) return;
+    const card = _cvFindCard(cardId);
+    if (!card) { console.warn('cvSwitchVoice: card not found', cardId); return; }
     // Save whatever's typed first
-    const subj = document.getElementById('cv-reply-subject-' + cardId)?.value || '';
-    const body = document.getElementById('cv-reply-body-' + cardId)?.value || '';
+    const subj = document.getElementById('cv-reply-subject-' + cardId)?.value || (card.draft_reply?.subject) || '';
+    const body = document.getElementById('cv-reply-body-' + cardId)?.value || (card.draft_reply?.body) || '';
     card.draft_reply = { subject: subj, body: body, voice: voice };
     if (typeof saveBoardStateNow === 'function') { try { saveBoardStateNow(); } catch(e){} }
-    // Re-render detail to swap the template dropdown
-    if (typeof selectCvCampaign === 'function') selectCvCampaign(cardId);
+    // Re-render just the detail panel (don't reset selection)
+    if (typeof renderCvDetail === 'function') renderCvDetail();
+    else if (typeof selectCvCampaign === 'function') selectCvCampaign(cardId);
 }
 window.cvSwitchVoice = cvSwitchVoice;
 
 // Apply a quick template to the inline reply (uses existing prefill functions when modal is mounted)
 function cvApplyTemplate(cardId, key) {
     if (!key) return;
-    const card = (typeof cards !== 'undefined' ? cards : []).find(c => c.id === cardId || String(c.id) === String(cardId));
+    const card = _cvFindCard(cardId);
     if (!card) return;
     const voice = (card.draft_reply && card.draft_reply.voice) || 'sam';
     // Open the modal silently so prefill functions can run, then read result back
@@ -5468,7 +5483,7 @@ window.cvApplyTemplate = cvApplyTemplate;
 
 // AI generate draft inline (delegates to existing functions)
 function cvAiGenerate(cardId) {
-    const card = (typeof cards !== 'undefined' ? cards : []).find(c => c.id === cardId || String(c.id) === String(cardId));
+    const card = _cvFindCard(cardId);
     if (!card) return;
     const voice = (card.draft_reply && card.draft_reply.voice) || 'sam';
     if (typeof openCardModal === 'function') {
