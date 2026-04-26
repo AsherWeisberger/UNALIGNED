@@ -1903,8 +1903,8 @@
         .cv-camp-row:hover { border-color:rgba(99,102,241,0.3);background:rgba(99,102,241,0.03); }
         .cv-camp-row.selected { border-color:rgba(99,102,241,0.45);background:var(--accent-subtle);border-left-color:var(--accent); }
         .cv-camp-row.has-reply { border-left-color:#34d399; }
-        .cv-camp-name-row { display:flex;align-items:center;gap:9px;margin-bottom:4px; }
-        .cv-camp-contact { font-size:13px;font-weight:700;color:var(--text);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+        .cv-camp-name-row { display:flex;align-items:center;gap:9px;margin-bottom:4px;flex-wrap:wrap;row-gap:6px; }
+        .cv-camp-contact { font-size:13px;font-weight:700;color:var(--text);flex:1 1 100%;min-width:0;white-space:normal;overflow-wrap:break-word;word-break:break-word;line-height:1.35; }
         .cv-camp-stage { font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;border:1px solid;border-radius:999px;padding:2px 7px;flex-shrink:0; }
         .cv-camp-meta { font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
         .cv-camp-email { display:none; }
