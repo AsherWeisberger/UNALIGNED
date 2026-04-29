@@ -2236,6 +2236,9 @@
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
                 </button>
 
+                <!-- Robert's Google Calendar -->
+                <button class="view-toggle" id="gcal-toggle-btn" onclick="toggleGcalPanel()" title="Robert's Google Calendar" style="padding:5px 8px;">📅</button>
+
                 <!-- Sort button removed (v3) — sort still accessible via column headers -->
                 <span id="global-sort-btn" style="display:none;">⇅ Date</span>
 
@@ -2268,7 +2271,6 @@
                     <button id="strip-toggle-btn" onclick="toggleTopStrip()"></button>
                     <button id="docs-panel-btn" onclick="toggleDocsPanel()"></button>
                     <button id="daily-log-btn" onclick="openDailyLog()"></button>
-                    <button id="gcal-toggle-btn" onclick="toggleGcalPanel()"></button>
                     <button id="dt-btn-all" onclick="setDealTypeFilter('all')"></button>
                     <button id="dt-btn-deal" onclick="setDealTypeFilter('deal')"></button>
                     <button id="dt-btn-relationship" onclick="setDealTypeFilter('relationship')"></button>
