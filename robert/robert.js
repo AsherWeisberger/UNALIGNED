@@ -19,6 +19,7 @@ const stageLabels = {
 
 const state = { cards: [], view: "today", selectedId: null, search: "" };
 const $ = (id) => document.getElementById(id);
+const boardHref = window.location.pathname.endsWith("/robert/") ? "../" : "./";
 
 function asText(value, fallback = "") {
   if (value === null || value === undefined) return fallback;
@@ -211,7 +212,7 @@ function renderDetail(card) {
         <h2 class="detail-title">${escapeHtml(card.contactName)}</h2>
         <p class="detail-meta">${escapeHtml(card.businessName)}${card.email ? ` - ${escapeHtml(card.email)}` : ""}</p>
       </div>
-      <button type="button" onclick="window.location.href='/'">Open Board</button>
+      <button type="button" data-board-link>Open Board</button>
     </div>
     <div class="next-action"><span>Next Action</span><p>${escapeHtml(nextAction(card))}</p></div>
     <div class="field-grid">
@@ -227,6 +228,9 @@ function renderDetail(card) {
       <article class="content-box"><h4>Draft / Notes</h4><div class="draft-body">${escapeHtml(draftBody || card.description || "No draft yet.")}</div></article>
     </div>
   `;
+  panel.querySelector("[data-board-link]")?.addEventListener("click", () => {
+    window.location.href = boardHref;
+  });
 }
 
 function formatDate(value) {
