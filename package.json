@@ -4,7 +4,8 @@
   "description": "",
   "main": "scrape-x-dms.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "preview": "python3 -m http.server 4188",
+    "test": "node --check --input-type=module < robert/robert.js"
   },
   "repository": {
     "type": "git",

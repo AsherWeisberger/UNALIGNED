@@ -3690,6 +3690,14 @@ const supabase = createClient(SUPABASE_URL, "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ
     realtime: { params: { eventsPerHour: 10000 } }
 });
 
+function sendEmailHeaders() {
+    const token = localStorage.getItem('unaligned_send_token') || '';
+    return {
+        'Content-Type': 'application/json',
+        'X-UNALIGNED-ADMIN-TOKEN': token
+    };
+}
+
 // ── Supabase Realtime Channel ─────────────────────────
 let boardChannel = null;
 
@@ -5507,7 +5515,7 @@ async function approveDraft() {
     try {
         const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: sendEmailHeaders(),
             body: JSON.stringify({
                 to, subject, body,
                 from: 'sam',
@@ -6445,7 +6453,7 @@ async function sendEmail() {
 
         const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: sendEmailHeaders(),
             body: JSON.stringify({
                 to, subject, body, threadId,
                 from: fromSender,
@@ -6880,7 +6888,7 @@ async function sendSamEmail() {
         const isRatesEmail = ['engaged', 'rates-sent'].includes(currentEditingCardData.listId);
         const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: sendEmailHeaders(),
             body: JSON.stringify({ to, subject, body, threadId, from: 'sam', cc: 'scobleizer@gmail.com,UnalignedX@gmail.com,asherunaligned@gmail.com', attachPdf })
         });
         const data = await resp.json();

@@ -88,12 +88,30 @@ function makeMime(to, cc, subject, body) {
 }
 
 exports.sendEmail = functions.https.onRequest(async (req, res) => {
-  res.set('Access-Control-Allow-Origin', '*');
+  const allowedOrigins = new Set([
+    'https://unaligned-fc556.web.app',
+    'https://unaligned.io',
+    'http://localhost:5000',
+    'http://127.0.0.1:5000',
+  ]);
+  const origin = req.get('origin') || '';
+  if (allowedOrigins.has(origin)) res.set('Access-Control-Allow-Origin', origin);
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, X-UNALIGNED-ADMIN-TOKEN');
 
   if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
+
+  const expectedToken = process.env.SEND_EMAIL_ADMIN_TOKEN || functions.config()?.send_email?.admin_token;
+  const providedToken = req.get('x-unaligned-admin-token') || '';
+  if (!expectedToken) {
+    res.status(503).json({ error: 'Send email is not configured securely' });
+    return;
+  }
+  if (providedToken !== expectedToken) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
 
   const { to, subject, body, cc, from, attachPdf } = req.body || {};
 

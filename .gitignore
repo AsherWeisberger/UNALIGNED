@@ -1,0 +1,9 @@
+gmail_token.json
+gmail-token.json
+*_token.json
+*.env
+.env
+.env.*
+!.env.example
+service-account*.json
+firebase-service-account.json

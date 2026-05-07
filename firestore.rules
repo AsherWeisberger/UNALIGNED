@@ -5,9 +5,10 @@ service cloud.firestore {
     match /_secrets/{document=**} {
       allow read, write: if false;
     }
-    // Everything else is open for now
+    // Default deny. Grant collection-specific access only after Firebase Auth
+    // and ownership rules are defined for production data.
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }
