@@ -20,12 +20,14 @@
       </header>
 
       <section class="hero">
-        <p class="eyebrow">Robert's business inbox</p>
-        <h1>One clean funnel for every lead worth answering.</h1>
-        <p class="lede">Sponsor requests, AI partnerships, invoices, and follow-ups pulled from the board into one calm operating view.</p>
+        <p class="eyebrow">Robert's assistant console</p>
+        <h1>Yesterday, today, and tomorrow without the inbox fog.</h1>
+        <p class="lede">A cleaner operating view for reply priority, deal context, payment follow-up, and the leads that need a human decision.</p>
       </section>
 
       <section class="metrics" id="metrics" aria-label="Pipeline metrics"></section>
+
+      <section class="daily-brief" id="daily-brief" aria-label="Daily operating brief"></section>
 
       <section class="funnel" aria-label="Lead funnel">
         <div class="funnel-head">
@@ -39,15 +41,18 @@
         <aside class="queue">
           <div class="queue-top">
             <div>
-              <p class="eyebrow">Today</p>
-              <h2>Priority Leads</h2>
+              <p class="eyebrow" id="queue-eyebrow">Today</p>
+              <h2 id="queue-title">Command Queue</h2>
             </div>
             <span id="queue-count">0</span>
           </div>
           <div class="controls">
             <button class="seg active" data-view="today" type="button">Today</button>
+            <button class="seg" data-view="overdue" type="button">Overdue</button>
             <button class="seg" data-view="reply" type="button">Reply</button>
             <button class="seg" data-view="money" type="button">Money</button>
+            <button class="seg" data-view="tomorrow" type="button">Tomorrow</button>
+            <button class="seg" data-view="cleanup" type="button">Cleanup</button>
             <button class="seg" data-view="closed" type="button">Closed</button>
           </div>
           <input id="search" class="search" type="search" placeholder="Search leads" autocomplete="off">
