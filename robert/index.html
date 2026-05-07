@@ -3,82 +3,65 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>UNALIGNED Inbox</title>
+    <title>UNALIGNED Lead Funnel</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./robert.css">
   </head>
   <body>
-    <main class="app">
+    <main class="shell">
       <header class="topbar">
-        <div>
-          <p class="brand">UNALIGNED</p>
-          <h1>Robert's Deal Inbox</h1>
-        </div>
-        <div class="top-actions">
-          <a href="../" class="ghost">Board</a>
+        <a class="mark" href="../">UNALIGNED</a>
+        <nav class="nav">
+          <a href="./pitch/">Robert Brief</a>
+          <a href="../">Full Board</a>
           <button id="refresh-btn" type="button">Refresh</button>
-        </div>
+        </nav>
       </header>
 
       <section class="hero">
-        <div class="hero-copy">
-          <p class="kicker">Gmail signal, not Gmail noise</p>
-          <h2>Every sponsor lead, reply, invoice, and negotiation in one clean daily view.</h2>
-        </div>
-        <div class="hero-stats" id="hero-stats">
-          <div><span>Total</span><strong>-</strong></div>
-          <div><span>Needs Reply</span><strong>-</strong></div>
-          <div><span>Money Stage</span><strong>-</strong></div>
-          <div><span>Won</span><strong>-</strong></div>
-        </div>
+        <p class="eyebrow">Robert's business inbox</p>
+        <h1>One clean funnel for every lead worth answering.</h1>
+        <p class="lede">Sponsor requests, AI partnerships, invoices, and follow-ups pulled from the board into one calm operating view.</p>
       </section>
 
-      <nav class="tabs" aria-label="Inbox views">
-        <button class="tab active" data-view="today" type="button">Today</button>
-        <button class="tab" data-view="needs-reply" type="button">Needs Reply</button>
-        <button class="tab" data-view="money" type="button">Money</button>
-        <button class="tab" data-view="waiting" type="button">Waiting</button>
-        <button class="tab" data-view="closed" type="button">Closed</button>
-      </nav>
+      <section class="metrics" id="metrics" aria-label="Pipeline metrics"></section>
 
-      <section class="summary-row" id="summary-row"></section>
+      <section class="funnel" aria-label="Lead funnel">
+        <div class="funnel-head">
+          <h2>Deal Flow</h2>
+          <p id="sync-status">Loading live Supabase data</p>
+        </div>
+        <div class="funnel-track" id="funnel-track"></div>
+      </section>
 
-      <section class="workbench">
-        <aside class="queue-panel">
-          <div class="panel-head">
+      <section class="desk">
+        <aside class="queue">
+          <div class="queue-top">
             <div>
-              <p id="queue-label">Today</p>
-              <h3 id="queue-title">Priority Queue</h3>
+              <p class="eyebrow">Today</p>
+              <h2>Priority Leads</h2>
             </div>
             <span id="queue-count">0</span>
           </div>
-          <div class="search-wrap">
-            <input id="search" type="search" placeholder="Search contact, company, stage..." autocomplete="off">
+          <div class="controls">
+            <button class="seg active" data-view="today" type="button">Today</button>
+            <button class="seg" data-view="reply" type="button">Reply</button>
+            <button class="seg" data-view="money" type="button">Money</button>
+            <button class="seg" data-view="closed" type="button">Closed</button>
           </div>
-          <div class="lead-list" id="lead-list"></div>
+          <input id="search" class="search" type="search" placeholder="Search leads" autocomplete="off">
+          <div id="lead-list" class="lead-list"></div>
         </aside>
 
-        <section class="detail-panel" id="detail-panel">
-          <div class="empty-state">
-            <p>Select a lead</p>
-            <h3>The strongest next action will appear here.</h3>
+        <section id="detail" class="detail">
+          <div class="empty">
+            <p class="eyebrow">Ready</p>
+            <h2>Select a lead to see the next move.</h2>
           </div>
         </section>
       </section>
     </main>
-
-    <template id="lead-template">
-      <button class="lead-row" type="button">
-        <span class="priority-dot"></span>
-        <span class="lead-main">
-          <strong class="lead-name"></strong>
-          <span class="lead-company"></span>
-        </span>
-        <span class="lead-stage"></span>
-      </button>
-    </template>
-
     <script type="module" src="./robert.js"></script>
   </body>
 </html>
