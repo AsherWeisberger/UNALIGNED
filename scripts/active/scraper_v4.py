@@ -1,14 +1,14 @@
 """
-scraper_v4.py — Gmail → Claude Opus 4.6 → Supabase (UNALIGNED Lead Pipeline)
+scraper_v4.py — Gmail → OpenAI/Claude → Supabase (UNALIGNED Lead Pipeline)
 ─────────────────────────────────────────────────────────────────────────────
 KEY CHANGES FROM v3:
   [1] Pipeline reordered — threads fetched for ALL filtered emails BEFORE
-      AI extraction. Claude now reads full conversation bodies, not 200-char
+      AI extraction. The model now reads full conversation bodies, not 200-char
       snippets. This is the main quality fix.
   [2] Intent-based keyword filter — removed generic noise terms (ai, tech,
       startup, opportunity, growth). Kept only explicit business-intent signals.
   [3] Extraction prompt rewritten — strict, evidence-required, no contradictions.
-      Claude must quote the line that makes it a real lead. Returns null to
+      The model must quote the line that makes it a real lead. Returns nothing to
       reject, not a garbage card.
   [4] Chunk size 50 → 15 — smaller batches, more attention per email.
   [5] Reply drafter now receives full thread content, not just metadata.
@@ -34,13 +34,21 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 import httpx
-import anthropic
+
+try:
+    import anthropic
+except ImportError:
+    anthropic = None
 
 # ─────────────────────────────────────────────────────────────
 # CONFIG
 # ─────────────────────────────────────────────────────────────
 
+LLM_PROVIDER     = os.environ.get("LLM_PROVIDER", "openai").strip().lower()
+OPENAI_KEY       = os.environ.get("OPENAI_API_KEY", "")
+OPENAI_MODEL     = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
 ANTHROPIC_KEY    = os.environ.get("ANTHROPIC_API_KEY", "")
+ANTHROPIC_MODEL  = os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-6")
 SUPABASE_URL     = os.environ.get("SUPABASE_URL",   "https://hbnpwphxjurvtydezwgh.supabase.co")
 SUPABASE_ANON    = os.environ.get("SUPABASE_ANON_KEY",    "")
 SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
@@ -358,7 +366,7 @@ def intent_filter(emails: list[dict]) -> list[dict]:
 # STEP 3 — FULL THREAD FETCH (for ALL filtered emails)
 # ─────────────────────────────────────────────────────────────
 # This is the key pipeline change from v3. We fetch full threads BEFORE
-# AI extraction so Claude reads actual email bodies, not 200-char snippets.
+# AI extraction so the model reads actual email bodies, not 200-char snippets.
 
 def _decode_body(payload: dict) -> str:
     mime = payload.get("mimeType", "")
@@ -460,7 +468,7 @@ async def fetch_all_conversations(emails: list[dict], token: str) -> dict[str, l
 def _format_thread_for_prompt(email: dict, conversation: list[dict]) -> str:
     """
     Format a single email + its full thread for the extraction prompt.
-    Claude reads the actual conversation, not just the snippet.
+    The model reads the actual conversation, not just the snippet.
     """
     lines = [
         f"── EMAIL ──────────────────────────────────────────",
@@ -509,29 +517,31 @@ the email that proves it is a real opportunity. If you cannot find that sentence
 do not extract the lead.
 
 ━━━ OUTPUT FORMAT ━━━
-Return ONLY a valid JSON array. Empty array [] if nothing qualifies.
+Return ONLY valid JSON. Use {"leads": []} if nothing qualifies.
 No markdown, no preamble, no explanation outside the JSON.
 
-[
-  {
-    "email_id":    "<Gmail message ID exactly as given>",
-    "name":        "<sender full name — from email headers, not guessed>",
-    "business":    "<company name, or domain if no company — null if unknown>",
-    "email_addr":  "<sender email address>",
-    "phone":       "<phone if mentioned in body, else null>",
-    "deal_value":  "<specific budget or dollar amount mentioned, else null>",
-    "title":       "<email subject verbatim>",
-    "notes":       "<2-3 sentence summary: who they are, what they want, why it matters>",
-    "evidence":    "<direct quote from the email proving this is a real lead>",
-    "date":        "<date string verbatim>",
-    "intent":      "<partnership | sponsorship | interview | collaboration | intro | other>",
-    "priority":    "<hot | warm | cold — hot means specific ask + budget or urgency, cold means vague>",
-    "reply_hook":  "<1 sentence opener for a reply that references something specific from their email>"
-  }
-]
+{
+  "leads": [
+    {
+      "email_id":    "<Gmail message ID exactly as given>",
+      "name":        "<sender full name — from email headers, not guessed>",
+      "business":    "<company name, or domain if no company — null if unknown>",
+      "email_addr":  "<sender email address>",
+      "phone":       "<phone if mentioned in body, else null>",
+      "deal_value":  "<specific budget or dollar amount mentioned, else null>",
+      "title":       "<email subject verbatim>",
+      "notes":       "<2-3 sentence summary: who they are, what they want, why it matters>",
+      "evidence":    "<direct quote from the email proving this is a real lead>",
+      "date":        "<date string verbatim>",
+      "intent":      "<partnership | sponsorship | interview | collaboration | intro | other>",
+      "priority":    "<hot | warm | cold — hot means specific ask + budget or urgency, cold means vague>",
+      "reply_hook":  "<1 sentence opener for a reply that references something specific from their email>"
+    }
+  ]
+}
 
 STRICT RULES:
-  • Return [] for any email that doesn't clearly qualify — do not stretch
+  • Return {"leads": []} for any email that doesn't clearly qualify — do not stretch
   • priority=hot requires BOTH a specific ask AND either budget/timeline/urgency signal
   • reply_hook must reference something concrete from THEIR email, not generic
   • notes must describe the actual opportunity — no filler like "seems interested"
@@ -548,15 +558,86 @@ def _build_extract_prompt(emails: list[dict], conversations: dict[str, list[dict
     return "\n".join(parts)
 
 
-AI_CONCURRENCY   = 3    # max parallel Claude calls at once
+AI_CONCURRENCY   = 3    # max parallel LLM calls at once
 CHUNK_DELAY      = 2.0  # seconds between chunk starts to spread token usage
 MAX_429_RETRIES  = 6    # retry budget for rate-limit errors per chunk
+
+
+def make_llm_client():
+    """Return a small provider descriptor instead of requiring provider-specific code everywhere."""
+    if LLM_PROVIDER == "openai":
+        if not OPENAI_KEY:
+            raise RuntimeError("OPENAI_API_KEY is not set. Add it to the scraper runner environment.")
+        return {"provider": "openai", "api_key": OPENAI_KEY, "model": OPENAI_MODEL}
+    if LLM_PROVIDER == "anthropic":
+        if not ANTHROPIC_KEY:
+            raise RuntimeError("ANTHROPIC_API_KEY is not set.")
+        if anthropic is None:
+            raise RuntimeError("The anthropic package is not installed. Use LLM_PROVIDER=openai or install anthropic.")
+        return {"provider": "anthropic", "client": anthropic.AsyncAnthropic(api_key=ANTHROPIC_KEY), "model": ANTHROPIC_MODEL}
+    raise RuntimeError(f"Unsupported LLM_PROVIDER={LLM_PROVIDER!r}. Use openai or anthropic.")
+
+
+async def llm_text(client: dict, system_prompt: str, user_prompt: str, *, temperature: float, max_tokens: int, timeout: float) -> str:
+    """Call the configured model and return plain text."""
+    if client["provider"] == "openai":
+        async with httpx.AsyncClient(timeout=timeout) as http:
+            resp = await http.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {client['api_key']}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": client["model"],
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                    "response_format": {"type": "json_object"},
+                },
+            )
+            if resp.status_code >= 400:
+                raise RuntimeError(f"OpenAI error {resp.status_code}: {resp.text[:500]}")
+            data = resp.json()
+            return data["choices"][0]["message"]["content"].strip()
+
+    resp = await client["client"].messages.create(
+        model=client["model"],
+        messages=[{"role": "user", "content": system_prompt + "\n\n" + user_prompt}],
+        temperature=temperature,
+        max_tokens=max_tokens,
+        timeout=timeout,
+    )
+    return resp.content[0].text.strip()
+
+
+async def llm_json(client: dict, system_prompt: str, user_prompt: str, *, temperature: float, max_tokens: int, timeout: float):
+    text = await llm_text(
+        client,
+        system_prompt,
+        user_prompt,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        timeout=timeout,
+    )
+    text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.MULTILINE).strip()
+    parsed = _parse_json_flexible(text)
+    if isinstance(parsed, dict) and "leads" in parsed:
+        return parsed["leads"]
+    if isinstance(parsed, dict) and "drafts" in parsed:
+        return parsed["drafts"]
+    if isinstance(parsed, dict) and "items" in parsed:
+        return parsed["items"]
+    return parsed
 
 
 async def extract_all(
     emails: list[dict],
     conversations: dict[str, list[dict]],
-    client: anthropic.AsyncAnthropic,
+    client: dict,
     existing_ids: set[str],
     id_map: dict[str, dict],
     existing_thread_map: dict[str, dict] | None = None,
@@ -583,21 +664,16 @@ async def extract_all(
             for rate_attempt in range(MAX_429_RETRIES + 1):
                 try:
                     prompt = _build_extract_prompt(chunk, conversations)
-                    resp = await client.messages.create(
-                        model="claude-opus-4-6",
-                        messages=[{"role": "user", "content": EXTRACT_SYSTEM + "\n\n" + prompt}],
+                    parsed = await llm_json(
+                        client,
+                        EXTRACT_SYSTEM,
+                        prompt,
                         temperature=0.1,
                         max_tokens=4096,
                         timeout=120.0,
                     )
-                    text = resp.content[0].text.strip()
-                    text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.MULTILINE).strip()
-
-                    parsed = _parse_json_flexible(text)
                     if parsed is None:
-                        raise json.JSONDecodeError("flexible parse failed", text, 0)
-                    if isinstance(parsed, dict) and "leads" in parsed:
-                        parsed = parsed["leads"]
+                        raise json.JSONDecodeError("flexible parse failed", "", 0)
                     result = parsed if isinstance(parsed, list) else []
                     log.info(f"  Chunk {chunk_idx}: {len(chunk)} emails → {len(result)} leads extracted.")
                     return result
@@ -614,9 +690,14 @@ async def extract_all(
 
                 except Exception as e:
                     err_str = str(e)
-                    if "credit balance is too low" in err_str.lower():
-                        log.error("Anthropic credit balance is too low; aborting without advancing the scraper watermark.")
-                        raise RuntimeError("Anthropic credit balance is too low")
+                    err_lower = err_str.lower()
+                    if (
+                        "credit balance is too low" in err_lower
+                        or "insufficient_quota" in err_lower
+                        or "you exceeded your current quota" in err_lower
+                    ):
+                        log.error("LLM billing/quota failure; aborting without advancing the scraper watermark.")
+                        raise RuntimeError("LLM billing/quota failure")
                     if "429" in err_str or "rate_limit" in err_str.lower():
                         # Exponential backoff: 15s, 30s, 60s, 120s, 240s, 300s
                         wait = min(15 * (2 ** rate_attempt), 300)
@@ -1043,8 +1124,8 @@ def update_reply_drafts(drafts: list[dict]) -> int:
 
 REPLY_SYSTEM = """\
 You write personalized first-response emails on behalf of Robert Scoble / Unaligned.
-Return ONLY a valid JSON array. No markdown, no preamble.
-Each object: {"email_id": "<id>", "subject": "<subject line>", "body": "<full email body>"}
+Return ONLY valid JSON. No markdown, no preamble.
+Use this shape: {"drafts": [{"email_id": "<id>", "subject": "<subject line>", "body": "<full email body>"}]}
 
 Follow this exact structure for every email body:
 
@@ -1074,7 +1155,7 @@ Rules:
 """
 
 
-async def draft_replies(cards: list[dict], client: anthropic.AsyncAnthropic) -> list[dict]:
+async def draft_replies(cards: list[dict], client: dict) -> list[dict]:
     if not cards:
         return []
 
@@ -1098,20 +1179,18 @@ async def draft_replies(cards: list[dict], client: anthropic.AsyncAnthropic) -> 
 
     prompt = "\n\n".join(parts)
     try:
-        resp = await client.messages.create(
-            model="claude-opus-4-6",
-            messages=[{"role": "user", "content": REPLY_SYSTEM + "\n\n" + prompt}],
+        drafts = await llm_json(
+            client,
+            REPLY_SYSTEM,
+            prompt,
             temperature=0.3,
             max_tokens=3000,
             timeout=90.0,
         )
-        text = resp.content[0].text.strip()
-        text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.MULTILINE).strip()
-        drafts = _parse_json_flexible(text)
         if drafts is None:
             log.warning("Reply drafting JSON parse failed.")
             return []
-        return drafts
+        return drafts if isinstance(drafts, list) else []
     except Exception as e:
         log.error(f"Reply drafting failed: {e}")
         return []
@@ -1157,7 +1236,9 @@ async def run_pipeline(
     log.info("═" * 64)
 
     token  = get_gmail_token()
-    client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_KEY) if not dry_run else None
+    client = make_llm_client() if not dry_run else None
+    if client:
+        log.info(f"LLM provider: {client['provider']} / {client['model']}")
 
     # Validate Supabase auth before doing any work — fail fast, alert immediately
     if not dry_run:
