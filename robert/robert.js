@@ -69,7 +69,11 @@ function normalize(row) {
 }
 
 function needsReply(card) {
-  return Boolean(card.newReplyAt) || ["pending", "drafted"].includes(card.draftStatus);
+  return Boolean(card.newReplyAt) || card.draftStatus === "drafted";
+}
+
+function urgentReply(card) {
+  return needsReply(card) && card.priority !== "cold";
 }
 
 function moneyStage(card) {
@@ -101,12 +105,17 @@ function queueCards() {
   if (state.view === "reply") cards = cards.filter(needsReply);
   if (state.view === "money") cards = cards.filter(moneyStage);
   if (state.view === "closed") cards = cards.filter(closed);
-  if (state.view === "today") cards = cards.filter((card) => needsReply(card) || moneyStage(card));
+  if (state.view === "today") {
+    cards = cards.filter((card) => urgentReply(card) || ["negotiating", "invoice-sent"].includes(card.stage));
+  }
   if (state.search) {
     const q = state.search.toLowerCase();
     cards = cards.filter((card) => [card.contact, card.company, card.email, card.stage, card.intent].join(" ").toLowerCase().includes(q));
   }
   return cards.sort((a, b) => {
+    if (a.priority !== b.priority) {
+      return ({ hot: 0, warm: 1, cold: 2 }[a.priority] ?? 3) - ({ hot: 0, warm: 1, cold: 2 }[b.priority] ?? 3);
+    }
     if (Boolean(b.newReplyAt) !== Boolean(a.newReplyAt)) return Number(Boolean(b.newReplyAt)) - Number(Boolean(a.newReplyAt));
     const ranked = rank(a) - rank(b);
     if (ranked) return ranked;
@@ -145,12 +154,12 @@ function threadPreview(card) {
 }
 
 function draftText(card) {
-  if (typeof card.draft === "object") return text(card.draft.body || card.draft.text || card.draft.message);
+  if (card.draft && typeof card.draft === "object") return text(card.draft.body || card.draft.text || card.draft.message);
   return text(card.draft) || card.description || "No draft yet.";
 }
 
 function renderMetrics() {
-  const reply = state.cards.filter(needsReply).length;
+  const reply = state.cards.filter(urgentReply).length;
   const money = state.cards.filter(moneyStage).length;
   const invoices = state.cards.filter((card) => card.stage === "invoice-sent").length;
   const won = state.cards.filter((card) => ["done", "paid-out"].includes(card.stage)).length;
