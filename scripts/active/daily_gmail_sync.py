@@ -78,11 +78,16 @@ def supabase_request(method, path, data=None):
         'apikey': SUPABASE_KEY,
         'Authorization': f'Bearer {SUPABASE_KEY}',
         'Content-Type': 'application/json',
+        'Prefer': 'return=minimal' if method in ('PATCH', 'POST', 'DELETE') else '',
     }
+    headers = {k: v for k, v in headers.items() if v}
     body = json.dumps(data).encode() if data else None
     req = urllib.request.Request(url, data=body, headers=headers, method=method)
     with urllib.request.urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read())
+        raw = resp.read()
+        if not raw:
+            return None
+        return json.loads(raw)
 
 def load_all_cards():
     """Load all cards from Supabase (paginated)."""
@@ -100,7 +105,7 @@ def load_all_cards():
 
 def upsert_card(card_id, updates):
     """Update a card in Supabase using PATCH (partial update).
-    Email thread data goes into the original_email JSONB column.
+    Email thread data goes into the email_thread JSONB column the board reads.
     """
     # Map camelCase JS keys to snake_case DB columns
     key_map = {
@@ -119,6 +124,8 @@ def upsert_card(card_id, updates):
         'dueDate': 'due_date',
         'listId': 'list_id',
         'originalEmail': 'original_email',
+        'emailThread': 'email_thread',
+        'newReplyAt': 'new_reply_at',
     }
     db_updates = {}
     for k, v in updates.items():
@@ -130,8 +137,11 @@ def upsert_card(card_id, updates):
     if db_updates:
         try:
             supabase_request('PATCH', f'/rest/v1/cards?id=eq.{card_id}', db_updates)
+            return True
         except Exception as e:
             log(f"  ERROR updating card {card_id}: {e}")
+            return False
+    return False
 
 def extract_email_addresses(text):
     """Extract all email addresses from text."""
@@ -206,6 +216,51 @@ def fetch_gmail_thread(service, thread_id, max_msgs=50):
         log(f"  Error fetching thread {thread_id}: {e}")
         return []
 
+TEAM_SENDERS = (
+    'scobleizer@gmail.com',
+    'unalignedx@gmail.com',
+    'samlevin@mac.com',
+    'asherweisberger',
+    'robert scoble',
+    'sam levin',
+    'asher weisberger',
+    'brayden',
+)
+
+def is_inbound(message):
+    sender = ((message or {}).get('from') or '') + ' ' + ((message or {}).get('email') or '')
+    sender = sender.lower()
+    return not any(team in sender for team in TEAM_SENDERS)
+
+def normalize_thread(value):
+    if not value:
+        return []
+    if isinstance(value, list):
+        return [m for m in value if isinstance(m, dict)]
+    if isinstance(value, dict):
+        return [value]
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            return normalize_thread(parsed)
+        except Exception:
+            return []
+    return []
+
+def merge_threads(existing, fetched):
+    seen = set()
+    unique = []
+    for em in normalize_thread(existing) + normalize_thread(fetched):
+        mid = em.get('message_id') or f"{em.get('from','')}|{em.get('date','')}|{em.get('body','')[:80]}"
+        if mid and mid not in seen:
+            seen.add(mid)
+            unique.append(em)
+    unique = unique[-30:]
+    for em in unique:
+        if isinstance(em.get('body'), str) and len(em['body']) > 2000:
+            em['body'] = em['body'][:2000]
+    return unique
+
 def check_gmail_for_lead_replies(service, cards, checkpoint_file):
     """
     For each card with an email address, check Gmail for new messages
@@ -227,10 +282,14 @@ def check_gmail_for_lead_replies(service, cards, checkpoint_file):
 
         total_checked += 1
         last_check = checkpoint.get(email)
-        since_date = last_check if last_check else (datetime.now() - timedelta(days=7)).isoformat()
+        try:
+            since_dt = datetime.fromisoformat(last_check) if last_check else datetime.now() - timedelta(days=7)
+        except Exception:
+            since_dt = datetime.now() - timedelta(days=7)
+        since_query = (since_dt - timedelta(days=1)).strftime('%Y/%m/%d')
 
-        # Search Gmail for messages from/to this address
-        query = f'from:{email} OR to:{email}'
+        # Search recent Gmail activity, then refresh entire candidate threads.
+        query = f'{{from:{email} to:{email}}} after:{since_query}'
         try:
             results = service.users().messages().list(
                 userId='me',
@@ -245,60 +304,37 @@ def check_gmail_for_lead_replies(service, cards, checkpoint_file):
         if not messages:
             continue
 
-        # Get full thread data
-        card_thread_ids = set()
+        candidate_thread_ids = set()
         if card.get('gmail_thread_id'):
-            card_thread_ids.add(card['gmail_thread_id'])
-        if card.get('original_email'):
-            for em in (card['original_email'] if isinstance(card['original_email'], list) else [card['original_email']]):
-                if isinstance(em, dict) and em.get('gmail_thread_id'):
-                    card_thread_ids.add(em['gmail_thread_id'])
-
-        new_thread_data = []
+            candidate_thread_ids.add(card['gmail_thread_id'])
+        for em in normalize_thread(card.get('email_thread')) + normalize_thread(card.get('original_email')):
+            if em.get('gmail_thread_id'):
+                candidate_thread_ids.add(em['gmail_thread_id'])
         for msg_ref in messages:
-            thread_id = msg_ref['threadId']
-            # Skip if we already have this thread
-            if thread_id in card_thread_ids:
-                continue
+            if msg_ref.get('threadId'):
+                candidate_thread_ids.add(msg_ref['threadId'])
 
-            thread_emails = fetch_gmail_thread(service, thread_id)
-            if thread_emails:
-                new_thread_data.extend(thread_emails)
-                card_thread_ids.add(thread_id)
+        fetched_threads = []
+        for thread_id in candidate_thread_ids:
+            fetched_threads.extend(fetch_gmail_thread(service, thread_id))
 
-        if new_thread_data:
-            # Merge with existing thread
-            existing = card.get('original_email') or []
-            if isinstance(existing, dict):
-                existing = [existing]
-            merged = existing + new_thread_data
-
-            # Remove duplicates by message_id
-            seen = set()
-            unique = []
-            for em in merged:
-                mid = em.get('message_id', '')
-                if mid and mid not in seen:
-                    seen.add(mid)
-                    unique.append(em)
-
-            # Cap at 30 most recent messages, bodies at 2000 chars, to stay under Supabase limits
-            unique = unique[-30:]
-            for em in unique:
-                if isinstance(em.get('body'), str) and len(em['body']) > 2000:
-                    em['body'] = em['body'][:2000]
-
-            try:
-                upsert_card(card['id'], {
-                    'originalEmail': unique,
-                    'gmailThreadId': unique[0]['gmail_thread_id'] if unique else '',
-                    'emailDate': unique[0]['date'] if unique else '',
-                })
-                log(f"  ✅ Updated card {card['id']} — {card.get('contact_name', card.get('title', '?'))} — {len(new_thread_data)} new email(s)")
+        unique = merge_threads(card.get('email_thread') or card.get('original_email'), fetched_threads)
+        existing_count = len(normalize_thread(card.get('email_thread') or card.get('original_email')))
+        if unique and len(unique) != existing_count:
+            latest = unique[-1]
+            ok = upsert_card(card['id'], {
+                'emailThread': unique,
+                'originalEmail': unique[:1],
+                'gmailThreadId': unique[0]['gmail_thread_id'] if unique else '',
+                'emailDate': latest.get('date') if latest else '',
+                'newReplyAt': datetime.now(timezone.utc).isoformat() if is_inbound(latest) else None,
+            })
+            if ok:
+                log(f"  ✅ Updated card {card['id']} — {card.get('contact_name', card.get('title', '?'))} — {len(unique) - existing_count} net new email(s)")
                 updated_count += 1
                 checkpoint[email] = datetime.now().isoformat()
-            except Exception as e:
-                log(f"  ❌ Failed card {card['id']} — {e}")
+            else:
+                log(f"  ❌ Failed card {card['id']} — {card.get('contact_name', card.get('title', '?'))}")
 
     # Save checkpoint
     with open(checkpoint_file, 'wb') as f:

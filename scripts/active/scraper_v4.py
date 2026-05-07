@@ -892,9 +892,11 @@ def update_card_stage_by_thread(gmail_thread_id: str, new_list_id: str, conversa
             "list_id":      new_list_id,
             "email_thread": conversation,
         }
-        # Flag card if the most recent message is an inbound (lead replied)
+        # Keep reply state aligned with the latest sender, not a stale historical flag.
         if conversation and _is_inbound(conversation[-1]):
             patch_data["new_reply_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        else:
+            patch_data["new_reply_at"] = None
         resp = httpx.patch(
             f"{SUPABASE_URL}/rest/v1/cards?gmail_thread_id=eq.{gmail_thread_id}",
             headers={**_sb_headers(), "Prefer": "return=minimal"},
@@ -944,15 +946,15 @@ async def check_active_threads_for_replies(
         if not has_new:
             return
         current_stage = card.get("list_id", "")
-        if current_stage in ("unreplied", "discovery"):
+        if current_stage in ("new", "first-touch", "unreplied", "discovery"):
             if thread_has_reply(conversation) and has_pricing_signal(conversation, {}):
-                new_stage = "review"
+                new_stage = "rates-sent"
             elif thread_has_reply(conversation):
-                new_stage = "build"
+                new_stage = "engaged"
             else:
-                new_stage = current_stage
-        elif current_stage == "build":
-            new_stage = "review" if has_pricing_signal(conversation, {}) else current_stage
+                new_stage = "first-touch" if current_stage in ("unreplied", "discovery") else current_stage
+        elif current_stage == "engaged" and has_pricing_signal(conversation, {}):
+            new_stage = "rates-sent"
         else:
             new_stage = current_stage
 
@@ -1211,27 +1213,25 @@ async def run_pipeline(
 
     # Step 5 — AI extraction + incremental Supabase write (per chunk, not batch)
     total_extracted, written = await extract_all(filtered, conversations, client, existing_ids, id_map, existing_thread_map)
-    if total_extracted == 0:
-        log.info("No leads extracted. Done.")
-        set_last_run_date(datetime.utcnow().strftime("%Y/%m/%d"))
-        return 0
-
     log.info(f"All chunks done: {total_extracted} extracted, {written} written to board.")
 
-    # Step 6 — Reply drafts for ALL unreplied leads with no draft yet
-    unreplied_cards = []
+    # Step 6 — Reply drafts for active leads with no usable draft yet.
+    draftable_cards = []
     try:
         resp = httpx.get(
-            f"{SUPABASE_URL}/rest/v1/cards?list_id=eq.unreplied&draft_reply_status=eq.pending&select=*&limit=500",
+            f"{SUPABASE_URL}/rest/v1/cards"
+            f"?list_id=in.(first-touch,engaged,rates-sent,negotiating,invoice-sent)"
+            f"&draft_reply_status=eq.pending&select=*&limit=500",
             headers=_sb_headers(), timeout=15,
         )
         if resp.status_code == 200:
-            unreplied_cards = resp.json() if isinstance(resp.json(), list) else []
+            rows = resp.json() if isinstance(resp.json(), list) else []
+            draftable_cards = [c for c in rows if not c.get("draft_reply")]
     except Exception as e:
-        log.warning(f"Could not fetch unreplied cards for reply drafting: {e}")
-    if unreplied_cards:
-        log.info(f"Drafting replies for {len(unreplied_cards)} unreplied leads …")
-        drafts = await draft_replies(unreplied_cards, client)
+        log.warning(f"Could not fetch cards for reply drafting: {e}")
+    if draftable_cards:
+        log.info(f"Drafting replies for {len(draftable_cards)} active leads …")
+        drafts = await draft_replies(draftable_cards, client)
         if drafts:
             update_reply_drafts(drafts)
 
@@ -1248,12 +1248,10 @@ async def run_pipeline(
 
     if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
         try:
-            hot_count  = sum(1 for c in cards if c.get("priority") == "hot")
-            warm_count = sum(1 for c in cards if c.get("priority") == "warm")
             msg = (
                 f"✅ Scraper v4: {written} new leads in {elapsed:.0f}s\n"
-                f"🔥 {hot_count} hot · 🌡️ {warm_count} warm\n"
-                f"📧 {len(emails)} fetched → {len(filtered)} filtered → {len(leads)} extracted"
+                f"📧 {len(emails)} fetched → {len(filtered)} filtered → {total_extracted} extracted\n"
+                f"✍️ {len(draftable_cards)} active cards checked for missing drafts"
             )
             httpx.post(
                 f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
