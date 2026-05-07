@@ -614,6 +614,9 @@ async def extract_all(
 
                 except Exception as e:
                     err_str = str(e)
+                    if "credit balance is too low" in err_str.lower():
+                        log.error("Anthropic credit balance is too low; aborting without advancing the scraper watermark.")
+                        raise RuntimeError("Anthropic credit balance is too low")
                     if "429" in err_str or "rate_limit" in err_str.lower():
                         # Exponential backoff: 15s, 30s, 60s, 120s, 240s, 300s
                         wait = min(15 * (2 ** rate_attempt), 300)
