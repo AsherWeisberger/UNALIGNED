@@ -91,6 +91,7 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
   const allowedOrigins = new Set([
     'https://unaligned-fc556.web.app',
     'https://unaligned.io',
+    'https://asherweisberger.github.io',
     'http://localhost:5000',
     'http://127.0.0.1:5000',
   ]);

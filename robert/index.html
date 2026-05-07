@@ -3,66 +3,69 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>UNALIGNED Lead Funnel</title>
+    <title>UNALIGNED Lead Mail</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./robert.css">
   </head>
   <body>
-    <main class="shell">
-      <header class="topbar">
-        <a class="mark" href="../">UNALIGNED</a>
-        <nav class="nav">
-          <a href="./pitch/">Robert Brief</a>
-          <a href="../">Full Board</a>
+    <main class="mail-app">
+      <header class="mail-topbar">
+        <div class="brand">
+          <a href="../">UNALIGNED</a>
+          <span>Lead Mail</span>
+        </div>
+        <label class="search-wrap">
+          <span>Search</span>
+          <input id="search" type="search" placeholder="Search leads, companies, stages, context" autocomplete="off">
+        </label>
+        <nav class="top-actions">
+          <a href="./pitch/">Brief</a>
+          <a href="../">Board</a>
           <button id="refresh-btn" type="button">Refresh</button>
         </nav>
       </header>
 
-      <section class="hero">
-        <p class="eyebrow">Robert's assistant console</p>
-        <h1>Yesterday, today, and tomorrow without the inbox fog.</h1>
-        <p class="lede">A cleaner operating view for reply priority, deal context, payment follow-up, and the leads that need a human decision.</p>
-      </section>
+      <section class="mail-layout">
+        <aside class="sidebar">
+          <button class="compose-btn" id="compose-btn" type="button">Compose Lead Reply</button>
+          <nav class="folders" aria-label="Lead folders">
+            <button class="folder active" data-view="today" type="button"><span>Inbox</span><strong id="count-today">0</strong></button>
+            <button class="folder" data-view="reply" type="button"><span>Needs reply</span><strong id="count-reply">0</strong></button>
+            <button class="folder" data-view="overdue" type="button"><span>Overdue</span><strong id="count-overdue">0</strong></button>
+            <button class="folder" data-view="money" type="button"><span>Money</span><strong id="count-money">0</strong></button>
+            <button class="folder" data-view="tomorrow" type="button"><span>Tomorrow</span><strong id="count-tomorrow">0</strong></button>
+            <button class="folder" data-view="cleanup" type="button"><span>Cleanup</span><strong id="count-cleanup">0</strong></button>
+            <button class="folder" data-view="closed" type="button"><span>Closed</span><strong id="count-closed">0</strong></button>
+            <button class="folder" data-view="all" type="button"><span>All leads</span><strong id="count-all">0</strong></button>
+          </nav>
+          <div class="sync-card">
+            <span id="sync-status">Loading Supabase</span>
+            <strong id="focus-count">0 focus items</strong>
+          </div>
+        </aside>
 
-      <section class="metrics" id="metrics" aria-label="Pipeline metrics"></section>
-
-      <section class="daily-brief" id="daily-brief" aria-label="Daily operating brief"></section>
-
-      <section class="funnel" aria-label="Lead funnel">
-        <div class="funnel-head">
-          <h2>Deal Flow</h2>
-          <p id="sync-status">Loading live Supabase data</p>
-        </div>
-        <div class="funnel-track" id="funnel-track"></div>
-      </section>
-
-      <section class="desk">
-        <aside class="queue">
-          <div class="queue-top">
+        <section class="inbox">
+          <div class="inbox-head">
             <div>
-              <p class="eyebrow" id="queue-eyebrow">Today</p>
-              <h2 id="queue-title">Command Queue</h2>
+              <p id="view-eyebrow">Inbox</p>
+              <h1 id="view-title">Lead inbox</h1>
             </div>
             <span id="queue-count">0</span>
           </div>
-          <div class="controls">
-            <button class="seg active" data-view="today" type="button">Today</button>
-            <button class="seg" data-view="overdue" type="button">Overdue</button>
-            <button class="seg" data-view="reply" type="button">Reply</button>
-            <button class="seg" data-view="money" type="button">Money</button>
-            <button class="seg" data-view="tomorrow" type="button">Tomorrow</button>
-            <button class="seg" data-view="cleanup" type="button">Cleanup</button>
-            <button class="seg" data-view="closed" type="button">Closed</button>
+          <div class="list-toolbar">
+            <button class="chip active" data-view="today" type="button">Primary</button>
+            <button class="chip" data-view="reply" type="button">Replies</button>
+            <button class="chip" data-view="money" type="button">Revenue</button>
+            <button class="chip" data-view="cleanup" type="button">Data</button>
           </div>
-          <input id="search" class="search" type="search" placeholder="Search leads" autocomplete="off">
-          <div id="lead-list" class="lead-list"></div>
-        </aside>
+          <div id="lead-list" class="lead-list" aria-label="Lead messages"></div>
+        </section>
 
-        <section id="detail" class="detail">
+        <section id="detail" class="thread">
           <div class="empty">
-            <p class="eyebrow">Ready</p>
-            <h2>Select a lead to see the next move.</h2>
+            <p>Select a lead</p>
+            <h2>The thread, context, and reply box will appear here.</h2>
           </div>
         </section>
       </section>

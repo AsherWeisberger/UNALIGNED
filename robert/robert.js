@@ -2,8 +2,9 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 
 const SUPABASE_URL = "https://hbnpwphxjurvtydezwgh.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhibnB3cGh4anVydnR5ZGV6d2doIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MTQ1MzIsImV4cCI6MjA5MDk5MDUzMn0.p5E48__GlGqjC17Z28q8fYFK-qV8CmiidYIP02vGe4s";
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SEND_EMAIL_URL = "https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail";
 
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const state = { cards: [], view: "today", selectedId: null, search: "" };
 const $ = (id) => document.getElementById(id);
 const now = new Date();
@@ -14,21 +15,28 @@ const terminalStages = ["done", "paid-out", "dead-leads"];
 const moneyStages = ["rates-sent", "negotiating", "invoice-sent"];
 const todayLimit = 30;
 
-const stages = [
-  ["first-touch", "First Touch", "hot"],
-  ["engaged", "Engaged", ""],
-  ["rates-sent", "Rates Sent", "money"],
-  ["negotiating", "Negotiating", "money"],
-  ["invoice-sent", "Invoice", "money"],
-  ["paid-out", "Paid", "closed"]
-];
+const stageLabels = {
+  "first-touch": "First touch",
+  engaged: "Engaged",
+  "rates-sent": "Rates sent",
+  negotiating: "Negotiating",
+  "invoice-sent": "Invoice",
+  "paid-out": "Paid",
+  done: "Done",
+  "dead-leads": "Not needed",
+  new: "New"
+};
 
-const stageLabels = Object.fromEntries([
-  ["new", "New"],
-  ["done", "Done"],
-  ["dead-leads", "Dead"],
-  ...stages.map(([id, label]) => [id, label])
-]);
+const views = {
+  today: ["Inbox", "Lead inbox"],
+  reply: ["Needs reply", "People waiting on us"],
+  overdue: ["Overdue", "Old conversations to clear"],
+  money: ["Money", "Revenue threads"],
+  tomorrow: ["Tomorrow", "Follow-ups to schedule"],
+  cleanup: ["Cleanup", "Cards with bad data"],
+  closed: ["Closed", "Done and not needed"],
+  all: ["All leads", "Every lead card"]
+};
 
 function text(value, fallback = "") {
   if (value === null || value === undefined) return fallback;
@@ -63,13 +71,19 @@ function number(value) {
 
 function shortDate(value) {
   const d = parseDate(value);
-  if (!d) return "Not dated";
+  if (!d) return "No date";
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(d);
 }
 
-function dayStamp(value) {
+function longDate(value) {
   const d = parseDate(value);
-  return d ? `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}` : "";
+  if (!d) return "No date";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(d);
 }
 
 function daysSince(value) {
@@ -81,8 +95,8 @@ function daysSince(value) {
 function normalize(row) {
   const draft = maybeJson(row.draft_reply) || row.draft_reply || null;
   const descJson = maybeJson(row.description);
-  const title = text(row.title || row.contact_name || row.business_name, "Unknown lead");
   const thread = Array.isArray(row.email_thread) ? row.email_thread : [];
+  const title = text(row.title || row.contact_name || row.business_name, "Unknown lead");
   return {
     id: row.id,
     title,
@@ -95,6 +109,7 @@ function normalize(row) {
     value: text(row.estimated_value || descJson?.deal_value),
     source: text(row.lead_source || row.source, "Gmail"),
     description: text(descJson?.rich_description || row.description),
+    evidence: text(descJson?.evidence),
     draft,
     draftStatus: text(row.draft_reply_status, "pending"),
     newReplyAt: row.new_reply_at,
@@ -102,6 +117,7 @@ function normalize(row) {
     createdAt: row.created_at,
     dateReceived: row.date_received_iso || row.date_received,
     dueDate: row.due_date,
+    gmailThreadId: text(row.gmail_thread_id || thread[0]?.gmail_thread_id || thread.at(-1)?.gmail_thread_id),
     thread
   };
 }
@@ -160,6 +176,16 @@ function tomorrowWork(card) {
   return active(card) && !needsReply(card) && !["negotiating", "invoice-sent"].includes(card.stage);
 }
 
+function healthFlags(card) {
+  const flags = [];
+  if (!card.company || card.company === "Unknown company") flags.push("Missing company");
+  if (!card.email) flags.push("Missing email");
+  if (!card.thread.length) flags.push("No thread");
+  if (noisyReplyFlag(card)) flags.push("Stale reply flag");
+  if (card.priority === "hot" && !moneyStage(card) && !externalWaiting(card)) flags.push("Hot label needs proof");
+  return flags;
+}
+
 function priorityRank(card) {
   return ({ hot: 0, warm: 1, cold: 2 }[card.priority] ?? 3);
 }
@@ -194,74 +220,63 @@ function todayWork(card) {
 }
 
 function replyAge(card) {
-  const d = lastTouchDate(card);
-  const age = daysSince(d);
-  if (!d) return "Unknown age";
-  if (age === 0) return "Today";
-  if (age === 1) return "1 day waiting";
-  return `${age} days waiting`;
+  const age = daysSince(lastTouchDate(card));
+  if (age === 0) return "today";
+  if (age === 1) return "1 day ago";
+  if (age > 200) return "undated";
+  return `${age} days ago`;
 }
 
 function why(card) {
-  if (externalWaiting(card)) return `Outside sender is the last voice in the thread. ${replyAge(card)}.`;
-  if (hasDraftReady(card)) return "A drafted response is ready for review.";
-  if (card.stage === "invoice-sent") return "Invoice is out. Payment timing needs a clean follow-up.";
-  if (card.stage === "negotiating") return "This is active money. Scope, price, and owner should stay visible.";
+  if (externalWaiting(card)) return `Last message is from the lead, ${replyAge(card)}.`;
+  if (hasDraftReady(card)) return "Draft is ready to review.";
+  if (card.stage === "invoice-sent") return "Invoice is out. Confirm payment timing.";
+  if (card.stage === "negotiating") return "Active negotiation. Keep scope and decision owner visible.";
   if (staleActive(card)) return `No visible movement for ${daysSince(lastTouchDate(card))} days.`;
-  if (card.stage === "rates-sent") return "Rates were sent. Decide whether to follow up or cool it down.";
-  if (card.stage === "first-touch") return "First response lane. Check whether this is worth a human reply.";
-  if (closed(card)) return "Closed lane. Keep only if relationship history matters.";
-  return "Needs a human classification pass.";
+  if (card.stage === "rates-sent") return "Rates were sent. Decide follow-up or close.";
+  if (card.stage === "first-touch") return "New lead. Decide if it deserves a reply.";
+  if (closed(card)) return "Closed thread.";
+  return "Needs classification.";
 }
 
 function nextMove(card) {
-  if (externalWaiting(card)) return "Reply today with the shortest useful answer, then move the card to the true current stage.";
-  if (hasDraftReady(card)) return "Review the draft, remove anything generic, and send only if the thread still deserves it.";
-  if (card.stage === "invoice-sent") return "Confirm payment timing and make the next financial step explicit.";
-  if (card.stage === "negotiating") return "Write the decision checkpoint: scope, price, date, and who owns the yes.";
-  if (staleActive(card)) return "Either revive it with one specific follow-up or move it out of active pipeline.";
-  if (card.stage === "rates-sent") return "Follow up once with a concrete option, then mark it quiet if there is no response.";
-  if (card.stage === "first-touch") return "Send a tight first response only if the company, ask, and value are clear.";
-  if (closed(card)) return "Archive the outcome and capture any relationship note worth preserving.";
-  return "Clean the card: confirm company, stage, priority, and last thread context.";
+  if (externalWaiting(card)) return "Reply from the composer, then move the lead to the right stage.";
+  if (hasDraftReady(card)) return "Review the draft and send only if it still matches the thread.";
+  if (card.stage === "invoice-sent") return "Send a short payment follow-up or mark paid.";
+  if (card.stage === "negotiating") return "Clarify price, scope, timing, and decision owner.";
+  if (staleActive(card)) return "Revive once or move out of active pipeline.";
+  if (card.stage === "rates-sent") return "Follow up once, then archive if there is no signal.";
+  return "Clean the card and choose the next action.";
 }
 
-function healthFlags(card) {
-  const flags = [];
-  if (!card.company || card.company === "Unknown company") flags.push("Missing company");
-  if (!card.email) flags.push("Missing email");
-  if (!card.thread.length) flags.push("No thread");
-  if (noisyReplyFlag(card)) flags.push("Reply flag may be stale");
-  if (card.priority === "hot" && !moneyStage(card) && !externalWaiting(card)) flags.push("Hot label needs proof");
-  if (!flags.length) flags.push("Clean enough");
-  return flags;
+function defaultSubject(card) {
+  const title = card.title || card.company || card.contact;
+  return title.toLowerCase().startsWith("re:") ? title : `Re: ${title}`;
 }
 
-function queueCards() {
+function draftText(card) {
+  if (card.draft && typeof card.draft === "object") return text(card.draft.body || card.draft.text || card.draft.message);
+  return text(card.draft);
+}
+
+function queueFor(view = state.view) {
   let cards = [...state.cards];
-  if (state.view === "reply") cards = cards.filter(needsReply);
-  if (state.view === "money") cards = cards.filter((card) => moneyStage(card) && active(card));
-  if (state.view === "closed") cards = cards.filter(closed);
-  if (state.view === "overdue") cards = cards.filter((card) => active(card) && (staleActive(card) || (needsReply(card) && daysSince(lastTouchDate(card)) >= 2)));
-  if (state.view === "tomorrow") cards = cards.filter(tomorrowWork);
-  if (state.view === "cleanup") cards = cards.filter((card) => healthFlags(card)[0] !== "Clean enough");
-  if (state.view === "today") cards = cards.filter(todayWork);
+  if (view === "reply") cards = cards.filter(needsReply);
+  if (view === "money") cards = cards.filter((card) => moneyStage(card) && active(card));
+  if (view === "closed") cards = cards.filter(closed);
+  if (view === "overdue") cards = cards.filter((card) => active(card) && (staleActive(card) || (needsReply(card) && daysSince(lastTouchDate(card)) >= 2)));
+  if (view === "tomorrow") cards = cards.filter(tomorrowWork);
+  if (view === "cleanup") cards = cards.filter((card) => healthFlags(card).length > 0);
+  if (view === "today") cards = sortCards(cards.filter(todayWork)).slice(0, todayLimit);
+  if (view === "all") cards = [...state.cards];
+
   if (state.search) {
     const q = state.search.toLowerCase();
     cards = cards.filter((card) => [
-      card.contact, card.company, card.email, card.stage, card.intent, card.description, why(card)
+      card.contact, card.company, card.email, card.stage, card.intent, card.description, why(card), card.title
     ].join(" ").toLowerCase().includes(q));
   }
-  const sorted = sortCards(cards);
-  if (state.view === "today" && !state.search) return sorted.slice(0, todayLimit);
-  return sorted;
-}
-
-function cardsTouchedOn(offsetDays) {
-  const d = new Date(now);
-  d.setDate(now.getDate() + offsetDays);
-  const stamp = dayStamp(d);
-  return state.cards.filter((card) => dayStamp(lastTouchDate(card)) === stamp);
+  return sortCards(cards);
 }
 
 function latestSyncDate() {
@@ -272,198 +287,282 @@ function latestSyncDate() {
   }, null);
 }
 
-function renderMetrics() {
-  const realReplies = state.cards.filter(needsReply).length;
-  const money = state.cards.filter((card) => moneyStage(card) && active(card)).length;
-  const stale = state.cards.filter(staleActive).length;
-  const cleanup = state.cards.filter((card) => healthFlags(card)[0] !== "Clean enough").length;
-  $("metrics").innerHTML = [
-    ["Real replies", realReplies, "Latest thread needs a human"],
-    ["Money in motion", money, "Rates, negotiation, invoices"],
-    ["Overdue decisions", stale, "Revive or move out"],
-    ["Data cleanup", cleanup, "Cards hiding the truth"]
-  ].map(([label, value, note]) => `
-    <article class="metric">
-      <span>${label}</span>
-      <strong>${number(value)}</strong>
-      <small>${note}</small>
-    </article>
-  `).join("");
+function viewInfo() {
+  return views[state.view] || views.today;
 }
 
-function renderDailyBrief() {
-  const yesterday = cardsTouchedOn(-1);
-  const today = sortCards(state.cards.filter(todayWork)).slice(0, todayLimit);
-  const tomorrow = state.cards.filter(tomorrowWork);
-  const badFlags = state.cards.filter(noisyReplyFlag).length;
-  const latest = latestSyncDate();
-  $("daily-brief").innerHTML = [
-    ["Yesterday", yesterday.length ? `${number(yesterday.length)} changed` : "No fresh changes", yesterday.length ? "Review what moved before starting new replies." : `Last visible sync was ${shortDate(latest)}.`],
-    ["Today", `${number(today.length)} focus items`, "A capped queue for replies, negotiation, and invoices."],
-    ["Tomorrow", `${number(tomorrow.length)} follow-ups`, "Lower-pressure leads to schedule after the focus queue is handled."],
-    ["Data truth", `${number(badFlags)} suspect reply flags`, "Old reply markers are being checked against the latest sender."]
-  ].map(([label, value, note]) => `
-    <article class="brief-card">
-      <span>${label}</span>
-      <strong>${value}</strong>
-      <p>${note}</p>
-    </article>
-  `).join("");
+function renderCounts() {
+  const counts = {
+    today: queueFor("today").length,
+    reply: state.cards.filter(needsReply).length,
+    overdue: state.cards.filter((card) => active(card) && (staleActive(card) || (needsReply(card) && daysSince(lastTouchDate(card)) >= 2))).length,
+    money: state.cards.filter((card) => moneyStage(card) && active(card)).length,
+    tomorrow: state.cards.filter(tomorrowWork).length,
+    cleanup: state.cards.filter((card) => healthFlags(card).length > 0).length,
+    closed: state.cards.filter(closed).length,
+    all: state.cards.length
+  };
+  Object.entries(counts).forEach(([key, value]) => {
+    const el = $(`count-${key}`);
+    if (el) el.textContent = number(value);
+  });
+  $("focus-count").textContent = `${number(counts.today)} focus items`;
 }
 
-function renderFunnel() {
-  $("funnel-track").innerHTML = stages.map(([id, label, tone]) => {
-    const count = state.cards.filter((card) => card.stage === id).length;
-    const reply = state.cards.filter((card) => card.stage === id && needsReply(card)).length;
-    return `
-      <article class="stage ${tone}">
-        <span>${label}</span>
-        <strong>${number(count)}</strong>
-        <small>${number(reply)} need human</small>
-      </article>
-    `;
-  }).join("");
+function syncActiveButtons() {
+  document.querySelectorAll("[data-view]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.view === state.view);
+  });
 }
 
-function viewLabel() {
-  return ({
-    today: ["Today", "Command Queue"],
-    overdue: ["Overdue", "Needs A Decision"],
-    reply: ["Reply", "Human Replies"],
-    money: ["Money", "Revenue Work"],
-    tomorrow: ["Tomorrow", "Scheduled Follow-Up"],
-    cleanup: ["Cleanup", "Fix The Data"],
-    closed: ["Closed", "Receipts"]
-  }[state.view] || ["Today", "Command Queue"]);
-}
-
-function renderQueue() {
-  const cards = queueCards();
-  const [eyebrow, title] = viewLabel();
-  $("queue-eyebrow").textContent = eyebrow;
-  $("queue-title").textContent = title;
+function renderInbox() {
+  const cards = queueFor();
+  const [eyebrow, title] = viewInfo();
+  $("view-eyebrow").textContent = eyebrow;
+  $("view-title").textContent = title;
   $("queue-count").textContent = number(cards.length);
-  if (!state.selectedId || !cards.some((card) => card.id === state.selectedId)) state.selectedId = cards[0]?.id || null;
+  syncActiveButtons();
+
+  if (!state.selectedId || !cards.some((card) => card.id === state.selectedId)) {
+    state.selectedId = cards[0]?.id || null;
+  }
+
   $("lead-list").innerHTML = cards.length ? cards.map((card) => `
-    <button class="lead ${card.id === state.selectedId ? "selected" : ""}" data-id="${card.id}" type="button">
-      <div class="lead-top">
-        <span class="lead-name">${html(card.contact)}</span>
-        <span class="pill ${html(card.priority)}">${html(card.priority)}</span>
-      </div>
-      <div class="lead-sub">${html(card.company)} - ${html(stageLabels[card.stage] || card.stage)}</div>
-      <div class="lead-why">${html(why(card))}</div>
+    <button class="lead-row ${needsReply(card) ? "needs-reply" : ""} ${card.id === state.selectedId ? "selected" : ""}" data-id="${card.id}" type="button">
+      <span class="unread-dot"></span>
+      <span class="lead-main">
+        <span class="lead-meta">
+          <span class="lead-name">${html(card.contact)}</span>
+          <span class="pill ${html(card.priority)}">${html(card.priority)}</span>
+        </span>
+        <span class="lead-subject">${html(card.company)} - ${html(stageLabels[card.stage] || card.stage)}</span>
+        <span class="lead-preview">${html(why(card))} ${html(card.description || "")}</span>
+      </span>
+      <span class="lead-date">${html(shortDate(lastTouchDate(card)))}</span>
     </button>
-  `).join("") : `<div class="empty small"><p class="eyebrow">Clear</p><h2>No leads in this view.</h2></div>`;
+  `).join("") : `<div class="empty"><p>Clear</p><h2>No leads in this folder.</h2></div>`;
+
   $("lead-list").querySelectorAll("[data-id]").forEach((button) => {
     button.addEventListener("click", () => {
       state.selectedId = Number(button.dataset.id);
-      renderQueue();
+      renderInbox();
       renderDetail();
     });
   });
   renderDetail();
 }
 
-function threadPreview(card) {
-  const messages = card.thread.slice(-4).map((message) => {
-    const from = text(message.from || message.sender, "Unknown");
-    const body = text(message.body || message.snippet);
-    return `${from}\n${body}`;
-  });
-  return messages.join("\n\n---\n\n") || card.description || "No thread text available.";
+function messageList(card) {
+  if (card.thread.length) return card.thread.slice(-8);
+  return [{
+    from: card.contact || card.email || "Unknown lead",
+    email: card.email,
+    date: card.dateReceived || card.createdAt,
+    body: card.description || "No thread text is stored for this card yet."
+  }];
 }
 
-function draftText(card) {
-  if (card.draft && typeof card.draft === "object") return text(card.draft.body || card.draft.text || card.draft.message);
-  return text(card.draft) || card.description || "No draft yet.";
+function senderName(message) {
+  const raw = text(message.from || message.sender || message.email, "Unknown");
+  return raw.replace(/<[^>]+>/g, "").trim() || raw;
+}
+
+function senderEmail(message) {
+  const raw = text(message.from || message.email);
+  const match = raw.match(/<([^>]+)>/);
+  return match ? match[1] : text(message.email);
+}
+
+function gmailUrl(card) {
+  return card.gmailThreadId ? `https://mail.google.com/mail/u/0/#inbox/${encodeURIComponent(card.gmailThreadId)}` : "";
 }
 
 function renderDetail() {
   const card = state.cards.find((item) => item.id === state.selectedId);
   if (!card) {
-    $("detail").innerHTML = `<div class="empty"><p class="eyebrow">Ready</p><h2>Select a lead to see the next move.</h2></div>`;
+    $("detail").innerHTML = `<div class="empty"><p>Select a lead</p><h2>The thread, context, and reply box will appear here.</h2></div>`;
     return;
   }
   const flags = healthFlags(card);
+  const draft = draftText(card);
+  const subject = card.draft?.subject || defaultSubject(card);
+  const gmail = gmailUrl(card);
   $("detail").innerHTML = `
-    <div class="detail-head">
-      <div>
-        <p class="eyebrow">${html(stageLabels[card.stage] || card.stage)}</p>
-        <h2 class="detail-title">${html(card.contact)}</h2>
-        <p class="detail-meta">${html(card.company)}${card.email ? ` - ${html(card.email)}` : ""}</p>
+    <div class="thread-inner">
+      <div class="thread-toolbar">
+        <div class="tool-group">
+          <button class="tool" data-action="stage" data-stage="done" type="button">Archive</button>
+          <button class="tool" data-action="stage" data-stage="dead-leads" type="button">Not needed</button>
+          <button class="tool" data-action="stage" data-stage="engaged" type="button">Engaged</button>
+          <button class="tool" data-action="stage" data-stage="invoice-sent" type="button">Invoice</button>
+        </div>
+        <div class="tool-group">
+          ${gmail ? `<a class="tool" href="${html(gmail)}" target="_blank" rel="noreferrer">Open Gmail</a>` : ""}
+          <button class="tool" data-action="copy" type="button">Copy draft</button>
+        </div>
       </div>
-      <span class="pill ${html(card.priority)}">${html(card.priority)}</span>
+
+      <section class="thread-title">
+        <h2>${html(subject)}</h2>
+        <p>${html(card.contact)}${card.email ? ` <${html(card.email)}>` : ""} - ${html(card.company)}</p>
+      </section>
+
+      <section class="context-strip">
+        <div class="context-item"><span>Stage</span><strong>${html(stageLabels[card.stage] || card.stage)}</strong></div>
+        <div class="context-item"><span>Last touch</span><strong>${html(longDate(lastTouchDate(card)))}</strong></div>
+        <div class="context-item"><span>Value</span><strong>${html(card.value || "Not set")}</strong></div>
+        <div class="context-item"><span>Draft</span><strong>${html(card.draftStatus)}</strong></div>
+      </section>
+
+      <section class="why-card">
+        <strong>${html(why(card))}</strong>
+        <p>${html(nextMove(card))}</p>
+        ${flags.length ? `<p>${html(flags.join(" / "))}</p>` : ""}
+      </section>
+
+      <section class="messages">
+        ${messageList(card).map((message) => `
+          <article class="message">
+            <div class="message-head">
+              <div class="message-from">
+                <strong>${html(senderName(message))}</strong>
+                <span>${html(senderEmail(message))}</span>
+              </div>
+              <span class="message-date">${html(longDate(message.date_iso || message.date))}</span>
+            </div>
+            <div class="message-body">${html(message.body || message.snippet || "")}</div>
+          </article>
+        `).join("")}
+      </section>
+
+      <section class="composer">
+        <div class="composer-head">
+          <strong>Reply</strong>
+          <span class="send-status" id="send-status">Draft stays here until you send or copy it.</span>
+        </div>
+        <textarea id="reply-body" spellcheck="true" placeholder="Write Robert or Sam's reply here...">${html(draft)}</textarea>
+        <div class="composer-actions">
+          <button class="tool primary" data-action="send" type="button">Send</button>
+          <button class="tool" data-action="copy" type="button">Copy</button>
+          ${gmail ? `<a class="tool" href="${html(gmail)}" target="_blank" rel="noreferrer">Open thread</a>` : ""}
+          <button class="tool" data-action="stage" data-stage="rates-sent" type="button">Rates sent</button>
+          <button class="tool" data-action="stage" data-stage="paid-out" type="button">Paid</button>
+        </div>
+      </section>
     </div>
-    <div class="action">
-      <span>Why this is here</span>
-      <strong>${html(why(card))}</strong>
-      <p>${html(nextMove(card))}</p>
-    </div>
-    <section class="facts">
-      <div class="fact"><span>Stage</span><strong>${html(stageLabels[card.stage] || card.stage)}</strong></div>
-      <div class="fact"><span>Last touch</span><strong>${html(shortDate(lastTouchDate(card)))}</strong></div>
-      <div class="fact"><span>Value</span><strong>${html(card.value || "Not set")}</strong></div>
-      <div class="fact"><span>Draft</span><strong>${html(card.draftStatus)}</strong></div>
-    </section>
-    <section class="assist">
-      <article>
-        <h3>Human readout</h3>
-        <p>${html(card.description || "No clean summary exists yet.")}</p>
-      </article>
-      <article>
-        <h3>Data health</h3>
-        <div class="flag-list">${flags.map((flag) => `<span>${html(flag)}</span>`).join("")}</div>
-      </article>
-    </section>
-    <section class="reader">
-      <article class="pane">
-        <h3>Thread context</h3>
-        <div class="copy">${html(threadPreview(card))}</div>
-      </article>
-      <article class="pane">
-        <h3>Draft or notes</h3>
-        <div class="copy">${html(draftText(card))}</div>
-      </article>
-    </section>
   `;
+
+  $("detail").querySelectorAll("[data-action]").forEach((button) => {
+    button.addEventListener("click", () => handleAction(button.dataset.action, button.dataset.stage));
+  });
+}
+
+function selectedCard() {
+  return state.cards.find((card) => card.id === state.selectedId);
+}
+
+function setStatus(message) {
+  const status = $("send-status");
+  if (status) status.textContent = message;
+}
+
+async function handleAction(action, stage) {
+  const card = selectedCard();
+  if (!card) return;
+  if (action === "copy") {
+    const body = $("reply-body")?.value || draftText(card) || "";
+    await navigator.clipboard.writeText(body);
+    setStatus("Copied.");
+  }
+  if (action === "stage" && stage) {
+    setStatus("Updating stage...");
+    const { error } = await supabase.from("cards").update({ list_id: stage }).eq("id", card.id);
+    if (error) {
+      setStatus(`Stage update failed: ${error.message}`);
+      return;
+    }
+    card.stage = stage;
+    setStatus(`Moved to ${stageLabels[stage] || stage}.`);
+    renderCounts();
+    renderInbox();
+  }
+  if (action === "send") {
+    await sendReply(card);
+  }
+}
+
+async function sendReply(card) {
+  const token = localStorage.getItem("unaligned_send_token") || "";
+  if (!token) {
+    setStatus("Sending needs an admin token. Draft can still be copied or opened in Gmail.");
+    return;
+  }
+  const body = $("reply-body")?.value.trim() || "";
+  if (!body) {
+    setStatus("Write a reply first.");
+    return;
+  }
+  setStatus("Sending...");
+  const resp = await fetch(SEND_EMAIL_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-UNALIGNED-ADMIN-TOKEN": token
+    },
+    body: JSON.stringify({
+      to: card.email,
+      subject: card.draft?.subject || defaultSubject(card),
+      body,
+      from: moneyStage(card) ? "sam" : "robert"
+    })
+  });
+  const result = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    setStatus(result.error || "Send failed.");
+    return;
+  }
+  setStatus("Sent.");
+  await supabase.from("cards").update({ draft_reply_status: "sent", new_reply_at: null }).eq("id", card.id);
+  card.draftStatus = "sent";
+  card.newReplyAt = null;
+  renderCounts();
+  renderInbox();
 }
 
 async function loadCards() {
-  $("detail").innerHTML = `<div class="loading"><p class="eyebrow">Loading</p><h2>Finding the actual next replies.</h2></div>`;
+  $("detail").innerHTML = `<div class="empty"><p>Loading</p><h2>Opening the lead inbox.</h2></div>`;
   const fields = [
     "id", "title", "contact_name", "business_name", "email", "list_id", "priority", "intent",
     "estimated_value", "lead_source", "description", "draft_reply", "draft_reply_status",
-    "new_reply_at", "updated_at", "created_at", "date_received", "date_received_iso", "due_date", "email_thread"
+    "new_reply_at", "updated_at", "created_at", "date_received", "date_received_iso", "due_date",
+    "gmail_thread_id", "email_thread"
   ].join(",");
   const { data, error } = await supabase.from("cards").select(fields).limit(3000);
   if (error) {
-    $("detail").innerHTML = `<div class="empty"><p class="eyebrow">Supabase error</p><h2>${html(error.message)}</h2></div>`;
+    $("detail").innerHTML = `<div class="empty"><p>Supabase error</p><h2>${html(error.message)}</h2></div>`;
     return;
   }
   state.cards = (data || []).map(normalize);
   const latest = latestSyncDate();
-  $("sync-status").textContent = `${number(state.cards.length)} live leads synced - last signal ${shortDate(latest)}`;
-  renderMetrics();
-  renderDailyBrief();
-  renderFunnel();
-  renderQueue();
+  $("sync-status").textContent = `${number(state.cards.length)} leads synced. Last signal ${shortDate(latest)}.`;
+  renderCounts();
+  renderInbox();
 }
 
-document.querySelectorAll(".seg").forEach((button) => {
+document.querySelectorAll("[data-view]").forEach((button) => {
   button.addEventListener("click", () => {
-    document.querySelectorAll(".seg").forEach((item) => item.classList.remove("active"));
-    button.classList.add("active");
     state.view = button.dataset.view;
     state.selectedId = null;
-    renderQueue();
+    renderInbox();
   });
 });
 
 $("search").addEventListener("input", (event) => {
   state.search = event.target.value.trim();
   state.selectedId = null;
-  renderQueue();
+  renderInbox();
 });
 
 $("refresh-btn").addEventListener("click", loadCards);
+$("compose-btn").addEventListener("click", () => $("reply-body")?.focus());
 loadCards();
