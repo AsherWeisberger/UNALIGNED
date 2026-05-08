@@ -463,10 +463,11 @@ function renderDetail() {
           <strong>Reply</strong>
           <span class="send-status" id="send-status">Draft stays here until you send or copy it.</span>
         </div>
-        <textarea id="reply-body" rows="18" spellcheck="true" placeholder="Write Robert or Sam's reply here...">${html(draft)}</textarea>
+        <textarea id="reply-body" rows="18" spellcheck="true" placeholder="Write Robert, Sam, or Asher's reply here...">${html(draft)}</textarea>
         <div class="composer-actions">
           <button class="tool primary" data-action="send" data-from="robert" type="button">Reply as Robert</button>
           <button class="tool primary" data-action="send" data-from="sam" type="button">Reply as Sam</button>
+          <button class="tool primary" data-action="send" data-from="asher" type="button">Reply as Asher</button>
           <button class="tool" data-action="copy" type="button">Copy</button>
           ${gmail ? `<a class="tool" href="${html(gmail)}" target="_blank" rel="noreferrer">Open thread</a>` : ""}
           <button class="tool" data-action="stage" data-stage="rates-sent" type="button">Rates sent</button>
@@ -526,8 +527,9 @@ async function sendReply(card, from = "robert") {
     setStatus("Write a reply first.");
     return;
   }
-  const sender = from === "sam" ? "sam" : "robert";
-  setStatus(`Sending as ${sender === "sam" ? "Sam" : "Robert"}...`);
+  const sender = ["sam", "asher"].includes(from) ? from : "robert";
+  const senderName = ({ sam: "Sam", asher: "Asher", robert: "Robert" })[sender];
+  setStatus(`Sending as ${senderName}...`);
   const resp = await fetch(SEND_EMAIL_URL, {
     method: "POST",
     headers: {
@@ -546,7 +548,7 @@ async function sendReply(card, from = "robert") {
     setStatus(result.error || "Send failed.");
     return;
   }
-  setStatus(`Sent as ${sender === "sam" ? "Sam" : "Robert"}. Asher was CC'd.`);
+  setStatus(sender === "asher" ? "Sent as Asher." : `Sent as ${senderName}. Asher was CC'd.`);
   await supabase.from("cards").update({ draft_reply_status: "sent", new_reply_at: null }).eq("id", card.id);
   card.draftStatus = "sent";
   card.newReplyAt = null;

@@ -43,6 +43,7 @@ async function sendViaRobert(to, subject, body, cc) {
 
 // ── Sam SMTP (App Password) ───────────────────────────
 let samTransporter = null;
+let asherTransporter = null;
 
 async function getSamTransporter() {
   if (samTransporter) return samTransporter;
@@ -66,6 +67,37 @@ async function sendViaSam(to, subject, body, cc, attachments) {
   const { email } = snap.data();
   await t.sendMail({
     from: `"Sam Levin" <${email}>`,
+    to,
+    cc: cc || undefined,
+    subject,
+    text: body,
+    attachments: attachments || [],
+  });
+  return 'sent via SMTP';
+}
+
+async function getAsherTransporter() {
+  if (asherTransporter) return asherTransporter;
+
+  const snap = await db.collection('_secrets').doc('asher_gmail').get();
+  if (!snap.exists) throw new Error('Asher Gmail credentials not found');
+
+  const { email, app_password } = snap.data();
+  asherTransporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    auth: { user: email, pass: app_password },
+  });
+  return asherTransporter;
+}
+
+async function sendViaAsher(to, subject, body, cc, attachments) {
+  const t = await getAsherTransporter();
+  const snap = await db.collection('_secrets').doc('asher_gmail').get();
+  const { email } = snap.data();
+  await t.sendMail({
+    from: `"Asher Weisberger" <${email}>`,
     to,
     cc: cc || undefined,
     subject,
@@ -141,7 +173,8 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
   }
 
   try {
-    const effectiveCC = mergeCc(cc, DEFAULT_CC, ASHER_CC);
+    const sender = from === 'sam' || from === 'unalignedx' ? 'sam' : from === 'asher' ? 'asher' : 'robert';
+    const effectiveCC = sender === 'asher' ? mergeCc(cc, DEFAULT_CC) : mergeCc(cc, DEFAULT_CC, ASHER_CC);
     let messageId;
 
     let attachments = [];
@@ -154,8 +187,10 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
       }
     }
 
-    if (from === 'sam' || from === 'unalignedx') {
+    if (sender === 'sam') {
       messageId = await sendViaSam(to, subject, body, effectiveCC, attachments);
+    } else if (sender === 'asher') {
+      messageId = await sendViaAsher(to, subject, body, effectiveCC, attachments);
     } else {
       messageId = await sendViaRobert(to, subject, body, effectiveCC);
     }
