@@ -1263,12 +1263,15 @@ async def run_pipeline(
         query = f"after:{cutoff} {GMAIL_QUERY}"
         log.info(f"Default mode: after {cutoff}")
 
-    # Load existing cards index early — needed for active thread check AND dedup
-    existing_ids, existing_thread_map = get_existing_cards_index()
+    # Load existing cards index early — needed for active thread check AND dedup.
+    # Dry runs intentionally stay Gmail-only: no Supabase auth required, no board reads.
+    if dry_run:
+        existing_ids, existing_thread_map = set(), {}
+    else:
+        existing_ids, existing_thread_map = get_existing_cards_index()
 
-    # Step 1.5 — Re-check active tracked threads for replies missed by the search query
-    # (e.g. lead replies to Robert where the reply subject doesn't match any search keyword)
-    if not dry_run:
+        # Step 1.5 — Re-check active tracked threads for replies missed by the search query
+        # (e.g. lead replies to Robert where the reply subject doesn't match any search keyword)
         await check_active_threads_for_replies(existing_thread_map, token, cutoff)
 
     # Step 1 — Scrape metadata
