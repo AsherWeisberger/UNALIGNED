@@ -7,3 +7,4 @@ gmail-token.json
 !.env.example
 service-account*.json
 firebase-service-account.json
+.private/

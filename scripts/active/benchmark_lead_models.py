@@ -34,6 +34,7 @@ class Case:
     expected: bool
     required_quote: str = ""
     expected_intent: str = ""
+    label_source: str = "synthetic"
 
 
 CASES: list[Case] = [
@@ -155,13 +156,41 @@ def load_scraper():
     return mod
 
 
-def build_prompt() -> str:
+def load_cases(path: Path | None) -> list[Case]:
+    if path is None:
+        return CASES
+
+    cases: list[Case] = []
+    with path.open() as f:
+        for line in f:
+            if not line.strip():
+                continue
+            raw = json.loads(line)
+            cases.append(
+                Case(
+                    id=str(raw["id"]),
+                    kind=str(raw.get("kind", "private")),
+                    sender=str(raw.get("sender", "")),
+                    subject=str(raw.get("subject", "")),
+                    body=str(raw.get("body", "")),
+                    expected=bool(raw["expected"]),
+                    required_quote=str(raw.get("required_quote", "")),
+                    expected_intent=str(raw.get("expected_intent", "")),
+                    label_source=str(raw.get("label_source", "private")),
+                )
+            )
+    if not cases:
+        raise RuntimeError(f"No cases loaded from {path}")
+    return cases
+
+
+def build_prompt(cases: list[Case]) -> str:
     parts: list[str] = []
-    for i, c in enumerate(CASES, 1):
+    for i, c in enumerate(cases, 1):
         parts.extend(
             [
                 f"\n{'=' * 60}",
-                f"EMAIL {i}/{len(CASES)}",
+                f"EMAIL {i}/{len(cases)}",
                 f"{'=' * 60}",
                 "── EMAIL ──────────────────────────────────────────",
                 f"id:      {c.id}",
@@ -174,9 +203,14 @@ def build_prompt() -> str:
     return "\n".join(parts)
 
 
-def score_leads(leads: list[dict], seconds: float) -> dict:
-    expected_ids = {c.id for c in CASES if c.expected}
-    expected_by_id = {c.id: c for c in CASES}
+def chunks(items: list[Case], size: int):
+    for i in range(0, len(items), size):
+        yield items[i:i + size]
+
+
+def score_leads(cases: list[Case], leads: list[dict], seconds: float) -> dict:
+    expected_ids = {c.id for c in cases if c.expected}
+    expected_by_id = {c.id: c for c in cases}
     returned_ids = {str(lead.get("email_id", "")).strip() for lead in leads if isinstance(lead, dict)}
 
     true_positive = len(expected_ids & returned_ids)
@@ -243,7 +277,15 @@ def score_leads(leads: list[dict], seconds: float) -> dict:
     }
 
 
-async def run_model(scraper, model: str, host: str, num_ctx: int, keep_alive: str) -> dict:
+async def run_model(
+    scraper,
+    cases: list[Case],
+    model: str,
+    host: str,
+    num_ctx: int,
+    keep_alive: str,
+    batch_size: int,
+) -> dict:
     client = {
         "provider": "ollama",
         "host": host.rstrip("/"),
@@ -254,41 +296,45 @@ async def run_model(scraper, model: str, host: str, num_ctx: int, keep_alive: st
     started = time.time()
     error = ""
     leads: list[dict] = []
-    try:
-        parsed = await scraper.llm_json(
-            client,
-            scraper.EXTRACT_SYSTEM,
-            build_prompt(),
-            temperature=0,
-            max_tokens=4096,
-            timeout=300,
-        )
-        if isinstance(parsed, list):
-            leads = parsed
-        else:
-            error = f"Model returned {type(parsed).__name__}, not a list."
-    except Exception as exc:
-        error = repr(exc)
+    batch_errors: list[str] = []
+    for batch_idx, batch in enumerate(chunks(cases, batch_size), 1):
+        try:
+            parsed = await scraper.llm_json(
+                client,
+                scraper.EXTRACT_SYSTEM,
+                build_prompt(batch),
+                temperature=0,
+                max_tokens=4096,
+                timeout=300,
+            )
+            if isinstance(parsed, list):
+                leads.extend(parsed)
+            else:
+                batch_errors.append(f"batch {batch_idx}: returned {type(parsed).__name__}, not a list")
+        except Exception as exc:
+            batch_errors.append(f"batch {batch_idx}: {exc!r}")
+    if batch_errors:
+        error = "; ".join(batch_errors[:5])
 
     seconds = time.time() - started
-    result = score_leads(leads, seconds)
+    result = score_leads(cases, leads, seconds)
     result.update({"model": model, "error": error, "leads": leads})
-    if error:
+    if error and not leads:
         result["score"] = 0
     return result
 
 
-def write_reports(results: list[dict], models: list[str]):
-    REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
+def write_reports(results: list[dict], models: list[str], cases: list[Case], report_path: Path, json_path: Path):
+    report_path.parent.mkdir(parents=True, exist_ok=True)
     ordered = sorted(results, key=lambda r: r["score"], reverse=True)
-    JSON_PATH.write_text(json.dumps({"models": models, "cases": [c.__dict__ for c in CASES], "results": ordered}, indent=2))
+    json_path.write_text(json.dumps({"models": models, "cases": [c.__dict__ for c in cases], "results": ordered}, indent=2))
 
     lines = [
         "# Local LLM Lead Benchmark",
         "",
         "This benchmark tests installed Ollama models against the same structured extraction prompt/schema used by `scripts/active/scraper_v4.py`.",
         "",
-        f"- Cases: {len(CASES)} total ({sum(c.expected for c in CASES)} real leads, {sum(not c.expected for c in CASES)} rejects)",
+        f"- Cases: {len(cases)} total ({sum(c.expected for c in cases)} real leads, {sum(not c.expected for c in cases)} rejects)",
         "- Scoring favors precision, recall, direct evidence quotes, correct intent, required fields, and speed.",
         "- A false positive is penalized heavily because junk on the board is worse than a slower run.",
         "",
@@ -312,7 +358,7 @@ def write_reports(results: list[dict], models: list[str]):
         extra = sorted(set(r["returned"]) - set(r["expected"]))
         lines.append(f"- False positives: `{', '.join(extra) or 'none'}`")
         lines.append("")
-    REPORT_PATH.write_text("\n".join(lines))
+    report_path.write_text("\n".join(lines))
 
 
 async def main():
@@ -321,21 +367,29 @@ async def main():
     parser.add_argument("--host", default="http://127.0.0.1:11434")
     parser.add_argument("--num-ctx", type=int, default=32768)
     parser.add_argument("--keep-alive", default="2h")
+    parser.add_argument("--cases-file", type=Path)
+    parser.add_argument("--case-limit", type=int, default=0)
+    parser.add_argument("--batch-size", type=int, default=12)
+    parser.add_argument("--report-path", type=Path, default=REPORT_PATH)
+    parser.add_argument("--json-path", type=Path, default=JSON_PATH)
     args = parser.parse_args()
 
     models = [m.strip() for m in args.models.split(",") if m.strip()]
+    cases = load_cases(args.cases_file)
+    if args.case_limit > 0:
+        cases = cases[: args.case_limit]
     scraper = load_scraper()
     results = []
     for model in models:
         print(f"Benchmarking {model}...")
-        result = await run_model(scraper, model, args.host, args.num_ctx, args.keep_alive)
+        result = await run_model(scraper, cases, model, args.host, args.num_ctx, args.keep_alive, args.batch_size)
         print(f"  score={result['score']} precision={result['precision']} recall={result['recall']} seconds={result['seconds']}")
         if result["error"]:
             print(f"  error={result['error']}")
         results.append(result)
-    write_reports(results, models)
-    print(f"Wrote {REPORT_PATH}")
-    print(f"Wrote {JSON_PATH}")
+    write_reports(results, models, cases, args.report_path, args.json_path)
+    print(f"Wrote {args.report_path}")
+    print(f"Wrote {args.json_path}")
 
 
 if __name__ == "__main__":
