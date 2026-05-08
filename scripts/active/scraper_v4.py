@@ -590,6 +590,76 @@ def make_llm_client():
     raise RuntimeError(f"Unsupported LLM_PROVIDER={LLM_PROVIDER!r}. Use ollama, openai, or anthropic.")
 
 
+LEADS_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "leads": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "email_id": {"type": "string"},
+                    "name": {"type": ["string", "null"]},
+                    "business": {"type": ["string", "null"]},
+                    "email_addr": {"type": ["string", "null"]},
+                    "phone": {"type": ["string", "null"]},
+                    "deal_value": {"type": ["string", "null"]},
+                    "title": {"type": "string"},
+                    "notes": {"type": "string"},
+                    "evidence": {"type": "string"},
+                    "date": {"type": "string"},
+                    "intent": {
+                        "type": "string",
+                        "enum": ["partnership", "sponsorship", "interview", "collaboration", "intro", "other"],
+                    },
+                    "priority": {"type": "string", "enum": ["hot", "warm", "cold"]},
+                    "reply_hook": {"type": "string"},
+                },
+                "required": [
+                    "email_id",
+                    "title",
+                    "notes",
+                    "evidence",
+                    "date",
+                    "intent",
+                    "priority",
+                    "reply_hook",
+                ],
+            },
+        }
+    },
+    "required": ["leads"],
+}
+
+
+DRAFTS_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "drafts": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "email_id": {"type": "string"},
+                    "subject": {"type": "string"},
+                    "body": {"type": "string"},
+                },
+                "required": ["email_id", "subject", "body"],
+            },
+        }
+    },
+    "required": ["drafts"],
+}
+
+
+def _schema_for_prompt(system_prompt: str):
+    if "lead qualification agent" in system_prompt:
+        return LEADS_JSON_SCHEMA
+    if "first-response emails" in system_prompt:
+        return DRAFTS_JSON_SCHEMA
+    return "json"
+
+
 async def llm_text(client: dict, system_prompt: str, user_prompt: str, *, temperature: float, max_tokens: int, timeout: float) -> str:
     """Call the configured model and return plain text."""
     if client["provider"] == "openai":
@@ -629,7 +699,7 @@ async def llm_text(client: dict, system_prompt: str, user_prompt: str, *, temper
                         {"role": "user", "content": local_user_prompt},
                     ],
                     "stream": False,
-                    "format": "json",
+                    "format": _schema_for_prompt(system_prompt),
                     "keep_alive": client["keep_alive"],
                     "options": {
                         "temperature": temperature,
