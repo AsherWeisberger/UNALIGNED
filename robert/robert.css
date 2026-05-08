@@ -368,6 +368,24 @@ button, a { -webkit-tap-highlight-color: transparent; }
   white-space: nowrap;
   align-self: start;
   padding-top: 2px;
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  min-width: 64px;
+}
+
+.lead-date small {
+  color: #80868b;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.lead-date strong {
+  color: #3c4043;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .thread {

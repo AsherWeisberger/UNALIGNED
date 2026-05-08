@@ -29,6 +29,7 @@ const stageLabels = {
 
 const views = {
   today: ["Inbox", "Lead inbox"],
+  sent: ["Sent", "Waiting on the lead"],
   reply: ["Needs reply", "People waiting on us"],
   overdue: ["Overdue", "Old conversations to clear"],
   money: ["Money", "Revenue threads"],
@@ -160,6 +161,11 @@ function externalWaiting(card) {
   return active(card) && Boolean(last) && !isInternalMessage(last);
 }
 
+function outboundWaiting(card) {
+  const last = lastMessage(card);
+  return active(card) && Boolean(last) && isInternalMessage(last) && !hasDraftReady(card);
+}
+
 function hasDraftReady(card) {
   return active(card) && card.draftStatus === "drafted";
 }
@@ -221,6 +227,14 @@ function sortCards(cards) {
   });
 }
 
+function rowDateLabel(card) {
+  const last = lastMessage(card);
+  if (last) return isInternalMessage(last) ? "Sent" : "Received";
+  if (card.newReplyAt) return "Reply";
+  if (card.dateReceived) return "Received";
+  return "Updated";
+}
+
 function todayWork(card) {
   return active(card) && (needsReply(card) || ["negotiating", "invoice-sent"].includes(card.stage));
 }
@@ -235,6 +249,7 @@ function replyAge(card) {
 
 function why(card) {
   if (externalWaiting(card)) return `Last message is from the lead, ${replyAge(card)}.`;
+  if (outboundWaiting(card)) return `Last message was sent by the team, ${replyAge(card)}. Waiting on the lead.`;
   if (hasDraftReady(card)) return "Draft is ready to review.";
   if (card.stage === "invoice-sent") return "Invoice is out. Confirm payment timing.";
   if (card.stage === "negotiating") return "Active negotiation. Keep scope and decision owner visible.";
@@ -268,6 +283,7 @@ function draftText(card) {
 function queueFor(view = state.view) {
   let cards = [...state.cards];
   if (view === "reply") cards = cards.filter(needsReply);
+  if (view === "sent") cards = cards.filter(outboundWaiting);
   if (view === "money") cards = cards.filter((card) => moneyStage(card) && active(card));
   if (view === "closed") cards = cards.filter(closed);
   if (view === "overdue") cards = cards.filter((card) => active(card) && (staleActive(card) || (needsReply(card) && daysSince(lastTouchDate(card)) >= 2)));
@@ -300,6 +316,7 @@ function viewInfo() {
 function renderCounts() {
   const counts = {
     today: queueFor("today").length,
+    sent: state.cards.filter(outboundWaiting).length,
     reply: state.cards.filter(needsReply).length,
     overdue: state.cards.filter((card) => active(card) && (staleActive(card) || (needsReply(card) && daysSince(lastTouchDate(card)) >= 2))).length,
     money: state.cards.filter((card) => moneyStage(card) && active(card)).length,
@@ -344,7 +361,7 @@ function renderInbox() {
         <span class="lead-subject">${html(card.company)} - ${html(stageLabels[card.stage] || card.stage)}</span>
         <span class="lead-preview">${html(why(card))} ${html(card.description || "")}</span>
       </span>
-      <span class="lead-date">${html(shortDate(lastTouchDate(card)))}</span>
+      <span class="lead-date"><small>${html(rowDateLabel(card))}</small><strong>${html(shortDate(lastTouchDate(card)))}</strong></span>
     </button>
   `).join("") : `<div class="empty"><p>Clear</p><h2>No leads in this folder.</h2></div>`;
 
