@@ -465,7 +465,8 @@ function renderDetail() {
         </div>
         <textarea id="reply-body" spellcheck="true" placeholder="Write Robert or Sam's reply here...">${html(draft)}</textarea>
         <div class="composer-actions">
-          <button class="tool primary" data-action="send" type="button">Send</button>
+          <button class="tool primary" data-action="send" data-from="robert" type="button">Reply as Robert</button>
+          <button class="tool primary" data-action="send" data-from="sam" type="button">Reply as Sam</button>
           <button class="tool" data-action="copy" type="button">Copy</button>
           ${gmail ? `<a class="tool" href="${html(gmail)}" target="_blank" rel="noreferrer">Open thread</a>` : ""}
           <button class="tool" data-action="stage" data-stage="rates-sent" type="button">Rates sent</button>
@@ -476,7 +477,7 @@ function renderDetail() {
   `;
 
   $("detail").querySelectorAll("[data-action]").forEach((button) => {
-    button.addEventListener("click", () => handleAction(button.dataset.action, button.dataset.stage));
+    button.addEventListener("click", () => handleAction(button.dataset.action, button.dataset.stage, button.dataset.from));
   });
 }
 
@@ -489,7 +490,7 @@ function setStatus(message) {
   if (status) status.textContent = message;
 }
 
-async function handleAction(action, stage) {
+async function handleAction(action, stage, from) {
   const card = selectedCard();
   if (!card) return;
   if (action === "copy") {
@@ -510,11 +511,11 @@ async function handleAction(action, stage) {
     renderInbox();
   }
   if (action === "send") {
-    await sendReply(card);
+    await sendReply(card, from);
   }
 }
 
-async function sendReply(card) {
+async function sendReply(card, from = "robert") {
   const token = localStorage.getItem("unaligned_send_token") || "";
   if (!token) {
     setStatus("Sending needs an admin token. Draft can still be copied or opened in Gmail.");
@@ -525,7 +526,8 @@ async function sendReply(card) {
     setStatus("Write a reply first.");
     return;
   }
-  setStatus("Sending...");
+  const sender = from === "sam" ? "sam" : "robert";
+  setStatus(`Sending as ${sender === "sam" ? "Sam" : "Robert"}...`);
   const resp = await fetch(SEND_EMAIL_URL, {
     method: "POST",
     headers: {
@@ -536,7 +538,7 @@ async function sendReply(card) {
       to: card.email,
       subject: card.draft?.subject || defaultSubject(card),
       body,
-      from: moneyStage(card) ? "sam" : "robert"
+      from: sender
     })
   });
   const result = await resp.json().catch(() => ({}));
@@ -544,7 +546,7 @@ async function sendReply(card) {
     setStatus(result.error || "Send failed.");
     return;
   }
-  setStatus("Sent.");
+  setStatus(`Sent as ${sender === "sam" ? "Sam" : "Robert"}. Asher was CC'd.`);
   await supabase.from("cards").update({ draft_reply_status: "sent", new_reply_at: null }).eq("id", card.id);
   card.draftStatus = "sent";
   card.newReplyAt = null;

@@ -5,6 +5,8 @@ const nodemailer = require('nodemailer');
 
 admin.initializeApp();
 const db = admin.firestore();
+const ASHER_CC = 'AsherUnaligned@gmail.com';
+const DEFAULT_CC = 'UnalignedX@gmail.com';
 
 // ── Gmail OAuth (Robert) ────────────────────────────────
 let cachedRobertAuth = null;
@@ -74,6 +76,23 @@ async function sendViaSam(to, subject, body, cc, attachments) {
 }
 
 // ── Shared ──────────────────────────────────────────
+function mergeCc(...values) {
+  const seen = new Set();
+  const emails = [];
+  values
+    .flatMap((value) => String(value || '').split(','))
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .forEach((email) => {
+      const key = email.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        emails.push(email);
+      }
+    });
+  return emails.join(', ');
+}
+
 function makeMime(to, cc, subject, body) {
   const lines = [
     `To: ${to}`,
@@ -122,8 +141,7 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
   }
 
   try {
-    const defaultCC = 'UnalignedX@gmail.com';
-    const effectiveCC = cc || defaultCC;
+    const effectiveCC = mergeCc(cc, DEFAULT_CC, ASHER_CC);
     let messageId;
 
     let attachments = [];

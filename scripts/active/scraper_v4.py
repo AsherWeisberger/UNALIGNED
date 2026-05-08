@@ -1300,7 +1300,7 @@ Hi [their first name],
 
 Appreciate you reaching out! [One sentence that references their specific company name or product and what makes it genuinely interesting — never generic.]
 
-I'm looping in my business partner, Sam Levin, along with Unaligned, which I oversee. We're currently being selective with the partnerships we take on, particularly around [their specific niche/domain].
+I'm looping in my business partner, Sam Levin, along with Asher Weisberger, our Client Service Manager, and Unaligned, which I oversee. We're currently being selective with the partnerships we take on, particularly around [their specific niche/domain].
 
 Before moving forward, I'd like a clearer picture of your thinking regarding collaboration, specifically the scope, level of creative control, and how you structure [sponsorships/partnerships/etc] with creators at this stage.
 
