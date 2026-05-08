@@ -438,11 +438,23 @@ function renderDetail() {
         <p>${html(card.contact)}${card.email ? ` <${html(card.email)}>` : ""} - ${html(card.company)}</p>
       </section>
 
-      <section class="context-strip">
-        <div class="context-item"><span>Stage</span><strong>${html(stageLabels[card.stage] || card.stage)}</strong></div>
-        <div class="context-item"><span>Last touch</span><strong>${html(longDate(lastTouchDate(card)))}</strong></div>
-        <div class="context-item"><span>Value</span><strong>${html(card.value || "Not set")}</strong></div>
-        <div class="context-item"><span>Draft</span><strong>${html(card.draftStatus)}</strong></div>
+      <section class="lead-profile">
+        <div class="profile-main">
+          <span>Lead profile</span>
+          <strong>${html(card.contact)}</strong>
+          <p>${html(card.company)}${card.email ? ` · ${html(card.email)}` : ""}</p>
+          ${card.description ? `<em>${html(card.description)}</em>` : ""}
+        </div>
+        <div class="profile-grid">
+          <div class="context-item"><span>Stage</span><strong>${html(stageLabels[card.stage] || card.stage)}</strong></div>
+          <div class="context-item"><span>Intent</span><strong>${html(card.intent || "Unknown")}</strong></div>
+          <div class="context-item"><span>Priority</span><strong>${html(card.priority)}</strong></div>
+          <div class="context-item"><span>Last touch</span><strong>${html(longDate(lastTouchDate(card)))}</strong></div>
+          <div class="context-item"><span>Value</span><strong>${html(card.value || "Not set")}</strong></div>
+          <div class="context-item"><span>Source</span><strong>${html(card.source || "Gmail")}</strong></div>
+          <div class="context-item"><span>Draft</span><strong>${html(card.draftStatus)}</strong></div>
+          <div class="context-item"><span>Thread</span><strong>${number(card.thread.length)} email${card.thread.length === 1 ? "" : "s"}</strong></div>
+        </div>
       </section>
 
       <section class="why-card">
