@@ -123,7 +123,11 @@ function normalize(row) {
 }
 
 function lastMessage(card) {
-  return card.thread[card.thread.length - 1] || null;
+  return card.thread.reduce((latest, message) => {
+    const latestTime = messageDate(latest)?.getTime() || 0;
+    const messageTime = messageDate(message)?.getTime() || 0;
+    return messageTime >= latestTime ? message : latest;
+  }, null);
 }
 
 function messageDate(message) {
@@ -207,11 +211,13 @@ function urgency(card) {
 
 function sortCards(cards) {
   return cards.sort((a, b) => {
+    const recent = (lastTouchDate(b)?.getTime() || 0) - (lastTouchDate(a)?.getTime() || 0);
+    if (recent) return recent;
     const urgent = urgency(b) - urgency(a);
     if (urgent) return urgent;
     const priority = priorityRank(a) - priorityRank(b);
     if (priority) return priority;
-    return (lastTouchDate(b)?.getTime() || 0) - (lastTouchDate(a)?.getTime() || 0);
+    return String(a.company || a.contact).localeCompare(String(b.company || b.contact));
   });
 }
 
