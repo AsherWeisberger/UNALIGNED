@@ -8,29 +8,38 @@ const db = admin.firestore();
 const ASHER_CC = 'AsherUnaligned@gmail.com';
 const DEFAULT_CC = 'UnalignedX@gmail.com';
 
-// ── Gmail OAuth (Robert) ────────────────────────────────
+// ── Gmail OAuth (Robert / Asher) ────────────────────────────────
 let cachedRobertAuth = null;
+let cachedAsherAuth = null;
 
-async function getRobertGmailAuth() {
-  if (cachedRobertAuth) return cachedRobertAuth;
+async function getGmailAuth(docId, cache, setCache) {
+  if (cache) return cache;
 
-  const snap = await db.collection('_secrets').doc('gmail_oauth').get();
-  if (!snap.exists) throw new Error('Gmail credentials not found');
+  const snap = await db.collection('_secrets').doc(docId).get();
+  if (!snap.exists) throw new Error(`${docId} credentials not found`);
 
   const { token, refresh_token, client_id, client_secret } = snap.data();
   const oauth2 = new google.auth.OAuth2(client_id, client_secret);
 
   if (!token || token.length < 50) {
-    console.log('Refreshing Robert access token...');
+    console.log(`Refreshing ${docId} access token...`);
     oauth2.setCredentials({ refresh_token });
     const { credentials } = await oauth2.refreshAccessToken();
-    await db.collection('_secrets').doc('gmail_oauth').set({ token: credentials.access_token }, { merge: true });
-    cachedRobertAuth = oauth2;
+    await db.collection('_secrets').doc(docId).set({ token: credentials.access_token }, { merge: true });
+    setCache(oauth2);
   } else {
     oauth2.setCredentials({ access_token: token, refresh_token });
-    cachedRobertAuth = oauth2;
+    setCache(oauth2);
   }
-  return cachedRobertAuth;
+  return oauth2;
+}
+
+async function getRobertGmailAuth() {
+  return getGmailAuth('gmail_oauth', cachedRobertAuth, (auth) => { cachedRobertAuth = auth; });
+}
+
+async function getAsherGmailAuth() {
+  return getGmailAuth('asher_gmail_oauth', cachedAsherAuth, (auth) => { cachedAsherAuth = auth; });
 }
 
 async function sendViaRobert(to, subject, body, cc) {
@@ -43,7 +52,6 @@ async function sendViaRobert(to, subject, body, cc) {
 
 // ── Sam SMTP (App Password) ───────────────────────────
 let samTransporter = null;
-let asherTransporter = null;
 
 async function getSamTransporter() {
   if (samTransporter) return samTransporter;
@@ -76,35 +84,13 @@ async function sendViaSam(to, subject, body, cc, attachments) {
   return 'sent via SMTP';
 }
 
-async function getAsherTransporter() {
-  if (asherTransporter) return asherTransporter;
-
-  const snap = await db.collection('_secrets').doc('asher_gmail').get();
-  if (!snap.exists) throw new Error('Asher Gmail credentials not found');
-
-  const { email, app_password } = snap.data();
-  asherTransporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
-    auth: { user: email, pass: app_password },
-  });
-  return asherTransporter;
-}
-
 async function sendViaAsher(to, subject, body, cc, attachments) {
-  const t = await getAsherTransporter();
-  const snap = await db.collection('_secrets').doc('asher_gmail').get();
-  const { email } = snap.data();
-  await t.sendMail({
-    from: `"Asher Weisberger" <${email}>`,
-    to,
-    cc: cc || undefined,
-    subject,
-    text: body,
-    attachments: attachments || [],
-  });
-  return 'sent via SMTP';
+  if (attachments?.length) throw new Error('Attachments are not supported for Asher OAuth sends yet');
+  const auth = await getAsherGmailAuth();
+  const gmail = google.gmail({ version: 'v1', auth });
+  const raw = makeMime(to, cc, subject, body);
+  const result = await gmail.users.messages.send({ userId: 'me', resource: raw });
+  return result.data.id;
 }
 
 // ── Shared ──────────────────────────────────────────
