@@ -556,8 +556,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 .composer {
-  margin-top: 12px;
+  margin-top: 18px;
   overflow: hidden;
+  box-shadow: 0 10px 34px rgba(60, 64, 67, 0.10);
 }
 
 .composer-head {
@@ -565,13 +566,13 @@ button, a { -webkit-tap-highlight-color: transparent; }
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 44px;
+  min-height: 54px;
   border-bottom: 1px solid var(--line);
-  padding: 0 14px;
+  padding: 0 18px;
 }
 
 .composer-head strong {
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .send-status {
@@ -581,13 +582,15 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .composer textarea {
   width: 100%;
-  min-height: 190px;
+  min-height: clamp(340px, 42vh, 560px);
   resize: vertical;
   border: 0;
   outline: 0;
-  padding: 14px;
-  line-height: 1.5;
+  padding: 22px 24px;
+  line-height: 1.62;
   color: var(--ink);
+  font: 15px/1.62 var(--font);
+  background: #fff;
 }
 
 .composer-actions {
@@ -596,7 +599,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
   gap: 8px;
   align-items: center;
   border-top: 1px solid var(--line);
-  padding: 10px 14px;
+  padding: 14px 18px;
+  background: #fbfcff;
 }
 
 .empty {
@@ -673,6 +677,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .context-strip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .composer textarea {
+    min-height: 360px;
+  }
 }
 
 @media (max-width: 540px) {
@@ -686,5 +694,16 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
   .context-strip {
     grid-template-columns: 1fr;
+  }
+
+  .composer-head {
+    display: grid;
+    align-items: start;
+    padding: 12px 14px;
+  }
+
+  .composer textarea {
+    min-height: 420px;
+    padding: 18px;
   }
 }
