@@ -102,23 +102,86 @@ function daysSince(value) {
   return Math.max(0, Math.floor((now - d) / 86400000));
 }
 
+const blockedLeadNames = /^(a|an|and|as|attached|best|business|collaboration|dear|excited|founder|hello|hey|hi|i|me|my|please|quote|reply|requesting|robert|sam|asher|scoble|unaligned|we|what|you|your)$/i;
+const leadNamePatterns = [
+  /\bhello\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})[!,.\s]/,
+  /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\s+(?:is|was|wants|wanted|requested|requesting|asks|asked|needs|has)\b/,
+  /\b(?:for|with|from)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\b/
+];
+
+function cleanLeadName(value) {
+  const cleaned = text(value)
+    .replace(/<[^>]+>/g, "")
+    .replace(/[*_`~()[\]{}]/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/[,:;.!?]+$/g, "")
+    .trim();
+  if (!cleaned || blockedLeadNames.test(cleaned) || internalSender.test(cleaned)) return "";
+  return cleaned;
+}
+
+function inferLeadName(values) {
+  const blob = values.filter(Boolean).join("\n");
+  for (const pattern of leadNamePatterns) {
+    const match = blob.match(pattern);
+    const name = cleanLeadName(match?.[1]);
+    if (name) return name;
+  }
+  return "";
+}
+
+function inferLeadEmail(values) {
+  const blob = values.filter(Boolean).join("\n");
+  const matches = blob.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || [];
+  return matches.find((email) => !internalSender.test(email) && !/(calendar|invite|notification|no-?reply)/i.test(email)) || "";
+}
+
+function inferLeadCompany(values) {
+  const blob = values.filter(Boolean).join("\n");
+  const match = blob.match(/\b(?:from|at|with)\s+([A-Z][A-Za-z0-9&.' -]{2,40})(?:\s+(?:is|wants|wanted|requested|requesting|asks|asked|needs|has)|[,.!?\n]|$)/);
+  const company = cleanLeadName(match?.[1]);
+  return company && !/gmail|collaboration|quote retweet|partnership/i.test(company) ? company : "";
+}
+
 function normalize(row) {
   const draft = maybeJson(row.draft_reply) || row.draft_reply || null;
   const descJson = maybeJson(row.description);
   const thread = Array.isArray(row.email_thread) ? row.email_thread : [];
+  const originalThread = Array.isArray(row.original_email) ? row.original_email : [];
   const title = text(row.title || row.contact_name || row.business_name, "Unknown lead");
   const storedContact = text(row.contact_name || row.name, title);
   const storedEmail = text(row.email);
-  const outsideSender = thread.find((message) => !isInternalMessage(message));
+  const allMessages = [...originalThread, ...thread];
+  const contextText = [
+    title,
+    storedContact,
+    storedEmail,
+    row.business_name,
+    descJson?.rich_description,
+    descJson?.evidence,
+    row.description,
+    ...allMessages.map((message) => [
+      message.from,
+      message.to,
+      message.cc,
+      message.subject,
+      message.body
+    ].filter(Boolean).join("\n"))
+  ];
+  const outsideSender = allMessages.find((message) => !isInternalMessage(message));
   const outsideName = outsideSender ? senderName(outsideSender) : "";
   const outsideEmail = outsideSender ? senderEmail(outsideSender) : "";
-  const contact = internalSender.test(`${storedContact} ${storedEmail}`) && outsideName ? outsideName : storedContact;
-  const email = internalSender.test(`${storedContact} ${storedEmail}`) && outsideEmail ? outsideEmail : storedEmail;
+  const storedLooksInternal = internalSender.test(`${storedContact} ${storedEmail}`);
+  const inferredName = inferLeadName(contextText);
+  const inferredEmail = inferLeadEmail(contextText);
+  const contact = storedLooksInternal ? (cleanLeadName(outsideName) || inferredName || storedContact) : storedContact;
+  const email = storedLooksInternal ? (outsideEmail || inferredEmail || storedEmail) : storedEmail;
+  const company = text(row.business_name || row.company || inferLeadCompany(contextText), "Unknown company");
   return {
     id: row.id,
     title,
     contact,
-    company: text(row.business_name || row.company, "Unknown company"),
+    company,
     email,
     stage: text(row.list_id, "new"),
     priority: text(row.priority, "warm").toLowerCase(),
@@ -589,7 +652,7 @@ async function loadCards() {
     "id", "title", "contact_name", "business_name", "email", "list_id", "priority", "intent",
     "estimated_value", "lead_source", "description", "draft_reply", "draft_reply_status",
     "new_reply_at", "updated_at", "created_at", "date_received", "date_received_iso", "due_date",
-    "gmail_thread_id", "email_thread"
+    "gmail_thread_id", "original_email", "email_thread"
   ].join(",");
   const { data, error } = await supabase.from("cards").select(fields).limit(3000);
   if (error) {

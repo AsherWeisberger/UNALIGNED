@@ -106,7 +106,7 @@ INTENT_PHRASES = [
     "brand deal", "affiliate deal",
 ]
 
-METADATA_HEADERS = ["From", "Subject", "Date"]
+METADATA_HEADERS = ["From", "To", "Cc", "Subject", "Date"]
 
 COLUMN_MAP = {
     "partnership":   "first-touch",
@@ -120,6 +120,10 @@ COLUMN_MAP = {
 # If any of these appear as a sender in the thread, the lead has been replied to
 TEAM_SENDERS = [
     "scobleizer@gmail.com",
+    "asherunaligned@gmail.com",
+    "asherunaligned",
+    "asherunaligned@gmail",
+    "unalignedx@gmail.com",
     "samlevin@mac.com",
     "asherweisberger",
     "robert scoble",
@@ -349,6 +353,8 @@ async def fetch_all_metadata(token: str, query: str) -> list[dict]:
                         "id":              msg_id,
                         "subject":         hdrs.get("Subject", "").strip(),
                         "from":            hdrs.get("From", "").strip(),
+                        "to":              hdrs.get("To", "").strip(),
+                        "cc":              hdrs.get("Cc", "").strip(),
                         "date_raw":        raw_date,
                         "date":            _parse_date_display(raw_date),
                         "date_iso":        _parse_date_iso(raw_date),
@@ -466,6 +472,8 @@ async def fetch_thread_conversation(
     for msg in thread.get("messages", []):
         hdrs     = {h["name"]: h["value"] for h in msg.get("payload", {}).get("headers", [])}
         sender   = hdrs.get("From", "Unknown").strip()
+        to_addr  = hdrs.get("To", "").strip()
+        cc_addr  = hdrs.get("Cc", "").strip()
         raw_date = hdrs.get("Date", "").strip()
         subject  = hdrs.get("Subject", "").strip()
         body     = _clean_body(_decode_body(msg.get("payload", {})))
@@ -474,6 +482,8 @@ async def fetch_thread_conversation(
                 "id":       msg.get("id", ""),
                 "gmail_thread_id": thread_id,
                 "from":     sender,
+                "to":       to_addr,
+                "cc":       cc_addr,
                 "subject":  subject,
                 "date_raw": raw_date,
                 "date":     _parse_date_display(raw_date),
@@ -507,6 +517,8 @@ def _format_thread_for_prompt(email: dict, conversation: list[dict]) -> str:
         f"── EMAIL ──────────────────────────────────────────",
         f"id:      {email['id']}",
         f"from:    {email['from']}",
+        f"to:      {email.get('to', '')}",
+        f"cc:      {email.get('cc', '')}",
         f"date:    {email['date']}",
         f"subject: {email['subject']}",
     ]
@@ -514,6 +526,8 @@ def _format_thread_for_prompt(email: dict, conversation: list[dict]) -> str:
         lines.append(f"thread:  {len(conversation)} message(s)")
         for i, msg in enumerate(conversation[:5]):  # cap at 5 messages per thread
             lines.append(f"\n  [Message {i+1} — id:{msg.get('id', '')} — {msg['from']} — {msg['date']}]")
+            if msg.get("to") or msg.get("cc"):
+                lines.append(f"  to: {msg.get('to', '')} cc: {msg.get('cc', '')}")
             lines.append(f"  {msg['body'][:800]}")
     else:
         lines.append(f"snippet: {email['snippet']}")
@@ -556,6 +570,13 @@ Treat one Gmail thread as one lead. If the thread qualifies, use the message id
 for the first inbound message that proves the opportunity. Never create a new
 lead just because Robert, Sam, or Asher replied inside an existing thread.
 
+━━━ LOOP-IN RULE ━━━
+If Robert, Sam, or Asher starts a thread by looping the team in about a named
+outside person, the lead is that outside person, not Robert/Sam/Asher. Use the
+greeting, To/Cc headers, and body text to identify the outside person. Example:
+"Hello Aakash ... Sam/Asher Aakash is requesting a collaboration" should be
+saved as Aakash, even when Robert is the sender.
+
 ━━━ OUTPUT FORMAT ━━━
 Return ONLY valid JSON. Use {"leads": []} if nothing qualifies.
 No markdown, no preamble, no explanation outside the JSON.
@@ -564,9 +585,9 @@ No markdown, no preamble, no explanation outside the JSON.
   "leads": [
     {
       "email_id":    "<Gmail message ID exactly as given>",
-      "name":        "<sender full name — from email headers, not guessed>",
+      "name":        "<outside lead full name — use sender headers, or loop-in greeting/body when Robert/Sam/Asher is the sender>",
       "business":    "<company name, or domain if no company — null if unknown>",
-      "email_addr":  "<sender email address>",
+      "email_addr":  "<outside lead email address — use sender headers, or To/Cc when Robert/Sam/Asher is the sender>",
       "phone":       "<phone if mentioned in body, else null>",
       "deal_value":  "<specific budget or dollar amount mentioned, else null>",
       "title":       "<email subject verbatim>",
@@ -585,7 +606,7 @@ STRICT RULES:
   • priority=hot requires BOTH a specific ask AND either budget/timeline/urgency signal
   • reply_hook must reference something concrete from THEIR email, not generic
   • notes must describe the actual opportunity — no filler like "seems interested"
-  • never guess data — null over a bad guess, every time
+  • never guess data — null over a bad guess, every time, except loop-in names that are explicitly written in the greeting/body
 """
 
 
@@ -954,6 +975,67 @@ async def extract_all(
 # STEP 5 — BUILD SUPABASE CARD
 # ─────────────────────────────────────────────────────────────
 
+def _is_team_identity(value: str) -> bool:
+    blob = (value or "").lower()
+    return any(t in blob for t in TEAM_SENDERS)
+
+
+def _email_from_header(value: str) -> str:
+    match = re.search(r"<([^>]+)>", value or "")
+    if match:
+        return match.group(1).strip()
+    match = re.search(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", value or "", re.I)
+    return match.group(0).strip() if match else ""
+
+
+def _name_from_header(value: str) -> str:
+    return re.sub(r"<[^>]+>", "", value or "").strip().strip('"')
+
+
+def _outside_recipient_email(messages: list[dict]) -> str:
+    for msg in messages:
+        for field in ("to", "cc"):
+            for addr in re.findall(r'(?:[^,;<>"]+<[^>]+>|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})', msg.get(field, ""), re.I):
+                email = _email_from_header(addr)
+                if email and not _is_team_identity(email):
+                    return email
+    return ""
+
+
+def _loop_in_name(messages: list[dict]) -> str:
+    blob = "\n".join((msg.get("body") or "")[:900] for msg in messages)
+    patterns = [
+        r"\bHello\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})[!,.\s]",
+        r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\s+(?:is|was|wants|wanted|requested|requesting|asks|asked|needs|has)\b",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, blob)
+        if match:
+            name = match.group(1).strip()
+            if name and not _is_team_identity(name):
+                return name
+    return ""
+
+
+def resolve_lead_identity(lead: dict, canonical_inbound: dict, original_email: dict, conversation: list[dict]) -> tuple[str, str]:
+    from_raw = canonical_inbound.get("from") or original_email.get("from", "")
+    sender_email = _email_from_header(from_raw)
+    from_name = _name_from_header(from_raw)
+    lead_name = _clean(lead.get("name"), "")
+    lead_email = _clean(lead.get("email_addr"), "")
+
+    if _is_team_identity(from_raw):
+        return (
+            lead_name if lead_name and not _is_team_identity(lead_name) else _loop_in_name(conversation) or from_name,
+            lead_email if lead_email and not _is_team_identity(lead_email) else _outside_recipient_email(conversation) or sender_email,
+        )
+
+    return (
+        lead_name if lead_name and not _is_team_identity(lead_name) else from_name,
+        lead_email if lead_email and not _is_team_identity(lead_email) else sender_email,
+    )
+
+
 def build_card(lead: dict, original_email: dict, conversation: list[dict]) -> dict:
     priority = _clean(lead.get("priority"), "cold").lower()
     intent   = _clean(lead.get("intent"),   "other").lower()
@@ -965,10 +1047,7 @@ def build_card(lead: dict, original_email: dict, conversation: list[dict]) -> di
 
     canonical_inbound = first_inbound_message(conversation, original_email)
 
-    from_raw     = canonical_inbound.get("from") or original_email.get("from", "")
-    em_match     = re.search(r"<([^>]+)>", from_raw)
-    sender_email = em_match.group(1).strip() if em_match else from_raw.strip()
-    from_name    = re.sub(r"<[^>]+>", "", from_raw).strip()
+    from_name, sender_email = resolve_lead_identity(lead, canonical_inbound, original_email, conversation)
 
     date_display = canonical_inbound.get("date") or original_email.get("date") or _clean(lead.get("date"), "")
     date_iso     = (
@@ -1011,8 +1090,8 @@ def build_card(lead: dict, original_email: dict, conversation: list[dict]) -> di
         "gmail_thread_id":    original_email.get("gmail_thread_id", ""),
         "title":              _clean(lead.get("title"), "No Subject"),
         "list_id":            list_id,
-        "contact_name":       _clean(lead.get("name"), from_name) or from_name,
-        "email":              _clean(lead.get("email_addr"), sender_email) or sender_email,
+        "contact_name":       from_name,
+        "email":              sender_email,
         "phone":              _clean(lead.get("phone"), ""),
         "business_name":      _clean(lead.get("business"), ""),
         "job_title":          "",
