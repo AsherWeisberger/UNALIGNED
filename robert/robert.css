@@ -784,12 +784,12 @@ button, a { -webkit-tap-highlight-color: transparent; }
   font-weight: 900;
 }
 
-.todo-list {
+.funnel-list {
   display: grid;
   gap: 10px;
 }
 
-.todo-item {
+.funnel-item {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 12px;
@@ -800,55 +800,47 @@ button, a { -webkit-tap-highlight-color: transparent; }
   padding: 12px 12px 12px 14px;
 }
 
-.todo-item.done {
-  border-color: #b7dfc3;
-  background: #f3fbf5;
-}
-
-.todo-item.blocked {
-  border-color: #f4b8b3;
-  background: #fff7f6;
-}
-
-.todo-copy strong {
+.funnel-copy strong {
   display: block;
   margin-bottom: 3px;
   font-size: 14px;
 }
 
-.todo-copy span {
+.funnel-copy span {
   display: block;
-  color: var(--muted);
+  margin-bottom: 5px;
+  color: var(--blue);
   font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.funnel-copy p {
+  margin: 0;
+  color: #3c4043;
+  font-size: 13px;
   line-height: 1.35;
 }
 
-.todo-toggle {
-  display: inline-flex;
-  gap: 6px;
-}
-
-.status-btn {
-  width: 34px;
-  height: 34px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: #fff;
+.funnel-copy small {
+  display: block;
+  margin-top: 6px;
   color: var(--muted);
-  cursor: pointer;
-  font-weight: 900;
+  font-size: 12px;
 }
 
-.status-btn.done.active {
-  border-color: #b7dfc3;
-  background: #e6f4ea;
-  color: var(--green);
+.funnel-empty {
+  display: grid;
+  gap: 4px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fbfcff;
+  padding: 16px;
 }
 
-.status-btn.blocked.active {
-  border-color: #f4b8b3;
-  background: #fce8e6;
-  color: var(--red);
+.funnel-empty span {
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .welcome-actions {

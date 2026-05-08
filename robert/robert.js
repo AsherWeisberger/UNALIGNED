@@ -40,39 +40,12 @@ const views = {
 };
 
 const welcomeDone = [
+  "This page is a Gmail-style command center for Robert's lead flow, not a generic Kanban board.",
   "Gmail scraper now dedupes by Gmail thread so reply chains stay together.",
   "Local Ollama filtering is active with qwen3-coder:30b to avoid paid LLM filtering costs.",
   "Robert, Sam, and Asher sender buttons are wired through Gmail OAuth.",
   "Asher is automatically included on outgoing board conversations.",
-  "Lead inbox is split into Inbox, Sent, Needs reply, Money, Cleanup, and All leads."
-];
-
-const welcomeTodos = [
-  {
-    id: "admin-token",
-    title: "Confirm send token on each browser",
-    detail: "Each browser that sends needs the private admin token saved before Reply buttons can send."
-  },
-  {
-    id: "test-senders",
-    title: "Send one test email from Robert, Sam, and Asher",
-    detail: "Verify the delivered From, CC, and thread behavior before using it with live leads."
-  },
-  {
-    id: "review-drafts",
-    title: "Review drafted replies before sending",
-    detail: "Local drafts are fast and useful, but a human should still approve tone and facts."
-  },
-  {
-    id: "clean-stages",
-    title: "Clean up old lead stages",
-    detail: "Move stale cards into Sent, Paid, Not needed, or the correct active stage."
-  },
-  {
-    id: "security-hardening",
-    title: "Finish security hardening",
-    detail: "Rotate old exposed tokens and keep production access behind real auth/RLS."
-  }
+  "The left side separates work into Inbox, Waiting, Money, Cleanup, and All leads so the team can act faster."
 ];
 
 function text(value, fallback = "") {
@@ -104,18 +77,6 @@ function parseDate(value) {
 
 function number(value) {
   return new Intl.NumberFormat("en-US").format(value);
-}
-
-function readWelcomeState() {
-  try {
-    return JSON.parse(localStorage.getItem("unaligned_welcome_checks") || "{}") || {};
-  } catch {
-    return {};
-  }
-}
-
-function writeWelcomeState(value) {
-  localStorage.setItem("unaligned_welcome_checks", JSON.stringify(value));
 }
 
 function shortDate(value) {
@@ -617,6 +578,7 @@ async function loadCards() {
   const latest = latestSyncDate();
   $("sync-status").textContent = `${number(state.cards.length)} leads synced. Last signal ${shortDate(latest)}.`;
   renderCounts();
+  renderWelcome();
   renderInbox();
 }
 
@@ -624,38 +586,65 @@ function closeWelcome() {
   $("welcome-overlay")?.classList.add("hidden");
 }
 
+function funnelAction(card) {
+  if (externalWaiting(card)) return "Reply now";
+  if (hasDraftReady(card)) return "Review draft";
+  if (card.stage === "invoice-sent") return "Confirm payment";
+  if (card.stage === "negotiating") return "Clarify deal";
+  if (card.stage === "rates-sent") return "Follow up";
+  if (healthFlags(card).length) return "Fix data";
+  return "Review";
+}
+
+function funnelItems() {
+  return state.cards
+    .filter((card) => active(card))
+    .map((card) => {
+      let score = urgency(card);
+      if (moneyStage(card)) score += 160;
+      if (healthFlags(card).length) score += 80;
+      if (daysSince(lastTouchDate(card)) >= 5) score += 70;
+      return { card, score };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5)
+    .map(({ card }) => card);
+}
+
 function renderWelcome() {
   const doneList = $("done-list");
-  const todoList = $("todo-list");
-  if (!doneList || !todoList) return;
+  const funnelList = $("funnel-list");
+  if (!doneList || !funnelList) return;
 
   doneList.innerHTML = welcomeDone.map((item) => `<li>${html(item)}</li>`).join("");
-  const checks = readWelcomeState();
-  todoList.innerHTML = welcomeTodos.map((item) => {
-    const status = checks[item.id] || "";
+  const leads = funnelItems();
+  funnelList.innerHTML = leads.length ? leads.map((card) => {
+    const flags = healthFlags(card);
     return `
-      <article class="todo-item ${html(status)}" data-todo="${html(item.id)}">
-        <span class="todo-copy">
-          <strong>${html(item.title)}</strong>
-          <span>${html(item.detail)}</span>
-        </span>
-        <span class="todo-toggle" aria-label="${html(item.title)} status">
-          <button class="status-btn done ${status === "done" ? "active" : ""}" data-status="done" type="button" aria-label="Mark done">✓</button>
-          <button class="status-btn blocked ${status === "blocked" ? "active" : ""}" data-status="blocked" type="button" aria-label="Mark not done">×</button>
-        </span>
+      <article class="funnel-item" data-lead-id="${card.id}">
+        <div class="funnel-copy">
+          <span>${html(funnelAction(card))}</span>
+          <strong>${html(card.contact)} · ${html(card.company)}</strong>
+          <p>${html(why(card))}</p>
+          ${flags.length ? `<small>${html(flags.join(" / "))}</small>` : ""}
+        </div>
+        <button class="tool primary" data-open-lead="${card.id}" type="button">Open</button>
       </article>
     `;
-  }).join("");
+  }).join("") : `<div class="funnel-empty"><strong>No urgent lead work found.</strong><span>Open All leads to review the full board.</span></div>`;
 
-  todoList.querySelectorAll("[data-status]").forEach((button) => {
+  funnelList.querySelectorAll("[data-open-lead]").forEach((button) => {
     button.addEventListener("click", () => {
-      const row = button.closest("[data-todo]");
-      if (!row) return;
-      const next = button.dataset.status;
-      const current = checks[row.dataset.todo] || "";
-      checks[row.dataset.todo] = current === next ? "" : next;
-      writeWelcomeState(checks);
-      renderWelcome();
+      state.selectedId = Number(button.dataset.openLead);
+      const card = state.cards.find((item) => item.id === state.selectedId);
+      if (card) {
+        if (moneyStage(card)) state.view = "money";
+        else if (outboundWaiting(card)) state.view = "sent";
+        else if (healthFlags(card).length) state.view = "cleanup";
+        else state.view = "today";
+      }
+      closeWelcome();
+      renderInbox();
     });
   });
 }
@@ -678,9 +667,6 @@ $("refresh-btn").addEventListener("click", loadCards);
 $("compose-btn").addEventListener("click", () => $("reply-body")?.focus());
 $("welcome-close")?.addEventListener("click", closeWelcome);
 $("welcome-start")?.addEventListener("click", closeWelcome);
-$("welcome-reset")?.addEventListener("click", () => {
-  writeWelcomeState({});
-  renderWelcome();
-});
+$("welcome-refresh")?.addEventListener("click", loadCards);
 renderWelcome();
 loadCards();
