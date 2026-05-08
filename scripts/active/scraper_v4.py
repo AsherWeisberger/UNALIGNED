@@ -126,6 +126,29 @@ TEAM_SENDERS = [
     "asher weisberger",
 ]
 
+def _email_sort_key(email: dict) -> str:
+    return email.get("date_iso") or email.get("date") or ""
+
+
+def collapse_emails_by_thread(emails: list[dict]) -> list[dict]:
+    """Keep one extraction candidate per Gmail thread so a thread can create only one card."""
+    by_thread: dict[str, dict] = {}
+    no_thread: list[dict] = []
+    for email in emails:
+        tid = str(email.get("gmail_thread_id") or "").strip()
+        if not tid:
+            no_thread.append(email)
+            continue
+        current = by_thread.get(tid)
+        if current is None or _email_sort_key(email) < _email_sort_key(current):
+            by_thread[tid] = email
+    collapsed = list(by_thread.values()) + no_thread
+    collapsed.sort(key=_email_sort_key)
+    if len(collapsed) != len(emails):
+        log.info(f"Thread collapse: {len(emails)} matching messages → {len(collapsed)} unique Gmail threads.")
+    return collapsed
+
+
 def thread_has_reply(conversation: list[dict]) -> bool:
     """Return True if any message in the thread was sent by a team member."""
     for msg in conversation:
@@ -443,10 +466,15 @@ async def fetch_thread_conversation(
         hdrs     = {h["name"]: h["value"] for h in msg.get("payload", {}).get("headers", [])}
         sender   = hdrs.get("From", "Unknown").strip()
         raw_date = hdrs.get("Date", "").strip()
+        subject  = hdrs.get("Subject", "").strip()
         body     = _clean_body(_decode_body(msg.get("payload", {})))
         if body:
             conversation.append({
+                "id":       msg.get("id", ""),
+                "gmail_thread_id": thread_id,
                 "from":     sender,
+                "subject":  subject,
+                "date_raw": raw_date,
                 "date":     _parse_date_display(raw_date),
                 "date_iso": _parse_date_iso(raw_date),
                 "body":     body,
@@ -484,7 +512,7 @@ def _format_thread_for_prompt(email: dict, conversation: list[dict]) -> str:
     if conversation:
         lines.append(f"thread:  {len(conversation)} message(s)")
         for i, msg in enumerate(conversation[:5]):  # cap at 5 messages per thread
-            lines.append(f"\n  [Message {i+1} — {msg['from']} — {msg['date']}]")
+            lines.append(f"\n  [Message {i+1} — id:{msg.get('id', '')} — {msg['from']} — {msg['date']}]")
             lines.append(f"  {msg['body'][:800]}")
     else:
         lines.append(f"snippet: {email['snippet']}")
@@ -521,6 +549,11 @@ Only extract an email if it clearly shows:
 For every lead you extract, you MUST be able to quote a specific sentence from
 the email that proves it is a real opportunity. If you cannot find that sentence,
 do not extract the lead.
+
+━━━ THREAD RULE ━━━
+Treat one Gmail thread as one lead. If the thread qualifies, use the message id
+for the first inbound message that proves the opportunity. Never create a new
+lead just because Robert, Sam, or Asher replied inside an existing thread.
 
 ━━━ OUTPUT FORMAT ━━━
 Return ONLY valid JSON. Use {"leads": []} if nothing qualifies.
@@ -831,6 +864,7 @@ async def extract_all(
         # Dedup + build + write immediately — don't wait for other chunks
         async with write_lock:
             new_leads     = []
+            new_thread_ids = set()
             thread_updates = []  # (gmail_thread_id, new_list_id, conversation)
 
             for lead in leads:
@@ -864,6 +898,13 @@ async def extract_all(
                             log.info(f"  Thread {tid[:8]}… reply detected — moving {current_stage} → {new_stage}")
                     existing_ids.add(eid)  # don't create a dup card
                     continue
+
+                if tid:
+                    if tid in new_thread_ids:
+                        log.info(f"Lead dropped — thread {tid[:8]}… already has a new card in this batch.")
+                        existing_ids.add(eid)
+                        continue
+                    new_thread_ids.add(tid)
 
                 new_leads.append(lead)
 
@@ -921,13 +962,19 @@ def build_card(lead: dict, original_email: dict, conversation: list[dict]) -> di
     if intent not in ("partnership", "sponsorship", "interview", "collaboration", "intro", "other"):
         intent = "other"
 
-    from_raw     = original_email.get("from", "")
+    canonical_inbound = first_inbound_message(conversation, original_email)
+
+    from_raw     = canonical_inbound.get("from") or original_email.get("from", "")
     em_match     = re.search(r"<([^>]+)>", from_raw)
     sender_email = em_match.group(1).strip() if em_match else from_raw.strip()
     from_name    = re.sub(r"<[^>]+>", "", from_raw).strip()
 
-    date_display = original_email.get("date")     or _clean(lead.get("date"), "")
-    date_iso     = original_email.get("date_iso") or _parse_date_iso(original_email.get("date_raw", ""))
+    date_display = canonical_inbound.get("date") or original_email.get("date") or _clean(lead.get("date"), "")
+    date_iso     = (
+        canonical_inbound.get("date_iso")
+        or original_email.get("date_iso")
+        or _parse_date_iso(original_email.get("date_raw", ""))
+    )
 
     notes_text    = _clean(lead.get("notes"),    "No summary available.")
     evidence_text = _clean(lead.get("evidence"), "")
@@ -978,7 +1025,7 @@ def build_card(lead: dict, original_email: dict, conversation: list[dict]) -> di
         "draft_reply":        "",
         "draft_reply_status": "pending",
         "activity":           activity_list,
-        "original_email":     conversation[:1] if conversation else [],
+        "original_email":     [canonical_inbound] if canonical_inbound else [],
         "email_thread":       conversation,
         "owner":              "",
         "labels":             labels_list,
@@ -1078,6 +1125,14 @@ def _is_inbound(msg: dict) -> bool:
     """Return True if the message was sent by a lead (not our team)."""
     sender = (msg.get("from") or "").lower()
     return not any(t in sender for t in TEAM_SENDERS)
+
+
+def first_inbound_message(conversation: list[dict], fallback: dict | None = None) -> dict:
+    """Return the first outside sender message in a Gmail thread."""
+    for msg in conversation:
+        if _is_inbound(msg):
+            return msg
+    return fallback or (conversation[0] if conversation else {})
 
 
 def update_card_stage_by_thread(gmail_thread_id: str, new_list_id: str, conversation: list[dict]) -> bool:
@@ -1398,6 +1453,7 @@ async def run_pipeline(
         log.info("No emails passed intent filter. Done.")
         set_last_run_date(datetime.utcnow().strftime("%Y/%m/%d"))
         return 0
+    filtered = collapse_emails_by_thread(filtered)
 
     if dry_run:
         log.info(f"DRY RUN complete — {len(filtered)} emails passed filter. Exiting.")
@@ -1408,6 +1464,22 @@ async def run_pipeline(
 
     # Step 4 — id_map for dedup (existing_ids + existing_thread_map already loaded above)
     id_map = {e["id"]: e for e in filtered}
+    for anchor_id, convo in list(conversations.items()):
+        for msg in convo:
+            mid = str(msg.get("id") or "").strip()
+            if not mid:
+                continue
+            id_map.setdefault(mid, {
+                "id":              mid,
+                "subject":         msg.get("subject", ""),
+                "from":            msg.get("from", ""),
+                "date_raw":        msg.get("date_raw", ""),
+                "date":            msg.get("date", ""),
+                "date_iso":        msg.get("date_iso", ""),
+                "snippet":         msg.get("body", "")[:300],
+                "gmail_thread_id": msg.get("gmail_thread_id", ""),
+            })
+            conversations.setdefault(mid, convo)
 
     # Step 5 — AI extraction + incremental Supabase write (per chunk, not batch)
     total_extracted, written = await extract_all(filtered, conversations, client, existing_ids, id_map, existing_thread_map)
