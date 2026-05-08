@@ -551,7 +551,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   white-space: pre-wrap;
   line-height: 1.55;
   overflow-wrap: anywhere;
-  max-height: 360px;
+  max-height: 280px;
   overflow: auto;
 }
 
@@ -582,7 +582,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .composer textarea {
   width: 100%;
-  min-height: clamp(340px, 42vh, 560px);
+  min-height: clamp(430px, 52vh, 680px);
   resize: vertical;
   border: 0;
   outline: 0;

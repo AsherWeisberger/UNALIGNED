@@ -463,7 +463,7 @@ function renderDetail() {
           <strong>Reply</strong>
           <span class="send-status" id="send-status">Draft stays here until you send or copy it.</span>
         </div>
-        <textarea id="reply-body" spellcheck="true" placeholder="Write Robert or Sam's reply here...">${html(draft)}</textarea>
+        <textarea id="reply-body" rows="18" spellcheck="true" placeholder="Write Robert or Sam's reply here...">${html(draft)}</textarea>
         <div class="composer-actions">
           <button class="tool primary" data-action="send" data-from="robert" type="button">Reply as Robert</button>
           <button class="tool primary" data-action="send" data-from="sam" type="button">Reply as Sam</button>
