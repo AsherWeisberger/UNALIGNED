@@ -120,10 +120,12 @@ COLUMN_MAP = {
 # If any of these appear as a sender in the thread, the lead has been replied to
 TEAM_SENDERS = [
     "scobleizer@gmail.com",
+    "scoble@scobleizer.com",
     "asherunaligned@gmail.com",
     "asherunaligned",
     "asherunaligned@gmail",
     "unalignedx@gmail.com",
+    "unaligned management",
     "samlevin@mac.com",
     "asherweisberger",
     "robert scoble",
@@ -988,8 +990,36 @@ def _email_from_header(value: str) -> str:
     return match.group(0).strip() if match else ""
 
 
+def _looks_like_email(value: str) -> bool:
+    return bool(re.fullmatch(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", value or "", re.I))
+
+
 def _name_from_header(value: str) -> str:
-    return re.sub(r"<[^>]+>", "", value or "").strip().strip('"')
+    raw = (value or "").strip()
+    name = re.sub(r"<[^>]+>", "", raw).strip().strip('"')
+    if _looks_like_email(name):
+        return ""
+    return name
+
+
+def _clean_stored_lead_name(value: str) -> str:
+    name = re.split(r"\s*\(\+\s*", value or "", maxsplit=1)[0].strip()
+    return name if name and not _looks_like_email(name) and not _is_team_identity(name) and not _is_generic_mailbox_name(name) else ""
+
+
+def _is_generic_mailbox_name(value: str) -> bool:
+    return bool(re.search(r"\b(team|partners?|support|sales|marketing|hello|info|contact|noreply|no-reply)\b", value or "", re.I))
+
+
+def _outside_recipient_name(messages: list[dict]) -> str:
+    for msg in messages:
+        for field in ("to", "cc"):
+            for addr in re.findall(r'(?:[^,;<>"]+<[^>]+>|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})', msg.get(field, ""), re.I):
+                email = _email_from_header(addr)
+                name = _name_from_header(addr)
+                if email and not _is_team_identity(email) and name and not _is_team_identity(name) and not _is_generic_mailbox_name(name):
+                    return name
+    return ""
 
 
 def _outside_recipient_email(messages: list[dict]) -> str:
@@ -997,9 +1027,22 @@ def _outside_recipient_email(messages: list[dict]) -> str:
         for field in ("to", "cc"):
             for addr in re.findall(r'(?:[^,;<>"]+<[^>]+>|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})', msg.get(field, ""), re.I):
                 email = _email_from_header(addr)
-                if email and not _is_team_identity(email):
+                name = _name_from_header(addr)
+                if email and not _is_team_identity(email) and not _is_generic_mailbox_name(name):
                     return email
     return ""
+
+
+def _outside_sender_name(messages: list[dict]) -> str:
+    fallback = ""
+    for msg in messages:
+        name = _name_from_header(msg.get("from", ""))
+        if not name or _is_team_identity(name) or _is_generic_mailbox_name(name):
+            continue
+        if len(name.split()) > 1:
+            return name
+        fallback = fallback or name
+    return fallback
 
 
 def _loop_in_name(messages: list[dict]) -> str:
@@ -1023,17 +1066,34 @@ def resolve_lead_identity(lead: dict, canonical_inbound: dict, original_email: d
     from_name = _name_from_header(from_raw)
     lead_name = _clean(lead.get("name"), "")
     lead_email = _clean(lead.get("email_addr"), "")
+    stored_person_name = _clean_stored_lead_name(lead_name)
+    recipient_person_name = _outside_recipient_name(conversation)
+    thread_person_name = _outside_sender_name(conversation)
 
     if _is_team_identity(from_raw):
         return (
-            lead_name if lead_name and not _is_team_identity(lead_name) else _loop_in_name(conversation) or from_name,
+            stored_person_name or _loop_in_name(conversation) or recipient_person_name or thread_person_name or from_name,
             lead_email if lead_email and not _is_team_identity(lead_email) else _outside_recipient_email(conversation) or sender_email,
         )
 
-    return (
-        lead_name if lead_name and not _is_team_identity(lead_name) else from_name,
-        lead_email if lead_email and not _is_team_identity(lead_email) else sender_email,
-    )
+    if (
+        stored_person_name
+        and len(stored_person_name.split()) == 1
+        and thread_person_name.lower().startswith(stored_person_name.lower())
+        and not _is_generic_mailbox_name(thread_person_name)
+    ):
+        selected_name = thread_person_name
+    elif _is_generic_mailbox_name(from_name):
+        selected_name = recipient_person_name or thread_person_name or stored_person_name or from_name
+    else:
+        selected_name = stored_person_name or from_name or thread_person_name or sender_email
+
+    if _is_generic_mailbox_name(from_name):
+        selected_email = _outside_recipient_email(conversation) or lead_email or sender_email
+    else:
+        selected_email = lead_email if lead_email and not _is_team_identity(lead_email) else sender_email
+
+    return (selected_name, selected_email)
 
 
 def build_card(lead: dict, original_email: dict, conversation: list[dict]) -> dict:
@@ -1201,6 +1261,28 @@ def get_existing_cards_index() -> tuple[set[str], dict[str, dict]]:
     return email_ids, thread_map
 
 
+def get_cards_for_identity_repair(limit: int = 3000) -> list[dict]:
+    """Fetch Gmail-backed cards so their saved identity can be repaired from current Gmail headers."""
+    cards: list[dict] = []
+    offset = 0
+    fields = "id,email_id,gmail_thread_id,contact_name,email,business_name,description,list_id,draft_reply_status"
+    while len(cards) < limit:
+        resp = httpx.get(
+            f"{SUPABASE_URL}/rest/v1/cards?select={fields}&gmail_thread_id=not.is.null&limit=1000&offset={offset}",
+            headers=_sb_headers(),
+            timeout=30.0,
+        )
+        resp.raise_for_status()
+        batch = resp.json()
+        if not isinstance(batch, list) or not batch:
+            break
+        cards.extend(batch)
+        if len(batch) < 1000:
+            break
+        offset += 1000
+    return cards[:limit]
+
+
 def _is_inbound(msg: dict) -> bool:
     """Return True if the message was sent by a lead (not our team)."""
     sender = (msg.get("from") or "").lower()
@@ -1299,6 +1381,76 @@ async def check_active_threads_for_replies(
     await asyncio.gather(*[check_one(tid, card) for tid, card in active_threads.items()])
     log.info(f"Active thread check complete: {len(updated)} threads updated.")
     return len(updated)
+
+
+async def repair_card_identities(limit: int = 3000, dry_run: bool = False) -> int:
+    """Refresh existing Gmail threads and repair cards saved as our team instead of the outside lead."""
+    validate_supabase()
+    token = get_gmail_token()
+    cards = get_cards_for_identity_repair(limit)
+    log.info(f"Identity repair: checking {len(cards)} Gmail-backed cards.")
+
+    sem = asyncio.Semaphore(THREAD_CONCURRENCY)
+    changed = 0
+    checked = 0
+
+    async def repair_one(card: dict) -> bool:
+        tid = str(card.get("gmail_thread_id") or "").strip()
+        if not tid:
+            return False
+        conversation = await fetch_thread_conversation({"gmail_thread_id": tid}, token, sem)
+        if not conversation:
+            return False
+
+        canonical = first_inbound_message(conversation, conversation[0] if conversation else {"gmail_thread_id": tid})
+        lead = {
+            "name": card.get("contact_name") or "",
+            "email_addr": card.get("email") or "",
+        }
+        name, email = resolve_lead_identity(lead, canonical, {"gmail_thread_id": tid}, conversation)
+        old_name = _clean(card.get("contact_name"), "")
+        old_email = _clean(card.get("email"), "")
+        latest = conversation[-1] if conversation else {}
+
+        patch = {
+            "original_email": [canonical] if canonical else [],
+            "email_thread": conversation,
+            "new_reply_at": latest.get("date_iso") if latest and _is_inbound(latest) else None,
+        }
+        if name and name != old_name:
+            patch["contact_name"] = name
+        if email and email.lower() != old_email.lower():
+            patch["email"] = email
+
+        if "contact_name" not in patch and "email" not in patch:
+            return False
+        if dry_run:
+            log.info(f"Identity repair dry-run: card {card.get('id')} {old_name!r} -> {name!r}")
+            return True
+
+        resp = httpx.patch(
+            f"{SUPABASE_URL}/rest/v1/cards?id=eq.{card.get('id')}",
+            headers={**_sb_headers(), "Prefer": "return=minimal"},
+            json=patch,
+            timeout=20.0,
+        )
+        resp.raise_for_status()
+        log.info(f"Identity repair: card {card.get('id')} {old_name!r} -> {name!r}")
+        return True
+
+    tasks = [repair_one(card) for card in cards]
+    for task in asyncio.as_completed(tasks):
+        checked += 1
+        try:
+            if await task:
+                changed += 1
+        except Exception as e:
+            log.warning(f"Identity repair item failed: {e}")
+        if checked % 25 == 0:
+            log.info(f"Identity repair progress: {checked}/{len(cards)} checked, {changed} changed.")
+
+    log.info(f"Identity repair complete: {changed}/{len(cards)} cards repaired.")
+    return changed
 
 
 def upsert_cards(cards: list[dict]) -> int:
@@ -1630,6 +1782,7 @@ async def run_pipeline(
 if __name__ == "__main__":
     full_backfill = "--full"    in sys.argv
     dry_run       = "--dry-run" in sys.argv
+    repair_identities = "--repair-identities" in sys.argv
     hours = 0
     for arg in sys.argv:
         if arg.startswith("--hours="):
@@ -1637,10 +1790,13 @@ if __name__ == "__main__":
             except: pass
     incremental   = not full_backfill and hours == 0
 
-    result = asyncio.run(run_pipeline(
-        incremental=incremental,
-        full_backfill=full_backfill,
-        dry_run=dry_run,
-        hours=hours,
-    ))
+    if repair_identities:
+        result = asyncio.run(repair_card_identities(dry_run=dry_run))
+    else:
+        result = asyncio.run(run_pipeline(
+            incremental=incremental,
+            full_backfill=full_backfill,
+            dry_run=dry_run,
+            hours=hours,
+        ))
     sys.exit(0 if result is not None else 1)
