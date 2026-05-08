@@ -107,12 +107,19 @@ function normalize(row) {
   const descJson = maybeJson(row.description);
   const thread = Array.isArray(row.email_thread) ? row.email_thread : [];
   const title = text(row.title || row.contact_name || row.business_name, "Unknown lead");
+  const storedContact = text(row.contact_name || row.name, title);
+  const storedEmail = text(row.email);
+  const outsideSender = thread.find((message) => !isInternalMessage(message));
+  const outsideName = outsideSender ? senderName(outsideSender) : "";
+  const outsideEmail = outsideSender ? senderEmail(outsideSender) : "";
+  const contact = internalSender.test(`${storedContact} ${storedEmail}`) && outsideName ? outsideName : storedContact;
+  const email = internalSender.test(`${storedContact} ${storedEmail}`) && outsideEmail ? outsideEmail : storedEmail;
   return {
     id: row.id,
     title,
-    contact: text(row.contact_name || row.name, title),
+    contact,
     company: text(row.business_name || row.company, "Unknown company"),
-    email: text(row.email),
+    email,
     stage: text(row.list_id, "new"),
     priority: text(row.priority, "warm").toLowerCase(),
     intent: text(row.intent || descJson?.intent),

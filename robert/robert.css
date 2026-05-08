@@ -564,10 +564,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
   font-size: 13px;
   font-style: normal;
   line-height: 1.45;
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  max-height: 150px;
+  overflow: auto;
+  padding-right: 6px;
 }
 
 .profile-grid {
