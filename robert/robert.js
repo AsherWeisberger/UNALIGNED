@@ -39,6 +39,42 @@ const views = {
   all: ["All leads", "Every lead card"]
 };
 
+const welcomeDone = [
+  "Gmail scraper now dedupes by Gmail thread so reply chains stay together.",
+  "Local Ollama filtering is active with qwen3-coder:30b to avoid paid LLM filtering costs.",
+  "Robert, Sam, and Asher sender buttons are wired through Gmail OAuth.",
+  "Asher is automatically included on outgoing board conversations.",
+  "Lead inbox is split into Inbox, Sent, Needs reply, Money, Cleanup, and All leads."
+];
+
+const welcomeTodos = [
+  {
+    id: "admin-token",
+    title: "Confirm send token on each browser",
+    detail: "Each browser that sends needs the private admin token saved before Reply buttons can send."
+  },
+  {
+    id: "test-senders",
+    title: "Send one test email from Robert, Sam, and Asher",
+    detail: "Verify the delivered From, CC, and thread behavior before using it with live leads."
+  },
+  {
+    id: "review-drafts",
+    title: "Review drafted replies before sending",
+    detail: "Local drafts are fast and useful, but a human should still approve tone and facts."
+  },
+  {
+    id: "clean-stages",
+    title: "Clean up old lead stages",
+    detail: "Move stale cards into Sent, Paid, Not needed, or the correct active stage."
+  },
+  {
+    id: "security-hardening",
+    title: "Finish security hardening",
+    detail: "Rotate old exposed tokens and keep production access behind real auth/RLS."
+  }
+];
+
 function text(value, fallback = "") {
   if (value === null || value === undefined) return fallback;
   if (typeof value === "string") return value.trim() || fallback;
@@ -68,6 +104,18 @@ function parseDate(value) {
 
 function number(value) {
   return new Intl.NumberFormat("en-US").format(value);
+}
+
+function readWelcomeState() {
+  try {
+    return JSON.parse(localStorage.getItem("unaligned_welcome_checks") || "{}") || {};
+  } catch {
+    return {};
+  }
+}
+
+function writeWelcomeState(value) {
+  localStorage.setItem("unaligned_welcome_checks", JSON.stringify(value));
 }
 
 function shortDate(value) {
@@ -576,6 +624,46 @@ async function loadCards() {
   renderInbox();
 }
 
+function closeWelcome() {
+  $("welcome-overlay")?.classList.add("hidden");
+}
+
+function renderWelcome() {
+  const doneList = $("done-list");
+  const todoList = $("todo-list");
+  if (!doneList || !todoList) return;
+
+  doneList.innerHTML = welcomeDone.map((item) => `<li>${html(item)}</li>`).join("");
+  const checks = readWelcomeState();
+  todoList.innerHTML = welcomeTodos.map((item) => {
+    const status = checks[item.id] || "";
+    return `
+      <article class="todo-item ${html(status)}" data-todo="${html(item.id)}">
+        <span class="todo-copy">
+          <strong>${html(item.title)}</strong>
+          <span>${html(item.detail)}</span>
+        </span>
+        <span class="todo-toggle" aria-label="${html(item.title)} status">
+          <button class="status-btn done ${status === "done" ? "active" : ""}" data-status="done" type="button" aria-label="Mark done">✓</button>
+          <button class="status-btn blocked ${status === "blocked" ? "active" : ""}" data-status="blocked" type="button" aria-label="Mark not done">×</button>
+        </span>
+      </article>
+    `;
+  }).join("");
+
+  todoList.querySelectorAll("[data-status]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const row = button.closest("[data-todo]");
+      if (!row) return;
+      const next = button.dataset.status;
+      const current = checks[row.dataset.todo] || "";
+      checks[row.dataset.todo] = current === next ? "" : next;
+      writeWelcomeState(checks);
+      renderWelcome();
+    });
+  });
+}
+
 document.querySelectorAll("[data-view]").forEach((button) => {
   button.addEventListener("click", () => {
     state.view = button.dataset.view;
@@ -592,4 +680,11 @@ $("search").addEventListener("input", (event) => {
 
 $("refresh-btn").addEventListener("click", loadCards);
 $("compose-btn").addEventListener("click", () => $("reply-body")?.focus());
+$("welcome-close")?.addEventListener("click", closeWelcome);
+$("welcome-start")?.addEventListener("click", closeWelcome);
+$("welcome-reset")?.addEventListener("click", () => {
+  writeWelcomeState({});
+  renderWelcome();
+});
+renderWelcome();
 loadCards();
