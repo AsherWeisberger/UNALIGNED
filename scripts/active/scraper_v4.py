@@ -44,9 +44,13 @@ except ImportError:
 # CONFIG
 # ─────────────────────────────────────────────────────────────
 
-LLM_PROVIDER     = os.environ.get("LLM_PROVIDER", "openai").strip().lower()
+LLM_PROVIDER     = os.environ.get("LLM_PROVIDER", "ollama").strip().lower()
 OPENAI_KEY       = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_MODEL     = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+OLLAMA_HOST      = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
+OLLAMA_MODEL     = os.environ.get("OLLAMA_MODEL", "gemma4:31b")
+OLLAMA_NUM_CTX   = int(os.environ.get("OLLAMA_NUM_CTX", "32768"))
+OLLAMA_KEEP_ALIVE = os.environ.get("OLLAMA_KEEP_ALIVE", "2h")
 ANTHROPIC_KEY    = os.environ.get("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL  = os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-6")
 SUPABASE_URL     = os.environ.get("SUPABASE_URL",   "https://hbnpwphxjurvtydezwgh.supabase.co")
@@ -57,7 +61,7 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
 CONCURRENCY        = 5     # parallel Gmail metadata fetches
 THREAD_CONCURRENCY = 3     # parallel full thread fetches
-CHUNK_SIZE         = 15    # emails per AI extraction batch (was 50 — smaller = better quality)
+CHUNK_SIZE         = int(os.environ.get("CHUNK_SIZE", "6" if LLM_PROVIDER == "ollama" else "15"))
 CHECKPOINT_INTERVAL = 100
 
 CREDENTIALS_DIR = Path("/Users/asherweisberger/.config/google-credentials")
@@ -558,13 +562,21 @@ def _build_extract_prompt(emails: list[dict], conversations: dict[str, list[dict
     return "\n".join(parts)
 
 
-AI_CONCURRENCY   = 3    # max parallel LLM calls at once
+AI_CONCURRENCY   = int(os.environ.get("AI_CONCURRENCY", "1" if LLM_PROVIDER == "ollama" else "3"))
 CHUNK_DELAY      = 2.0  # seconds between chunk starts to spread token usage
 MAX_429_RETRIES  = 6    # retry budget for rate-limit errors per chunk
 
 
 def make_llm_client():
     """Return a small provider descriptor instead of requiring provider-specific code everywhere."""
+    if LLM_PROVIDER == "ollama":
+        return {
+            "provider": "ollama",
+            "host": OLLAMA_HOST,
+            "model": OLLAMA_MODEL,
+            "num_ctx": OLLAMA_NUM_CTX,
+            "keep_alive": OLLAMA_KEEP_ALIVE,
+        }
     if LLM_PROVIDER == "openai":
         if not OPENAI_KEY:
             raise RuntimeError("OPENAI_API_KEY is not set. Add it to the scraper runner environment.")
@@ -575,7 +587,7 @@ def make_llm_client():
         if anthropic is None:
             raise RuntimeError("The anthropic package is not installed. Use LLM_PROVIDER=openai or install anthropic.")
         return {"provider": "anthropic", "client": anthropic.AsyncAnthropic(api_key=ANTHROPIC_KEY), "model": ANTHROPIC_MODEL}
-    raise RuntimeError(f"Unsupported LLM_PROVIDER={LLM_PROVIDER!r}. Use openai or anthropic.")
+    raise RuntimeError(f"Unsupported LLM_PROVIDER={LLM_PROVIDER!r}. Use ollama, openai, or anthropic.")
 
 
 async def llm_text(client: dict, system_prompt: str, user_prompt: str, *, temperature: float, max_tokens: int, timeout: float) -> str:
@@ -603,6 +615,33 @@ async def llm_text(client: dict, system_prompt: str, user_prompt: str, *, temper
                 raise RuntimeError(f"OpenAI error {resp.status_code}: {resp.text[:500]}")
             data = resp.json()
             return data["choices"][0]["message"]["content"].strip()
+
+    if client["provider"] == "ollama":
+        local_system_prompt = "/no_think\n" + system_prompt
+        local_user_prompt = "/no_think\n" + user_prompt
+        async with httpx.AsyncClient(timeout=timeout) as http:
+            resp = await http.post(
+                f"{client['host']}/api/chat",
+                json={
+                    "model": client["model"],
+                    "messages": [
+                        {"role": "system", "content": local_system_prompt},
+                        {"role": "user", "content": local_user_prompt},
+                    ],
+                    "stream": False,
+                    "format": "json",
+                    "keep_alive": client["keep_alive"],
+                    "options": {
+                        "temperature": temperature,
+                        "num_predict": max_tokens,
+                        "num_ctx": client["num_ctx"],
+                    },
+                },
+            )
+            if resp.status_code >= 400:
+                raise RuntimeError(f"Ollama error {resp.status_code}: {resp.text[:500]}")
+            data = resp.json()
+            return (data.get("message", {}).get("content") or "").strip()
 
     resp = await client["client"].messages.create(
         model=client["model"],
