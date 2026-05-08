@@ -1,15 +1,15 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const { google } = require('googleapis');
-const nodemailer = require('nodemailer');
 
 admin.initializeApp();
 const db = admin.firestore();
 const ASHER_CC = 'AsherUnaligned@gmail.com';
 const DEFAULT_CC = 'UnalignedX@gmail.com';
 
-// ── Gmail OAuth (Robert / Asher) ────────────────────────────────
+// ── Gmail OAuth (Robert / Sam / Asher) ────────────────────────────────
 let cachedRobertAuth = null;
+let cachedSamAuth = null;
 let cachedAsherAuth = null;
 
 async function getGmailAuth(docId, cache, setCache) {
@@ -42,6 +42,10 @@ async function getAsherGmailAuth() {
   return getGmailAuth('asher_gmail_oauth', cachedAsherAuth, (auth) => { cachedAsherAuth = auth; });
 }
 
+async function getSamGmailAuth() {
+  return getGmailAuth('sam_gmail_oauth', cachedSamAuth, (auth) => { cachedSamAuth = auth; });
+}
+
 async function sendViaRobert(to, subject, body, cc) {
   const auth = await getRobertGmailAuth();
   const gmail = google.gmail({ version: 'v1', auth });
@@ -50,38 +54,13 @@ async function sendViaRobert(to, subject, body, cc) {
   return result.data.id;
 }
 
-// ── Sam SMTP (App Password) ───────────────────────────
-let samTransporter = null;
-
-async function getSamTransporter() {
-  if (samTransporter) return samTransporter;
-
-  const snap = await db.collection('_secrets').doc('sam_gmail').get();
-  if (!snap.exists) throw new Error('Sam Gmail credentials not found');
-
-  const { email, app_password } = snap.data();
-  samTransporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
-    auth: { user: email, pass: app_password },
-  });
-  return samTransporter;
-}
-
 async function sendViaSam(to, subject, body, cc, attachments) {
-  const t = await getSamTransporter();
-  const snap = await db.collection('_secrets').doc('sam_gmail').get();
-  const { email } = snap.data();
-  await t.sendMail({
-    from: `"Sam Levin" <${email}>`,
-    to,
-    cc: cc || undefined,
-    subject,
-    text: body,
-    attachments: attachments || [],
-  });
-  return 'sent via SMTP';
+  if (attachments?.length) throw new Error('Attachments are not supported for Sam OAuth sends yet');
+  const auth = await getSamGmailAuth();
+  const gmail = google.gmail({ version: 'v1', auth });
+  const raw = makeMime(to, cc, subject, body);
+  const result = await gmail.users.messages.send({ userId: 'me', resource: raw });
+  return result.data.id;
 }
 
 async function sendViaAsher(to, subject, body, cc, attachments) {
