@@ -62,6 +62,7 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 CONCURRENCY        = 5     # parallel Gmail metadata fetches
 THREAD_CONCURRENCY = 3     # parallel full thread fetches
 CHUNK_SIZE         = int(os.environ.get("CHUNK_SIZE", "6" if LLM_PROVIDER == "ollama" else "15"))
+REPLY_BATCH_SIZE   = int(os.environ.get("REPLY_BATCH_SIZE", "6" if LLM_PROVIDER == "ollama" else "20"))
 CHECKPOINT_INTERVAL = 100
 
 CREDENTIALS_DIR = Path("/Users/asherweisberger/.config/google-credentials")
@@ -1325,41 +1326,50 @@ async def draft_replies(cards: list[dict], client: dict) -> list[dict]:
     if not cards:
         return []
 
-    parts = []
-    for i, c in enumerate(cards):
-        thread = c.get("email_thread") or []
-        thread_text = ""
-        if thread:
-            msgs = []
-            for msg in thread[:3]:
-                body = msg.get("body", "")[:600] if isinstance(msg, dict) else ""
-                sender = msg.get("from", "") if isinstance(msg, dict) else ""
-                msgs.append(f"  [{sender}]: {body}")
-            thread_text = "\nTHREAD:\n" + "\n".join(msgs)
+    all_drafts: list[dict] = []
+    total_batches = (len(cards) + REPLY_BATCH_SIZE - 1) // REPLY_BATCH_SIZE
+    for batch_num, start in enumerate(range(0, len(cards), REPLY_BATCH_SIZE), start=1):
+        batch = cards[start:start + REPLY_BATCH_SIZE]
+        parts = []
+        for i, c in enumerate(batch):
+            thread = c.get("email_thread") or []
+            thread_text = ""
+            if thread:
+                msgs = []
+                for msg in thread[:3]:
+                    body = msg.get("body", "")[:600] if isinstance(msg, dict) else ""
+                    sender = msg.get("from", "") if isinstance(msg, dict) else ""
+                    msgs.append(f"  [{sender}]: {body}")
+                thread_text = "\nTHREAD:\n" + "\n".join(msgs)
 
-        parts.append(
-            f"LEAD {i+1} | id:{c['email_id']} | name:{c.get('contact_name','')} | "
-            f"company:{c.get('business_name','')} | intent:{c.get('intent','')} | "
-            f"hook:{c.get('reply_hook','')}{thread_text}"
-        )
+            parts.append(
+                f"LEAD {i+1} | id:{c['email_id']} | name:{c.get('contact_name','')} | "
+                f"company:{c.get('business_name','')} | intent:{c.get('intent','')} | "
+                f"hook:{c.get('reply_hook','')}{thread_text}"
+            )
 
-    prompt = "\n\n".join(parts)
-    try:
-        drafts = await llm_json(
-            client,
-            REPLY_SYSTEM,
-            prompt,
-            temperature=0.3,
-            max_tokens=3000,
-            timeout=90.0,
-        )
-        if drafts is None:
-            log.warning("Reply drafting JSON parse failed.")
-            return []
-        return drafts if isinstance(drafts, list) else []
-    except Exception as e:
-        log.error(f"Reply drafting failed: {e}")
-        return []
+        prompt = "\n\n".join(parts)
+        try:
+            result = await llm_json(
+                client,
+                REPLY_SYSTEM,
+                prompt,
+                temperature=0.3,
+                max_tokens=2500,
+                timeout=180.0 if client.get("provider") == "ollama" else 90.0,
+            )
+            if result is None:
+                log.warning(f"Reply drafting batch {batch_num}/{total_batches}: JSON parse failed.")
+                continue
+            drafts = result.get("drafts", result) if isinstance(result, dict) else result
+            if not isinstance(drafts, list):
+                log.warning(f"Reply drafting batch {batch_num}/{total_batches}: unexpected JSON shape.")
+                continue
+            all_drafts.extend(d for d in drafts if isinstance(d, dict))
+            log.info(f"Reply drafting batch {batch_num}/{total_batches}: {len(drafts)} drafts.")
+        except Exception as e:
+            log.error(f"Reply drafting batch {batch_num}/{total_batches} failed: {e!r}")
+    return all_drafts
 
 
 # ─────────────────────────────────────────────────────────────
