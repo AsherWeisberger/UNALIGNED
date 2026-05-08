@@ -121,6 +121,14 @@ CASES: list[Case] = [
         False,
     ),
     Case(
+        "junk_calendar_helper",
+        "junk",
+        "Google Calendar <calendar-notification@google.com>",
+        "Golf Cart Demo for Robert Scoble",
+        "This event isn't in your calendar yet. You haven't interacted with georg@example.com before. Do you want to automatically add this and future invitations from them to your calendar? Add to calendar.",
+        False,
+    ),
+    Case(
         "junk_generic_cold",
         "junk",
         "Caleb Ross <caleb@salesboost.example>",

@@ -512,6 +512,8 @@ Only extract an email if it clearly shows:
   • Cold outreach with no personalization to Robert/Unaligned specifically
   • SEO, backlinks, crypto, gambling, generic marketing pitches
   • Job applications, verification emails, receipts
+  • Calendar invitation helper emails or Google Calendar trust prompts, including
+    "Do you want to automatically add this and future invitations from them to your calendar?"
   • Vague "let's connect" with no specific value proposition
   • Any email where you cannot find a SPECIFIC sentence showing business intent
 

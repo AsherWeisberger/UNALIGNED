@@ -44,9 +44,17 @@ NEGATIVE_QUERY = (
     'from:noreply OR from:no-reply OR subject:receipt OR subject:invoice '
     'OR subject:newsletter OR subject:digest OR subject:unsubscribe '
     'OR subject:"press release" OR subject:"job application" '
-    'OR subject:backlinks OR subject:SEO OR subject:"guest post"'
+    'OR subject:backlinks OR subject:SEO OR subject:"guest post" '
+    'OR "Do you want to automatically add this and future invitations from them to your calendar" '
+    "OR \"This event isn't in your calendar yet\""
     ')'
 )
+
+CALENDAR_HELPER_MARKERS = [
+    "do you want to automatically add this and future invitations from them to your calendar",
+    "this event isn't in your calendar yet",
+    "add to calendar https://calendar.google.com/calendar/marksenderasknown",
+]
 
 
 def load_scraper():
@@ -98,6 +106,11 @@ def thread_body(thread: list[dict], fallback: str = "") -> str:
         if body:
             parts.append(f"[{sender} | {date}] {body}")
     return clean_text("\n".join(parts), 3600)
+
+
+def is_calendar_helper(body: str) -> bool:
+    lowered = body.lower()
+    return any(marker in lowered for marker in CALENDAR_HELPER_MARKERS)
 
 
 def fetch_cards(scraper, limit: int) -> list[dict]:
@@ -199,7 +212,9 @@ def write_review(cases: list[dict], path: Path):
     ]
     for idx, case in enumerate(cases, 1):
         suggested = "LEAD" if case["expected"] else "REJECT"
-        if case.get("kind") == "real_board_positive" and not case.get("required_quote"):
+        if is_calendar_helper(case.get("body", "")):
+            suggested = "REJECT"
+        elif case.get("kind") == "real_board_positive" and not case.get("required_quote"):
             suggested = "MAYBE"
         lines.extend(
             [

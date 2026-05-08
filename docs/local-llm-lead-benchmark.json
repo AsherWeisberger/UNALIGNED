@@ -1,8 +1,6 @@
 {
   "models": [
-    "gemma4:31b",
-    "qwen3-coder:30b",
-    "qwen3.6:35b-a3b"
+    "qwen3-coder:30b"
   ],
   "cases": [
     {
@@ -13,7 +11,8 @@
       "body": "Hi Robert, I'm Maya from SpatialDemo. We want to sponsor two segments in your AI demo series next month. Our budget is $15,000 and we'd like to discuss creative control and timeline this week.",
       "expected": true,
       "required_quote": "We want to sponsor two segments in your AI demo series next month. Our budget is $15,000",
-      "expected_intent": "sponsorship"
+      "expected_intent": "sponsorship",
+      "label_source": "synthetic"
     },
     {
       "id": "lead_podcast_guest",
@@ -23,7 +22,8 @@
       "body": "Robert, we'd like to book you as a guest for Frontier Builders to discuss AI agents and the future of consumer hardware. Recording slots are open June 4 or June 6, and we can send prep notes today.",
       "expected": true,
       "required_quote": "we'd like to book you as a guest",
-      "expected_intent": "interview"
+      "expected_intent": "interview",
+      "label_source": "synthetic"
     },
     {
       "id": "lead_intro_partner",
@@ -33,7 +33,8 @@
       "body": "I want to introduce you to the CMO at VantaGrid. They are actively looking for creator partnerships in AI infrastructure and asked specifically whether Robert Scoble has Q3 sponsorship inventory.",
       "expected": true,
       "required_quote": "asked specifically whether Robert Scoble has Q3 sponsorship inventory",
-      "expected_intent": "intro"
+      "expected_intent": "intro",
+      "label_source": "synthetic"
     },
     {
       "id": "lead_demo_request",
@@ -43,7 +44,8 @@
       "body": "Could we show Robert our new multi-agent desktop next week? We think it fits Unaligned's agent coverage and we are open to a paid launch segment if the product is a fit.",
       "expected": true,
       "required_quote": "we are open to a paid launch segment",
-      "expected_intent": "sponsorship"
+      "expected_intent": "sponsorship",
+      "label_source": "synthetic"
     },
     {
       "id": "lead_collaboration_clear",
@@ -53,7 +55,8 @@
       "body": "We are launching smart glasses for field technicians and want to collaborate with Robert on a hands-on launch video. We can provide demo units, engineering access, and paid media support.",
       "expected": true,
       "required_quote": "want to collaborate with Robert on a hands-on launch video",
-      "expected_intent": "collaboration"
+      "expected_intent": "collaboration",
+      "label_source": "synthetic"
     },
     {
       "id": "junk_newsletter",
@@ -63,7 +66,8 @@
       "body": "Here are this week's biggest AI stories, funding rounds, and product launches. Subscribe for more and forward this newsletter to a friend.",
       "expected": false,
       "required_quote": "",
-      "expected_intent": ""
+      "expected_intent": "",
+      "label_source": "synthetic"
     },
     {
       "id": "junk_seo",
@@ -73,7 +77,8 @@
       "body": "Dear website owner, we can improve your rankings with high authority backlinks. Let's connect about sponsored guest posts and link insertions.",
       "expected": false,
       "required_quote": "",
-      "expected_intent": ""
+      "expected_intent": "",
+      "label_source": "synthetic"
     },
     {
       "id": "junk_job_app",
@@ -83,7 +88,8 @@
       "body": "I am applying for the assistant role I saw online. My resume is attached and I am available for interviews this week.",
       "expected": false,
       "required_quote": "",
-      "expected_intent": ""
+      "expected_intent": "",
+      "label_source": "synthetic"
     },
     {
       "id": "junk_receipt",
@@ -93,7 +99,19 @@
       "body": "Your payment of $96.00 to Notion was successful. This receipt is for your records.",
       "expected": false,
       "required_quote": "",
-      "expected_intent": ""
+      "expected_intent": "",
+      "label_source": "synthetic"
+    },
+    {
+      "id": "junk_calendar_helper",
+      "kind": "junk",
+      "sender": "Google Calendar <calendar-notification@google.com>",
+      "subject": "Golf Cart Demo for Robert Scoble",
+      "body": "This event isn't in your calendar yet. You haven't interacted with georg@example.com before. Do you want to automatically add this and future invitations from them to your calendar? Add to calendar.",
+      "expected": false,
+      "required_quote": "",
+      "expected_intent": "",
+      "label_source": "synthetic"
     },
     {
       "id": "junk_generic_cold",
@@ -103,7 +121,8 @@
       "body": "I help founders grow revenue with AI automation. Would you be open to a quick call next week to explore synergies?",
       "expected": false,
       "required_quote": "",
-      "expected_intent": ""
+      "expected_intent": "",
+      "label_source": "synthetic"
     },
     {
       "id": "maybe_vague_networking",
@@ -113,7 +132,8 @@
       "body": "Robert, I have followed your work for years and would love to connect sometime. I think there may be some overlap with what we are building.",
       "expected": false,
       "required_quote": "",
-      "expected_intent": ""
+      "expected_intent": "",
+      "label_source": "synthetic"
     },
     {
       "id": "maybe_press_release",
@@ -123,13 +143,14 @@
       "body": "LaunchWire announces a new AI platform for enterprises. Please see the attached press release and let us know if you need anything else.",
       "expected": false,
       "required_quote": "",
-      "expected_intent": ""
+      "expected_intent": "",
+      "label_source": "synthetic"
     }
   ],
   "results": [
     {
       "score": 98.0,
-      "seconds": 18.2,
+      "seconds": 12.27,
       "returned": [
         "lead_collaboration_clear",
         "lead_demo_request",
@@ -159,279 +180,52 @@
         {
           "email_id": "lead_sponsor_budget",
           "title": "Sponsoring Robert Scoble's AI demo series",
-          "notes": "Maya from SpatialDemo wants to sponsor two segments in Robert Scoble's AI demo series next month with a specific budget of $15,000. This represents a clear sponsorship opportunity with defined financial commitment and timeline.",
+          "notes": "Maya from SpatialDemo wants to sponsor two segments in Robert Scoble's AI demo series next month with a $15,000 budget. They are seeking specific discussion about creative control and timeline, indicating a clear business intent to collaborate.",
           "evidence": "We want to sponsor two segments in your AI demo series next month. Our budget is $15,000 and we'd like to discuss creative control and timeline this week.",
           "date": "May 7, 2026",
           "intent": "sponsorship",
           "priority": "hot",
-          "reply_hook": "I'm interested in discussing how we can make the most of your $15,000 sponsorship budget for the AI demo series next month.",
-          "name": "Maya Chen",
-          "business": "SpatialDemo",
-          "email_addr": "maya@spatialdemo.com",
-          "phone": null,
-          "deal_value": null
+          "reply_hook": "I'm interested in discussing how we can align your $15,000 budget with the creative vision for the AI demo series next month."
         },
         {
           "email_id": "lead_podcast_guest",
           "title": "Robert as guest on Frontier Builders",
-          "notes": "Evan from FrontierPod wants to book Robert Scoble as a guest on their Frontier Builders podcast to discuss AI agents and consumer hardware. They have specific recording dates available and are ready to provide prep materials.",
+          "notes": "Evan from Frontier Builders wants to book Robert Scoble as a guest on their podcast to discuss AI agents and consumer hardware. They have specific recording slots available and are ready to send prep notes, showing a clear media opportunity.",
           "evidence": "we'd like to book you as a guest for Frontier Builders to discuss AI agents and the future of consumer hardware. Recording slots are open June 4 or June 6, and we can send prep notes today.",
           "date": "May 7, 2026",
           "intent": "interview",
           "priority": "warm",
-          "reply_hook": "I'd be interested in discussing the AI agents and consumer hardware topic for Frontier Builders on June 4 or 6.",
-          "name": "Evan Brooks",
-          "business": "FrontierPod",
-          "email_addr": "evan@frontierpod.com",
-          "phone": null,
-          "deal_value": null
+          "reply_hook": "I'd be interested in discussing the June 4 or 6 recording slots for the Frontier Builders podcast on AI agents and consumer hardware."
         },
         {
           "email_id": "lead_intro_partner",
           "title": "Intro to a possible Unaligned sponsor",
-          "notes": "Priya from VentureBridge wants to introduce Robert Scoble to the CMO at VantaGrid who is actively looking for creator partnerships in AI infrastructure and specifically asked about Robert's Q3 sponsorship inventory.",
+          "notes": "Priya from VentureBridge wants to introduce Robert Scoble to the CMO at VantaGrid, who is actively looking for creator partnerships in AI infrastructure and specifically asked about Robert's Q3 sponsorship inventory, indicating a potential business partnership.",
           "evidence": "I want to introduce you to the CMO at VantaGrid. They are actively looking for creator partnerships in AI infrastructure and asked specifically whether Robert Scoble has Q3 sponsorship inventory.",
           "date": "May 7, 2026",
           "intent": "intro",
           "priority": "warm",
-          "reply_hook": "I'd be interested in learning more about this VantaGrid CMO and their interest in creator partnerships for AI infrastructure.",
-          "name": "Priya Shah",
-          "business": "VentureBridge",
-          "email_addr": "priya@venturebridge.com",
-          "phone": null,
-          "deal_value": null
+          "reply_hook": "Thanks for the introduction to the VantaGrid CMO. I'm curious about their specific interest in AI infrastructure partnerships."
         },
         {
           "email_id": "lead_demo_request",
           "title": "Demo request for Robert",
-          "notes": "Luis from NeuralDesk.ai wants to show Robert Scoble their new multi-agent desktop product and is open to a paid launch segment if the product fits Unaligned's agent coverage.",
+          "notes": "Luis from NeuralDesk.ai wants to show Robert Scoble their new multi-agent desktop and is open to a paid launch segment if the product fits Unaligned's agent coverage, indicating a clear business opportunity for product promotion.",
           "evidence": "Could we show Robert our new multi-agent desktop next week? We think it fits Unaligned's agent coverage and we are open to a paid launch segment if the product is a fit.",
           "date": "May 7, 2026",
           "intent": "partnership",
           "priority": "warm",
-          "reply_hook": "I'd be interested in seeing your multi-agent desktop product and discussing how it fits with Unaligned's agent coverage.",
-          "name": "Luis Romero",
-          "business": "NeuralDesk.ai",
-          "email_addr": "luis@neuraldesk.ai",
-          "phone": null,
-          "deal_value": null
+          "reply_hook": "I'd be interested in seeing your multi-agent desktop next week and discussing a potential paid launch segment if it fits Unaligned's agent coverage."
         },
         {
           "email_id": "lead_collaboration_clear",
           "title": "Collaboration around smart glasses launch",
-          "notes": "Nina from GlassForge wants to collaborate with Robert Scoble on a hands-on launch video for smart glasses aimed at field technicians, offering demo units, engineering access, and paid media support.",
+          "notes": "Nina from GlassForge wants to collaborate with Robert on a hands-on launch video for smart glasses aimed at field technicians. They are offering demo units, engineering access, and paid media support, showing a clear business collaboration opportunity.",
           "evidence": "We are launching smart glasses for field technicians and want to collaborate with Robert on a hands-on launch video. We can provide demo units, engineering access, and paid media support.",
           "date": "May 7, 2026",
           "intent": "collaboration",
-          "priority": "warm",
-          "reply_hook": "I'd be interested in discussing how we can collaborate on a hands-on launch video for your smart glasses for field technicians.",
-          "name": "Nina Park",
-          "business": "GlassForge",
-          "email_addr": "nina@glassforge.com",
-          "phone": null,
-          "deal_value": null
-        }
-      ]
-    },
-    {
-      "score": 92.36,
-      "seconds": 116.45,
-      "returned": [
-        "lead_collaboration_clear",
-        "lead_demo_request",
-        "lead_intro_partner",
-        "lead_podcast_guest",
-        "lead_sponsor_budget"
-      ],
-      "expected": [
-        "lead_collaboration_clear",
-        "lead_demo_request",
-        "lead_intro_partner",
-        "lead_podcast_guest",
-        "lead_sponsor_budget"
-      ],
-      "true_positive": 5,
-      "false_positive": 0,
-      "false_negative": 0,
-      "precision": 1.0,
-      "recall": 1.0,
-      "f1": 1.0,
-      "evidence_rate": 1.0,
-      "intent_rate": 0.8,
-      "required_field_errors": 0,
-      "model": "qwen3.6:35b-a3b",
-      "error": "",
-      "leads": [
-        {
-          "email_id": "lead_sponsor_budget",
-          "title": "Sponsoring Robert Scoble's AI demo series",
-          "notes": "Maya Chen from SpatialDemo wants to sponsor two segments of Robert's AI demo series next month. She has a confirmed budget of $15,000 and is requesting a discussion this week to finalize creative control and timeline.",
-          "evidence": "We want to sponsor two segments in your AI demo series next month. Our budget is $15,000 and we'd like to discuss creative control and timeline this week.",
-          "date": "May 7, 2026",
-          "intent": "sponsorship",
           "priority": "hot",
-          "reply_hook": "I\u2019d be happy to hop on a call this week to discuss creative control and timeline for the two AI demo series segments you mentioned.",
-          "name": "Maya Chen",
-          "business": "SpatialDemo",
-          "email_addr": "maya@spatialdemo.com",
-          "phone": null,
-          "deal_value": "$15,000"
-        },
-        {
-          "email_id": "lead_podcast_guest",
-          "title": "Robert as guest on Frontier Builders",
-          "notes": "Evan Brooks from Frontier Builders wants to book Robert as a guest to discuss AI agents and consumer hardware. They have specific recording slots available on June 4 or June 6 and are ready to send prep materials immediately.",
-          "evidence": "we'd like to book you as a guest for Frontier Builders to discuss AI agents and the future of consumer hardware. Recording slots are open June 4 or June 6, and we can send prep notes today.",
-          "date": "May 7, 2026",
-          "intent": "interview",
-          "priority": "warm",
-          "reply_hook": "June 4 or June 6 both work for me; please send over the prep notes so we can lock in the recording slot.",
-          "name": "Evan Brooks",
-          "business": "Frontier Builders",
-          "email_addr": "evan@frontierpod.com",
-          "phone": null,
-          "deal_value": null
-        },
-        {
-          "email_id": "lead_intro_partner",
-          "title": "Intro to a possible Unaligned sponsor",
-          "notes": "Priya Shah is introducing the CMO at VantaGrid, who is actively seeking creator partnerships in AI infrastructure. They specifically asked about Robert Scoble\u2019s Q3 sponsorship inventory to move forward with a potential deal.",
-          "evidence": "They are actively looking for creator partnerships in AI infrastructure and asked specifically whether Robert Scoble has Q3 sponsorship inventory.",
-          "date": "May 7, 2026",
-          "intent": "intro",
-          "priority": "warm",
-          "reply_hook": "I\u2019d be glad to connect with the VantaGrid CMO directly to discuss Q3 sponsorship inventory and how we can align with their AI infrastructure goals.",
-          "name": "Priya Shah",
-          "business": "VentureBridge",
-          "email_addr": "priya@venturebridge.com",
-          "phone": null,
-          "deal_value": null
-        },
-        {
-          "email_id": "lead_demo_request",
-          "title": "Demo request for Robert",
-          "notes": "Luis Romero from NeuralDesk wants to demo their new multi-agent desktop next week, noting it aligns with Unaligned\u2019s agent coverage. They are open to structuring a paid launch segment if the product meets their criteria.",
-          "evidence": "We think it fits Unaligned's agent coverage and we are open to a paid launch segment if the product is a fit.",
-          "date": "May 7, 2026",
-          "intent": "collaboration",
-          "priority": "warm",
-          "reply_hook": "Next week works for a demo; please send over the multi-agent desktop details so I can review how it aligns with our agent coverage before we discuss a paid segment.",
-          "name": "Luis Romero",
-          "business": "NeuralDesk",
-          "email_addr": "luis@neuraldesk.ai",
-          "phone": null,
-          "deal_value": null
-        },
-        {
-          "email_id": "lead_collaboration_clear",
-          "title": "Collaboration around smart glasses launch",
-          "notes": "Nina Park from GlassForge is launching smart glasses for field technicians and wants to partner with Robert on a hands-on launch video. They are prepared to provide demo units, direct engineering access, and paid media support for the project.",
-          "evidence": "We are launching smart glasses for field technicians and want to collaborate with Robert on a hands-on launch video. We can provide demo units, engineering access, and paid media support.",
-          "date": "May 7, 2026",
-          "intent": "collaboration",
-          "priority": "warm",
-          "reply_hook": "I\u2019m interested in testing the smart glasses firsthand; please send the demo units and engineering contact details so we can plan the hands-on launch video.",
-          "name": "Nina Park",
-          "business": "GlassForge",
-          "email_addr": "nina@glassforge.com",
-          "phone": null,
-          "deal_value": null
-        }
-      ]
-    },
-    {
-      "score": 91.62,
-      "seconds": 123.81,
-      "returned": [
-        "lead_collaboration_clear",
-        "lead_demo_request",
-        "lead_intro_partner",
-        "lead_podcast_guest",
-        "lead_sponsor_budget"
-      ],
-      "expected": [
-        "lead_collaboration_clear",
-        "lead_demo_request",
-        "lead_intro_partner",
-        "lead_podcast_guest",
-        "lead_sponsor_budget"
-      ],
-      "true_positive": 5,
-      "false_positive": 0,
-      "false_negative": 0,
-      "precision": 1.0,
-      "recall": 1.0,
-      "f1": 1.0,
-      "evidence_rate": 1.0,
-      "intent_rate": 0.8,
-      "required_field_errors": 0,
-      "model": "gemma4:31b",
-      "error": "",
-      "leads": [
-        {
-          "email_id": "lead_sponsor_budget",
-          "title": "Sponsoring Robert Scoble's AI demo series",
-          "notes": "Maya Chen from SpatialDemo wants to sponsor two segments in Robert's AI demo series next month with a specific budget of $15,000.",
-          "evidence": "We want to sponsor two segments in your AI demo series next month. Our budget is $15,000 and we'd like to discuss creative control and timeline this week.",
-          "date": "May 7, 2026",
-          "intent": "sponsorship",
-          "priority": "hot",
-          "reply_hook": "I'd love to discuss the $15,000 budget and the creative control for the two segments in the AI demo series.",
-          "email_addr": "maya@spatialdemo.com",
-          "phone": null,
-          "deal_value": "$15,000"
-        },
-        {
-          "email_id": "lead_podcast_guest",
-          "title": "Robert as guest on Frontier Builders",
-          "notes": "Evan Brooks from Frontier Builders wants to book Robert as a guest to discuss AI agents and consumer hardware, with specific recording dates in June.",
-          "evidence": "Robert, we'd like to book you as a guest for Frontier Builders to discuss AI agents and the future of consumer hardware.",
-          "date": "May 7, 2026",
-          "intent": "interview",
-          "priority": "warm",
-          "reply_hook": "I'll check Robert's calendar for June 4 or June 6 to see if he can join you on Frontier Builders.",
-          "email_addr": "evan@frontierpod.com",
-          "phone": null,
-          "deal_value": null
-        },
-        {
-          "email_id": "lead_intro_partner",
-          "title": "Intro to a possible Unaligned sponsor",
-          "notes": "Priya Shah is introducing Robert to the CMO of VantaGrid, who is specifically looking for Q3 sponsorship inventory for AI infrastructure.",
-          "evidence": "They are actively looking for creator partnerships in AI infrastructure and asked specifically whether Robert Scoble has Q3 sponsorship inventory.",
-          "date": "May 7, 2026",
-          "intent": "intro",
-          "priority": "warm",
-          "reply_hook": "Thank you for the introduction to the VantaGrid CMO; we can certainly discuss Q3 sponsorship inventory.",
-          "email_addr": "priya@venturebridge.com",
-          "phone": null,
-          "deal_value": null
-        },
-        {
-          "email_id": "lead_demo_request",
-          "title": "Demo request for Robert",
-          "notes": "Luis Romero from NeuralDesk.ai wants to show Robert a multi-agent desktop and is open to a paid launch segment if the product fits.",
-          "evidence": "We think it fits Unaligned's agent coverage and we are open to a paid launch segment if the product is a fit.",
-          "date": "May 7, 2026",
-          "intent": "collaboration",
-          "priority": "warm",
-          "reply_hook": "We'd be happy to look at the multi-agent desktop and discuss a potential paid launch segment.",
-          "email_addr": "luis@neuraldesk.ai",
-          "phone": null,
-          "deal_value": null
-        },
-        {
-          "email_id": "lead_collaboration_clear",
-          "title": "Collaboration around smart glasses launch",
-          "notes": "Nina Park from GlassForge wants to collaborate with Robert on a hands-on launch video for smart glasses, offering demo units and paid media support.",
-          "evidence": "We are launching smart glasses for field technicians and want to collaborate with Robert on a hands-on launch video. We can provide demo units, engineering access, and paid media support.",
-          "date": "May 7, 2026",
-          "intent": "collaboration",
-          "priority": "warm",
-          "reply_hook": "The smart glasses for field technicians sound interesting; we'd love to discuss the hands-on launch video and paid media support.",
-          "email_addr": "nina@glassforge.com",
-          "phone": null,
-          "deal_value": null
+          "reply_hook": "I'm interested in the hands-on launch video collaboration for your smart glasses with the demo units and paid media support you're offering."
         }
       ]
     }
