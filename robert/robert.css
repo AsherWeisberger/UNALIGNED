@@ -125,20 +125,42 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 
 .compose-btn {
-  width: 176px;
-  min-height: 52px;
-  border: 0;
-  border-radius: 16px;
-  background: #c2e7ff;
-  color: #001d35;
-  font-weight: 700;
-  box-shadow: var(--shadow);
+  min-height: 42px;
+  border: 1px solid rgba(26, 115, 232, 0.24);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--blue);
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 800;
   cursor: pointer;
-  margin: 4px 0 18px 4px;
+  margin: 4px 0 18px 6px;
+  padding: 0 15px 0 11px;
+  box-shadow: 0 1px 2px rgba(60, 64, 67, 0.12);
+}
+
+.compose-btn span {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--blue-soft);
+  display: grid;
+  place-items: center;
+  color: var(--blue);
+  font-size: 18px;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.compose-btn strong {
+  font-size: 14px;
 }
 
 .compose-btn:hover {
-  box-shadow: 0 2px 5px rgba(60, 64, 67, 0.24);
+  background: #f8fbff;
+  border-color: rgba(26, 115, 232, 0.38);
+  box-shadow: 0 2px 6px rgba(60, 64, 67, 0.16);
 }
 
 .folders {
