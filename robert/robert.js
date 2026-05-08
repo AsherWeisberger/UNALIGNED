@@ -28,7 +28,7 @@ const stageLabels = {
 };
 
 const views = {
-  today: ["Inbox", "Lead inbox"],
+  today: ["Inbox", "What needs attention now"],
   sent: ["Sent", "Waiting on the lead"],
   reply: ["Needs reply", "People waiting on us"],
   overdue: ["Overdue", "Old conversations to clear"],
@@ -284,7 +284,7 @@ function rowDateLabel(card) {
 }
 
 function todayWork(card) {
-  return active(card) && (needsReply(card) || ["negotiating", "invoice-sent"].includes(card.stage));
+  return active(card) && needsReply(card);
 }
 
 function replyAge(card) {
@@ -365,12 +365,8 @@ function renderCounts() {
   const counts = {
     today: queueFor("today").length,
     sent: state.cards.filter(outboundWaiting).length,
-    reply: state.cards.filter(needsReply).length,
-    overdue: state.cards.filter((card) => active(card) && (staleActive(card) || (needsReply(card) && daysSince(lastTouchDate(card)) >= 2))).length,
     money: state.cards.filter((card) => moneyStage(card) && active(card)).length,
-    tomorrow: state.cards.filter(tomorrowWork).length,
     cleanup: state.cards.filter((card) => healthFlags(card).length > 0).length,
-    closed: state.cards.filter(closed).length,
     all: state.cards.length
   };
   Object.entries(counts).forEach(([key, value]) => {

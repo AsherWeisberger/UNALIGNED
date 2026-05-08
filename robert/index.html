@@ -30,15 +30,11 @@
         <aside class="sidebar">
           <button class="compose-btn" id="compose-btn" type="button" aria-label="Compose lead reply"><span>+</span><strong>Reply</strong></button>
           <nav class="folders" aria-label="Lead folders">
-            <button class="folder active" data-view="today" type="button"><span>Inbox</span><strong id="count-today">0</strong></button>
-            <button class="folder" data-view="sent" type="button"><span>Sent</span><strong id="count-sent">0</strong></button>
-            <button class="folder" data-view="reply" type="button"><span>Needs reply</span><strong id="count-reply">0</strong></button>
-            <button class="folder" data-view="overdue" type="button"><span>Overdue</span><strong id="count-overdue">0</strong></button>
-            <button class="folder" data-view="money" type="button"><span>Money</span><strong id="count-money">0</strong></button>
-            <button class="folder" data-view="tomorrow" type="button"><span>Tomorrow</span><strong id="count-tomorrow">0</strong></button>
-            <button class="folder" data-view="cleanup" type="button"><span>Cleanup</span><strong id="count-cleanup">0</strong></button>
-            <button class="folder" data-view="closed" type="button"><span>Closed</span><strong id="count-closed">0</strong></button>
-            <button class="folder" data-view="all" type="button"><span>All leads</span><strong id="count-all">0</strong></button>
+            <button class="folder active" data-view="today" type="button"><span><b>Inbox</b><small>What needs attention now</small></span><strong id="count-today">0</strong></button>
+            <button class="folder" data-view="sent" type="button"><span><b>Waiting</b><small>We replied, they owe us</small></span><strong id="count-sent">0</strong></button>
+            <button class="folder" data-view="money" type="button"><span><b>Money</b><small>Rates, negotiation, invoices</small></span><strong id="count-money">0</strong></button>
+            <button class="folder" data-view="cleanup" type="button"><span><b>Cleanup</b><small>Missing or messy lead data</small></span><strong id="count-cleanup">0</strong></button>
+            <button class="folder" data-view="all" type="button"><span><b>All leads</b><small>Everything, unfiltered</small></span><strong id="count-all">0</strong></button>
           </nav>
           <div class="sync-card">
             <span id="sync-status">Loading Supabase</span>
