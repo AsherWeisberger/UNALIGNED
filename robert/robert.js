@@ -419,9 +419,12 @@ function renderDetail() {
     <div class="thread-inner">
       <div class="thread-toolbar">
         <div class="tool-group">
+          <button class="tool" data-action="stage" data-stage="first-touch" type="button">First touch</button>
           <button class="tool" data-action="stage" data-stage="done" type="button">Archive</button>
           <button class="tool" data-action="stage" data-stage="dead-leads" type="button">Not needed</button>
           <button class="tool" data-action="stage" data-stage="engaged" type="button">Engaged</button>
+          <button class="tool" data-action="stage" data-stage="rates-sent" type="button">Rates sent</button>
+          <button class="tool" data-action="stage" data-stage="negotiating" type="button">Negotiating</button>
           <button class="tool" data-action="stage" data-stage="invoice-sent" type="button">Invoice</button>
         </div>
         <div class="tool-group">
@@ -445,7 +448,7 @@ function renderDetail() {
       <section class="why-card">
         <strong>${html(why(card))}</strong>
         <p>${html(nextMove(card))}</p>
-        ${flags.length ? `<p>${html(flags.join(" / "))}</p>` : ""}
+        ${flags.length ? `<p>Cleanup reason: ${html(flags.join(" / "))}</p>` : ""}
       </section>
 
       <section class="messages">

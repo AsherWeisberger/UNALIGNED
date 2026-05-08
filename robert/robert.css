@@ -178,7 +178,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   color: #3c4043;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
   padding: 8px 12px;
   text-align: left;
@@ -198,6 +198,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   display: grid;
   gap: 3px;
   min-width: 0;
+  flex: 1;
   overflow: hidden;
 }
 
@@ -206,9 +207,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 14px;
+  line-height: 1.15;
 }
 
 .folder small {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -220,13 +223,14 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .folder strong {
   font-size: 12px;
   color: inherit;
-  min-width: 28px;
+  min-width: 34px;
   min-height: 24px;
   border-radius: 999px;
   background: rgba(60, 64, 67, 0.08);
   display: grid;
   place-items: center;
   padding: 0 7px;
+  flex: 0 0 auto;
 }
 
 .folder.active strong {
