@@ -188,14 +188,24 @@ def write_review(cases: list[dict], path: Path):
     lines = [
         "# Private Lead Benchmark Review",
         "",
-        "This file is local-only. Use it to spot-check weak labels before treating this as a gold set.",
+        "This file is local-only. Use it to correct weak labels before treating this as a gold set.",
+        "",
+        "For each case, edit the `Human label` line to exactly one of:",
+        "",
+        "- `LEAD` - should become/continue as a board card",
+        "- `MAYBE` - needs human judgment or more context; benchmark ignores these later",
+        "- `REJECT` - should not become a board card",
         "",
     ]
     for idx, case in enumerate(cases, 1):
-        label = "LEAD" if case["expected"] else "REJECT"
+        suggested = "LEAD" if case["expected"] else "REJECT"
+        if case.get("kind") == "real_board_positive" and not case.get("required_quote"):
+            suggested = "MAYBE"
         lines.extend(
             [
-                f"## {idx}. {label} - {case['id']}",
+                f"## {idx}. {suggested} - {case['id']}",
+                f"- Human label: {suggested}",
+                f"- Suggested label: {suggested}",
                 f"- Source: `{case['label_source']}`",
                 f"- From: {case['sender']}",
                 f"- Subject: {case['subject']}",
