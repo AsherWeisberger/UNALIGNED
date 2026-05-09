@@ -678,8 +678,48 @@ button, a { -webkit-tap-highlight-color: transparent; }
   padding: 0 18px;
 }
 
+.composer-title {
+  display: grid;
+  gap: 3px;
+  min-width: 180px;
+}
+
 .composer-head strong {
   font-size: 16px;
+}
+
+.composer-title span {
+  color: var(--muted);
+  font-size: 12px;
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.draft-switch {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f6f8fc;
+}
+
+.draft-switch button {
+  border: 0;
+  border-radius: 6px;
+  padding: 7px 11px;
+  color: var(--muted);
+  font: 700 12px/1 var(--font);
+  background: transparent;
+  cursor: pointer;
+}
+
+.draft-switch button.selected {
+  color: var(--ink);
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(60, 64, 67, 0.14);
 }
 
 .send-status {

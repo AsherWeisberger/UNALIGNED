@@ -5,7 +5,7 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const SEND_EMAIL_URL = "https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-const state = { cards: [], view: "today", selectedId: null, search: "" };
+const state = { cards: [], view: "today", selectedId: null, search: "", draftSender: "robert" };
 const $ = (id) => document.getElementById(id);
 const now = new Date();
 
@@ -38,6 +38,8 @@ const views = {
   closed: ["Closed", "Done and not needed"],
   all: ["All leads", "Every lead card"]
 };
+
+const draftSenders = { robert: "Robert", sam: "Sam", asher: "Asher" };
 
 const welcomeDone = [
   "This page is a Gmail-style command center for Robert's lead flow, not a generic Kanban board.",
@@ -354,9 +356,35 @@ function defaultSubject(card) {
   return title.toLowerCase().startsWith("re:") ? title : `Re: ${title}`;
 }
 
+function draftVariant(card, sender = state.draftSender) {
+  if (!card?.draft || typeof card.draft !== "object") return null;
+  return card.draft.variants?.[sender] || card.draft[sender] || null;
+}
+
 function draftText(card) {
+  const variant = draftVariant(card);
+  if (variant) return text(variant.body || variant.text || variant.message);
   if (card.draft && typeof card.draft === "object") return text(card.draft.body || card.draft.text || card.draft.message);
   return text(card.draft);
+}
+
+function draftSubject(card, sender = state.draftSender) {
+  const variant = draftVariant(card, sender);
+  return text(variant?.subject || card.draft?.subject || defaultSubject(card));
+}
+
+function setDraftSender(sender) {
+  if (!draftSenders[sender]) return;
+  state.draftSender = sender;
+  const card = selectedCard();
+  if (!card) return;
+  const body = draftText(card);
+  if ($("reply-body")) $("reply-body").value = body;
+  if ($("draft-subject")) $("draft-subject").textContent = draftSubject(card, sender);
+  document.querySelectorAll("[data-action='draft-sender']").forEach((button) => {
+    button.classList.toggle("selected", button.dataset.from === sender);
+  });
+  setStatus(`Loaded ${draftSenders[sender]}'s draft.`);
 }
 
 function queueFor(view = state.view) {
@@ -483,7 +511,7 @@ function renderDetail() {
   }
   const flags = healthFlags(card);
   const draft = draftText(card);
-  const subject = card.draft?.subject || defaultSubject(card);
+  const subject = draftSubject(card);
   const gmail = gmailUrl(card);
   $("detail").innerHTML = `
     <div class="thread-inner">
@@ -550,7 +578,15 @@ function renderDetail() {
 
       <section class="composer">
         <div class="composer-head">
-          <strong>Reply</strong>
+          <div class="composer-title">
+            <strong>Reply</strong>
+            <span id="draft-subject">${html(subject)}</span>
+          </div>
+          <div class="draft-switch" aria-label="Draft sender">
+            ${Object.entries(draftSenders).map(([key, label]) => `
+              <button class="${state.draftSender === key ? "selected" : ""}" data-action="draft-sender" data-from="${key}" type="button">${label}</button>
+            `).join("")}
+          </div>
           <span class="send-status" id="send-status">Draft stays here until you send or copy it.</span>
         </div>
         <textarea id="reply-body" rows="18" spellcheck="true" placeholder="Write Robert, Sam, or Asher's reply here...">${html(draft)}</textarea>
@@ -604,6 +640,9 @@ async function handleAction(action, stage, from) {
   if (action === "send") {
     await sendReply(card, from);
   }
+  if (action === "draft-sender") {
+    setDraftSender(from);
+  }
 }
 
 async function sendReply(card, from = "robert") {
@@ -619,6 +658,11 @@ async function sendReply(card, from = "robert") {
   }
   const sender = ["sam", "asher"].includes(from) ? from : "robert";
   const senderName = ({ sam: "Sam", asher: "Asher", robert: "Robert" })[sender];
+  if (sender !== state.draftSender && draftVariant(card, sender)) {
+    setDraftSender(sender);
+    setStatus(`Loaded ${senderName}'s draft. Review it, then send.`);
+    return;
+  }
   setStatus(`Sending as ${senderName}...`);
   const resp = await fetch(SEND_EMAIL_URL, {
     method: "POST",
@@ -628,7 +672,7 @@ async function sendReply(card, from = "robert") {
     },
     body: JSON.stringify({
       to: card.email,
-      subject: card.draft?.subject || defaultSubject(card),
+      subject: draftSubject(card, sender),
       body,
       from: sender
     })

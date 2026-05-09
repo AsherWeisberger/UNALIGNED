@@ -1497,15 +1497,26 @@ def update_reply_drafts(drafts: list[dict]) -> int:
     updated = 0
     for d in drafts:
         eid     = d.get("email_id")
+        variants = d.get("variants") if isinstance(d.get("variants"), dict) else None
         subject = d.get("subject", "")
         body    = d.get("body", "")
-        if not eid or not body:
+        if variants:
+            draft_payload = {"variants": variants}
+            robert = variants.get("robert") or {}
+            draft_payload["subject"] = robert.get("subject", subject)
+            draft_payload["body"] = robert.get("body", body)
+            draft_payload["default_sender"] = "robert"
+        elif body:
+            draft_payload = {"subject": subject, "body": body, "default_sender": "robert"}
+        else:
+            draft_payload = None
+        if not eid or not draft_payload:
             continue
         try:
             resp = httpx.patch(
                 f"{SUPABASE_URL}/rest/v1/cards?email_id=eq.{eid}",
                 headers={**_sb_headers(), "Prefer": "return=minimal"},
-                json={"draft_reply": {"subject": subject, "body": body}, "draft_reply_status": "drafted"},
+                json={"draft_reply": draft_payload, "draft_reply_status": "drafted"},
                 timeout=15.0,
             )
             if resp.status_code in (200, 204):
@@ -1520,37 +1531,71 @@ def update_reply_drafts(drafts: list[dict]) -> int:
 # STEP 7 — REPLY DRAFTING (with thread content)
 # ─────────────────────────────────────────────────────────────
 
-REPLY_SYSTEM = """\
-You write personalized first-response emails on behalf of Robert Scoble / Unaligned.
-Return ONLY valid JSON. No markdown, no preamble.
-Use this shape: {"drafts": [{"email_id": "<id>", "subject": "<subject line>", "body": "<full email body>"}]}
-
-Follow this exact structure for every email body:
-
-Hi [their first name],
-
-Appreciate you reaching out! [One sentence that references their specific company name or product and what makes it genuinely interesting — never generic.]
-
-I'm looping in my business partner, Sam Levin, along with Asher Weisberger, our Client Service Manager, and Unaligned, which I oversee. We're currently being selective with the partnerships we take on, particularly around [their specific niche/domain].
-
-Before moving forward, I'd like a clearer picture of your thinking regarding collaboration, specifically the scope, level of creative control, and how you structure [sponsorships/partnerships/etc] with creators at this stage.
-
-If we have strong alignment on both the product and the partnership structure, we'd be open to exploring this further.
-
-Best,
-
-Robert Scoble
-Founder, Unaligned
+SIGNATURES = {
+    "robert": """Robert Scoble
+Founder, Unaligned (media company about how AI is bringing us new things)
 Mobile: +1-425-205-1921
-X: @scobleizer | Web: unaligned.io
+X: https://x.com/scobleizer
+Web: https://unaligned.io
+This message copyright the sender. All rights reserved.""",
+    "sam": """Sam Levin
+Unaligned
++1-415-827-3870
+https://unaligned.io
+https://x.com/samlevin
+linkedin.com/in/samlevin/""",
+    "asher": """Asher Weisberger
+Client Services Manager
+Unaligned
+asherunaligned@gmail.com
+unaligned.io | x.com/unalignedx""",
+}
 
-Rules:
-  • MUST use their actual first name in the greeting
-  • MUST reference their specific company name or project in the opening sentence
-  • Fill in ALL bracketed placeholders with real details from the email
-  • Subject line: natural reply subject based on what they sent
-  • Every email must feel personally written — not templated
+REPLY_SYSTEM = f"""\
+You write personalized lead-reply emails for Robert Scoble / Unaligned.
+Return ONLY valid JSON. No markdown, no preamble.
+Use this shape:
+{{"drafts": [{{"email_id": "<id>", "variants": {{"robert": {{"subject": "<subject>", "body": "<full body>"}}, "sam": {{"subject": "<subject>", "body": "<full body>"}}, "asher": {{"subject": "<subject>", "body": "<full body>"}}}}}}]}}
+
+Core rules:
+  • Draft THREE variants for every lead: robert, sam, and asher.
+  • Follow the chain like a human assistant. The draft must answer the LATEST_ACTIONABLE_MESSAGE first, whether it came from the lead or from Robert/Sam/Asher.
+  • If the latest message is from Sam, Robert, or Asher and is directed at another teammate, draft the appropriate quick reply that handles that teammate's comment or instruction.
+  • If the latest message is from the lead, answer the lead's ask directly and use the older thread only for context.
+  • Do not force mentions of Robert, Sam, or Asher. Include teammate context only when the latest chain actually makes it relevant.
+  • Do not say you are looping someone in unless the latest message asks for or clearly needs that person.
+  • Use the recipient's actual first name in the greeting when writing to the lead; use a natural teammate greeting when replying internally.
+  • Reference their specific company, product, ask, campaign, or question.
+  • Subject line must be a natural reply subject based on the thread.
+  • Every email must feel personally written, not templated.
+  • End every body with the exact sender signature below.
+
+Robert signature:
+{SIGNATURES["robert"]}
+
+Sam signature:
+{SIGNATURES["sam"]}
+
+Asher signature:
+{SIGNATURES["asher"]}
 """
+
+
+def latest_actionable_message(thread: list[dict]) -> dict:
+    return (thread or [{}])[-1] if thread else {}
+
+
+def mentioned_associates(text_value: str) -> list[str]:
+    names = []
+    blob = text_value or ""
+    for name, pattern in (
+        ("Robert", r"\b(robert|scoble)\b"),
+        ("Sam", r"\b(sam|sammy|levin)\b"),
+        ("Asher", r"\basher\b"),
+    ):
+        if re.search(pattern, blob, re.I):
+            names.append(name)
+    return names
 
 
 async def draft_replies(cards: list[dict], client: dict) -> list[dict]:
@@ -1564,10 +1609,15 @@ async def draft_replies(cards: list[dict], client: dict) -> list[dict]:
         parts = []
         for i, c in enumerate(batch):
             thread = c.get("email_thread") or []
+            latest = latest_actionable_message(thread)
+            latest_body = latest.get("body", "") if isinstance(latest, dict) else ""
+            associates = mentioned_associates(latest_body)
+            latest_from = latest.get("from", "") if isinstance(latest, dict) else ""
+            latest_source = "team" if isinstance(latest, dict) and not _is_inbound(latest) else "lead"
             thread_text = ""
             if thread:
                 msgs = []
-                for msg in thread[:3]:
+                for msg in thread[-6:]:
                     body = msg.get("body", "")[:600] if isinstance(msg, dict) else ""
                     sender = msg.get("from", "") if isinstance(msg, dict) else ""
                     msgs.append(f"  [{sender}]: {body}")
@@ -1576,7 +1626,12 @@ async def draft_replies(cards: list[dict], client: dict) -> list[dict]:
             parts.append(
                 f"LEAD {i+1} | id:{c['email_id']} | name:{c.get('contact_name','')} | "
                 f"company:{c.get('business_name','')} | intent:{c.get('intent','')} | "
-                f"hook:{c.get('reply_hook','')}{thread_text}"
+                f"hook:{c.get('reply_hook','')}\n"
+                f"LATEST_ACTIONABLE_FROM: {latest_from}\n"
+                f"LATEST_ACTIONABLE_SOURCE: {latest_source}\n"
+                f"LATEST_ACTIONABLE_MESSAGE: {latest_body[:1400]}\n"
+                f"ASSOCIATES_MENTIONED_IN_LATEST: {', '.join(associates) if associates else 'none'}"
+                f"{thread_text}"
             )
 
         prompt = "\n\n".join(parts)
@@ -1586,7 +1641,7 @@ async def draft_replies(cards: list[dict], client: dict) -> list[dict]:
                 REPLY_SYSTEM,
                 prompt,
                 temperature=0.3,
-                max_tokens=2500,
+                max_tokens=6500,
                 timeout=180.0 if client.get("provider") == "ollama" else 90.0,
             )
             if result is None:
