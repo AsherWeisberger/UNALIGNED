@@ -256,6 +256,18 @@ def _parse_json_flexible(raw: str) -> typing.Optional[list]:
     return None
 
 
+def _json_object(value) -> dict:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str) and value.strip():
+        try:
+            parsed = json.loads(value)
+            return parsed if isinstance(parsed, dict) else {}
+        except json.JSONDecodeError:
+            return {}
+    return {}
+
+
 # ─────────────────────────────────────────────────────────────
 # GMAIL AUTH
 # ─────────────────────────────────────────────────────────────
@@ -1527,6 +1539,40 @@ def update_reply_drafts(drafts: list[dict]) -> int:
     return updated
 
 
+def get_cards_for_redraft(limit: int = 150, only_missing_variants: bool = True) -> list[dict]:
+    """Fetch active cards that need refreshed sender-specific draft variants."""
+    resp = httpx.get(
+        f"{SUPABASE_URL}/rest/v1/cards"
+        f"?list_id=in.(first-touch,engaged,rates-sent,negotiating,invoice-sent)"
+        f"&select=*&order=updated_at.desc&limit={limit}",
+        headers=_sb_headers(),
+        timeout=30,
+    )
+    resp.raise_for_status()
+    rows = resp.json() if isinstance(resp.json(), list) else []
+    if not only_missing_variants:
+        return rows
+    return [
+        row for row in rows
+        if not isinstance(_json_object(row.get("draft_reply")).get("variants"), dict)
+    ]
+
+
+async def redraft_active_cards(limit: int = 150, only_missing_variants: bool = True, dry_run: bool = False) -> int:
+    validate_supabase()
+    client = make_llm_client()
+    cards = get_cards_for_redraft(limit=limit, only_missing_variants=only_missing_variants)
+    if dry_run:
+        log.info(f"Redraft dry-run: {len(cards)} cards would be redrafted.")
+        return len(cards)
+    if not cards:
+        log.info("Redraft: no active cards need new draft variants.")
+        return 0
+    log.info(f"Redraft: generating sender-specific variants for {len(cards)} active cards.")
+    drafts = await draft_replies(cards, client)
+    return update_reply_drafts(drafts) if drafts else 0
+
+
 # ─────────────────────────────────────────────────────────────
 # STEP 7 — REPLY DRAFTING (with thread content)
 # ─────────────────────────────────────────────────────────────
@@ -1559,9 +1605,9 @@ Use this shape:
 
 Core rules:
   • Draft THREE variants for every lead: robert, sam, and asher.
-  • Follow the chain like a human assistant. The draft must answer the LATEST_ACTIONABLE_MESSAGE first, whether it came from the lead or from Robert/Sam/Asher.
-  • If the latest message is from Sam, Robert, or Asher and is directed at another teammate, draft the appropriate quick reply that handles that teammate's comment or instruction.
-  • If the latest message is from the lead, answer the lead's ask directly and use the older thread only for context.
+  • Follow the chain like a human assistant. Answer LAST_LEAD_MESSAGE unless LATEST_TEAM_NEEDS_INTERNAL_REPLY is yes.
+  • If LATEST_TEAM_NEEDS_INTERNAL_REPLY is yes, draft a natural internal reply that handles that teammate's comment or instruction.
+  • If the latest message is from Robert/Sam/Asher but is not asking a teammate for action, do not answer it like it came from the lead. Draft the next useful follow-up to the lead using LAST_LEAD_MESSAGE and the current thread state.
   • Do not force mentions of Robert, Sam, or Asher. Include teammate context only when the latest chain actually makes it relevant.
   • Do not say you are looping someone in unless the latest message asks for or clearly needs that person.
   • Use the recipient's actual first name in the greeting when writing to the lead; use a natural teammate greeting when replying internally.
@@ -1583,6 +1629,33 @@ Asher signature:
 
 def latest_actionable_message(thread: list[dict]) -> dict:
     return (thread or [{}])[-1] if thread else {}
+
+
+def latest_inbound_message(thread: list[dict]) -> dict:
+    for msg in reversed(thread or []):
+        if isinstance(msg, dict) and _is_inbound(msg):
+            return msg
+    return {}
+
+
+def latest_team_message(thread: list[dict]) -> dict:
+    for msg in reversed(thread or []):
+        if isinstance(msg, dict) and not _is_inbound(msg):
+            return msg
+    return {}
+
+
+def team_message_needs_internal_reply(message: dict) -> bool:
+    if not isinstance(message, dict):
+        return False
+    body = message.get("body", "") or ""
+    if not mentioned_associates(body):
+        return False
+    return bool(re.search(
+        r"\b(can you|could you|please|thoughts|do you|should we|need you|what do you think|asher|sam|robert)\b",
+        body,
+        re.I,
+    ))
 
 
 def mentioned_associates(text_value: str) -> list[str]:
@@ -1610,10 +1683,15 @@ async def draft_replies(cards: list[dict], client: dict) -> list[dict]:
         for i, c in enumerate(batch):
             thread = c.get("email_thread") or []
             latest = latest_actionable_message(thread)
+            last_lead = latest_inbound_message(thread)
+            last_team = latest_team_message(thread)
             latest_body = latest.get("body", "") if isinstance(latest, dict) else ""
-            associates = mentioned_associates(latest_body)
+            last_lead_body = last_lead.get("body", "") if isinstance(last_lead, dict) else ""
+            last_team_body = last_team.get("body", "") if isinstance(last_team, dict) else ""
+            associates = mentioned_associates(last_team_body)
             latest_from = latest.get("from", "") if isinstance(latest, dict) else ""
             latest_source = "team" if isinstance(latest, dict) and not _is_inbound(latest) else "lead"
+            needs_internal_reply = team_message_needs_internal_reply(latest) if latest_source == "team" else False
             thread_text = ""
             if thread:
                 msgs = []
@@ -1630,7 +1708,12 @@ async def draft_replies(cards: list[dict], client: dict) -> list[dict]:
                 f"LATEST_ACTIONABLE_FROM: {latest_from}\n"
                 f"LATEST_ACTIONABLE_SOURCE: {latest_source}\n"
                 f"LATEST_ACTIONABLE_MESSAGE: {latest_body[:1400]}\n"
-                f"ASSOCIATES_MENTIONED_IN_LATEST: {', '.join(associates) if associates else 'none'}"
+                f"LAST_LEAD_FROM: {last_lead.get('from', '') if isinstance(last_lead, dict) else ''}\n"
+                f"LAST_LEAD_MESSAGE: {last_lead_body[:1400]}\n"
+                f"LATEST_TEAM_FROM: {last_team.get('from', '') if isinstance(last_team, dict) else ''}\n"
+                f"LATEST_TEAM_MESSAGE: {last_team_body[:1000]}\n"
+                f"LATEST_TEAM_NEEDS_INTERNAL_REPLY: {'yes' if needs_internal_reply else 'no'}\n"
+                f"ASSOCIATES_MENTIONED_IN_LATEST_TEAM: {', '.join(associates) if associates else 'none'}"
                 f"{thread_text}"
             )
 
@@ -1838,15 +1921,27 @@ if __name__ == "__main__":
     full_backfill = "--full"    in sys.argv
     dry_run       = "--dry-run" in sys.argv
     repair_identities = "--repair-identities" in sys.argv
+    redraft = "--redraft" in sys.argv
+    redraft_all = "--redraft-all" in sys.argv
+    redraft_limit = 150
     hours = 0
     for arg in sys.argv:
         if arg.startswith("--hours="):
             try: hours = int(arg.split("=")[1])
             except: pass
+        if arg.startswith("--redraft-limit="):
+            try: redraft_limit = int(arg.split("=")[1])
+            except: pass
     incremental   = not full_backfill and hours == 0
 
     if repair_identities:
         result = asyncio.run(repair_card_identities(dry_run=dry_run))
+    elif redraft:
+        result = asyncio.run(redraft_active_cards(
+            limit=redraft_limit,
+            only_missing_variants=not redraft_all,
+            dry_run=dry_run,
+        ))
     else:
         result = asyncio.run(run_pipeline(
             incremental=incremental,

@@ -378,6 +378,7 @@ function setDraftSender(sender) {
   state.draftSender = sender;
   const card = selectedCard();
   if (!card) return;
+  const variant = draftVariant(card, sender);
   const body = draftText(card);
   if ($("reply-body")) $("reply-body").value = body;
   if ($("draft-subject")) $("draft-subject").textContent = draftSubject(card, sender);
@@ -386,7 +387,7 @@ function setDraftSender(sender) {
   });
   const sendButton = document.querySelector("[data-action='send']");
   if (sendButton) sendButton.textContent = `Send as ${draftSenders[sender]}`;
-  setStatus(`Loaded ${draftSenders[sender]}'s draft.`);
+  setStatus(variant ? `Loaded ${draftSenders[sender]}'s draft.` : `No ${draftSenders[sender]} version yet. Showing the default draft.`);
 }
 
 function queueFor(view = state.view) {
