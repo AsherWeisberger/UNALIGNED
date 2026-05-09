@@ -384,6 +384,8 @@ function setDraftSender(sender) {
   document.querySelectorAll("[data-action='draft-sender']").forEach((button) => {
     button.classList.toggle("selected", button.dataset.from === sender);
   });
+  const sendButton = document.querySelector("[data-action='send']");
+  if (sendButton) sendButton.textContent = `Send as ${draftSenders[sender]}`;
   setStatus(`Loaded ${draftSenders[sender]}'s draft.`);
 }
 
@@ -591,9 +593,10 @@ function renderDetail() {
         </div>
         <textarea id="reply-body" rows="18" spellcheck="true" placeholder="Write Robert, Sam, or Asher's reply here...">${html(draft)}</textarea>
         <div class="composer-actions">
-          <button class="tool primary" data-action="send" data-from="robert" type="button">Reply as Robert</button>
-          <button class="tool primary" data-action="send" data-from="sam" type="button">Reply as Sam</button>
-          <button class="tool primary" data-action="send" data-from="asher" type="button">Reply as Asher</button>
+          <button class="tool" data-action="draft-sender" data-from="robert" type="button">Reply as Robert</button>
+          <button class="tool" data-action="draft-sender" data-from="sam" type="button">Reply as Sam</button>
+          <button class="tool" data-action="draft-sender" data-from="asher" type="button">Reply as Asher</button>
+          <button class="tool primary" data-action="send" type="button">Send as ${html(draftSenders[state.draftSender])}</button>
           <button class="tool" data-action="copy" type="button">Copy</button>
           ${gmail ? `<a class="tool" href="${html(gmail)}" target="_blank" rel="noreferrer">Open thread</a>` : ""}
           <button class="tool" data-action="stage" data-stage="rates-sent" type="button">Rates sent</button>
@@ -638,14 +641,14 @@ async function handleAction(action, stage, from) {
     renderInbox();
   }
   if (action === "send") {
-    await sendReply(card, from);
+    await sendReply(card);
   }
   if (action === "draft-sender") {
     setDraftSender(from);
   }
 }
 
-async function sendReply(card, from = "robert") {
+async function sendReply(card) {
   const token = localStorage.getItem("unaligned_send_token") || "";
   if (!token) {
     setStatus("Sending needs an admin token. Draft can still be copied or opened in Gmail.");
@@ -656,13 +659,8 @@ async function sendReply(card, from = "robert") {
     setStatus("Write a reply first.");
     return;
   }
-  const sender = ["sam", "asher"].includes(from) ? from : "robert";
+  const sender = ["sam", "asher"].includes(state.draftSender) ? state.draftSender : "robert";
   const senderName = ({ sam: "Sam", asher: "Asher", robert: "Robert" })[sender];
-  if (sender !== state.draftSender && draftVariant(card, sender)) {
-    setDraftSender(sender);
-    setStatus(`Loaded ${senderName}'s draft. Review it, then send.`);
-    return;
-  }
   setStatus(`Sending as ${senderName}...`);
   const resp = await fetch(SEND_EMAIL_URL, {
     method: "POST",
