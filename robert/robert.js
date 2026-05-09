@@ -24,6 +24,7 @@ const stageLabels = {
   "paid-out": "Paid",
   done: "Done",
   "dead-leads": "Not needed",
+  trash: "Trash",
   new: "New"
 };
 
@@ -35,6 +36,7 @@ const views = {
   money: ["Money", "Revenue threads"],
   tomorrow: ["Tomorrow", "Follow-ups to schedule"],
   cleanup: ["Cleanup", "Cards with bad data"],
+  trash: ["Trash", "Recover or delete forever"],
   closed: ["Closed", "Done and not needed"],
   all: ["All leads", "Every lead card"]
 };
@@ -474,7 +476,9 @@ function setDraftSender(sender) {
 }
 
 function queueFor(view = state.view) {
-  let cards = [...state.cards];
+  let cards = view === "trash"
+    ? state.cards.filter((card) => card.stage === "trash")
+    : state.cards.filter((card) => card.stage !== "trash");
   if (view === "reply") cards = cards.filter(needsReply);
   if (view === "sent") cards = cards.filter(outboundWaiting);
   if (view === "money") cards = cards.filter((card) => moneyStage(card) && active(card));
@@ -483,7 +487,7 @@ function queueFor(view = state.view) {
   if (view === "tomorrow") cards = cards.filter(tomorrowWork);
   if (view === "cleanup") cards = cards.filter((card) => healthFlags(card).length > 0);
   if (view === "today") cards = sortCards(cards.filter(todayWork)).slice(0, todayLimit);
-  if (view === "all") cards = [...state.cards];
+  if (view === "all") cards = state.cards.filter((card) => card.stage !== "trash");
 
   if (state.search) {
     const q = state.search.toLowerCase();
@@ -511,8 +515,9 @@ function renderCounts() {
     today: queueFor("today").length,
     sent: state.cards.filter(outboundWaiting).length,
     money: state.cards.filter((card) => moneyStage(card) && active(card)).length,
-    cleanup: state.cards.filter((card) => healthFlags(card).length > 0).length,
-    all: state.cards.length
+    cleanup: state.cards.filter((card) => card.stage !== "trash" && healthFlags(card).length > 0).length,
+    trash: state.cards.filter((card) => card.stage === "trash").length,
+    all: state.cards.filter((card) => card.stage !== "trash").length
   };
   Object.entries(counts).forEach(([key, value]) => {
     const el = $(`count-${key}`);
@@ -599,23 +604,45 @@ function renderDetail() {
   const draft = draftText(card);
   const subject = draftSubject(card);
   const gmail = gmailUrl(card);
+  const trashed = card.stage === "trash";
   $("detail").innerHTML = `
     <div class="thread-inner">
       <div class="thread-toolbar">
-        <div class="tool-group">
-          <button class="tool" data-action="stage" data-stage="first-touch" type="button">First touch</button>
-          <button class="tool" data-action="stage" data-stage="done" type="button">Archive</button>
-          <button class="tool" data-action="stage" data-stage="dead-leads" type="button">Not needed</button>
-          <button class="tool" data-action="stage" data-stage="engaged" type="button">Engaged</button>
-          <button class="tool" data-action="stage" data-stage="rates-sent" type="button">Rates sent</button>
-          <button class="tool" data-action="stage" data-stage="negotiating" type="button">Negotiating</button>
-          <button class="tool" data-action="stage" data-stage="invoice-sent" type="button">Invoice</button>
-        </div>
-        <div class="tool-group">
-          ${gmail ? `<a class="tool" href="${html(gmail)}" target="_blank" rel="noreferrer">Open Gmail</a>` : ""}
-          <button class="tool" data-action="copy" type="button">Copy draft</button>
-        </div>
+        ${trashed ? `
+          <div class="tool-group">
+            <button class="tool" data-action="stage" data-stage="first-touch" type="button">Restore to Inbox</button>
+            <button class="tool" data-action="stage" data-stage="engaged" type="button">Restore to Engaged</button>
+            <button class="tool" data-action="stage" data-stage="rates-sent" type="button">Restore to Rates</button>
+            <button class="tool" data-action="stage" data-stage="negotiating" type="button">Restore to Negotiating</button>
+            <button class="tool" data-action="stage" data-stage="invoice-sent" type="button">Restore to Invoice</button>
+          </div>
+          <div class="tool-group">
+            <button class="tool danger" data-action="permanent-delete" type="button">Delete forever</button>
+          </div>
+        ` : `
+          <div class="tool-group">
+            <button class="tool" data-action="stage" data-stage="first-touch" type="button">First touch</button>
+            <button class="tool" data-action="stage" data-stage="done" type="button">Archive</button>
+            <button class="tool" data-action="stage" data-stage="dead-leads" type="button">Not needed</button>
+            <button class="tool" data-action="stage" data-stage="engaged" type="button">Engaged</button>
+            <button class="tool" data-action="stage" data-stage="rates-sent" type="button">Rates sent</button>
+            <button class="tool" data-action="stage" data-stage="negotiating" type="button">Negotiating</button>
+            <button class="tool" data-action="stage" data-stage="invoice-sent" type="button">Invoice</button>
+          </div>
+          <div class="tool-group">
+            ${gmail ? `<a class="tool" href="${html(gmail)}" target="_blank" rel="noreferrer">Open Gmail</a>` : ""}
+            <button class="tool" data-action="copy" type="button">Copy draft</button>
+            <button class="tool danger icon-danger" data-action="trash" type="button" aria-label="Move lead to trash">×</button>
+          </div>
+        `}
       </div>
+
+      ${trashed ? `
+        <section class="trash-notice">
+          <strong>This lead is in Trash.</strong>
+          <span>Restore it to a working inbox above, or delete it forever.</span>
+        </section>
+      ` : ""}
 
       <section class="thread-title">
         <h2>${html(subject)}</h2>
@@ -662,7 +689,7 @@ function renderDetail() {
         `).join("")}
       </section>
 
-      <section class="composer">
+      ${trashed ? "" : `<section class="composer">
         <div class="composer-head">
           <div class="composer-title">
             <strong>Reply</strong>
@@ -680,7 +707,7 @@ function renderDetail() {
           <button class="tool primary" data-action="send" type="button">Send as ${html(draftSenders[state.draftSender])}</button>
           <button class="tool" data-action="copy" type="button">Copy</button>
         </div>
-      </section>
+      </section>`}
     </div>
   `;
 
@@ -703,6 +730,35 @@ function setStatus(message) {
 async function handleAction(action, stage, from) {
   const card = selectedCard();
   if (!card) return;
+  if (action === "trash") {
+    if (!confirm("Move this lead to Trash?")) return;
+    setStatus("Moving to Trash...");
+    const { error } = await supabase.from("cards").update({ list_id: "trash" }).eq("id", card.id);
+    if (error) {
+      setStatus(`Trash failed: ${error.message}`);
+      return;
+    }
+    card.stage = "trash";
+    state.selectedId = null;
+    setStatus("Moved to Trash.");
+    renderCounts();
+    renderInbox();
+    return;
+  }
+  if (action === "permanent-delete") {
+    if (!confirm("Delete this lead forever? This cannot be undone.")) return;
+    const deletedId = card.id;
+    const { error } = await supabase.from("cards").delete().eq("id", deletedId);
+    if (error) {
+      setStatus(`Permanent delete failed: ${error.message}`);
+      return;
+    }
+    state.cards = state.cards.filter((item) => item.id !== deletedId);
+    state.selectedId = null;
+    renderCounts();
+    renderInbox();
+    return;
+  }
   if (action === "copy") {
     const body = ensureSenderSignature($("reply-body")?.value || draftText(card) || "", state.draftSender);
     await navigator.clipboard.writeText(body);
@@ -712,15 +768,18 @@ async function handleAction(action, stage, from) {
   }
   if (action === "stage" && stage) {
     setStatus("Updating stage...");
+    const wasTrash = card.stage === "trash";
     const { error } = await supabase.from("cards").update({ list_id: stage }).eq("id", card.id);
     if (error) {
       setStatus(`Stage update failed: ${error.message}`);
       return;
     }
     card.stage = stage;
+    if (wasTrash) state.view = moneyStage(card) ? "money" : "today";
     setStatus(`Moved to ${stageLabels[stage] || stage}.`);
     renderCounts();
     renderInbox();
+    return;
   }
   if (action === "send") {
     await sendReply(card);

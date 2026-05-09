@@ -497,12 +497,48 @@ button, a { -webkit-tap-highlight-color: transparent; }
   color: white;
 }
 
+.tool.danger {
+  border-color: rgba(217, 48, 37, 0.28);
+  background: #fff5f4;
+  color: var(--red);
+  font-weight: 800;
+}
+
+.tool.icon-danger {
+  min-width: 34px;
+  justify-content: center;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+}
+
 .tool:hover {
   box-shadow: var(--shadow);
 }
 
 .thread-title {
   margin: 22px 0 14px;
+}
+
+.trash-notice {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 18px 0 14px;
+  border: 1px solid rgba(217, 48, 37, 0.22);
+  border-radius: 8px;
+  background: #fff5f4;
+  color: #3c4043;
+  padding: 12px 14px;
+}
+
+.trash-notice strong {
+  color: var(--red);
+}
+
+.trash-notice span {
+  color: var(--muted);
 }
 
 .thread-title h2 {
