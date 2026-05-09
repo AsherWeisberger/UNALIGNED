@@ -40,6 +40,7 @@ const views = {
 };
 
 const draftSenders = { robert: "Robert", sam: "Sam", asher: "Asher" };
+const dailyUpdateKey = `unaligned_daily_update_${now.toISOString().slice(0, 10)}`;
 
 const welcomeDone = [
   "This page is a Gmail-style command center for Robert's lead flow, not a generic Kanban board.",
@@ -102,6 +103,12 @@ function daysSince(value) {
   const d = parseDate(value);
   if (!d) return 999;
   return Math.max(0, Math.floor((now - d) / 86400000));
+}
+
+function daysUntil(value) {
+  const d = parseDate(value);
+  if (!d) return null;
+  return Math.ceil((d - now) / 86400000);
 }
 
 const blockedLeadNames = /^(a|an|and|as|attached|best|business|collaboration|dear|excited|founder|hello|hey|hi|i|me|my|please|quote|reply|requesting|robert|sam|asher|scoble|unaligned|we|what|you|your)$/i;
@@ -349,6 +356,38 @@ function nextMove(card) {
   if (staleActive(card)) return "Revive once or move out of active pipeline.";
   if (card.stage === "rates-sent") return "Follow up once, then archive if there is no signal.";
   return "Clean the card and choose the next action.";
+}
+
+function dealText(card) {
+  return [
+    card.title,
+    card.contact,
+    card.company,
+    card.intent,
+    card.value,
+    card.description,
+    ...card.thread.map((message) => [message.subject, message.body].filter(Boolean).join(" "))
+  ].join(" ");
+}
+
+function mentionedDealDate(card) {
+  if (card.dueDate) {
+    const days = daysUntil(card.dueDate);
+    if (days !== null && days >= -2 && days <= 30) return { label: shortDate(card.dueDate), days, source: "Due" };
+  }
+  const blob = dealText(card);
+  const match = blob.match(/\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+([0-3]?\d)(?:st|nd|rd|th)?\b/i);
+  if (!match) return null;
+  const parsed = parseDate(`${match[1]} ${match[2]}, ${now.getFullYear()}`);
+  if (!parsed) return null;
+  const days = daysUntil(parsed);
+  if (days === null || days < -2 || days > 30) return null;
+  return { label: shortDate(parsed), days, source: "Date mentioned" };
+}
+
+function collaborationSignal(card) {
+  const blob = dealText(card).toLowerCase();
+  return /(campaign|collab|collaboration|partnership|sponsor|sponsorship|quote|repost|retweet|invoice|paid|payment|rate|tier|post|posting|launch|event|interview|keynote|demo)/.test(blob);
 }
 
 function defaultSubject(card) {
@@ -708,13 +747,24 @@ async function loadCards() {
   renderCounts();
   renderWelcome();
   renderInbox();
+  maybeOpenDailyUpdate();
 }
 
 function closeWelcome() {
   $("welcome-overlay")?.classList.add("hidden");
 }
 
-function funnelAction(card) {
+function openDailyUpdate(markSeen = false) {
+  renderWelcome();
+  $("welcome-overlay")?.classList.remove("hidden");
+  if (markSeen) localStorage.setItem(dailyUpdateKey, "seen");
+}
+
+function maybeOpenDailyUpdate() {
+  if (!localStorage.getItem(dailyUpdateKey)) openDailyUpdate(true);
+}
+
+function dailyAction(card) {
   if (externalWaiting(card)) return "Reply now";
   if (hasDraftReady(card)) return "Review draft";
   if (card.stage === "invoice-sent") return "Confirm payment";
@@ -724,18 +774,48 @@ function funnelAction(card) {
   return "Review";
 }
 
-function funnelItems() {
+function dailyReason(card) {
+  const date = mentionedDealDate(card);
+  if (date && date.days !== null && date.days <= 3) {
+    if (date.days < 0) return `${date.source} passed ${Math.abs(date.days)} day${Math.abs(date.days) === 1 ? "" : "s"} ago. ${nextMove(card)}`;
+    if (date.days === 0) return `${date.source} is today. ${nextMove(card)}`;
+    return `${date.source} is in ${date.days} day${date.days === 1 ? "" : "s"}. ${nextMove(card)}`;
+  }
+  return nextMove(card);
+}
+
+function dailyItems() {
   return state.cards
     .filter((card) => active(card))
     .map((card) => {
-      let score = urgency(card);
-      if (moneyStage(card)) score += 160;
-      if (healthFlags(card).length) score += 80;
-      if (daysSince(lastTouchDate(card)) >= 5) score += 70;
-      return { card, score };
+      const date = mentionedDealDate(card);
+      const age = daysSince(lastTouchDate(card));
+      const inMotion = ["engaged", "rates-sent", "negotiating", "invoice-sent"].includes(card.stage);
+      let score = 0;
+      if (externalWaiting(card)) score += age <= 1 ? 1000 : age <= 3 ? 900 : age <= 7 ? 760 : 420;
+      if (hasDraftReady(card)) score += age <= 1 ? 900 : age <= 3 ? 760 : 520;
+      if (date && date.days !== null && date.days <= 3) score += 860;
+      if (card.stage === "invoice-sent") score += age <= 14 ? 560 : 260;
+      if (card.stage === "negotiating") score += age <= 14 ? 520 : 240;
+      if (card.stage === "rates-sent") score += age <= 10 ? 460 : 180;
+      if (moneyStage(card)) score += 180;
+      if (inMotion && collaborationSignal(card)) score += 220;
+      if (age >= 2 && ["rates-sent", "negotiating", "invoice-sent"].includes(card.stage)) score += 140;
+      if (healthFlags(card).includes("Missing email")) score += 80;
+      if (card.priority === "hot") score += 120;
+      if (age > 30) score -= 280;
+      if (age > 60) score -= 420;
+      const shouldShow = externalWaiting(card)
+        || hasDraftReady(card)
+        || (moneyStage(card) && age <= 30)
+        || (inMotion && collaborationSignal(card))
+        || (date && date.days !== null && date.days <= 3)
+        || (card.stage === "first-touch" && age <= 1);
+      return { card, score, shouldShow };
     })
+    .filter((item) => item.shouldShow)
     .sort((a, b) => b.score - a.score)
-    .slice(0, 5)
+    .slice(0, 8)
     .map(({ card }) => card);
 }
 
@@ -745,21 +825,22 @@ function renderWelcome() {
   if (!doneList || !funnelList) return;
 
   doneList.innerHTML = welcomeDone.map((item) => `<li>${html(item)}</li>`).join("");
-  const leads = funnelItems();
+  const leads = dailyItems();
   funnelList.innerHTML = leads.length ? leads.map((card) => {
     const flags = healthFlags(card);
+    const date = mentionedDealDate(card);
     return `
       <article class="funnel-item" data-lead-id="${card.id}">
         <div class="funnel-copy">
-          <span>${html(funnelAction(card))}</span>
+          <span>${html(dailyAction(card))}</span>
           <strong>${html(card.contact)} · ${html(card.company)}</strong>
-          <p>${html(why(card))}</p>
-          ${flags.length ? `<small>${html(flags.join(" / "))}</small>` : ""}
+          <p>${html(dailyReason(card))}</p>
+          <small>${html(stageLabels[card.stage] || card.stage)} · Last touch ${html(shortDate(lastTouchDate(card)))}${date ? ` · ${html(date.label)}` : ""}${flags.length ? ` · ${html(flags.join(" / "))}` : ""}</small>
         </div>
         <button class="tool primary" data-open-lead="${card.id}" type="button">Open</button>
       </article>
     `;
-  }).join("") : `<div class="funnel-empty"><strong>No urgent lead work found.</strong><span>Open All leads to review the full board.</span></div>`;
+  }).join("") : `<div class="funnel-empty"><strong>No urgent deal work found.</strong><span>Open Money or All leads to review the full board.</span></div>`;
 
   funnelList.querySelectorAll("[data-open-lead]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -792,9 +873,9 @@ $("search").addEventListener("input", (event) => {
 });
 
 $("refresh-btn").addEventListener("click", loadCards);
+$("daily-update-btn")?.addEventListener("click", () => openDailyUpdate(false));
 $("compose-btn").addEventListener("click", () => $("reply-body")?.focus());
 $("welcome-close")?.addEventListener("click", closeWelcome);
 $("welcome-start")?.addEventListener("click", closeWelcome);
 $("welcome-refresh")?.addEventListener("click", loadCards);
-renderWelcome();
 loadCards();
