@@ -848,6 +848,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .welcome-panel.daily-mode #about-section,
 .welcome-panel.about-mode #daily-section,
+.welcome-grid [hidden],
 .welcome-actions .hidden {
   display: none;
 }

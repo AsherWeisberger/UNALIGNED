@@ -756,9 +756,13 @@ function closeWelcome() {
 
 function openModal(mode, markSeen = false) {
   const daily = mode !== "about";
+  const aboutSection = $("about-section");
+  const dailySection = $("daily-section");
   $("welcome-title").textContent = daily ? "Daily Update" : "About";
   $("welcome-panel")?.classList.toggle("daily-mode", daily);
   $("welcome-panel")?.classList.toggle("about-mode", !daily);
+  if (aboutSection) aboutSection.hidden = daily;
+  if (dailySection) dailySection.hidden = !daily;
   $("welcome-refresh")?.classList.toggle("hidden", !daily);
   renderWelcome();
   $("welcome-overlay")?.classList.remove("hidden");
