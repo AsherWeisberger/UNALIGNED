@@ -633,14 +633,8 @@ function renderDetail() {
         </div>
         <textarea id="reply-body" rows="18" spellcheck="true" placeholder="Write Robert, Sam, or Asher's reply here...">${html(draft)}</textarea>
         <div class="composer-actions">
-          <button class="tool" data-action="draft-sender" data-from="robert" type="button">Reply as Robert</button>
-          <button class="tool" data-action="draft-sender" data-from="sam" type="button">Reply as Sam</button>
-          <button class="tool" data-action="draft-sender" data-from="asher" type="button">Reply as Asher</button>
           <button class="tool primary" data-action="send" type="button">Send as ${html(draftSenders[state.draftSender])}</button>
           <button class="tool" data-action="copy" type="button">Copy</button>
-          ${gmail ? `<a class="tool" href="${html(gmail)}" target="_blank" rel="noreferrer">Open thread</a>` : ""}
-          <button class="tool" data-action="stage" data-stage="rates-sent" type="button">Rates sent</button>
-          <button class="tool" data-action="stage" data-stage="paid-out" type="button">Paid</button>
         </div>
       </section>
     </div>
