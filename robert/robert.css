@@ -666,8 +666,32 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 .composer {
   margin-top: 18px;
+  position: relative;
   overflow: hidden;
-  box-shadow: 0 10px 34px rgba(60, 64, 67, 0.10);
+  border-color: rgba(32, 33, 36, 0.34);
+  box-shadow:
+    0 22px 56px rgba(32, 33, 36, 0.18),
+    0 0 0 1px rgba(26, 115, 232, 0.14),
+    0 0 34px rgba(26, 115, 232, 0.18);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.composer:focus-within {
+  border-color: rgba(32, 33, 36, 0.62);
+  box-shadow:
+    0 28px 72px rgba(32, 33, 36, 0.22),
+    0 0 0 2px rgba(26, 115, 232, 0.28),
+    0 0 46px rgba(26, 115, 232, 0.30);
+  transform: translateY(-1px);
+}
+
+.composer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.72);
 }
 
 .composer-head {
@@ -742,7 +766,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
   line-height: 1.62;
   color: var(--ink);
   font: 15px/1.62 var(--font);
-  background: #fff;
+  background:
+    linear-gradient(180deg, rgba(232, 240, 254, 0.32), rgba(255, 255, 255, 0) 90px),
+    #fff;
 }
 
 .composer-actions {
