@@ -40,6 +40,25 @@ const views = {
 };
 
 const draftSenders = { robert: "Robert", sam: "Sam", asher: "Asher" };
+const senderSignatures = {
+  robert: `Robert Scoble
+Founder, Unaligned (media company about how AI is bringing us new things)
+Mobile: +1-425-205-1921
+X: https://x.com/scobleizer
+Web: https://unaligned.io
+This message copyright the sender. All rights reserved.`,
+  sam: `Sam Levin
+Unaligned
++1-415-827-3870
+https://unaligned.io
+https://x.com/samlevin
+linkedin.com/in/samlevin/`,
+  asher: `Asher Weisberger
+Client Services Manager
+Unaligned
+asherunaligned@gmail.com
+unaligned.io | x.com/unalignedx`
+};
 const dailyUpdateKey = `unaligned_daily_update_${now.toISOString().slice(0, 10)}`;
 
 const welcomeDone = [
@@ -400,11 +419,35 @@ function draftVariant(card, sender = state.draftSender) {
   return card.draft.variants?.[sender] || card.draft[sender] || null;
 }
 
-function draftText(card) {
-  const variant = draftVariant(card);
-  if (variant) return text(variant.body || variant.text || variant.message);
-  if (card.draft && typeof card.draft === "object") return text(card.draft.body || card.draft.text || card.draft.message);
-  return text(card.draft);
+function hasSenderSignature(body, sender = state.draftSender) {
+  const signature = senderSignatures[sender];
+  if (!signature) return true;
+  const marker = signature.split("\n")[0];
+  return text(body).includes(marker);
+}
+
+function ensureSenderSignature(body, sender = state.draftSender) {
+  const clean = text(body);
+  const signature = senderSignatures[sender];
+  if (!clean || !signature || hasSenderSignature(clean, sender)) return clean;
+  return `${clean.replace(/\s+$/, "")}\n\n${signature}`;
+}
+
+function draftText(card, sender = state.draftSender) {
+  const variant = draftVariant(card, sender);
+  let body = "";
+  if (variant) body = text(variant.body || variant.text || variant.message);
+  else if (card.draft && typeof card.draft === "object") body = text(card.draft.body || card.draft.text || card.draft.message);
+  else body = text(card.draft);
+  return ensureSenderSignature(body, sender);
+}
+
+function autoSizeReplyBox() {
+  const box = $("reply-body");
+  if (!box) return;
+  box.style.height = "auto";
+  const next = Math.min(Math.max(box.scrollHeight + 2, 180), Math.floor(window.innerHeight * 0.72));
+  box.style.height = `${next}px`;
 }
 
 function draftSubject(card, sender = state.draftSender) {
@@ -418,8 +461,9 @@ function setDraftSender(sender) {
   const card = selectedCard();
   if (!card) return;
   const variant = draftVariant(card, sender);
-  const body = draftText(card);
+  const body = draftText(card, sender);
   if ($("reply-body")) $("reply-body").value = body;
+  autoSizeReplyBox();
   if ($("draft-subject")) $("draft-subject").textContent = draftSubject(card, sender);
   document.querySelectorAll("[data-action='draft-sender']").forEach((button) => {
     button.classList.toggle("selected", button.dataset.from === sender);
@@ -643,6 +687,8 @@ function renderDetail() {
   $("detail").querySelectorAll("[data-action]").forEach((button) => {
     button.addEventListener("click", () => handleAction(button.dataset.action, button.dataset.stage, button.dataset.from));
   });
+  $("reply-body")?.addEventListener("input", autoSizeReplyBox);
+  autoSizeReplyBox();
 }
 
 function selectedCard() {
@@ -658,8 +704,10 @@ async function handleAction(action, stage, from) {
   const card = selectedCard();
   if (!card) return;
   if (action === "copy") {
-    const body = $("reply-body")?.value || draftText(card) || "";
+    const body = ensureSenderSignature($("reply-body")?.value || draftText(card) || "", state.draftSender);
     await navigator.clipboard.writeText(body);
+    if ($("reply-body")) $("reply-body").value = body;
+    autoSizeReplyBox();
     setStatus("Copied.");
   }
   if (action === "stage" && stage) {
@@ -688,11 +736,13 @@ async function sendReply(card) {
     setStatus("Sending needs an admin token. Draft can still be copied or opened in Gmail.");
     return;
   }
-  const body = $("reply-body")?.value.trim() || "";
+  const body = ensureSenderSignature($("reply-body")?.value.trim() || "", state.draftSender);
   if (!body) {
     setStatus("Write a reply first.");
     return;
   }
+  if ($("reply-body")) $("reply-body").value = body;
+  autoSizeReplyBox();
   const sender = ["sam", "asher"].includes(state.draftSender) ? state.draftSender : "robert";
   const senderName = ({ sam: "Sam", asher: "Asher", robert: "Robert" })[sender];
   setStatus(`Sending as ${senderName}...`);
