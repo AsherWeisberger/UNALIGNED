@@ -754,10 +754,23 @@ function closeWelcome() {
   $("welcome-overlay")?.classList.add("hidden");
 }
 
-function openDailyUpdate(markSeen = false) {
+function openModal(mode, markSeen = false) {
+  const daily = mode !== "about";
+  $("welcome-title").textContent = daily ? "Daily Update" : "About";
+  $("welcome-panel")?.classList.toggle("daily-mode", daily);
+  $("welcome-panel")?.classList.toggle("about-mode", !daily);
+  $("welcome-refresh")?.classList.toggle("hidden", !daily);
   renderWelcome();
   $("welcome-overlay")?.classList.remove("hidden");
-  if (markSeen) localStorage.setItem(dailyUpdateKey, "seen");
+  if (daily && markSeen) localStorage.setItem(dailyUpdateKey, "seen");
+}
+
+function openDailyUpdate(markSeen = false) {
+  openModal("daily", markSeen);
+}
+
+function openAbout() {
+  openModal("about", false);
 }
 
 function maybeOpenDailyUpdate() {
@@ -873,6 +886,7 @@ $("search").addEventListener("input", (event) => {
 });
 
 $("refresh-btn").addEventListener("click", loadCards);
+$("about-btn")?.addEventListener("click", openAbout);
 $("daily-update-btn")?.addEventListener("click", () => openDailyUpdate(false));
 $("compose-btn").addEventListener("click", () => $("reply-body")?.focus());
 $("welcome-close")?.addEventListener("click", closeWelcome);

@@ -22,6 +22,7 @@
         <nav class="top-actions">
           <a href="robert/pitch/">Brief</a>
           <a href="./">Board</a>
+          <button id="about-btn" type="button">About</button>
           <button id="daily-update-btn" type="button">Daily Update</button>
           <button id="refresh-btn" type="button">Refresh</button>
         </nav>
@@ -70,7 +71,7 @@
       </section>
     </main>
     <section class="welcome-overlay hidden" id="welcome-overlay" aria-labelledby="welcome-title" role="dialog" aria-modal="true">
-      <div class="welcome-panel">
+      <div class="welcome-panel daily-mode" id="welcome-panel">
         <div class="welcome-head">
           <div>
             <p>UNALIGNED Lead Mail</p>
@@ -79,11 +80,11 @@
           <button class="welcome-close" id="welcome-close" type="button" aria-label="Close welcome brief">×</button>
         </div>
         <div class="welcome-grid">
-          <section>
+          <section id="about-section">
             <h3>About</h3>
             <ul id="done-list" class="brief-list"></ul>
           </section>
-          <section>
+          <section id="daily-section">
             <h3>Needs Attention</h3>
             <div id="funnel-list" class="funnel-list"></div>
           </section>

@@ -837,6 +837,21 @@ button, a { -webkit-tap-highlight-color: transparent; }
   padding: 22px 26px;
 }
 
+.welcome-panel.daily-mode {
+  width: min(760px, 100%);
+}
+
+.welcome-panel.daily-mode .welcome-grid,
+.welcome-panel.about-mode .welcome-grid {
+  grid-template-columns: 1fr;
+}
+
+.welcome-panel.daily-mode #about-section,
+.welcome-panel.about-mode #daily-section,
+.welcome-actions .hidden {
+  display: none;
+}
+
 .welcome-grid h3 {
   margin: 0 0 12px;
   font-size: 14px;
