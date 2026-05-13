@@ -832,7 +832,32 @@
         .ask-hubble-main-btn:hover { opacity:0.85; }
 
         /* ─── MAIN ───────────────────────────────────────── */
-        main { flex:1;overflow:hidden;display:flex;flex-direction:column; }
+        main { flex:1;overflow:hidden;display:flex;flex-direction:row; }
+        #main-content-col { flex:1;overflow:hidden;display:flex;flex-direction:column; }
+
+        /* ─── PERSON RAIL ────────────────────────────────── */
+        #person-rail {
+            width:72px;flex-shrink:0;background:var(--surface);
+            border-right:1px solid var(--border);
+            display:flex;flex-direction:column;align-items:center;
+            padding:14px 0;gap:4px;
+        }
+        .prail-btn {
+            display:flex;flex-direction:column;align-items:center;gap:4px;
+            cursor:pointer;padding:8px 4px;border-radius:8px;
+            border:none;background:none;color:var(--muted);
+            font-size:10px;font-family:var(--font);width:60px;
+            transition:background 120ms,color 120ms;
+        }
+        .prail-btn:hover { background:var(--surface2);color:var(--text); }
+        .prail-btn.active { background:var(--surface2);color:var(--text); }
+        .prail-av {
+            width:34px;height:34px;border-radius:50%;
+            display:flex;align-items:center;justify-content:center;
+            font-size:12px;font-weight:700;color:#fff;transition:box-shadow 120ms;
+        }
+        .prail-btn.active .prail-av { box-shadow:0 0 0 2px var(--accent); }
+        .prail-sep { width:32px;height:1px;background:var(--border);margin:6px 0;flex-shrink:0; }
 
         .main-scroll {
             flex:1;overflow-y:auto;overflow-x:hidden;
@@ -1732,6 +1757,7 @@
 
         /* ─── PHONE (≤640px) ─────────────────────────────── */
         @media (max-width:640px) {
+            #person-rail { display:none !important; }
             header { padding:max(56px,env(safe-area-inset-top,56px)) 14px 8px;flex-wrap:nowrap;gap:8px;min-height:0;height:auto; }
             #header-logo-slot { display:flex !important;flex-shrink:0; }
             .header-wordmark { font-size:12px; }
@@ -2301,6 +2327,27 @@
         </div>
 
         <main>
+            <!-- ─── PERSON RAIL ────────────────────────── -->
+            <div id="person-rail">
+                <button class="prail-btn active" id="prail-all" onclick="setPersonFilter('all')" title="All leads">
+                    <div class="prail-av" style="background:var(--surface2);border:1px solid var(--border);font-size:15px;">⊞</div>
+                    <span>All</span>
+                </button>
+                <div class="prail-sep"></div>
+                <button class="prail-btn" id="prail-asher" onclick="setPersonFilter('Asher W')" title="Asher's leads">
+                    <div class="prail-av" style="background:linear-gradient(135deg,#4facfe,#00f2fe);">AW</div>
+                    <span>Asher</span>
+                </button>
+                <button class="prail-btn" id="prail-robert" onclick="setPersonFilter('Robert S')" title="Robert's leads">
+                    <div class="prail-av" style="background:linear-gradient(135deg,#f5576c,#f093fb);">RS</div>
+                    <span>Robert</span>
+                </button>
+                <button class="prail-btn" id="prail-sam" onclick="setPersonFilter('Sam L')" title="Sam's leads">
+                    <div class="prail-av" style="background:linear-gradient(135deg,#764ba2,#667eea);">SL</div>
+                    <span>Sam</span>
+                </button>
+            </div>
+            <div id="main-content-col">
             <div class="main-scroll">
                 <!-- Mobile-only filter/tools bar -->
                 <div id="mobile-filter-bar" style="display:none;">
@@ -2469,6 +2516,7 @@
                   </table>
                 </div>
             </div>
+            </div><!-- /#main-content-col -->
         </main>
     </div>
 
@@ -5176,6 +5224,18 @@ function applyFilters() {
 }
 window.applyFilters = applyFilters;
 window.filters = filters;
+
+function setPersonFilter(name) {
+    filters.assignee = (name === 'all') ? 'all' : name;
+    const assigneeEl = document.getElementById('filter-assignee');
+    if (assigneeEl) assigneeEl.value = filters.assignee;
+    document.querySelectorAll('.prail-btn').forEach(b => b.classList.remove('active'));
+    const idMap = { 'all':'prail-all', 'Asher W':'prail-asher', 'Robert S':'prail-robert', 'Sam L':'prail-sam' };
+    const btn = document.getElementById(idMap[name] || 'prail-all');
+    if (btn) btn.classList.add('active');
+    applyFilters();
+}
+window.setPersonFilter = setPersonFilter;
 
 // ── Pipeline / Network toggle ───────────────────────────────
 window._dealTypeFilter = 'all'; // always start on All
