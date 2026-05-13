@@ -3002,6 +3002,10 @@ function attemptLogin() {
         window.currentInitials = selectedUser.initials;
         document.getElementById('current-avatar').textContent = currentInitials;
         document.getElementById('current-profile-name').textContent = currentUser;
+        // Auto-filter to logged-in user's leads on login
+        filters.assignee = selectedUser.name;
+        const assigneeEl = document.getElementById('filter-assignee');
+        if (assigneeEl) assigneeEl.value = selectedUser.name;
         loadState();
     } else {
         document.getElementById('login-error').textContent = 'Incorrect password';
