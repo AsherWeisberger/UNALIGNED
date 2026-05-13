@@ -1,0 +1,81 @@
+# Cleanup Audit
+
+This is the current "what matters / what duplicates / what looks legacy" pass for the repo.
+
+## Important now
+
+- `aligned.html`
+  - current ALIGNED GitHub Pages app
+- `index.html`
+  - redirect into `aligned.html`
+- `code/index.html`
+  - older board app and the best reference for legacy data logic
+- `scraper_v4.py`
+  - canonical scraper
+- `daily_pipeline.py`
+  - canonical pipeline runner
+- `scripts/active/daily_gmail_sync.py`
+  - canonical reply sync
+
+## Verified identical duplicates
+
+- `deploy.sh`
+- `code/deploy.sh`
+
+- `firebase.json`
+- `code/firebase.json`
+
+- `assets/docs/EMAIL.rtf`
+- `code/assets/docs/EMAIL.rtf`
+
+- `assets/docs/Unaligned_Partnership_2026.pdf`
+- `code/assets/docs/Unaligned_Partnership_2026.pdf`
+
+- `Unaligned_Partnership_Packages.pdf`
+- `docs/Unaligned_Partnership_Packages.pdf`
+- `code/assets/Unaligned_Partnership_Packages.pdf`
+
+- `unaligned_logo.png`
+- `code/assets/unaligned_logo.png`
+
+## Verified same-name but not the same role
+
+- `scraper_v4.py`
+  - real scraper
+- `code/scripts/scraper_v4.py`
+  - retired stub that tells you to run the root scraper
+
+- `daily_pipeline.py`
+  - current root version
+- `code/scripts/daily_pipeline.py`
+  - older / alternate copy
+
+- `scripts/active/daily_gmail_sync.py`
+  - current active version
+- `code/scripts/daily_gmail_sync.py`
+  - older / alternate copy
+
+- `index.html`
+  - current redirect page
+- `code/index.html`
+  - older all-in-one app
+
+## Likely legacy / experimental
+
+- `indexx.html`
+  - looks like an older experimental board page
+- `scripts_unique/`
+  - appears to be one-off older scraper work
+- many root-level old helper scripts that are already deleted from git status
+  - probably migration / backfill history rather than current runtime
+
+## Safe cleanup already done
+
+- removed stray `.DS_Store` files
+- added a top-level `.gitignore` for local auth, caches, logs, and dependency noise
+- added a clearer top-level repo map in `README.md`
+
+## Intentionally preserved
+
+I did not mass-delete older tracked files or all duplicate copies yet.
+That would be a larger archival cleanup, and it is safer to do that as a separate pass once you are comfortable with the canonical map above.
