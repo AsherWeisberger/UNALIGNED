@@ -50,6 +50,12 @@ GitHub Pages is publishing from the `AI-DESIGN` branch.
   - local auth tokens and client secrets
 - `data/`
   - backups and exported lead data
+- `archive/`
+  - old experiments and moved clutter that should not sit in the root
+- `scripts/tools/`
+  - utility scripts that are useful but not part of the live app/runtime
+- `scripts/experiments/`
+  - newer or alternate pipeline experiments not currently treated as canonical
 
 ## Current source-of-truth rule
 
@@ -71,6 +77,16 @@ Some files exist in more than one place on purpose or because the repo evolved o
   - `daily_pipeline.py` and `code/scripts/daily_pipeline.py`
   - `scripts/active/daily_gmail_sync.py` and `code/scripts/daily_gmail_sync.py`
   - `scraper_v4.py` and `code/scripts/scraper_v4.py` (`code/scripts/scraper_v4.py` is a retired stub)
+
+## Recent folder cleanup
+
+To make the top level less cluttered:
+
+- moved `indexx.html` to `archive/experimental/`
+- moved `scripts_unique/` to `archive/experimental/`
+- moved `generate_training_pdf.py` to `scripts/tools/`
+- moved `scraper_v5.py` to `scripts/experiments/`
+- moved extra reference PDFs into `docs/training/` and `docs/reference/`
 
 ## What is intentionally not cleaned up yet
 

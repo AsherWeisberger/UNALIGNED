@@ -63,11 +63,22 @@ This is the current "what matters / what duplicates / what looks legacy" pass fo
 ## Likely legacy / experimental
 
 - `indexx.html`
-  - looks like an older experimental board page
+  - moved to `archive/experimental/indexx.html`
 - `scripts_unique/`
-  - appears to be one-off older scraper work
+  - moved to `archive/experimental/scripts_unique/`
 - many root-level old helper scripts that are already deleted from git status
   - probably migration / backfill history rather than current runtime
+
+## Root cleanup moves
+
+- `generate_training_pdf.py`
+  - moved to `scripts/tools/generate_training_pdf.py`
+- `scraper_v5.py`
+  - moved to `scripts/experiments/scraper_v5.py`
+- `UNALIGNED_Board_Training_Guide.pdf`
+  - moved to `docs/training/UNALIGNED_Board_Training_Guide.pdf`
+- `Unaligned_Partnership_2026_v7.pdf`
+  - moved to `docs/reference/Unaligned_Partnership_2026_v7.pdf`
 
 ## Safe cleanup already done
 
