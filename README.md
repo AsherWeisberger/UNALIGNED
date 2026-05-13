@@ -8,8 +8,6 @@ This folder has a few generations of the project in it. Here is the simple versi
   - the current GitHub Pages entrypoint
   - this is the new ALIGNED design
   - it now pulls real leads into the aligned inbox
-- `aligned.html`
-  - compatibility redirect to `index.html`
 
 GitHub Pages is publishing from the `AI-DESIGN` branch.
 
@@ -23,8 +21,6 @@ GitHub Pages is publishing from the `AI-DESIGN` branch.
 
 - Live site UI
   - `index.html`
-- Legacy compatibility URL
-  - `aligned.html`
 - Legacy board logic reference
   - `code/index.html`
 - Canonical scraper

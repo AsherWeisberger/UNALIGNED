@@ -6,8 +6,6 @@ This is the current "what matters / what duplicates / what looks legacy" pass fo
 
 - `index.html`
   - current ALIGNED GitHub Pages app
-- `aligned.html`
-  - compatibility redirect into `index.html`
 - `code/index.html`
   - older board app and the best reference for legacy data logic
 - `scraper_v5.py`
