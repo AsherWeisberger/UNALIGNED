@@ -4,10 +4,10 @@ This is the current "what matters / what duplicates / what looks legacy" pass fo
 
 ## Important now
 
-- `aligned.html`
-  - current ALIGNED GitHub Pages app
 - `index.html`
-  - redirect into `aligned.html`
+  - current ALIGNED GitHub Pages app
+- `aligned.html`
+  - compatibility redirect into `index.html`
 - `code/index.html`
   - older board app and the best reference for legacy data logic
 - `scraper_v5.py`
@@ -58,7 +58,7 @@ This is the current "what matters / what duplicates / what looks legacy" pass fo
   - older / alternate copy
 
 - `index.html`
-  - current redirect page
+  - current live page
 - `code/index.html`
   - older all-in-one app
 

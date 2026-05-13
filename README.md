@@ -5,11 +5,11 @@ This folder has a few generations of the project in it. Here is the simple versi
 ## What is live now
 
 - `index.html`
-  - tiny redirect page
-- `aligned.html`
   - the current GitHub Pages entrypoint
   - this is the new ALIGNED design
   - it now pulls real leads into the aligned inbox
+- `aligned.html`
+  - compatibility redirect to `index.html`
 
 GitHub Pages is publishing from the `AI-DESIGN` branch.
 
@@ -22,9 +22,9 @@ GitHub Pages is publishing from the `AI-DESIGN` branch.
 ## Canonical files to use
 
 - Live site UI
-  - `aligned.html`
-- Live site redirect
   - `index.html`
+- Legacy compatibility URL
+  - `aligned.html`
 - Legacy board logic reference
   - `code/index.html`
 - Canonical scraper
@@ -61,7 +61,7 @@ GitHub Pages is publishing from the `AI-DESIGN` branch.
 
 ## Current source-of-truth rule
 
-- For the live site UI: use `aligned.html`
+- For the live site UI: use `index.html`
 - For older pipeline / board logic references: use `code/index.html`
 
 ## Known duplicates
