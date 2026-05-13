@@ -28,6 +28,8 @@ GitHub Pages is publishing from the `AI-DESIGN` branch.
 - Legacy board logic reference
   - `code/index.html`
 - Canonical scraper
+  - `scraper_v5.py`
+- Previous stable scraper
   - `scraper_v4.py`
 - Canonical daily pipeline
   - `daily_pipeline.py`
@@ -55,7 +57,7 @@ GitHub Pages is publishing from the `AI-DESIGN` branch.
 - `scripts/tools/`
   - utility scripts that are useful but not part of the live app/runtime
 - `scripts/experiments/`
-  - newer or alternate pipeline experiments not currently treated as canonical
+  - alternate pipeline experiments not currently treated as canonical
 
 ## Current source-of-truth rule
 
@@ -85,7 +87,7 @@ To make the top level less cluttered:
 - moved `indexx.html` to `archive/experimental/`
 - moved `scripts_unique/` to `archive/experimental/`
 - moved `generate_training_pdf.py` to `scripts/tools/`
-- moved `scraper_v5.py` to `scripts/experiments/`
+- promoted `scraper_v5.py` back to the root as the main scraper
 - moved extra reference PDFs into `docs/training/` and `docs/reference/`
 
 ## What is intentionally not cleaned up yet

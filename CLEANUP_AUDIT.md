@@ -10,8 +10,10 @@ This is the current "what matters / what duplicates / what looks legacy" pass fo
   - redirect into `aligned.html`
 - `code/index.html`
   - older board app and the best reference for legacy data logic
-- `scraper_v4.py`
+- `scraper_v5.py`
   - canonical scraper
+- `scraper_v4.py`
+  - previous stable scraper kept for fallback/reference
 - `daily_pipeline.py`
   - canonical pipeline runner
 - `scripts/active/daily_gmail_sync.py`
@@ -74,7 +76,7 @@ This is the current "what matters / what duplicates / what looks legacy" pass fo
 - `generate_training_pdf.py`
   - moved to `scripts/tools/generate_training_pdf.py`
 - `scraper_v5.py`
-  - moved to `scripts/experiments/scraper_v5.py`
+  - promoted back to the repo root as the canonical scraper
 - `UNALIGNED_Board_Training_Guide.pdf`
   - moved to `docs/training/UNALIGNED_Board_Training_Guide.pdf`
 - `Unaligned_Partnership_2026_v7.pdf`
