@@ -118,6 +118,8 @@ document.addEventListener('DOMContentLoaded', async function() {
     const resourceScript = '<script>window.__resources = ' +
       JSON.stringify(resourceMap).split('</' + 'script>').join('<\\/' + 'script>') +
       ';</' + 'script>';
+    const iconHref = location.pathname.indexOf('/UNALIGNED/') === 0 ? '/UNALIGNED/favicon.ico' : 'favicon.ico';
+    const faviconLink = '<link rel="icon" href="' + iconHref + '">';
     // Inject after <head> so the DOCTYPE stays first; prepending the script
     // would push the parser into quirks mode. DOMParser always emits a <head>
     // (synthesizing one if the source HTML omitted it) but may carry
@@ -126,7 +128,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     const headOpen = template.match(/<head[^>]*>/i);
     if (headOpen) {
       const i = headOpen.index + headOpen[0].length;
-      template = template.slice(0, i) + resourceScript + template.slice(i);
+      template = template.slice(0, i) + resourceScript + faviconLink + template.slice(i);
     }
 
     // Parse the template and swap the root element. Scripts inserted via
