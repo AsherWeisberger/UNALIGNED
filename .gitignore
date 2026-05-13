@@ -1,0 +1,31 @@
+# macOS / editor noise
+.DS_Store
+.openclaw/
+
+# Local auth / secrets
+auth/*.json
+auth/*.txt
+gmail_token.json
+gmail-token*.json
+.env
+.env.*
+
+# Runtime caches / logs
+__pycache__/
+*.pyc
+*.pyo
+*.log
+.firebase/hosting..cache
+
+# Dependencies
+node_modules/
+extractor/node_modules/
+
+# Generated local data
+data/*.log
+data/backup_*.json
+data/cards_before_*.json
+
+# Keep real source files tracked
+!package.json
+!package-lock.json
