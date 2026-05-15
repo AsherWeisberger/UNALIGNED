@@ -863,3 +863,8 @@ function v3BucketTasks(tasks) {
 }
 
 window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, LEADS: V3_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, TASK_TYPES: V3_TASK_TYPES, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks };
+
+V3LoadSupabaseLeads().then(leads => {
+  window.V3.LEADS = leads;
+  window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads } }));
+}).catch(err => console.error('Supabase load failed:', err));

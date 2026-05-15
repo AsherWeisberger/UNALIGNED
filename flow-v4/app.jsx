@@ -12,7 +12,7 @@ function V4App() {
   const [view, setView] = React.useState(t.view || 'today');
   const [openId, setOpenId] = React.useState(null);
   const [briefId, setBriefId] = React.useState(null);
-  const [leads] = React.useState(LEADS);
+  const [leads, setLeads] = React.useState(LEADS);
   const [ownerFilter, setOwnerFilter] = React.useState('all');
   const [toast, setToast] = React.useState(null);
 
@@ -20,6 +20,12 @@ function V4App() {
     const h = (e) => setBriefId(e.detail.leadId);
     window.addEventListener('v3:open-brief', h);
     return () => window.removeEventListener('v3:open-brief', h);
+  }, []);
+
+  React.useEffect(() => {
+    const h = (e) => setLeads(e.detail.leads);
+    window.addEventListener('v3:leads-loaded', h);
+    return () => window.removeEventListener('v3:leads-loaded', h);
   }, []);
 
   React.useEffect(() => {
