@@ -1655,3 +1655,25 @@ body[data-theme="dark"] .twk-panel {
 .lead-next-txt { font-size: 12px; }
 .lead-next-txt.you { color: var(--accent-deep); font-weight: 500; }
 .lead-next-meta { font: 500 9.5px/1 var(--font-mono); color: var(--text-4); text-transform: uppercase; margin-top: 3px; letter-spacing: 0.06em; }
+
+/* ── Trash rail ── */
+.board-trash-rail {
+  margin-top: 20px;
+  border-top: 1px dashed var(--line-soft);
+  padding-top: 12px;
+}
+.board-trash-toggle {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; background: none; border: 1px dashed var(--line-soft);
+  border-radius: 8px; padding: 10px 14px;
+  color: var(--text-3); font: 600 11px/1 var(--font-mono);
+  text-transform: uppercase; letter-spacing: 0.08em;
+  cursor: pointer; transition: background 0.15s;
+}
+.board-trash-toggle:hover { background: var(--hover); }
+.board-trash-cards {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  padding: 14px 4px;
+  opacity: 0.65;
+}
+.board-trash-cards .b-card { width: 220px; flex-shrink: 0; }

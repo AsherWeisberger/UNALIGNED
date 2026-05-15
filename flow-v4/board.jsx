@@ -2,18 +2,22 @@
 
 function V3BoardView({ leads, openId, onOpen, user, ownerFilter, setOwnerFilter }) {
   const { STAGES, STAGE_BY_ID, ACTIVE_STAGE_IDS } = window.V3;
+  const [trashOpen, setTrashOpen] = React.useState(false);
 
   const filtered = leads.filter(l => {
     if (ownerFilter !== 'all' && l.ownerId !== ownerFilter) return false;
     return true;
   });
 
+  const activeLeads = filtered.filter(l => l.stage !== 'trash');
+  const trashLeads  = filtered.filter(l => l.stage === 'trash');
+
   return (
     <div className="board-wrap">
       <div className="board">
         {ACTIVE_STAGE_IDS.map(stageId => {
           const stage = STAGE_BY_ID[stageId];
-          const stageLeads = filtered.filter(l => l.stage === stageId);
+          const stageLeads = activeLeads.filter(l => l.stage === stageId);
           const needsReply = stageLeads.filter(l => l.needsReply);
           const waiting    = stageLeads.filter(l => !l.needsReply);
 
@@ -34,7 +38,6 @@ function V3BoardView({ leads, openId, onOpen, user, ownerFilter, setOwnerFilter 
               </div>
 
               <div className="b-col-body">
-                {/* NEEDS REPLY sub-group */}
                 {needsReply.length > 0 && (
                   <>
                     <div className="b-subhead needs-reply">
@@ -47,7 +50,6 @@ function V3BoardView({ leads, openId, onOpen, user, ownerFilter, setOwnerFilter 
                   </>
                 )}
 
-                {/* WAITING ON THEM sub-group */}
                 {waiting.length > 0 && (
                   <>
                     <div className="b-subhead waiting">
@@ -75,6 +77,26 @@ function V3BoardView({ leads, openId, onOpen, user, ownerFilter, setOwnerFilter 
           );
         })}
       </div>
+
+      {/* ─── Trash rail ─── */}
+      {trashLeads.length > 0 && (
+        <div className="board-trash-rail">
+          <button className="board-trash-toggle" onClick={() => setTrashOpen(o => !o)}>
+            <V3Icon name={trashOpen ? 'sort' : 'plus'} w={13} />
+            <span>TRASH</span>
+            <span className="cnt">{trashLeads.length}</span>
+            <span style={{ marginLeft: 4, fontSize: 10, opacity: 0.6 }}>· no activity 90+ days</span>
+            <span style={{ marginLeft: 'auto', fontSize: 10, opacity: 0.5 }}>{trashOpen ? 'collapse' : 'expand'}</span>
+          </button>
+          {trashOpen && (
+            <div className="board-trash-cards">
+              {trashLeads.map(l => (
+                <V3BoardCard key={l.id} lead={l} isActive={openId === l.id} user={user} onOpen={() => onOpen(l.id)} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
