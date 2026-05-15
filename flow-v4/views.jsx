@@ -28,6 +28,15 @@ function V4TodayView({ user, leads, onOpenLead, onGoInbox }) {
     });
   };
 
+  const STUCK_DAYS = 7;
+  const ACTIVE_STAGES = ['new','first-touch','engaged','rates-sent','negotiating','invoice-sent'];
+  const stuckLeads = React.useMemo(() =>
+    leads
+      .filter(l => ACTIVE_STAGES.includes(l.stage) && l.daysInStage >= STUCK_DAYS)
+      .sort((a, b) => b.daysInStage - a.daysInStage),
+    [leads]
+  );
+
   const unreadCount = leads.filter(l => l.unread).length;
   const today = new Date();
   const dayLabel = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
@@ -68,10 +77,11 @@ function V4TodayView({ user, leads, onOpenLead, onGoInbox }) {
 
       <div className="today-tabs-bar">
         <div className="today-tabs">
-          <TodayTab id="now"   label="Now"   count={nowCount}        tab={tab} setTab={setTab} tone="now" />
-          <TodayTab id="next"  label="Next"  count={nextCount}       tab={tab} setTab={setTab} />
-          <TodayTab id="later" label="Later" count={laterCount}      tab={tab} setTab={setTab} />
-          <TodayTab id="done"  label="Done"  count={doneTasks.length} tab={tab} setTab={setTab} tone="done" />
+          <TodayTab id="now"   label="Now"   count={nowCount}          tab={tab} setTab={setTab} tone="now" />
+          <TodayTab id="next"  label="Next"  count={nextCount}         tab={tab} setTab={setTab} />
+          <TodayTab id="later" label="Later" count={laterCount}        tab={tab} setTab={setTab} />
+          <TodayTab id="stuck" label="Stuck" count={stuckLeads.length} tab={tab} setTab={setTab} tone="stuck" />
+          <TodayTab id="done"  label="Done"  count={doneTasks.length}  tab={tab} setTab={setTab} tone="done" />
         </div>
         <div className="today-pipe-stat">
           <span className="today-pipe-lbl">Open pipeline</span>
@@ -83,6 +93,7 @@ function V4TodayView({ user, leads, onOpenLead, onGoInbox }) {
         {tab === 'now'   && <NowZone   buckets={buckets} {...ctx} />}
         {tab === 'next'  && <NextZone  buckets={buckets} {...ctx} />}
         {tab === 'later' && <LaterZone buckets={buckets} {...ctx} />}
+        {tab === 'stuck' && <StuckZone leads={stuckLeads} onOpenLead={onOpenLead} user={user} />}
         {tab === 'done'  && <DoneZone  items={doneTasks} {...ctx} />}
       </div>
     </div>
@@ -97,6 +108,64 @@ function TodayTab({ id, label, count, tab, setTab, tone }) {
       <span className="today-tab-lbl">{label}</span>
       <span className="today-tab-cnt">{count}</span>
     </button>
+  );
+}
+
+// ─── STUCK zone ─────────────────────────────────────────────
+function StuckZone({ leads, onOpenLead, user }) {
+  const { STAGE_BY_ID, USERS } = window.V3;
+  if (leads.length === 0) {
+    return (
+      <div className="card" style={{ padding: '40px 24px', textAlign: 'center' }}>
+        <V3Empty icon="check" title="No stuck leads." sub="Everything is moving. Nice work." />
+      </div>
+    );
+  }
+
+  const buckets = [
+    { label: '21+ days', tone: 'critical', items: leads.filter(l => l.daysInStage >= 21) },
+    { label: '14–20 days', tone: 'warning', items: leads.filter(l => l.daysInStage >= 14 && l.daysInStage < 21) },
+    { label: '7–13 days', tone: 'caution', items: leads.filter(l => l.daysInStage >= 7 && l.daysInStage < 14) },
+  ].filter(b => b.items.length > 0);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {buckets.map(b => (
+        <div key={b.label} className="card" style={{ overflow: 'hidden' }}>
+          <div className={'stuck-bucket-hd stuck-' + b.tone}>
+            <span className="stuck-bucket-label">{b.label}</span>
+            <span className="stuck-bucket-cnt">{b.items.length}</span>
+          </div>
+          {b.items.map(l => {
+            const stage = STAGE_BY_ID[l.stage];
+            const owner = l.ownerId ? USERS[l.ownerId] : null;
+            const barPct = Math.min(100, Math.round((l.daysInStage / 30) * 100));
+            return (
+              <div key={l.id} className="stuck-row" onClick={() => onOpenLead(l.id)}>
+                <div className="stuck-row-left">
+                  <V3Avatar name={l.contactName} color={l.color} />
+                  <div className="stuck-row-info">
+                    <div className="stuck-row-name">{l.contactName}</div>
+                    <div className="stuck-row-brand">{l.brand}</div>
+                  </div>
+                </div>
+                <div className="stuck-row-stage" style={{ color: stage.color }}>
+                  <span className="dot" style={{ background: stage.color }}></span>
+                  {stage.short}
+                </div>
+                <div className="stuck-row-bar-wrap">
+                  <div className="stuck-row-bar" style={{ width: barPct + '%', background: b.tone === 'critical' ? 'var(--red,#e03)' : b.tone === 'warning' ? 'var(--amber,#f90)' : 'var(--accent)' }} />
+                </div>
+                <div className="stuck-row-days">{l.daysInStage}d</div>
+                <div className="stuck-row-owner">
+                  {owner ? <V3Avatar name={owner.name} color={owner.color} size="xs" /> : null}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
   );
 }
 
