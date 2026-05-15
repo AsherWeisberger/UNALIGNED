@@ -16,16 +16,28 @@ __pycache__/
 *.pyo
 *.log
 .firebase/hosting..cache
+.firebase/
 
 # Dependencies
 node_modules/
 extractor/node_modules/
+functions/node_modules/
 
 # Generated local data
 data/*.log
 data/backup_*.json
 data/cards_before_*.json
+gmail_leads.json
+
+# Local one-off business docs that should not flood GitHub
+Invoice*.pdf
+invoices/
+docs/*.pdf
+!docs/SINGLE_TIER.pdf
+docs/*.html
 
 # Keep real source files tracked
 !package.json
 !package-lock.json
+!functions/package.json
+!functions/package-lock.json

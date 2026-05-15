@@ -9,20 +9,17 @@ This folder has a few generations of the project in it. Here is the simple versi
   - this is the new ALIGNED design
   - it now pulls real leads into the aligned inbox
 
-GitHub Pages is publishing from the `AI-DESIGN` branch.
+GitHub Pages is publishing from `main`. Active development is happening on `AI-DESIGN`, then the live static bundle is copied to `main` when it is ready.
 
 ## What the older app is
 
-- `code/index.html`
-  - the older all-in-one board app
-  - still useful as the source for legacy logic, Supabase mappings, and scripts
+- archived/older board files
+  - useful only as historical reference, not the live surface
 
 ## Canonical files to use
 
 - Live site UI
   - `index.html`
-- Legacy board logic reference
-  - `code/index.html`
 - Canonical scraper
   - `scraper_v5.py`
 - Previous stable scraper
@@ -34,8 +31,6 @@ GitHub Pages is publishing from the `AI-DESIGN` branch.
 
 ## Folders that matter
 
-- `code/`
-  - older board app and related scripts
 - `code/assets/`
   - docs and branding used by the older app
 - `docs/`
@@ -58,7 +53,7 @@ GitHub Pages is publishing from the `AI-DESIGN` branch.
 ## Current source-of-truth rule
 
 - For the live site UI: use `index.html`
-- For older pipeline / board logic references: use `code/index.html`
+- For older pipeline / board logic references: check Git history or `archive/`
 
 ## Known duplicates
 
@@ -88,4 +83,4 @@ To make the top level less cluttered:
 
 ## What is intentionally not cleaned up yet
 
-There are older tracked files and deleted dependencies from previous versions of the project. Those were left in place on purpose so nothing important gets removed by accident.
+The old tracked dependency folders and throwaway migration scripts have now been removed from Git. Reinstall dependencies from `functions/package-lock.json` when needed instead of committing `node_modules`.
