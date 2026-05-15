@@ -719,4 +719,69 @@ function V4LeadsView({ leads, openId, onOpenLead, user }) {
   );
 }
 
-Object.assign(window, { V4TodayView, V4InboxView, V4LeadsView });
+// ─── Calendar ────────────────────────────────────────────────
+function V4CalendarView() {
+  const CAL_ID = 'scobleizer%40gmail.com';
+  const TZ     = 'America%2FLos_Angeles';
+
+  const [dayOffset, setDayOffset] = React.useState(0); // -1 yesterday, 0 today, 1 tomorrow
+
+  function calDate(offset) {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}${m}${day}`;
+  }
+
+  function dayLabel(offset) {
+    if (offset === -1) return 'Yesterday';
+    if (offset ===  0) return 'Today';
+    return 'Tomorrow';
+  }
+
+  function fullDate(offset) {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  }
+
+  const date = calDate(dayOffset);
+  const src = `https://calendar.google.com/calendar/embed?src=${CAL_ID}&ctz=${TZ}&mode=DAY&dates=${date}%2F${date}&showTitle=0&showNav=0&showDate=0&showPrint=0&showTabs=0&showCalendars=0&showTz=0`;
+
+  return (
+    <div className="page">
+      <div className="page-hd">
+        <div>
+          <div className="page-eyebrow">Robert Scoble</div>
+          <h1 className="page-title">Calendar</h1>
+          <div className="page-sub">{fullDate(dayOffset)}</div>
+        </div>
+        <div className="page-actions">
+          <div className="cal-day-tabs">
+            {[-1, 0, 1].map(o => (
+              <button key={o}
+                className={'cal-day-tab' + (dayOffset === o ? ' is-active' : '')}
+                onClick={() => setDayOffset(o)}>
+                {dayLabel(o)}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="body" style={{ paddingTop: 8, height: 'calc(100vh - 160px)' }}>
+        <div className="card cal-frame-wrap">
+          <iframe
+            key={date}
+            src={src}
+            style={{ width: '100%', height: '100%', border: 'none', borderRadius: 8 }}
+            title="Robert's Calendar"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+Object.assign(window, { V4TodayView, V4InboxView, V4LeadsView, V4CalendarView });

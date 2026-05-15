@@ -1745,3 +1745,18 @@ body[data-theme="dark"] .twk-panel {
 .pv-compact-segs { display: flex; gap: 2px; height: 3px; }
 .pv-compact-bar-wrap { height: 2px; background: var(--line-soft); border-radius: 1px; overflow: hidden; }
 .pv-compact-bar { height: 100%; border-radius: 1px; transition: width 0.3s; }
+
+/* ── Calendar view ── */
+.cal-day-tabs {
+  display: flex; gap: 4px;
+  background: var(--surface-2); border-radius: 8px; padding: 3px;
+}
+.cal-day-tab {
+  padding: 6px 16px; border-radius: 6px; border: none;
+  background: transparent; color: var(--text-3);
+  font: 500 12.5px/1 var(--font-sans); cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.cal-day-tab:hover { background: var(--hover); color: var(--text); }
+.cal-day-tab.is-active { background: var(--bg); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+.cal-frame-wrap { padding: 0; overflow: hidden; height: 100%; }
