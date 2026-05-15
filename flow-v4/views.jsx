@@ -735,22 +735,49 @@ function V4LeadsView({ leads, openId, onOpenLead, user }) {
 }
 
 // ─── Calendar ────────────────────────────────────────────────
-function V4CalendarView() {
-  const CAL_ID = 'scobleizer%40gmail.com';
-  const TZ     = 'America%2FLos_Angeles';
+const CAL_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby7SNgq-2mlzm5JkVHkbo0fsa1fOHIh6KPFfKqvPPLoFYYUvYZv94z2-KMdweTbAYVw9A/exec';
+const CAL_TZ = 'America/Los_Angeles';
 
-  function calDate(offset) {
+function V4CalendarView() {
+  const [events, setEvents] = React.useState(null);
+  const [err, setErr]       = React.useState(null);
+
+  React.useEffect(() => {
+    fetch(CAL_SCRIPT_URL)
+      .then(r => r.json())
+      .then(data => setEvents(data))
+      .catch(e => setErr(String(e)));
+  }, []);
+
+  function dayKey(offset) {
     const d = new Date();
     d.setDate(d.getDate() + offset);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}${m}${day}`;
+    return d.toLocaleDateString('en-CA', { timeZone: CAL_TZ });
   }
 
-  const start = calDate(-1);
-  const end   = calDate(1);
-  const src   = `https://calendar.google.com/calendar/embed?src=${CAL_ID}&ctz=${TZ}&mode=AGENDA&dates=${start}%2F${end}&showTitle=0&showNav=0&showDate=1&showPrint=0&showTabs=0&showCalendars=0&showTz=0`;
+  function eventKey(ev) {
+    return new Date(ev.start).toLocaleDateString('en-CA', { timeZone: CAL_TZ });
+  }
+
+  function fmtTime(iso, allDay) {
+    if (allDay) return 'All day';
+    return new Date(iso).toLocaleTimeString('en-US', { timeZone: CAL_TZ, hour: 'numeric', minute: '2-digit', hour12: true });
+  }
+
+  function fullDate(offset) {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    return d.toLocaleDateString('en-US', { timeZone: CAL_TZ, weekday: 'long', month: 'long', day: 'numeric' });
+  }
+
+  const days = [-1, 0, 1].map(offset => ({
+    offset,
+    label: offset === -1 ? 'Yesterday' : offset === 0 ? 'Today' : 'Tomorrow',
+    sub: fullDate(offset),
+    key: dayKey(offset),
+    items: (events || []).filter(ev => eventKey(ev) === dayKey(offset))
+                         .sort((a, b) => new Date(a.start) - new Date(b.start)),
+  }));
 
   return (
     <div className="page">
@@ -762,15 +789,39 @@ function V4CalendarView() {
         </div>
       </div>
 
-      <div className="body" style={{ paddingTop: 8, height: 'calc(100vh - 160px)' }}>
-        <div className="card cal-frame-wrap" style={{ height: '100%' }}>
-          <iframe
-            key={start}
-            src={src}
-            style={{ width: '100%', height: '100%', border: 'none', borderRadius: 8 }}
-            title="Robert's Schedule"
-          />
-        </div>
+      <div className="body" style={{ paddingTop: 8 }}>
+        {err && (
+          <div className="card" style={{ padding: 20, color: 'var(--text-3)', fontSize: 13 }}>
+            Could not load calendar: {err}
+          </div>
+        )}
+        {!err && !events && (
+          <div className="card" style={{ padding: 24, color: 'var(--text-3)', fontSize: 13 }}>
+            Loading Robert's schedule…
+          </div>
+        )}
+        {!err && events && (
+          <div className="cal-3col">
+            {days.map(day => (
+              <div key={day.key} className={'cal-day' + (day.offset === 0 ? ' cal-day-today' : '')}>
+                <div className="cal-day-hd">
+                  <span className="cal-day-label">{day.label}</span>
+                  <span className="cal-day-date">{day.sub}</span>
+                </div>
+                <div className="cal-day-body">
+                  {day.items.length === 0 && <div className="cal-empty">Nothing scheduled</div>}
+                  {day.items.map((ev, i) => (
+                    <div key={i} className={'cal-event' + (ev.allDay ? ' cal-event-allday' : '')}>
+                      <div className="cal-event-time">{fmtTime(ev.start, ev.allDay)}</div>
+                      <div className="cal-event-title">{ev.title}</div>
+                      {ev.location && <div className="cal-event-loc">{ev.location}</div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
