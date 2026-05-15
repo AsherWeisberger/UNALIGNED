@@ -286,7 +286,7 @@ const V3_DELIV_TYPES = {
 };
 
 const V3_USERS = {
-  asher:  { id: 'asher',  name: 'Asher',  role: 'Founder',  color: '#2f5fd6', initials: 'AW' },
+  asher:  { id: 'asher',  name: 'Asher',  role: 'Services', color: '#2f5fd6', initials: 'AW' },
   sammy:  { id: 'sammy',  name: 'Sammy',  role: 'Manager',  color: '#16894a', initials: 'SM' },
   robert: { id: 'robert', name: 'Robert', role: 'Creator',  color: '#a93268', initials: 'RW' },
 };

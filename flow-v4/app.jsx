@@ -33,7 +33,7 @@ function V4App() {
 
   // Scope tag matching the Today scope card
   const SCOPE_TAG = {
-    asher:  'Founder · sees all',
+    asher:  'Services · sees all',
     sammy:  'Manager · my leads',
     robert: 'Creator · post queue',
   };
