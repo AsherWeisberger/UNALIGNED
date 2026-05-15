@@ -12,8 +12,7 @@ function V4App() {
   const [view, setView] = React.useState(t.view || 'today');
   const [openId, setOpenId] = React.useState(null);
   const [briefId, setBriefId] = React.useState(null);
-  const [leads, setLeads] = React.useState(LEADS);
-  const [leadStatus, setLeadStatus] = React.useState('loading');
+  const [leads] = React.useState(LEADS);
   const [ownerFilter, setOwnerFilter] = React.useState('all');
   const [toast, setToast] = React.useState(null);
 
@@ -21,48 +20,6 @@ function V4App() {
     const h = (e) => setBriefId(e.detail.leadId);
     window.addEventListener('v3:open-brief', h);
     return () => window.removeEventListener('v3:open-brief', h);
-  }, []);
-
-  React.useEffect(() => {
-    const h = (e) => {
-      const { leadId, sender, subject, body } = e.detail || {};
-      if (!leadId) return;
-      const senderName = V3SenderName(sender);
-      setLeads(curr => {
-        const next = curr.map(l => l.id === String(leadId) ? {
-          ...l,
-          needsReply: false,
-          unread: false,
-          draftReplyStatus: 'sent',
-          thread: [...(l.thread || []), { from: senderName, when: 'now', subject, body }],
-        } : l);
-        window.V3.LEADS = next;
-        return next;
-      });
-      setToast('Email sent from ' + senderName + '.');
-      setTimeout(() => setToast(null), 3500);
-    };
-    window.addEventListener('v3:email-sent', h);
-    return () => window.removeEventListener('v3:email-sent', h);
-  }, []);
-
-  React.useEffect(() => {
-    let alive = true;
-    V3LoadSupabaseLeads()
-      .then(realLeads => {
-        if (!alive) return;
-        window.V3.LEADS = realLeads;
-        setLeads(realLeads);
-        setLeadStatus('real');
-      })
-      .catch(err => {
-        console.error('[ALIGNED v4] Supabase lead load failed:', err);
-        if (!alive) return;
-        window.V3.LEADS = LEADS;
-        setLeads(LEADS);
-        setLeadStatus('demo');
-      });
-    return () => { alive = false; };
   }, []);
 
   React.useEffect(() => {
@@ -124,7 +81,7 @@ function V4App() {
 
         <div className="hd-sync" title="Real-time Gmail sync">
           <span className="dot"></span>
-          {leadStatus === 'loading' ? 'Loading Supabase' : leadStatus === 'real' ? 'Supabase live' : 'Demo data'}
+          Synced
         </div>
 
         <div className="hd-right">
