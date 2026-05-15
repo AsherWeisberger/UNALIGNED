@@ -25,14 +25,16 @@ async function V3LoadSupabaseLeads() {
 function V3NormalizeSupabaseLead(row) {
   const name = row.contact_name || row.title || row.email || 'Untitled lead';
   const brand = row.business_name || V3DomainBrand(row.email) || row.title || 'Unknown company';
-  const stage = V3NormalizeStage(row.list_id);
   const received = row.date_received_iso || row.created_at || row.moved_at || null;
+  const activityDays = V3DaysSince(row.new_reply_at || row.moved_at || received);
+  const rawStage = V3NormalizeStage(row.list_id);
+  // Auto-trash: last touch > 90 days and not already closed out
+  const stage = (activityDays > 90 && !['paid-out', 'done', 'trash'].includes(rawStage)) ? 'trash' : rawStage;
   const daysInStage = V3DaysSince(row.moved_at || received);
   const needsReply = Boolean(row.new_reply_at) || row.draft_reply_status === 'pending' || stage === 'new';
   const ownerId = V3NormalizeOwner(row.assignee || row.created_by);
   const value = V3ParseMoney(row.estimated_value);
   const category = V3CategoryFromRow(row);
-  const activityDays = V3DaysSince(row.new_reply_at || row.moved_at || received);
   const timelineDays = V3TimelineDaysFromRow(row);
   return {
     id: String(row.id),
@@ -299,9 +301,11 @@ const V3_STAGES = [
   { id: 'invoice-sent',name: 'Invoice sent', color: 'var(--st-invoice)', short: 'INVOICE SENT' },
   { id: 'done',        name: 'Done',         color: 'var(--st-booked)',  short: 'DONE' },
   { id: 'paid-out',    name: 'Paid out',     color: 'var(--st-paid)',    short: 'PAID OUT' },
+  { id: 'trash',       name: 'Trash',        color: 'var(--text-4)',     short: 'TRASH' },
 ];
 const V3_STAGE_BY_ID = Object.fromEntries(V3_STAGES.map(s => [s.id, s]));
 const V3_ACTIVE_STAGE_IDS = ['new','first-touch','engaged','rates-sent','negotiating','invoice-sent','done','paid-out'];
+const V3_TRASH_STAGE_IDS = ['trash'];
 
 const V3_CATEGORIES = ['interview', 'collaboration', 'partnership', 'intro', 'paid'];
 
@@ -862,4 +866,9 @@ function v3BucketTasks(tasks) {
   return buckets;
 }
 
-window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, LEADS: V3_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, TASK_TYPES: V3_TASK_TYPES, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks };
+window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, TASK_TYPES: V3_TASK_TYPES, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks };
+
+V3LoadSupabaseLeads().then(leads => {
+  window.V3.LEADS = leads;
+  window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads } }));
+}).catch(err => console.error('Supabase load failed:', err));
