@@ -56,11 +56,11 @@ async function getRobertGmailAuth() {
   return cachedRobertAuth;
 }
 
-async function sendViaRobert(to, subject, body, cc, attachments, threadId) {
+async function sendViaRobert(to, subject, body, cc, attachments, threadId, replyHeaders) {
   try {
     const auth = await getRobertGmailAuth();
     const gmail = google.gmail({ version: 'v1', auth });
-    const raw = makeMime(to, cc, subject, body, SENDERS.robert, attachments);
+    const raw = makeMime(to, cc, subject, body, SENDERS.robert, attachments, replyHeaders);
     const result = await gmail.users.messages.send({
       userId: 'me',
       resource: threadId ? { ...raw, threadId } : raw,
@@ -68,7 +68,7 @@ async function sendViaRobert(to, subject, body, cc, attachments, threadId) {
     return result.data.id;
   } catch (err) {
     console.warn('Robert OAuth send failed, falling back to SMTP:', err.message);
-    return sendViaSmtp({ ...SENDERS.robert, type: 'smtp', secretDoc: SENDERS.robert.fallbackSecretDoc }, to, subject, body, cc, attachments);
+    return sendViaSmtp({ ...SENDERS.robert, type: 'smtp', secretDoc: SENDERS.robert.fallbackSecretDoc }, to, subject, body, cc, attachments, replyHeaders);
   }
 }
 
@@ -91,23 +91,63 @@ async function getSmtpTransporter(sender) {
   return smtpTransporters[sender.id];
 }
 
-async function sendViaSmtp(sender, to, subject, body, cc, attachments) {
+async function sendViaSmtp(sender, to, subject, body, cc, attachments, replyHeaders) {
   const t = await getSmtpTransporter(sender);
   const snap = await db.collection('_secrets').doc(sender.secretDoc).get();
   const { email } = snap.data();
-  await t.sendMail({
+  const mail = {
     from: `"${sender.name}" <${email || sender.email}>`,
     to,
     cc: cc || undefined,
     subject,
     text: body,
     attachments: attachments || [],
-  });
+  };
+  if (replyHeaders?.inReplyTo) mail.inReplyTo = replyHeaders.inReplyTo;
+  if (replyHeaders?.references) mail.references = replyHeaders.references;
+  await t.sendMail(mail);
   return 'sent via SMTP';
 }
 
 // ── Shared ──────────────────────────────────────────
-function makeMime(to, cc, subject, body, sender, attachments) {
+async function getThreadReplyHeaders(threadId) {
+  if (!threadId) return {};
+  try {
+    const auth = await getRobertGmailAuth();
+    const gmail = google.gmail({ version: 'v1', auth });
+    const result = await gmail.users.threads.get({
+      userId: 'me',
+      id: threadId,
+      format: 'metadata',
+      metadataHeaders: ['Message-ID', 'References'],
+      fields: 'messages(id,payload/headers)',
+    });
+    const messages = result.data.messages || [];
+    const last = messages[messages.length - 1];
+    const headers = last?.payload?.headers || [];
+    const headerValue = name => headers.find(h => h.name?.toLowerCase() === name.toLowerCase())?.value || '';
+    const messageId = headerValue('Message-ID');
+    const references = headerValue('References');
+    if (!messageId) return {};
+    return {
+      inReplyTo: messageId,
+      references: [references, messageId].filter(Boolean).join(' '),
+    };
+  } catch (err) {
+    console.warn('Could not load Gmail thread headers:', err.message);
+    return {};
+  }
+}
+
+function threadHeaderLines(replyHeaders) {
+  if (!replyHeaders?.inReplyTo) return [];
+  return [
+    `In-Reply-To: ${replyHeaders.inReplyTo}`,
+    `References: ${replyHeaders.references || replyHeaders.inReplyTo}`,
+  ];
+}
+
+function makeMime(to, cc, subject, body, sender, attachments, replyHeaders) {
   if (attachments && attachments.length) {
     const boundary = `unaligned_${Date.now()}`;
     const lines = [
@@ -115,6 +155,7 @@ function makeMime(to, cc, subject, body, sender, attachments) {
       `To: ${to}`,
       cc ? `Cc: ${cc}` : null,
       `Subject: ${subject}`,
+      ...threadHeaderLines(replyHeaders),
       'MIME-Version: 1.0',
       `Content-Type: multipart/mixed; boundary="${boundary}"`,
       '',
@@ -147,6 +188,7 @@ function makeMime(to, cc, subject, body, sender, attachments) {
     `To: ${to}`,
     cc ? `Cc: ${cc}` : null,
     `Subject: ${subject}`,
+    ...threadHeaderLines(replyHeaders),
     'MIME-Version: 1.0',
     'Content-Type: text/plain; charset="UTF-8"',
     '',
@@ -253,6 +295,7 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
       return;
     }
     const ccList = effectiveCc(cc, sender, to);
+    const replyHeaders = await getThreadReplyHeaders(threadId);
     let messageId;
 
     let attachments = [];
@@ -266,9 +309,9 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
     }
 
     if (sender.type === 'smtp') {
-      messageId = await sendViaSmtp(sender, to, subject, body, ccList, attachments);
+      messageId = await sendViaSmtp(sender, to, subject, body, ccList, attachments, replyHeaders);
     } else {
-      messageId = await sendViaRobert(to, subject, body, ccList, attachments, threadId);
+      messageId = await sendViaRobert(to, subject, body, ccList, attachments, threadId, replyHeaders);
     }
 
     res.json({ success: true, messageId, from: sender.id, threadId: threadId || null });
