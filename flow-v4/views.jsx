@@ -720,145 +720,65 @@ function V4LeadsView({ leads, openId, onOpenLead, user }) {
 }
 
 // ─── Calendar ────────────────────────────────────────────────
-const ICAL_URL = 'https://corsproxy.io/?url=https://calendar.google.com/calendar/ical/scobleizer%40gmail.com/public/basic.ics';
-const CAL_TZ   = 'America/Los_Angeles';
-
-function parseIcal(text) {
-  const events = [];
-  const blocks = text.split('BEGIN:VEVENT');
-  for (let i = 1; i < blocks.length; i++) {
-    const b = blocks[i];
-    const get = (key) => {
-      const m = b.match(new RegExp(key + '(?:;[^:]*)?:([^\\r\\n]+)'));
-      return m ? m[1].replace(/\\n/g, '\n').replace(/\\,/g, ',').trim() : '';
-    };
-    const rawStart = get('DTSTART');
-    const rawEnd   = get('DTEND');
-    const summary  = get('SUMMARY') || '(No title)';
-    const location = get('LOCATION');
-    const desc     = get('DESCRIPTION');
-
-    const parseDate = (raw) => {
-      if (!raw) return null;
-      // All-day: YYYYMMDD
-      if (/^\d{8}$/.test(raw)) {
-        const y = +raw.slice(0,4), mo = +raw.slice(4,6)-1, d = +raw.slice(6,8);
-        return { dt: new Date(y, mo, d), allDay: true };
-      }
-      // UTC datetime: YYYYMMDDTHHmmssZ
-      if (raw.endsWith('Z')) {
-        return { dt: new Date(raw.replace(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z/, '$1-$2-$3T$4:$5:$6Z')), allDay: false };
-      }
-      // Local datetime: YYYYMMDDTHHmmss
-      const m = raw.match(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/);
-      if (m) return { dt: new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}`), allDay: false };
-      return null;
-    };
-
-    const start = parseDate(rawStart);
-    const end   = parseDate(rawEnd);
-    if (!start) continue;
-    events.push({ summary, location, desc, start, end });
-  }
-  return events;
-}
-
-function calDayKey(date) {
-  return date.toLocaleDateString('en-CA', { timeZone: CAL_TZ }); // YYYY-MM-DD
-}
-
-function eventDayKey(ev) {
-  if (ev.start.allDay) {
-    const d = ev.start.dt;
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  }
-  return ev.start.dt.toLocaleDateString('en-CA', { timeZone: CAL_TZ });
-}
-
-function fmtTime(dt, allDay) {
-  if (allDay) return 'All day';
-  return dt.toLocaleTimeString('en-US', { timeZone: CAL_TZ, hour: 'numeric', minute: '2-digit', hour12: true });
-}
-
 function V4CalendarView() {
-  const [events, setEvents] = React.useState(null);
-  const [err, setErr]       = React.useState(null);
+  const CAL_ID = 'scobleizer%40gmail.com';
+  const TZ     = 'America%2FLos_Angeles';
 
-  React.useEffect(() => {
-    fetch(ICAL_URL)
-      .then(r => { if (!r.ok) throw new Error(r.status); return r.text(); })
-      .then(text => setEvents(parseIcal(text)))
-      .catch(e => setErr(String(e)));
-  }, []);
+  const [dayOffset, setDayOffset] = React.useState(0); // -1 yesterday, 0 today, 1 tomorrow
 
-  const days = [-1, 0, 1].map(offset => {
+  function calDate(offset) {
     const d = new Date();
     d.setDate(d.getDate() + offset);
-    const key   = calDayKey(d);
-    const label = offset === -1 ? 'Yesterday' : offset === 0 ? 'Today' : 'Tomorrow';
-    const sub   = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-    const items = (events || [])
-      .filter(ev => eventDayKey(ev) === key)
-      .sort((a, b) => {
-        if (a.start.allDay && !b.start.allDay) return -1;
-        if (!a.start.allDay && b.start.allDay) return 1;
-        return a.start.dt - b.start.dt;
-      });
-    return { key, label, sub, items, offset };
-  });
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}${m}${day}`;
+  }
+
+  function dayLabel(offset) {
+    if (offset === -1) return 'Yesterday';
+    if (offset ===  0) return 'Today';
+    return 'Tomorrow';
+  }
+
+  function fullDate(offset) {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  }
+
+  const date = calDate(dayOffset);
+  const src = `https://calendar.google.com/calendar/embed?src=${CAL_ID}&ctz=${TZ}&mode=DAY&dates=${date}%2F${date}&showTitle=0&showNav=0&showDate=0&showPrint=0&showTabs=0&showCalendars=0&showTz=0`;
 
   return (
     <div className="page">
       <div className="page-hd">
         <div>
           <div className="page-eyebrow">Robert Scoble</div>
-          <h1 className="page-title">Schedule</h1>
-          <div className="page-sub">Yesterday · Today · Tomorrow · Pacific Time</div>
+          <h1 className="page-title">Calendar</h1>
+          <div className="page-sub">{fullDate(dayOffset)}</div>
         </div>
-      </div>
-
-      <div className="body" style={{ paddingTop: 8 }}>
-        {err && (
-          <div className="card" style={{ padding: 20, color: 'var(--text-3)', fontSize: 13 }}>
-            Could not load calendar ({err}). Check that scobleizer@gmail.com calendar is set to public.
-          </div>
-        )}
-
-        {!err && !events && (
-          <div className="card" style={{ padding: 24, color: 'var(--text-3)', fontSize: 13 }}>
-            Loading Robert's calendar…
-          </div>
-        )}
-
-        {!err && events && (
-          <div className="cal-3col">
-            {days.map(day => (
-              <div key={day.key} className={'cal-day' + (day.offset === 0 ? ' cal-day-today' : '')}>
-                <div className="cal-day-hd">
-                  <span className="cal-day-label">{day.label}</span>
-                  <span className="cal-day-date">{day.sub}</span>
-                </div>
-                <div className="cal-day-body">
-                  {day.items.length === 0 && (
-                    <div className="cal-empty">Nothing scheduled</div>
-                  )}
-                  {day.items.map((ev, i) => (
-                    <div key={i} className={'cal-event' + (ev.start.allDay ? ' cal-event-allday' : '')}>
-                      <div className="cal-event-time">
-                        {fmtTime(ev.start.dt, ev.start.allDay)}
-                        {ev.end && !ev.start.allDay && (
-                          <span className="cal-event-end"> – {fmtTime(ev.end.dt, ev.end.allDay)}</span>
-                        )}
-                      </div>
-                      <div className="cal-event-title">{ev.summary}</div>
-                      {ev.location && <div className="cal-event-loc"><V3Icon name="leads" w={10} /> {ev.location}</div>}
-                    </div>
-                  ))}
-                </div>
-              </div>
+        <div className="page-actions">
+          <div className="cal-day-tabs">
+            {[-1, 0, 1].map(o => (
+              <button key={o}
+                className={'cal-day-tab' + (dayOffset === o ? ' is-active' : '')}
+                onClick={() => setDayOffset(o)}>
+                {dayLabel(o)}
+              </button>
             ))}
           </div>
-        )}
+        </div>
+      </div>
+      <div className="body" style={{ paddingTop: 8, height: 'calc(100vh - 160px)' }}>
+        <div className="card cal-frame-wrap">
+          <iframe
+            key={date}
+            src={src}
+            style={{ width: '100%', height: '100%', border: 'none', borderRadius: 8 }}
+            title="Robert's Calendar"
+          />
+        </div>
       </div>
     </div>
   );
