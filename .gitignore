@@ -30,6 +30,7 @@ data/cards_before_*.json
 gmail_leads.json
 
 # Local one-off business docs that should not flood GitHub
+/*.pdf
 Invoice*.pdf
 invoices/
 docs/*.pdf
