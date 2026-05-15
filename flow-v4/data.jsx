@@ -1,3 +1,266 @@
+// FLOW v4 — live Supabase/email helpers
+
+const V3_SUPABASE_URL = "https://hbnpwphxjurvtydezwgh.supabase.co";
+const V3_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhibnB3cGh4anVydnR5ZGV6d2doIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MTQ1MzIsImV4cCI6MjA5MDk5MDUzMn0.p5E48__GlGqjC17Z28q8fYFK-qV8CmiidYIP02vGe4s";
+
+async function V3LoadSupabaseLeads() {
+  const rows = [];
+  for (let offset = 0; ; offset += 1000) {
+    const url = V3_SUPABASE_URL + "/rest/v1/cards?select=*&order=id.desc&offset=" + offset + "&limit=1000";
+    const res = await fetch(url, {
+      headers: {
+        apikey: V3_SUPABASE_ANON_KEY,
+        Authorization: "Bearer " + V3_SUPABASE_ANON_KEY,
+      },
+    });
+    if (!res.ok) throw new Error("Supabase " + res.status + ": " + await res.text());
+    const chunk = await res.json();
+    if (!Array.isArray(chunk) || chunk.length === 0) break;
+    rows.push(...chunk);
+    if (chunk.length < 1000) break;
+  }
+  return rows.map(V3NormalizeSupabaseLead);
+}
+
+function V3NormalizeSupabaseLead(row) {
+  const name = row.contact_name || row.title || row.email || 'Untitled lead';
+  const brand = row.business_name || V3DomainBrand(row.email) || row.title || 'Unknown company';
+  const stage = V3NormalizeStage(row.list_id);
+  const received = row.date_received_iso || row.created_at || row.moved_at || null;
+  const daysInStage = V3DaysSince(row.moved_at || received);
+  const needsReply = Boolean(row.new_reply_at) || row.draft_reply_status === 'pending' || stage === 'new';
+  const ownerId = V3NormalizeOwner(row.assignee || row.created_by);
+  const value = V3ParseMoney(row.estimated_value);
+  const category = V3CategoryFromRow(row);
+  const activityDays = V3DaysSince(row.new_reply_at || row.moved_at || received);
+  const timelineDays = V3TimelineDaysFromRow(row);
+  return {
+    id: String(row.id),
+    contactName: name,
+    contactRole: row.job_title || row.lead_source || '',
+    brand,
+    stage,
+    value,
+    deliverables: row.intent || row.lead_source || '',
+    ownerId,
+    category,
+    daysInStage,
+    activityDays,
+    timelineDays,
+    lastTouch: V3RelativeTime(row.new_reply_at || row.moved_at || received),
+    needsReply,
+    approve: row.draft_reply ? ownerId : null,
+    color: __v3Color(name + brand),
+    email: row.email || '',
+    gmailThreadId: row.gmail_thread_id || '',
+    draftReply: V3ParseDraftReply(row.draft_reply),
+    draftReplyStatus: row.draft_reply_status || '',
+    rowId: row.id,
+    source: row.lead_source || (row.gmail_thread_id ? 'Gmail' : 'Manual'),
+    nextMove: V3NextMoveFromRow(stage, name, ownerId, needsReply, row),
+    timeline: __v3Timeline(stage, daysInStage, name, brand),
+    thread: V3ThreadFromRow(row, name, brand, stage),
+    progress: Math.max(0, V3_ACTIVE_STAGE_IDS.indexOf(stage)),
+    unread: Boolean(row.new_reply_at),
+  };
+}
+
+function V3ParseDraftReply(value) {
+  if (!value) return null;
+  if (typeof value === 'object') return value;
+  if (typeof value !== 'string') return null;
+  try {
+    return JSON.parse(value);
+  } catch (e) {
+    return { subject: '', body: value };
+  }
+}
+
+function V3NormalizeStage(stage) {
+  const s = String(stage || 'new').toLowerCase();
+  if (V3_ACTIVE_STAGE_IDS.includes(s)) return s;
+  const map = { discovery: 'new', build: 'engaged', posted: 'done', paid: 'paid-out', 'anything-else': 'dead-leads', dead: 'dead-leads' };
+  return map[s] || 'new';
+}
+
+function V3NormalizeOwner(owner) {
+  const s = String(owner || '').toLowerCase();
+  if (s.includes('robert')) return 'robert';
+  if (s.includes('sam')) return 'sammy';
+  return 'asher';
+}
+
+function V3ParseMoney(value) {
+  if (value == null || value === '') return null;
+  const n = Number(String(value).replace(/[^0-9.-]/g, ''));
+  return Number.isFinite(n) ? n : null;
+}
+
+function V3DomainBrand(email) {
+  const m = String(email || '').match(/@([^@.]+)\./);
+  return m ? m[1].replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : '';
+}
+
+function V3DaysSince(value) {
+  const t = value ? Date.parse(value) : NaN;
+  if (!Number.isFinite(t)) return 0;
+  return Math.max(0, Math.floor((Date.now() - t) / 86400000));
+}
+
+function V3RelativeTime(value) {
+  const t = value ? Date.parse(value) : NaN;
+  if (!Number.isFinite(t)) return '';
+  const mins = Math.max(0, Math.floor((Date.now() - t) / 60000));
+  if (mins < 60) return String(mins || 1) + 'm';
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return String(hrs) + 'h';
+  return String(Math.floor(hrs / 24)) + 'd';
+}
+
+function V3TimelineDaysFromRow(row) {
+  const pieces = [row.title, row.intent, row.description, row.lead_source];
+  const thread = Array.isArray(row.email_thread) ? row.email_thread : (Array.isArray(row.original_email) ? row.original_email : []);
+  for (const m of thread.slice(-6)) pieces.push(m.subject, m.body, m.text, m.snippet);
+  const text = pieces.filter(Boolean).join(' ').toLowerCase();
+  if (!text) return null;
+  if (new RegExp('\\b(asap|urgent|immediately|today|eod|end of day)\\b').test(text)) return 0;
+  if (new RegExp('\\b(tomorrow|next day)\\b').test(text)) return 1;
+  if (new RegExp('\\b(this week|by friday|by monday|next week)\\b').test(text)) return 7;
+  const inMatch = text.match(new RegExp('\\b(?:in|within)\\s+(\\d{1,2})\\s*(day|days|week|weeks)\\b'));
+  if (inMatch) return Number(inMatch[1]) * (inMatch[2].startsWith('week') ? 7 : 1);
+  const byMatch = text.match(new RegExp('\\bby\\s+(\\d{1,2})\\/(\\d{1,2})(?:\\/(\\d{2,4}))?\\b'));
+  if (byMatch) {
+    const now = new Date();
+    const year = byMatch[3] ? Number(byMatch[3].length === 2 ? '20' + byMatch[3] : byMatch[3]) : now.getFullYear();
+    const due = new Date(year, Number(byMatch[1]) - 1, Number(byMatch[2]));
+    if (Number.isFinite(due.getTime())) return Math.max(0, Math.ceil((due - now) / 86400000));
+  }
+  return null;
+}
+function V3CategoryFromRow(row) {
+  const text = String((row.lead_source || '') + ' ' + (row.intent || '') + ' ' + (row.description || '')).toLowerCase();
+  if (text.includes('intro')) return 'intro';
+  if (text.includes('interview') || text.includes('podcast')) return 'interview';
+  if (text.includes('partner') || text.includes('sponsor')) return 'partnership';
+  if (['done','paid-out'].includes(V3NormalizeStage(row.list_id))) return 'paid';
+  return 'collaboration';
+}
+
+function V3NextMoveFromRow(stage, name, owner, needsReply, row) {
+  const first = String(name).split(' ')[0] || 'Lead';
+  if (row.new_reply_at) return { who: owner, text: 'Reply to ' + first + ' - new message in thread', action: 'Reply' };
+  if (row.draft_reply) return { who: owner, text: 'Review drafted reply for ' + first, action: 'Review' };
+  return __v3NextMove(stage, name, owner, needsReply);
+}
+
+function V3ThreadFromRow(row, name, brand, stage) {
+  const thread = Array.isArray(row.email_thread) ? row.email_thread : (Array.isArray(row.original_email) ? row.original_email : null);
+  if (thread && thread.length) {
+    return thread.slice(-8).map((m, i) => ({
+      from: m.from || m.sender || (i % 2 ? name : 'UNALIGNED'),
+      when: V3RelativeTime(m.date || m.timestamp || row.created_at),
+      subject: m.subject || row.title || (brand + ' conversation'),
+      body: m.body || m.text || m.snippet || '',
+    }));
+  }
+  return [{ from: name, when: V3RelativeTime(row.created_at), subject: row.title || (brand + ' lead'), body: row.description || row.intent || '' }];
+}
+
+function V3SenderForUser(user) {
+  if (user === 'robert') return 'robert';
+  if (user === 'sammy') return 'sam';
+  return 'asher';
+}
+
+function V3SenderName(sender) {
+  if (sender === 'robert') return 'Robert Scoble';
+  if (sender === 'sam') return 'Sam Levin';
+  return 'Asher';
+}
+
+function V3SubjectForLead(lead) {
+  const last = lead?.thread?.[lead.thread.length - 1] || {};
+  const base = lead?.draftReply?.subject || last.subject || ((lead?.brand || 'Lead') + ' conversation');
+  return /^re:/i.test(base) ? base : 'Re: ' + base;
+}
+
+function V3DefaultCc(sender) {
+  return V3InternalEmails(sender)
+    .join(',');
+}
+
+function V3InternalEmails(excludeSender) {
+  return ['scobleizer@gmail.com', 'UnalignedX@gmail.com', 'asherunaligned@gmail.com']
+    .filter(email => {
+      const normalized = email.toLowerCase();
+      if (excludeSender === 'robert') return normalized !== 'scobleizer@gmail.com';
+      if (excludeSender === 'sam') return normalized !== 'unalignedx@gmail.com';
+      if (excludeSender === 'asher') return normalized !== 'asherunaligned@gmail.com';
+      return true;
+    });
+}
+
+function V3SenderEmails(sender) {
+  if (sender === 'robert') return ['scobleizer@gmail.com'];
+  if (sender === 'sam') return ['unalignedx@gmail.com'];
+  return ['asherunaligned@gmail.com'];
+}
+
+function V3IsSelfRecipient(sender, to) {
+  const recipients = String(to || '').toLowerCase();
+  return V3SenderEmails(sender).some(email => recipients.includes(email));
+}
+
+function V3SplitEmails(value) {
+  return String(value || '')
+    .split(/[,\s;]+/)
+    .map(email => email.trim())
+    .filter(Boolean);
+}
+
+function V3UniqueEmails(values) {
+  const seen = new Set();
+  return values.filter(email => {
+    const normalized = String(email || '').trim().toLowerCase();
+    if (!normalized || seen.has(normalized)) return false;
+    seen.add(normalized);
+    return true;
+  });
+}
+
+function V3ReplyRecipients(lead, sender, internalOnly = false) {
+  if (internalOnly) return { to: V3InternalEmails(sender), cc: [] };
+  const leadEmail = String(lead?.email || '').trim();
+  const senderEmails = V3SenderEmails(sender).map(email => email.toLowerCase());
+  const leadIsSender = senderEmails.includes(leadEmail.toLowerCase());
+  const to = leadEmail && !leadIsSender ? [leadEmail] : [];
+  const cc = V3InternalEmails(sender)
+    .filter(email => email.toLowerCase() !== leadEmail.toLowerCase());
+  return { to: V3UniqueEmails(to), cc: V3UniqueEmails(cc) };
+}
+
+async function V3SendLeadEmail({ lead, sender, to, cc, subject, body, attachPdf = false }) {
+  const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      to,
+      subject,
+      body,
+      from: sender,
+      threadId: lead?.gmailThreadId || null,
+      cc: cc ?? V3DefaultCc(sender),
+      attachPdf,
+    }),
+  });
+  const data = await resp.json();
+  if (!resp.ok || data.error) throw new Error(data.error || 'Send failed');
+  return data;
+}
+
+Object.assign(window, { V3SenderForUser, V3SenderName, V3SubjectForLead, V3DefaultCc, V3InternalEmails, V3SenderEmails, V3IsSelfRecipient, V3SplitEmails, V3UniqueEmails, V3ReplyRecipients, V3SendLeadEmail });
+
+
 // FLOW v3 — data with category labels matching UNALIGNED's INTERVIEW / COLLABORATION / PARTNERSHIP / INTRO tabs
 
 // ─── UNALIGNED Tiers (from SINGLE TIER pricing sheet) ────────
@@ -371,13 +634,14 @@ for (const lead of V3_LEADS) {
 
 // Aggregates
 function v3FlowCounts() {
+  const leads = window.V3?.LEADS || V3_LEADS;
   return V3_ACTIVE_STAGE_IDS.map(s => ({
     id: s,
     name: V3_STAGE_BY_ID[s].name,
     short: V3_STAGE_BY_ID[s].short,
     color: V3_STAGE_BY_ID[s].color,
-    count: V3_LEADS.filter(l => l.stage === s).length,
-    value: V3_LEADS.filter(l => l.stage === s).reduce((sum, l) => sum + (l.value || 0), 0),
+    count: leads.filter(l => l.stage === s).length,
+    value: leads.filter(l => l.stage === s).reduce((sum, l) => sum + (l.value || 0), 0),
   }));
 }
 
@@ -409,11 +673,12 @@ const V3_TASK_TYPES = {
 };
 
 function v3DeriveTasks(user) {
+  const leads = window.V3?.LEADS || V3_LEADS;
   const tasks = [];
   const first = n => n.split(' ')[0];
   const moneyTag = v => v ? '$' + v.toLocaleString() : '';
 
-  for (const lead of V3_LEADS) {
+  for (const lead of leads) {
     if (lead.stage === 'paid-out') continue;
     const ownsThis = lead.ownerId === user;
 
