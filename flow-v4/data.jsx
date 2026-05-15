@@ -29,7 +29,7 @@ function V3NormalizeSupabaseLead(row) {
   const activityDays = V3DaysSince(row.new_reply_at || row.moved_at || received);
   const rawStage = V3NormalizeStage(row.list_id);
   // Auto-trash: last touch > 90 days and not already closed out
-  const stage = (activityDays > 90 && !['paid-out', 'done', 'trash'].includes(rawStage)) ? 'trash' : rawStage;
+  const stage = (activityDays > 50 && !['paid-out', 'done', 'trash'].includes(rawStage)) ? 'trash' : rawStage;
   const daysInStage = V3DaysSince(row.moved_at || received);
   const needsReply = Boolean(row.new_reply_at) || row.draft_reply_status === 'pending' || stage === 'new';
   const ownerId = V3NormalizeOwner(row.assignee || row.created_by);
