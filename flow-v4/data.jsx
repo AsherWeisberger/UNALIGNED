@@ -161,11 +161,12 @@ function V3ThreadFromRow(row, name, brand, stage) {
     return thread.slice(-8).map((m, i) => ({
       from: m.from || m.sender || (i % 2 ? name : 'UNALIGNED'),
       when: V3RelativeTime(m.date || m.timestamp || row.created_at),
+      date: m.date || m.timestamp || row.created_at || null,
       subject: m.subject || row.title || (brand + ' conversation'),
       body: m.body || m.text || m.snippet || '',
     }));
   }
-  return [{ from: name, when: V3RelativeTime(row.created_at), subject: row.title || (brand + ' lead'), body: row.description || row.intent || '' }];
+  return [{ from: name, when: V3RelativeTime(row.created_at), date: row.created_at || null, subject: row.title || (brand + ' lead'), body: row.description || row.intent || '' }];
 }
 
 function V3SenderForUser(user) {

@@ -583,6 +583,28 @@ function V4InboxView({ leads, user }) {
   );
 }
 
+function fmtMsgDate(msg) {
+  const raw = msg.date;
+  const when = msg.when || '';
+  let d;
+  if (raw) {
+    d = new Date(raw);
+  } else {
+    const dm = when.match(/(\d+)d/), hm = when.match(/(\d+)h/), mm = when.match(/(\d+)m/);
+    d = new Date();
+    if (dm) d.setDate(d.getDate() - +dm[1]);
+    else if (hm) d.setHours(d.getHours() - +hm[1]);
+    else if (mm) d.setMinutes(d.getMinutes() - +mm[1]);
+    else return when;
+  }
+  if (isNaN(d)) return when;
+  const now = new Date();
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  if (d.toDateString() === now.toDateString()) return time;
+  const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) });
+  return `${date}, ${time}`;
+}
+
 function V4Reader({ lead, user }) {
   const { STAGE_BY_ID, USERS } = window.V3;
   const last = lead.thread[lead.thread.length - 1];
@@ -625,7 +647,7 @@ function V4Reader({ lead, user }) {
               <div className="act-item-hd">
                 <V3Avatar name={m.from} color={m.from === 'Sammy' ? '#1f8a5b' : m.from === 'Asher' ? '#15171c' : lead.color} size="xs" />
                 <span className="from">{m.from}</span>
-                <span className="time">{m.when}</span>
+                <span className="time" title={m.date || m.when}>{fmtMsgDate(m)}</span>
               </div>
               <div className="act-item-body">{m.body}</div>
             </div>
