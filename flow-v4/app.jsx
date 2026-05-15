@@ -64,6 +64,9 @@ function V4App() {
             Inbox
             {unreadCount > 0 && <span className="cnt">{unreadCount}</span>}
           </button>
+          <button className="hd-nav-btn" aria-current={view === 'calendar' ? 'page' : undefined} onClick={() => { setView('calendar'); setOpenId(null); }}>
+            <V3Icon name="cal" w={13} style={{ marginRight: 4 }} /> Calendar
+          </button>
         </div>
 
         <div className="hd-search">
@@ -149,6 +152,9 @@ function V4App() {
         )}
         {view === 'leads' && (
           <V4LeadsView leads={leads} openId={openId} onOpenLead={setOpenId} user={user} />
+        )}
+        {view === 'calendar' && (
+          <V4CalendarView />
         )}
       </main>
 
