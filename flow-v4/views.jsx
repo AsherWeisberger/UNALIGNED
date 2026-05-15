@@ -562,7 +562,7 @@ function V4InboxView({ leads, user }) {
                   <div className="thread-time">{l.lastTouch}</div>
                 </div>
                 <div className="thread-subject">{last?.subject}</div>
-                <div className="thread-snippet">{(last?.body || '').split('\n').filter(Boolean)[0]?.slice(0, 80)}…</div>
+                <div className="thread-snippet">{(last?.body || '').replace(/\s+/g, ' ').trim().slice(0, 280)}</div>
                 <div className="thread-tags">
                   {yourMove && <span className="thread-tag your-move">Your move</span>}
                   {l.unread && !yourMove && <span className="thread-tag unread">New</span>}
