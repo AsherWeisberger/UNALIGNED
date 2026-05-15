@@ -347,7 +347,13 @@ function NowCard({ task, user, onOpenLead, onToggle, completed, now, fadeMs }) {
           </div>
         )}
 
-        <V3PipeViz stageId={lead.stage} daysInStage={lead.daysInStage} />
+        <div className="now-card-stage-row">
+          <span className="now-card-stage-name" style={{ color: stage.color }}>{stage.short}</span>
+          <div className="now-card-stage-track">
+            <div className="now-card-stage-fill" style={{ width: (Math.min(lead.daysInStage, 14) / 14 * 100) + '%', background: stage.color }} />
+          </div>
+          <span className="now-card-stage-days" style={{ color: stage.color }}>{lead.daysInStage}d</span>
+        </div>
 
         <div className="now-card-meta">
           {task.value != null && <span className="now-card-value">{v3Money(task.value, { compact: true })}</span>}
@@ -481,7 +487,13 @@ function CompactRow({ task, user, onOpenLead, onToggle, completed, now, fadeMs, 
           {lead.deliverables && lead.deliverables !== '—' && <span className="cr-deliv"> · {lead.deliverables}</span>}
           {!isMine && owner && <span className="cr-owner"> · for {owner.name}</span>}
         </div>
-        <V3PipeViz stageId={lead.stage} daysInStage={lead.daysInStage} compact />
+        <div className="cr-stage-row">
+          <span className="cr-stage-name" style={{ color: stage.color }}>{stage.short}</span>
+          <div className="cr-stage-track">
+            <div className="cr-stage-fill" style={{ width: (Math.min(lead.daysInStage, 14) / 14 * 100) + '%', background: stage.color }} />
+          </div>
+          <span className="cr-stage-days">{lead.daysInStage}d</span>
+        </div>
       </div>
       {task.value != null && <div className="cr-value">{v3Money(task.value, { compact: true })}</div>}
       <div className={'tk-due tk-due-' + due.tone}>{due.label}</div>

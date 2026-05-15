@@ -1805,6 +1805,19 @@ body[data-theme="dark"] .twk-panel {
 .cal-btn-delete { background: none; border: 1px solid #e03; color: #e03; border-radius: 6px; padding: 7px 14px; font: 500 12px/1 var(--font-sans); cursor: pointer; }
 .cal-btn-delete:hover { background: #e03; color: #fff; }
 
+/* ── Stage row (Today cards) ── */
+.now-card-stage-row { display: flex; align-items: center; gap: 7px; margin: 6px 0 2px; }
+.now-card-stage-name { font: 600 10px/1 var(--font-mono); text-transform: uppercase; letter-spacing: 0.07em; white-space: nowrap; }
+.now-card-stage-track { flex: 1; height: 3px; background: var(--line); border-radius: 99px; overflow: hidden; }
+.now-card-stage-fill { height: 100%; border-radius: 99px; transition: width 0.3s; }
+.now-card-stage-days { font: 500 10px/1 var(--font-mono); color: var(--text-4); white-space: nowrap; }
+
+.cr-stage-row { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+.cr-stage-name { font: 600 9.5px/1 var(--font-mono); text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
+.cr-stage-track { flex: 1; height: 2px; background: var(--line); border-radius: 99px; overflow: hidden; }
+.cr-stage-fill { height: 100%; border-radius: 99px; }
+.cr-stage-days { font: 400 9.5px/1 var(--font-mono); color: var(--text-4); white-space: nowrap; }
+
 /* ── Now card context block ── */
 .now-card-context { display: flex; flex-direction: column; gap: 4px; margin: 6px 0 2px; }
 .now-card-deliv {
