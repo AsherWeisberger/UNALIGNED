@@ -1784,6 +1784,26 @@ body[data-theme="dark"] .twk-panel {
 .cal-event-allday .cal-event-time { color: var(--text-3); }
 .cal-event-title { font: 500 13px/1.3 var(--font-sans); color: var(--text); }
 .cal-event-loc { font: 400 11px/1 var(--font-mono); color: var(--text-3); margin-top: 4px; display: flex; align-items: center; gap: 4px; }
+.cal-event:hover { background: var(--surface-2); }
+
+.cal-add-btn { margin-left: auto; background: none; border: 1px solid var(--border); border-radius: 4px; width: 20px; height: 20px; cursor: pointer; font-size: 14px; line-height: 1; color: var(--text-3); display: flex; align-items: center; justify-content: center; }
+.cal-add-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* ── Calendar modal ── */
+.cal-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 200; display: flex; align-items: center; justify-content: center; }
+.cal-modal { background: var(--surface); border-radius: 12px; width: 360px; box-shadow: 0 8px 32px rgba(0,0,0,0.18); overflow: hidden; }
+.cal-modal-hd { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px 12px; font: 600 14px/1 var(--font-sans); border-bottom: 1px solid var(--border); }
+.cal-modal-close { background: none; border: none; cursor: pointer; font-size: 16px; color: var(--text-3); padding: 0; }
+.cal-modal-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+.cal-field { display: flex; flex-direction: column; gap: 4px; font: 500 11px/1 var(--font-mono); color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; }
+.cal-field input[type="text"], .cal-field input[type="date"], .cal-field input[type="time"], .cal-field input:not([type]) { background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; font: 400 13px/1 var(--font-sans); color: var(--text); outline: none; width: 100%; box-sizing: border-box; }
+.cal-field input:focus { border-color: var(--accent); }
+.cal-field-check { flex-direction: row; align-items: center; gap: 8px; text-transform: none; font-size: 13px; }
+.cal-modal-foot { display: flex; align-items: center; gap: 8px; padding: 12px 20px 16px; border-top: 1px solid var(--border); }
+.cal-btn-save { margin-left: auto; background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 8px 20px; font: 600 13px/1 var(--font-sans); cursor: pointer; }
+.cal-btn-save:disabled { opacity: 0.5; cursor: default; }
+.cal-btn-delete { background: none; border: 1px solid #e03; color: #e03; border-radius: 6px; padding: 7px 14px; font: 500 12px/1 var(--font-sans); cursor: pointer; }
+.cal-btn-delete:hover { background: #e03; color: #fff; }
 
 /* ── Now card context block ── */
 .now-card-context { display: flex; flex-direction: column; gap: 4px; margin: 6px 0 2px; }
