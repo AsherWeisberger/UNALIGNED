@@ -6,6 +6,31 @@ const nodemailer = require('nodemailer');
 admin.initializeApp();
 const db = admin.firestore();
 
+const SENDERS = {
+  robert: {
+    id: 'robert',
+    name: 'Robert Scoble',
+    email: 'scobleizer@gmail.com',
+    type: 'gmail_oauth',
+    secretDoc: 'gmail_oauth',
+    fallbackSecretDoc: 'robert_gmail',
+  },
+  sam: {
+    id: 'sam',
+    name: 'Sam Levin',
+    email: 'UnalignedX@gmail.com',
+    type: 'smtp',
+    secretDoc: 'sam_gmail',
+  },
+  asher: {
+    id: 'asher',
+    name: 'Asher',
+    email: 'AsherUnaligned@gmail.com',
+    type: 'smtp',
+    secretDoc: 'asher_gmail',
+  },
+};
+
 // ── Gmail OAuth (Robert) ────────────────────────────────
 let cachedRobertAuth = null;
 
@@ -31,39 +56,47 @@ async function getRobertGmailAuth() {
   return cachedRobertAuth;
 }
 
-async function sendViaRobert(to, subject, body, cc) {
-  const auth = await getRobertGmailAuth();
-  const gmail = google.gmail({ version: 'v1', auth });
-  const raw = makeMime(to, cc, subject, body);
-  const result = await gmail.users.messages.send({ userId: 'me', resource: raw });
-  return result.data.id;
+async function sendViaRobert(to, subject, body, cc, attachments, threadId) {
+  try {
+    const auth = await getRobertGmailAuth();
+    const gmail = google.gmail({ version: 'v1', auth });
+    const raw = makeMime(to, cc, subject, body, SENDERS.robert, attachments);
+    const result = await gmail.users.messages.send({
+      userId: 'me',
+      resource: threadId ? { ...raw, threadId } : raw,
+    });
+    return result.data.id;
+  } catch (err) {
+    console.warn('Robert OAuth send failed, falling back to SMTP:', err.message);
+    return sendViaSmtp({ ...SENDERS.robert, type: 'smtp', secretDoc: SENDERS.robert.fallbackSecretDoc }, to, subject, body, cc, attachments);
+  }
 }
 
-// ── Sam SMTP (App Password) ───────────────────────────
-let samTransporter = null;
+// ── SMTP senders (App Passwords) ───────────────────────
+const smtpTransporters = {};
 
-async function getSamTransporter() {
-  if (samTransporter) return samTransporter;
+async function getSmtpTransporter(sender) {
+  if (smtpTransporters[sender.id]) return smtpTransporters[sender.id];
 
-  const snap = await db.collection('_secrets').doc('sam_gmail').get();
-  if (!snap.exists) throw new Error('Sam Gmail credentials not found');
+  const snap = await db.collection('_secrets').doc(sender.secretDoc).get();
+  if (!snap.exists) throw new Error(`${sender.name} Gmail credentials not found`);
 
   const { email, app_password } = snap.data();
-  samTransporter = nodemailer.createTransport({
+  smtpTransporters[sender.id] = nodemailer.createTransport({
     host: 'smtp.gmail.com',
     port: 587,
     secure: false,
     auth: { user: email, pass: app_password },
   });
-  return samTransporter;
+  return smtpTransporters[sender.id];
 }
 
-async function sendViaSam(to, subject, body, cc, attachments) {
-  const t = await getSamTransporter();
-  const snap = await db.collection('_secrets').doc('sam_gmail').get();
+async function sendViaSmtp(sender, to, subject, body, cc, attachments) {
+  const t = await getSmtpTransporter(sender);
+  const snap = await db.collection('_secrets').doc(sender.secretDoc).get();
   const { email } = snap.data();
   await t.sendMail({
-    from: `"Sam Levin" <${email}>`,
+    from: `"${sender.name}" <${email || sender.email}>`,
     to,
     cc: cc || undefined,
     subject,
@@ -74,17 +107,109 @@ async function sendViaSam(to, subject, body, cc, attachments) {
 }
 
 // ── Shared ──────────────────────────────────────────
-function makeMime(to, cc, subject, body) {
+function makeMime(to, cc, subject, body, sender, attachments) {
+  if (attachments && attachments.length) {
+    const boundary = `unaligned_${Date.now()}`;
+    const lines = [
+      `From: "${sender.name}" <${sender.email}>`,
+      `To: ${to}`,
+      cc ? `Cc: ${cc}` : null,
+      `Subject: ${subject}`,
+      'MIME-Version: 1.0',
+      `Content-Type: multipart/mixed; boundary="${boundary}"`,
+      '',
+      `--${boundary}`,
+      'Content-Type: text/plain; charset="UTF-8"',
+      'Content-Transfer-Encoding: 7bit',
+      '',
+      body,
+      '',
+    ].filter(line => line !== null);
+
+    for (const attachment of attachments) {
+      lines.push(
+        `--${boundary}`,
+        `Content-Type: ${attachment.contentType || 'application/octet-stream'}; name="${attachment.filename}"`,
+        'Content-Transfer-Encoding: base64',
+        `Content-Disposition: attachment; filename="${attachment.filename}"`,
+        '',
+        Buffer.from(attachment.content).toString('base64').replace(/(.{76})/g, '$1\r\n'),
+        ''
+      );
+    }
+
+    lines.push(`--${boundary}--`);
+    return { raw: Buffer.from(lines.join('\r\n')).toString('base64url') };
+  }
+
   const lines = [
+    `From: "${sender.name}" <${sender.email}>`,
     `To: ${to}`,
-    `Cc: ${cc || ''}`,
+    cc ? `Cc: ${cc}` : null,
     `Subject: ${subject}`,
     'MIME-Version: 1.0',
     'Content-Type: text/plain; charset="UTF-8"',
     '',
     body,
-  ];
+  ].filter(line => line !== null);
   return { raw: Buffer.from(lines.join('\r\n')).toString('base64url') };
+}
+
+function normalizeSender(from) {
+  const raw = String(from || '').trim().toLowerCase();
+
+  if (
+    raw.includes('asher') ||
+    raw.includes('asherunaligned') ||
+    raw.includes('asherweisberger')
+  ) {
+    return SENDERS.asher;
+  }
+
+  if (
+    raw.includes('sam') ||
+    raw.includes('unalignedx') ||
+    raw.includes('samlevin')
+  ) {
+    return SENDERS.sam;
+  }
+
+  if (
+    !raw ||
+    raw.includes('robert') ||
+    raw.includes('scoble') ||
+    raw.includes('scobelizer') ||
+    raw.includes('scobleizer')
+  ) {
+    return SENDERS.robert;
+  }
+
+  throw new Error(`Unknown sender: ${from}`);
+}
+
+function normalizeAddressList(value) {
+  return String(value || '')
+    .split(',')
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
+function effectiveCc(cc, sender, to) {
+  const requested = normalizeAddressList(cc);
+  const defaults = [SENDERS.robert.email, SENDERS.sam.email, SENDERS.asher.email];
+  const recipients = new Set(normalizeAddressList(to).map(item => item.toLowerCase()));
+  const seen = new Set();
+
+  return (requested.length ? requested : defaults)
+    .filter(address => {
+      const normalized = address.toLowerCase();
+      if (normalized === sender.email.toLowerCase()) return false;
+      if (recipients.has(normalized)) return false;
+      if (seen.has(normalized)) return false;
+      seen.add(normalized);
+      return true;
+    })
+    .join(',');
 }
 
 exports.sendEmail = functions.https.onRequest(async (req, res) => {
@@ -95,7 +220,7 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
   if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
-  const { to, subject, body, cc, from, attachPdf } = req.body || {};
+  const { to, subject, body, cc, from, attachPdf, threadId } = req.body || {};
 
   if (!to || !subject || !body) {
     res.status(400).json({ error: 'Missing to, subject, or body' });
@@ -103,8 +228,8 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
   }
 
   try {
-    const defaultCC = 'UnalignedX@gmail.com';
-    const effectiveCC = cc || defaultCC;
+    const sender = normalizeSender(from);
+    const ccList = effectiveCc(cc, sender, to);
     let messageId;
 
     let attachments = [];
@@ -117,13 +242,13 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
       }
     }
 
-    if (from === 'sam' || from === 'unalignedx') {
-      messageId = await sendViaSam(to, subject, body, effectiveCC, attachments);
+    if (sender.type === 'smtp') {
+      messageId = await sendViaSmtp(sender, to, subject, body, ccList, attachments);
     } else {
-      messageId = await sendViaRobert(to, subject, body, effectiveCC);
+      messageId = await sendViaRobert(to, subject, body, ccList, attachments, threadId);
     }
 
-    res.json({ success: true, messageId });
+    res.json({ success: true, messageId, from: sender.id, threadId: threadId || null });
   } catch (err) {
     console.error('sendEmail error:', err.message);
     res.status(500).json({ error: err.message });
