@@ -169,6 +169,52 @@ function StuckZone({ leads, onOpenLead, user }) {
   );
 }
 
+// ─── Pipeline progress visual ───────────────────────────────
+// pipeStep: 0-7 index in ACTIVE_STAGE_IDS. daysInStage for the stuck bar.
+function V3PipeViz({ stageId, daysInStage, compact }) {
+  const { ACTIVE_STAGE_IDS, STAGE_BY_ID } = window.V3;
+  const PIPE_STAGES = ['new','first-touch','engaged','rates-sent','negotiating','invoice-sent','done','paid-out'];
+  const step = PIPE_STAGES.indexOf(stageId);
+  const stage = STAGE_BY_ID[stageId] || {};
+  const stuckColor = daysInStage >= 21 ? '#dd0033' : daysInStage >= 14 ? '#e87800' : daysInStage >= 7 ? '#c9a000' : 'var(--accent)';
+  const stuckPct   = Math.min(100, Math.round((daysInStage / 28) * 100));
+
+  if (compact) {
+    return (
+      <div className="pv-compact">
+        <div className="pv-compact-segs">
+          {PIPE_STAGES.map((s, i) => (
+            <div key={s} className={'pv-seg' + (i < step ? ' past' : i === step ? ' cur' : '')}
+                 style={i === step ? { background: stage.color } : undefined} />
+          ))}
+        </div>
+        <div className="pv-compact-bar-wrap">
+          <div className="pv-compact-bar" style={{ width: stuckPct + '%', background: stuckColor }} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pv-full">
+      <div className="pv-full-segs">
+        {PIPE_STAGES.map((s, i) => (
+          <div key={s} className={'pv-seg' + (i < step ? ' past' : i === step ? ' cur' : '')}
+               style={i === step ? { background: stage.color } : undefined}>
+            {i === step && <span className="pv-seg-label">{stage.short}</span>}
+          </div>
+        ))}
+      </div>
+      <div className="pv-full-foot">
+        <div className="pv-full-bar-wrap">
+          <div className="pv-full-bar" style={{ width: stuckPct + '%', background: stuckColor }} />
+        </div>
+        <span className="pv-full-days" style={{ color: stuckColor }}>{daysInStage}d in stage</span>
+      </div>
+    </div>
+  );
+}
+
 // ─── NOW zone — big action cards, 3 sub-sections clearly differentiated
 function NowZone({ buckets, ...ctx }) {
   const isEmpty = buckets.urgent.length === 0 && buckets.past.length === 0 && buckets.today.length === 0;
@@ -288,11 +334,9 @@ function NowCard({ task, user, onOpenLead, onToggle, completed, now, fadeMs }) {
           </div>
         )}
 
+        <V3PipeViz stageId={lead.stage} daysInStage={lead.daysInStage} />
+
         <div className="now-card-meta">
-          <span className="now-card-stage" style={{ color: stage.color, borderColor: 'currentColor' }}>
-            <span className="dot" style={{ background: stage.color }}></span>
-            {stage.short}
-          </span>
           {task.value != null && <span className="now-card-value">{v3Money(task.value, { compact: true })}</span>}
           {!isMine && owner && (
             <span className="now-card-owner">
@@ -420,12 +464,9 @@ function CompactRow({ task, user, onOpenLead, onToggle, completed, now, fadeMs, 
       <div className="cr-body">
         <div className="cr-title">{task.title}</div>
         <div className="cr-meta">
-          <span className="cr-stage" style={{ color: stage.color }}>
-            <span className="dot" style={{ background: stage.color }}></span>
-            {stage.short}
-          </span>
           {!isMine && owner && <span className="cr-owner">for {owner.name}</span>}
         </div>
+        <V3PipeViz stageId={lead.stage} daysInStage={lead.daysInStage} compact />
       </div>
       {task.value != null && <div className="cr-value">{v3Money(task.value, { compact: true })}</div>}
       <div className={'tk-due tk-due-' + due.tone}>{due.label}</div>

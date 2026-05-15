@@ -1714,3 +1714,34 @@ body[data-theme="dark"] .twk-panel {
 .stuck-row-bar { height: 100%; border-radius: 2px; transition: width 0.3s; }
 .stuck-row-days { font: 700 13px/1 var(--font-mono); text-align: right; color: var(--text-2); }
 .stuck-row-owner { display: flex; justify-content: center; }
+
+/* ── Pipeline progress viz ── */
+.pv-seg {
+  flex: 1; height: 100%; border-radius: 2px;
+  background: var(--line-soft);
+  transition: background 0.2s;
+  position: relative;
+}
+.pv-seg.past { background: var(--text-4); opacity: 0.5; }
+.pv-seg.cur  { opacity: 1; }
+.pv-seg-label {
+  position: absolute; bottom: calc(100% + 4px); left: 50%;
+  transform: translateX(-50%);
+  font: 600 9px/1 var(--font-mono); text-transform: uppercase;
+  white-space: nowrap; color: var(--text-2); letter-spacing: 0.06em;
+  pointer-events: none;
+}
+
+/* full (NowCard) */
+.pv-full { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 4px; }
+.pv-full-segs { display: flex; gap: 3px; height: 6px; }
+.pv-full-foot { display: flex; align-items: center; gap: 8px; }
+.pv-full-bar-wrap { flex: 1; height: 3px; background: var(--line-soft); border-radius: 2px; overflow: hidden; }
+.pv-full-bar { height: 100%; border-radius: 2px; transition: width 0.3s; }
+.pv-full-days { font: 600 10px/1 var(--font-mono); white-space: nowrap; }
+
+/* compact (CompactRow) */
+.pv-compact { display: flex; flex-direction: column; gap: 3px; margin-top: 5px; }
+.pv-compact-segs { display: flex; gap: 2px; height: 3px; }
+.pv-compact-bar-wrap { height: 2px; background: var(--line-soft); border-radius: 1px; overflow: hidden; }
+.pv-compact-bar { height: 100%; border-radius: 1px; transition: width 0.3s; }
