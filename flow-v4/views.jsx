@@ -738,16 +738,22 @@ function V4LeadsView({ leads, openId, onOpenLead, user }) {
 const CAL_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby7SNgq-2mlzm5JkVHkbo0fsa1fOHIh6KPFfKqvPPLoFYYUvYZv94z2-KMdweTbAYVw9A/exec';
 const CAL_TZ = 'America/Los_Angeles';
 
-function V4CalendarView() {
-  const [events, setEvents] = React.useState(null);
-  const [err, setErr]       = React.useState(null);
+const EMPTY_FORM = { title: '', date: '', startTime: '09:00', endTime: '10:00', location: '', allDay: false };
 
-  React.useEffect(() => {
+function V4CalendarView() {
+  const [events, setEvents]   = React.useState(null);
+  const [err, setErr]         = React.useState(null);
+  const [form, setForm]       = React.useState(null); // null = closed; { mode:'create'|'edit', ev, fields }
+  const [saving, setSaving]   = React.useState(false);
+
+  function load() {
     fetch(CAL_SCRIPT_URL)
       .then(r => r.json())
       .then(data => setEvents(data))
       .catch(e => setErr(String(e)));
-  }, []);
+  }
+
+  React.useEffect(load, []);
 
   function dayKey(offset) {
     const d = new Date();
@@ -768,6 +774,77 @@ function V4CalendarView() {
     const d = new Date();
     d.setDate(d.getDate() + offset);
     return d.toLocaleDateString('en-US', { timeZone: CAL_TZ, weekday: 'long', month: 'long', day: 'numeric' });
+  }
+
+  function openCreate(dayOffset) {
+    setForm({ mode: 'create', ev: null, fields: { ...EMPTY_FORM, date: dayKey(dayOffset) } });
+  }
+
+  function openEdit(ev) {
+    const d = new Date(ev.start);
+    const pad = n => String(n).padStart(2, '0');
+    const localTime = t => {
+      const dt = new Date(t);
+      const h = pad(dt.toLocaleString('en-US', { timeZone: CAL_TZ, hour: '2-digit', hour12: false }).replace('24','00'));
+      const m = pad(dt.toLocaleString('en-US', { timeZone: CAL_TZ, minute: '2-digit' }));
+      return `${h}:${m}`;
+    };
+    setForm({
+      mode: 'edit',
+      ev,
+      fields: {
+        title:     ev.title,
+        date:      eventKey(ev),
+        startTime: ev.allDay ? '09:00' : localTime(ev.start),
+        endTime:   ev.allDay ? '10:00' : localTime(ev.end),
+        location:  ev.location || '',
+        allDay:    ev.allDay,
+      },
+    });
+  }
+
+  function setField(k, v) {
+    setForm(f => ({ ...f, fields: { ...f.fields, [k]: v } }));
+  }
+
+  function buildDatetime(date, time) {
+    return new Date(`${date}T${time}:00`).toISOString();
+  }
+
+  async function handleSave() {
+    const { mode, ev, fields } = form;
+    setSaving(true);
+    const body = mode === 'create'
+      ? { action: 'create', title: fields.title, allDay: fields.allDay,
+          start: buildDatetime(fields.date, fields.startTime),
+          end:   buildDatetime(fields.date, fields.endTime),
+          location: fields.location }
+      : { action: 'update', id: ev.id,
+          searchStart: new Date(ev.start).toISOString(),
+          searchEnd:   new Date(ev.end).toISOString(),
+          title: fields.title, allDay: fields.allDay,
+          start: buildDatetime(fields.date, fields.startTime),
+          end:   buildDatetime(fields.date, fields.endTime),
+          location: fields.location };
+    await fetch(CAL_SCRIPT_URL, { method: 'POST', body: JSON.stringify(body) });
+    setSaving(false);
+    setForm(null);
+    setEvents(null);
+    load();
+  }
+
+  async function handleDelete() {
+    const { ev } = form;
+    setSaving(true);
+    await fetch(CAL_SCRIPT_URL, { method: 'POST', body: JSON.stringify({
+      action: 'delete', id: ev.id,
+      searchStart: new Date(ev.start).toISOString(),
+      searchEnd:   new Date(ev.end).toISOString(),
+    })});
+    setSaving(false);
+    setForm(null);
+    setEvents(null);
+    load();
   }
 
   const days = [-1, 0, 1].map(offset => ({
@@ -807,11 +884,12 @@ function V4CalendarView() {
                 <div className="cal-day-hd">
                   <span className="cal-day-label">{day.label}</span>
                   <span className="cal-day-date">{day.sub}</span>
+                  <button className="cal-add-btn" onClick={() => openCreate(day.offset)} title="Add event">+</button>
                 </div>
                 <div className="cal-day-body">
                   {day.items.length === 0 && <div className="cal-empty">Nothing scheduled</div>}
                   {day.items.map((ev, i) => (
-                    <div key={i} className={'cal-event' + (ev.allDay ? ' cal-event-allday' : '')}>
+                    <div key={i} className={'cal-event' + (ev.allDay ? ' cal-event-allday' : '')} onClick={() => openEdit(ev)} style={{ cursor: 'pointer' }}>
                       <div className="cal-event-time">{fmtTime(ev.start, ev.allDay)}</div>
                       <div className="cal-event-title">{ev.title}</div>
                       {ev.location && <div className="cal-event-loc">{ev.location}</div>}
@@ -823,6 +901,58 @@ function V4CalendarView() {
           </div>
         )}
       </div>
+
+      {/* ─── Event form modal ─── */}
+      {form && (
+        <div className="cal-modal-overlay" onClick={() => setForm(null)}>
+          <div className="cal-modal" onClick={e => e.stopPropagation()}>
+            <div className="cal-modal-hd">
+              <span>{form.mode === 'create' ? 'New Event' : 'Edit Event'}</span>
+              <button className="cal-modal-close" onClick={() => setForm(null)}>✕</button>
+            </div>
+
+            <div className="cal-modal-body">
+              <label className="cal-field">
+                <span>Title</span>
+                <input value={form.fields.title} onChange={e => setField('title', e.target.value)} placeholder="Event title" autoFocus />
+              </label>
+              <label className="cal-field">
+                <span>Date</span>
+                <input type="date" value={form.fields.date} onChange={e => setField('date', e.target.value)} />
+              </label>
+              <label className="cal-field cal-field-check">
+                <input type="checkbox" checked={form.fields.allDay} onChange={e => setField('allDay', e.target.checked)} />
+                <span>All day</span>
+              </label>
+              {!form.fields.allDay && (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <label className="cal-field" style={{ flex: 1 }}>
+                    <span>Start</span>
+                    <input type="time" value={form.fields.startTime} onChange={e => setField('startTime', e.target.value)} />
+                  </label>
+                  <label className="cal-field" style={{ flex: 1 }}>
+                    <span>End</span>
+                    <input type="time" value={form.fields.endTime} onChange={e => setField('endTime', e.target.value)} />
+                  </label>
+                </div>
+              )}
+              <label className="cal-field">
+                <span>Location</span>
+                <input value={form.fields.location} onChange={e => setField('location', e.target.value)} placeholder="Optional" />
+              </label>
+            </div>
+
+            <div className="cal-modal-foot">
+              {form.mode === 'edit' && (
+                <button className="cal-btn-delete" onClick={handleDelete} disabled={saving}>Delete</button>
+              )}
+              <button className="cal-btn-save" onClick={handleSave} disabled={saving || !form.fields.title}>
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
