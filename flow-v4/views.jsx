@@ -748,17 +748,9 @@ function V4CalendarView() {
     return `${y}${m}${day}`;
   }
 
-  function fullDate(offset) {
-    const d = new Date();
-    d.setDate(d.getDate() + offset);
-    return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-  }
-
-  const days = [
-    { offset: -1, label: 'Yesterday' },
-    { offset:  0, label: 'Today'     },
-    { offset:  1, label: 'Tomorrow'  },
-  ];
+  const start = calDate(-1);
+  const end   = calDate(1);
+  const src   = `https://calendar.google.com/calendar/embed?src=${CAL_ID}&ctz=${TZ}&mode=AGENDA&dates=${start}%2F${end}&showTitle=0&showNav=0&showDate=1&showPrint=0&showTabs=0&showCalendars=0&showTz=0`;
 
   return (
     <div className="page">
@@ -770,28 +762,14 @@ function V4CalendarView() {
         </div>
       </div>
 
-      <div className="body" style={{ paddingTop: 8 }}>
-        <div className="cal-3col" style={{ height: 'calc(100vh - 180px)' }}>
-          {days.map(({ offset, label }) => {
-            const date = calDate(offset);
-            const src  = `https://calendar.google.com/calendar/embed?src=${CAL_ID}&ctz=${TZ}&mode=DAY&dates=${date}%2F${date}&showTitle=0&showNav=0&showDate=0&showPrint=0&showTabs=0&showCalendars=0&showTz=0`;
-            return (
-              <div key={offset} className={'cal-day' + (offset === 0 ? ' cal-day-today' : '')} style={{ display: 'flex', flexDirection: 'column' }}>
-                <div className="cal-day-hd">
-                  <span className="cal-day-label">{label}</span>
-                  <span className="cal-day-date">{fullDate(offset)}</span>
-                </div>
-                <div style={{ flex: 1, borderRadius: 8, overflow: 'hidden' }}>
-                  <iframe
-                    key={date}
-                    src={src}
-                    style={{ width: '100%', height: '100%', border: 'none' }}
-                    title={`${label} calendar`}
-                  />
-                </div>
-              </div>
-            );
-          })}
+      <div className="body" style={{ paddingTop: 8, height: 'calc(100vh - 160px)' }}>
+        <div className="card cal-frame-wrap" style={{ height: '100%' }}>
+          <iframe
+            key={start}
+            src={src}
+            style={{ width: '100%', height: '100%', border: 'none', borderRadius: 8 }}
+            title="Robert's Schedule"
+          />
         </div>
       </div>
     </div>
