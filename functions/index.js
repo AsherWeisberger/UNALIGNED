@@ -190,7 +190,11 @@ function normalizeSender(from) {
 function normalizeAddressList(value) {
   return String(value || '')
     .split(',')
-    .map(item => item.trim())
+    .map(item => {
+      const trimmed = item.trim();
+      const match = trimmed.match(/<([^<>@\s]+@[^<>\s]+)>/) || trimmed.match(/([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i);
+      return match ? match[1].trim() : trimmed;
+    })
     .filter(Boolean);
 }
 
@@ -198,12 +202,18 @@ function effectiveCc(cc, sender, to) {
   const requested = normalizeAddressList(cc);
   const defaults = [SENDERS.robert.email, SENDERS.sam.email, SENDERS.asher.email];
   const recipients = new Set(normalizeAddressList(to).map(item => item.toLowerCase()));
+  const senderAddresses = new Set([
+    sender.email,
+    sender.id === 'asher' ? 'asherunaligned@gmail.com' : '',
+    sender.id === 'sam' ? 'unalignedx@gmail.com' : '',
+    sender.id === 'robert' ? 'scobleizer@gmail.com' : '',
+  ].filter(Boolean).map(item => item.toLowerCase()));
   const seen = new Set();
 
   return (requested.length ? requested : defaults)
     .filter(address => {
       const normalized = address.toLowerCase();
-      if (normalized === sender.email.toLowerCase()) return false;
+      if (senderAddresses.has(normalized)) return false;
       if (recipients.has(normalized)) return false;
       if (seen.has(normalized)) return false;
       seen.add(normalized);
@@ -234,11 +244,11 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
 
     let attachments = [];
     if (attachPdf) {
-      const pdfUrl = 'https://unaligned-fc556.web.app/Unaligned_Partnership_Packages.pdf';
+      const pdfUrl = 'https://unaligned-fc556.web.app/docs/SINGLE_TIER.pdf';
       const pdfResp = await fetch(pdfUrl);
       if (pdfResp.ok) {
         const pdfBuffer = Buffer.from(await pdfResp.arrayBuffer());
-        attachments = [{ filename: 'Unaligned_Partnership_Packages.pdf', content: pdfBuffer, contentType: 'application/pdf' }];
+        attachments = [{ filename: 'SINGLE_TIER.pdf', content: pdfBuffer, contentType: 'application/pdf' }];
       }
     }
 
