@@ -198,16 +198,25 @@ function normalizeAddressList(value) {
     .filter(Boolean);
 }
 
-function effectiveCc(cc, sender, to) {
-  const requested = normalizeAddressList(cc);
-  const defaults = [SENDERS.robert.email, SENDERS.sam.email, SENDERS.asher.email];
-  const recipients = new Set(normalizeAddressList(to).map(item => item.toLowerCase()));
-  const senderAddresses = new Set([
+function senderAddressSet(sender) {
+  return new Set([
     sender.email,
     sender.id === 'asher' ? 'asherunaligned@gmail.com' : '',
     sender.id === 'sam' ? 'unalignedx@gmail.com' : '',
     sender.id === 'robert' ? 'scobleizer@gmail.com' : '',
   ].filter(Boolean).map(item => item.toLowerCase()));
+}
+
+function hasSenderRecipient(to, sender) {
+  const senderAddresses = senderAddressSet(sender);
+  return normalizeAddressList(to).some(address => senderAddresses.has(address.toLowerCase()));
+}
+
+function effectiveCc(cc, sender, to) {
+  const requested = normalizeAddressList(cc);
+  const defaults = [SENDERS.robert.email, SENDERS.sam.email, SENDERS.asher.email];
+  const recipients = new Set(normalizeAddressList(to).map(item => item.toLowerCase()));
+  const senderAddresses = senderAddressSet(sender);
   const seen = new Set();
 
   return (requested.length ? requested : defaults)
@@ -239,6 +248,10 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
 
   try {
     const sender = normalizeSender(from);
+    if (hasSenderRecipient(to, sender)) {
+      res.status(400).json({ error: `Refusing to send: ${sender.name} is also listed as the recipient.` });
+      return;
+    }
     const ccList = effectiveCc(cc, sender, to);
     let messageId;
 
