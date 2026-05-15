@@ -1784,3 +1784,21 @@ body[data-theme="dark"] .twk-panel {
 .cal-event-allday .cal-event-time { color: var(--text-3); }
 .cal-event-title { font: 500 13px/1.3 var(--font-sans); color: var(--text); }
 .cal-event-loc { font: 400 11px/1 var(--font-mono); color: var(--text-3); margin-top: 4px; display: flex; align-items: center; gap: 4px; }
+
+/* ── Now card context block ── */
+.now-card-context { display: flex; flex-direction: column; gap: 4px; margin: 6px 0 2px; }
+.now-card-deliv {
+  display: inline-flex; align-items: center; gap: 5px;
+  font: 500 11px/1 var(--font-mono); color: var(--text-3);
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.now-card-snippet {
+  font: 400 12px/1.4 var(--font-sans); color: var(--text-3);
+  font-style: italic;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+
+/* ── Compact row sub-line ── */
+.cr-sub { font-size: 11px; color: var(--text-3); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cr-brand { font-weight: 500; color: var(--text-2); }
+.cr-deliv { color: var(--text-3); }

@@ -327,6 +327,19 @@ function NowCard({ task, user, onOpenLead, onToggle, completed, now, fadeMs }) {
 
         <div className="now-card-action">{task.title}</div>
 
+        {/* Deal context — what is this lead actually about */}
+        <div className="now-card-context">
+          {lead.deliverables && lead.deliverables !== '—' && (
+            <span className="now-card-deliv"><V3Icon name="doc" w={10} /> {lead.deliverables}</span>
+          )}
+          {(() => {
+            const last = lead.thread && lead.thread[lead.thread.length - 1];
+            const snippet = last && (last.body || last.subject || '');
+            const clean = snippet.replace(/\s+/g, ' ').trim().slice(0, 90);
+            return clean ? <span className="now-card-snippet">"{clean}{snippet.length > 90 ? '…' : ''}"</span> : null;
+          })()}
+        </div>
+
         {task.urgent && task.emailDeadlineNote && (
           <div className="now-card-quote">
             <V3Icon name="bolt" w={10} />
@@ -463,8 +476,10 @@ function CompactRow({ task, user, onOpenLead, onToggle, completed, now, fadeMs, 
       <V3Avatar name={lead.contactName} color={lead.color} size="xs" />
       <div className="cr-body">
         <div className="cr-title">{task.title}</div>
-        <div className="cr-meta">
-          {!isMine && owner && <span className="cr-owner">for {owner.name}</span>}
+        <div className="cr-sub">
+          <span className="cr-brand">{lead.brand}</span>
+          {lead.deliverables && lead.deliverables !== '—' && <span className="cr-deliv"> · {lead.deliverables}</span>}
+          {!isMine && owner && <span className="cr-owner"> · for {owner.name}</span>}
         </div>
         <V3PipeViz stageId={lead.stage} daysInStage={lead.daysInStage} compact />
       </div>
