@@ -50,6 +50,7 @@ function V3NormalizeSupabaseLead(row) {
     activityDays,
     timelineDays,
     lastTouch: V3RelativeTime(row.new_reply_at || row.moved_at || received),
+    lastTouchAt: row.new_reply_at || row.moved_at || received || null,
     needsReply,
     approve: row.draft_reply ? ownerId : null,
     color: __v3Color(name + brand),
@@ -867,7 +868,111 @@ function v3BucketTasks(tasks) {
   return buckets;
 }
 
-window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, TASK_TYPES: V3_TASK_TYPES, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks };
+// ─── Gmail-style time formatting ─────────────────────────────
+// list()    → compact like Gmail's inbox column: "3:42 PM" (today), "May 12" (this year), "11/4/24" (older)
+// full()    → "Mon, May 12, 2025, 3:42 PM" — the per-message header in an open thread
+// tooltip() → "Mon, May 12, 2025 at 3:42 PM (2 days ago)" — full absolute + relative for hover
+// relative()→ "2 days ago", "yesterday", "just now" — for the parenthetical
+const V3GmailTime = (() => {
+  const parse = (v) => {
+    if (!v) return null;
+    if (v instanceof Date) return isNaN(v) ? null : v;
+    // accept "Nd ago" / "Nh ago" / "Nm ago" as fallbacks
+    let s = String(v).trim();
+    const dm = s.match(/^(\d+)\s*d/i);
+    const hm = s.match(/^(\d+)\s*h/i);
+    const mm = s.match(/^(\d+)\s*m(?!o)/i); // m but not "month"
+    if (dm) return new Date(Date.now() - +dm[1] * 86400000);
+    if (hm) return new Date(Date.now() - +hm[1] * 3600000);
+    if (mm) return new Date(Date.now() - +mm[1] * 60000);
+    // Normalize Supabase-style strings like "May 15, 2026 12:31PM PT / 3:31PM ET"
+    // → strip the alt-timezone tail, normalize "12:31PM" → "12:31 PM"
+    s = s.replace(/\s*\/.*$/, '').replace(/(\d)(AM|PM)\b/i, '$1 $2');
+    // Strip trailing timezone abbreviations Date.parse can't handle ("PT", "ET", etc.)
+    // Keep ISO offsets like "+00:00" or "Z" intact.
+    s = s.replace(/\s+(PT|PST|PDT|ET|EST|EDT|CT|CST|CDT|MT|MST|MDT|BST|CEST|CET)$/i, '');
+    const t = Date.parse(s);
+    return Number.isFinite(t) ? new Date(t) : null;
+  };
+  const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const time12 = (d) => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+  const list = (v) => {
+    const d = parse(v); if (!d) return '';
+    const now = new Date();
+    if (sameDay(d, now)) return time12(d);
+    if (d.getFullYear() === now.getFullYear()) {
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+    // older — Gmail uses "11/4/24" style
+    const mm = d.getMonth() + 1, dd = d.getDate(), yy = String(d.getFullYear()).slice(-2);
+    return `${mm}/${dd}/${yy}`;
+  };
+
+  const full = (v) => {
+    const d = parse(v); if (!d) return '';
+    return d.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+      .replace(/,([^,]*)$/, ',$1'); // pass-through; toLocaleString already gives a nice format
+  };
+
+  const relative = (v) => {
+    const d = parse(v); if (!d) return '';
+    const now = new Date();
+    const diff = now - d;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + ' minute' + (mins === 1 ? '' : 's') + ' ago';
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24 && sameDay(d, now)) return hrs + ' hour' + (hrs === 1 ? '' : 's') + ' ago';
+    const yest = new Date(now); yest.setDate(yest.getDate() - 1);
+    if (sameDay(d, yest)) return 'yesterday';
+    const days = Math.floor(diff / 86400000);
+    if (days < 7) return days + ' days ago';
+    if (days < 30) { const w = Math.floor(days / 7); return w + ' week' + (w === 1 ? '' : 's') + ' ago'; }
+    if (days < 365) { const mo = Math.floor(days / 30); return mo + ' month' + (mo === 1 ? '' : 's') + ' ago'; }
+    const yr = Math.floor(days / 365); return yr + ' year' + (yr === 1 ? '' : 's') + ' ago';
+  };
+
+  const tooltip = (v) => {
+    const d = parse(v); if (!d) return '';
+    return full(d) + ' (' + relative(d) + ')';
+  };
+
+  return { list, full, relative, tooltip, parse };
+})();
+
+// ─── Backfill real ISO dates onto synthetic threads ───────────
+// The seed leads only have "Nd ago" strings on messages; convert them into real Date
+// objects so the Gmail formatter can render proper timestamps. Real Supabase-loaded
+// leads already have .date on each message.
+(function backfillSeedDates() {
+  const minutesSinceMidnight = () => {
+    const n = new Date();
+    return n.getHours() * 60 + n.getMinutes();
+  };
+  for (const lead of V3_LEADS) {
+    if (!Array.isArray(lead.thread)) continue;
+    for (const m of lead.thread) {
+      if (m.date) continue;
+      const d = V3GmailTime.parse(m.when);
+      if (d) {
+        // For "Nd ago" messages, snap to a plausible workday time (9–6) instead of "exactly now".
+        const dm = /^(\d+)\s*d/i.test(m.when || '');
+        if (dm) {
+          const offsetMin = ((d.getTime() * 7919) >>> 0) % (9 * 60); // deterministic per-day spread
+          d.setHours(9, 0, 0, 0);
+          d.setMinutes(d.getMinutes() + offsetMin);
+        }
+        m.date = d.toISOString();
+      }
+    }
+    // lastTouchAt = newest message date
+    const dates = lead.thread.map(m => m.date && Date.parse(m.date)).filter(Number.isFinite);
+    if (dates.length) lead.lastTouchAt = new Date(Math.max(...dates)).toISOString();
+  }
+})();
+
+window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks };
 
 V3LoadSupabaseLeads().then(leads => {
   window.V3.LEADS = leads;
