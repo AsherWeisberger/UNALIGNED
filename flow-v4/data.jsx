@@ -19,7 +19,29 @@ async function V3LoadSupabaseLeads() {
     rows.push(...chunk);
     if (chunk.length < 1000) break;
   }
-  return rows.map(V3NormalizeSupabaseLead);
+  const internalEmails = new Set(['scobleizer@gmail.com', 'unalignedx@gmail.com', 'asherunaligned@gmail.com']);
+  const canonical = new Map();
+
+  const scoreRow = (row) => {
+    const email = V3ExtractEmail(row.email);
+    const updated = Date.parse(row.updated_at || row.moved_at || row.created_at || '') || 0;
+    const created = Date.parse(row.created_at || row.moved_at || row.updated_at || '') || 0;
+    let score = 0;
+    if (email && !internalEmails.has(email)) score += 1000;
+    if (row.contact_name) score += 100;
+    if (row.title) score += 10;
+    score += Math.max(updated, created) / 1e13;
+    score += Number(row.id || 0) / 1e9;
+    return score;
+  };
+
+  for (const row of rows) {
+    const key = row.gmail_thread_id ? `thread:${row.gmail_thread_id}` : `row:${row.id}`;
+    const prev = canonical.get(key);
+    if (!prev || scoreRow(row) > scoreRow(prev)) canonical.set(key, row);
+  }
+
+  return [...canonical.values()].map(V3NormalizeSupabaseLead);
 }
 
 function V3NormalizeSupabaseLead(row) {
