@@ -48,11 +48,30 @@ function V3Icon({ name, w = 14, className = "ic" }) {
   );
 }
 
+function V3AvatarLookupKeys(value) {
+  const raw = String(value || '').toLowerCase().trim();
+  if (!raw) return [];
+  const emailLocal = raw.includes('@') ? raw.split('@')[0].trim() : '';
+  const collapsed = raw.replace(/\s+/g, ' ');
+  const stripped = collapsed
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/[|·/,_-]/g, ' ')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const words = stripped.split(' ').filter(Boolean);
+  const compact = words.join('');
+  const firstTwo = words.slice(0, 2).join(' ');
+  const firstThree = words.slice(0, 3).join(' ');
+  return [...new Set([collapsed, stripped, firstTwo, firstThree, compact, emailLocal].filter(Boolean))];
+}
+
 function V3Avatar({ name, color, size = '', className = '', style = {} }) {
   const cls = 'av' + (size ? ' av-' + size : '') + (className ? ' ' + className : '');
-  const lookup = String(name || '').toLowerCase().trim().replace(/\s+/g, ' ');
   const avatarMap = window.AVATARS || window.V3?.AVATARS || {};
-  const src = avatarMap[lookup] || null;
+  const lookupKeys = V3AvatarLookupKeys(name);
+  const src = lookupKeys.map(k => avatarMap[k]).find(Boolean) || null;
   const initials = String(name || '').split(/\s+/).filter(Boolean).map(p => p[0]).slice(0, 2).join('').toUpperCase() || '?';
   return (
     <div
@@ -111,11 +130,16 @@ Object.assign(window, {
     robert: 'flow-v4/assets/avatars/robert.png',
     'robert scoble': 'flow-v4/assets/avatars/robert.png',
     robertscoble: 'flow-v4/assets/avatars/robert.png',
+    'robert scobleizer': 'flow-v4/assets/avatars/robert.png',
+    scobleizer: 'flow-v4/assets/avatars/robert.png',
     sam: 'flow-v4/assets/avatars/sam.png',
     sammy: 'flow-v4/assets/avatars/sam.png',
     'sam levin': 'flow-v4/assets/avatars/sam.png',
+    samlevin: 'flow-v4/assets/avatars/sam.png',
     'sam levin / unalignedx': 'flow-v4/assets/avatars/sam.png',
+    unalignedx: 'flow-v4/assets/avatars/sam.png',
     asher: 'flow-v4/assets/avatars/asher.jpeg',
     'asher weisberger': 'flow-v4/assets/avatars/asher.jpeg',
+    asherweisberger: 'flow-v4/assets/avatars/asher.jpeg',
   },
 });
