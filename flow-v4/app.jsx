@@ -14,7 +14,13 @@ function V4App() {
   const [briefId, setBriefId] = React.useState(null);
   const [leads, setLeads] = React.useState(LEADS);
   const [ownerFilter, setOwnerFilter] = React.useState('all');
-  const [search, setSearch] = React.useState('');
+  const [searchByView, setSearchByView] = React.useState({
+    today: '',
+    board: '',
+    inbox: '',
+    leads: '',
+    calendar: '',
+  });
   const [toast, setToast] = React.useState(null);
   const toastTimer = React.useRef(null);
   const searchRef = React.useRef(null);
@@ -86,6 +92,17 @@ function V4App() {
   }, [t.theme]);
 
   const user = t.viewAs;
+  const search = searchByView[view] || '';
+  const setSearch = React.useCallback((value) => {
+    setSearchByView(curr => ({ ...curr, [view]: value }));
+  }, [view]);
+  const searchPlaceholder = React.useMemo(() => {
+    if (view === 'today') return 'Search today…';
+    if (view === 'inbox') return 'Search inbox…';
+    if (view === 'leads') return 'Search network…';
+    if (view === 'board') return 'Search pipeline…';
+    return 'Search calendar…';
+  }, [view]);
 
   React.useEffect(() => {
     setOwnerFilter('all');
@@ -157,7 +174,7 @@ function V4App() {
 
         <div className="hd-search">
           <V3Icon name="search" w={12} />
-          <input ref={searchRef} value={search} onChange={e => setSearch(e.target.value)} placeholder="Search leads, brands, threads…" />
+          <input ref={searchRef} value={search} onChange={e => setSearch(e.target.value)} placeholder={searchPlaceholder} />
           <kbd>⌘K</kbd>
         </div>
 
@@ -226,17 +243,17 @@ function V4App() {
         )}
 
         {view === 'today' && (
-          <V4TodayView user={user} leads={visibleLeads} onOpenLead={setOpenId} onGoInbox={() => setView('inbox')} />
+          <V4TodayView user={user} leads={visibleLeads} query={search} onOpenLead={setOpenId} onGoInbox={() => setView('inbox')} />
         )}
         {view === 'board' && (
-          <V3BoardView leads={visibleLeads} openId={openId} onOpen={setOpenId} user={user}
+          <V3BoardView leads={visibleLeads} query={search} openId={openId} onOpen={setOpenId} user={user}
                        ownerFilter={ownerFilter} setOwnerFilter={setOwnerFilter} />
         )}
         {view === 'inbox' && (
-          <V4InboxView leads={visibleLeads} user={user} />
+          <V4InboxView leads={visibleLeads} query={search} user={user} />
         )}
         {view === 'leads' && (
-          <V4LeadsView leads={visibleLeads} openId={openId} onOpenLead={setOpenId} user={user} />
+          <V4LeadsView leads={visibleLeads} query={search} openId={openId} onOpenLead={setOpenId} user={user} />
         )}
         {view === 'calendar' && (
           <V4CalendarView query={search} />
