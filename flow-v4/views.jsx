@@ -697,8 +697,7 @@ function V4Reader({ lead, user }) {
         </div>
       </div>
       <div className="drawer-foot">
-        <textarea placeholder={`Reply to ${lead.contactName.split(' ')[0]}…`} />
-        <button className="btn btn-sm btn-accent"><V3Icon name="send" w={12} /> Send</button>
+        <V3InlineReply lead={lead} user={user} />
       </div>
     </div>
   );
