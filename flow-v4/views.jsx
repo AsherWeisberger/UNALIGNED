@@ -536,12 +536,15 @@ function V4InboxView({ leads, user }) {
 
   const cur = folders.find(f => f.id === folder);
   const filtered = leads.filter(cur.fn);
-  const openLead = leads.find(l => l.id === selectedId) || (selectedId ? null : filtered[0]);
+  const isMobile = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
+  const openLead = leads.find(l => l.id === selectedId) || (!isMobile && !selectedId ? filtered[0] : null);
   const sections = [...new Set(folders.map(f => f.section))];
+  const showReader = Boolean(isMobile && selectedId && openLead);
 
   return (
-    <div className="page" style={{ overflow: 'hidden' }}>
-      <div className="page-hd" style={{ paddingBottom: 14 }}>
+    <div className={'page' + (showReader ? ' inbox-reader-open' : '')} style={{ overflow: 'hidden' }}>
+      {!(showReader) && (
+        <div className="page-hd" style={{ paddingBottom: 14 }}>
         <div>
           <div className="page-eyebrow">Inbox</div>
           <h1 className="page-title">Mail</h1>
@@ -551,9 +554,10 @@ function V4InboxView({ leads, user }) {
           <button className="btn btn-sm"><V3Icon name="filter" /> Filter</button>
           <button className="btn btn-sm btn-accent"><V3Icon name="plus" /> Compose</button>
         </div>
-      </div>
+        </div>
+      )}
 
-      <div className="inbox">
+      <div className={'inbox' + (showReader ? ' is-open' : '')}>
         <div className="in-folders">
           {sections.map(sec => (
             <React.Fragment key={sec}>
@@ -603,7 +607,7 @@ function V4InboxView({ leads, user }) {
           })}
         </div>
 
-        {openLead ? <V4Reader lead={openLead} user={user} /> : (
+        {openLead ? <V4Reader lead={openLead} user={user} onBack={showReader ? () => setSelectedId(null) : null} /> : (
           <div style={{ display: 'grid', placeItems: 'center', padding: 40 }}>
             <V3Empty icon="mail" title="Pick a thread." />
           </div>
@@ -626,7 +630,7 @@ function fmtMsgTooltip(msg) {
   return window.V3.GmailTime.tooltip(v) || '';
 }
 
-function V4Reader({ lead, user }) {
+function V4Reader({ lead, user, onBack }) {
   const { STAGE_BY_ID, USERS } = window.V3;
   const last = lead.thread[lead.thread.length - 1];
   const stage = STAGE_BY_ID[lead.stage];
@@ -635,6 +639,12 @@ function V4Reader({ lead, user }) {
   return (
     <div className="reader">
       <div className="reader-hd">
+        {onBack && (
+          <button className="reader-back" onClick={onBack} aria-label="Back to threads">
+            <V3Icon name="chev_l" w={14} />
+            Threads
+          </button>
+        )}
         <h2 className="reader-subject">{last?.subject}</h2>
         <div className="reader-meta">
           <V3Avatar name={lead.contactName} color={lead.color} size="xs" />

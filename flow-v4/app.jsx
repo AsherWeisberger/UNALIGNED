@@ -9,7 +9,8 @@ const V4_TWEAKS = /*EDITMODE-BEGIN*/{
 function V4App() {
   const { USERS, LEADS, STAGE_BY_ID, ACTIVE_STAGE_IDS } = window.V3;
   const [t, setTweak] = useTweaks(V4_TWEAKS);
-  const [view, setView] = React.useState(t.view || 'calendar');
+  const isPhone = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
+  const [view, setView] = React.useState(isPhone ? 'today' : (t.view || 'calendar'));
   const [openId, setOpenId] = React.useState(null);
   const [briefId, setBriefId] = React.useState(null);
   const [leads, setLeads] = React.useState(LEADS);
@@ -265,6 +266,32 @@ function V4App() {
         <span className="dot"></span>
         <span>Synced · {visibleLeads.length} cards · {visibleLeads.filter(l => !['paid-out'].includes(l.stage)).length} active</span>
         <span className="right">v4.0 · {me.name} ({me.role}) · ALIGNED</span>
+        <button className="ft-tab" aria-current={view === 'today' ? 'page' : undefined}
+                onClick={() => { setView('today'); setOpenId(null); }}>
+          <V3Icon name="diamond" w={18} />
+          Today
+        </button>
+        <button className="ft-tab" aria-current={view === 'calendar' ? 'page' : undefined}
+                onClick={() => { setView('calendar'); setOpenId(null); }}>
+          <V3Icon name="cal" w={18} />
+          Calendar
+        </button>
+        <button className="ft-tab" aria-current={view === 'inbox' ? 'page' : undefined}
+                onClick={() => { setView('inbox'); }}>
+          <V3Icon name="inbox" w={18} />
+          Inbox
+          {unreadCount > 0 && <span className="ft-tab-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>}
+        </button>
+        <button className="ft-tab" aria-current={view === 'leads' ? 'page' : undefined}
+                onClick={() => { setView('leads'); }}>
+          <V3Icon name="leads" w={18} />
+          Network
+        </button>
+        <button className="ft-tab" aria-current={view === 'board' ? 'page' : undefined}
+                onClick={() => { setView('board'); }}>
+          <V3Icon name="table" w={18} />
+          Pipeline
+        </button>
       </footer>
 
       {/* Detail drawer — suppressed in Inbox; the inbox's right pane is its own reader */}
