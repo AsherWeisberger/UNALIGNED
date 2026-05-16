@@ -83,7 +83,7 @@ function V4App() {
 
         {/* The transparency signal */}
         <div className="hd-context" title={`Viewing as ${me.name} — ${me.role}`}>
-          <span className="hd-context-pip" style={{ background: me.color }}>{me.name[0]}</span>
+          <V3Avatar name={me.name} color={me.color} size="xs" className="hd-context-pip" />
           <span>{me.name}</span>
           <span className="hd-context-scope">· {SCOPE_TAG[user]}</span>
         </div>
@@ -99,9 +99,8 @@ function V4App() {
               <button key={u.id} className="hd-user-pip"
                       aria-pressed={user === u.id}
                       onClick={() => setTweak('viewAs', u.id)}
-                      title={`${u.name} · ${u.role}`}
-                      style={{ background: u.color }}>
-                {u.name[0]}
+                      title={`${u.name} · ${u.role}`}>
+                <V3Avatar name={u.name} color={u.color} size="xs" />
               </button>
             ))}
           </div>
