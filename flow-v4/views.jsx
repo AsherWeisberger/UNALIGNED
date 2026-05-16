@@ -662,10 +662,10 @@ function V4Reader({ lead, user }) {
       <div className="reader-body">
         <div className="act">
           {lead.thread.map((m, i) => {
-            const senderEmail = m.from === 'Asher' ? 'asher@unaligned.co'
-                              : m.from === 'Sammy' ? 'sammy@unaligned.co'
-                              : m.from === 'Robert' ? 'robert@unaligned.co'
-                              : lead.email;
+            const senderEmail = m.from === 'Asher' ? 'asherunaligned@gmail.com'
+                              : m.from === 'Sammy' ? 'unalignedx@gmail.com'
+                              : m.from === 'Robert' ? 'scobleizer@gmail.com'
+                              : V3ExtractEmail(m.from) || lead.email;
             const isInbound = !['Asher','Sammy','Robert','UNALIGNED'].includes(m.from);
             const toLabel = isInbound ? 'to me' : 'to ' + lead.contactName.split(' ')[0];
             return (

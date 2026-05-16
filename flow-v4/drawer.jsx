@@ -375,10 +375,10 @@ function V3CheckRow({ text, done: initial = false, due }) {
 
 function V3Thread({ lead }) {
   return (
-    <div className="act">
-      {lead.thread.map((m, i) => (
-        <div key={i} className="act-item">
-          <div className="act-item-hd">
+        <div className="act">
+          {lead.thread.map((m, i) => (
+            <div key={i} className="act-item">
+              <div className="act-item-hd">
             <V3Avatar name={m.from} color={m.from === 'Sammy' ? '#16894a' : m.from === 'Asher' ? '#2f5fd6' : lead.color} size="xs" />
             <span className="from">{m.from}</span>
             <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{m.subject}</span>

@@ -222,6 +222,37 @@ function V3SplitEmails(value) {
     .filter(Boolean);
 }
 
+function V3ExtractEmail(value) {
+  const match = String(value || '').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  return match ? match[0].toLowerCase() : '';
+}
+
+function V3LeadReplyToEmail(lead, sender) {
+  const senderEmails = new Set(V3SenderEmails(sender).map(email => email.toLowerCase()));
+  const internalEmails = new Set(['scobleizer@gmail.com', 'unalignedx@gmail.com', 'asherunaligned@gmail.com']);
+  const candidates = [];
+
+  const pushCandidate = (value) => {
+    const email = V3ExtractEmail(value);
+    if (email) candidates.push(email);
+  };
+
+  pushCandidate(lead?.replyTo);
+  pushCandidate(lead?.email);
+  if (Array.isArray(lead?.thread)) {
+    for (let i = lead.thread.length - 1; i >= 0; i--) {
+      pushCandidate(lead.thread[i]?.from);
+    }
+  }
+
+  for (const email of candidates) {
+    if (senderEmails.has(email)) continue;
+    if (internalEmails.has(email) && !String(lead?.email || '').toLowerCase().includes(email)) continue;
+    return email;
+  }
+  return '';
+}
+
 function V3UniqueEmails(values) {
   const seen = new Set();
   return values.filter(email => {
@@ -234,7 +265,7 @@ function V3UniqueEmails(values) {
 
 function V3ReplyRecipients(lead, sender, internalOnly = false) {
   if (internalOnly) return { to: V3InternalEmails(sender), cc: [] };
-  const leadEmail = String(lead?.email || '').trim();
+  const leadEmail = V3LeadReplyToEmail(lead, sender) || String(lead?.email || '').trim();
   const senderEmails = V3SenderEmails(sender).map(email => email.toLowerCase());
   const leadIsSender = senderEmails.includes(leadEmail.toLowerCase());
   const to = leadEmail && !leadIsSender ? [leadEmail] : [];
@@ -262,7 +293,7 @@ async function V3SendLeadEmail({ lead, sender, to, cc, subject, body, attachPdf 
   return data;
 }
 
-Object.assign(window, { V3SenderForUser, V3SenderName, V3SubjectForLead, V3DefaultCc, V3InternalEmails, V3SenderEmails, V3IsSelfRecipient, V3SplitEmails, V3UniqueEmails, V3ReplyRecipients, V3SendLeadEmail });
+Object.assign(window, { V3SenderForUser, V3SenderName, V3SubjectForLead, V3DefaultCc, V3InternalEmails, V3SenderEmails, V3IsSelfRecipient, V3SplitEmails, V3ExtractEmail, V3LeadReplyToEmail, V3UniqueEmails, V3ReplyRecipients, V3SendLeadEmail });
 
 
 // FLOW v3 — data with category labels matching UNALIGNED's INTERVIEW / COLLABORATION / PARTNERSHIP / INTRO tabs
