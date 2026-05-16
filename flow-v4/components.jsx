@@ -50,8 +50,20 @@ function V3Icon({ name, w = 14, className = "ic" }) {
 
 function V3Avatar({ name, color, size = '' }) {
   const cls = 'av' + (size ? ' av-' + size : '');
-  const initials = name.split(/\s+/).map(p => p[0]).slice(0, 2).join('').toUpperCase();
-  return <div className={cls} style={{ background: color || '#2f5fd6' }}>{initials}</div>;
+  const lookup = String(name || '').toLowerCase().trim().replace(/\s+/g, ' ');
+  const avatarMap = window.AVATARS || window.V3?.AVATARS || {};
+  const src = avatarMap[lookup] || null;
+  const initials = String(name || '').split(/\s+/).filter(Boolean).map(p => p[0]).slice(0, 2).join('').toUpperCase() || '?';
+  return (
+    <div
+      className={cls + (src ? ' has-photo' : '')}
+      style={src ? { backgroundImage: `url(${src})`, backgroundColor: color || '#2f5fd6' } : { background: color || '#2f5fd6' }}
+      aria-label={name}
+      title={name}
+    >
+      {!src && initials}
+    </div>
+  );
 }
 
 function v3Money(n, { compact = false } = {}) {
@@ -89,4 +101,21 @@ function V3Empty({ icon = 'check', title, sub }) {
   );
 }
 
-Object.assign(window, { V3Icon, V3Avatar, V3StageProg, V3Empty, v3Money });
+Object.assign(window, {
+  V3Icon,
+  V3Avatar,
+  V3StageProg,
+  V3Empty,
+  v3Money,
+  AVATARS: {
+    robert: 'flow-v4/assets/avatars/robert.png',
+    'robert scoble': 'flow-v4/assets/avatars/robert.png',
+    robertscoble: 'flow-v4/assets/avatars/robert.png',
+    sam: 'flow-v4/assets/avatars/sam.png',
+    sammy: 'flow-v4/assets/avatars/sam.png',
+    'sam levin': 'flow-v4/assets/avatars/sam.png',
+    'sam levin / unalignedx': 'flow-v4/assets/avatars/sam.png',
+    asher: 'flow-v4/assets/avatars/asher.jpeg',
+    'asher weisberger': 'flow-v4/assets/avatars/asher.jpeg',
+  },
+});

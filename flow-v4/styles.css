@@ -355,11 +355,17 @@ a { color: inherit; }
   letter-spacing: 0;
   flex-shrink: 0;
   text-transform: uppercase;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--line) 70%, transparent);
 }
 .av-xs { width: 20px; height: 20px; font-size: 9px; }
 .av-sm { width: 24px; height: 24px; font-size: 10px; }
 .av-lg { width: 42px; height: 42px; font-size: 14px; }
 .av-xl { width: 60px; height: 60px; font-size: 20px; }
+.av.has-photo { color: transparent; text-shadow: none; }
 
 /* ─── Page shell ─────────────────────────────────────────── */
 .page {
