@@ -16,7 +16,7 @@ function V4TodayView({ user, leads, onOpenLead, onGoInbox }) {
   }, []);
   const FADE_MS = 10000;
 
-  const allTasks = React.useMemo(() => deriveTasks(user), [user, leads]);
+  const allTasks = React.useMemo(() => deriveTasks(user, leads), [user, leads]);
   const liveTasks = allTasks.filter(t => !completed[t.id] || (now - completed[t.id]) < FADE_MS);
   const doneTasks = allTasks.filter(t =>  completed[t.id] && (now - completed[t.id]) >= FADE_MS);
   const buckets   = bucketTasks(liveTasks);
@@ -290,7 +290,7 @@ function NowCard({ task, user, onOpenLead, onToggle, completed, now, fadeMs }) {
   else if (SALES_TYPES.has(task.type)) ownerId = lead.ownerId || 'sammy';
   else ownerId = lead.ownerId;
   const owner = USERS[ownerId];
-  const isMine = ownerId === user;
+  const isMine = window.V3.LeadIsMineForProfile(lead, user, ownerId);
 
   const hasBriefAction = task.action === 'open-brief';
   const openBrief = (e) => {
@@ -470,7 +470,7 @@ function CompactRow({ task, user, onOpenLead, onToggle, completed, now, fadeMs, 
   else if (SALES_TYPES.has(task.type)) ownerId = lead.ownerId || 'sammy';
   else ownerId = lead.ownerId;
   const owner = USERS[ownerId];
-  const isMine = ownerId === user;
+  const isMine = window.V3.LeadIsMineForProfile(lead, user, ownerId);
 
   let due;
   if (task.dueIn < 0)        due = { label: Math.abs(task.dueIn) + 'd late', tone: 'late' };
@@ -520,17 +520,18 @@ function V4InboxView({ leads, user }) {
   const { STAGE_BY_ID, USERS } = window.V3;
   const [folder, setFolder] = React.useState('mine');
   const [selectedId, setSelectedId] = React.useState(null);
+  const isShared = user !== 'robert';
+  const laneLabel = isShared ? 'Shared lane' : "Robert's";
 
   const folders = [
-    { id: 'mine',    label: 'Your move',    icon: 'bolt',    fn: l => l.nextMove.who === user && !['paid-out'].includes(l.stage), section: 'Quick' },
+    { id: 'mine',    label: 'Your move',    icon: 'bolt',    fn: l => window.V3.MoveIsMineForProfile(l, user) && !['paid-out'].includes(l.stage), section: 'Quick' },
     { id: 'all',     label: 'All threads',  icon: 'inbox',   fn: () => true,                       section: 'Quick' },
     { id: 'unread',  label: 'Unread',       icon: 'mail',    fn: l => l.unread,                    section: 'Quick' },
     { id: 'engaged', label: 'Engaged',      icon: 'spark',   fn: l => l.stage === 'engaged',       section: 'By stage' },
     { id: 'rates',   label: 'Rates sent',   icon: 'send',    fn: l => l.stage === 'rates-sent',    section: 'By stage' },
     { id: 'nego',    label: 'Negotiating',  icon: 'reply',   fn: l => l.stage === 'negotiating',   section: 'By stage' },
     { id: 'invoice', label: 'Invoice sent', icon: 'invoice', fn: l => l.stage === 'invoice-sent',  section: 'By stage' },
-    { id: 'asher',   label: "Asher's",      icon: 'leads',   fn: l => l.ownerId === 'asher',       section: 'By owner' },
-    { id: 'sammy',   label: "Sammy's",      icon: 'leads',   fn: l => l.ownerId === 'sammy',       section: 'By owner' },
+    { id: 'lane',    label: laneLabel,      icon: 'leads',   fn: l => window.V3.LeadLane(l) === window.V3.ProfileLane(user), section: 'By owner' },
   ];
 
   const cur = folders.find(f => f.id === folder);
@@ -577,7 +578,7 @@ function V4InboxView({ leads, user }) {
           {filtered.map(l => {
             const last = l.thread[l.thread.length - 1];
             const stage = STAGE_BY_ID[l.stage];
-            const yourMove = l.nextMove.who === user;
+            const yourMove = window.V3.MoveIsMineForProfile(l, user);
             return (
               <div key={l.id}
                    className={'thread' + (l.unread ? ' is-unread' : '') + (openLead?.id === l.id ? ' is-active' : '')}
@@ -629,7 +630,7 @@ function V4Reader({ lead, user }) {
   const last = lead.thread[lead.thread.length - 1];
   const stage = STAGE_BY_ID[lead.stage];
   const nextOwnerName = lead.nextMove.who ? USERS[lead.nextMove.who].name : `Awaiting ${lead.contactName.split(' ')[0]}`;
-  const isMine = lead.nextMove.who === user;
+  const isMine = window.V3.MoveIsMineForProfile(lead, user);
   return (
     <div className="reader">
       <div className="reader-hd">
@@ -709,7 +710,7 @@ function V4LeadsView({ leads, openId, onOpenLead, user }) {
   const [tab, setTab] = React.useState('active');
   const tabs = [
     { id: 'active',  label: 'Active',   fn: l => !['paid-out'].includes(l.stage) },
-    { id: 'mine',    label: 'My move',  fn: l => l.nextMove.who === user && !['paid-out'].includes(l.stage) },
+    { id: 'mine',    label: 'My move',  fn: l => window.V3.MoveIsMineForProfile(l, user) && !['paid-out'].includes(l.stage) },
     { id: 'waiting', label: 'Waiting',  fn: l => !l.nextMove.who && !['paid-out'].includes(l.stage) },
     { id: 'paid',    label: 'Paid out', fn: l => l.stage === 'paid-out' },
     { id: 'all',     label: 'All',      fn: () => true },
@@ -757,7 +758,7 @@ function V4LeadsView({ leads, openId, onOpenLead, user }) {
           {filtered.length === 0 && <V3Empty icon="leads" title="Nothing here." />}
           {filtered.map(l => {
             const owner = l.ownerId ? USERS[l.ownerId] : null;
-            const isMine = l.nextMove.who === user;
+            const isMine = window.V3.MoveIsMineForProfile(l, user);
             const stage = STAGE_BY_ID[l.stage];
             return (
               <div key={l.id} className={'lead-row' + (openId === l.id ? ' is-active' : '')} onClick={() => onOpenLead(l.id)}>

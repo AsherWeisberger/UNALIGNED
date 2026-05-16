@@ -232,6 +232,33 @@ function V3SenderEmails(sender) {
   return ['asherunaligned@gmail.com'];
 }
 
+function V3ProfileTeam(user) {
+  return user === 'robert' ? ['robert'] : ['asher', 'sammy'];
+}
+
+function V3ProfileLane(user) {
+  return user === 'robert' ? 'robert' : 'shared';
+}
+
+function V3LeadLane(lead) {
+  if (!lead) return 'shared';
+  if (lead.ownerId === 'robert') return 'robert';
+  if (['done', 'paid-out'].includes(lead.stage)) return 'robert';
+  return 'shared';
+}
+
+function V3LeadVisibleToProfile(lead, user) {
+  return V3LeadLane(lead) === V3ProfileLane(user);
+}
+
+function V3LeadIsMineForProfile(lead, user, ownerId = lead.ownerId) {
+  return V3ProfileTeam(user).includes(ownerId || '');
+}
+
+function V3MoveIsMineForProfile(lead, user) {
+  return V3ProfileTeam(user).includes(lead?.nextMove?.who || '');
+}
+
 function V3IsSelfRecipient(sender, to) {
   const recipients = String(to || '').toLowerCase();
   return V3SenderEmails(sender).some(email => recipients.includes(email));
@@ -731,18 +758,19 @@ const V3_TASK_TYPES = {
   approve: { label: 'Approve brief',icon: 'check',   tone: 'approve' },
 };
 
-function v3DeriveTasks(user) {
-  const leads = window.V3?.LEADS || V3_LEADS;
+function v3DeriveTasks(user, leads = window.V3?.LEADS || V3_LEADS) {
+  const laneUser = user === 'robert' ? 'robert' : 'asher';
   const tasks = [];
   const first = n => n.split(' ')[0];
   const moneyTag = v => v ? '$' + v.toLocaleString() : '';
 
   for (const lead of leads) {
     if (lead.stage === 'paid-out') continue;
-    const ownsThis = lead.ownerId === user;
+    if (!V3LeadVisibleToProfile(lead, user)) continue;
+    const ownsThis = lead.ownerId === laneUser;
 
     // ─── Robert (creator): post + live tracking ───
-    if (user === 'robert') {
+    if (laneUser === 'robert') {
       if (lead.stage === 'done') {
         const brief = lead.brief;
         // Only "ready" or "in-production" briefs are actionable for Robert.
@@ -786,8 +814,8 @@ function v3DeriveTasks(user) {
     }
 
     // ─── Sammy + Asher: sales pipeline tasks ───
-    // Asher sees everything (founder); Sammy sees what he owns.
-    if (!ownsThis && user !== 'asher') continue;
+    // Asher and Sammy share the same sales lane.
+    if (!ownsThis && laneUser !== 'asher') continue;
 
     if (lead.stage === 'new') {
       tasks.push({
@@ -847,7 +875,7 @@ function v3DeriveTasks(user) {
         dueIn: 2 - lead.daysInStage, value: lead.value, lead,
       });
       // Asher-only: approve brief if it's awaiting approval.
-      if (user === 'asher' && lead.brief && lead.brief.status === 'awaiting-approval') {
+      if (laneUser === 'asher' && lead.brief && lead.brief.status === 'awaiting-approval') {
         tasks.push({
           id: lead.id + ':approve-brief', leadId: lead.id, type: 'approve',
           title: `Approve brief · ${lead.brand}`,
@@ -1025,7 +1053,7 @@ const V3GmailTime = (() => {
   }
 })();
 
-window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks };
+window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3LeadIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile };
 
 V3LoadSupabaseLeads().then(leads => {
   window.V3.LEADS = leads;

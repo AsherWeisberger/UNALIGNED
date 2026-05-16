@@ -7,7 +7,7 @@ const V4_TWEAKS = /*EDITMODE-BEGIN*/{
 }/*EDITMODE-END*/;
 
 function V4App() {
-  const { USERS, LEADS, STAGE_BY_ID, ACTIVE_STAGE_IDS, flowCounts } = window.V3;
+  const { USERS, LEADS, STAGE_BY_ID, ACTIVE_STAGE_IDS } = window.V3;
   const [t, setTweak] = useTweaks(V4_TWEAKS);
   const [view, setView] = React.useState(t.view || 'today');
   const [openId, setOpenId] = React.useState(null);
@@ -33,24 +33,32 @@ function V4App() {
   }, [t.theme]);
 
   const user = t.viewAs;
+
+  React.useEffect(() => {
+    setOwnerFilter('all');
+    setOpenId(null);
+    setBriefId(null);
+  }, [user]);
+
   const me = USERS[user];
-  const openLead = leads.find(l => l.id === openId) || null;
-  const unreadCount = leads.filter(l => l.unread).length;
+  const visibleLeads = leads.filter(l => window.V3.LeadVisibleToProfile(l, user));
+  const openLead = visibleLeads.find(l => l.id === openId) || null;
+  const unreadCount = visibleLeads.filter(l => l.unread).length;
 
   // Scope tag matching the Today scope card
   const SCOPE_TAG = {
-    asher:  'Services · sees all',
-    sammy:  'Manager · my leads',
-    robert: 'Creator · post queue',
+    asher:  'Shared sales lane',
+    sammy:  'Shared sales lane',
+    robert: 'Creator lane',
   };
 
   const stats = {
-    total: leads.length,
-    assigned: leads.filter(l => l.ownerId === user).length,
-    hot: leads.filter(l => l.stage === 'rates-sent' && l.daysInStage >= 5).length,
-    stuck: leads.filter(l => l.daysInStage >= 10 && !['paid-out'].includes(l.stage)).length,
+    total: visibleLeads.length,
+    assigned: visibleLeads.filter(l => window.V3.LeadIsMineForProfile(l, user)).length,
+    hot: visibleLeads.filter(l => l.stage === 'rates-sent' && l.daysInStage >= 5).length,
+    stuck: visibleLeads.filter(l => l.daysInStage >= 10 && !['paid-out'].includes(l.stage)).length,
     newToday: 3,
-    pipeline: leads.filter(l => !['paid-out'].includes(l.stage)).reduce((s, l) => s + (l.value || 0), 0),
+    pipeline: visibleLeads.filter(l => !['paid-out'].includes(l.stage)).reduce((s, l) => s + (l.value || 0), 0),
   };
 
   return (
@@ -146,17 +154,17 @@ function V4App() {
         )}
 
         {view === 'today' && (
-          <V4TodayView user={user} leads={leads} onOpenLead={setOpenId} onGoInbox={() => setView('inbox')} />
+          <V4TodayView user={user} leads={visibleLeads} onOpenLead={setOpenId} onGoInbox={() => setView('inbox')} />
         )}
         {view === 'board' && (
-          <V3BoardView leads={leads} openId={openId} onOpen={setOpenId} user={user}
+          <V3BoardView leads={visibleLeads} openId={openId} onOpen={setOpenId} user={user}
                        ownerFilter={ownerFilter} setOwnerFilter={setOwnerFilter} />
         )}
         {view === 'inbox' && (
-          <V4InboxView leads={leads} user={user} />
+          <V4InboxView leads={visibleLeads} user={user} />
         )}
         {view === 'leads' && (
-          <V4LeadsView leads={leads} openId={openId} onOpenLead={setOpenId} user={user} />
+          <V4LeadsView leads={visibleLeads} openId={openId} onOpenLead={setOpenId} user={user} />
         )}
         {view === 'calendar' && (
           <V4CalendarView />
@@ -166,7 +174,7 @@ function V4App() {
       {/* ─── Footer ─── */}
       <footer className="ft">
         <span className="dot"></span>
-        <span>Synced · {leads.length} cards · {flowCounts().reduce((s, f) => s + f.count, 0)} active</span>
+        <span>Synced · {visibleLeads.length} cards · {visibleLeads.filter(l => !['paid-out'].includes(l.stage)).length} active</span>
         <span className="right">v4.0 · {me.name} ({me.role}) · ALIGNED</span>
       </footer>
 

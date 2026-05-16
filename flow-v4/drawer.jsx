@@ -15,7 +15,7 @@ function V3Drawer({ lead, user, onClose }) {
   const stage = STAGE_BY_ID[lead.stage];
   const owner = lead.ownerId ? USERS[lead.ownerId] : null;
   const nextOwner = lead.nextMove.who ? USERS[lead.nextMove.who] : null;
-  const isMine = lead.nextMove.who === user;
+  const isMine = window.V3.MoveIsMineForProfile(lead, user);
   const isThem = !lead.nextMove.who && !['paid-out'].includes(lead.stage);
 
   return (
