@@ -50,7 +50,7 @@ function V3NormalizeSupabaseLead(row) {
   const received = row.date_received_iso || row.created_at || row.moved_at || null;
   const activityDays = V3DaysSince(row.new_reply_at || row.moved_at || received);
   const rawStage = V3NormalizeStage(row.list_id);
-  // Auto-trash: last touch > 90 days and not already closed out
+  // Auto-trash: last touch > 50 days and not already closed out
   const stage = (activityDays > 50 && !['paid-out', 'done', 'trash'].includes(rawStage)) ? 'trash' : rawStage;
   const daysInStage = V3DaysSince(row.moved_at || received);
   const needsReply = Boolean(row.new_reply_at) || row.draft_reply_status === 'pending' || stage === 'new';
@@ -187,9 +187,21 @@ function V3ThreadFromRow(row, name, brand, stage) {
       date: m.date || m.timestamp || row.created_at || null,
       subject: m.subject || row.title || (brand + ' conversation'),
       body: m.body || m.text || m.snippet || '',
+      to: V3EmailsFromValue(m.to || m.to_list || m.recipients?.to),
+      cc: V3EmailsFromValue(m.cc || m.cc_list || m.recipients?.cc),
+      replyTo: V3EmailsFromValue(m.reply_to || m.replyTo),
     }));
   }
-  return [{ from: name, when: V3RelativeTime(row.created_at), date: row.created_at || null, subject: row.title || (brand + ' lead'), body: row.description || row.intent || '' }];
+  return [{
+    from: name,
+    when: V3RelativeTime(row.created_at),
+    date: row.created_at || null,
+    subject: row.title || (brand + ' lead'),
+    body: row.description || row.intent || '',
+    to: V3EmailsFromValue(row.email ? [row.email] : []),
+    cc: [],
+    replyTo: [],
+  }];
 }
 
 function V3SenderForUser(user) {
@@ -202,6 +214,93 @@ function V3SenderName(sender) {
   if (sender === 'robert') return 'Robert Scoble';
   if (sender === 'sam') return 'Sam Levin';
   return 'Asher';
+}
+
+function V3SenderSignature(sender) {
+  if (sender === 'robert') {
+    return [
+      'Robert Scoble',
+      'Founder, Unaligned (media company about how AI is bringing us new things)',
+      'Mobile: +1-425-205-1921',
+      'X: https://x.com/scobleizer',
+      'Web: https://unaligned.io',
+      'This message copyright the sender. All rights reserved.',
+    ].join('\n');
+  }
+  if (sender === 'sam') {
+    return [
+      'Sam Levin',
+      'Partnerships, UNALIGNED',
+      'unalignedx@gmail.com',
+    ].join('\n');
+  }
+  return [
+    'Asher Weisberger',
+    'Client Services Manager',
+    'Unaligned',
+    'asherunaligned@gmail.com',
+    'unaligned.io | x.com/unalignedx',
+  ].join('\n');
+}
+
+function V3EnsureSenderSignature(body, sender) {
+  const text = String(body || '').trim();
+  const signature = V3SenderSignature(sender);
+  if (!signature) return text;
+  const normText = V3NormalizeThreadText(text);
+  const normSig = V3NormalizeThreadText(signature);
+  if (!text) return signature;
+  if (normText.includes(normSig)) return text;
+  return text + '\n\n' + signature;
+}
+
+function V3FallbackDraftBody(lead, sender) {
+  const first = String(lead?.contactName || 'there').split(' ')[0] || 'there';
+  const brand = String(lead?.brand || 'your company');
+  const last = Array.isArray(lead?.thread) ? lead.thread[lead.thread.length - 1] : null;
+  const lastSnippet = String(last?.body || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  const stage = String(lead?.stage || '');
+  if (sender === 'robert') {
+    return [
+      `Hi ${first},`,
+      '',
+      `Thanks for reaching out about ${brand}.`,
+      lastSnippet ? `I saw the latest note in the thread and want to keep the conversation moving cleanly.` : `I want to keep the conversation moving cleanly and make sure we answer the latest notes.`,
+      '',
+      'Best,',
+    ].join('\n');
+  }
+  if (sender === 'sam') {
+    const opener = stage === 'rates-sent' || stage === 'negotiating' || stage === 'invoice-sent'
+      ? 'I saw the latest note and I’m keeping this moving on the partnership side.'
+      : 'I’m jumping in to keep the thread moving on the partnership side.';
+    return [
+      `Hi ${first},`,
+      '',
+      opener,
+      lastSnippet ? `We’re tracking the latest detail from the thread and will reply accordingly.` : `We’ll keep the thread aligned with the latest details before sending anything else.`,
+      '',
+      'Best,',
+    ].join('\n');
+  }
+  return [
+    `Hi ${first},`,
+    '',
+    'I’m jumping in to keep the chain organized and make sure we reply to the latest information in the thread.',
+    lastSnippet ? `I’ve got the newest note in view and will respond from there.` : `I’ve got the newest note in view and will respond from there.`,
+    '',
+    'Best,',
+  ].join('\n');
+}
+
+function V3ComposeReplyDraft(lead, sender) {
+  const draft = lead?.draftReply && typeof lead.draftReply === 'object' ? lead.draftReply : null;
+  const subject = draft?.subject || V3SubjectForLead(lead);
+  const sourceBody = draft?.body ? String(draft.body) : V3FallbackDraftBody(lead, sender);
+  return {
+    subject,
+    body: V3EnsureSenderSignature(sourceBody, sender),
+  };
 }
 
 function V3SubjectForLead(lead) {
@@ -271,6 +370,17 @@ function V3SplitEmails(value) {
     .filter(Boolean);
 }
 
+function V3EmailsFromValue(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return V3UniqueEmails(value.flatMap(item => V3EmailsFromValue(item)));
+  }
+  if (typeof value === 'object') {
+    return V3EmailsFromValue(value.email || value.emails || value.to || value.cc || value.reply_to || value.replyTo || '');
+  }
+  return V3UniqueEmails(V3SplitEmails(String(value)).map(item => V3ExtractEmail(item)).filter(Boolean));
+}
+
 function V3ExtractEmail(value) {
   const match = String(value || '').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
   return match ? match[0].toLowerCase() : '';
@@ -282,8 +392,9 @@ function V3LeadReplyToEmail(lead, sender) {
   const candidates = [];
 
   const pushCandidate = (value) => {
-    const email = V3ExtractEmail(value);
-    if (email) candidates.push(email);
+    for (const email of V3EmailsFromValue(value)) {
+      candidates.push(email);
+    }
   };
 
   pushCandidate(lead?.replyTo);
@@ -291,6 +402,10 @@ function V3LeadReplyToEmail(lead, sender) {
   if (Array.isArray(lead?.thread)) {
     for (let i = lead.thread.length - 1; i >= 0; i--) {
       pushCandidate(lead.thread[i]?.from);
+      pushCandidate(lead.thread[i]?.to);
+      pushCandidate(lead.thread[i]?.cc);
+      pushCandidate(lead.thread[i]?.replyTo);
+      pushCandidate(lead.thread[i]?.reply_to);
     }
   }
 
@@ -314,13 +429,164 @@ function V3UniqueEmails(values) {
 
 function V3ReplyRecipients(lead, sender, internalOnly = false) {
   if (internalOnly) return { to: V3InternalEmails(sender), cc: [] };
-  const leadEmail = V3LeadReplyToEmail(lead, sender) || String(lead?.email || '').trim();
   const senderEmails = V3SenderEmails(sender).map(email => email.toLowerCase());
+  const leadEmail = V3LeadReplyToEmail(lead, sender) || String(lead?.email || '').trim();
   const leadIsSender = senderEmails.includes(leadEmail.toLowerCase());
+  const participants = V3UniqueEmails([...V3ThreadParticipants(lead), ...V3InternalEmails(sender)]);
   const to = leadEmail && !leadIsSender ? [leadEmail] : [];
-  const cc = V3InternalEmails(sender)
-    .filter(email => email.toLowerCase() !== leadEmail.toLowerCase());
+  const cc = participants.filter(email =>
+    email &&
+    email.toLowerCase() !== leadEmail.toLowerCase() &&
+    !senderEmails.includes(email.toLowerCase())
+  );
   return { to: V3UniqueEmails(to), cc: V3UniqueEmails(cc) };
+}
+
+function V3NormalizeThreadText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function V3ThreadMessageKey(msg) {
+  return [
+    V3ExtractEmail(msg?.from) || V3NormalizeThreadText(msg?.from),
+    V3NormalizeThreadText(msg?.subject),
+    V3NormalizeThreadText(msg?.body),
+  ].join('|');
+}
+
+function V3PendingReplyKey(pending) {
+  return [
+    String(pending?.leadId || ''),
+    String(pending?.sender || ''),
+    V3NormalizeThreadText(pending?.subject),
+    V3NormalizeThreadText(pending?.body),
+  ].join('|');
+}
+
+function V3ThreadParticipants(lead) {
+  const emails = [];
+  const push = (value) => {
+    emails.push(...V3EmailsFromValue(value));
+  };
+  push(lead?.email);
+  push(lead?.replyTo);
+  push(lead?.reply_to);
+  if (Array.isArray(lead?.thread)) {
+    for (const msg of lead.thread) {
+      push(msg?.from);
+      push(msg?.to);
+      push(msg?.cc);
+      push(msg?.replyTo);
+      push(msg?.reply_to);
+    }
+  }
+  return V3UniqueEmails(emails);
+}
+
+function V3LeadMatchesQuery(lead, query) {
+  const q = V3NormalizeThreadText(query);
+  if (!q) return true;
+  const hay = V3NormalizeThreadText([
+    lead?.contactName,
+    lead?.brand,
+    lead?.contactRole,
+    lead?.email,
+    lead?.stage,
+    lead?.deliverables,
+    lead?.ownerId,
+    lead?.nextMove?.text,
+    lead?.nextMove?.action,
+    lead?.source,
+    ...(Array.isArray(lead?.thread) ? lead.thread.flatMap(msg => [
+      msg?.from,
+      msg?.subject,
+      msg?.body,
+      msg?.to,
+      msg?.cc,
+    ]) : []),
+  ].flat().join(' '));
+  if (hay.includes(q)) return true;
+  return q.split(' ').filter(Boolean).every(token => hay.includes(token));
+}
+
+function V3PendingReplyMatchesLead(pending, lead) {
+  if (!pending || !lead) return false;
+  const senderEmail = V3SenderEmails(pending.sender || '').map(email => email.toLowerCase());
+  const pendingSubject = V3NormalizeThreadText(pending.subject);
+  const pendingBody = V3NormalizeThreadText(pending.body);
+  const thread = Array.isArray(lead.thread) ? lead.thread : [];
+  return thread.some(msg => {
+    const msgEmail = V3ExtractEmail(msg.from);
+    const msgSubject = V3NormalizeThreadText(msg.subject);
+    const msgBody = V3NormalizeThreadText(msg.body);
+    const senderMatch =
+      senderEmail.includes(msgEmail) ||
+      V3NormalizeThreadText(msg.from).includes(V3NormalizeThreadText(V3SenderName(pending.sender || '')));
+    const subjectMatch = !pendingSubject || msgSubject === pendingSubject || msgSubject.includes(pendingSubject) || pendingSubject.includes(msgSubject);
+    const bodyMatch = !pendingBody || msgBody === pendingBody || msgBody.includes(pendingBody) || pendingBody.includes(msgBody);
+    return senderMatch && subjectMatch && bodyMatch;
+  });
+}
+
+function V3PrunePendingReplies(pendingReplies, leads) {
+  const list = Array.isArray(pendingReplies) ? pendingReplies : [];
+  const currentLeads = Array.isArray(leads) ? leads : [];
+  return list.filter(pending => {
+    const lead = currentLeads.find(l => String(l.id) === String(pending.leadId));
+    return lead ? !V3PendingReplyMatchesLead(pending, lead) : true;
+  });
+}
+
+function V3MergePendingReplies(leads, pendingReplies) {
+  const list = Array.isArray(leads) ? leads : [];
+  const pendings = Array.isArray(pendingReplies) ? pendingReplies : [];
+  if (!pendings.length) return list;
+  const byLead = new Map();
+  for (const pending of pendings) {
+    const key = String(pending.leadId || '');
+    if (!key) continue;
+    if (!byLead.has(key)) byLead.set(key, []);
+    byLead.get(key).push(pending);
+  }
+  return list.map(lead => {
+    const items = byLead.get(String(lead.id)) || [];
+    if (!items.length) return lead;
+    const existingKeys = new Set((Array.isArray(lead.thread) ? lead.thread : []).map(V3ThreadMessageKey));
+    const thread = Array.isArray(lead.thread) ? lead.thread.slice() : [];
+    let changed = false;
+    for (const pending of items) {
+      const pendingMsg = {
+        from: V3SenderName(pending.sender || ''),
+        when: 'just now',
+        date: pending.createdAt || new Date().toISOString(),
+        subject: pending.subject || '',
+        body: pending.body || '',
+        to: Array.isArray(pending.to) ? pending.to : V3EmailsFromValue(pending.to),
+        cc: Array.isArray(pending.cc) ? pending.cc : V3EmailsFromValue(pending.cc),
+        pending: true,
+      };
+      const key = V3ThreadMessageKey(pendingMsg);
+      if (existingKeys.has(key)) continue;
+      thread.push(pendingMsg);
+      existingKeys.add(key);
+      changed = true;
+    }
+    if (!changed) return lead;
+    const newest = thread.reduce((latest, msg) => {
+      const t = Date.parse(msg.date || msg.when || '') || 0;
+      return t > latest ? t : latest;
+    }, 0);
+    return {
+      ...lead,
+      thread,
+      lastTouchAt: newest ? new Date(newest).toISOString() : lead.lastTouchAt,
+      lastTouch: newest ? 'just now' : lead.lastTouch,
+      unread: lead.unread,
+    };
+  });
 }
 
 async function V3SendLeadEmail({ lead, sender, to, cc, subject, body, attachPdf = false }) {
@@ -342,7 +608,7 @@ async function V3SendLeadEmail({ lead, sender, to, cc, subject, body, attachPdf 
   return data;
 }
 
-Object.assign(window, { V3SenderForUser, V3SenderName, V3SubjectForLead, V3DefaultCc, V3InternalEmails, V3SenderEmails, V3IsSelfRecipient, V3SplitEmails, V3ExtractEmail, V3LeadReplyToEmail, V3UniqueEmails, V3ReplyRecipients, V3SendLeadEmail });
+Object.assign(window, { V3SenderForUser, V3SenderName, V3SenderSignature, V3EnsureSenderSignature, V3ComposeReplyDraft, V3SubjectForLead, V3DefaultCc, V3InternalEmails, V3SenderEmails, V3IsSelfRecipient, V3SplitEmails, V3EmailsFromValue, V3ExtractEmail, V3LeadReplyToEmail, V3ThreadParticipants, V3LeadMatchesQuery, V3UniqueEmails, V3ReplyRecipients, V3ThreadMessageKey, V3PendingReplyKey, V3PendingReplyMatchesLead, V3PrunePendingReplies, V3MergePendingReplies, V3SendLeadEmail });
 
 
 // FLOW v3 — data with category labels matching UNALIGNED's INTERVIEW / COLLABORATION / PARTNERSHIP / INTRO tabs
@@ -368,7 +634,7 @@ const V3_DELIV_TYPES = {
 };
 
 const V3_USERS = {
-  asher:  { id: 'asher',  name: 'Asher',  role: 'Services',  color: '#2f5fd6', initials: 'AW' },
+  asher:  { id: 'asher',  name: 'Asher',  role: 'Services', color: '#2f5fd6', initials: 'AW' },
   sammy:  { id: 'sammy',  name: 'Sammy',  role: 'Manager',  color: '#16894a', initials: 'SM' },
   robert: { id: 'robert', name: 'Robert', role: 'Creator',  color: '#a93268', initials: 'RW' },
 };

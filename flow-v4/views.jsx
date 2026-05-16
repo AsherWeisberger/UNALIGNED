@@ -593,6 +593,7 @@ function V4InboxView({ leads, user }) {
                 <div className="thread-subject">{last?.subject}</div>
                 <div className="thread-snippet">{(last?.body || '').replace(/\s+/g, ' ').trim().slice(0, 280)}</div>
                 <div className="thread-tags">
+                  {last?.pending && <span className="thread-tag pending">Pending sync</span>}
                   {yourMove && <span className="thread-tag your-move">Your move</span>}
                   {l.unread && !yourMove && <span className="thread-tag unread">New</span>}
                   <span className="thread-tag stage" style={{ color: stage.color, borderColor: 'currentColor' }}>{stage.short}</span>
@@ -669,6 +670,8 @@ function V4Reader({ lead, user }) {
                               : V3ExtractEmail(m.from) || lead.email;
             const isInbound = !['Asher','Sammy','Robert','UNALIGNED'].includes(m.from);
             const toLabel = isInbound ? 'to me' : 'to ' + lead.contactName.split(' ')[0];
+            const toLine = Array.isArray(m.to) ? m.to.join(', ') : '';
+            const ccLine = Array.isArray(m.cc) ? m.cc.join(', ') : '';
             return (
               <div key={i} className="act-item">
                 <div className="act-item-hd">
@@ -677,7 +680,14 @@ function V4Reader({ lead, user }) {
                     <div className="act-item-from-row">
                       <span className="from">{m.from}</span>
                       <span className="from-email">&lt;{senderEmail}&gt;</span>
+                      {m.pending && <span className="act-item-pending">Pending sync</span>}
                     </div>
+                    {(toLine || ccLine) && (
+                      <div className="act-item-participants">
+                        {toLine && <span><strong>To:</strong> {toLine}</span>}
+                        {ccLine && <span><strong>Cc:</strong> {ccLine}</span>}
+                      </div>
+                    )}
                     <div className="act-item-to">{toLabel}</div>
                   </div>
                   <div className="act-item-time-wrap">
@@ -804,11 +814,12 @@ const CAL_TZ = 'America/Los_Angeles';
 
 const EMPTY_FORM = { title: '', date: '', startTime: '09:00', endTime: '10:00', location: '', allDay: false };
 
-function V4CalendarView() {
+function V4CalendarView({ query = '' }) {
   const [events, setEvents]   = React.useState(null);
   const [err, setErr]         = React.useState(null);
   const [form, setForm]       = React.useState(null); // null = closed; { mode:'create'|'edit', ev, fields }
   const [saving, setSaving]   = React.useState(false);
+  const q = String(query || '').trim().toLowerCase();
 
   function load() {
     fetch(CAL_SCRIPT_URL)
@@ -917,6 +928,7 @@ function V4CalendarView() {
     sub: fullDate(offset),
     key: dayKey(offset),
     items: (events || []).filter(ev => eventKey(ev) === dayKey(offset))
+                         .filter(ev => !q || [ev.title, ev.location, ev.description].join(' ').toLowerCase().includes(q))
                          .sort((a, b) => new Date(a.start) - new Date(b.start)),
   }));
 
@@ -951,7 +963,7 @@ function V4CalendarView() {
                   <button className="cal-add-btn" onClick={() => openCreate(day.offset)} title="Add event">+</button>
                 </div>
                 <div className="cal-day-body">
-                  {day.items.length === 0 && <div className="cal-empty">Nothing scheduled</div>}
+                  {day.items.length === 0 && <div className="cal-empty">{q ? 'No matching events' : 'Nothing scheduled'}</div>}
                   {day.items.map((ev, i) => (
                     <div key={i} className={'cal-event' + (ev.allDay ? ' cal-event-allday' : '')} onClick={() => openEdit(ev)} style={{ cursor: 'pointer' }}>
                       <div className="cal-event-time">{fmtTime(ev.start, ev.allDay)}</div>
