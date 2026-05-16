@@ -142,12 +142,13 @@ function V3Drawer({ lead, user, onClose }) {
 function V3InlineReply({ lead, user }) {
   const [sender, setSender] = React.useState(() => V3SenderForUser(user));
   const [internalOnly, setInternalOnly] = React.useState(false);
+  const draft = React.useMemo(() => V3ComposeReplyDraft(lead, sender), [lead.id, lead.draftReply?.body, lead.draftReply?.subject, lead.thread.length, lead.lastTouchAt, sender]);
   const initialRecipients = React.useMemo(() => V3ReplyRecipients(lead, sender, internalOnly), [lead.id, sender, internalOnly]);
   const [to, setTo] = React.useState(initialRecipients.to);
   const [cc, setCc] = React.useState(initialRecipients.cc);
   const [toDraft, setToDraft] = React.useState('');
   const [ccDraft, setCcDraft] = React.useState('');
-  const [body, setBody] = React.useState(lead.draftReply?.body || '');
+  const [body, setBody] = React.useState(draft.body);
   const [attachPdf, setAttachPdf] = React.useState(false);
   const [status, setStatus] = React.useState('draft');
   const [error, setError] = React.useState('');
@@ -178,29 +179,32 @@ function V3InlineReply({ lead, user }) {
   React.useEffect(() => {
     const nextSender = V3SenderForUser(user);
     const next = V3ReplyRecipients(lead, nextSender, false);
+    const nextDraft = V3ComposeReplyDraft(lead, nextSender);
     setSender(nextSender);
     setInternalOnly(false);
     setTo(next.to);
     setCc(next.cc);
     setToDraft('');
     setCcDraft('');
-    setBody(lead.draftReply?.body || '');
+    setBody(nextDraft.body);
     setAttachPdf(false);
     setStatus('draft');
     setError('');
     setSuccess('');
     clearSuccessTimer();
-  }, [lead.id, user]);
+  }, [lead.id, lead.draftReply?.body, lead.draftReply?.subject, lead.thread.length, lead.lastTouchAt, user]);
 
   React.useEffect(() => {
     const next = V3ReplyRecipients(lead, sender, internalOnly);
+    const nextDraft = V3ComposeReplyDraft(lead, sender);
     setTo(next.to);
     setCc(next.cc);
     setToDraft('');
     setCcDraft('');
+    setBody(nextDraft.body);
     setError('');
     setSuccess('');
-  }, [sender, internalOnly, lead.id]);
+  }, [sender, internalOnly, lead.id, lead.draftReply?.body, lead.draftReply?.subject, lead.thread.length, lead.lastTouchAt]);
 
   React.useEffect(() => () => clearSuccessTimer(), []);
 
@@ -253,7 +257,7 @@ function V3InlineReply({ lead, user }) {
   );
 
   const send = async () => {
-    const msg = body.trim();
+    const msg = V3EnsureSenderSignature(body.trim(), sender);
     const recipient = toLine.trim();
     if (!recipient || !msg) {
       setError(!to.length ? 'Add the outside lead email above, or choose Talk internally.' : 'Write a reply before sending.');
@@ -277,7 +281,7 @@ function V3InlineReply({ lead, user }) {
         },
         body: JSON.stringify({ draft_reply_status: 'sent', new_reply_at: null }),
       }).catch(err => console.warn('[ALIGNED v4] card status update failed:', err));
-      window.dispatchEvent(new CustomEvent('v3:email-sent', { detail: { leadId: lead.id, sender, subject, body: msg } }));
+      window.dispatchEvent(new CustomEvent('v3:email-sent', { detail: { leadId: lead.id, sender, subject, body: msg, to: to.slice(), cc: cc.slice(), internalOnly } }));
       setBody('');
       setError('');
       setStatus('sent');
@@ -407,13 +411,24 @@ function V3CheckRow({ text, done: initial = false, due }) {
 
 function V3Thread({ lead }) {
   return (
-        <div className="act">
-          {lead.thread.map((m, i) => (
-            <div key={i} className="act-item">
-              <div className="act-item-hd">
+    <div className="act">
+      {lead.thread.map((m, i) => (
+        <div key={i} className="act-item">
+          <div className="act-item-hd">
             <V3Avatar name={m.from} color={m.from === 'Sammy' ? '#16894a' : m.from === 'Asher' ? '#2f5fd6' : lead.color} size="xs" />
-            <span className="from">{m.from}</span>
-            <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{m.subject}</span>
+            <div className="act-item-sender">
+              <div className="act-item-from-row">
+                <span className="from">{m.from}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{m.subject}</span>
+                {m.pending && <span className="act-item-pending">Pending sync</span>}
+              </div>
+              {(m.to?.length || m.cc?.length) ? (
+                <div className="act-item-participants">
+                  {m.to?.length ? <span><strong>To:</strong> {m.to.join(', ')}</span> : null}
+                  {m.cc?.length ? <span><strong>Cc:</strong> {m.cc.join(', ')}</span> : null}
+                </div>
+              ) : null}
+            </div>
             <span className="time">{m.when}</span>
           </div>
           <div className="act-item-body">{m.body}</div>
