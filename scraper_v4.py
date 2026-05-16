@@ -726,6 +726,7 @@ def build_card(lead: dict, original_email: dict, conversation: list[dict]) -> di
     em_match     = re.search(r"<([^>]+)>", from_raw)
     sender_email = em_match.group(1).strip() if em_match else from_raw.strip()
     from_name    = re.sub(r"<[^>]+>", "", from_raw).strip()
+    sender_email_lc = sender_email.strip().lower()
 
     date_display = original_email.get("date")     or _clean(lead.get("date"), "")
     date_iso     = original_email.get("date_iso") or _parse_date_iso(original_email.get("date_raw", ""))
@@ -758,9 +759,10 @@ def build_card(lead: dict, original_email: dict, conversation: list[dict]) -> di
         "gmail_thread_id":    original_email.get("gmail_thread_id", ""),
         "title":              _clean(lead.get("title"), "No Subject"),
         "list_id":            (
-            "rates-sent" if thread_has_reply(conversation) and has_pricing_signal(conversation, lead)
-            else "engaged"  if thread_has_reply(conversation)
-            else COLUMN_MAP.get(intent, "first-touch")
+            "paid-out" if sender_email_lc == "jocelyn.cruz@hockeystick.io" else
+            "rates-sent" if thread_has_reply(conversation) and has_pricing_signal(conversation, lead) else
+            "engaged" if thread_has_reply(conversation) else
+            COLUMN_MAP.get(intent, "first-touch")
         ),
         "contact_name":       _clean(lead.get("name"), from_name) or from_name,
         "email":              _clean(lead.get("email_addr"), sender_email) or sender_email,

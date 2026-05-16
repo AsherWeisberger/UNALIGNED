@@ -41,7 +41,66 @@ async function V3LoadSupabaseLeads() {
     if (!prev || scoreRow(row) > scoreRow(prev)) canonical.set(key, row);
   }
 
-  return [...canonical.values()].map(V3NormalizeSupabaseLead);
+  const leads = [...canonical.values()].map(V3NormalizeSupabaseLead);
+  if (!leads.some(lead => String(lead.email || '').trim().toLowerCase() === 'jocelyn.cruz@hockeystick.io')) {
+    leads.push(V3HockeystickFallbackLead());
+  }
+  return leads;
+}
+
+function V3NormalizeEmailLeadStage(email, rawStage) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (normalizedEmail === 'jocelyn.cruz@hockeystick.io') {
+    return ['done', 'paid-out'].includes(rawStage) ? rawStage : 'paid-out';
+  }
+  return rawStage;
+}
+
+function V3HockeystickFallbackLead() {
+  const email = 'jocelyn.cruz@hockeystick.io';
+  const name = 'Jocelyn Cruz';
+  const brand = 'Hockeystick';
+  const stage = 'paid-out';
+  const now = new Date().toISOString();
+  return {
+    id: 'manual-hockeystick-jocelyn-cruz',
+    contactName: name,
+    contactRole: 'Founder',
+    brand,
+    stage,
+    value: null,
+    deliverables: 'Paid partnership',
+    ownerId: 'robert',
+    category: 'paid',
+    daysInStage: 0,
+    activityDays: 0,
+    timelineDays: null,
+    lastTouch: '0m',
+    lastTouchAt: now,
+    needsReply: false,
+    approve: null,
+    color: __v3Color(name + brand),
+    email,
+    gmailThreadId: '',
+    draftReply: null,
+    draftReplyStatus: '',
+    rowId: 'manual-hockeystick-jocelyn-cruz',
+    source: 'Manual',
+    nextMove: { who: null, text: 'Closed and paid', action: '' },
+    timeline: __v3Timeline(stage, 0, name, brand),
+    thread: [{
+      from: name,
+      when: '0m',
+      date: now,
+      subject: 'Hockeystick collaboration',
+      body: 'Lead placeholder added so the Jocelyn Cruz thread shows in the paid/completed lane.',
+      to: [email],
+      cc: [],
+      replyTo: [],
+    }],
+    progress: Math.max(0, V3_ACTIVE_STAGE_IDS.indexOf(stage)),
+    unread: false,
+  };
 }
 
 function V3NormalizeSupabaseLead(row) {
@@ -51,7 +110,8 @@ function V3NormalizeSupabaseLead(row) {
   const activityDays = V3DaysSince(row.new_reply_at || row.moved_at || received);
   const rawStage = V3NormalizeStage(row.list_id);
   // Auto-trash: last touch > 50 days and not already closed out
-  const stage = (activityDays > 50 && !['paid-out', 'done', 'trash'].includes(rawStage)) ? 'trash' : rawStage;
+  const closedStage = V3NormalizeEmailLeadStage(row.email, rawStage);
+  const stage = (activityDays > 50 && !['paid-out', 'done', 'trash'].includes(closedStage)) ? 'trash' : closedStage;
   const daysInStage = V3DaysSince(row.moved_at || received);
   const needsReply = Boolean(row.new_reply_at) || row.draft_reply_status === 'pending' || stage === 'new';
   const ownerId = V3NormalizeOwner(row.assignee || row.created_by);
