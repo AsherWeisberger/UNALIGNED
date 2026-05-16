@@ -336,7 +336,15 @@ function NowCard({ task, user, onOpenLead, onToggle, completed, now, fadeMs }) {
             const last = lead.thread && lead.thread[lead.thread.length - 1];
             const snippet = last && (last.body || last.subject || '');
             const clean = snippet.replace(/\s+/g, ' ').trim().slice(0, 90);
-            return clean ? <span className="now-card-snippet">"{clean}{snippet.length > 90 ? '…' : ''}"</span> : null;
+            const stamp = last && window.V3.GmailTime.list(last.date || last.when);
+            const stampTip = last && window.V3.GmailTime.tooltip(last.date || last.when);
+            if (!clean) return null;
+            return (
+              <span className="now-card-snippet">
+                {stamp && <span className="now-card-snippet-time" title={stampTip}>{stamp}</span>}
+                <span className="now-card-snippet-text">"{clean}{snippet.length > 90 ? '…' : ''}"</span>
+              </span>
+            );
           })()}
         </div>
 
@@ -486,6 +494,12 @@ function CompactRow({ task, user, onOpenLead, onToggle, completed, now, fadeMs, 
           <span className="cr-brand">{lead.brand}</span>
           {lead.deliverables && lead.deliverables !== '—' && <span className="cr-deliv"> · {lead.deliverables}</span>}
           {!isMine && owner && <span className="cr-owner"> · for {owner.name}</span>}
+          {(() => {
+            const last = lead.thread && lead.thread[lead.thread.length - 1];
+            const stamp = last && window.V3.GmailTime.list(last.date || last.when);
+            const stampTip = last && window.V3.GmailTime.tooltip(last.date || last.when);
+            return stamp ? <span className="cr-time" title={stampTip}> · {stamp}</span> : null;
+          })()}
         </div>
         <div className="cr-stage-row">
           <span className="cr-stage-name" style={{ color: stage.color }}>{stage.short}</span>
@@ -571,7 +585,9 @@ function V4InboxView({ leads, user }) {
                 <div className="thread-top">
                   <V3Avatar name={l.contactName} color={l.color} size="xs" />
                   <div className="thread-from">{l.contactName} · {l.brand}</div>
-                  <div className="thread-time">{l.lastTouch}</div>
+                  <div className="thread-time" title={window.V3.GmailTime.tooltip(l.lastTouchAt || last?.date || l.lastTouch)}>
+                    {window.V3.GmailTime.list(l.lastTouchAt || last?.date || l.lastTouch) || l.lastTouch}
+                  </div>
                 </div>
                 <div className="thread-subject">{last?.subject}</div>
                 <div className="thread-snippet">{(last?.body || '').replace(/\s+/g, ' ').trim().slice(0, 280)}</div>
@@ -596,25 +612,16 @@ function V4InboxView({ leads, user }) {
 }
 
 function fmtMsgDate(msg) {
-  const raw = msg.date;
-  const when = msg.when || '';
-  let d;
-  if (raw) {
-    d = new Date(raw);
-  } else {
-    const dm = when.match(/(\d+)d/), hm = when.match(/(\d+)h/), mm = when.match(/(\d+)m/);
-    d = new Date();
-    if (dm) d.setDate(d.getDate() - +dm[1]);
-    else if (hm) d.setHours(d.getHours() - +hm[1]);
-    else if (mm) d.setMinutes(d.getMinutes() - +mm[1]);
-    else return when;
-  }
-  if (isNaN(d)) return when;
-  const now = new Date();
-  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-  if (d.toDateString() === now.toDateString()) return time;
-  const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) });
-  return `${date}, ${time}`;
+  const v = msg.date || msg.when;
+  return window.V3.GmailTime.full(v) || msg.when || '';
+}
+function fmtMsgRelative(msg) {
+  const v = msg.date || msg.when;
+  return window.V3.GmailTime.relative(v) || '';
+}
+function fmtMsgTooltip(msg) {
+  const v = msg.date || msg.when;
+  return window.V3.GmailTime.tooltip(v) || '';
 }
 
 function V4Reader({ lead, user }) {
@@ -654,16 +661,39 @@ function V4Reader({ lead, user }) {
       </div>
       <div className="reader-body">
         <div className="act">
-          {lead.thread.map((m, i) => (
-            <div key={i} className="act-item">
-              <div className="act-item-hd">
-                <V3Avatar name={m.from} color={m.from === 'Sammy' ? '#1f8a5b' : m.from === 'Asher' ? '#15171c' : lead.color} size="xs" />
-                <span className="from">{m.from}</span>
-                <span className="time" title={m.date || m.when}>{fmtMsgDate(m)}</span>
+          {lead.thread.map((m, i) => {
+            const senderEmail = m.from === 'Asher' ? 'asher@unaligned.co'
+                              : m.from === 'Sammy' ? 'sammy@unaligned.co'
+                              : m.from === 'Robert' ? 'robert@unaligned.co'
+                              : lead.email;
+            const isInbound = !['Asher','Sammy','Robert','UNALIGNED'].includes(m.from);
+            const toLabel = isInbound ? 'to me' : 'to ' + lead.contactName.split(' ')[0];
+            return (
+              <div key={i} className="act-item">
+                <div className="act-item-hd">
+                  <V3Avatar name={m.from} color={m.from === 'Sammy' ? '#1f8a5b' : m.from === 'Asher' ? '#15171c' : lead.color} size="xs" />
+                  <div className="act-item-sender">
+                    <div className="act-item-from-row">
+                      <span className="from">{m.from}</span>
+                      <span className="from-email">&lt;{senderEmail}&gt;</span>
+                    </div>
+                    <div className="act-item-to">{toLabel}</div>
+                  </div>
+                  <div className="act-item-time-wrap">
+                    {fmtMsgDate(m) ? (
+                      <>
+                        <span className="time" title={fmtMsgTooltip(m)}>{fmtMsgDate(m)}</span>
+                        {fmtMsgRelative(m) && <span className="time-rel">{fmtMsgRelative(m)}</span>}
+                      </>
+                    ) : m.when ? (
+                      <span className="time">{m.when}</span>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="act-item-body">{m.body}</div>
               </div>
-              <div className="act-item-body">{m.body}</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
       <div className="drawer-foot">
