@@ -320,6 +320,8 @@ a { color: inherit; }
 .btn-primary:hover { background: var(--text-2); }
 .btn-accent { background: var(--accent); color: white; border-color: transparent; }
 .btn-accent:hover { background: var(--accent-deep); }
+.btn-success { background: var(--good); color: white; border-color: transparent; }
+.btn-success:hover { background: color-mix(in oklab, var(--good) 86%, black); }
 .btn-good { background: var(--good); color: white; border-color: transparent; }
 .btn-ghost { background: transparent; border-color: transparent; color: var(--text-2); }
 .btn-ghost:hover { background: var(--hover); color: var(--text); }

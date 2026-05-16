@@ -15,11 +15,29 @@ function V4App() {
   const [leads] = React.useState(LEADS);
   const [ownerFilter, setOwnerFilter] = React.useState('all');
   const [toast, setToast] = React.useState(null);
+  const toastTimer = React.useRef(null);
 
   React.useEffect(() => {
     const h = (e) => setBriefId(e.detail.leadId);
     window.addEventListener('v3:open-brief', h);
     return () => window.removeEventListener('v3:open-brief', h);
+  }, []);
+
+  React.useEffect(() => {
+    const h = (e) => {
+      const sender = window.V3SenderName ? window.V3SenderName(e.detail.sender) : e.detail.sender;
+      setToast(`Email sent as ${sender}`);
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      toastTimer.current = setTimeout(() => {
+        setToast(null);
+        toastTimer.current = null;
+      }, 3000);
+    };
+    window.addEventListener('v3:email-sent', h);
+    return () => {
+      window.removeEventListener('v3:email-sent', h);
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
   }, []);
 
   React.useEffect(() => {
