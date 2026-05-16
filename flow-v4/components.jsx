@@ -71,15 +71,17 @@ function V3Avatar({ name, color, size = '', className = '', style = {} }) {
   const cls = 'av' + (size ? ' av-' + size : '') + (className ? ' ' + className : '');
   const avatarMap = window.AVATARS || window.V3?.AVATARS || {};
   const lookupKeys = V3AvatarLookupKeys(name);
-  const src = lookupKeys.map(k => avatarMap[k]).find(Boolean) || null;
+  const rawSrc = lookupKeys.map(k => avatarMap[k]).find(Boolean) || null;
+  const src = rawSrc ? new URL(rawSrc, window.location.href).href : null;
   const initials = String(name || '').split(/\s+/).filter(Boolean).map(p => p[0]).slice(0, 2).join('').toUpperCase() || '?';
   return (
     <div
       className={cls + (src ? ' has-photo' : '')}
-      style={src ? { backgroundImage: `url(${src})`, backgroundColor: color || '#2f5fd6', ...style } : { background: color || '#2f5fd6', ...style }}
+      style={{ background: color || '#2f5fd6', ...style }}
       aria-label={name}
       title={name}
     >
+      {src && <img className="av-photo" src={src} alt="" aria-hidden="true" />}
       {!src && initials}
     </div>
   );
