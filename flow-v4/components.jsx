@@ -48,8 +48,8 @@ function V3Icon({ name, w = 14, className = "ic" }) {
   );
 }
 
-function V3Avatar({ name, color, size = '' }) {
-  const cls = 'av' + (size ? ' av-' + size : '');
+function V3Avatar({ name, color, size = '', className = '', style = {} }) {
+  const cls = 'av' + (size ? ' av-' + size : '') + (className ? ' ' + className : '');
   const lookup = String(name || '').toLowerCase().trim().replace(/\s+/g, ' ');
   const avatarMap = window.AVATARS || window.V3?.AVATARS || {};
   const src = avatarMap[lookup] || null;
@@ -57,7 +57,7 @@ function V3Avatar({ name, color, size = '' }) {
   return (
     <div
       className={cls + (src ? ' has-photo' : '')}
-      style={src ? { backgroundImage: `url(${src})`, backgroundColor: color || '#2f5fd6' } : { background: color || '#2f5fd6' }}
+      style={src ? { backgroundImage: `url(${src})`, backgroundColor: color || '#2f5fd6', ...style } : { background: color || '#2f5fd6', ...style }}
       aria-label={name}
       title={name}
     >

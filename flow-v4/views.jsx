@@ -367,7 +367,7 @@ function NowCard({ task, user, onOpenLead, onToggle, completed, now, fadeMs }) {
           {task.value != null && <span className="now-card-value">{v3Money(task.value, { compact: true })}</span>}
           {!isMine && owner && (
             <span className="now-card-owner">
-              <span className="now-card-owner-pip" style={{ background: owner.color }}>{owner.name[0]}</span>
+              <V3Avatar name={owner.name} color={owner.color} className="now-card-owner-pip" />
               For {owner.name}
             </span>
           )}
