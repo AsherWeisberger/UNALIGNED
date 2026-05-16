@@ -103,9 +103,9 @@ function V3BoardView({ leads, openId, onOpen, user, ownerFilter, setOwnerFilter 
 
 function V3BoardCard({ lead, isActive, user, onOpen }) {
   const { USERS, STAGE_BY_ID } = window.V3;
-  const isMine = lead.nextMove.who === user;
+  const isMine = window.V3.MoveIsMineForProfile(lead, user);
   const isThem = !lead.nextMove.who && !['paid-out'].includes(lead.stage);
-  const isAssignedToMe = lead.ownerId === user;
+  const isAssignedToMe = window.V3.LeadIsMineForProfile(lead, user);
   const sourceLabel = (lead.source || '').toUpperCase();
 
   return (
