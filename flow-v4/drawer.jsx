@@ -151,10 +151,29 @@ function V3InlineReply({ lead, user }) {
   const [attachPdf, setAttachPdf] = React.useState(false);
   const [status, setStatus] = React.useState('draft');
   const [error, setError] = React.useState('');
+  const [success, setSuccess] = React.useState('');
+  const successTimer = React.useRef(null);
   const subject = V3SubjectForLead(lead);
   const toLine = to.join(',');
   const ccLine = cc.join(',');
   const isSelfRecipient = V3IsSelfRecipient(sender, toLine);
+
+  const clearSuccessTimer = () => {
+    if (successTimer.current) {
+      clearTimeout(successTimer.current);
+      successTimer.current = null;
+    }
+  };
+
+  const showSuccess = (message) => {
+    clearSuccessTimer();
+    setSuccess(message);
+    successTimer.current = setTimeout(() => {
+      setSuccess('');
+      setStatus('draft');
+      successTimer.current = null;
+    }, 2500);
+  };
 
   React.useEffect(() => {
     const nextSender = V3SenderForUser(user);
@@ -169,6 +188,8 @@ function V3InlineReply({ lead, user }) {
     setAttachPdf(false);
     setStatus('draft');
     setError('');
+    setSuccess('');
+    clearSuccessTimer();
   }, [lead.id, user]);
 
   React.useEffect(() => {
@@ -178,7 +199,10 @@ function V3InlineReply({ lead, user }) {
     setToDraft('');
     setCcDraft('');
     setError('');
+    setSuccess('');
   }, [sender, internalOnly, lead.id]);
+
+  React.useEffect(() => () => clearSuccessTimer(), []);
 
   const addRecipients = (field, value) => {
     const emails = V3SplitEmails(value);
@@ -255,8 +279,11 @@ function V3InlineReply({ lead, user }) {
       }).catch(err => console.warn('[ALIGNED v4] card status update failed:', err));
       window.dispatchEvent(new CustomEvent('v3:email-sent', { detail: { leadId: lead.id, sender, subject, body: msg } }));
       setBody('');
+      setError('');
       setStatus('sent');
+      showSuccess(`Sent to ${recipient}${ccLine ? ' · CC ' + ccLine : ''}`);
     } catch (err) {
+      clearSuccessTimer();
       setStatus('error');
       setError(err.message || 'Send failed');
     }
@@ -297,11 +324,16 @@ function V3InlineReply({ lead, user }) {
         Attach SINGLE TIER.pdf
       </label>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ flex: 1, minWidth: 0, fontSize: 10.5, color: 'var(--text-3)' }}>
-          {error || (isSelfRecipient ? `${V3SenderName(sender)} is also a recipient. Remove them before sending.` : status === 'sent' ? 'Sent.' : `Lead chain · sending as ${V3SenderName(sender)}${lead.gmailThreadId && sender === 'robert' ? ' in the Gmail thread' : ''}`)}
+        <div style={{ flex: 1, minWidth: 0, fontSize: 10.5, color: success ? 'var(--good)' : error ? 'var(--bad)' : 'var(--text-3)' }}>
+          {success || error || (isSelfRecipient ? `${V3SenderName(sender)} is also a recipient. Remove them before sending.` : status === 'sent' ? 'Sent.' : `Lead chain · sending as ${V3SenderName(sender)}${lead.gmailThreadId && sender === 'robert' ? ' in the Gmail thread' : ''}`)}
         </div>
-        <button className="btn btn-sm btn-accent" onClick={send} disabled={status === 'sending'}>
-          <V3Icon name="send" w={12} /> Send
+        <button
+          className={'btn btn-sm ' + (status === 'sent' ? 'btn-success' : 'btn-accent')}
+          onClick={send}
+          disabled={status === 'sending'}
+          aria-live="polite"
+        >
+          <V3Icon name={status === 'sent' ? 'check' : 'send'} w={12} /> {status === 'sending' ? 'Sending…' : status === 'sent' ? 'Sent' : 'Send'}
         </button>
       </div>
     </div>

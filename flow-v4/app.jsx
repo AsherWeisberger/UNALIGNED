@@ -15,6 +15,7 @@ function V4App() {
   const [leads, setLeads] = React.useState(LEADS);
   const [ownerFilter, setOwnerFilter] = React.useState('all');
   const [toast, setToast] = React.useState(null);
+  const toastTimer = React.useRef(null);
 
   React.useEffect(() => {
     const h = (e) => setBriefId(e.detail.leadId);
@@ -26,6 +27,23 @@ function V4App() {
     const h = (e) => setLeads(e.detail.leads);
     window.addEventListener('v3:leads-loaded', h);
     return () => window.removeEventListener('v3:leads-loaded', h);
+  }, []);
+
+  React.useEffect(() => {
+    const h = (e) => {
+      const sender = window.V3SenderName ? window.V3SenderName(e.detail.sender) : e.detail.sender;
+      setToast(`Email sent as ${sender}`);
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      toastTimer.current = setTimeout(() => {
+        setToast(null);
+        toastTimer.current = null;
+      }, 3000);
+    };
+    window.addEventListener('v3:email-sent', h);
+    return () => {
+      window.removeEventListener('v3:email-sent', h);
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
   }, []);
 
   React.useEffect(() => {
