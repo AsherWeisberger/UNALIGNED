@@ -1,21 +1,30 @@
 // FLOW v4 — main app shell (refined top bar + view wiring)
 
 const V4_TWEAKS = /*EDITMODE-BEGIN*/{
-  "viewAs": "asher",
+  "viewAs": "robert",
   "theme": "light",
-  "view": "today"
+  "view": "calendar"
 }/*EDITMODE-END*/;
 
 function V4App() {
   const { USERS, LEADS, STAGE_BY_ID, ACTIVE_STAGE_IDS } = window.V3;
   const [t, setTweak] = useTweaks(V4_TWEAKS);
-  const [view, setView] = React.useState(t.view || 'today');
+  const [view, setView] = React.useState(t.view || 'calendar');
   const [openId, setOpenId] = React.useState(null);
   const [briefId, setBriefId] = React.useState(null);
-  const [leads] = React.useState(LEADS);
+  const [leads, setLeads] = React.useState(LEADS);
   const [ownerFilter, setOwnerFilter] = React.useState('all');
+  const [search, setSearch] = React.useState('');
   const [toast, setToast] = React.useState(null);
   const toastTimer = React.useRef(null);
+  const searchRef = React.useRef(null);
+  const [pendingReplies, setPendingReplies] = React.useState(() => {
+    try {
+      return JSON.parse(window.localStorage.getItem('v3-pending-replies') || '[]') || [];
+    } catch (e) {
+      return [];
+    }
+  });
 
   React.useEffect(() => {
     const h = (e) => setBriefId(e.detail.leadId);
@@ -25,7 +34,33 @@ function V4App() {
 
   React.useEffect(() => {
     const h = (e) => {
+      setLeads(e.detail.leads);
+      setPendingReplies(curr => {
+        if (!window.V3.PrunePendingReplies) return curr;
+        return window.V3.PrunePendingReplies(curr, e.detail.leads);
+      });
+    };
+    window.addEventListener('v3:leads-loaded', h);
+    return () => window.removeEventListener('v3:leads-loaded', h);
+  }, []);
+
+  React.useEffect(() => {
+    const h = (e) => {
       const sender = window.V3SenderName ? window.V3SenderName(e.detail.sender) : e.detail.sender;
+      const pending = {
+        leadId: String(e.detail.leadId || ''),
+        sender: e.detail.sender,
+        subject: e.detail.subject || '',
+        body: e.detail.body || '',
+        to: Array.isArray(e.detail.to) ? e.detail.to : [],
+        cc: Array.isArray(e.detail.cc) ? e.detail.cc : [],
+        createdAt: new Date().toISOString(),
+      };
+      setPendingReplies(curr => {
+        const key = window.V3PendingReplyKey ? window.V3PendingReplyKey(pending) : JSON.stringify(pending);
+        const next = curr.filter(item => (window.V3PendingReplyKey ? window.V3PendingReplyKey(item) : JSON.stringify(item)) !== key);
+        return [...next, pending];
+      });
       setToast(`Email sent as ${sender}`);
       if (toastTimer.current) clearTimeout(toastTimer.current);
       toastTimer.current = setTimeout(() => {
@@ -41,6 +76,12 @@ function V4App() {
   }, []);
 
   React.useEffect(() => {
+    try {
+      window.localStorage.setItem('v3-pending-replies', JSON.stringify(pendingReplies));
+    } catch (e) {}
+  }, [pendingReplies]);
+
+  React.useEffect(() => {
     document.body.setAttribute('data-theme', t.theme);
   }, [t.theme]);
 
@@ -52,8 +93,27 @@ function V4App() {
     setBriefId(null);
   }, [user]);
 
+  React.useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+      if (e.key === 'Escape' && document.activeElement === searchRef.current) {
+        searchRef.current?.blur();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const me = USERS[user];
-  const visibleLeads = leads.filter(l => window.V3.LeadVisibleToProfile(l, user));
+  const mergedLeads = React.useMemo(() => {
+    return window.V3.MergePendingReplies ? window.V3.MergePendingReplies(leads, pendingReplies) : leads;
+  }, [leads, pendingReplies]);
+  const visibleLeads = mergedLeads
+    .filter(l => window.V3.LeadVisibleToProfile(l, user))
+    .filter(l => window.V3.LeadMatchesQuery ? window.V3.LeadMatchesQuery(l, search) : true);
   const openLead = visibleLeads.find(l => l.id === openId) || null;
   const unreadCount = visibleLeads.filter(l => l.unread).length;
 
@@ -97,7 +157,7 @@ function V4App() {
 
         <div className="hd-search">
           <V3Icon name="search" w={12} />
-          <input placeholder="Search leads, brands, threads…" />
+          <input ref={searchRef} value={search} onChange={e => setSearch(e.target.value)} placeholder="Search leads, brands, threads…" />
           <kbd>⌘K</kbd>
         </div>
 
@@ -179,7 +239,7 @@ function V4App() {
           <V4LeadsView leads={visibleLeads} openId={openId} onOpenLead={setOpenId} user={user} />
         )}
         {view === 'calendar' && (
-          <V4CalendarView />
+          <V4CalendarView query={search} />
         )}
       </main>
 
