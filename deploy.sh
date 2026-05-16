@@ -9,7 +9,7 @@ if [ -z "$branch" ]; then
 fi
 
 echo "=== Committing and pushing to GitHub Pages branch: ${branch} ==="
-git add index.html aligned.html firebase.json unaligned_logo.png favicon.ico assets/docs
+git add index.html aligned.html firebase.json unaligned_logo.png favicon.ico assets/docs flow-v4
 git commit -m "Update site" || echo "Nothing to commit"
 git push origin "HEAD:${branch}"
 

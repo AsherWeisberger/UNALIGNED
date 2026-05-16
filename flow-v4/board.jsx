@@ -1,8 +1,7 @@
 // FLOW v3 — Board view
 
 function V3BoardView({ leads, openId, onOpen, user, ownerFilter, setOwnerFilter }) {
-  const { STAGES, STAGE_BY_ID, ACTIVE_STAGE_IDS } = window.V3;
-  const BOARD_STAGE_IDS = [...ACTIVE_STAGE_IDS, 'trash'];
+  const { STAGE_BY_ID, BOARD_STAGE_IDS } = window.V3;
 
   const filtered = leads.filter(l => {
     if (ownerFilter !== 'all' && l.ownerId !== ownerFilter) return false;
@@ -47,7 +46,7 @@ function V3BoardView({ leads, openId, onOpen, user, ownerFilter, setOwnerFilter 
                       <span className="cnt">{needsReply.length}</span>
                     </div>
                     {needsReply.map(l => (
-                      <V3BoardCard key={l.id} lead={l} isActive={openId === l.id} user={user} onOpen={() => onOpen(l.id)} onMoveStage={(nextStage) => moveLeadStage(l, nextStage, leads)} />
+                      <V3BoardCard key={l.id} lead={l} isActive={openId === l.id} user={user} onOpen={() => onOpen(l.id)} onMoveStage={(nextStage) => window.V3.MoveLeadStage(l, nextStage, leads)} />
                     ))}
                   </>
                 )}
@@ -59,13 +58,18 @@ function V3BoardView({ leads, openId, onOpen, user, ownerFilter, setOwnerFilter 
                       <span className="cnt">{waiting.length}</span>
                     </div>
                     {waiting.map(l => (
-                      <V3BoardCard key={l.id} lead={l} isActive={openId === l.id} user={user} onOpen={() => onOpen(l.id)} onMoveStage={(nextStage) => moveLeadStage(l, nextStage, leads)} />
+                      <V3BoardCard key={l.id} lead={l} isActive={openId === l.id} user={user} onOpen={() => onOpen(l.id)} onMoveStage={(nextStage) => window.V3.MoveLeadStage(l, nextStage, leads)} />
                     ))}
                   </>
                 )}
 
                 {stageId === 'trash' && trashLeads.length > 0 && (
-                  <div className="trash-column-hint">Cards moved here can be restored later from the trash bin.</div>
+                  <>
+                    <div className="trash-column-hint">Cards moved here can be restored if needed.</div>
+                    {trashLeads.map(l => (
+                      <V3BoardCard key={l.id} lead={l} isActive={openId === l.id} user={user} onOpen={() => onOpen(l.id)} onMoveStage={(nextStage) => window.V3.MoveLeadStage(l, nextStage, leads)} />
+                    ))}
+                  </>
                 )}
 
                 {stageLeads.length === 0 && (
@@ -89,22 +93,6 @@ function V3BoardView({ leads, openId, onOpen, user, ownerFilter, setOwnerFilter 
   );
 }
 
-function moveLeadStage(lead, nextStage, leads) {
-  const updated = leads.map(item => String(item.id) === String(lead.id) ? { ...item, stage: nextStage } : item);
-  fetch(V3_SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(lead.id), {
-    method: 'PATCH',
-    headers: {
-      apikey: V3_SUPABASE_ANON_KEY,
-      Authorization: 'Bearer ' + V3_SUPABASE_ANON_KEY,
-      'Content-Type': 'application/json',
-      Prefer: 'return=minimal',
-    },
-    body: JSON.stringify({ list_id: nextStage }),
-  }).catch(err => console.warn('[ALIGNED v4] stage update failed:', err));
-  window.V3.LEADS = updated;
-  window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated } }));
-}
-
 function V3BoardCard({ lead, isActive, user, onOpen, onMoveStage }) {
   const { USERS, STAGE_BY_ID } = window.V3;
   const isMine = window.V3.MoveIsMineForProfile(lead, user);
@@ -125,16 +113,14 @@ function V3BoardCard({ lead, isActive, user, onOpen, onMoveStage }) {
           <span className="b-card-badge">{sourceLabel.slice(0, 6)}</span>
           <span className="b-card-date">{lead.lastTouch}</span>
         </div>
-        {!isTrash && (
-          <button
-            className="b-card-trash-btn"
-            title="Move to trash"
-            aria-label={'Move ' + lead.contactName + ' to trash'}
-            onClick={e => { e.stopPropagation(); onMoveStage?.('trash'); }}
-          >
-            <V3Icon name="trash" w={12} />
-          </button>
-        )}
+        <button
+          className="b-card-trash-btn"
+          title={isTrash ? "Restore to New" : "Move to trash"}
+          aria-label={(isTrash ? 'Restore ' : 'Move ') + lead.contactName + (isTrash ? ' to New' : ' to trash')}
+          onClick={e => { e.stopPropagation(); onMoveStage?.(isTrash ? 'new' : 'trash'); }}
+        >
+          <V3Icon name={isTrash ? "reply" : "trash"} w={12} />
+        </button>
       </div>
 
       {/* Company */}
@@ -171,6 +157,13 @@ function V3BoardCard({ lead, isActive, user, onOpen, onMoveStage }) {
             {lead.nextMove.action}
           </button>
         )}
+        <button
+          className={isTrash ? "b-card-restore-action" : "b-card-trash-action"}
+          onClick={e => { e.stopPropagation(); onMoveStage?.(isTrash ? 'new' : 'trash'); }}
+        >
+          <V3Icon name={isTrash ? "reply" : "trash"} w={12} />
+          {isTrash ? 'Restore' : 'Trash'}
+        </button>
         <span className="stage-pill" style={{ color: STAGE_BY_ID[lead.stage].color, marginLeft: 'auto' }}>
           <span className="dot"></span>
           {STAGE_BY_ID[lead.stage].short.slice(0, 8)}

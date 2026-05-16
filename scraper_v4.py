@@ -374,8 +374,40 @@ def _decode_body(payload: dict) -> str:
     return ""
 
 
+def _recover_quoted_confirmation(text: str) -> str:
+    """Keep quoted customer confirmations that Gmail may not expose as standalone messages."""
+    lines = text.splitlines()
+    recovered = []
+    capture = False
+    for raw in lines:
+        stripped = raw.strip()
+        unquoted = re.sub(r"^>+\s?", "", stripped).strip()
+        if re.match(r"^On .+ wrote:$", unquoted):
+            if capture and recovered:
+                break
+            capture = True
+            continue
+        if not capture:
+            continue
+        if re.match(r"^On .+ wrote:$", unquoted) and recovered:
+            break
+        if unquoted:
+            recovered.append(unquoted)
+        if len("\n".join(recovered)) > 1200:
+            break
+
+    recovered_text = "\n".join(recovered).strip()
+    if not re.search(
+        r"\b(locking in|let'?s do it|confirmed|confirming|invoice details|post schedule|payment|paid|budget)\b",
+        recovered_text,
+        re.I,
+    ):
+        return ""
+    return recovered_text[:1200]
+
+
 def _clean_body(text: str) -> str:
-    """Strip quoted reply headers, collapse whitespace. Cap at 3000 chars."""
+    """Strip quoted reply headers, but preserve quoted customer confirmations."""
     lines = text.splitlines()
     cleaned = []
     for line in lines:
@@ -383,6 +415,9 @@ def _clean_body(text: str) -> str:
             break
         cleaned.append(line)
     result = "\n".join(cleaned).strip()
+    recovered = _recover_quoted_confirmation(text)
+    if recovered and recovered not in result:
+        result = f"{result}\n\n[Recovered quoted confirmation]\n{recovered}".strip()
     result = re.sub(r"\n{3,}", "\n\n", result)
     return result[:3000]
 

@@ -531,6 +531,7 @@ function V4InboxView({ leads, user }) {
     { id: 'rates',   label: 'Rates sent',   icon: 'send',    fn: l => l.stage === 'rates-sent',    section: 'By stage' },
     { id: 'nego',    label: 'Negotiating',  icon: 'reply',   fn: l => l.stage === 'negotiating',   section: 'By stage' },
     { id: 'invoice', label: 'Invoice sent', icon: 'invoice', fn: l => l.stage === 'invoice-sent',  section: 'By stage' },
+    { id: 'trash',   label: 'Trash',        icon: 'trash',   fn: l => l.stage === 'trash',         section: 'By stage' },
     { id: 'lane',    label: laneLabel,      icon: 'leads',   fn: l => window.V3.LeadLane(l) === window.V3.ProfileLane(user), section: 'By owner' },
   ];
 
@@ -540,6 +541,12 @@ function V4InboxView({ leads, user }) {
   const openLead = leads.find(l => l.id === selectedId) || (!isMobile && !selectedId ? filtered[0] : null);
   const sections = [...new Set(folders.map(f => f.section))];
   const showReader = Boolean(isMobile && selectedId && openLead);
+  const moveThread = (lead, nextStage) => {
+    window.V3.MoveLeadStage(lead, nextStage, leads);
+    if (nextStage === 'trash' && folder !== 'trash' && String(selectedId) === String(lead.id)) {
+      setSelectedId(null);
+    }
+  };
 
   return (
     <div className={'page' + (showReader ? ' inbox-reader-open' : '')} style={{ overflow: 'hidden' }}>
@@ -593,6 +600,14 @@ function V4InboxView({ leads, user }) {
                   <div className="thread-time" title={window.V3.GmailTime.tooltip(l.lastTouchAt || last?.date || l.lastTouch)}>
                     {window.V3.GmailTime.list(l.lastTouchAt || last?.date || l.lastTouch) || l.lastTouch}
                   </div>
+                  <button
+                    className={l.stage === 'trash' ? "thread-restore-btn" : "thread-trash-btn"}
+                    title={l.stage === 'trash' ? "Restore to New" : "Move to trash"}
+                    aria-label={(l.stage === 'trash' ? 'Restore ' : 'Move ') + l.contactName + (l.stage === 'trash' ? ' to New' : ' to trash')}
+                    onClick={e => { e.stopPropagation(); moveThread(l, l.stage === 'trash' ? 'new' : 'trash'); }}
+                  >
+                    <V3Icon name={l.stage === 'trash' ? "reply" : "trash"} w={12} />
+                  </button>
                 </div>
                 <div className="thread-subject">{last?.subject}</div>
                 <div className="thread-snippet">{(last?.body || '').replace(/\s+/g, ' ').trim().slice(0, 280)}</div>
@@ -607,7 +622,7 @@ function V4InboxView({ leads, user }) {
           })}
         </div>
 
-        {openLead ? <V4Reader lead={openLead} user={user} onBack={showReader ? () => setSelectedId(null) : null} /> : (
+        {openLead ? <V4Reader lead={openLead} user={user} onBack={showReader ? () => setSelectedId(null) : null} onMoveStage={(nextStage) => moveThread(openLead, nextStage)} /> : (
           <div style={{ display: 'grid', placeItems: 'center', padding: 40 }}>
             <V3Empty icon="mail" title="Pick a thread." />
           </div>
@@ -630,7 +645,7 @@ function fmtMsgTooltip(msg) {
   return window.V3.GmailTime.tooltip(v) || '';
 }
 
-function V4Reader({ lead, user, onBack }) {
+function V4Reader({ lead, user, onBack, onMoveStage }) {
   const { STAGE_BY_ID, USERS } = window.V3;
   const last = lead.thread[lead.thread.length - 1];
   const stage = STAGE_BY_ID[lead.stage];
@@ -645,7 +660,17 @@ function V4Reader({ lead, user, onBack }) {
             Threads
           </button>
         )}
-        <h2 className="reader-subject">{last?.subject}</h2>
+        <div className="reader-title-row">
+          <h2 className="reader-subject">{last?.subject}</h2>
+          <button
+            className={lead.stage === 'trash' ? "reader-restore-btn" : "reader-trash-btn"}
+            title={lead.stage === 'trash' ? "Restore to New" : "Move to trash"}
+            onClick={() => onMoveStage?.(lead.stage === 'trash' ? 'new' : 'trash')}
+          >
+            <V3Icon name={lead.stage === 'trash' ? "reply" : "trash"} w={13} />
+            {lead.stage === 'trash' ? 'Restore' : 'Trash'}
+          </button>
+        </div>
         <div className="reader-meta">
           <V3Avatar name={lead.contactName} color={lead.color} size="xs" />
           <strong>{lead.contactName}</strong>
@@ -729,13 +754,15 @@ function V4LeadsView({ leads, openId, onOpenLead, user }) {
   const { USERS, STAGE_BY_ID } = window.V3;
   const [tab, setTab] = React.useState('active');
   const tabs = [
-    { id: 'active',  label: 'Active',   fn: l => !['paid-out'].includes(l.stage) },
-    { id: 'mine',    label: 'My move',  fn: l => window.V3.MoveIsMineForProfile(l, user) && !['paid-out'].includes(l.stage) },
-    { id: 'waiting', label: 'Waiting',  fn: l => !l.nextMove.who && !['paid-out'].includes(l.stage) },
+    { id: 'active',  label: 'Active',   fn: l => !['paid-out','trash'].includes(l.stage) },
+    { id: 'mine',    label: 'My move',  fn: l => window.V3.MoveIsMineForProfile(l, user) && !['paid-out','trash'].includes(l.stage) },
+    { id: 'waiting', label: 'Waiting',  fn: l => !l.nextMove.who && !['paid-out','trash'].includes(l.stage) },
     { id: 'paid',    label: 'Paid out', fn: l => l.stage === 'paid-out' },
+    { id: 'trash',   label: 'Trash',    fn: l => l.stage === 'trash' },
     { id: 'all',     label: 'All',      fn: () => true },
   ];
   const filtered = leads.filter(tabs.find(t => t.id === tab).fn);
+  const moveLead = (lead, nextStage) => window.V3.MoveLeadStage(lead, nextStage, leads);
 
   return (
     <div className="page">
@@ -774,6 +801,7 @@ function V4LeadsView({ leads, openId, onOpenLead, user }) {
             <div>Stage</div>
             <div>Owner</div>
             <div style={{ textAlign: 'right' }}>Value</div>
+            <div style={{ textAlign: 'right' }}>Action</div>
           </div>
           {filtered.length === 0 && <V3Empty icon="leads" title="Nothing here." />}
           {filtered.map(l => {
@@ -808,6 +836,16 @@ function V4LeadsView({ leads, openId, onOpenLead, user }) {
                 </div>
                 <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 12.5 }}>
                   {l.value ? v3Money(l.value, { compact: true }) : '—'}
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <button
+                    className={l.stage === 'trash' ? "lead-restore-btn" : "lead-trash-btn"}
+                    title={l.stage === 'trash' ? "Restore to New" : "Move to trash"}
+                    onClick={e => { e.stopPropagation(); moveLead(l, l.stage === 'trash' ? 'new' : 'trash'); }}
+                  >
+                    <V3Icon name={l.stage === 'trash' ? "reply" : "trash"} w={12} />
+                    {l.stage === 'trash' ? 'Restore' : 'Trash'}
+                  </button>
                 </div>
               </div>
             );

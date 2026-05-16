@@ -164,6 +164,7 @@ function V3ParseDraftReply(value) {
 function V3NormalizeStage(stage) {
   const s = String(stage || 'new').toLowerCase();
   if (V3_ACTIVE_STAGE_IDS.includes(s)) return s;
+  if (V3_TRASH_STAGE_IDS.includes(s)) return s;
   const map = { discovery: 'new', build: 'engaged', posted: 'done', paid: 'paid-out', 'anything-else': 'dead-leads', dead: 'dead-leads' };
   return map[s] || 'new';
 }
@@ -707,12 +708,13 @@ const V3_STAGES = [
   { id: 'rates-sent',  name: 'Rates sent',   color: 'var(--st-rates)',   short: 'RATES SENT' },
   { id: 'negotiating', name: 'Negotiating',  color: 'var(--st-nego)',    short: 'NEGOTIATING' },
   { id: 'invoice-sent',name: 'Invoice sent', color: 'var(--st-invoice)', short: 'INVOICE SENT' },
+  { id: 'trash',       name: 'Trash',        color: 'var(--text-4)',     short: 'TRASH' },
   { id: 'done',        name: 'Done',         color: 'var(--st-booked)',  short: 'DONE' },
   { id: 'paid-out',    name: 'Paid out',     color: 'var(--st-paid)',    short: 'PAID OUT' },
-  { id: 'trash',       name: 'Trash',        color: 'var(--text-4)',     short: 'TRASH' },
 ];
 const V3_STAGE_BY_ID = Object.fromEntries(V3_STAGES.map(s => [s.id, s]));
 const V3_ACTIVE_STAGE_IDS = ['new','first-touch','engaged','rates-sent','negotiating','invoice-sent','done','paid-out'];
+const V3_BOARD_STAGE_IDS = ['new','first-touch','engaged','rates-sent','negotiating','invoice-sent','trash','done','paid-out'];
 const V3_TRASH_STAGE_IDS = ['trash'];
 
 const V3_CATEGORIES = ['interview', 'collaboration', 'partnership', 'intro', 'paid'];
@@ -1379,7 +1381,26 @@ const V3GmailTime = (() => {
   }
 })();
 
-window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3LeadIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile };
+function V3MoveLeadStage(lead, nextStage, leads = window.V3?.LEADS || V3_LEADS) {
+  const id = lead?.rowId || lead?.id;
+  if (!id) return;
+  const normalizedStage = V3NormalizeStage(nextStage);
+  const updated = leads.map(item => String(item.id) === String(lead.id) ? { ...item, stage: normalizedStage } : item);
+  fetch(V3_SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(id), {
+    method: 'PATCH',
+    headers: {
+      apikey: V3_SUPABASE_ANON_KEY,
+      Authorization: 'Bearer ' + V3_SUPABASE_ANON_KEY,
+      'Content-Type': 'application/json',
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify({ list_id: normalizedStage }),
+  }).catch(err => console.warn('[ALIGNED v4] stage update failed:', err));
+  window.V3.LEADS = updated;
+  window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated } }));
+}
+
+window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3LeadIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage };
 
 V3LoadSupabaseLeads().then(leads => {
   window.V3.LEADS = leads;
