@@ -35,6 +35,24 @@
         ]
       },
       {
+        "source": "/flow-v4/**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "/tweaks-panel.jsx",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
+      },
+      {
         "source": "/assets/docs/**.pdf",
         "headers": [
           {

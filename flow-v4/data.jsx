@@ -242,7 +242,7 @@ function V3NextMoveFromRow(stage, name, owner, needsReply, row) {
 function V3ThreadFromRow(row, name, brand, stage) {
   const thread = Array.isArray(row.email_thread) ? row.email_thread : (Array.isArray(row.original_email) ? row.original_email : null);
   if (thread && thread.length) {
-    return thread.slice(-8).map((m, i) => ({
+    return thread.map((m, i) => ({
       from: m.from || m.sender || (i % 2 ? name : 'UNALIGNED'),
       when: V3RelativeTime(m.date || m.timestamp || row.created_at),
       date: m.date || m.timestamp || row.created_at || null,
