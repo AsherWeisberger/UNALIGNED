@@ -22,6 +22,7 @@ Usage:
 
 import asyncio
 import base64
+import html
 import json
 import logging
 import os
@@ -366,11 +367,27 @@ def _decode_body(payload: dict) -> str:
         data = payload.get("body", {}).get("data", "")
         if data:
             return base64.urlsafe_b64decode(data + "==").decode("utf-8", errors="replace")
+    if mime == "text/html":
+        data = payload.get("body", {}).get("data", "")
+        if data:
+            raw = base64.urlsafe_b64decode(data + "==").decode("utf-8", errors="replace")
+            text = re.sub(r"(?is)<(script|style).*?</\1>", " ", raw)
+            text = re.sub(r"(?i)<br\s*/?>", "\n", text)
+            text = re.sub(r"(?i)</p\s*>", "\n", text)
+            text = re.sub(r"(?i)</div\s*>", "\n", text)
+            text = re.sub(r"<[^>]+>", " ", text)
+            text = html.unescape(text)
+            return re.sub(r"[ \t\r\f\v]+", " ", text).strip()
     elif mime.startswith("multipart/"):
+        html_fallback = ""
         for part in payload.get("parts", []):
             text = _decode_body(part)
             if text:
-                return text
+                if part.get("mimeType") == "text/plain":
+                    return text
+                if not html_fallback:
+                    html_fallback = text
+        return html_fallback
     return ""
 
 
@@ -466,7 +483,7 @@ async def fetch_thread_conversation(
         hdrs     = {h["name"]: h["value"] for h in msg.get("payload", {}).get("headers", [])}
         sender   = hdrs.get("From", "Unknown").strip()
         raw_date = hdrs.get("Date", "").strip()
-        body     = _clean_body(_decode_body(msg.get("payload", {})))
+        body     = _clean_body(_decode_body(msg.get("payload", {}))) or msg.get("snippet", "").strip()
         if body:
             conversation.append({
                 "from":     sender,
