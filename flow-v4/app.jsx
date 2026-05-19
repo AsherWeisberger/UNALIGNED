@@ -10,7 +10,7 @@ function V4App() {
   const { USERS, LEADS, STAGE_BY_ID, ACTIVE_STAGE_IDS } = window.V3;
   const [t, setTweak] = useTweaks(V4_TWEAKS);
   const isPhone = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
-  const [view, setView] = React.useState(isPhone ? 'today' : (t.view || 'calendar'));
+  const [view, setView] = React.useState(isPhone ? 'today' : (t.viewAs === 'robert' ? 'inbox' : 'calendar'));
   const [openId, setOpenId] = React.useState(null);
   const [briefId, setBriefId] = React.useState(null);
   const [leads, setLeads] = React.useState(LEADS);
@@ -111,6 +111,11 @@ function V4App() {
     setOwnerFilter('all');
     setOpenId(null);
     setBriefId(null);
+    if (user === 'robert') {
+      setView('inbox');
+    } else {
+      setView('calendar');
+    }
   }, [user]);
 
   React.useEffect(() => {
@@ -343,7 +348,7 @@ function V4App() {
         <TweakButton label="Open a negotiating deal"
                      onClick={() => setOpenId(leads.find(l => l.stage === 'negotiating')?.id)} />
         <TweakButton label="Jump to Robert's post queue"
-                     onClick={() => { setTweak('viewAs', 'robert'); setView('today'); }} />
+                     onClick={() => { setTweak('viewAs', 'robert'); setView('inbox'); }} />
         <TweakButton label="Asher's brief approval"
                      onClick={() => { setTweak('viewAs', 'asher'); setOpenId(leads.find(l => l.brief?.status === 'awaiting-approval')?.id); }} />
       </TweaksPanel>
