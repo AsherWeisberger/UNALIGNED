@@ -6,11 +6,15 @@ const V4_TWEAKS = /*EDITMODE-BEGIN*/{
   "view": "calendar"
 }/*EDITMODE-END*/;
 
+function V4DefaultViewForUser(user) {
+  return user === 'robert' ? 'inbox' : 'calendar';
+}
+
 function V4App() {
   const { USERS, LEADS, STAGE_BY_ID, ACTIVE_STAGE_IDS } = window.V3;
   const [t, setTweak] = useTweaks(V4_TWEAKS);
   const isPhone = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
-  const [view, setView] = React.useState(isPhone ? 'today' : (t.viewAs === 'robert' ? 'inbox' : 'calendar'));
+  const [view, setView] = React.useState(isPhone ? 'today' : V4DefaultViewForUser(t.viewAs));
   const [openId, setOpenId] = React.useState(null);
   const [briefId, setBriefId] = React.useState(null);
   const [leads, setLeads] = React.useState(LEADS);
@@ -111,11 +115,7 @@ function V4App() {
     setOwnerFilter('all');
     setOpenId(null);
     setBriefId(null);
-    if (user === 'robert') {
-      setView('inbox');
-    } else {
-      setView('calendar');
-    }
+    setView(V4DefaultViewForUser(user));
   }, [user]);
 
   React.useEffect(() => {
@@ -207,7 +207,12 @@ function V4App() {
             {Object.values(USERS).map(u => (
               <button key={u.id} className="hd-user-pip"
                       aria-pressed={user === u.id}
-                      onClick={() => setTweak('viewAs', u.id)}
+                      onClick={() => {
+                        setTweak('viewAs', u.id);
+                        setView(V4DefaultViewForUser(u.id));
+                        setOpenId(null);
+                        setBriefId(null);
+                      }}
                       title={`${u.name} · ${u.role}`}>
                 <V3Avatar name={u.name} color={u.color} size="xs" />
               </button>
@@ -348,9 +353,9 @@ function V4App() {
         <TweakButton label="Open a negotiating deal"
                      onClick={() => setOpenId(leads.find(l => l.stage === 'negotiating')?.id)} />
         <TweakButton label="Jump to Robert's post queue"
-                     onClick={() => { setTweak('viewAs', 'robert'); setView('inbox'); }} />
+                     onClick={() => { setTweak('viewAs', 'robert'); setView(V4DefaultViewForUser('robert')); }} />
         <TweakButton label="Asher's brief approval"
-                     onClick={() => { setTweak('viewAs', 'asher'); setOpenId(leads.find(l => l.brief?.status === 'awaiting-approval')?.id); }} />
+                     onClick={() => { setTweak('viewAs', 'asher'); setView(V4DefaultViewForUser('asher')); setOpenId(leads.find(l => l.brief?.status === 'awaiting-approval')?.id); }} />
       </TweaksPanel>
     </div>
   );
