@@ -855,6 +855,9 @@ a { color: inherit; }
   font-size: 13px;
   line-height: 1.45;
 }
+.brief-modal-pre {
+  white-space: pre-wrap;
+}
 .brief-modal-actions {
   display: flex;
   justify-content: flex-end;

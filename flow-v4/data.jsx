@@ -1041,6 +1041,91 @@ const V3_BRIEF_STATUSES = {
   'shipped':            { label: 'Shipped',            tone: 'done',    short: 'SHIPPED' },
 };
 
+const V3_ROBERT_BRIEFS = [
+  {
+    id: 'official-posting-viktor-2026-05-19',
+    title: 'GET VIKTOR',
+    subtitle: 'Time-sensitive official posting',
+    subject: '**OFFICIAL POSTING** GET VIKTOR - MAY 19TH',
+    sentAt: '2026-05-18T23:24:02-04:00',
+    from: 'Asher Weisberger <asherunaligned@gmail.com>',
+    to: ['Robert Scoble <scobleizer@gmail.com>', 'Sam Levin UX <unalignedx@gmail.com>'],
+    status: 'ready',
+    partner: 'Ori',
+    company: 'Viktor',
+    summary: 'Asher sent Robert a brief with three proposed post options and asked him to pick one or edit it before posting.',
+    body: `Hi Robert,
+
+Here are the details for the collaboration with Ori, a past lead.
+
+I’ve included a PDF with the proposed post options.
+
+This one is time-sensitive, as they’re asking for the post to go live at 9:00 AM EST / 6:00 AM your time.
+
+I’m still waiting for the live link to come through by email. Once we have it, I can handle the posting on your X account so you don’t have to think about it.
+
+Please choose one of the three post options you prefer.
+
+You’re also welcome to edit any of them and send me the final version you’d like used.
+
+Happy to get up early and take care of the post for you. Just let me know how you’d like to proceed.
+
+Thanks again for your trust and confidence.`,
+    attachment: {
+      filename: 'Viktor_Brief_Robert.pdf',
+      type: 'pdf',
+    },
+    links: [],
+    action: 'Pick one post option or edit it, then let Asher know the final version.',
+    notes: ['Live at 9:00 AM EST / 6:00 AM Robert time', 'PDF attached with three post options'],
+  },
+  {
+    id: 'official-posting-polyai-2026-05-18',
+    title: 'PolyAI posting today',
+    subtitle: 'Quote repost official posting',
+    subject: 'OFFICIAL POSTING POLY AI POSTING TODAY',
+    sentAt: '2026-05-18T17:14:07-04:00',
+    from: 'Asher Weisberger <asherunaligned@gmail.com>',
+    to: ['Robert Scoble <scobleizer@gmail.com>', 'Sam Levin UX <unalignedx@gmail.com>'],
+    status: 'ready',
+    partner: 'PolyAI',
+    company: 'PolyAI',
+    summary: 'Asher sent Robert a quote repost task with the live X link and a Google Doc write-up.',
+    body: `THIS IS THE TASK
+
+POLYAI - QUOTE REPOST - MAY 18 - TODAY MONDAY
+
+FULL PDF WRITE UP BETWEEN POLYAI AND MYSELF IN LINK FOR USE ON POST
+
+LIVE LINK
+
+[LT-fW7_jnzT5lVod.jpeg
+Starting today, we're opening our Agentic Dialog Platform to every enterprise builder.
+
+Our dialog agents have resolved 1 billion+ customer conversations for clients like FedEx, Unicredit, PG&E, Marriott, Foot Locker, and many more.
+
+These aren't easy conversations. They solve
+
+PolyAI (@polyaivoice)
+154 likes · 37 replies
+x.com](https://x.com/polyaivoice/status/2056404397089825165)
+
+THESE ARE THE DOCUMENTS
+
+[AHkbwyLSSWmC1mRkEhtH_bGBXECei72ujIcuTquAckY0OmR_4iiSr85aawrmpVRbqu4QhLfaZgWIMg-qt0MjBdv2cRFXHdTz7ZfvBkyLErT8aXMXx-M3ZtKJ=w1200-h630-p.png
+
+BHARAT ROBERT SCOBLE X POLYAI COLLAB
+docs.google.com](https://docs.google.com/document/d/18VKhSyLIftOB40zV2pjVA-oajDh6TyDzMoJEmQg85tg/edit?usp=sharing)`,
+    attachment: null,
+    links: [
+      { label: 'Live post', href: 'https://x.com/polyaivoice/status/2056404397089825165' },
+      { label: 'Docs', href: 'https://docs.google.com/document/d/18VKhSyLIftOB40zV2pjVA-oajDh6TyDzMoJEmQg85tg/edit?usp=sharing' },
+    ],
+    action: 'Use the live link and docs to post the quote repost.',
+    notes: ['Quote repost', 'Use the Google Doc write-up for the final post'],
+  },
+];
+
 // Attach briefs to leads (mutable so check-off can mutate in-session)
 for (const lead of V3_LEADS) {
   if (V3_BRIEFS[lead.id]) lead.brief = V3_BRIEFS[lead.id];
@@ -1400,7 +1485,7 @@ function V3MoveLeadStage(lead, nextStage, leads = window.V3?.LEADS || V3_LEADS) 
   window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated } }));
 }
 
-window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3LeadIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage };
+window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage };
 
 V3LoadSupabaseLeads().then(leads => {
   window.V3.LEADS = leads;

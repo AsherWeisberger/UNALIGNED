@@ -2,129 +2,69 @@
 // Today rebuilt as a tabbed work surface: NOW · NEXT · LATER · DONE.
 // NOW = big action cards. NEXT/LATER = compact rows.
 
-function V4RobertBriefView({ leads, query = '', onOpenLead }) {
-  const { STAGE_BY_ID } = window.V3;
+function V4RobertBriefView({ query = '' }) {
   const q = String(query || '').trim().toLowerCase();
-  const visible = leads
-    .filter(l => l.stage !== 'trash')
-    .filter(l => !q || [l.contactName, l.brand, l.contactRole, l.deliverables, l.nextMove?.text, l.stage]
-      .filter(Boolean)
-      .some(value => String(value).toLowerCase().includes(q)));
-
-  const sections = [
-    {
-      id: 'now',
-      label: 'Do now',
-      sub: 'What Robert should handle next',
-      fn: l => ['new', 'first-touch', 'engaged'].includes(l.stage) || l.needsReply,
-    },
-    {
-      id: 'open',
-      label: 'Outstanding',
-      sub: 'Still waiting on a decision or reply',
-      fn: l => !['done', 'paid-out'].includes(l.stage),
-    },
-    {
-      id: 'closing',
-      label: 'Close out',
-      sub: 'Simple finish-line items',
-      fn: l => ['negotiating', 'invoice-sent', 'done'].includes(l.stage),
-    },
-  ];
-
-  const cardHint = (lead) => {
-    if (lead.stage === 'new' || lead.stage === 'first-touch') return 'Reply with a simple intro and confirm the collaboration ask.';
-    if (lead.stage === 'engaged') return 'Confirm scope and get the next detail you need.';
-    if (lead.stage === 'rates-sent') return 'Send the rates recap and keep the chain moving.';
-    if (lead.stage === 'negotiating') return 'Lock the last open terms and push toward invoice.';
-    if (lead.stage === 'invoice-sent') return 'Check payment timing and close the loop.';
-    if (lead.stage === 'done') return 'Mark complete and keep the relationship warm.';
-    return 'Review the thread and decide the next clean step.';
-  };
-
-  const openable = visible.sort((a, b) => {
-    const rank = s => ({ 'new': 0, 'first-touch': 1, 'engaged': 2, 'rates-sent': 3, 'negotiating': 4, 'invoice-sent': 5, 'done': 6, 'paid-out': 7 }[s] ?? 8);
-    return rank(a.stage) - rank(b.stage) || (b.daysInStage - a.daysInStage);
-  });
-  const counts = {
-    total: openable.length,
-    due: openable.filter(l => l.needsReply || ['new', 'first-touch', 'engaged'].includes(l.stage)).length,
-    closing: openable.filter(l => ['negotiating', 'invoice-sent'].includes(l.stage)).length,
-  };
+  const briefs = (window.V3.ROBERT_BRIEFS || []).filter(b => !q || [
+    b.title, b.subtitle, b.subject, b.partner, b.company, b.summary, b.body, b.action, (b.notes || []).join(' ')
+  ].filter(Boolean).some(value => String(value).toLowerCase().includes(q)));
   const [modalId, setModalId] = React.useState(null);
-  const modalLead = openable.find(l => String(l.id) === String(modalId)) || null;
+  const modalBrief = briefs.find(b => String(b.id) === String(modalId)) || null;
+
+  const counts = {
+    total: briefs.length,
+    urgent: briefs.filter(b => String(b.subtitle || '').toLowerCase().includes('time-sensitive') || String(b.summary || '').toLowerCase().includes('today')).length,
+    ready: briefs.filter(b => b.status === 'ready').length,
+  };
 
   return (
     <div className="page brief-page">
       <div className="page-hd">
         <div>
           <div className="page-eyebrow">Robert</div>
-          <h1 className="page-title">Briefing</h1>
-          <div className="page-sub">Simple cards with the next step and what is outstanding.</div>
+          <h1 className="page-title">Briefs</h1>
+          <div className="page-sub">Official posting briefs Asher sent by email.</div>
         </div>
         <div className="invoice-stats">
-          <span className="invoice-stat warn">{counts.due} need attention</span>
-          <span className="invoice-stat good">{counts.closing} close out</span>
+          <span className="invoice-stat warn">{counts.urgent} urgent</span>
+          <span className="invoice-stat good">{counts.ready} ready</span>
           <span className="invoice-stat total">{counts.total} total</span>
         </div>
       </div>
 
       <div className="body brief-body">
-        {(() => {
-          const seen = new Set();
-          return sections.map(section => {
-            const items = openable.filter(section.fn).filter(l => !seen.has(l.id));
-            items.forEach(l => seen.add(l.id));
-            if (!items.length) return null;
-            return (
-            <section key={section.id} className="brief-section">
-              <div className="brief-section-hd">
-                <div>
-                  <div className="brief-section-eyebrow">{section.sub}</div>
-                  <h2 className="brief-section-title">{section.label}</h2>
+        <div className="brief-list">
+          {briefs.map(brief => (
+            <button
+              key={brief.id}
+              type="button"
+              className="brief-card"
+              onClick={() => setModalId(brief.id)}
+            >
+              <div className="brief-card-top">
+                <V3Avatar name={brief.partner} color={__v3Color(brief.partner)} size="xs" />
+                <div className="brief-card-top-text">
+                  <div className="brief-card-partnership">{brief.title}</div>
+                  <div className="brief-card-meta">{brief.subject}</div>
                 </div>
-                <div className="brief-section-count">{items.length}</div>
+                <span className="brief-card-stage">{brief.status === 'ready' ? 'READY' : 'BRIEF'}</span>
               </div>
-
-              <div className="brief-list">
-                {items.map(lead => {
-                  const last = lead.thread[lead.thread.length - 1];
-                  return (
-                    <button
-                      key={lead.id}
-                      type="button"
-                      className="brief-card"
-                      onClick={() => setModalId(lead.id)}
-                    >
-                      <div className="brief-card-top">
-                        <V3Avatar name={lead.contactName} color={lead.color} size="xs" />
-                        <div className="brief-card-top-text">
-                          <div className="brief-card-partnership">{lead.contactName} · {lead.brand}</div>
-                          <div className="brief-card-meta">{STAGE_BY_ID[lead.stage].name} · {lead.daysInStage}d in stage</div>
-                        </div>
-                        <span className="brief-card-stage">{STAGE_BY_ID[lead.stage].short}</span>
-                      </div>
-                      <div className="brief-card-summary">{lead.nextMove?.text || lead.deliverables || 'Open item'}</div>
-                      <div className="brief-card-foot">
-                        <span className="brief-card-note">Tap for details</span>
-                        <span className="brief-card-mini">{last?.subject || 'No recent subject'}</span>
-                      </div>
-                    </button>
-                  );
-                })}
+              <div className="brief-card-summary">{brief.summary}</div>
+              <div className="brief-card-foot">
+                <span className="brief-card-note">Tap for details</span>
+                <span className="brief-card-mini">{window.V3.GmailTime.list(brief.sentAt) || brief.sentAt}</span>
               </div>
-            </section>
-            );
-          });
-        })()}
+            </button>
+          ))}
+          {briefs.length === 0 && <V3Empty icon="doc" title="No official posting briefs found." sub="Try searching the email title or partner name." />}
+        </div>
       </div>
-      {modalLead && (
+      {modalBrief && (
         <div className="brief-modal-backdrop" onClick={() => setModalId(null)}>
           <div className="brief-modal-panel" onClick={e => e.stopPropagation()}>
             <div className="brief-modal-hd">
               <div>
-                <div className="brief-modal-eyebrow">Robert briefing</div>
-                <h2 className="brief-modal-title">{modalLead.contactName} · {modalLead.brand}</h2>
+                <div className="brief-modal-eyebrow">Official posting</div>
+                <h2 className="brief-modal-title">{modalBrief.title}</h2>
               </div>
               <button className="brief-modal-close" onClick={() => setModalId(null)} aria-label="Close brief">
                 <V3Icon name="x" w={14} />
@@ -132,40 +72,63 @@ function V4RobertBriefView({ leads, query = '', onOpenLead }) {
             </div>
             <div className="brief-modal-body">
               <div className="brief-modal-row">
-                <div className="brief-modal-label">Current status</div>
-                <div className="brief-modal-copy" style={{ color: STAGE_BY_ID[modalLead.stage].color }}>
-                  {STAGE_BY_ID[modalLead.stage].name} · {modalLead.daysInStage}d in stage
+                <div className="brief-modal-label">Subject</div>
+                <div className="brief-modal-copy">{modalBrief.subject}</div>
+              </div>
+              <div className="brief-modal-grid">
+                <div>
+                  <div className="brief-modal-label">From</div>
+                  <div className="brief-modal-copy">{modalBrief.from}</div>
                 </div>
-              </div>
-              <div className="brief-modal-row">
-                <div className="brief-modal-label">What Robert should do</div>
-                <div className="brief-modal-copy">{cardHint(modalLead)}</div>
-              </div>
-              <div className="brief-modal-row">
-                <div className="brief-modal-label">Collaboration</div>
-                <div className="brief-modal-copy">{modalLead.deliverables || 'No deliverables listed yet.'}</div>
+                <div>
+                  <div className="brief-modal-label">To</div>
+                  <div className="brief-modal-copy">{modalBrief.to.join(', ')}</div>
+                </div>
               </div>
               <div className="brief-modal-grid">
                 <div>
                   <div className="brief-modal-label">Partner</div>
-                  <div className="brief-modal-copy">{modalLead.contactName}</div>
+                  <div className="brief-modal-copy">{modalBrief.partner}</div>
                 </div>
                 <div>
                   <div className="brief-modal-label">Company</div>
-                  <div className="brief-modal-copy">{modalLead.brand}</div>
+                  <div className="brief-modal-copy">{modalBrief.company}</div>
                 </div>
               </div>
-              {modalLead.thread?.length > 0 && (
+              <div className="brief-modal-row">
+                <div className="brief-modal-label">What Robert should do</div>
+                <div className="brief-modal-copy">{modalBrief.action}</div>
+              </div>
+              <div className="brief-modal-row">
+                <div className="brief-modal-label">Brief text</div>
+                <div className="brief-modal-copy brief-modal-pre">{modalBrief.body}</div>
+              </div>
+              {modalBrief.attachment && (
                 <div className="brief-modal-row">
-                  <div className="brief-modal-label">Latest thread</div>
-                  <div className="brief-modal-copy">{modalLead.thread[modalLead.thread.length - 1].subject || 'No subject'}</div>
+                  <div className="brief-modal-label">Attachment</div>
+                  <div className="brief-modal-copy">
+                    {modalBrief.attachment.filename} · {modalBrief.attachment.type}
+                  </div>
+                </div>
+              )}
+              {(modalBrief.links || []).length > 0 && (
+                <div className="brief-modal-row">
+                  <div className="brief-modal-label">Links</div>
+                  <div className="brief-modal-copy">
+                    {modalBrief.links.map(link => (
+                      <div key={link.href}><a href={link.href} target="_blank" rel="noreferrer">{link.label}</a></div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {modalBrief.notes?.length > 0 && (
+                <div className="brief-modal-row">
+                  <div className="brief-modal-label">Notes</div>
+                  <div className="brief-modal-copy">{modalBrief.notes.join(' · ')}</div>
                 </div>
               )}
               <div className="brief-modal-actions">
-                <button type="button" className="btn btn-sm btn-accent" onClick={() => { setModalId(null); onOpenLead?.(modalLead.id); }}>
-                  <V3Icon name="mail" w={12} />
-                  Open thread
-                </button>
+                <span className="brief-card-note">Sent {window.V3.GmailTime.full(modalBrief.sentAt) || modalBrief.sentAt}</span>
               </div>
             </div>
           </div>
