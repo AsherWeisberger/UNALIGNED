@@ -2,6 +2,156 @@
 // Today rebuilt as a tabbed work surface: NOW · NEXT · LATER · DONE.
 // NOW = big action cards. NEXT/LATER = compact rows.
 
+function V4RobertBriefView({ leads, query = '', onOpenLead }) {
+  const { STAGE_BY_ID } = window.V3;
+  const q = String(query || '').trim().toLowerCase();
+  const visible = leads
+    .filter(l => l.stage !== 'trash')
+    .filter(l => !q || [l.contactName, l.brand, l.contactRole, l.deliverables, l.nextMove?.text, l.stage]
+      .filter(Boolean)
+      .some(value => String(value).toLowerCase().includes(q)));
+
+  const sections = [
+    {
+      id: 'now',
+      label: 'Do now',
+      sub: 'What Robert should handle next',
+      fn: l => ['new', 'first-touch', 'engaged'].includes(l.stage) || l.needsReply,
+    },
+    {
+      id: 'open',
+      label: 'Outstanding',
+      sub: 'Still waiting on a decision or reply',
+      fn: l => !['done', 'paid-out'].includes(l.stage),
+    },
+    {
+      id: 'closing',
+      label: 'Close out',
+      sub: 'Simple finish-line items',
+      fn: l => ['negotiating', 'invoice-sent', 'done'].includes(l.stage),
+    },
+  ];
+
+  const cardHint = (lead) => {
+    if (lead.stage === 'new' || lead.stage === 'first-touch') return 'Reply with a simple intro and confirm the collaboration ask.';
+    if (lead.stage === 'engaged') return 'Confirm scope and get the next detail you need.';
+    if (lead.stage === 'rates-sent') return 'Send the rates recap and keep the chain moving.';
+    if (lead.stage === 'negotiating') return 'Lock the last open terms and push toward invoice.';
+    if (lead.stage === 'invoice-sent') return 'Check payment timing and close the loop.';
+    if (lead.stage === 'done') return 'Mark complete and keep the relationship warm.';
+    return 'Review the thread and decide the next clean step.';
+  };
+
+  const openable = visible.sort((a, b) => {
+    const rank = s => ({ 'new': 0, 'first-touch': 1, 'engaged': 2, 'rates-sent': 3, 'negotiating': 4, 'invoice-sent': 5, 'done': 6, 'paid-out': 7 }[s] ?? 8);
+    return rank(a.stage) - rank(b.stage) || (b.daysInStage - a.daysInStage);
+  });
+  const counts = {
+    total: openable.length,
+    due: openable.filter(l => l.needsReply || ['new', 'first-touch', 'engaged'].includes(l.stage)).length,
+    closing: openable.filter(l => ['negotiating', 'invoice-sent'].includes(l.stage)).length,
+  };
+  const [openId, setOpenId] = React.useState(openable[0]?.id || null);
+
+  React.useEffect(() => {
+    if (!openId && openable[0]?.id) setOpenId(openable[0].id);
+  }, [openId, openable]);
+
+  return (
+    <div className="page brief-page">
+      <div className="page-hd">
+        <div>
+          <div className="page-eyebrow">Robert</div>
+          <h1 className="page-title">Briefing</h1>
+          <div className="page-sub">Simple cards with the next step and what is outstanding.</div>
+        </div>
+        <div className="invoice-stats">
+          <span className="invoice-stat warn">{counts.due} need attention</span>
+          <span className="invoice-stat good">{counts.closing} close out</span>
+          <span className="invoice-stat total">{counts.total} total</span>
+        </div>
+      </div>
+
+      <div className="body brief-body">
+        {(() => {
+          const seen = new Set();
+          return sections.map(section => {
+            const items = openable.filter(section.fn).filter(l => !seen.has(l.id));
+            items.forEach(l => seen.add(l.id));
+            if (!items.length) return null;
+            return (
+            <section key={section.id} className="brief-section">
+              <div className="brief-section-hd">
+                <div>
+                  <div className="brief-section-eyebrow">{section.sub}</div>
+                  <h2 className="brief-section-title">{section.label}</h2>
+                </div>
+                <div className="brief-section-count">{items.length}</div>
+              </div>
+
+              <div className="brief-grid">
+                {items.map(lead => {
+                  const active = openId === lead.id;
+                  const last = lead.thread[lead.thread.length - 1];
+                  return (
+                    <article
+                      key={lead.id}
+                      className={'brief-card' + (active ? ' is-open' : '')}
+                      onClick={() => setOpenId(active ? null : lead.id)}
+                    >
+                      <div className="brief-card-top">
+                        <V3Avatar name={lead.contactName} color={lead.color} size="xs" />
+                        <div className="brief-card-top-text">
+                          <div className="brief-card-partnership">{lead.contactName} · {lead.brand}</div>
+                          <div className="brief-card-meta">{STAGE_BY_ID[lead.stage].name} · {lead.daysInStage}d in stage</div>
+                        </div>
+                        <span className="brief-card-stage">{STAGE_BY_ID[lead.stage].short}</span>
+                      </div>
+                      <div className="brief-card-summary">{lead.nextMove?.text || lead.deliverables || 'Open item'}</div>
+                      {active && (
+                        <div className="brief-card-body">
+                          <div className="brief-card-block">
+                            <div className="brief-card-label">What Robert should do</div>
+                            <div className="brief-card-copy">{cardHint(lead)}</div>
+                          </div>
+                          <div className="brief-card-block">
+                            <div className="brief-card-label">Collaboration</div>
+                            <div className="brief-card-copy">{lead.deliverables || 'No deliverables listed yet.'}</div>
+                          </div>
+                          <div className="brief-card-block brief-card-two">
+                            <div>
+                              <div className="brief-card-label">Partner</div>
+                              <div className="brief-card-copy">{lead.contactName}</div>
+                            </div>
+                            <div>
+                              <div className="brief-card-label">Company</div>
+                              <div className="brief-card-copy">{lead.brand}</div>
+                            </div>
+                          </div>
+                          {last && (
+                            <div className="brief-card-block">
+                              <div className="brief-card-label">Latest thread</div>
+                              <div className="brief-card-copy">{last.subject || 'No subject'}</div>
+                            </div>
+                          )}
+                          <div className="brief-card-actions">
+                            <span className="brief-card-note">Click the card to collapse or expand.</span>
+                          </div>
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+            );
+          });
+        })()}
+      </div>
+    </div>
+  );
+}
+
 const V4_INVOICE_GROUPS = [
   {
     id: 'outstanding',
@@ -735,17 +885,18 @@ function V4InboxView({ leads, user }) {
   const [selectedId, setSelectedId] = React.useState(null);
   const isShared = user !== 'robert';
   const laneLabel = isShared ? 'Shared lane' : "Robert's";
+  const isRobert = user === 'robert';
 
   const folders = [
-    { id: 'mine',    label: 'Your move',    icon: 'bolt',    fn: l => window.V3.MoveIsMineForProfile(l, user) && !['paid-out'].includes(l.stage), section: 'Quick' },
-    { id: 'all',     label: 'All threads',  icon: 'inbox',   fn: () => true,                       section: 'Quick' },
-    { id: 'unread',  label: 'Unread',       icon: 'mail',    fn: l => l.unread,                    section: 'Quick' },
-    { id: 'engaged', label: 'Engaged',      icon: 'spark',   fn: l => l.stage === 'engaged',       section: 'By stage' },
-    { id: 'rates',   label: 'Rates sent',   icon: 'send',    fn: l => l.stage === 'rates-sent',    section: 'By stage' },
-    { id: 'nego',    label: 'Negotiating',  icon: 'reply',   fn: l => l.stage === 'negotiating',   section: 'By stage' },
-    { id: 'invoice', label: 'Invoice sent', icon: 'invoice', fn: l => l.stage === 'invoice-sent',  section: 'By stage' },
+    { id: 'mine',    label: 'Your move',    icon: 'bolt',    fn: l => l.stage !== 'trash' && window.V3.MoveIsMineForProfile(l, user) && !['paid-out'].includes(l.stage), section: 'Quick' },
+    { id: 'all',     label: 'All threads',  icon: 'inbox',   fn: l => l.stage !== 'trash',         section: 'Quick' },
+    { id: 'unread',  label: 'Unread',       icon: 'mail',    fn: l => l.stage !== 'trash' && l.unread, section: 'Quick' },
+    { id: 'engaged', label: 'Engaged',      icon: 'spark',   fn: l => l.stage !== 'trash' && l.stage === 'engaged',       section: 'By stage' },
+    { id: 'rates',   label: 'Rates sent',   icon: 'send',    fn: l => l.stage !== 'trash' && l.stage === 'rates-sent',    section: 'By stage' },
+    { id: 'nego',    label: 'Negotiating',  icon: 'reply',   fn: l => l.stage !== 'trash' && l.stage === 'negotiating',   section: 'By stage' },
+    { id: 'invoice', label: 'Invoice sent', icon: 'invoice', fn: l => l.stage !== 'trash' && l.stage === 'invoice-sent',  section: 'By stage' },
     { id: 'trash',   label: 'Trash',        icon: 'trash',   fn: l => l.stage === 'trash',         section: 'By stage' },
-    { id: 'lane',    label: laneLabel,      icon: 'leads',   fn: l => window.V3.LeadLane(l) === window.V3.ProfileLane(user), section: 'By owner' },
+    { id: 'lane',    label: laneLabel,      icon: 'leads',   fn: l => l.stage !== 'trash' && window.V3.LeadLane(l) === window.V3.ProfileLane(user), section: 'By owner' },
   ];
 
   const cur = folders.find(f => f.id === folder);
@@ -766,13 +917,17 @@ function V4InboxView({ leads, user }) {
       {!(showReader) && (
         <div className="page-hd" style={{ paddingBottom: 14 }}>
         <div>
-          <div className="page-eyebrow">Inbox</div>
-          <h1 className="page-title">Mail</h1>
-          <div className="page-sub">{filtered.length} thread{filtered.length === 1 ? '' : 's'} in {cur.label.toLowerCase()}</div>
+          <div className="page-eyebrow">{isRobert ? 'Robert' : 'Inbox'}</div>
+          <h1 className="page-title">{isRobert ? 'Briefing' : 'Mail'}</h1>
+          <div className="page-sub">
+            {isRobert
+              ? `${filtered.length} collaboration${filtered.length === 1 ? '' : 's'} in ${cur.label.toLowerCase()}`
+              : `${filtered.length} thread${filtered.length === 1 ? '' : 's'} in ${cur.label.toLowerCase()}`}
+          </div>
         </div>
         <div className="page-actions">
           <button className="btn btn-sm"><V3Icon name="filter" /> Filter</button>
-          <button className="btn btn-sm btn-accent"><V3Icon name="plus" /> Compose</button>
+          <button className="btn btn-sm btn-accent"><V3Icon name="plus" /> {isRobert ? 'New note' : 'Compose'}</button>
         </div>
         </div>
       )}
@@ -1294,4 +1449,4 @@ function V4CalendarView({ query = '' }) {
   );
 }
 
-Object.assign(window, { V4TodayView, V4InboxView, V4LeadsView, V4CalendarView });
+Object.assign(window, { V4TodayView, V4RobertBriefView, V4InboxView, V4LeadsView, V4CalendarView });

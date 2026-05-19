@@ -100,7 +100,7 @@ function V4App() {
   }, [view]);
   const searchPlaceholder = React.useMemo(() => {
     if (view === 'today') return 'Search today…';
-    if (view === 'inbox') return 'Search inbox…';
+    if (view === 'inbox') return user === 'robert' ? 'Search briefs…' : 'Search inbox…';
     if (view === 'invoices') return 'Search invoices…';
     if (view === 'leads') return 'Search network…';
     if (view === 'board') return 'Search pipeline…';
@@ -152,6 +152,7 @@ function V4App() {
     newToday: 3,
     pipeline: visibleLeads.filter(l => !['paid-out'].includes(l.stage)).reduce((s, l) => s + (l.value || 0), 0),
   };
+  const inboxLabel = user === 'robert' ? 'Brief' : 'Inbox';
 
   return (
     <div className="app" data-screen-label={`ALIGNED v4 — ${view}`}>
@@ -168,7 +169,7 @@ function V4App() {
             <V3Icon name="cal" w={13} style={{ marginRight: 4 }} /> Calendar
           </button>
           <button className="hd-nav-btn" aria-current={view === 'inbox' ? 'page' : undefined} onClick={() => { setView('inbox'); }}>
-            Inbox
+            {inboxLabel}
             {unreadCount > 0 && <span className="cnt">{unreadCount}</span>}
           </button>
           <button className="hd-nav-btn" aria-current={view === 'invoices' ? 'page' : undefined} onClick={() => { setView('invoices'); setOpenId(null); }}>
@@ -255,8 +256,9 @@ function V4App() {
           <V3BoardView leads={visibleLeads} query={search} openId={openId} onOpen={setOpenId} user={user}
                        ownerFilter={ownerFilter} setOwnerFilter={setOwnerFilter} />
         )}
-        {view === 'inbox' && (
-          <V4InboxView leads={visibleLeads} query={search} user={user} />
+        {view === 'inbox' && (user === 'robert'
+          ? <V4RobertBriefView leads={visibleLeads} query={search} user={user} onOpenLead={setOpenId} />
+          : <V4InboxView leads={visibleLeads} query={search} user={user} />
         )}
         {view === 'invoices' && (
           <V4InvoicesView query={search} />
@@ -287,7 +289,7 @@ function V4App() {
         <button className="ft-tab" aria-current={view === 'inbox' ? 'page' : undefined}
                 onClick={() => { setView('inbox'); }}>
           <V3Icon name="inbox" w={18} />
-          Inbox
+          {inboxLabel}
           {unreadCount > 0 && <span className="ft-tab-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>}
         </button>
         <button className="ft-tab" aria-current={view === 'invoices' ? 'page' : undefined}
