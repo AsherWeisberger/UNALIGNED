@@ -17,6 +17,7 @@ function V4App() {
   const [ownerFilter, setOwnerFilter] = React.useState('all');
   const [searchByView, setSearchByView] = React.useState({
     today: '',
+    invoices: '',
     board: '',
     inbox: '',
     leads: '',
@@ -100,6 +101,7 @@ function V4App() {
   const searchPlaceholder = React.useMemo(() => {
     if (view === 'today') return 'Search today…';
     if (view === 'inbox') return 'Search inbox…';
+    if (view === 'invoices') return 'Search invoices…';
     if (view === 'leads') return 'Search network…';
     if (view === 'board') return 'Search pipeline…';
     return 'Search calendar…';
@@ -168,6 +170,9 @@ function V4App() {
           <button className="hd-nav-btn" aria-current={view === 'inbox' ? 'page' : undefined} onClick={() => { setView('inbox'); }}>
             Inbox
             {unreadCount > 0 && <span className="cnt">{unreadCount}</span>}
+          </button>
+          <button className="hd-nav-btn" aria-current={view === 'invoices' ? 'page' : undefined} onClick={() => { setView('invoices'); setOpenId(null); }}>
+            Invoices
           </button>
           <button className="hd-nav-btn" aria-current={view === 'leads' ? 'page' : undefined} onClick={() => { setView('leads'); }}>Network</button>
           <button className="hd-nav-btn" aria-current={view === 'board' ? 'page' : undefined} onClick={() => { setView('board'); }}>Pipeline</button>
@@ -253,6 +258,9 @@ function V4App() {
         {view === 'inbox' && (
           <V4InboxView leads={visibleLeads} query={search} user={user} />
         )}
+        {view === 'invoices' && (
+          <V4InvoicesView query={search} />
+        )}
         {view === 'leads' && (
           <V4LeadsView leads={visibleLeads} query={search} openId={openId} onOpenLead={setOpenId} user={user} />
         )}
@@ -281,6 +289,11 @@ function V4App() {
           <V3Icon name="inbox" w={18} />
           Inbox
           {unreadCount > 0 && <span className="ft-tab-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>}
+        </button>
+        <button className="ft-tab" aria-current={view === 'invoices' ? 'page' : undefined}
+                onClick={() => { setView('invoices'); setOpenId(null); }}>
+          <V3Icon name="invoice" w={18} />
+          Invoices
         </button>
         <button className="ft-tab" aria-current={view === 'leads' ? 'page' : undefined}
                 onClick={() => { setView('leads'); }}>
@@ -318,7 +331,7 @@ function V4App() {
                     onChange={v => setTweak('viewAs', v)} />
         <TweakSection label="View" />
         <TweakSelect label="Page" value={view}
-                    options={['today','board','leads','inbox']}
+                    options={['today','board','leads','inbox','invoices','calendar']}
                     onChange={v => { setView(v); setOpenId(null); }} />
         <TweakSection label="Appearance" />
         <TweakRadio label="Theme" value={t.theme}

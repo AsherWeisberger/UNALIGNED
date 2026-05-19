@@ -2,6 +2,219 @@
 // Today rebuilt as a tabbed work surface: NOW · NEXT · LATER · DONE.
 // NOW = big action cards. NEXT/LATER = compact rows.
 
+const V4_INVOICE_GROUPS = [
+  {
+    id: 'outstanding',
+    label: 'Outstanding',
+    eyebrow: 'Awaiting payment or confirmation',
+    note: 'These are still open and should stay visible until they are paid or explicitly closed.',
+    tone: 'warn',
+    buckets: [
+      {
+        label: 'Open outstanding',
+        note: 'Active invoices still waiting on payment.',
+        items: [
+          {
+            id: 'invoice-jay-langchainai',
+            title: 'Jay LangChainAI',
+            company: 'LangChainAI',
+            folder: 'OUTSTANDING / OPEN OUTSTANDING',
+            file: 'invoice_Jay_LangChainAI_051326.pdf',
+            href: 'flow-v4/assets/invoices/outstanding/invoice_Jay_LangChainAI_051326.pdf',
+            kind: 'PDF',
+          },
+          {
+            id: 'invoice-lobehub',
+            title: 'LobeHub',
+            company: 'LobeHub',
+            folder: 'OUTSTANDING / OPEN OUTSTANDING',
+            file: 'invoice_LobeHub_051626.pdf',
+            href: 'flow-v4/assets/invoices/outstanding/invoice_LobeHub_051626.pdf',
+            kind: 'PDF',
+          },
+          {
+            id: 'invoice-omane',
+            title: 'Omane',
+            company: 'OrMannheim',
+            folder: 'OUTSTANDING / OPEN OUTSTANDING',
+            file: 'invoice_Omane_OrMannheim_051826.pdf',
+            href: 'flow-v4/assets/invoices/outstanding/invoice_Omane_OrMannheim_051826.pdf',
+            kind: 'PDF',
+          },
+          {
+            id: 'invoice-vivi',
+            title: 'Vivi',
+            company: 'EezyCollab',
+            folder: 'OUTSTANDING / OPEN OUTSTANDING',
+            file: 'invoice_Vivi_EezyCollab_051426.pdf',
+            href: 'flow-v4/assets/invoices/outstanding/invoice_Vivi_EezyCollab_051426.pdf',
+            kind: 'PDF',
+          },
+        ],
+      },
+      {
+        label: 'Not confirmed but confirmed',
+        note: 'Placed here so we can keep an eye on it without losing the thread.',
+        items: [
+          {
+            id: 'invoice-mayank',
+            title: 'Mayank',
+            company: 'ClineSDK',
+            folder: 'OUTSTANDING / NOT CONFIRMED BUT CONFIRMED',
+            file: 'invoice_Mayank_ClineSDK_051326.pdf',
+            href: 'flow-v4/assets/invoices/outstanding/not-confirmed-but-confirmed/invoice_Mayank_ClineSDK_051326.pdf',
+            kind: 'PDF',
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'done',
+    label: 'Done',
+    eyebrow: 'Completed and closed',
+    note: 'These invoices are finished and moved out of the active queue.',
+    tone: 'good',
+    buckets: [
+      {
+        label: 'Done',
+        note: 'Archived for reference.',
+        items: [
+          {
+            id: 'invoice-polyai',
+            title: 'PolyAI',
+            company: 'Closed invoice',
+            folder: 'DONE / ARCHIVED',
+            file: 'invoice_PolyAI_04232026.html',
+            href: 'flow-v4/assets/invoices/done/invoice_PolyAI_04232026.html',
+            kind: 'HTML',
+          },
+          {
+            id: 'invoice-hockeystick',
+            title: 'HockeyStick',
+            company: 'VOXCPM2',
+            folder: 'DONE / ARCHIVED',
+            file: 'invoice_HockeyStick_VOXCPM2_051526.pdf',
+            href: 'flow-v4/assets/invoices/done/invoice_HockeyStick_VOXCPM2_051526.pdf',
+            kind: 'PDF',
+          },
+          {
+            id: 'invoice-stav',
+            title: 'STAV Invoice',
+            company: 'Closed invoice',
+            folder: 'DONE / ARCHIVED',
+            file: 'STAV INVOICE.pdf',
+            href: 'flow-v4/assets/invoices/done/STAV%20INVOICE.pdf',
+            kind: 'PDF',
+          },
+        ],
+      },
+    ],
+  },
+];
+
+function V4InvoiceMatchesQuery(item, query) {
+  const q = String(query || '').trim().toLowerCase();
+  if (!q) return true;
+  return [item.title, item.company, item.folder, item.file, item.kind, item.href]
+    .filter(Boolean)
+    .some(value => String(value).toLowerCase().includes(q));
+}
+
+function V4InvoiceCard({ item }) {
+  return (
+    <a className="invoice-card" href={item.href} target="_blank" rel="noreferrer">
+      <div className="invoice-card-top">
+        <div className="invoice-card-icon">
+          <V3Icon name="invoice" w={14} />
+        </div>
+        <div className="invoice-card-head">
+          <div className="invoice-card-title-row">
+            <strong>{item.title}</strong>
+            <span className={'invoice-kind invoice-kind-' + item.kind.toLowerCase()}>{item.kind}</span>
+          </div>
+          <div className="invoice-card-company">{item.company}</div>
+          <div className="invoice-card-folder">{item.folder}</div>
+        </div>
+        <span className="invoice-open">Open</span>
+      </div>
+      <div className="invoice-card-file">{item.file}</div>
+    </a>
+  );
+}
+
+function V4InvoicesView({ query = '' }) {
+  const q = String(query || '').trim();
+  const visibleGroups = V4_INVOICE_GROUPS.map(group => ({
+    ...group,
+    buckets: group.buckets
+      .map(bucket => ({
+        ...bucket,
+        items: bucket.items.filter(item => V4InvoiceMatchesQuery(item, q)),
+      }))
+      .filter(bucket => bucket.items.length > 0),
+  })).filter(group => group.buckets.length > 0);
+
+  const outstandingCount = V4_INVOICE_GROUPS[0].buckets.reduce((sum, bucket) => sum + bucket.items.length, 0);
+  const doneCount = V4_INVOICE_GROUPS[1].buckets.reduce((sum, bucket) => sum + bucket.items.length, 0);
+  const totalCount = outstandingCount + doneCount;
+  const visibleCount = visibleGroups.reduce((sum, group) => sum + group.buckets.reduce((n, bucket) => n + bucket.items.length, 0), 0);
+
+  return (
+    <div className="page invoices-page">
+      <div className="page-hd">
+        <div>
+          <div className="page-eyebrow">Invoices</div>
+          <h1 className="page-title">Invoices</h1>
+          <div className="page-sub">Outstanding and done invoices from your local folder tree.</div>
+        </div>
+        <div className="invoice-stats">
+          <span className="invoice-stat warn">{outstandingCount} outstanding</span>
+          <span className="invoice-stat good">{doneCount} done</span>
+          <span className="invoice-stat total">{totalCount} total</span>
+        </div>
+      </div>
+
+      <div className="body invoices-body">
+        {q && <div className="invoice-search-note">{visibleCount} result{visibleCount === 1 ? '' : 's'} for “{q}”</div>}
+        {visibleGroups.length === 0 && <V3Empty icon="invoice" title="No invoices match that search." sub="Try a company name, file name, or folder." />}
+
+        {visibleGroups.map(group => (
+          <section key={group.id} className={'invoice-group invoice-group-' + group.tone}>
+            <div className="invoice-group-hd">
+              <div>
+                <div className="invoice-group-eyebrow">{group.eyebrow}</div>
+                <h2 className="invoice-group-title">{group.label}</h2>
+                <div className="invoice-group-note">{group.note}</div>
+              </div>
+              <div className="invoice-group-count">
+                {group.buckets.reduce((n, bucket) => n + bucket.items.length, 0)}
+              </div>
+            </div>
+
+            <div className="invoice-buckets">
+              {group.buckets.map(bucket => (
+                <div key={bucket.label} className="invoice-bucket">
+                  <div className="invoice-bucket-hd">
+                    <div>
+                      <div className="invoice-bucket-label">{bucket.label}</div>
+                      <div className="invoice-bucket-note">{bucket.note}</div>
+                    </div>
+                    <div className="invoice-bucket-count">{bucket.items.length}</div>
+                  </div>
+                  <div className="invoice-grid">
+                    {bucket.items.map(item => <V4InvoiceCard key={item.id} item={item} />)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Today ──────────────────────────────────────────────────
 function V4TodayView({ user, leads, onOpenLead, onGoInbox }) {
   const { USERS, TASK_TYPES, deriveTasks, bucketTasks, greeting } = window.V3;
