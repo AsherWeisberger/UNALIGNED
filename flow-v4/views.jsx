@@ -51,11 +51,8 @@ function V4RobertBriefView({ leads, query = '', onOpenLead }) {
     due: openable.filter(l => l.needsReply || ['new', 'first-touch', 'engaged'].includes(l.stage)).length,
     closing: openable.filter(l => ['negotiating', 'invoice-sent'].includes(l.stage)).length,
   };
-  const [openId, setOpenId] = React.useState(openable[0]?.id || null);
-
-  React.useEffect(() => {
-    if (!openId && openable[0]?.id) setOpenId(openable[0].id);
-  }, [openId, openable]);
+  const [modalId, setModalId] = React.useState(null);
+  const modalLead = openable.find(l => String(l.id) === String(modalId)) || null;
 
   return (
     <div className="page brief-page">
@@ -89,15 +86,15 @@ function V4RobertBriefView({ leads, query = '', onOpenLead }) {
                 <div className="brief-section-count">{items.length}</div>
               </div>
 
-              <div className="brief-grid">
+              <div className="brief-list">
                 {items.map(lead => {
-                  const active = openId === lead.id;
                   const last = lead.thread[lead.thread.length - 1];
                   return (
-                    <article
+                    <button
                       key={lead.id}
-                      className={'brief-card' + (active ? ' is-open' : '')}
-                      onClick={() => setOpenId(active ? null : lead.id)}
+                      type="button"
+                      className="brief-card"
+                      onClick={() => setModalId(lead.id)}
                     >
                       <div className="brief-card-top">
                         <V3Avatar name={lead.contactName} color={lead.color} size="xs" />
@@ -108,38 +105,11 @@ function V4RobertBriefView({ leads, query = '', onOpenLead }) {
                         <span className="brief-card-stage">{STAGE_BY_ID[lead.stage].short}</span>
                       </div>
                       <div className="brief-card-summary">{lead.nextMove?.text || lead.deliverables || 'Open item'}</div>
-                      {active && (
-                        <div className="brief-card-body">
-                          <div className="brief-card-block">
-                            <div className="brief-card-label">What Robert should do</div>
-                            <div className="brief-card-copy">{cardHint(lead)}</div>
-                          </div>
-                          <div className="brief-card-block">
-                            <div className="brief-card-label">Collaboration</div>
-                            <div className="brief-card-copy">{lead.deliverables || 'No deliverables listed yet.'}</div>
-                          </div>
-                          <div className="brief-card-block brief-card-two">
-                            <div>
-                              <div className="brief-card-label">Partner</div>
-                              <div className="brief-card-copy">{lead.contactName}</div>
-                            </div>
-                            <div>
-                              <div className="brief-card-label">Company</div>
-                              <div className="brief-card-copy">{lead.brand}</div>
-                            </div>
-                          </div>
-                          {last && (
-                            <div className="brief-card-block">
-                              <div className="brief-card-label">Latest thread</div>
-                              <div className="brief-card-copy">{last.subject || 'No subject'}</div>
-                            </div>
-                          )}
-                          <div className="brief-card-actions">
-                            <span className="brief-card-note">Click the card to collapse or expand.</span>
-                          </div>
-                        </div>
-                      )}
-                    </article>
+                      <div className="brief-card-foot">
+                        <span className="brief-card-note">Tap for details</span>
+                        <span className="brief-card-mini">{last?.subject || 'No recent subject'}</span>
+                      </div>
+                    </button>
                   );
                 })}
               </div>
@@ -148,6 +118,59 @@ function V4RobertBriefView({ leads, query = '', onOpenLead }) {
           });
         })()}
       </div>
+      {modalLead && (
+        <div className="brief-modal-backdrop" onClick={() => setModalId(null)}>
+          <div className="brief-modal-panel" onClick={e => e.stopPropagation()}>
+            <div className="brief-modal-hd">
+              <div>
+                <div className="brief-modal-eyebrow">Robert briefing</div>
+                <h2 className="brief-modal-title">{modalLead.contactName} · {modalLead.brand}</h2>
+              </div>
+              <button className="brief-modal-close" onClick={() => setModalId(null)} aria-label="Close brief">
+                <V3Icon name="x" w={14} />
+              </button>
+            </div>
+            <div className="brief-modal-body">
+              <div className="brief-modal-row">
+                <div className="brief-modal-label">Current status</div>
+                <div className="brief-modal-copy" style={{ color: STAGE_BY_ID[modalLead.stage].color }}>
+                  {STAGE_BY_ID[modalLead.stage].name} · {modalLead.daysInStage}d in stage
+                </div>
+              </div>
+              <div className="brief-modal-row">
+                <div className="brief-modal-label">What Robert should do</div>
+                <div className="brief-modal-copy">{cardHint(modalLead)}</div>
+              </div>
+              <div className="brief-modal-row">
+                <div className="brief-modal-label">Collaboration</div>
+                <div className="brief-modal-copy">{modalLead.deliverables || 'No deliverables listed yet.'}</div>
+              </div>
+              <div className="brief-modal-grid">
+                <div>
+                  <div className="brief-modal-label">Partner</div>
+                  <div className="brief-modal-copy">{modalLead.contactName}</div>
+                </div>
+                <div>
+                  <div className="brief-modal-label">Company</div>
+                  <div className="brief-modal-copy">{modalLead.brand}</div>
+                </div>
+              </div>
+              {modalLead.thread?.length > 0 && (
+                <div className="brief-modal-row">
+                  <div className="brief-modal-label">Latest thread</div>
+                  <div className="brief-modal-copy">{modalLead.thread[modalLead.thread.length - 1].subject || 'No subject'}</div>
+                </div>
+              )}
+              <div className="brief-modal-actions">
+                <button type="button" className="btn btn-sm btn-accent" onClick={() => { setModalId(null); onOpenLead?.(modalLead.id); }}>
+                  <V3Icon name="mail" w={12} />
+                  Open thread
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
