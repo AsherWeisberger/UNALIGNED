@@ -387,8 +387,8 @@ const V4_INVOICE_GROUPS = [
         note: 'Active invoices still waiting on payment.',
         items: [
           {
-            id: 'invoice-jay-langchainai',
-            title: 'Jay LangChainAI',
+            id: 'invoice-jay-langchainai-051326',
+            title: 'Jay',
             company: 'LangChainAI',
             folder: 'OUTSTANDING / OPEN OUTSTANDING',
             file: 'invoice_Jay_LangChainAI_051326.pdf',
@@ -396,7 +396,7 @@ const V4_INVOICE_GROUPS = [
             kind: 'PDF',
           },
           {
-            id: 'invoice-lobehub',
+            id: 'invoice-lobehub-051626',
             title: 'LobeHub',
             company: 'LobeHub',
             folder: 'OUTSTANDING / OPEN OUTSTANDING',
@@ -405,7 +405,7 @@ const V4_INVOICE_GROUPS = [
             kind: 'PDF',
           },
           {
-            id: 'invoice-omane',
+            id: 'invoice-omane-ormannheim-051826',
             title: 'Omane',
             company: 'OrMannheim',
             folder: 'OUTSTANDING / OPEN OUTSTANDING',
@@ -414,7 +414,7 @@ const V4_INVOICE_GROUPS = [
             kind: 'PDF',
           },
           {
-            id: 'invoice-vivi',
+            id: 'invoice-vivi-eezycollab-051426',
             title: 'Vivi',
             company: 'EezyCollab',
             folder: 'OUTSTANDING / OPEN OUTSTANDING',
@@ -425,11 +425,11 @@ const V4_INVOICE_GROUPS = [
         ],
       },
       {
-        label: 'Not confirmed but confirmed',
-        note: 'Placed here so we can keep an eye on it without losing the thread.',
+        label: 'Not Confirmed But Confirmed',
+        note: 'Synced from this invoice subfolder.',
         items: [
           {
-            id: 'invoice-mayank',
+            id: 'invoice-mayank-clinesdk-051326',
             title: 'Mayank',
             company: 'ClineSDK',
             folder: 'OUTSTANDING / NOT CONFIRMED BUT CONFIRMED',
@@ -453,16 +453,7 @@ const V4_INVOICE_GROUPS = [
         note: 'Archived for reference.',
         items: [
           {
-            id: 'invoice-polyai',
-            title: 'PolyAI',
-            company: 'Closed invoice',
-            folder: 'DONE / ARCHIVED',
-            file: 'invoice_PolyAI_04232026.html',
-            href: 'flow-v4/assets/invoices/done/invoice_PolyAI_04232026.html',
-            kind: 'HTML',
-          },
-          {
-            id: 'invoice-hockeystick',
+            id: 'invoice-hockeystick-voxcpm2-051526',
             title: 'HockeyStick',
             company: 'VOXCPM2',
             folder: 'DONE / ARCHIVED',
@@ -471,9 +462,18 @@ const V4_INVOICE_GROUPS = [
             kind: 'PDF',
           },
           {
-            id: 'invoice-stav',
-            title: 'STAV Invoice',
-            company: 'Closed invoice',
+            id: 'invoice-polyai-04232026',
+            title: 'PolyAI',
+            company: 'PolyAI',
+            folder: 'DONE / ARCHIVED',
+            file: 'invoice_PolyAI_04232026.html',
+            href: 'flow-v4/assets/invoices/done/invoice_PolyAI_04232026.html',
+            kind: 'HTML',
+          },
+          {
+            id: 'invoice-stav-invoice',
+            title: 'STAV',
+            company: 'INVOICE',
             folder: 'DONE / ARCHIVED',
             file: 'STAV INVOICE.pdf',
             href: 'flow-v4/assets/invoices/done/STAV%20INVOICE.pdf',
@@ -1212,11 +1212,13 @@ function V4InboxView({ leads, user }) {
           })}
         </div>
 
-        {openLead ? <V4Reader lead={openLead} user={user} onBack={showReader ? () => setSelectedId(null) : null} onMoveStage={(nextStage) => moveThread(openLead, nextStage)} /> : (
+        {openLead ? (
+          <V4Reader lead={openLead} user={user} onBack={showReader ? () => setSelectedId(null) : null} onMoveStage={(nextStage) => moveThread(openLead, nextStage)} />
+        ) : !isMobile ? (
           <div style={{ display: 'grid', placeItems: 'center', padding: 40 }}>
             <V3Empty icon="mail" title="Pick a thread." />
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
