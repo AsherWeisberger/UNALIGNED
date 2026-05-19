@@ -495,6 +495,274 @@ async def fetch_thread_conversation(
     return conversation
 
 
+def _header_map(payload: dict) -> dict[str, str]:
+    return {h["name"].lower(): h["value"] for h in payload.get("headers", [])}
+
+
+def _collect_attachment_names(payload: dict) -> list[str]:
+    names: list[str] = []
+    filename = payload.get("filename") or ""
+    if filename:
+        names.append(str(filename).strip())
+    for part in payload.get("parts", []) or []:
+        names.extend(_collect_attachment_names(part))
+    seen = set()
+    out = []
+    for name in names:
+        norm = name.strip()
+        if not norm or norm in seen:
+            continue
+        seen.add(norm)
+        out.append(norm)
+    return out
+
+
+def _clean_brief_title(subject: str) -> str:
+    title = _clean(subject, "Robert brief")
+    title = re.sub(r"(?i)^\**\s*official posting\s*\**\s*", "", title).strip()
+    title = re.sub(r"\s*-\s*(may|jun|jul|aug|sep|oct|nov|dec|jan|feb|mar|apr)[a-z]*\s+\d{1,2}(?:st|nd|rd|th)?$", "", title, flags=re.I).strip()
+    title = re.sub(r"\s{2,}", " ", title).strip(" -:")
+    return title or "Robert brief"
+
+
+def _brief_summary_from_body(body: str) -> str:
+    text = re.sub(r"\s+", " ", _clean(body, "")).strip()
+    if not text:
+        return ""
+    for marker in ("i've included a pdf", "this is the task", "full pdf write up", "live link"):
+        idx = text.lower().find(marker)
+        if idx >= 0:
+            snippet = text[idx:idx + 220]
+            return snippet.strip()
+    return text[:220]
+
+
+def _brief_action_from_text(subject: str, body: str) -> str:
+    blob = f"{subject}\n{body}".lower()
+    if "three post options" in blob:
+        return "Pick one of the three post options or edit them, then send Asher the final version."
+    if "quote repost" in blob and "live link" in blob:
+        return "Use the live link and docs to post the quote repost."
+    if "reply with" in blob:
+        return "Reply to Asher with the missing details."
+    return "Review the brief and reply to Asher if anything is missing."
+
+
+def _extract_urls(text: str) -> list[str]:
+    urls = re.findall(r"https?://[^\s\]\)]+", text or "", flags=re.I)
+    seen = set()
+    out = []
+    for url in urls:
+        clean = url.rstrip(".,")
+        if clean in seen:
+            continue
+        seen.add(clean)
+        out.append(clean)
+    return out
+
+
+def _brief_links_from_text(text: str) -> list[dict]:
+    links = []
+    for url in _extract_urls(text):
+        domain = re.sub(r"^https?://", "", url).split("/")[0].lower()
+        if "docs.google.com" in domain:
+            label = "Docs"
+        elif "x.com" in domain or "twitter.com" in domain:
+            label = "Live post"
+        else:
+            label = domain.replace("www.", "").split(".")[0].title()
+        links.append({"label": label, "href": url})
+    return links
+
+
+def _brief_attachment_from_names(names: list[str]) -> dict | None:
+    if not names:
+        return None
+    filename = names[0]
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    kind = "pdf" if ext == "pdf" else (ext or "file")
+    return {"filename": filename, "type": kind}
+
+
+async def fetch_official_posting_threads(token: str) -> list[str]:
+    query = 'subject:"OFFICIAL POSTING" -in:trash'
+    ids = []
+    page_token = None
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        while True:
+            params = {"q": query, "maxResults": 100}
+            if page_token:
+                params["pageToken"] = page_token
+            resp = await client.get(
+                "https://gmail.googleapis.com/gmail/v1/users/me/messages",
+                headers={"Authorization": f"Bearer {token}"},
+                params=params,
+            )
+            data = resp.json()
+            ids.extend([m["threadId"] for m in data.get("messages", []) if m.get("threadId")])
+            page_token = data.get("nextPageToken")
+            if not page_token:
+                break
+    deduped = []
+    seen = set()
+    for tid in ids:
+        if tid in seen:
+            continue
+        seen.add(tid)
+        deduped.append(tid)
+    return deduped
+
+
+async def fetch_official_posting_brief(token: str, thread_id: str, sem: asyncio.Semaphore) -> dict | None:
+    async with sem:
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.get(
+                    f"https://gmail.googleapis.com/gmail/v1/users/me/threads/{thread_id}",
+                    headers={"Authorization": f"Bearer {token}"},
+                    params={"format": "full"},
+                )
+                if resp.status_code != 200:
+                    log.warning(f"Brief thread {thread_id} returned {resp.status_code} — skipping.")
+                    return None
+                thread = resp.json()
+        except Exception as e:
+            log.warning(f"Brief thread fetch failed for {thread_id}: {e}")
+            return None
+
+    messages = []
+    for msg in thread.get("messages", []):
+        payload = msg.get("payload", {}) or {}
+        hdrs = _header_map(payload)
+        from_raw = hdrs.get("from", "")
+        body = _clean_body(_decode_body(payload)) or msg.get("snippet", "").strip()
+        messages.append({
+            "id": msg.get("id", ""),
+            "from": from_raw,
+            "to": extract_email_addresses(hdrs.get("to", "")),
+            "cc": extract_email_addresses(hdrs.get("cc", "")),
+            "reply_to": extract_email_addresses(hdrs.get("reply-to", "")),
+            "subject": hdrs.get("subject", ""),
+            "date": _parse_rfc_date(hdrs.get("date", "")),
+            "body": body,
+            "attachments": _collect_attachment_names(payload),
+        })
+
+    if not messages:
+        return None
+
+    source = next((m for m in messages if "asher" in (m.get("from") or "").lower()), messages[0])
+    subject = _clean(source.get("subject"), "Robert brief")
+    body = _clean(source.get("body"), "")
+    sent_at = source.get("date") or ""
+    title = _clean_brief_title(subject)
+    brief = {
+        "kind": "official-posting",
+        "title": title,
+        "subtitle": "Official posting brief" if "today" not in subject.lower() else "Time-sensitive official posting",
+        "subject": subject,
+        "sentAt": sent_at,
+        "from": source.get("from", ""),
+        "to": source.get("to", []),
+        "cc": source.get("cc", []),
+        "partner": "Robert",
+        "company": "Unaligned",
+        "summary": _brief_summary_from_body(body),
+        "body": body,
+        "action": _brief_action_from_text(subject, body),
+        "notes": [f"Thread: {thread_id}"] + (["Attachments: " + ", ".join(source.get("attachments", []))] if source.get("attachments") else []),
+        "attachment": _brief_attachment_from_names(source.get("attachments", [])),
+        "links": _brief_links_from_text(body),
+        "gmailThreadId": thread_id,
+    }
+    if "viktor" in subject.lower() or "viktor" in body.lower():
+        brief["subtitle"] = "Time-sensitive official posting"
+        brief["partner"] = "Ori"
+        brief["company"] = "Viktor"
+    elif "poly ai" in subject.lower() or "polyai" in body.lower():
+        brief["subtitle"] = "Quote repost official posting"
+        brief["partner"] = "PolyAI"
+        brief["company"] = "PolyAI"
+    return {
+        "gmail_thread_id": thread_id,
+        "subject": subject,
+        "source_message_id": source.get("id", ""),
+        "brief": brief,
+        "thread_messages": messages,
+        "sent_at": sent_at,
+    }
+
+
+def _brief_card_payload(brief_record: dict) -> dict:
+    brief = brief_record["brief"]
+    return {
+        "email_id": f"brief:{brief_record['gmail_thread_id']}",
+        "gmail_thread_id": brief_record["gmail_thread_id"],
+        "title": brief.get("title", "Robert brief"),
+        "list_id": "done",
+        "contact_name": brief.get("partner") or "Robert brief",
+        "email": "scobleizer@gmail.com",
+        "phone": "",
+        "business_name": brief.get("company") or "Unaligned",
+        "job_title": "Robert brief",
+        "lead_source": "OFFICIAL_POSTING",
+        "estimated_value": "",
+        "priority": "warm",
+        "intent": "collaboration",
+        "date_received": _clean(brief.get("sentAt"), ""),
+        "date_received_iso": _clean(brief.get("sentAt"), ""),
+        "description": json.dumps(brief, ensure_ascii=False),
+        "draft_reply": "",
+        "draft_reply_status": "",
+        "activity": [{"time": datetime.utcnow().isoformat() + "Z", "user": "Scraper v4", "action": "synced Robert brief"}],
+        "original_email": brief_record.get("thread_messages", [])[:1],
+        "email_thread": brief_record.get("thread_messages", []),
+        "owner": "robert",
+        "labels": ["brief", "official-posting"],
+        "reply_hook": brief.get("action", ""),
+    }
+
+
+async def sync_official_posting_briefs(token: str, existing_thread_map: dict[str, dict]) -> int:
+    brief_threads = await fetch_official_posting_threads(token)
+    if not brief_threads:
+        log.info("No official posting briefs found in Gmail.")
+        return 0
+
+    sem = asyncio.Semaphore(THREAD_CONCURRENCY)
+    synced = 0
+    briefs = await asyncio.gather(*[fetch_official_posting_brief(token, tid, sem) for tid in brief_threads])
+
+    for brief_record in [b for b in briefs if b]:
+        tid = brief_record["gmail_thread_id"]
+        payload = _brief_card_payload(brief_record)
+        existing = existing_thread_map.get(tid)
+        try:
+            if existing:
+                resp = httpx.patch(
+                    f"{SUPABASE_URL}/rest/v1/cards?gmail_thread_id=eq.{tid}",
+                    headers={**_sb_headers(), "Prefer": "return=minimal"},
+                    json=payload,
+                    timeout=20.0,
+                )
+            else:
+                resp = httpx.post(
+                    f"{SUPABASE_URL}/rest/v1/cards",
+                    headers=_sb_headers(),
+                    json=payload,
+                    timeout=20.0,
+                )
+            if resp.status_code in (200, 201, 204):
+                synced += 1
+                log.info(f"  ✅ Brief synced for thread {tid[:8]}… — {brief_record['subject']}")
+            else:
+                log.warning(f"  Brief sync failed for thread {tid[:8]}… ({resp.status_code}): {resp.text[:180]}")
+        except Exception as e:
+            log.error(f"  Brief sync exception for thread {tid[:8]}…: {e}")
+    log.info(f"Official posting brief sync complete: {synced}/{len(brief_threads)} threads written.")
+    return synced
+
+
 async def fetch_all_conversations(emails: list[dict], token: str) -> dict[str, list[dict]]:
     sem = asyncio.Semaphore(THREAD_CONCURRENCY)
     log.info(f"Fetching full thread conversations for {len(emails)} emails …")
@@ -1221,6 +1489,10 @@ async def run_pipeline(
 
     # Load existing cards index early — needed for active thread check AND dedup
     existing_ids, existing_thread_map = get_existing_cards_index()
+
+    # Sync Robert's official posting briefs from Gmail into Supabase
+    if not dry_run:
+        await sync_official_posting_briefs(token, existing_thread_map)
 
     # Step 1.5 — Re-check active tracked threads for replies missed by the search query
     # (e.g. lead replies to Robert where the reply subject doesn't match any search keyword)

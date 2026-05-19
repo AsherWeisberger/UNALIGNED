@@ -22,13 +22,42 @@ function V4RobertBriefReplyDraft(brief) {
   ].join('\n');
 }
 
-function V4RobertBriefView({ query = '' }) {
+function V4LeadToRobertBrief(lead) {
+  if (!lead) return null;
+  return {
+    id: lead.briefId || lead.id,
+    title: lead.briefTitle || lead.title || 'Robert brief',
+    subtitle: lead.briefSubtitle || lead.subtitle || '',
+    subject: lead.briefSubject || lead.subject || '',
+    gmailThreadId: lead.gmailThreadId || lead.briefThreadId || '',
+    sentAt: lead.briefSentAt || lead.sentAt || lead.date_received_iso || lead.lastTouchAt || '',
+    from: lead.briefFrom || lead.from || '',
+    to: Array.isArray(lead.briefTo) ? lead.briefTo : [],
+    cc: Array.isArray(lead.briefCc) ? lead.briefCc : [],
+    status: lead.briefStatus || lead.status || 'ready',
+    partner: lead.briefPartner || lead.partner || lead.contactName || '',
+    company: lead.briefCompany || lead.company || lead.brand || '',
+    summary: lead.briefSummary || lead.summary || '',
+    body: lead.briefBody || lead.body || '',
+    action: lead.briefAction || lead.action || '',
+    notes: Array.isArray(lead.briefNotes) ? lead.briefNotes : [],
+    attachment: lead.briefAttachment || null,
+    links: Array.isArray(lead.briefLinks) ? lead.briefLinks : [],
+  };
+}
+
+function V4RobertBriefView({ leads = [], query = '' }) {
   const q = String(query || '').trim().toLowerCase();
   const briefs = React.useMemo(() => {
-    return (window.V3.ROBERT_BRIEFS || []).filter(b => !q || [
+    const liveBriefs = (Array.isArray(leads) ? leads : [])
+      .filter(item => item && item.isRobertBrief)
+      .map(V4LeadToRobertBrief)
+      .filter(Boolean);
+    const sourceBriefs = liveBriefs.length ? liveBriefs : (window.V3.ROBERT_BRIEFS || []);
+    return sourceBriefs.filter(b => !q || [
       b.title, b.subtitle, b.subject, b.partner, b.company, b.summary, b.body, b.action, (b.notes || []).join(' ')
     ].filter(Boolean).some(value => String(value).toLowerCase().includes(q)));
-  }, [q]);
+  }, [q, leads]);
   const [modalId, setModalId] = React.useState(null);
   const [completedIds, setCompletedIds] = React.useState(() => {
     try {

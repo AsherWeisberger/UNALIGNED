@@ -56,6 +56,59 @@ function V3NormalizeEmailLeadStage(email, rawStage) {
   return rawStage;
 }
 
+function V3IsRobertBriefRow(row) {
+  const briefType = String(row?.brief_type || row?.briefType || '').trim().toLowerCase();
+  const leadSource = String(row?.lead_source || row?.leadSource || '').trim().toLowerCase();
+  const listId = String(row?.list_id || row?.listId || '').trim().toLowerCase();
+  return briefType === 'official-posting' || leadSource === 'official-posting' || listId === 'briefs';
+}
+
+function V3BriefList(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean).map(item => String(item));
+  if (typeof value === 'object') return Object.values(value).filter(Boolean).map(item => String(item));
+  return String(value).split(/\n|•|;|\|/).map(item => item.trim()).filter(Boolean);
+}
+
+function V3ParseBriefDescription(value) {
+  if (!value) return {};
+  if (typeof value === 'object') return value;
+  if (typeof value !== 'string') return {};
+  try {
+    return JSON.parse(value);
+  } catch (e) {
+    return { body: value };
+  }
+}
+
+function V3NormalizeRobertBriefRow(row) {
+  const brief = V3ParseBriefDescription(row.description);
+  const toValue = row.brief_to || row.briefTo || row.to || [];
+  const ccValue = row.brief_cc || row.briefCc || row.cc || [];
+  const notesValue = row.brief_notes || row.briefNotes || row.notes || [];
+  const linksValue = row.brief_links || row.briefLinks || row.links || [];
+  return {
+    id: String(row.id),
+    title: brief.title || row.brief_title || row.briefTitle || row.title || 'Robert brief',
+    subtitle: brief.subtitle || row.brief_subtitle || row.briefSubtitle || '',
+    subject: brief.subject || row.brief_subject || row.briefSubject || row.title || '',
+    gmailThreadId: brief.gmailThreadId || row.brief_thread_id || row.gmail_thread_id || row.gmailThreadId || '',
+    sentAt: brief.sentAt || row.brief_sent_at || row.briefSentAt || row.date_received_iso || row.created_at || row.moved_at || '',
+    from: brief.from || row.brief_from || row.briefFrom || row.from || '',
+    to: V3BriefList(brief.to || toValue),
+    cc: V3BriefList(brief.cc || ccValue),
+    status: brief.status || row.brief_status || row.briefStatus || 'ready',
+    partner: brief.partner || row.brief_partner || row.briefPartner || row.contact_name || row.title || '',
+    company: brief.company || row.brief_company || row.briefCompany || row.business_name || row.title || '',
+    summary: brief.summary || row.brief_summary || row.briefSummary || row.description || row.intent || '',
+    body: brief.body || row.brief_body || row.briefBody || row.description || row.notes || '',
+    action: brief.action || row.brief_action || row.briefAction || row.intent || '',
+    notes: V3BriefList(brief.notes || notesValue),
+    attachment: brief.attachment || row.brief_attachment || row.briefAttachment || null,
+    links: Array.isArray(brief.links) ? brief.links : (Array.isArray(linksValue) ? linksValue : []),
+  };
+}
+
 function V3HockeystickFallbackLead() {
   const email = 'jocelyn.cruz@hockeystick.io';
   const name = 'Jocelyn Cruz';
@@ -118,6 +171,8 @@ function V3NormalizeSupabaseLead(row) {
   const value = V3ParseMoney(row.estimated_value);
   const category = V3CategoryFromRow(row);
   const timelineDays = V3TimelineDaysFromRow(row);
+  const briefPayload = V3ParseBriefDescription(row.description);
+  const isRobertBrief = V3IsRobertBriefRow(row) || briefPayload.kind === 'official-posting' || briefPayload.type === 'official-posting';
   return {
     id: String(row.id),
     contactName: name,
@@ -142,6 +197,23 @@ function V3NormalizeSupabaseLead(row) {
     draftReplyStatus: row.draft_reply_status || '',
     rowId: row.id,
     source: row.lead_source || (row.gmail_thread_id ? 'Gmail' : 'Manual'),
+    isRobertBrief,
+    briefTitle: briefPayload.title || row.brief_title || row.briefTitle || '',
+    briefSubtitle: briefPayload.subtitle || row.brief_subtitle || row.briefSubtitle || '',
+    briefSubject: briefPayload.subject || row.brief_subject || row.briefSubject || '',
+    briefSentAt: briefPayload.sentAt || row.brief_sent_at || row.briefSentAt || '',
+    briefFrom: briefPayload.from || row.brief_from || row.briefFrom || '',
+    briefTo: briefPayload.to || row.brief_to || row.briefTo || [],
+    briefCc: briefPayload.cc || row.brief_cc || row.briefCc || [],
+    briefPartner: briefPayload.partner || row.brief_partner || row.briefPartner || '',
+    briefCompany: briefPayload.company || row.brief_company || row.briefCompany || '',
+    briefSummary: briefPayload.summary || row.brief_summary || row.briefSummary || '',
+    briefBody: briefPayload.body || row.brief_body || row.briefBody || '',
+    briefAction: briefPayload.action || row.brief_action || row.briefAction || '',
+    briefNotes: briefPayload.notes || row.brief_notes || row.briefNotes || [],
+    briefAttachment: briefPayload.attachment || row.brief_attachment || row.briefAttachment || null,
+    briefLinks: briefPayload.links || row.brief_links || row.briefLinks || [],
+    briefStatus: briefPayload.status || row.brief_status || row.briefStatus || '',
     nextMove: V3NextMoveFromRow(stage, name, ownerId, needsReply, row),
     timeline: __v3Timeline(stage, daysInStage, name, brand),
     thread: V3ThreadFromRow(row, name, brand, stage),
@@ -408,6 +480,7 @@ function V3LeadLane(lead) {
 }
 
 function V3LeadVisibleToProfile(lead, user) {
+  if (lead?.isRobertBrief) return false;
   return V3LeadLane(lead) === V3ProfileLane(user);
 }
 

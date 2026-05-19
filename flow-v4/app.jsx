@@ -137,6 +137,7 @@ function V4App() {
     return window.V3.MergePendingReplies ? window.V3.MergePendingReplies(leads, pendingReplies) : leads;
   }, [leads, pendingReplies]);
   const visibleLeads = mergedLeads
+    .filter(l => !l.isRobertBrief)
     .filter(l => window.V3.LeadVisibleToProfile(l, user))
     .filter(l => window.V3.LeadMatchesQuery ? window.V3.LeadMatchesQuery(l, search) : true);
   const openLead = visibleLeads.find(l => l.id === openId) || null;
@@ -267,7 +268,7 @@ function V4App() {
                        ownerFilter={ownerFilter} setOwnerFilter={setOwnerFilter} />
         )}
         {view === 'inbox' && (user === 'robert'
-          ? <V4RobertBriefView leads={visibleLeads} query={search} user={user} onOpenLead={setOpenId} />
+          ? <V4RobertBriefView leads={mergedLeads} query={search} user={user} onOpenLead={setOpenId} />
           : <V4InboxView leads={visibleLeads} query={search} user={user} />
         )}
         {view === 'invoices' && (
