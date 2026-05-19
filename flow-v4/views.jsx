@@ -1455,7 +1455,19 @@ function V4CalendarView({ query = '' }) {
 
   function fmtTime(iso, allDay) {
     if (allDay) return 'All day';
-    return new Date(iso).toLocaleTimeString('en-US', { timeZone: CAL_TZ, hour: 'numeric', minute: '2-digit', hour12: true });
+    const pt = new Date(iso).toLocaleTimeString('en-US', {
+      timeZone: CAL_TZ,
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+    const et = new Date(iso).toLocaleTimeString('en-US', {
+      timeZone: 'America/New_York',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+    return `${pt} PT · ${et} ET`;
   }
 
   function fullDate(offset) {
