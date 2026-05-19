@@ -1429,6 +1429,10 @@ function V4CalendarView({ query = '' }) {
   const [form, setForm]       = React.useState(null); // null = closed; { mode:'create'|'edit', ev, fields }
   const [saving, setSaving]   = React.useState(false);
   const q = String(query || '').trim().toLowerCase();
+  const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local time';
+  const tzLabel = localTz === CAL_TZ
+    ? 'Pacific Time'
+    : `Pacific Time · Your time (${localTz.replace(/_/g, ' ')})`;
 
   function load() {
     fetch(CAL_SCRIPT_URL)
@@ -1547,7 +1551,7 @@ function V4CalendarView({ query = '' }) {
         <div>
           <div className="page-eyebrow">Robert Scoble</div>
           <h1 className="page-title">Schedule</h1>
-          <div className="page-sub">Yesterday · Today · Tomorrow · Pacific Time</div>
+          <div className="page-sub">Yesterday · Today · Tomorrow · {tzLabel}</div>
         </div>
       </div>
 
