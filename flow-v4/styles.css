@@ -798,7 +798,7 @@ a { color: inherit; }
   width: min(720px, 100%);
   max-height: min(84vh, 920px);
   overflow: hidden;
-  background: linear-gradient(180deg, color-mix(in oklab, var(--surface) 82%, var(--bg-2)), color-mix(in oklab, var(--surface) 94%, var(--bg)));
+  background: linear-gradient(180deg, #f0eee7 0%, #faf8f2 100%);
   border: 1px solid var(--line);
   border-radius: 12px;
   box-shadow: 0 24px 80px rgba(0,0,0,0.28);
@@ -812,6 +812,7 @@ a { color: inherit; }
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
+  background: linear-gradient(180deg, #fbfaf5 0%, #f4f2eb 100%);
 }
 .brief-modal-hd-actions {
   display: flex;
@@ -853,15 +854,15 @@ a { color: inherit; }
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background: linear-gradient(180deg, color-mix(in oklab, var(--bg-2) 76%, var(--surface)), color-mix(in oklab, var(--surface) 96%, var(--bg-2)));
+  background: linear-gradient(180deg, #f2efe8 0%, #f7f5ef 100%);
 }
 .brief-modal-row,
 .brief-modal-grid {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 12px 13px;
-  background: color-mix(in oklab, var(--surface) 66%, var(--bg-2));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.62), 0 1px 0 rgba(18, 20, 18, 0.02);
+  background: #fbfaf6;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.72), 0 1px 0 rgba(18, 20, 18, 0.02);
 }
 .brief-modal-row {
   display: flex;
@@ -892,7 +893,7 @@ a { color: inherit; }
   justify-content: flex-end;
 }
 .brief-reply-panel {
-  background: linear-gradient(180deg, color-mix(in oklab, var(--accent-soft) 42%, var(--bg-2)), color-mix(in oklab, var(--surface) 76%, var(--bg-2)));
+  background: linear-gradient(180deg, #eef1ed 0%, #f7f8f5 100%);
   border-color: color-mix(in oklab, var(--accent) 16%, var(--line));
 }
 .brief-reply-hint {
@@ -919,7 +920,7 @@ a { color: inherit; }
   line-height: 1.35;
 }
 .brief-input {
-  background: color-mix(in oklab, var(--surface) 84%, var(--bg-2));
+  background: #f8f8f4;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.5);
 }
 .brief-input:focus {
