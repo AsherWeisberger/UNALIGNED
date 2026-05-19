@@ -2,18 +2,134 @@
 // Today rebuilt as a tabbed work surface: NOW · NEXT · LATER · DONE.
 // NOW = big action cards. NEXT/LATER = compact rows.
 
+const V4_ROBERT_BRIEF_STORAGE_KEY = 'v4-robert-brief-complete';
+const V4_ROBERT_BRIEF_TO = 'asherunaligned@gmail.com';
+
+function V4RobertBriefReplyDraft(brief) {
+  const first = 'Asher';
+  const title = String(brief?.title || 'the brief');
+  return [
+    `Hi ${first},`,
+    '',
+    `Can you send a little more information on ${title}?`,
+    '',
+    'Specifically, I’d love:',
+    '• the final posting direction',
+    '• any hard do / do not notes',
+    '• whether anything needs to be approved before I move',
+    '',
+    'Thanks,',
+  ].join('\n');
+}
+
 function V4RobertBriefView({ query = '' }) {
   const q = String(query || '').trim().toLowerCase();
-  const briefs = (window.V3.ROBERT_BRIEFS || []).filter(b => !q || [
-    b.title, b.subtitle, b.subject, b.partner, b.company, b.summary, b.body, b.action, (b.notes || []).join(' ')
-  ].filter(Boolean).some(value => String(value).toLowerCase().includes(q)));
+  const briefs = React.useMemo(() => {
+    return (window.V3.ROBERT_BRIEFS || []).filter(b => !q || [
+      b.title, b.subtitle, b.subject, b.partner, b.company, b.summary, b.body, b.action, (b.notes || []).join(' ')
+    ].filter(Boolean).some(value => String(value).toLowerCase().includes(q)));
+  }, [q]);
   const [modalId, setModalId] = React.useState(null);
+  const [completedIds, setCompletedIds] = React.useState(() => {
+    try {
+      return JSON.parse(window.localStorage.getItem(V4_ROBERT_BRIEF_STORAGE_KEY) || '[]') || [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [replyOpen, setReplyOpen] = React.useState(false);
+  const [replyBody, setReplyBody] = React.useState('');
+  const [replyStatus, setReplyStatus] = React.useState('idle');
+  const [replyError, setReplyError] = React.useState('');
+  const [replySuccess, setReplySuccess] = React.useState('');
+  const replyTimer = React.useRef(null);
   const modalBrief = briefs.find(b => String(b.id) === String(modalId)) || null;
+  const completedSet = React.useMemo(() => new Set(completedIds.map(id => String(id))), [completedIds]);
+  const orderedBriefs = React.useMemo(() => {
+    return [...briefs].sort((a, b) => {
+      const aDone = completedSet.has(String(a.id));
+      const bDone = completedSet.has(String(b.id));
+      if (aDone !== bDone) return aDone ? 1 : -1;
+      return new Date(b.sentAt || 0) - new Date(a.sentAt || 0);
+    });
+  }, [briefs, completedSet]);
+
+  React.useEffect(() => {
+    try {
+      window.localStorage.setItem(V4_ROBERT_BRIEF_STORAGE_KEY, JSON.stringify(completedIds));
+    } catch (e) {}
+  }, [completedIds]);
+
+  React.useEffect(() => () => {
+    if (replyTimer.current) clearTimeout(replyTimer.current);
+  }, []);
 
   const counts = {
     total: briefs.length,
     urgent: briefs.filter(b => String(b.subtitle || '').toLowerCase().includes('time-sensitive') || String(b.summary || '').toLowerCase().includes('today')).length,
     ready: briefs.filter(b => b.status === 'ready').length,
+    completed: completedIds.length,
+  };
+
+  const openBrief = (brief, openReply = false) => {
+    setModalId(brief.id);
+    setReplyOpen(openReply);
+    setReplyBody(openReply ? V4RobertBriefReplyDraft(brief) : '');
+    setReplyStatus('idle');
+    setReplyError('');
+    setReplySuccess('');
+  };
+
+  const toggleComplete = (brief) => {
+    setCompletedIds(curr => {
+      const id = String(brief.id);
+      return curr.map(String).includes(id) ? curr.filter(item => String(item) !== id) : [...curr, brief.id];
+    });
+  };
+
+  const sendReply = async () => {
+    if (!modalBrief) return;
+    const body = window.V3EnsureSenderSignature(String(replyBody || '').trim(), 'robert');
+    if (!body) {
+      setReplyError('Write a message before sending.');
+      return;
+    }
+    setReplyStatus('sending');
+    setReplyError('');
+    setReplySuccess('');
+    try {
+      await window.V3SendLeadEmail({
+        lead: { gmailThreadId: modalBrief.gmailThreadId || null },
+        sender: 'robert',
+        to: V4_ROBERT_BRIEF_TO,
+        cc: '',
+        subject: window.V3SubjectForLead({ thread: [{ subject: modalBrief.subject }] }),
+        body,
+        attachPdf: false,
+      });
+      window.dispatchEvent(new CustomEvent('v3:email-sent', {
+        detail: {
+          leadId: modalBrief.id,
+          sender: 'robert',
+          subject: modalBrief.subject,
+          body,
+          to: [V4_ROBERT_BRIEF_TO],
+          cc: [],
+          internalOnly: false,
+        },
+      }));
+      setReplyStatus('sent');
+      setReplySuccess('Sent to Asher.');
+      if (replyTimer.current) clearTimeout(replyTimer.current);
+      replyTimer.current = setTimeout(() => {
+        setReplyStatus('idle');
+        setReplySuccess('');
+        replyTimer.current = null;
+      }, 2500);
+    } catch (err) {
+      setReplyStatus('error');
+      setReplyError(err.message || 'Send failed');
+    }
   };
 
   return (
@@ -27,48 +143,95 @@ function V4RobertBriefView({ query = '' }) {
         <div className="invoice-stats">
           <span className="invoice-stat warn">{counts.urgent} urgent</span>
           <span className="invoice-stat good">{counts.ready} ready</span>
+          <span className="invoice-stat total">{counts.completed} complete</span>
           <span className="invoice-stat total">{counts.total} total</span>
         </div>
       </div>
 
       <div className="body brief-body">
         <div className="brief-list">
-          {briefs.map(brief => (
-            <button
-              key={brief.id}
-              type="button"
-              className="brief-card"
-              onClick={() => setModalId(brief.id)}
-            >
-              <div className="brief-card-top">
-                <V3Avatar name={brief.partner} color={__v3Color(brief.partner)} size="xs" />
-                <div className="brief-card-top-text">
-                  <div className="brief-card-partnership">{brief.title}</div>
-                  <div className="brief-card-meta">{brief.subject}</div>
+          {orderedBriefs.map(brief => {
+            const isComplete = completedSet.has(String(brief.id));
+            return (
+              <div
+                key={brief.id}
+                role="button"
+                tabIndex={0}
+                className={'brief-card' + (isComplete ? ' is-complete' : '')}
+                onClick={() => openBrief(brief, false)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    openBrief(brief, false);
+                  }
+                }}
+              >
+                <div className="brief-card-top">
+                  <V3Avatar name={brief.partner} color={__v3Color(brief.partner)} size="xs" />
+                  <div className="brief-card-top-text">
+                    <div className="brief-card-partnership">{brief.title}</div>
+                    <div className="brief-card-meta">{brief.subject}</div>
+                  </div>
+                  <span className="brief-card-stage">{isComplete ? 'COMPLETED' : (brief.status === 'ready' ? 'READY' : 'BRIEF')}</span>
                 </div>
-                <span className="brief-card-stage">{brief.status === 'ready' ? 'READY' : 'BRIEF'}</span>
+                <div className="brief-card-summary">{brief.summary}</div>
+                <div className="brief-card-foot">
+                  <span className="brief-card-note">Tap for details</span>
+                  <span className="brief-card-mini">{window.V3.GmailTime.list(brief.sentAt) || brief.sentAt}</span>
+                </div>
+                <div className="brief-card-actions" onClick={e => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    className={'btn btn-sm brief-card-cta ' + (isComplete ? 'btn-success' : 'btn-accent')}
+                    onClick={() => toggleComplete(brief)}
+                  >
+                    <V3Icon name={isComplete ? 'check' : 'spark'} w={12} />
+                    {isComplete ? 'Completed' : 'Complete'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost brief-card-reply"
+                    onClick={() => openBrief(brief, true)}
+                  >
+                    <V3Icon name="reply" w={12} />
+                    Reply to Asher
+                  </button>
+                </div>
               </div>
-              <div className="brief-card-summary">{brief.summary}</div>
-              <div className="brief-card-foot">
-                <span className="brief-card-note">Tap for details</span>
-                <span className="brief-card-mini">{window.V3.GmailTime.list(brief.sentAt) || brief.sentAt}</span>
-              </div>
-            </button>
-          ))}
+            );
+          })}
           {briefs.length === 0 && <V3Empty icon="doc" title="No official posting briefs found." sub="Try searching the email title or partner name." />}
         </div>
       </div>
       {modalBrief && (
-        <div className="brief-modal-backdrop" onClick={() => setModalId(null)}>
+        <div className="brief-modal-backdrop" onClick={() => { setModalId(null); setReplyOpen(false); }}>
           <div className="brief-modal-panel" onClick={e => e.stopPropagation()}>
             <div className="brief-modal-hd">
               <div>
                 <div className="brief-modal-eyebrow">Official posting</div>
                 <h2 className="brief-modal-title">{modalBrief.title}</h2>
               </div>
-              <button className="brief-modal-close" onClick={() => setModalId(null)} aria-label="Close brief">
-                <V3Icon name="x" w={14} />
-              </button>
+              <div className="brief-modal-hd-actions">
+                <button
+                  type="button"
+                  className={'btn btn-sm ' + (completedSet.has(String(modalBrief.id)) ? 'btn-success' : 'btn-accent')}
+                  onClick={() => toggleComplete(modalBrief)}
+                >
+                  <V3Icon name={completedSet.has(String(modalBrief.id)) ? 'check' : 'spark'} w={12} />
+                  {completedSet.has(String(modalBrief.id)) ? 'Completed' : 'Complete'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => openBrief(modalBrief, true)}
+                >
+                  <V3Icon name="reply" w={12} />
+                  Reply to Asher
+                </button>
+                <button className="brief-modal-close" onClick={() => { setModalId(null); setReplyOpen(false); }} aria-label="Close brief">
+                  <V3Icon name="x" w={14} />
+                </button>
+              </div>
             </div>
             <div className="brief-modal-body">
               <div className="brief-modal-row">
@@ -127,6 +290,50 @@ function V4RobertBriefView({ query = '' }) {
                   <div className="brief-modal-copy">{modalBrief.notes.join(' · ')}</div>
                 </div>
               )}
+              <div className="brief-modal-row brief-reply-panel">
+                <div className="brief-modal-label">Reply to Asher</div>
+                <div className="brief-reply-hint">From Robert Scoble to {V4_ROBERT_BRIEF_TO}</div>
+                {!replyOpen ? (
+                  <div className="brief-reply-compact">
+                    <button className="btn btn-sm btn-accent" type="button" onClick={() => openBrief(modalBrief, true)}>
+                      <V3Icon name="reply" w={12} />
+                      Open reply
+                    </button>
+                    <span className="brief-card-note">Send a quick question if Robert needs more detail.</span>
+                  </div>
+                ) : (
+                  <>
+                    <input
+                      className="brief-input"
+                      value={'Re: ' + modalBrief.subject.replace(/^re:\s*/i, '')}
+                      readOnly
+                      aria-label="Reply subject"
+                    />
+                    <textarea
+                      className="brief-input"
+                      style={{ minHeight: 118, resize: 'vertical' }}
+                      value={replyBody}
+                      disabled={replyStatus === 'sending'}
+                      onChange={e => setReplyBody(e.target.value)}
+                      placeholder="Ask Asher for any missing details..."
+                    />
+                    <div className="brief-reply-foot">
+                      <div className="brief-reply-status">
+                        {replySuccess || replyError || (replyStatus === 'sent' ? 'Sent.' : `Sending as Robert Scoble to Asher.`)}
+                      </div>
+                      <button
+                        className={'btn btn-sm ' + (replyStatus === 'sent' ? 'btn-success' : 'btn-accent')}
+                        type="button"
+                        disabled={replyStatus === 'sending'}
+                        onClick={sendReply}
+                      >
+                        <V3Icon name={replyStatus === 'sent' ? 'check' : 'send'} w={12} />
+                        {replyStatus === 'sending' ? 'Sending…' : replyStatus === 'sent' ? 'Sent' : 'Send reply'}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
               <div className="brief-modal-actions">
                 <span className="brief-card-note">Sent {window.V3.GmailTime.full(modalBrief.sentAt) || modalBrief.sentAt}</span>
               </div>
