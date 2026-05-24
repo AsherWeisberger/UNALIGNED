@@ -162,7 +162,7 @@ function V3NormalizeSupabaseLead(row) {
   const received = V3NormalizeDateForUi(row.date_received_iso || row.created_at || row.moved_at);
   const thread = V3ThreadFromRow(row, name, brand, row.list_id);
   const latestThreadDate = V3LatestThreadDate(thread);
-  const lastTouchAt = V3NormalizeDateForUi(row.new_reply_at || latestThreadDate || row.moved_at || received);
+  const lastTouchAt = V3NormalizeDateForUi(latestThreadDate || row.moved_at || received);
   const activityDays = V3DaysSince(lastTouchAt || row.moved_at || received);
   const rawStage = V3NormalizeStage(row.list_id);
   // Auto-trash: last touch > 50 days and not already closed out
