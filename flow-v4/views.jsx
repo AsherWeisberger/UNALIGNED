@@ -387,12 +387,23 @@ const V4_INVOICE_GROUPS = [
         note: 'Active invoices still waiting on payment.',
         items: [
           {
-            id: 'invoice-jay-langchainai-051326',
-            title: 'Jay',
-            company: 'LangChainAI',
+            id: 'invoice-arcgrowth-ahacreator-052126',
+            title: 'ArcGrowth',
+            company: 'AhaCreator',
             folder: 'OUTSTANDING / OPEN OUTSTANDING',
-            file: 'invoice_Jay_LangChainAI_051326.pdf',
-            href: 'flow-v4/assets/invoices/outstanding/invoice_Jay_LangChainAI_051326.pdf',
+            sourceDir: 'OUTSTANDING',
+            file: 'invoice_ArcGrowth_AhaCreator_052126.pdf',
+            href: 'flow-v4/assets/invoices/outstanding/invoice_ArcGrowth_AhaCreator_052126.pdf',
+            kind: 'PDF',
+          },
+          {
+            id: 'invoice-eezycollab-team9-052226',
+            title: 'EezyCollab',
+            company: 'Team9',
+            folder: 'OUTSTANDING / OPEN OUTSTANDING',
+            sourceDir: 'OUTSTANDING',
+            file: 'invoice_EezyCollab_Team9_052226.pdf',
+            href: 'flow-v4/assets/invoices/outstanding/invoice_EezyCollab_Team9_052226.pdf',
             kind: 'PDF',
           },
           {
@@ -400,17 +411,19 @@ const V4_INVOICE_GROUPS = [
             title: 'LobeHub',
             company: 'LobeHub',
             folder: 'OUTSTANDING / OPEN OUTSTANDING',
+            sourceDir: 'OUTSTANDING',
             file: 'invoice_LobeHub_051626.pdf',
             href: 'flow-v4/assets/invoices/outstanding/invoice_LobeHub_051626.pdf',
             kind: 'PDF',
           },
           {
-            id: 'invoice-omane-ormannheim-051826',
-            title: 'Omane',
-            company: 'OrMannheim',
+            id: 'invoice-playos-sintra-tier5-052126',
+            title: 'PlayOS',
+            company: 'Sintra Tier5',
             folder: 'OUTSTANDING / OPEN OUTSTANDING',
-            file: 'invoice_Omane_OrMannheim_051826.pdf',
-            href: 'flow-v4/assets/invoices/outstanding/invoice_Omane_OrMannheim_051826.pdf',
+            sourceDir: 'OUTSTANDING',
+            file: 'invoice_PlayOS_Sintra_Tier5_052126.pdf',
+            href: 'flow-v4/assets/invoices/outstanding/invoice_PlayOS_Sintra_Tier5_052126.pdf',
             kind: 'PDF',
           },
           {
@@ -418,6 +431,7 @@ const V4_INVOICE_GROUPS = [
             title: 'Vivi',
             company: 'EezyCollab',
             folder: 'OUTSTANDING / OPEN OUTSTANDING',
+            sourceDir: 'OUTSTANDING',
             file: 'invoice_Vivi_EezyCollab_051426.pdf',
             href: 'flow-v4/assets/invoices/outstanding/invoice_Vivi_EezyCollab_051426.pdf',
             kind: 'PDF',
@@ -433,6 +447,7 @@ const V4_INVOICE_GROUPS = [
             title: 'Mayank',
             company: 'ClineSDK',
             folder: 'OUTSTANDING / NOT CONFIRMED BUT CONFIRMED',
+            sourceDir: 'OUTSTANDING/NOT CONFIRMED BUT CONFIRMED',
             file: 'invoice_Mayank_ClineSDK_051326.pdf',
             href: 'flow-v4/assets/invoices/outstanding/not-confirmed-but-confirmed/invoice_Mayank_ClineSDK_051326.pdf',
             kind: 'PDF',
@@ -457,8 +472,29 @@ const V4_INVOICE_GROUPS = [
             title: 'HockeyStick',
             company: 'VOXCPM2',
             folder: 'DONE / ARCHIVED',
+            sourceDir: 'DONE',
             file: 'invoice_HockeyStick_VOXCPM2_051526.pdf',
             href: 'flow-v4/assets/invoices/done/invoice_HockeyStick_VOXCPM2_051526.pdf',
+            kind: 'PDF',
+          },
+          {
+            id: 'invoice-jay-langchainai-051326',
+            title: 'Jay',
+            company: 'LangChainAI',
+            folder: 'DONE / ARCHIVED',
+            sourceDir: 'DONE',
+            file: 'invoice_Jay_LangChainAI_051326.pdf',
+            href: 'flow-v4/assets/invoices/done/invoice_Jay_LangChainAI_051326.pdf',
+            kind: 'PDF',
+          },
+          {
+            id: 'invoice-polsia-tier3-052126',
+            title: 'Polsia',
+            company: 'Tier3',
+            folder: 'DONE / ARCHIVED',
+            sourceDir: 'DONE',
+            file: 'invoice_Polsia_Tier3_052126.pdf',
+            href: 'flow-v4/assets/invoices/done/invoice_Polsia_Tier3_052126.pdf',
             kind: 'PDF',
           },
           {
@@ -466,6 +502,7 @@ const V4_INVOICE_GROUPS = [
             title: 'PolyAI',
             company: 'PolyAI',
             folder: 'DONE / ARCHIVED',
+            sourceDir: 'DONE',
             file: 'invoice_PolyAI_04232026.html',
             href: 'flow-v4/assets/invoices/done/invoice_PolyAI_04232026.html',
             kind: 'HTML',
@@ -475,6 +512,7 @@ const V4_INVOICE_GROUPS = [
             title: 'STAV',
             company: 'INVOICE',
             folder: 'DONE / ARCHIVED',
+            sourceDir: 'DONE',
             file: 'STAV INVOICE.pdf',
             href: 'flow-v4/assets/invoices/done/STAV%20INVOICE.pdf',
             kind: 'PDF',
@@ -485,17 +523,21 @@ const V4_INVOICE_GROUPS = [
   },
 ];
 
+const V4_INVOICE_ACTION_URL = 'http://127.0.0.1:8765/complete-invoice';
+
 function V4InvoiceMatchesQuery(item, query) {
   const q = String(query || '').trim().toLowerCase();
   if (!q) return true;
-  return [item.title, item.company, item.folder, item.file, item.kind, item.href]
+  return [item.title, item.company, item.folder, item.sourceDir, item.file, item.kind, item.href]
     .filter(Boolean)
     .some(value => String(value).toLowerCase().includes(q));
 }
 
-function V4InvoiceCard({ item }) {
+function V4InvoiceCard({ item, onComplete, completingId }) {
+  const canComplete = String(item.sourceDir || '').startsWith('OUTSTANDING');
+  const isCompleting = completingId === item.id;
   return (
-    <a className="invoice-card" href={item.href} target="_blank" rel="noreferrer">
+    <div className="invoice-card">
       <div className="invoice-card-top">
         <div className="invoice-card-icon">
           <V3Icon name="invoice" w={14} />
@@ -508,16 +550,75 @@ function V4InvoiceCard({ item }) {
           <div className="invoice-card-company">{item.company}</div>
           <div className="invoice-card-folder">{item.folder}</div>
         </div>
-        <span className="invoice-open">Open</span>
+        <a className="invoice-open" href={item.href} target="_blank" rel="noreferrer">Open</a>
       </div>
       <div className="invoice-card-file">{item.file}</div>
-    </a>
+      {canComplete && (
+        <button
+          className="invoice-complete-btn"
+          type="button"
+          disabled={isCompleting}
+          onClick={() => onComplete(item)}
+        >
+          <V3Icon name={isCompleting ? 'spark' : 'check'} w={13} />
+          {isCompleting ? 'Completing...' : 'Complete'}
+        </button>
+      )}
+    </div>
   );
 }
 
 function V4InvoicesView({ query = '' }) {
   const q = String(query || '').trim();
-  const visibleGroups = V4_INVOICE_GROUPS.map(group => ({
+  const [groups, setGroups] = React.useState(V4_INVOICE_GROUPS);
+  const [completingId, setCompletingId] = React.useState(null);
+  const [notice, setNotice] = React.useState(null);
+
+  const completeInvoice = async (item) => {
+    setCompletingId(item.id);
+    setNotice(null);
+    try {
+      const res = await fetch(V4_INVOICE_ACTION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceDir: item.sourceDir, file: item.file }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok || !payload.ok) throw new Error(payload.error || 'Could not complete invoice.');
+
+      setGroups(current => current.map(group => {
+        if (group.id === 'outstanding') {
+          return {
+            ...group,
+            buckets: group.buckets.map(bucket => ({
+              ...bucket,
+              items: bucket.items.filter(next => next.id !== item.id),
+            })).filter(bucket => bucket.items.length > 0),
+          };
+        }
+        if (group.id === 'done') {
+          const doneItem = {
+            ...item,
+            sourceDir: 'DONE',
+            folder: 'DONE / ARCHIVED',
+            file: payload.file || item.file,
+            href: 'flow-v4/assets/invoices/done/' + encodeURIComponent(payload.file || item.file),
+          };
+          const buckets = group.buckets.length ? [...group.buckets] : [{ label: 'Done', note: 'Archived for reference.', items: [] }];
+          buckets[0] = { ...buckets[0], items: [doneItem, ...buckets[0].items] };
+          return { ...group, buckets };
+        }
+        return group;
+      }));
+      setNotice({ tone: 'good', text: `${payload.file || item.file} moved to DONE.` });
+    } catch (err) {
+      setNotice({ tone: 'warn', text: `Start the local invoice helper, then try again. ${err.message || err}` });
+    } finally {
+      setCompletingId(null);
+    }
+  };
+
+  const visibleGroups = groups.map(group => ({
     ...group,
     buckets: group.buckets
       .map(bucket => ({
@@ -527,8 +628,8 @@ function V4InvoicesView({ query = '' }) {
       .filter(bucket => bucket.items.length > 0),
   })).filter(group => group.buckets.length > 0);
 
-  const outstandingCount = V4_INVOICE_GROUPS[0].buckets.reduce((sum, bucket) => sum + bucket.items.length, 0);
-  const doneCount = V4_INVOICE_GROUPS[1].buckets.reduce((sum, bucket) => sum + bucket.items.length, 0);
+  const outstandingCount = (groups.find(group => group.id === 'outstanding')?.buckets || []).reduce((sum, bucket) => sum + bucket.items.length, 0);
+  const doneCount = (groups.find(group => group.id === 'done')?.buckets || []).reduce((sum, bucket) => sum + bucket.items.length, 0);
   const totalCount = outstandingCount + doneCount;
   const visibleCount = visibleGroups.reduce((sum, group) => sum + group.buckets.reduce((n, bucket) => n + bucket.items.length, 0), 0);
 
@@ -548,6 +649,7 @@ function V4InvoicesView({ query = '' }) {
       </div>
 
       <div className="body invoices-body">
+        {notice && <div className={'invoice-notice invoice-notice-' + notice.tone}>{notice.text}</div>}
         {q && <div className="invoice-search-note">{visibleCount} result{visibleCount === 1 ? '' : 's'} for “{q}”</div>}
         {visibleGroups.length === 0 && <V3Empty icon="invoice" title="No invoices match that search." sub="Try a company name, file name, or folder." />}
 
@@ -575,7 +677,7 @@ function V4InvoicesView({ query = '' }) {
                     <div className="invoice-bucket-count">{bucket.items.length}</div>
                   </div>
                   <div className="invoice-grid">
-                    {bucket.items.map(item => <V4InvoiceCard key={item.id} item={item} />)}
+                    {bucket.items.map(item => <V4InvoiceCard key={item.id} item={item} onComplete={completeInvoice} completingId={completingId} />)}
                   </div>
                 </div>
               ))}
@@ -1137,9 +1239,9 @@ function V4InboxView({ leads, user }) {
   };
 
   return (
-    <div className={'page' + (showReader ? ' inbox-reader-open' : '')} style={{ overflow: 'hidden' }}>
+    <div className={'page inbox-page' + (showReader ? ' inbox-reader-open' : '')} style={{ overflow: 'hidden' }}>
       {!(showReader) && (
-        <div className="page-hd" style={{ paddingBottom: 14 }}>
+        <div className="page-hd inbox-page-hd">
         <div>
           <div className="page-eyebrow">{isRobert ? 'Robert' : 'Inbox'}</div>
           <h1 className="page-title">{isRobert ? 'Briefing' : 'Mail'}</h1>
@@ -1241,10 +1343,14 @@ function fmtMsgTooltip(msg) {
 
 function V4Reader({ lead, user, onBack, onMoveStage }) {
   const { STAGE_BY_ID, USERS } = window.V3;
+  const [replyOpen, setReplyOpen] = React.useState(false);
   const last = lead.thread[lead.thread.length - 1];
   const stage = STAGE_BY_ID[lead.stage];
   const nextOwnerName = lead.nextMove.who ? USERS[lead.nextMove.who].name : `Awaiting ${lead.contactName.split(' ')[0]}`;
   const isMine = window.V3.MoveIsMineForProfile(lead, user);
+  React.useEffect(() => {
+    setReplyOpen(false);
+  }, [lead.id]);
   return (
     <div className="reader">
       <div className="reader-hd">
@@ -1256,6 +1362,14 @@ function V4Reader({ lead, user, onBack, onMoveStage }) {
         )}
         <div className="reader-title-row">
           <h2 className="reader-subject">{last?.subject}</h2>
+          <button
+            className="reader-reply-btn"
+            type="button"
+            onClick={() => setReplyOpen(true)}
+          >
+            <V3Icon name="reply" w={13} />
+            Reply
+          </button>
           <button
             className={lead.stage === 'trash' ? "reader-restore-btn" : "reader-trash-btn"}
             title={lead.stage === 'trash' ? "Restore to New" : "Move to trash"}
@@ -1336,9 +1450,18 @@ function V4Reader({ lead, user, onBack, onMoveStage }) {
           })}
         </div>
       </div>
-      <div className="drawer-foot">
-        <V3InlineReply lead={lead} user={user} />
-      </div>
+      {replyOpen ? (
+        <div className="drawer-foot reader-reply-panel">
+          <div className="reader-reply-panel-top">
+            <strong>Reply to {lead.contactName.split(' ')[0]}</strong>
+            <button className="btn btn-sm btn-ghost" type="button" onClick={() => setReplyOpen(false)}>
+              <V3Icon name="x" w={12} />
+              Hide
+            </button>
+          </div>
+          <V3InlineReply lead={lead} user={user} />
+        </div>
+      ) : null}
     </div>
   );
 }
