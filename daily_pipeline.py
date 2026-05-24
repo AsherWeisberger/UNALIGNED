@@ -501,12 +501,15 @@ def dedup_recent_cards(client):
                            "robert scoble", "sam levin", "asher weisberger", "unalignedx"]
         latest_sender = (keep_t[-1].get("from") or "").lower() if keep_t else ""
         latest_is_inbound = added > 0 and not any(t in latest_sender for t in TEAM_SENDERS_DP)
+        latest_date = keep_t[-1].get("date_iso") or keep_t[-1].get("date") if keep_t else ""
 
         if not DRY_RUN:
             patch_payload = {"email_thread": keep_t,
                              "description": json.dumps(desc, ensure_ascii=False)}
             if latest_is_inbound:
-                patch_payload["new_reply_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                patch_payload["new_reply_at"] = latest_date or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            else:
+                patch_payload["new_reply_at"] = None
             httpx.patch(
                 f"{SUPABASE_URL}/rest/v1/cards?id=eq.{keep['id']}",
                 headers=hdrs(),

@@ -1200,6 +1200,10 @@ def _is_inbound(msg: dict) -> bool:
     return not any(t in sender for t in TEAM_SENDERS)
 
 
+def _message_activity_date(msg: dict) -> str:
+    return msg.get("date_iso") or msg.get("date") or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def update_card_stage_by_thread(gmail_thread_id: str, new_list_id: str, conversation: list[dict]) -> bool:
     """Update an existing card's stage and thread data when a reply is detected. Never overwrites a sent draft."""
     try:
@@ -1209,7 +1213,9 @@ def update_card_stage_by_thread(gmail_thread_id: str, new_list_id: str, conversa
         }
         # Flag card if the most recent message is an inbound (lead replied)
         if conversation and _is_inbound(conversation[-1]):
-            patch_data["new_reply_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            patch_data["new_reply_at"] = _message_activity_date(conversation[-1])
+        else:
+            patch_data["new_reply_at"] = None
         resp = httpx.patch(
             f"{SUPABASE_URL}/rest/v1/cards?gmail_thread_id=eq.{gmail_thread_id}",
             headers={**_sb_headers(), "Prefer": "return=minimal"},
