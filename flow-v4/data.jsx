@@ -159,8 +159,11 @@ function V3HockeystickFallbackLead() {
 function V3NormalizeSupabaseLead(row) {
   const name = row.contact_name || row.title || row.email || 'Untitled lead';
   const brand = row.business_name || V3DomainBrand(row.email) || row.title || 'Unknown company';
-  const received = row.date_received_iso || row.created_at || row.moved_at || null;
-  const activityDays = V3DaysSince(row.new_reply_at || row.moved_at || received);
+  const received = V3NormalizeDateForUi(row.date_received_iso || row.created_at || row.moved_at);
+  const thread = V3ThreadFromRow(row, name, brand, row.list_id);
+  const latestThreadDate = V3LatestThreadDate(thread);
+  const lastTouchAt = V3NormalizeDateForUi(row.new_reply_at || latestThreadDate || row.moved_at || received);
+  const activityDays = V3DaysSince(lastTouchAt || row.moved_at || received);
   const rawStage = V3NormalizeStage(row.list_id);
   // Auto-trash: last touch > 50 days and not already closed out
   const closedStage = V3NormalizeEmailLeadStage(row.email, rawStage);
@@ -186,8 +189,8 @@ function V3NormalizeSupabaseLead(row) {
     daysInStage,
     activityDays,
     timelineDays,
-    lastTouch: V3RelativeTime(row.new_reply_at || row.moved_at || received),
-    lastTouchAt: row.new_reply_at || row.moved_at || received || null,
+    lastTouch: V3RelativeTime(lastTouchAt || row.moved_at || received),
+    lastTouchAt: lastTouchAt || row.moved_at || received || null,
     needsReply,
     approve: row.draft_reply ? ownerId : null,
     color: __v3Color(name + brand),
@@ -216,7 +219,7 @@ function V3NormalizeSupabaseLead(row) {
     briefStatus: briefPayload.status || row.brief_status || row.briefStatus || '',
     nextMove: V3NextMoveFromRow(stage, name, ownerId, needsReply, row),
     timeline: __v3Timeline(stage, daysInStage, name, brand),
-    thread: V3ThreadFromRow(row, name, brand, stage),
+    thread,
     progress: Math.max(0, V3_ACTIVE_STAGE_IDS.indexOf(stage)),
     unread: Boolean(row.new_reply_at),
   };
@@ -275,6 +278,35 @@ function V3RelativeTime(value) {
   return String(Math.floor(hrs / 24)) + 'd';
 }
 
+function V3NormalizeDateForUi(value) {
+  if (!value) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw + 'T12:00:00';
+  return raw;
+}
+
+function V3TimestampForUi(value) {
+  const normalized = V3NormalizeDateForUi(value);
+  const t = normalized ? Date.parse(normalized) : NaN;
+  return Number.isFinite(t) ? t : 0;
+}
+
+function V3LatestThreadDate(thread) {
+  if (!Array.isArray(thread) || !thread.length) return null;
+  let newest = 0;
+  let newestValue = null;
+  for (const msg of thread) {
+    const value = msg.date || msg.dateIso || msg.timestamp || msg.when;
+    const t = V3TimestampForUi(value);
+    if (t >= newest) {
+      newest = t;
+      newestValue = V3NormalizeDateForUi(value);
+    }
+  }
+  return newestValue;
+}
+
 function V3TimelineDaysFromRow(row) {
   const pieces = [row.title, row.intent, row.description, row.lead_source];
   const thread = Array.isArray(row.email_thread) ? row.email_thread : (Array.isArray(row.original_email) ? row.original_email : []);
@@ -316,8 +348,9 @@ function V3ThreadFromRow(row, name, brand, stage) {
   if (thread && thread.length) {
     return thread.map((m, i) => ({
       from: m.from || m.sender || (i % 2 ? name : 'UNALIGNED'),
-      when: V3RelativeTime(m.date || m.timestamp || row.created_at),
-      date: m.date || m.timestamp || row.created_at || null,
+      when: V3RelativeTime(V3NormalizeDateForUi(m.date || m.date_iso || m.timestamp || row.created_at)),
+      date: V3NormalizeDateForUi(m.date || m.date_iso || m.timestamp || row.created_at),
+      dateIso: V3NormalizeDateForUi(m.date_iso),
       subject: m.subject || row.title || (brand + ' conversation'),
       body: m.body || m.text || m.snippet || '',
       to: V3EmailsFromValue(m.to || m.to_list || m.recipients?.to),

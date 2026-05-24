@@ -16,9 +16,10 @@ function V3BoardView({ leads, openId, onOpen, user, ownerFilter, setOwnerFilter 
       <div className="board">
         {BOARD_STAGE_IDS.map(stageId => {
           const stage = STAGE_BY_ID[stageId];
-          const stageLeads = stageId === 'trash'
+          const stageLeads = (stageId === 'trash'
             ? trashLeads
-            : activeLeads.filter(l => l.stage === stageId);
+            : activeLeads.filter(l => l.stage === stageId))
+            .sort((a, b) => V3TimestampForUi(b.lastTouchAt) - V3TimestampForUi(a.lastTouchAt));
           const needsReply = stageId === 'trash' ? [] : stageLeads.filter(l => l.needsReply);
           const waiting    = stageId === 'trash' ? [] : stageLeads.filter(l => !l.needsReply);
 

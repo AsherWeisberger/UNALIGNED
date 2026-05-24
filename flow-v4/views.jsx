@@ -1122,7 +1122,9 @@ function V4InboxView({ leads, user }) {
   ];
 
   const cur = folders.find(f => f.id === folder);
-  const filtered = leads.filter(cur.fn);
+  const filtered = leads
+    .filter(cur.fn)
+    .sort((a, b) => V3TimestampForUi(b.lastTouchAt) - V3TimestampForUi(a.lastTouchAt));
   const isMobile = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
   const openLead = leads.find(l => l.id === selectedId) || (!isMobile && !selectedId ? filtered[0] : null);
   const sections = [...new Set(folders.map(f => f.section))];
