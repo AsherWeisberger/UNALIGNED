@@ -417,6 +417,16 @@ const V4_INVOICE_GROUPS = [
             kind: 'PDF',
           },
           {
+            id: 'invoice-omane-ormannheim-051826',
+            title: 'Omane',
+            company: 'OrMannheim',
+            folder: 'OUTSTANDING / OPEN OUTSTANDING',
+            sourceDir: 'OUTSTANDING',
+            file: 'invoice_Omane_OrMannheim_051826.pdf',
+            href: 'flow-v4/assets/invoices/outstanding/invoice_Omane_OrMannheim_051826.pdf',
+            kind: 'PDF',
+          },
+          {
             id: 'invoice-playos-sintra-tier5-052126',
             title: 'PlayOS',
             company: 'Sintra Tier5',
