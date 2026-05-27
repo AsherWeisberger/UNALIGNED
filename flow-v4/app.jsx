@@ -26,6 +26,7 @@ function V4App() {
     inbox: '',
     leads: '',
     calendar: '',
+    'company-os': '',
   });
   const [toast, setToast] = React.useState(null);
   const toastTimer = React.useRef(null);
@@ -108,6 +109,7 @@ function V4App() {
     if (view === 'invoices') return 'Search invoices…';
     if (view === 'leads') return 'Search network…';
     if (view === 'board') return 'Search pipeline…';
+    if (view === 'company-os') return 'Search Company OS…';
     return 'Search calendar…';
   }, [view]);
 
@@ -183,6 +185,7 @@ function V4App() {
           </button>
           <button className="hd-nav-btn" aria-current={view === 'leads' ? 'page' : undefined} onClick={() => { setView('leads'); }}>Network</button>
           <button className="hd-nav-btn" aria-current={view === 'board' ? 'page' : undefined} onClick={() => { setView('board'); }}>Pipeline</button>
+          <button className="hd-nav-btn" aria-current={view === 'company-os' ? 'page' : undefined} onClick={() => { setView('company-os'); setOpenId(null); }}>Company OS Beta</button>
         </div>
 
         <div className="hd-search">
@@ -280,6 +283,9 @@ function V4App() {
         {view === 'calendar' && (
           <V4CalendarView query={search} />
         )}
+        {view === 'company-os' && (
+          <V4CompanyOsView leads={mergedLeads} query={search} onOpenLead={setOpenId} />
+        )}
       </main>
 
       {/* ─── Footer ─── */}
@@ -318,6 +324,11 @@ function V4App() {
           <V3Icon name="table" w={18} />
           Pipeline
         </button>
+        <button className="ft-tab" aria-current={view === 'company-os' ? 'page' : undefined}
+                onClick={() => { setView('company-os'); setOpenId(null); }}>
+          <V3Icon name="diamond" w={18} />
+          OS
+        </button>
       </footer>
 
       {/* Detail drawer — suppressed in Inbox; the inbox's right pane is its own reader */}
@@ -344,7 +355,7 @@ function V4App() {
                     onChange={v => setTweak('viewAs', v)} />
         <TweakSection label="View" />
         <TweakSelect label="Page" value={view}
-                    options={['today','board','leads','inbox','invoices','calendar']}
+                    options={['today','board','company-os','leads','inbox','invoices','calendar']}
                     onChange={v => { setView(v); setOpenId(null); }} />
         <TweakSection label="Appearance" />
         <TweakRadio label="Theme" value={t.theme}
