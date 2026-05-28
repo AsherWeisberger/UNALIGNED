@@ -165,10 +165,14 @@ function V4CompanyOsView({ leads = [], query = '', onOpenLead }) {
     return leads
       .filter(lead => !lead.isRobertBrief)
       .filter(lead => lead.stage !== 'trash' && lead.stage !== 'dead-leads')
+      // Drop dead-stuck leads — anything frozen 21+ days belongs in the Stuck tab,
+      // not the live money queue. Prevents April ghosts from squatting "Next in line".
+      .filter(lead => (lead.daysInStage || 0) <= 21)
       .filter(lead => V4CompanyOsFilterLead(lead, query))
       .sort((a, b) => {
-        const pa = (a.needsReply ? 100 : 0) + (a.stage === 'invoice-sent' ? 40 : 0) + (a.daysInStage || 0);
-        const pb = (b.needsReply ? 100 : 0) + (b.stage === 'invoice-sent' ? 40 : 0) + (b.daysInStage || 0);
+        // Penalize staleness instead of rewarding it: fresh action wins.
+        const pa = (a.needsReply ? 100 : 0) + (a.stage === 'invoice-sent' ? 40 : 0) - (a.daysInStage || 0);
+        const pb = (b.needsReply ? 100 : 0) + (b.stage === 'invoice-sent' ? 40 : 0) - (b.daysInStage || 0);
         return pb - pa;
       });
   }, [leads, query]);
