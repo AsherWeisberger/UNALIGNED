@@ -78,7 +78,7 @@
 }
 
 /* ─── Company OS Beta ───────────────────────────────────── */
-.company-os-page {
+.page.company-os-page {
   background: var(--bg);
   overflow: auto;
 }
