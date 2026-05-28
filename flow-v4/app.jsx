@@ -142,7 +142,9 @@ function V4App() {
     .filter(l => !l.isRobertBrief)
     .filter(l => window.V3.LeadVisibleToProfile(l, user))
     .filter(l => window.V3.LeadMatchesQuery ? window.V3.LeadMatchesQuery(l, search) : true);
-  const openLead = visibleLeads.find(l => l.id === openId) || null;
+  // Look up against mergedLeads so the packet drawer opens for any lead
+  // (e.g. Company OS shows leads outside the current profile's lane).
+  const openLead = mergedLeads.find(l => l.id === openId) || null;
   const unreadCount = visibleLeads.filter(l => l.unread).length;
 
   // Scope tag matching the Today scope card
