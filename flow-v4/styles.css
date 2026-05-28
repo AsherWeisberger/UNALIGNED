@@ -80,7 +80,10 @@
 /* ─── Company OS Beta ───────────────────────────────────── */
 .page.company-os-page {
   background: var(--bg);
-  overflow: auto;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 .cos-shell {
   display: grid;
