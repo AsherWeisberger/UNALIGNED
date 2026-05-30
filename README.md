@@ -1,5 +1,20 @@
 # UNALIGNED Repo Map
 
+---
+
+## 📊 Campaign Status — May 29, 2026
+
+> Full tracker: [CAMPAIGN_STATUS.md](./CAMPAIGN_STATUS.md)
+
+| Status | Campaigns | Revenue |
+|---|---|---|
+| ✅ Completed & Paid | 9 | $17,855 |
+| 🔴 Outstanding (unpaid) | 1 — Team9 | $995 |
+| 🟡 In Progress | AhaCreator (June 5–9) + Cline/Mayank | $4,890 projected |
+| ❓ Cold | Flick.art | — |
+
+---
+
 This folder has a few generations of the project in it. Here is the simple version.
 
 ## What is live now
