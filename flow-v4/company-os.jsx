@@ -7,106 +7,113 @@
 
 const V4_COMPANY_OS_PREP = [
   {
-    title: 'Kombai QRT via Marketing Guys',
-    tags: ['June 2', '$1,895', 'Robert test'],
+    title: 'AhaCreator PDF / Lumina',
+    tags: ['urgent', 'PDF links', 'resend'],
+    points: [
+      'Lumina said the brief PDF is corrupted and the links are not visible.',
+      'Regenerate Robert_Brief_AhaCreator_3.0.pdf from the HTML source.',
+      'Resend to lumina@arcgrowth.xyz and CC Asher.',
+      'Keep this separate from normal outreach reply cleanup.',
+    ],
+  },
+  {
+    title: 'Marketing Guys / Kombai',
+    tags: ['June 2', '$1,895', 'payment Monday'],
     points: [
       'Launch moved to Tuesday, June 2.',
-      'Rate confirmed: $1,895.',
-      'Payment should happen 24 hours before post goes live.',
-      'Robert needs to test/review kombai.com before QRT.',
-      'Need receipt/payment confirmation before posting.',
+      'Rate confirmed at $1,895 for QRT.',
+      'They expect to settle payment and receipt Monday.',
+      'Reply can confirm Monday works, but Robert posts only after payment clears.',
     ],
   },
   {
-    title: 'AhaCreator 3.0 launch',
-    tags: ['$2,495', 'June 2?', 'date mismatch'],
+    title: 'Read.ai / Sarah',
+    tags: ['schedule', 'three slots'],
     points: [
-      'Paid X narrative thread.',
-      'Budget: $2,495.',
-      'Original window was June 8–10; latest follow-up points toward June 2.',
-      'Resolve date mismatch, invoice, and whether Robert commentary is included or changes rate.',
-    ],
-  },
-  {
-    title: 'NVIDIA Nemotron / NemoClaw briefing',
-    tags: ['May 27 8am PT', 'embargo Jun 4', 'access'],
-    points: [
-      'Briefing: Wednesday, May 27 at 8am PT.',
-      'Embargo: Thursday, June 4 at 6am PT.',
-      'Need NVIDIA NGC login and Google Form completed for model access.',
-      'Do not mention Nemotron 3.5 Nano publicly until NVIDIA clears it.',
-    ],
-  },
-  {
-    title: 'ACL San Diego / Alibaba via Hockey Stick',
-    tags: ['July 5', '$20,000', 'May 27 call'],
-    points: [
-      'Event target: July 5 in San Diego.',
-      'Proposed fee: $20,000, with payment split before/on event.',
-      'Travel add-on being discussed, roughly $1,000.',
-      'Meeting set: Wednesday, May 27, 12:00–12:30pm ET.',
-      'Prep max content pieces, quote/forward posts, travel, video deliverables, approval process.',
-    ],
-  },
-  {
-    title: 'Life Summit / Bloomstack',
-    tags: ['June 11', 'LinkedIn', 'speaker kit'],
-    points: [
-      'Event: June 11.',
-      'Robert needs to accept Damini LinkedIn connection/speaker invite so he appears on speaker list.',
-      'Resource kit exists; they want speaker posts shared and Bloomstack tagged.',
+      'Scheduling slot still needs a human choice.',
+      'Options: Tuesday, June 2 at 9:00 AM PT; Wednesday, June 3 at 12:00 PM PT; Thursday, June 4 at 2:00 PM PT.',
+      'Send the selected slot from Asher once confirmed.',
     ],
   },
   {
     title: 'Riverside / Nadav',
-    tags: ['reschedule', 'draft ready'],
+    tags: ['scheduling', 'warm'],
     points: [
-      'Still needs rescheduling.',
-      'Draft offers Friday, May 29 after 10am PT; Monday, June 1 9–11am PT; Tuesday, June 2 9am–12pm PT; Wednesday, June 3 after 10am PT.',
-      'Send or confirm the reschedule email.',
+      'Jay asked Savion for Monday availability.',
+      'Robert said he is interested.',
+      'Treat this as scheduling follow-up, not a fresh sales pitch.',
     ],
   },
 ];
 
 const V4_COMPANY_OS_WAITING = [
   {
-    title: 'Anything.com / Leo launch amplification',
-    tags: ['rates sent', 'waiting'],
+    title: 'Outreach replies handled',
+    tags: ['14 sent', 'watch only'],
     points: [
-      'Recurring X + LinkedIn launch posts.',
-      'They want Robert rates on file.',
-      'Asher sent the rate PDF; waiting on next step/details.',
+      'Yiki, Zack, Robert Adams, and Joey / CHUU were answered first.',
+      'Ryan, Charlie, Chris, Preethy, Matthew, Dan, Kevin, Eric, Bill, and Mark were answered in the second batch.',
+      'Do not treat old unread state alone as proof that Asher still owes a reply.',
     ],
   },
   {
-    title: 'Goodfire / SoCap',
-    tags: ['postponed'],
-    points: ['Was supposed to be May 26–28, but they postponed it. No prep until new dates.'],
-  },
-  {
-    title: 'Deel / SoCap',
-    tags: ['postponed'],
-    points: ['Was supposed to be June 2, but also postponed. No prep until new dates.'],
-  },
-  {
-    title: 'R3ACH / Declan',
-    tags: ['waiting on them'],
-    points: ['Asher asked for overview/onboarding details. Waiting on them.'],
-  },
-  {
-    title: 'IFM / Hector Liu',
-    tags: ['scheduling', 'not paid yet'],
+    title: 'EezyCollab / LobeHub payment',
+    tags: ['payment next week', 'separate thread'],
     points: [
-      'Dave Reddy asked what date/time works to meet Hector Liu at IFM Lab in Sunnyvale.',
-      'Scheduling needed, but not a paid collab yet.',
+      'They will check with finance Monday.',
+      'They expect payment next week and will send receipt.',
+      'Track this separately from the warm Yiki/Zack outreach conversation.',
+    ],
+  },
+  {
+    title: 'ACL / Alibaba',
+    tags: ['agreement signed', '$20k'],
+    points: [
+      'Annika signed the agreement.',
+      'Sam sent the signed agreement from Unaligned.',
+      'No Asher reply needed right now.',
+    ],
+  },
+  {
+    title: 'CapCut Director Mode',
+    tags: ['warm hold'],
+    points: [
+      'Halley thanked Asher for rate info.',
+      'They will reach out if they move forward.',
+      'Keep visible, but do not chase yet.',
+    ],
+  },
+  {
+    title: 'Do Not Touch',
+    tags: ['Ori', 'Olivia', 'Macy', 'auto-replies'],
+    points: [
+      'Ori: Sam said the email was erroneous; user said not to reply.',
+      'Olivia: previous paid client, but user said not to reply for now.',
+      'Macy / a16z: Robert already jumped in, so wait.',
+      'Dave and Paola are auto-replies.',
+    ],
+  },
+  {
+    title: 'NVIDIA Nemotron',
+    tags: ['review later', 'not outreach cleanup'],
+    points: [
+      'Mark Cai checked in on Drive and endpoint access.',
+      'Useful later, but not part of the current Asher reply cleanup.',
     ],
   },
 ];
 
 const V4_COMPANY_OS_SENDERS = [
-  { id: 'asher', label: 'Asher', role: 'Client replies' },
-  { id: 'robert', label: 'Robert', role: 'Intake + execute' },
+  { id: 'asher', label: 'Asher', role: 'Relationship-aware replies' },
+  { id: 'robert', label: 'Robert', role: 'Intro + execution' },
   { id: 'sam', label: 'Sammy', role: 'Oversight' },
+];
+
+const V4_COMPANY_OS_RULES = [
+  'Relationship-aware replies only. No first-touch language when there is history.',
+  'Robert introduces and executes; Asher gathers facts, payment, and timing.',
+  'Do not use Gmail thread state alone as truth after a mass blast.',
+  'No post goes live until payment status is visible.',
 ];
 
 const V4_COMPANY_OS_STAGES = [
@@ -475,13 +482,13 @@ function V4CompanyOsView({ leads = [], query = '', onOpenLead }) {
         <div className="cos-brief-head">
           <div>
             <div className="cos-section-eyebrow-row">
-              <span className="cos-eyebrow">Daily Operating Brief</span>
+              <span className="cos-eyebrow">Asher Inbox Command Center</span>
               <span className="cos-section-date">{todayLabel}</span>
             </div>
-            <h2 className="cos-section-title">What matters right now</h2>
+            <h2 className="cos-section-title">What needs action, what is waiting, and what must not be touched</h2>
           </div>
           <p className="cos-section-sub">
-            Prep work, payment gates, and waiting items before opening any thread.
+            Built from the latest Asher/Robert outreach cleanup so old threads do not get answered like first-touch leads.
           </p>
         </div>
 
@@ -504,6 +511,16 @@ function V4CompanyOsView({ leads = [], query = '', onOpenLead }) {
             <div className="cos-panel-body">
               {watchItems.map(item => <V4CompanyOsWatchItem key={item.title} item={item} />)}
             </div>
+          </section>
+
+          <section className="cos-panel cos-rules">
+            <div className="cos-panel-head">
+              <h3>Operating Rules</h3>
+              <span className="cos-panel-count">{V4_COMPANY_OS_RULES.length}</span>
+            </div>
+            <ul>
+              {V4_COMPANY_OS_RULES.map(rule => <li key={rule}>{rule}</li>)}
+            </ul>
           </section>
         </div>
       </section>
