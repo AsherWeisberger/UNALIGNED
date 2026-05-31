@@ -7,62 +7,75 @@
 
 const V4_COMPANY_OS_PREP = [
   {
-    title: 'AhaCreator PDF / Lumina',
-    tags: ['urgent', 'PDF links', 'resend'],
+    title: 'Kombai / Marketing Guys',
+    tags: ['P0', 'June 2 11am ET', '$1,895'],
     points: [
-      'Lumina said the brief PDF is corrupted and the links are not visible.',
-      'Regenerate Robert_Brief_AhaCreator_3.0.pdf from the HTML source.',
-      'Resend to lumina@arcgrowth.xyz and CC Asher.',
-      'Keep this separate from normal outreach reply cleanup.',
+      'Asher is the operator on this thread.',
+      'Post is confirmed for Tuesday, June 2 at 11am ET.',
+      'Review the attached "For Robert.docx" quote guidance before Robert posts.',
+      'Use billing info from Ethan/Himoun10 Entertainment LLC to create invoice or payment link.',
+      'Do not let the QRT go live until payment or written payment confirmation is visible.',
     ],
   },
   {
-    title: 'Marketing Guys / Kombai',
-    tags: ['June 2', '$1,895', 'payment Monday'],
+    title: 'Datapoint / Akshat',
+    tags: ['P0', 'retweet', '$1,195'],
     points: [
-      'Launch moved to Tuesday, June 2.',
-      'Rate confirmed at $1,895 for QRT.',
-      'They expect to settle payment and receipt Monday.',
-      'Reply can confirm Monday works, but Robert posts only after payment clears.',
+      'Client asked for Robert to retweet launch post quickly.',
+      'Asher already pushed back: invoice/payment first, then Robert can be directed.',
+      'Need invoice/payment confirmation and the exact tweet/link before any action.',
+      'Keep Robert out of execution until the paid brief is clear.',
     ],
   },
   {
-    title: 'Read.ai / Sarah',
-    tags: ['schedule', 'three slots'],
+    title: 'Riverside / Savion + Jay',
+    tags: ['P0', 'reschedule', 'save deal'],
     points: [
-      'Scheduling slot still needs a human choice.',
-      'Options: Tuesday, June 2 at 9:00 AM PT; Wednesday, June 3 at 12:00 PM PT; Thursday, June 4 at 2:00 PM PT.',
-      'Send the selected slot from Asher once confirmed.',
+      'Riverside tried to terminate, but latest thread is back to completing the interview.',
+      'Robert replied that he is still interested and open to Jonathan/another leadership rep.',
+      'Watch for confirmed dates from Savion/Jay by end of week.',
+      'When dates land, turn it into one clean prep path for Robert.',
     ],
   },
   {
-    title: 'Riverside / Nadav',
-    tags: ['scheduling', 'warm'],
+    title: 'R3ACH / Declan',
+    tags: ['onboarding', 'Telegram', 'watch'],
     points: [
-      'Jay asked Savion for Monday availability.',
-      'Robert said he is interested.',
-      'Treat this as scheduling follow-up, not a fresh sales pitch.',
+      'Asher completed the onboarding and contract forms.',
+      'Declan created the Telegram group for deal flow.',
+      'Next action: join/monitor the Telegram channel and wait for actual deal offers.',
+      'Do not treat this as an email reply task unless Declan asks for missing info.',
+    ],
+  },
+  {
+    title: 'Lexie Ma',
+    tags: ['new collab', 'discovery'],
+    points: [
+      'Robert introduced Asher and Sam for a possible collaboration.',
+      'Asher replied asking for current work, upcoming launches, campaigns, and audience fit.',
+      'Next action is waiting for Lexie context; if she replies, convert it into scope, budget, timing, and deliverables.',
+      'No Robert action yet.',
     ],
   },
 ];
 
 const V4_COMPANY_OS_WAITING = [
   {
-    title: 'Outreach replies handled',
-    tags: ['14 sent', 'watch only'],
+    title: 'AhaCreator PDF / Lumina',
+    tags: ['asset issue', 'verify'],
     points: [
-      'Yiki, Zack, Robert Adams, and Joey / CHUU were answered first.',
-      'Ryan, Charlie, Chris, Preethy, Matthew, Dan, Kevin, Eric, Bill, and Mark were answered in the second batch.',
-      'Do not treat old unread state alone as proof that Asher still owes a reply.',
+      'Previous OS note said Lumina reported corrupted brief PDF and hidden links.',
+      'Keep visible until the regenerated Robert brief is confirmed sent.',
+      'Do not mix this with normal lead reply cleanup.',
     ],
   },
   {
     title: 'EezyCollab / LobeHub payment',
-    tags: ['payment next week', 'separate thread'],
+    tags: ['payment', 'separate thread'],
     points: [
-      'They will check with finance Monday.',
-      'They expect payment next week and will send receipt.',
-      'Track this separately from the warm Yiki/Zack outreach conversation.',
+      'Track payment/receipt separately from warm outreach threads.',
+      'No posting or completion state until receipt/payment confirmation is visible.',
+      'If finance has not responded, this becomes a payment chase.',
     ],
   },
   {
@@ -110,10 +123,11 @@ const V4_COMPANY_OS_SENDERS = [
 ];
 
 const V4_COMPANY_OS_RULES = [
-  'Relationship-aware replies only. No first-touch language when there is history.',
-  'Robert introduces and executes; Asher gathers facts, payment, and timing.',
-  'Do not use Gmail thread state alone as truth after a mass blast.',
-  'No post goes live until payment status is visible.',
+  'Asher is the default operator for replies. Sammy is oversight. Robert only introduces or executes.',
+  'No paid post, QRT, retweet, or launch action happens before payment/receipt is visible.',
+  'Every active deal needs four facts before Robert sees it: scope, timing, deliverable, payment path.',
+  'Unread Gmail state is not enough. Check whether Asher already answered before creating a task.',
+  'Robert should receive a 60-second brief only when the deal is ready for execution.',
 ];
 
 const V4_COMPANY_OS_STAGES = [
