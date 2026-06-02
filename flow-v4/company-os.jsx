@@ -8,13 +8,14 @@
 const V4_COMPANY_OS_PREP = [
   {
     title: 'Kombai / Marketing Guys',
-    tags: ['P0', 'June 2 11am ET', '$1,895'],
+    tags: ['P0', 'wire pending', 'June 2 11am ET'],
     points: [
       'Asher is the operator on this thread.',
-      'Post is confirmed for Tuesday, June 2 at 11am ET.',
-      'Review the attached "For Robert.docx" quote guidance before Robert posts.',
-      'Use billing info from Ethan/Himoun10 Entertainment LLC to create invoice or payment link.',
-      'Do not let the QRT go live until payment or written payment confirmation is visible.',
+      'Invoice was sent: invoice_MarketingGuys_Kombai_QRT_060126.pdf.',
+      'Marketing Guys sent Wire Pending - Robert.pdf showing the transfer was initiated.',
+      'Post is confirmed for Tuesday, June 2 at 11am ET; they owe the final post/link when live.',
+      'Robert should QRT within 30 minutes only after the post link and payment proof are visible.',
+      'Prep Robert with the attached For Robert.docx guidance and keep the QRT natural.',
     ],
   },
   {
