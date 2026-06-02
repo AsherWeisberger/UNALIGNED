@@ -7,18 +7,6 @@
 
 const V4_COMPANY_OS_PREP = [
   {
-    title: 'Kombai / Marketing Guys',
-    tags: ['P0', 'wire pending', 'June 2 11am ET'],
-    points: [
-      'Asher is the operator on this thread.',
-      'Invoice was sent: invoice_MarketingGuys_Kombai_QRT_060126.pdf.',
-      'Marketing Guys sent Wire Pending - Robert.pdf showing the transfer was initiated.',
-      'Post is confirmed for Tuesday, June 2 at 11am ET; they owe the final post/link when live.',
-      'Robert should QRT within 30 minutes only after the post link and payment proof are visible.',
-      'Prep Robert with the attached For Robert.docx guidance and keep the QRT natural.',
-    ],
-  },
-  {
     title: 'Datapoint / Akshat',
     tags: ['P0', 'retweet', '$1,195'],
     points: [
@@ -71,7 +59,7 @@ const V4_COMPANY_OS_WAITING = [
     ],
   },
   {
-    title: 'EezyCollab / LobeHub payment',
+    title: 'EezyCollab / Team9 payment',
     tags: ['payment', 'separate thread'],
     points: [
       'Track payment/receipt separately from warm outreach threads.',
@@ -113,6 +101,91 @@ const V4_COMPANY_OS_WAITING = [
     points: [
       'Mark Cai checked in on Drive and endpoint access.',
       'Useful later, but not part of the current Asher reply cleanup.',
+    ],
+  },
+];
+
+const V4_COMPANY_OS_DONE = [
+  {
+    title: 'Marketing Guys / Kombai QRT',
+    tags: ['completed today', 'wire pending', '$1,895'],
+    points: [
+      'Campaign execution is marked complete from today.',
+      'Invoice sent: invoice_MarketingGuys_Kombai_QRT_060126.pdf.',
+      'Marketing Guys sent Wire Pending - Robert.pdf; keep payment visible until deposit clears.',
+      'Archive after the wire lands and the final link/proof is stored.',
+    ],
+  },
+  {
+    title: 'Vivi / EezyCollab',
+    tags: ['done invoice', 'archived'],
+    points: [
+      'Invoice is in DONE: invoice_Vivi_EezyCollab_051426.pdf.',
+      'Treat as completed unless a new reply creates fresh work.',
+    ],
+  },
+  {
+    title: 'PlayOS / Sintra Tier5',
+    tags: ['done invoice', 'archived'],
+    points: [
+      'Invoice is in DONE: invoice_PlayOS_Sintra_Tier5_052126.pdf.',
+      'No active Asher action unless client reopens scope.',
+    ],
+  },
+  {
+    title: 'Polsia Tier3',
+    tags: ['done invoice', 'archived'],
+    points: [
+      'Invoice is in DONE: invoice_Polsia_Tier3_052126.pdf.',
+      'Closed from the active operating queue.',
+    ],
+  },
+  {
+    title: 'Hockey Stick / VOXCPM2',
+    tags: ['done invoice', 'archived'],
+    points: [
+      'Invoice is in DONE: invoice_HockeyStick_VOXCPM2_051526.pdf.',
+      'Separate from the ACL/Alibaba event, which is signed but still upcoming.',
+    ],
+  },
+  {
+    title: 'Omane / OrMannheim',
+    tags: ['done invoice', 'archived'],
+    points: [
+      'Invoice is in DONE: invoice_Omane_OrMannheim_051826.pdf.',
+      'No current follow-up in the action queue.',
+    ],
+  },
+  {
+    title: 'PolyAI',
+    tags: ['done invoice', 'archived'],
+    points: [
+      'Invoice is in DONE: invoice_PolyAI_04232026.html.',
+      'Archived as complete.',
+    ],
+  },
+  {
+    title: 'LobeHub',
+    tags: ['done invoice', 'archived'],
+    points: [
+      'Invoice is in DONE: invoice_LobeHub_051626.pdf.',
+      'Do not keep this in payment chase unless a new finance reply contradicts it.',
+    ],
+  },
+  {
+    title: 'Jay / LangChainAI',
+    tags: ['done invoice', 'archived'],
+    points: [
+      'Invoice is in DONE: invoice_Jay_LangChainAI_051326.pdf.',
+      'Closed from the active queue.',
+    ],
+  },
+  {
+    title: 'STAV',
+    tags: ['done invoice', 'archived'],
+    points: [
+      'Invoice is in DONE: STAV INVOICE.pdf.',
+      'Closed from active campaign work.',
     ],
   },
 ];
@@ -276,6 +349,24 @@ function V4CompanyOsWatchItem({ item }) {
           {item.tags.map(t => <span key={t} className="cos-chip cos-chip-soft">{t}</span>)}
         </div>
       )}
+      <ul className="cos-action-points">
+        {item.points.map(p => <li key={p}>{p}</li>)}
+      </ul>
+    </article>
+  );
+}
+
+function V4CompanyOsDoneItem({ item }) {
+  return (
+    <article className="cos-done-item">
+      <div className="cos-done-head">
+        <h3 className="cos-done-title">{item.title}</h3>
+        {item.tags && (
+          <div className="cos-chips cos-chips-soft">
+            {item.tags.map(t => <span key={t} className="cos-chip cos-chip-soft">{t}</span>)}
+          </div>
+        )}
+      </div>
       <ul className="cos-action-points">
         {item.points.map(p => <li key={p}>{p}</li>)}
       </ul>
@@ -461,6 +552,7 @@ function V4CompanyOsView({ leads = [], query = '', onOpenLead }) {
 
   const topPrep = V4_COMPANY_OS_PREP;
   const watchItems = V4_COMPANY_OS_WAITING;
+  const doneItems = V4_COMPANY_OS_DONE;
 
   const dealCardTags = activeLead ? [
     V4CompanyOsPhase(activeLead),
@@ -536,6 +628,16 @@ function V4CompanyOsView({ leads = [], query = '', onOpenLead }) {
             <ul>
               {V4_COMPANY_OS_RULES.map(rule => <li key={rule}>{rule}</li>)}
             </ul>
+          </section>
+
+          <section className="cos-panel cos-panel-done">
+            <div className="cos-panel-head">
+              <h3>Completed Campaigns</h3>
+              <span className="cos-panel-count">{doneItems.length}</span>
+            </div>
+            <div className="cos-done-grid">
+              {doneItems.map(item => <V4CompanyOsDoneItem key={item.title} item={item} />)}
+            </div>
           </section>
         </div>
       </section>

@@ -3723,6 +3723,45 @@ body[data-theme="dark"] .twk-panel {
   margin: 0; color: var(--text); line-height: 1.25;
 }
 
+/* ── Done campaign ledger ───────────────────────────────── */
+.cos-panel-done {
+  grid-column: 1 / -1;
+}
+.cos-done-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+}
+.cos-done-item {
+  display: grid;
+  grid-template-columns: minmax(180px, 36%) 1fr;
+  gap: 14px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--line-soft);
+  min-width: 0;
+}
+.cos-done-item:nth-child(odd) {
+  border-right: 1px solid var(--line-soft);
+}
+.cos-done-item:nth-last-child(-n + 2) {
+  border-bottom: 0;
+}
+.cos-done-head {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+.cos-done-title {
+  margin: 0;
+  color: var(--text);
+  font: 600 13px/1.25 var(--font-body);
+  letter-spacing: 0;
+}
+.cos-panel-done .cos-action-points li::before {
+  background: var(--good);
+}
+
 /* ── Deal Machine head ──────────────────────────────────── */
 .cos-machine-head {
   display: flex; align-items: center; justify-content: space-between;
@@ -4083,5 +4122,8 @@ body[data-theme="dark"] .twk-panel {
   .cos-topbar { margin: 0 -14px 14px; padding-left: 14px; padding-right: 14px; }
   .cos-deal-info-grid { grid-template-columns: 1fr; }
   .cos-deal-path { grid-template-columns: repeat(2, 1fr); }
+  .cos-done-grid { grid-template-columns: 1fr; }
+  .cos-done-item { grid-template-columns: 1fr; }
+  .cos-done-item:nth-child(odd) { border-right: 0; }
+  .cos-done-item:nth-last-child(2) { border-bottom: 1px solid var(--line-soft); }
 }
-
