@@ -7,100 +7,86 @@
 
 const V4_COMPANY_OS_PREP = [
   {
-    title: 'Datapoint / Akshat',
-    tags: ['P0', 'retweet', '$1,195'],
+    title: 'ACL / Hockey Stick',
+    tags: ['P0', 'budget hold', '$20k signed'],
     points: [
-      'Client asked for Robert to retweet launch post quickly.',
-      'Asher already pushed back: invoice/payment first, then Robert can be directed.',
-      'Need invoice/payment confirmation and the exact tweet/link before any action.',
-      'Keep Robert out of execution until the paid brief is clear.',
+      'Agreement is signed, but on June 3 Chang said budget approval is still not final after Robert already bought the $1,200 ticket.',
+      'Asher already pushed back and Sam escalated; next move is client-side approval confirmation or written commitment to reimburse the ticket.',
+      'Do not prep Robert for more travel, hotel, or spend until Annika/Chang confirm budget in writing.',
+      'If approval lands, convert it immediately into one travel/payment brief.',
     ],
   },
   {
-    title: 'Riverside / Savion + Jay',
-    tags: ['P0', 'reschedule', 'save deal'],
+    title: 'FloatSchedule / Judy Gao',
+    tags: ['P0', 'Robert testing', 'brief soon'],
     points: [
-      'Riverside tried to terminate, but latest thread is back to completing the interview.',
-      'Robert replied that he is still interested and open to Jonathan/another leadership rep.',
-      'Watch for confirmed dates from Savion/Jay by end of week.',
-      'When dates land, turn it into one clean prep path for Robert.',
+      'Judy wants X, LinkedIn, and newsletter support after Robert tries FloatSchedule firsthand.',
+      'Robert asked what to focus on; Asher already pointed him at the FloatSchedule experience.',
+      'Need Robert reaction plus Judy\'s timing, goals, assets, and deliverables before booking the strategy call.',
+      'Once those land, make a 60-second Robert brief around product experience, timing, and scope.',
     ],
   },
   {
-    title: 'R3ACH / Declan',
-    tags: ['onboarding', 'Telegram', 'watch'],
+    title: 'The Between / Stanley + Tristian',
+    tags: ['schedule', 'next week', 'discovery'],
     points: [
-      'Asher completed the onboarding and contract forms.',
-      'Declan created the Telegram group for deal flow.',
-      'Next action: join/monitor the Telegram channel and wait for actual deal offers.',
-      'Do not treat this as an email reply task unless Declan asks for missing info.',
+      'Robert offered Friday after 10 a.m., but Stanley asked to move to next week because Tristian is in transit and they are still in formation.',
+      'Asher owns the follow-up once next-week windows arrive.',
+      'Keep Robert out of ad hoc scheduling until a specific slot is confirmed.',
+      'Prep should stay at the market/problem/founder angle, not a sponsorship brief.',
     ],
   },
   {
-    title: 'Lexie Ma',
-    tags: ['new collab', 'discovery'],
+    title: 'AgentNet / Tejas',
+    tags: ['new lead', 'reply soon', 'discovery'],
     points: [
-      'Robert introduced Asher and Sam for a possible collaboration.',
-      'Asher replied asking for current work, upcoming launches, campaigns, and audience fit.',
-      'Next action is waiting for Lexie context; if she replies, convert it into scope, budget, timing, and deliverables.',
-      'No Robert action yet.',
+      'Robert intro landed June 3; Asher asked for scope, goals, platforms, timing, and deliverables.',
+      'Tejas replied with product context and asked for WhatsApp or a quick call.',
+      'Next Asher move is to keep this in structured email or set a scoped discovery call only if campaign intent and budget become explicit.',
+      'No Robert brief until there is a real campaign or partnership shape.',
     ],
   },
 ];
 
 const V4_COMPANY_OS_WAITING = [
   {
-    title: 'AhaCreator PDF / Lumina',
-    tags: ['asset issue', 'verify'],
+    title: 'Marketing Guys / Kombai',
+    tags: ['payment watch', 'QRT live', '$1,895'],
     points: [
-      'Previous OS note said Lumina reported corrupted brief PDF and hidden links.',
-      'Keep visible until the regenerated Robert brief is confirmed sent.',
-      'Do not mix this with normal lead reply cleanup.',
+      'Wire screenshot was sent June 1, invoice was sent, and the live post landed June 2.',
+      'Robert corrected from comment to QRT; final link is https://x.com/Scobleizer/status/2061829182154588383?s=20.',
+      'Treat execution as done, but keep it visible until the wire actually clears or deposit proof is confirmed.',
+      'Archive after payment lands and the final link is stored.',
     ],
   },
   {
-    title: 'EezyCollab / Team9 payment',
-    tags: ['payment', 'separate thread'],
+    title: 'Riverside / Savion',
+    tags: ['watch', 'dates pending', 'reshoot'],
     points: [
-      'Track payment/receipt separately from warm outreach threads.',
-      'No posting or completion state until receipt/payment confirmation is visible.',
-      'If finance has not responded, this becomes a payment chase.',
+      'Termination was reversed; Savion now says they still want to record with Jonathan or another executive.',
+      'Jay asked for a confirmed date by end of week.',
+      'Waiting on Riverside availability; no Robert prep until a date and spokesperson are locked.',
+      'If dates arrive, make one clean prep path and studio check.',
     ],
   },
   {
-    title: 'ACL / Alibaba',
-    tags: ['agreement signed', '$20k'],
+    title: 'R3ACH / Declan',
+    tags: ['Telegram', 'watch', 'boundary'],
     points: [
-      'Annika signed the agreement.',
-      'Sam sent the signed agreement from Unaligned.',
-      'No Asher reply needed right now.',
+      'Onboarding forms are done and the Telegram group is live.',
+      'Robert added a hard boundary: no crypto promotion; AI/blockchain infrastructure is acceptable.',
+      'Wait for actual deal offers before doing more email work here.',
+      'Any future brief needs to state whether the opportunity is crypto-adjacent.',
     ],
   },
   {
-    title: 'CapCut Director Mode',
-    tags: ['warm hold'],
+    title: 'Low-Touch Watchlist',
+    tags: ['Jessie', 'AK', 'Omane'],
     points: [
-      'Halley thanked Asher for rate info.',
-      'They will reach out if they move forward.',
-      'Keep visible, but do not chase yet.',
-    ],
-  },
-  {
-    title: 'Do Not Touch',
-    tags: ['Ori', 'Olivia', 'Macy', 'auto-replies'],
-    points: [
-      'Ori: Sam said the email was erroneous; user said not to reply.',
-      'Olivia: previous paid client, but user said not to reply for now.',
-      'Macy / a16z: Robert already jumped in, so wait.',
-      'Dave and Paola are auto-replies.',
-    ],
-  },
-  {
-    title: 'NVIDIA Nemotron',
-    tags: ['review later', 'not outreach cleanup'],
-    points: [
-      'Mark Cai checked in on Drive and endpoint access.',
-      'Useful later, but not part of the current Asher reply cleanup.',
+      'Jessie at Pika said they will reach back out when ready.',
+      'AK/Acti and Omane have rates/package info but no new reply yet.',
+      'Do not manufacture follow-up tasks from unread state alone.',
+      'Leave these in watch mode until a concrete ask, date, or budget appears.',
     ],
   },
 ];
@@ -108,9 +94,9 @@ const V4_COMPANY_OS_WAITING = [
 const V4_COMPANY_OS_DONE = [
   {
     title: 'Marketing Guys / Kombai QRT',
-    tags: ['completed today', 'wire pending', '$1,895'],
+    tags: ['June 2 live', 'wire pending', '$1,895'],
     points: [
-      'Campaign execution is marked complete from today.',
+      'Campaign execution is complete and Robert posted the final QRT on June 2.',
       'Invoice sent: invoice_MarketingGuys_Kombai_QRT_060126.pdf.',
       'Marketing Guys sent Wire Pending - Robert.pdf; keep payment visible until deposit clears.',
       'Archive after the wire lands and the final link/proof is stored.',
@@ -197,11 +183,12 @@ const V4_COMPANY_OS_SENDERS = [
 ];
 
 const V4_COMPANY_OS_RULES = [
-  'Asher is the default operator for replies. Sammy is oversight. Robert only introduces or executes.',
-  'No paid post, QRT, retweet, or launch action happens before payment/receipt is visible.',
-  'Every active deal needs four facts before Robert sees it: scope, timing, deliverable, payment path.',
-  'Unread Gmail state is not enough. Check whether Asher already answered before creating a task.',
-  'Robert should receive a 60-second brief only when the deal is ready for execution.',
+  'Asher runs replies and scheduling. Sammy escalates. Robert only steps in for intro, testing, or final execution.',
+  'No paid post, QRT, travel, or spend happens before payment, receipt, or written budget approval is visible.',
+  'Every Robert brief needs scope, timing, deliverable, payment path, and why it fits Robert now.',
+  'Robert will not promote crypto. AI and blockchain infrastructure may be acceptable, but pure token/coin promotion is out.',
+  'Unread is not the same as needs reply. Confirm thread state before creating work.',
+  'Keep Robert on 60-second briefs only when a deal is execution-ready or a product test is the clear next step.',
 ];
 
 const V4_COMPANY_OS_STAGES = [
