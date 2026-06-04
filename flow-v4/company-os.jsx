@@ -10,10 +10,10 @@ const V4_COMPANY_OS_PREP = [
     title: 'Airtap / Flot.AI',
     tags: ['P0', 'June 9 live', 'final approved'],
     points: [
-      'Zoe sent the final approved version on June 3 and asked for the first post to go live on June 9 U.S. time, with the second post 24 hours later.',
-      'Asher owns the calendar lock, final timing confirmation, and collecting the live link as soon as post one is up.',
-      'Keep this in execution mode until both post links are captured and the package status is clear.',
-      'Do not let this drift because the brand is now waiting on publishing, not copy.',
+      'Zoe sent the final approved version on June 4 and wants post one live on Monday, June 9 U.S. time, with post two 24 hours later.',
+      'Asher now owes the exact posting time, Robert calendar lock, and both final live links as soon as each post is up.',
+      'The copy fight is over; this is pure execution and link capture.',
+      'Do not let this slip because the sponsor is waiting on publishing, not revisions.',
     ],
   },
   {
@@ -21,39 +21,39 @@ const V4_COMPANY_OS_PREP = [
     tags: ['P0', 'budget hold', '$20k signed'],
     points: [
       'Agreement is signed, but on June 3 Annika said Alibaba still needs to reconfirm budget after Robert already bought the $1,200 ticket.',
-      'Sam already stated they need to cover the ticket expense; next move is written approval or explicit reimbursement confirmation.',
-      'Do not prep Robert for hotel, flights, or extra spend until Annika/Chang confirm budget in writing.',
-      'If approval lands, collapse the whole thing into one clean travel/payment brief immediately.',
+      'Sam already put reimbursement on the record; the only acceptable next move is written approval or explicit repayment confirmation.',
+      'Do not prep Robert for hotel, flights, or any other spend until Annika or Chang confirm budget in writing.',
+      'If approval lands, collapse this into one tight travel, payment, and reimbursement brief immediately.',
     ],
   },
   {
     title: 'Tripo / Vivian Deng',
-    tags: ['P0', 'CVPR window', 'credits + X scope'],
+    tags: ['P0', 'CVPR week', 'interview + X scope'],
     points: [
-      'Vivian wants an interview with Dr. Yanpei Cao during CVPR week plus an X collaboration around Project Eden.',
-      'Robert already said yes to the interview and asked for times; Asher still owes the X format/rate details and the Tripo usernames for credits.',
-      'This needs one short Asher-side execution brief: interview timing, X deliverable shape, and testing access.',
-      'Do not bury the credit handoff because Robert testing is part of what makes the collaboration real.',
+      'Vivian wants a CVPR-week interview with Dr. Yanpei Cao plus an X collaboration around Project Eden.',
+      'Vivian replied on June 4 asking for time slots that work for Robert and for the X package and rates; the Tripo usernames have already been passed over.',
+      'Asher now owes concrete interview windows, package pricing, and one simple recommendation on whether this should be a single post, quote post, or thread.',
+      'Keep Robert testing tied to the brief so the eventual post reads like real product context, not borrowed launch copy.',
     ],
   },
   {
     title: 'Perceptron / Eric Pence',
     tags: ['P0', 'launch June', 'task-driven'],
     points: [
-      'Eric wants launch support for a new perception/control model in the third or fourth week of June.',
-      'Robert and Asher both pushed toward a real task/demo, not canned marketing; waiting on 2-3 candidate demos plus call confirmation.',
-      'If Friday June 5 at 10:30 a.m. PT or Monday June 8 works, convert that into one 60-second Robert brief with task angle, scope, and timing.',
-      'Keep the crypto boundary explicit in any brief even though this looks like a clean AI fit.',
+      'Eric wants launch support for a new perception plus control model in the third or fourth week of June and shared embargoed positioning on June 3.',
+      'He specifically wants a real-task QRT, not canned marketing, with newsletter optional if the fit is strong.',
+      'Asher now needs to answer with the recommended structure and push for 2 to 3 candidate demo tasks Robert can react to personally.',
+      'Do not turn this into a Robert brief until the task, launch window, and deliverable shape are all explicit.',
     ],
   },
   {
-    title: 'FloatSchedule / Judy Gao',
-    tags: ['Robert testing', 'brief soon', 'multi-channel'],
+    title: 'Chris + Michael Call',
+    tags: ['P1', 'Friday June 5', '12 p.m. ET'],
     points: [
-      'Robert is actively trying FloatSchedule and asked what to focus on; Asher already pointed him at the core calendar-agent workflow.',
-      'Judy wants X, LinkedIn, and newsletter support once Robert has firsthand reaction.',
-      'Need Robert reaction plus Judy\'s launch timing, assets, goals, and deliverables before any strategy call gets booked.',
-      'Once those land, the Robert brief should stay about product experience and campaign shape, not abstract AI-calendar talk.',
+      'Chris Niederman confirmed the Friday call and accepted the 12 p.m. ET invite from Michael, declining the duplicate 1 p.m. ET invite.',
+      'Asher owns keeping the scheduling clean and making sure Sam is aligned on the exact call time.',
+      'This is a discovery call, not a Robert brief yet, so do not over-prep beyond goals, timing, and what outcome they want.',
+      'After the call, promote it only if there is a concrete collaboration shape with budget, platform, and next step.',
     ],
   },
 ];
@@ -64,6 +64,7 @@ const V4_COMPANY_OS_WAITING = [
     tags: ['watch', 'dates pending', 'exec fallback'],
     points: [
       'Savion reversed the termination path and now says Nadav is in, aiming roughly two weeks out, with alternates if timing slips.',
+      'Savion replied again on June 4 that exact dates are still coming.',
       'Waiting on exact dates from Riverside; no further Robert prep until a spokesperson and slot are locked.',
       'If dates arrive, move it back to action with one prep path only.',
     ],
@@ -73,9 +74,20 @@ const V4_COMPANY_OS_WAITING = [
     tags: ['payment watch', 'QRT live', '$1,895'],
     points: [
       'Robert fixed the deliverable and the final QRT link is live: https://x.com/Scobleizer/status/2061829182154588383?s=20.',
-      'Marketing Guys closed the thread warmly, but the board should keep this visible until the wire actually clears or deposit proof is confirmed.',
+      'Marketing Guys sent wire-in-motion proof on June 1 and closed the thread warmly on June 3, but there is still no confirmed deposit.',
+      'Keep this visible until the wire actually clears or bank-side payment proof is confirmed.',
       'Invoice is already in outstanding; archive only after payment lands and the final link stays captured.',
       'No more creative work is needed here unless payment goes sideways.',
+    ],
+  },
+  {
+    title: 'FloatSchedule / Judy Gao',
+    tags: ['Robert testing', 'multi-channel', 'wait for reaction'],
+    points: [
+      'Robert is actively trying FloatSchedule and Asher already pointed him toward the core calendar-agent workflow.',
+      'Judy wants X, LinkedIn, and newsletter support once Robert has firsthand reaction plus launch timing and campaign goals.',
+      'Do not book strategy time until Robert reaction, deliverables, and timing are all back in-thread.',
+      'When it comes back, keep the brief about product experience and campaign shape, not abstract AI-calendar chatter.',
     ],
   },
   {
@@ -83,29 +95,29 @@ const V4_COMPANY_OS_WAITING = [
     tags: ['next week', 'formation mode', 'schedule wait'],
     points: [
       'Stanley asked to push the conversation to next week while Tristian gets settled and they stay partly under wraps.',
-      'Asher owns the follow-up once concrete windows arrive.',
+      'Robert drafted the handoff, but this is still waiting on clean windows and a more concrete conversation target.',
       'Do not interrupt Robert with speculative scheduling until there is a specific slot to confirm.',
-      'This stays founder/discovery oriented, not a sponsorship pitch.',
+      'This stays founder and discovery oriented, not a sponsorship pitch.',
     ],
   },
   {
     title: 'AgentNet / Tejas',
     tags: ['new lead', 'watch', 'keep in email'],
     points: [
-      'Tejas replied fast with product context and offered WhatsApp or a quick call.',
+      'Tejas replied fast with product context and offered WhatsApp or a quick call, but there is still no concrete campaign, budget, or deliverable ask.',
       'Keep the conversation in structured email until campaign intent, deliverable, or budget is explicit.',
       'No Robert brief yet because there is still no concrete collaboration shape.',
       'If he comes back with scope or budget, promote it to action immediately.',
     ],
   },
   {
-    title: 'Low-Touch Watchlist',
-    tags: ['Jessie', 'AK', 'Omane'],
+    title: 'Low-Touch Finance Watch',
+    tags: ['Sintra', 'Omane', 'AK'],
     points: [
-      'Jessie at Pika said they will reach back out when ready.',
-      'AK/Acti and Omane have package info or invoice state but no new action-driving reply yet.',
+      'Sintra sent a payment receipt, Omane was asked again for proof of payment, and AK or Acti still has no new action-driving reply.',
+      'Keep these visible only for receipt, deposit, or invoice-state changes.',
       'Unread is not a task by itself.',
-      'Leave these in watch mode until a concrete ask, date, payment event, or budget appears.',
+      'Leave these in watch mode until a concrete ask, payment event, or deadline appears.',
     ],
   },
 ];
@@ -202,11 +214,13 @@ const V4_COMPANY_OS_SENDERS = [
 ];
 
 const V4_COMPANY_OS_RULES = [
-  'Asher owns replies, scheduling, payment-proof capture, invoice links, and final post links. Sammy escalates. Robert handles intro, testing, interview, or final execution only.',
-  'No paid post, QRT, travel, ticket, hotel, or other spend happens before payment proof, receipt, or written budget approval is visible in-thread.',
-  'Every Robert brief must fit inside 60 seconds and include scope, timing, deliverable, payment path, approval path, and why Robert is the right fit now.',
+  'Asher owns replies, scheduling, payment-proof capture, invoice links, package sends, and final post links. Sammy escalates. Robert handles intro, testing, interviews, or final execution only.',
+  'No paid post, QRT, travel, ticket, hotel, or other spend happens before payment proof, receipt, reimbursement confirmation, or written budget approval is visible in-thread.',
+  'A wire screenshot is not settled money. Kombai and similar deals stay on the board until deposit confirmation lands.',
+  'Every Robert brief must fit inside 60 seconds and include scope, timing, deliverable, approval path, payment path, and why Robert is the right fit now.',
+  'Do not create a Robert brief for founder intros or discovery calls until scope, budget, platform, and timing are concrete.',
   'Capture the live link and any receipt or reimbursement proof in the same thread before a campaign leaves the board.',
-  'Keep new founder outreach in email until scope, budget, and platform are concrete. Do not drift into ad hoc WhatsApp unless the deal shape is already clear.',
+  'Keep new founder outreach in email until the deal shape is real. Do not drift into WhatsApp unless scope is already clear.',
   'Robert will not promote crypto. AI and blockchain infrastructure may be acceptable, but token or coin promotion is out.',
   'Unread is not the same as needs reply. Confirm thread state before creating work.',
 ];
