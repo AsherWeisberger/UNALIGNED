@@ -3,18 +3,17 @@
 const V4_TWEAKS = /*EDITMODE-BEGIN*/{
   "viewAs": "robert",
   "theme": "light",
-  "view": "calendar"
+  "view": "company-os"
 }/*EDITMODE-END*/;
 
 function V4DefaultViewForUser(user) {
-  return user === 'robert' ? 'inbox' : 'calendar';
+  return 'company-os';
 }
 
 function V4App() {
   const { USERS, LEADS, STAGE_BY_ID, ACTIVE_STAGE_IDS } = window.V3;
   const [t, setTweak] = useTweaks(V4_TWEAKS);
-  const isPhone = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
-  const [view, setView] = React.useState(isPhone ? 'today' : V4DefaultViewForUser(t.viewAs));
+  const [view, setView] = React.useState(V4DefaultViewForUser(t.viewAs));
   const [openId, setOpenId] = React.useState(null);
   const [briefId, setBriefId] = React.useState(null);
   const [leads, setLeads] = React.useState(LEADS);
