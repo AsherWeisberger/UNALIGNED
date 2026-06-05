@@ -27,33 +27,33 @@ const V4_COMPANY_OS_PREP = [
     ],
   },
   {
-    title: 'Tripo / Vivian Deng',
-    tags: ['P0', 'windows sent', 'interview + X scope'],
+    title: 'Polsia / Jeddi',
+    tags: ['P0', 'invoice out', 'compliance stop'],
     points: [
-      'Vivian asked for interview windows and X rates; Asher sent the sponsorship package, Robert offered time windows, and Asher followed on June 5 with Monday, June 22 or Friday, June 26 for Dr. Cao.',
-      'Vivian still has to confirm which interview slot works and how Tripo wants to structure the Project Eden X collaboration.',
-      'Asher owes the lock once Vivian picks a day: confirm the meeting, confirm the X format, and keep the product-test angle tied to the final brief.',
-      'Do not over-brief Robert yet; the next move is scheduling confirmation plus deliverable shape, not new ideation.',
+      'The invoice is already out, but the thread turned risky on June 5 when Robert suggested a way to feature Polsia without disclosure and Jeddi replied yes.',
+      'Asher now owes a clean reset: compliant Aligned News placement plus transparent amplification only, or a full pause if Jeddi still wants stealth.',
+      'Do not let Robert go shoot posters, post to X, or move this into execution while the disclosure question is unresolved.',
+      'Keep invoice_Polsia_SFPhysicalCampaign_060426.pdf visible in outstanding until the structure is either accepted cleanly or killed.',
+    ],
+  },
+  {
+    title: 'EezyCollab / Hard Pass',
+    tags: ['P0', 'June 5', 'decline owed'],
+    points: [
+      'Sam said on June 5, 2026, "we\'re not working for these guys nor have time for their testing. hard pass."',
+      'Robert has a decline draft sitting in the thread, but it is not sent yet.',
+      'Asher owes one clean closeout if the team wants the thread formally shut; otherwise treat this as dead and do not brief Robert further.',
+      'No beta, NDA, Discord onboarding, or deliverable prep should happen here.',
     ],
   },
   {
     title: 'Chris + Michael Call',
-    tags: ['P1', 'June 5', 'Sam/Asher only'],
+    tags: ['P1', 'June 5', 'follow-up needed'],
     points: [
-      'Robert could not make the Friday, June 5 call, and Asher already told Chris and Michael that Sam and Asher can handle it without Robert.',
-      'Asher then replied "See you tomorrow at 9am PT" and asked Michael to add Sam, so this is now a same-day schedule-confirmation item rather than a vague reschedule watch.',
-      'Asher owes one clean confirmation: make sure the invite, guest list, and exact meeting owner are correct before the call starts.',
-      'Do not involve Robert again unless the conversation turns into a concrete package, platform, and next-step ask.',
-    ],
-  },
-  {
-    title: 'EezyCollab / Terms Decision',
-    tags: ['P1', '$2,499', 'terms review'],
-    points: [
-      'EezyCollab resent the same beta-test-first offer on June 5: NDA possible, Discord workflow, recorded interview, one thread plus one quote post, and payment within 10 business days after posting.',
-      'Robert already pushed this to business review; Asher now owes a deliberate yes/no on the beta workload, delayed pay, and six-month post hold before anything else moves.',
-      'If the terms are accepted, collapse it into a 60-second Robert brief with beta steps, Discord join path, build deadline, and exact deliverables.',
-      'Do not say yes casually here. This needs a business answer first, then a brief.',
+      'Asher joined the June 5 call thread, then Chris replied that he was still trying to get into the meeting.',
+      'This is now a same-day clean-up item: confirm whether the correct invite and Meet link worked, then capture any real next step from the call.',
+      'Robert is already out of this pass unless the conversation turns into a concrete package ask.',
+      'Do not leave duplicate invite confusion hanging after the meeting window.',
     ],
   },
   {
@@ -70,13 +70,23 @@ const V4_COMPANY_OS_PREP = [
 
 const V4_COMPANY_OS_WAITING = [
   {
-    title: 'Perceptron / Eric Pence',
-    tags: ['watch', 'launch June', 'task-driven'],
+    title: 'Tripo / Vivian Deng',
+    tags: ['watch', 'windows sent', 'interview + X scope'],
     points: [
-      'Eric wants launch support for a new perception plus control model in the third or fourth week of June and shared embargoed positioning on June 3.',
-      'Robert and Asher both steered this toward a real-task QRT with newsletter optional and asked Eric for 2 to 3 concrete demos Robert can react to personally.',
-      'The missing piece is now on Eric: candidate tasks, launch timing, and whether he wants quote-only or X plus newsletter.',
-      'Keep it warm, but do not build a Robert brief until the task, launch window, and deliverable shape are explicit.',
+      'Vivian said on June 4 that she received the package and would get back soon.',
+      'Asher already sent Monday, June 22 or Friday, June 26 for the Dr. Cao interview and asked how Tripo wants to structure the X collaboration.',
+      'Nothing new is owed until Vivian picks a day or clarifies deliverable shape.',
+      'Once she replies, move this straight back into action and lock the schedule the same day.',
+    ],
+  },
+  {
+    title: 'TRAE Work / Inpander',
+    tags: ['watch', 'rates sent', 'June 25-30'],
+    points: [
+      'Anna asked about a June 25-30 launch window for TRAE Work plus separate pricing for one quote repost and one thread.',
+      'Asher replied on June 4 with availability plus rates of $1,895 for the QRT and $2,495 for the thread.',
+      'Waiting on the brief, messaging, links, approval path, and a real go-ahead from their side.',
+      'Do not prep Robert beyond awareness until the campaign packet and posting requirements arrive.',
     ],
   },
   {
@@ -93,45 +103,45 @@ const V4_COMPANY_OS_WAITING = [
     title: 'FloatSchedule / Judy Gao',
     tags: ['Robert testing', 'multi-channel', 'wait for reaction'],
     points: [
-      'Robert is actively trying FloatSchedule and Asher already pointed him toward the core calendar-agent workflow.',
-      'Judy wants X, LinkedIn, and newsletter support once Robert has firsthand reaction plus launch timing and campaign goals.',
-      'Do not book strategy time until Robert reaction, deliverables, and timing are all back in-thread.',
-      'When it comes back, keep the brief about product experience and campaign shape, not abstract AI-calendar chatter.',
+      'Robert is actively trying FloatSchedule and asked what he should pay special attention to while testing.',
+      'Asher already pointed him toward the core AI calendar-agent workflow so Judy gets firsthand product reaction instead of abstract feedback.',
+      'Waiting on Robert reaction, launch timing, and the actual mix of X, LinkedIn, and newsletter support Judy wants to buy.',
+      'Do not book strategy time until the product reaction and deliverable shape are back in-thread.',
     ],
   },
   {
-    title: 'Polsia / Jeddi',
-    tags: ['watch', 'invoice out', 'compliance pause'],
+    title: 'Perceptron / Eric Pence',
+    tags: ['watch', 'launch June', 'task-driven'],
     points: [
-      'A new Polsia poster-campaign invoice was issued on June 4, but the paid-X route is paused because Jeddi wants it to look organic and Robert refused an undisclosed sponsorship post.',
-      'Robert redirected this toward an Aligned News sponsored placement plus transparent amplification if Jeddi wants to keep moving.',
-      'Keep the invoice visible in outstanding, but do not treat it as executable campaign work unless Jeddi accepts the compliant structure.',
-      'No more Robert prep is needed until Polsia chooses clean disclosure over stealth posting.',
+      'Eric wants launch support for a new perception plus control model in late June and shared embargoed positioning.',
+      'Robert and Asher pushed for 2 to 3 concrete tasks or demos Robert can react to directly instead of vague launch language.',
+      'The missing piece is still on Eric: actual tasks, timing, and deliverable shape.',
+      'Keep it warm, but do not build a Robert brief until those specifics exist.',
+    ],
+  },
+  {
+    title: 'Marketing Guys / Kombai',
+    tags: ['payment watch', 'QRT live', '$1,895'],
+    points: [
+      'The final QRT link is captured: https://x.com/Scobleizer/status/2061829182154588383?s=20.',
+      'Marketing Guys sent only wire-in-motion proof on June 1 and then closed the thread warmly on June 3.',
+      'Keep this visible until the deposit actually clears or bank-side proof confirms payment landed.',
+      'Invoice remains open; execution is done, but finance is not closed.',
     ],
   },
   {
     title: 'Low-Touch Finance Watch',
-    tags: ['Omane', 'AK'],
+    tags: ['Omane', 'Viture', 'AdZen'],
     points: [
-      'Omane now has a fresh outstanding invoice dated June 3, and AK or Acti still has no new action-driving reply.',
-      'Keep these visible only for receipt, deposit, or invoice-state changes.',
+      'Omane has a fresh Nitrosend invoice from June 3 and Asher already asked for the payment receipt immediately after payment.',
+      'Viture still needs the Leo call actually locked, while AdZen should stay untouched because Sam said on June 4 that it is not our business model.',
+      'Keep these visible only for receipt, calendar-lock, or reopen signals.',
       'Unread is not a task by itself.',
-      'Leave these in watch mode until a concrete ask, payment event, or deadline appears.',
     ],
   },
 ];
 
 const V4_COMPANY_OS_DONE = [
-  {
-    title: 'Marketing Guys / Kombai QRT',
-    tags: ['June 2 live', 'paid', 'archived'],
-    points: [
-      'Campaign execution is complete and Robert posted the final QRT on June 2.',
-      'Invoice is in DONE: invoice_MarketingGuys_Kombai_QRT_060126.pdf.',
-      'Payment is complete; no wire-watch or follow-up remains.',
-      'Final link is captured: https://x.com/Scobleizer/status/2061829182154588383?s=20.',
-    ],
-  },
   {
     title: 'Polsia / Tier 3 QRT',
     tags: ['May 22 live', 'done invoice', 'archived'],
@@ -223,14 +233,15 @@ const V4_COMPANY_OS_SENDERS = [
 const V4_COMPANY_OS_RULES = [
   'Asher owns replies, scheduling, payment-proof capture, invoice links, package sends, and final post links. Sammy escalates. Robert handles intro, testing, interviews, or final execution only.',
   'No paid post, QRT, travel, ticket, hotel, or other spend happens before payment proof, receipt, reimbursement confirmation, or written budget approval is visible in-thread.',
-  'A wire screenshot is not settled money. Similar deals stay on the board until deposit confirmation lands.',
+  'A wire screenshot is not settled money. Omane and similar deals stay on the board until deposit confirmation lands.',
   'If Asher already sent a time window, the next task is calendar lock or decline. Do not leave live scheduling threads floating without a same-owner follow-through.',
-  'If a sponsor asks for stealth posting or no paid-promotion disclosure, reroute it into a compliant media placement or kill it.',
+  'If a sponsor asks for stealth posting or no paid-promotion disclosure, reroute it into a compliant media placement or kill it. This rule overrides any off-the-cuff workaround sent in-thread.',
   'Every Robert brief must fit inside 60 seconds and include scope, timing, deliverable, approval path, payment path, and why Robert is the right fit now.',
-  'Do not create a Robert brief for founder intros or discovery calls until scope, budget, platform, and timing are concrete.',
+  'Do not create a Robert brief for founder intros or discovery calls until scope, budget, platform, timing, and owner are concrete.',
   'Capture the live link and any receipt or reimbursement proof in the same thread before a campaign leaves the board.',
   'Keep new founder outreach in email until the deal shape is real. Do not drift into WhatsApp unless scope is already clear.',
   'Robert will not promote crypto. AI and blockchain infrastructure may be acceptable, but token or coin promotion is out.',
+  'If Sam calls a deal a pass, treat it as closed unless he explicitly reopens it.',
   'Unread is not the same as needs reply. Confirm thread state before creating work.',
 ];
 
