@@ -90,17 +90,6 @@ const V4_COMPANY_OS_WAITING = [
     ],
   },
   {
-    title: 'Marketing Guys / Kombai',
-    tags: ['payment watch', 'QRT live', '$1,895'],
-    points: [
-      'Robert fixed the deliverable and the final QRT link is live: https://x.com/Scobleizer/status/2061829182154588383?s=20.',
-      'Marketing Guys sent wire-in-motion proof on June 1 and closed the thread warmly on June 3, but there is still no confirmed deposit.',
-      'Keep this visible until the wire actually clears or bank-side payment proof is confirmed.',
-      'Invoice is already in outstanding; archive only after payment lands and the final link stays captured.',
-      'No more creative work is needed here unless payment goes sideways.',
-    ],
-  },
-  {
     title: 'FloatSchedule / Judy Gao',
     tags: ['Robert testing', 'multi-channel', 'wait for reaction'],
     points: [
@@ -122,9 +111,9 @@ const V4_COMPANY_OS_WAITING = [
   },
   {
     title: 'Low-Touch Finance Watch',
-    tags: ['Kombai', 'Omane', 'AK'],
+    tags: ['Omane', 'AK'],
     points: [
-      'Kombai still has live-link capture plus wire-watch status, Omane now has a fresh outstanding invoice dated June 3, and AK or Acti still has no new action-driving reply.',
+      'Omane now has a fresh outstanding invoice dated June 3, and AK or Acti still has no new action-driving reply.',
       'Keep these visible only for receipt, deposit, or invoice-state changes.',
       'Unread is not a task by itself.',
       'Leave these in watch mode until a concrete ask, payment event, or deadline appears.',
@@ -135,12 +124,12 @@ const V4_COMPANY_OS_WAITING = [
 const V4_COMPANY_OS_DONE = [
   {
     title: 'Marketing Guys / Kombai QRT',
-    tags: ['June 2 live', 'wire pending', '$1,895'],
+    tags: ['June 2 live', 'paid', 'archived'],
     points: [
       'Campaign execution is complete and Robert posted the final QRT on June 2.',
-      'Invoice sent: invoice_MarketingGuys_Kombai_QRT_060126.pdf.',
-      'Marketing Guys sent Wire Pending - Robert.pdf; keep payment visible until deposit clears.',
-      'Archive after the wire lands and the final link/proof is stored.',
+      'Invoice is in DONE: invoice_MarketingGuys_Kombai_QRT_060126.pdf.',
+      'Payment is complete; no wire-watch or follow-up remains.',
+      'Final link is captured: https://x.com/Scobleizer/status/2061829182154588383?s=20.',
     ],
   },
   {
@@ -234,7 +223,7 @@ const V4_COMPANY_OS_SENDERS = [
 const V4_COMPANY_OS_RULES = [
   'Asher owns replies, scheduling, payment-proof capture, invoice links, package sends, and final post links. Sammy escalates. Robert handles intro, testing, interviews, or final execution only.',
   'No paid post, QRT, travel, ticket, hotel, or other spend happens before payment proof, receipt, reimbursement confirmation, or written budget approval is visible in-thread.',
-  'A wire screenshot is not settled money. Kombai and similar deals stay on the board until deposit confirmation lands.',
+  'A wire screenshot is not settled money. Similar deals stay on the board until deposit confirmation lands.',
   'If Asher already sent a time window, the next task is calendar lock or decline. Do not leave live scheduling threads floating without a same-owner follow-through.',
   'If a sponsor asks for stealth posting or no paid-promotion disclosure, reroute it into a compliant media placement or kill it.',
   'Every Robert brief must fit inside 60 seconds and include scope, timing, deliverable, approval path, payment path, and why Robert is the right fit now.',
