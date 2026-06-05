@@ -100,6 +100,16 @@ const V4_COMPANY_OS_WAITING = [
     ],
   },
   {
+    title: 'R3ACH / Declan',
+    tags: ['docs signed', 'Telegram joined', 'boundary'],
+    points: [
+      'Asher already signed the onboarding documents and joined the Telegram group for deal flow.',
+      'There is no remaining setup task here; the next move is simply monitoring for actual offers, scope, and payment terms.',
+      'Robert\'s boundary still applies: no crypto, token, or coin promotion; AI or blockchain infrastructure may be acceptable if the ask is clean.',
+      'Do not create a Robert brief until a specific non-token opportunity, deliverable, budget, and approval path are visible.',
+    ],
+  },
+  {
     title: 'FloatSchedule / Judy Gao',
     tags: ['Robert testing', 'multi-channel', 'wait for reaction'],
     points: [
@@ -120,16 +130,6 @@ const V4_COMPANY_OS_WAITING = [
     ],
   },
   {
-    title: 'Marketing Guys / Kombai',
-    tags: ['payment watch', 'QRT live', '$1,895'],
-    points: [
-      'The final QRT link is captured: https://x.com/Scobleizer/status/2061829182154588383?s=20.',
-      'Marketing Guys sent only wire-in-motion proof on June 1 and then closed the thread warmly on June 3.',
-      'Keep this visible until the deposit actually clears or bank-side proof confirms payment landed.',
-      'Invoice remains open; execution is done, but finance is not closed.',
-    ],
-  },
-  {
     title: 'Low-Touch Finance Watch',
     tags: ['Omane', 'Viture', 'AdZen'],
     points: [
@@ -142,6 +142,16 @@ const V4_COMPANY_OS_WAITING = [
 ];
 
 const V4_COMPANY_OS_DONE = [
+  {
+    title: 'Marketing Guys / Kombai QRT',
+    tags: ['June 2 live', 'paid', 'archived'],
+    points: [
+      'Campaign execution is complete and Robert posted the final QRT on June 2.',
+      'Invoice is in DONE: invoice_MarketingGuys_Kombai_QRT_060126.pdf.',
+      'Payment is complete; no wire-watch or follow-up remains.',
+      'Final link is captured: https://x.com/Scobleizer/status/2061829182154588383?s=20.',
+    ],
+  },
   {
     title: 'Polsia / Tier 3 QRT',
     tags: ['May 22 live', 'done invoice', 'archived'],
