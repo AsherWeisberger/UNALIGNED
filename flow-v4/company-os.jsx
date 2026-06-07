@@ -8,12 +8,12 @@
 const V4_COMPANY_OS_PREP = [
   {
     title: 'Airtap / Flot.AI',
-    tags: ['P0', 'package prepaid', 'link capture'],
+    tags: ['P0', 'June 9 scheduled', 'link capture'],
     points: [
-      'The active Airtap thread is no longer a draft fight. The prepaid package is already being used and the work is down to Robert execution timing plus live-link capture once posts run.',
-      'A separate Flot quote-collab thread is explicitly pending Zoe confirmation, so do not blend that wait state into the Airtap execution path.',
-      'Asher owns the exact Robert posting slot and must send both final links back in-thread as soon as each post is live.',
-      'Do not reopen copy unless Zoe changes the approved materials in-thread.',
+      'Zoe sent the final approved version and asked for the first Airtap post to publish on June 9, 2026 U.S. time, with the second post 24 hours later.',
+      'Asher already confirmed on June 6, 2026 that Airtap is on Robert\'s calendar for the 9th, so the real work is exact posting-slot lock plus live-link capture.',
+      'Send both final X links back in-thread immediately after each post goes live.',
+      'Do not reopen copy or blend in the separate Flot quote-collab wait unless Zoe changes the approved materials in-thread.',
     ],
   },
   {
@@ -38,12 +38,12 @@ const V4_COMPANY_OS_PREP = [
   },
   {
     title: 'Polsia / Jeddi',
-    tags: ['P0', 'invoice out', 'needs compliant structure'],
+    tags: ['P0', 'live June 6', 'payment proof owed'],
     points: [
-      'Jeddi asked for the poster campaign to feel organic and specifically asked to remove paid-promotion treatment, which makes the original X-post structure non-compliant.',
-      'Asher countered with an Aligned News sponsored placement that could then be shared naturally, and Jeddi asked whether Robert would also post on X if that route is used.',
-      'This thread now needs one clean answer on structure: compliant Aligned News sponsorship with transparent sharing, or full pause.',
-      'Do not let Robert post, scout posters, or record a 60-second brief while the disclosure and placement structure are still unresolved. Keep invoice_Polsia_SFPhysicalCampaign_060426.pdf visible in outstanding until then.',
+      'This is no longer a structure debate. Robert\'s SF Polsia poster post is already live in-thread as of June 6, 2026: https://x.com/scobleizer/status/2063286745320600036?s=46.',
+      'Asher followed up asking for receipt/payment proof in-thread and specifically asked that JEDDI or POLSIA appear in the memo.',
+      'Keep invoice_Polsia_SFPhysicalCampaign_060426.pdf in outstanding until the receipt lands.',
+      'Do not archive this from the live link alone. Posting happened; payment proof still has not.',
     ],
   },
   {
@@ -58,12 +58,12 @@ const V4_COMPANY_OS_PREP = [
   },
   {
     title: 'Chris + Michael / Open Collaboration Call',
-    tags: ['P1', 'meeting live', 'needs outcome'],
+    tags: ['P1', 'call happened', 'needs outcome capture'],
     points: [
-      'Chris and Michael accepted a Friday, June 5 call with Asher and Sam and the latest thread shows Asher joining the meeting while Chris tried to get in.',
-      'This is now an intake follow-through item: capture what came out of that call, route any real package or campaign into scope, and keep Robert out unless there is a concrete ask.',
-      'If nothing specific came from the call, demote it back to waiting rather than treating it like an execution brief.',
-      'Do not create a Robert brief from exploratory conversation alone.',
+      'The Friday, June 5 call moved from scheduling into live meeting territory, but the thread still does not show a clear package, campaign, or next-step summary.',
+      'Michael separately asked Robert on June 5, 2026 what time works on Monday, which means the follow-through is still loose.',
+      'Capture the actual call outcome before this gets treated like a live commercial opportunity.',
+      'Do not create a Robert brief from exploratory conversation or a half-complete meeting handoff.',
     ],
   },
 ];
@@ -73,7 +73,7 @@ const V4_COMPANY_OS_WAITING = [
     title: 'Griffin360 / Lumus',
     tags: ['watch', 'examples sent', 'team review'],
     points: [
-      'Samantha asked for concrete examples on June 5, 2026 and Asher replied with tier breakdowns, prices, and live links the same night.',
+      'Samantha asked for concrete examples on June 5, 2026 and Asher replied on June 6 with tier breakdowns, prices, and live links.',
       'The Lumus side now has what it asked for and needs to come back with goals, timing, and preferred deliverable shape.',
       'Nothing new is owed until Samantha or the Lumus team turns examples into an actual request.',
       'Do not create a Robert brief from sample links alone.',
@@ -81,11 +81,11 @@ const V4_COMPANY_OS_WAITING = [
   },
   {
     title: 'Deck / Nicholas Young',
-    tags: ['watch', 'editorial', 'YG windows pending'],
+    tags: ['watch', 'virtual preferred', 'YG windows pending'],
     points: [
-      'Nicholas clarified that Deck is an editorial or background conversation, not a sponsor ask, and sent sharper angles around AI-native companies, world models, and future-of-work realities.',
-      'Asher already asked for YG coffee windows and Nicholas said he would send them once he had them.',
-      'Wait for actual SF windows or a virtual slot before this becomes a calendar item.',
+      'Nicholas clarified that Deck is an editorial or background conversation, not a sponsor ask, and Asher replied on June 6, 2026 that a virtual call likely makes more sense than waiting on travel.',
+      'The next thing owed is a short list of virtual time windows from Nicholas or YG.',
+      'Wait for actual times before this becomes a calendar item.',
       'No Robert brief until there is either a locked conversation slot or a concrete collaboration proposal.',
     ],
   },
@@ -101,10 +101,10 @@ const V4_COMPANY_OS_WAITING = [
   },
   {
     title: 'Tripo / Vivian Deng',
-    tags: ['watch', 'package sent', 'interview windows out'],
+    tags: ['watch', 'dates sent', 'package decision pending'],
     points: [
-      'Vivian has the Tripo press materials, the sponsorship package, and the interview route for Dr. Yanpei Cao in one thread.',
-      'Asher already put interview windows on the table and is waiting for Vivian to choose a date and define the X collaboration format.',
+      'Vivian has the Tripo press materials, Robert/Asher usernames for credits, and the sponsorship package in one thread.',
+      'Asher sent two Robert interview-date options on June 5, 2026 and is waiting for Vivian to choose a day and confirm how she wants to handle the X collaboration.',
       'Nothing new is owed until Vivian picks a day or clarifies deliverable shape.',
       'Once she replies, move this straight back into action and lock the schedule the same day.',
     ],
@@ -133,7 +133,7 @@ const V4_COMPANY_OS_WAITING = [
     title: 'Do-Not-Touch / Hard Pass',
     tags: ['EezyCollab', 'Olivia', 'hard pass'],
     points: [
-      'The new EezyCollab beta-test pitch requires NDA, Discord testing, a recorded interview, six-month deletion lock, and post-live payment. Sam called it a hard pass on June 5, 2026.',
+      'The new EezyCollab beta-test pitch requires NDA, Discord testing, a recorded interview, six-month deletion lock, and post-live payment. Sam called it a hard pass on June 5, 2026 and Robert sent the decline.',
       'Robert already flagged that the business side needed review, and the final internal answer was no.',
       'Sam separately told Asher on May 31, 2026 to ditch the Olivia paid-promotion thread because it was wasting cycles.',
       'Treat both as closed unless the team explicitly reopens them.',
@@ -250,12 +250,13 @@ const V4_COMPANY_OS_SENDERS = [
 ];
 
 const V4_COMPANY_OS_RULES = [
-  'Asher owns replies, scheduling, payment-proof capture, invoice links, package sends, demo-access cleanup, compliant structure resets, and final post links. Sammy escalates. Robert handles intro, testing, interviews, or final execution only.',
+  'Asher owns replies, scheduling, payment-proof capture, invoice links, package sends, demo-access cleanup, and final post links. Sammy escalates. Robert handles intro, testing, interviews, or final execution only.',
   'No paid post, QRT, travel, ticket, hotel, or other spend happens before payment proof, receipt, reimbursement confirmation, written budget approval, or clearly prepaid package coverage is visible in-thread.',
   'A wire screenshot is not settled money. Omane and similar deals stay live until deposit confirmation lands.',
   'If a client wants post-live payment, net terms, or reimbursement later, treat the work as unpaid until cash or written exception is in-thread. Do not schedule Robert around promises.',
   'If the sponsor already approved copy and named the live date, do not reopen messaging. Calendar lock, execution, and live-link capture are the remaining tasks.',
-  'If a sponsor asks for stealth posting or no paid-promotion disclosure, reroute it into a compliant media placement or kill it. This overrides any off-the-cuff workaround sent in-thread.',
+  'If a post is already live but the receipt is missing, keep it in action. Live link captured does not equal paid or closed.',
+  'If a sponsor asks for stealth posting or no paid-promotion disclosure, reroute it into a compliant media placement or kill it. Do not leave Robert improvising around disclosure risk.',
   'Every Robert brief must fit inside 60 seconds and include scope, timing, deliverable, approval path, payment path, and why Robert is the right fit now.',
   'Do not create a Robert brief for founder intros, editorial coffees, or discovery calls until scope, budget, platform, timing, and owner are concrete.',
   'If the product requires Robert testing, a login alone does not count. No execution brief exists until the actual demo environment or usable access is visible.',
