@@ -8,105 +8,105 @@
 const V4_COMPANY_OS_PREP = [
   {
     title: 'Airtap / Flot.AI',
-    tags: ['P0', 'June 9 scheduled', 'link capture'],
+    tags: ['P0', 'June 9 post 1', 'live-link capture'],
     points: [
-      'Zoe sent the final approved version and asked for the first Airtap post to publish on June 9, 2026 U.S. time, with the second post 24 hours later.',
-      'Asher already confirmed on June 6, 2026 that Airtap is on Robert\'s calendar for the 9th, so the real work is exact posting-slot lock plus live-link capture.',
-      'Send both final X links back in-thread immediately after each post goes live.',
-      'Do not reopen copy or blend in the separate Flot quote-collab wait unless Zoe changes the approved materials in-thread.',
-    ],
-  },
-  {
-    title: 'AhaCreator 3.0 / Arc Growth',
-    tags: ['P0', 'blocked', 'demo missing'],
-    points: [
-      'Asher sent Lumina the missing-access screenshots on June 5, 2026 and made clear Robert still cannot see the real demo environment.',
-      'The campaign is not Robert-ready because access, assets routing, and exact handle clarity still are not solved in one place.',
-      'Asher owes one clean unblock reply that asks only for working product access and the correct environment, not another abstract brief.',
-      'Do not build a Robert brief or schedule a post from the written launch deck alone while the usable product view is still missing.',
+      'Zoe re-sent the final approved Airtap version and confirmed the first post should publish on June 9, 2026 U.S. time, with the second post exactly 24 hours later.',
+      'Asher already told Zoe on June 6, 2026 that Airtap is on Robert\'s calendar, so the only remaining work is exact posting-slot lock plus immediate live-link return.',
+      'Send both final X links back in-thread right after each post goes live.',
+      'Do not reopen copy unless Zoe changes the approved materials in-thread.',
     ],
   },
   {
     title: 'ACL / Hockey Stick',
-    tags: ['P0', 'signed', 'reimbursement risk'],
+    tags: ['P0', 'budget not locked', 'reimbursement risk'],
     points: [
-      'Annika said on June 4, 2026 that she is still confirming Alibaba budget approval even though the agreement was signed and Robert already bought the $1,200 ticket.',
-      'The immediate Asher-owned job is written reimbursement coverage for the ticket plus written approval before any hotel, flight, or badge-add-on spend happens.',
-      'Keep this in action until there is explicit budget confirmation in-thread, not just reassurance that they are "pushing and solving".',
-      'Do not prep Robert for travel execution beyond the existing ticket until reimbursement and budget are locked in writing.',
+      'Annika\'s latest note on June 8, 2026 asks for an initial video/text framework before Wednesday because Alibaba wants materials for leadership review.',
+      'That request does not resolve the real blocker: Robert already bought the $1,200 ticket, while hotel, travel, and reimbursement approval are still not locked in writing.',
+      'Asher should answer with a lightweight content framework only if it does not imply more spend, while still forcing written ticket coverage and budget confirmation into the thread.',
+      'Do not approve hotel, flight, or extra travel spend until reimbursement and campaign approval are explicit.',
     ],
   },
   {
-    title: 'Polsia / Jeddi',
-    tags: ['P0', 'live June 6', 'payment proof owed'],
+    title: 'FloatSchedule / Judy Gao',
+    tags: ['P0', 'product test', 'timing owed'],
     points: [
-      'This is no longer a structure debate. Robert\'s SF Polsia poster post is already live in-thread as of June 6, 2026: https://x.com/scobleizer/status/2063286745320600036?s=46.',
-      'Asher followed up asking for receipt/payment proof in-thread and specifically asked that JEDDI or POLSIA appear in the memo.',
-      'Keep invoice_Polsia_SFPhysicalCampaign_060426.pdf in outstanding until the receipt lands.',
-      'Do not archive this from the live link alone. Posting happened; payment proof still has not.',
+      'Judy replied on June 8, 2026 that Robert already has access and should spend time testing AI scheduling, calendar sync, and meeting prep inside FloatSchedule.',
+      'She asked for Robert\'s availability for the content piece over the next two weeks once he is familiar with the product.',
+      'Asher owns the next step: get Robert\'s actual testing readout, then send 1-2 timing windows instead of leaving the thread in open-ended product exploration.',
+      'No Robert brief exists until testing is real and the deliverable window is locked.',
+    ],
+  },
+  {
+    title: 'AhaCreator 3.0 / Arc Growth',
+    tags: ['P0', 'blocked', 'demo still broken'],
+    points: [
+      'Asher sent Lumina the June 5, 2026 screenshot showing Robert still does not see the real demo environment even after the whitelist step.',
+      'This is still not Robert-ready because the usable product view is missing, even if the handle and asset links exist.',
+      'Asher owes one unblock follow-up that asks only for working demo access and the exact path into the correct environment.',
+      'Do not build a Robert execution brief from deck copy alone while the product remains inaccessible.',
+    ],
+  },
+  {
+    title: 'Polsia / SF Posters',
+    tags: ['P0', 'live June 6', 'receipt missing'],
+    points: [
+      'Robert\'s live SF poster post is captured in-thread from June 6, 2026: https://x.com/scobleizer/status/2063286745320600036?s=46.',
+      'Asher immediately asked Jeddi to send the receipt in-thread and to put JEDDI or POLSIA in the memo for tracking.',
+      'Keep invoice_Polsia_SFPhysicalCampaign_060426.pdf live until payment proof lands, not just the post link.',
+      'Do not archive this from execution alone. Live does not equal paid.',
     ],
   },
   {
     title: 'Omane / Nitrosend',
     tags: ['P0', 'live', 'payment proof owed'],
     points: [
-      'Ori sent the Nitrosend launch instructions on June 3, 2026 and Asher followed with the invoice plus a direct same-day ask for receipt/payment proof.',
-      'There is no settled-payment evidence in-thread yet, so the only real task is chasing proof, not reopening creative execution.',
+      'Nitrosend went live on June 3, 2026 and Asher sent invoice_Omane_Nitrosend_060326.pdf with a same-day request for receipt when paid.',
+      'There is still no payment proof in-thread, so this remains an invoice chase rather than a creative task.',
       'Keep invoice_Omane_Nitrosend_060326.pdf in outstanding until receipt or deposit confirmation lands.',
-      'Do not mark this done from thumbs-up or goodwill replies alone.',
+      'Do not mark this complete from goodwill replies alone.',
     ],
   },
   {
-    title: 'Chris + Michael / Open Collaboration Call',
-    tags: ['P1', 'call happened', 'needs outcome capture'],
+    title: 'New Lead Reply Batch',
+    tags: ['P1', 'June 7-8 inbox', 'qualify fast'],
     points: [
-      'The Friday, June 5 call moved from scheduling into live meeting territory, but the thread still does not show a clear package, campaign, or next-step summary.',
-      'Michael separately asked Robert on June 5, 2026 what time works on Monday, which means the follow-through is still loose.',
-      'Capture the actual call outcome before this gets treated like a live commercial opportunity.',
-      'Do not create a Robert brief from exploratory conversation or a half-complete meeting handoff.',
+      'Kevin at HeyGen replied on June 7, 2026 asking which opportunity Robert meant, so Asher needs one clarifying reply before that thread goes cold.',
+      'Yasir replied with audience context and interest after receiving the sponsorship package, while Suhail replied with his own rates but still has no real company or campaign scope in-thread.',
+      'Move quickly on qualification: company, product, deliverable, budget, timing, and whether the thread is worth continuing at all.',
+      'Do not involve Robert again until any one of these threads has a real brief instead of generic interest.',
     ],
   },
 ];
 
 const V4_COMPANY_OS_WAITING = [
   {
-    title: 'Griffin360 / Lumus',
-    tags: ['watch', 'examples sent', 'team review'],
+    title: 'Tripo / Vivian Deng',
+    tags: ['watch', 'dates sent', 'package decision'],
     points: [
-      'Samantha asked for concrete examples on June 5, 2026 and Asher replied on June 6 with tier breakdowns, prices, and live links.',
-      'The Lumus side now has what it asked for and needs to come back with goals, timing, and preferred deliverable shape.',
-      'Nothing new is owed until Samantha or the Lumus team turns examples into an actual request.',
-      'Do not create a Robert brief from sample links alone.',
-    ],
-  },
-  {
-    title: 'Deck / Nicholas Young',
-    tags: ['watch', 'virtual preferred', 'YG windows pending'],
-    points: [
-      'Nicholas clarified that Deck is an editorial or background conversation, not a sponsor ask, and Asher replied on June 6, 2026 that a virtual call likely makes more sense than waiting on travel.',
-      'The next thing owed is a short list of virtual time windows from Nicholas or YG.',
-      'Wait for actual times before this becomes a calendar item.',
-      'No Robert brief until there is either a locked conversation slot or a concrete collaboration proposal.',
+      'Asher sent June 22 or June 26 interview options and asked Vivian how she wants to handle the X collaboration.',
+      'Vivian acknowledged the package and said she would get back soon, but no day or final deliverable shape is locked yet.',
+      'Nothing new is owed until Vivian chooses a date or clarifies the package lane.',
+      'Once she replies, move this back into action immediately.',
     ],
   },
   {
     title: 'Riverside / Savion',
-    tags: ['watch', 'dates pending', 'exec fallback'],
+    tags: ['watch', 'dates pending', 'speaker TBD'],
     points: [
-      'Savion reversed the termination path and said on June 4, 2026 that Nadav wants to do it roughly two weeks out, with alternate Riverside executives if his timing slips.',
-      'Asher reinforced the patience path and Savion said he would return with dates, but no exact slot has landed yet.',
-      'Waiting on one exact date plus named spokesperson from Riverside.',
-      'If dates arrive, move it back to action with one prep path only.',
+      'Savion said on June 4, 2026 that he would return with dates and could swap in another Riverside executive if Nadav slips.',
+      'The exact date and final spokesperson are still missing.',
+      'Wait for one concrete slot before giving Robert any prep.',
+      'If dates arrive, move it straight back into action.',
     ],
   },
   {
-    title: 'Tripo / Vivian Deng',
-    tags: ['watch', 'dates sent', 'package decision pending'],
+    title: 'Chris + Michael / Open Collaboration Call',
+    tags: ['watch', 'not commercial yet', 'route to Asher/Sam'],
     points: [
-      'Vivian has the Tripo press materials, Robert/Asher usernames for credits, and the sponsorship package in one thread.',
-      'Asher sent two Robert interview-date options on June 5, 2026 and is waiting for Vivian to choose a day and confirm how she wants to handle the X collaboration.',
-      'Nothing new is owed until Vivian picks a day or clarifies deliverable shape.',
-      'Once she replies, move this straight back into action and lock the schedule the same day.',
+      'Asher\'s own June 5 debrief says the conversation was mostly exploratory, not a real promotional campaign, and Robert should not spend another call on it now.',
+      'Robert drafted the correct boundary: paid or concrete collaboration specifics should route through Asher and Sam first.',
+      'Treat this as waiting unless Chris or Michael comes back with an actual scoped campaign.',
+      'Do not schedule another Robert catch-up call from curiosity alone.',
     ],
   },
   {
@@ -120,23 +120,13 @@ const V4_COMPANY_OS_WAITING = [
     ],
   },
   {
-    title: 'Flot / Quote Collaboration',
-    tags: ['watch', 'pending confirmation', 'no action'],
-    points: [
-      'Zoe said the separate quote-collab project is still pending confirmation and would return with updates when ready.',
-      'That means Airtap execution and Flot quote-collab are two different lanes and only the second one is paused.',
-      'Nothing is owed here unless Zoe reopens it with confirmed budget and deliverable.',
-      'Do not build a Robert brief from a maybe.',
-    ],
-  },
-  {
     title: 'Do-Not-Touch / Hard Pass',
-    tags: ['EezyCollab', 'Olivia', 'hard pass'],
+    tags: ['EezyCollab', 'Olivia', 'do not reopen'],
     points: [
-      'The new EezyCollab beta-test pitch requires NDA, Discord testing, a recorded interview, six-month deletion lock, and post-live payment. Sam called it a hard pass on June 5, 2026 and Robert sent the decline.',
-      'Robert already flagged that the business side needed review, and the final internal answer was no.',
+      'Sam called the new EezyCollab beta-test deal a hard pass on June 5, 2026 and Robert drafted the decline because the NDA/testing/Discord/interview terms are too heavy.',
+      'Rl replied on June 8, 2026 that they will check whether the brand can do upfront payment, but that does not override the internal no.',
       'Sam separately told Asher on May 31, 2026 to ditch the Olivia paid-promotion thread because it was wasting cycles.',
-      'Treat both as closed unless the team explicitly reopens them.',
+      'Treat both as closed unless Sam or Robert explicitly reopens them.',
       'Do not build briefs, negotiate terms, or spend more reply energy here.',
     ],
   },
@@ -145,7 +135,7 @@ const V4_COMPANY_OS_WAITING = [
 const V4_COMPANY_OS_DONE = [
   {
     title: 'Marketing Guys / Kombai QRT',
-    tags: ['June 2 live', 'paid', 'archived'],
+    tags: ['June 2 live', 'paid'],
     points: [
       'Campaign execution is complete and Robert posted the final QRT on June 2.',
       'Invoice is in DONE: invoice_MarketingGuys_Kombai_QRT_060126.pdf.',
@@ -155,90 +145,18 @@ const V4_COMPANY_OS_DONE = [
   },
   {
     title: 'Polsia / Tier 3 QRT',
-    tags: ['May 22 live', 'done invoice', 'archived'],
+    tags: ['May 22 live', 'paid'],
     points: [
       'The original Polsia QRT is already complete and its invoice lives in DONE as invoice_Polsia_Tier3_052126.pdf.',
       'Keep this separate from the new June 4 poster-campaign invoice, which is not approved for execution yet.',
     ],
   },
   {
-    title: 'Vivi / EezyCollab',
-    tags: ['done invoice', 'archived'],
+    title: 'Archive Snapshot',
+    tags: ['older invoices', 'done'],
     points: [
-      'Invoice is in DONE: invoice_Vivi_EezyCollab_051426.pdf.',
-      'Treat as completed unless a new reply creates fresh work.',
-    ],
-  },
-  {
-    title: 'Arc Growth / AhaCreator Invoice',
-    tags: ['done invoice', 'archived'],
-    points: [
-      'Invoice is in DONE: invoice_ArcGrowth_AhaCreator_052126.pdf.',
-      'This closes the older Arc Growth billing path and should stay separate from the current demo-access blocker.',
-    ],
-  },
-  {
-    title: 'PlayOS / Sintra Tier5',
-    tags: ['done invoice', 'archived'],
-    points: [
-      'Invoice is in DONE: invoice_PlayOS_Sintra_Tier5_052126.pdf.',
-      'No active Asher action unless client reopens scope.',
-    ],
-  },
-  {
-    title: 'Polsia Tier3',
-    tags: ['done invoice', 'archived'],
-    points: [
-      'Invoice is in DONE: invoice_Polsia_Tier3_052126.pdf.',
-      'Closed from the active operating queue.',
-    ],
-  },
-  {
-    title: 'Hockey Stick / VOXCPM2',
-    tags: ['done invoice', 'archived'],
-    points: [
-      'Invoice is in DONE: invoice_HockeyStick_VOXCPM2_051526.pdf.',
-      'Separate from the ACL/Alibaba event, which is signed but still upcoming.',
-    ],
-  },
-  {
-    title: 'Omane / OrMannheim',
-    tags: ['done invoice', 'archived'],
-    points: [
-      'Invoice is in DONE: invoice_Omane_OrMannheim_051826.pdf.',
-      'No current follow-up in the action queue.',
-    ],
-  },
-  {
-    title: 'PolyAI',
-    tags: ['done invoice', 'archived'],
-    points: [
-      'Invoice is in DONE: invoice_PolyAI_04232026.html.',
-      'Archived as complete.',
-    ],
-  },
-  {
-    title: 'LobeHub',
-    tags: ['done invoice', 'archived'],
-    points: [
-      'Invoice is in DONE: invoice_LobeHub_051626.pdf.',
-      'Do not keep this in payment chase unless a new finance reply contradicts it.',
-    ],
-  },
-  {
-    title: 'Jay / LangChainAI',
-    tags: ['done invoice', 'archived'],
-    points: [
-      'Invoice is in DONE: invoice_Jay_LangChainAI_051326.pdf.',
-      'Closed from the active queue.',
-    ],
-  },
-  {
-    title: 'STAV',
-    tags: ['done invoice', 'archived'],
-    points: [
-      'Invoice is in DONE: STAV INVOICE.pdf.',
-      'Closed from active campaign work.',
+      'Older closed invoice files remain archived in DONE and should stay separate from the active board.',
+      'Examples already closed include AhaCreator\'s old invoice path, PlayOS / Sintra Tier5, LobeHub, Jay / LangChainAI, STAV, and other historical completions.',
     ],
   },
 ];
@@ -250,21 +168,19 @@ const V4_COMPANY_OS_SENDERS = [
 ];
 
 const V4_COMPANY_OS_RULES = [
-  'Asher owns replies, scheduling, payment-proof capture, invoice links, package sends, demo-access cleanup, and final post links. Sammy escalates. Robert handles intro, testing, interviews, or final execution only.',
-  'No paid post, QRT, travel, ticket, hotel, or other spend happens before payment proof, receipt, reimbursement confirmation, written budget approval, or clearly prepaid package coverage is visible in-thread.',
-  'A wire screenshot is not settled money. Omane and similar deals stay live until deposit confirmation lands.',
-  'If a client wants post-live payment, net terms, or reimbursement later, treat the work as unpaid until cash or written exception is in-thread. Do not schedule Robert around promises.',
-  'If the sponsor already approved copy and named the live date, do not reopen messaging. Calendar lock, execution, and live-link capture are the remaining tasks.',
-  'If a post is already live but the receipt is missing, keep it in action. Live link captured does not equal paid or closed.',
-  'If a sponsor asks for stealth posting or no paid-promotion disclosure, reroute it into a compliant media placement or kill it. Do not leave Robert improvising around disclosure risk.',
+  'Asher owns replies, scheduling, package sends, invoice links, payment-proof capture, reimbursement follow-up, demo-access cleanup, and final post links. Sammy escalates. Robert only handles testing, interviews, intros, and final execution.',
+  'No paid post, travel spend, hotel, or added ticket cost happens before payment proof, written reimbursement, written budget approval, or clearly prepaid package coverage is visible in-thread.',
+  'A live post is not a closed deal. If the receipt is missing, the item stays in action until proof lands.',
+  'A wire screenshot is not settled money. Omane, Polsia, and similar deals stay live until deposit or receipt confirmation is explicit.',
+  'If a client wants post-live payment, net terms, stealth posting, or no paid-promotion disclosure, treat the work as unpaid or noncompliant until the thread proves otherwise.',
+  'If copy is already approved and the date is already set, do not reopen strategy. Lock timing, execute, and return the live link.',
   'Every Robert brief must fit inside 60 seconds and include scope, timing, deliverable, approval path, payment path, and why Robert is the right fit now.',
-  'Do not create a Robert brief for founder intros, editorial coffees, or discovery calls until scope, budget, platform, timing, and owner are concrete.',
-  'If the product requires Robert testing, a login alone does not count. No execution brief exists until the actual demo environment or usable access is visible.',
-  'Capture the live link and any receipt or reimbursement proof in the same thread before a campaign leaves the board.',
-  'Keep new founder outreach in email until the deal shape is real. Do not drift into WhatsApp unless scope is already clear.',
+  'Do not create a Robert brief for exploratory calls, founder coffees, or vague intros. Scope, budget, platform, timing, and owner must already be concrete.',
+  'If a product requires testing, a login alone does not count. No execution brief exists until Robert can actually use the right environment.',
+  'Keep new lead threads in email until company, product, deliverable, budget, and timing are real. Generic interest is not a brief.',
   'Robert will not promote crypto. AI and blockchain infrastructure may be acceptable, but token or coin promotion is out.',
-  'If Robert declines a deal or Sam calls it a pass, treat it as closed unless one of them explicitly reopens it.',
-  'Unread is not the same as needs reply. Confirm thread state before creating work.',
+  'If Sam calls it a hard pass or Robert drafts a decline, treat the thread as closed unless one of them explicitly reopens it.',
+  'Unread is not the same as actionable. Confirm the latest thread state before creating work.',
 ];
 
 const V4_COMPANY_OS_STAGES = [
