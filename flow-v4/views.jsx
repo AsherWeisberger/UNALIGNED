@@ -387,6 +387,26 @@ const V4_INVOICE_GROUPS = [
         note: 'Active invoices still waiting on payment.',
         items: [
           {
+            id: 'invoice-omane-060826',
+            title: 'Omane',
+            company: 'Omane',
+            folder: 'OUTSTANDING / OPEN OUTSTANDING',
+            sourceDir: 'OUTSTANDING',
+            file: 'invoice_Omane_060826.pdf',
+            href: 'flow-v4/assets/invoices/outstanding/invoice_Omane_060826.pdf',
+            kind: 'PDF',
+          },
+          {
+            id: 'invoice-omane-getsupers-060726',
+            title: 'Omane',
+            company: 'GetSupers',
+            folder: 'OUTSTANDING / OPEN OUTSTANDING',
+            sourceDir: 'OUTSTANDING',
+            file: 'invoice_Omane_GetSupers_060726.pdf',
+            href: 'flow-v4/assets/invoices/outstanding/invoice_Omane_GetSupers_060726.pdf',
+            kind: 'PDF',
+          },
+          {
             id: 'invoice-omane-nitrosend-060326',
             title: 'Omane',
             company: 'Nitrosend',
@@ -394,6 +414,16 @@ const V4_INVOICE_GROUPS = [
             sourceDir: 'OUTSTANDING',
             file: 'invoice_Omane_Nitrosend_060326.pdf',
             href: 'flow-v4/assets/invoices/outstanding/invoice_Omane_Nitrosend_060326.pdf',
+            kind: 'PDF',
+          },
+          {
+            id: 'invoice-omane-viktor-060826',
+            title: 'Omane',
+            company: 'Viktor',
+            folder: 'OUTSTANDING / OPEN OUTSTANDING',
+            sourceDir: 'OUTSTANDING',
+            file: 'invoice_Omane_Viktor_060826.pdf',
+            href: 'flow-v4/assets/invoices/outstanding/invoice_Omane_Viktor_060826.pdf',
             kind: 'PDF',
           },
           {
