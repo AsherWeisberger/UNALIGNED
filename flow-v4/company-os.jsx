@@ -10,30 +10,30 @@ const V4_COMPANY_OS_PREP = [
     title: 'Perceptron / Agentic Detection',
     tags: ['P0', 'paid June 9', 'live-link missing'],
     points: [
-      'Eric confirmed payment on June 9, 2026 and said the launch link would follow the next morning.',
-      'Asher already replied "Waiting on your live link," but no final Perceptron URL is visible in-thread yet.',
-      'The only useful next move is to get the exact post URL, confirm Robert\'s repost actually ran, and keep proof attached to the paid thread.',
+      'Eric confirmed payment on June 9, 2026, then said on June 10 that Perceptron would post in about two hours and shared preview copy for Agentic Detection.',
+      'The thread still does not show the final launch URL or Robert\'s repost URL, so paid execution is not fully documented yet.',
+      'The only useful next move is to get the exact live post link, confirm Robert\'s repost actually ran, and keep that proof on the paid thread.',
       'Do not open the robotics follow-on conversation until the first paid deliverable is executed and linked.',
     ],
   },
   {
     title: 'ACL / Hockey Stick',
-    tags: ['P0', 'framework sent', 'reimbursement risk'],
+    tags: ['P0', 'framework updated', 'payment clarification'],
     points: [
-      'Annika now has the revised 8-piece Alibaba Cloud framework built around the ACL papers plus booth coverage after the July 5 event.',
-      'The content framework is not the blocker anymore. Robert already bought the $1,200 ticket, and hotel, flight, and reimbursement approval are still not explicit in writing.',
-      'Next Asher move is payment-risk cleanup: written confirmation on ticket coverage, hotel/travel coverage, and any remaining approvals before more logistics move.',
-      'Do not greenlight more spend, hotel, or flights until the thread explicitly covers reimbursement.',
+      'Annika replied on June 11, 2026 with Alibaba\'s final content buckets: Qoderwork, Qwen Cloud, ACL paper coverage, and the Alibaba Cloud booth, all framed as soft promotion.',
+      'Asher answered the same day with the revised 8-piece structure and flagged that pass fees plus the first payment due June 20 need to be clarified before purchases continue.',
+      'The framework itself is now usable. The remaining blocker is commercial cleanup around exhibitor-pass fees, first payment timing, and any other travel exposure.',
+      'Do not approve more pass, hotel, or flight spend until the reimbursement and payment path are explicit in writing.',
     ],
   },
   {
     title: 'AhaCreator 3.0 / Arc Growth',
-    tags: ['P0', 'access fixed', 'final polish'],
+    tags: ['P0', 'tested', 'awaiting final ok'],
     points: [
-      'This is no longer a blank-canvas access problem. Lumina said the brand added Robert to the testing/demo flow on June 10, 2026.',
-      'Asher sent an updated draft on June 11, 2026 after testing, and Lumina\'s latest asks are narrow: add the safety/risk line, update creator count to 10K+, use the UTM link, and keep screenshots privacy-safe.',
-      'This can move back into Robert-prep only after those exact brand tweaks are locked and the final draft is confirmed clean.',
-      'Do not treat this as blocked product access anymore. Treat it as final approval and CTA cleanup.',
+      'Lumina confirmed on June 10, 2026 that Robert had been added to the testing flow, and Asher said testing was complete before sending the draft back on June 11.',
+      'Lumina\'s latest asks were narrow: add the risk-filtering line, change creator count to 10K+, use the UTM link, and hide creator details in screenshots.',
+      'Asher sent the updated doc back on June 11, 2026 and is now waiting for a final clean approval rather than more access fixes.',
+      'Treat this as CTA and approval cleanup, not a demo-access problem.',
     ],
   },
   {
@@ -71,30 +71,20 @@ const V4_COMPANY_OS_WAITING = [
   },
   {
     title: 'HeyGen / Andrew Mok',
-    tags: ['watch', 'brainstorm call', 'invite still loose'],
+    tags: ['watch', 'times sent', 'invite still loose'],
     points: [
-      'Andrew asked on June 11, 2026 for a quick brainstorm call after Kevin looped him in on the partnership thread.',
-      'Robert expressed strong interest and sent time ideas, but there is still no confirmed calendar invite or commercial scope in-thread.',
+      'Andrew asked on June 11, 2026 for a quick brainstorm call after Kevin handed the thread to him.',
+      'Robert replied on June 11 with availability and then again early June 12 with a broad 9 AM to 1 PM PT window, but there is still no invite or scoped partnership ask in-thread.',
       'Watch for an actual invite, then move it back into action with one clean scheduling confirmation.',
       'This is still exploratory; there is no Robert execution brief yet.',
-    ],
-  },
-  {
-    title: 'Omane / Nitrosend',
-    tags: ['watch', 'live June 3', 'receipt still missing'],
-    points: [
-      'Nitrosend went live on June 3, 2026 and Asher sent invoice_Omane_Nitrosend_060326.pdf in-thread the same day.',
-      'There is still no visible receipt or deposit proof in the email thread, only brief acknowledgement from Ori.',
-      'Keep the invoice active and watch for actual payment proof, not goodwill replies.',
-      'If proof lands, move it to done immediately.',
     ],
   },
   {
     title: 'Riverside / Savion',
     tags: ['watch', 'dates pending', 'speaker TBD'],
     points: [
-      'Savion said on June 11, 2026 that Nadav does want to move forward but is out of office and still owes available dates.',
-      'Jay immediately pushed for a specific date, but no interview slot or backup executive is locked yet.',
+      'Savion said on June 11, 2026 that Nadav still wants to move forward but is out of office and has not yet sent dates.',
+      'Jay pushed for a date marker the same day, but there is still no interview slot or backup executive locked in the thread.',
       'Nothing useful is owed until Riverside sends concrete availability.',
       'If dates land, move it back into action immediately and confirm the spokesperson before prep starts.',
     ],
@@ -123,6 +113,26 @@ const V4_COMPANY_OS_WAITING = [
 
 const V4_COMPANY_OS_DONE = [
   {
+    title: 'Omane / Nitrosend',
+    tags: ['June 3 live', 'paid June 11', 'proof landed'],
+    points: [
+      'Nitrosend went live on June 3, 2026 and Asher sent invoice_Omane_Nitrosend_060326.pdf the same day.',
+      'Payment proof finally appeared on June 11, 2026 via the Wells Fargo alert showing a $1,000 Zelle deposit with memo "Omane Media."',
+      'This is no longer waiting on goodwill or receipt promises; it has actual proof of funds.',
+      'Keep the bank-proof screenshot with the invoice so the file closes cleanly even though the client thread never sent a formal receipt.',
+    ],
+  },
+  {
+    title: 'Flot / Airtap',
+    tags: ['June 10 live', 'final link captured', 'closed'],
+    points: [
+      'The second Airtap post went live and Asher sent the final comment link in-thread on June 10, 2026: https://x.com/Scobleizer/status/2064788508401914209?s=20.',
+      'Zoe\'s latest message was only a thank-you, which means the execution chase is over from the brand side.',
+      'No extra Robert brief or scheduling work remains here.',
+      'Keep the live link on the thread as the completion artifact.',
+    ],
+  },
+  {
     title: 'Polsia / SF Posters',
     tags: ['June 6 live', 'paid', 'closed'],
     points: [
@@ -142,22 +152,6 @@ const V4_COMPANY_OS_DONE = [
       'Final link is captured: https://x.com/Scobleizer/status/2061829182154588383?s=20.',
     ],
   },
-  {
-    title: 'Polsia / Tier 3 QRT',
-    tags: ['May 22 live', 'paid'],
-    points: [
-      'The original Polsia QRT is already complete and its invoice lives in DONE as invoice_Polsia_Tier3_052126.pdf.',
-      'Keep this separate from the new June 4 poster-campaign invoice, which is not approved for execution yet.',
-    ],
-  },
-  {
-    title: 'Archive Snapshot',
-    tags: ['older invoices', 'done'],
-    points: [
-      'Older closed invoice files remain archived in DONE and should stay separate from the active board.',
-      'Examples already closed include AhaCreator\'s old invoice path, PlayOS / Sintra Tier5, LobeHub, Jay / LangChainAI, STAV, and other historical completions.',
-    ],
-  },
 ];
 
 const V4_COMPANY_OS_SENDERS = [
@@ -170,6 +164,7 @@ const V4_COMPANY_OS_RULES = [
   'Asher owns replies, scheduling, examples, package sends, onboarding forms, invoice links, payment-proof capture, reimbursement follow-up, demo-access cleanup, and final post links. Sammy escalates. Robert only handles testing, interviews, intros, and final execution.',
   'No paid post, travel spend, hotel, or added ticket cost happens before payment proof, written reimbursement, written budget approval, or clearly prepaid package coverage is visible in-thread.',
   'A live post is not a closed deal. If the receipt is missing, the item stays in action until proof lands.',
+  'If payment proof lands outside the client thread, attach or log that proof against the invoice before marking the deal done.',
   'If a client wants split payment, post-live payment, net terms, stealth posting, or no paid-promotion disclosure, the answer is no until the thread proves otherwise.',
   'If copy is already approved and the date is already set, do not reopen strategy. Lock timing, execute, and return the live link.',
   'If a client has paid but the launch URL or final asset is missing, chase the live link before opening any next campaign discussion.',
