@@ -10,6 +10,88 @@ function V4DefaultViewForUser(user) {
   return 'company-os';
 }
 
+// ── Command palette (⌘K) — Superhuman style ────────────────
+function V4CommandPalette({ open, onClose, commands, leads, onOpenLead }) {
+  const [q, setQ] = React.useState('');
+  const [idx, setIdx] = React.useState(0);
+  const inputRef = React.useRef(null);
+  React.useEffect(() => {
+    if (open) { setQ(''); setIdx(0); setTimeout(() => inputRef.current?.focus(), 30); }
+  }, [open]);
+  if (!open) return null;
+  const ql = q.trim().toLowerCase();
+  const cmdResults = commands.filter(c => !ql || c.label.toLowerCase().includes(ql));
+  const leadResults = ql.length >= 2
+    ? leads.filter(l => (l.brand + ' ' + l.contactName + ' ' + (l.email || '')).toLowerCase().includes(ql)).slice(0, 6)
+    : [];
+  const rows = [
+    ...cmdResults.map(c => ({ key: 'cmd-' + c.label, type: 'cmd', label: c.label, hint: c.hint, run: c.run })),
+    ...leadResults.map(l => ({ key: 'lead-' + l.id, type: 'lead', label: l.brand, hint: l.contactName, run: () => onOpenLead(l.id) })),
+  ];
+  const active = Math.min(idx, Math.max(0, rows.length - 1));
+  const run = (row) => { onClose(); row.run(); };
+  const onKey = (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setIdx(i => Math.min(rows.length - 1, i + 1)); }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); setIdx(i => Math.max(0, i - 1)); }
+    if (e.key === 'Enter' && rows[active]) { e.preventDefault(); run(rows[active]); }
+  };
+  return (
+    <>
+      <div className="backdrop show" style={{ zIndex: 40 }} onClick={onClose} />
+      <div className="cmdk" role="dialog" aria-label="Command palette">
+        <input ref={inputRef} className="cmdk-input" value={q}
+               placeholder="Type a command or search leads…"
+               onChange={e => { setQ(e.target.value); setIdx(0); }}
+               onKeyDown={onKey} />
+        <div className="cmdk-list">
+          {rows.map((row, i) => (
+            <button key={row.key}
+                    className={'cmdk-row' + (i === active ? ' is-active' : '')}
+                    onMouseEnter={() => setIdx(i)}
+                    onClick={() => run(row)}>
+              <span className="cmdk-row-label">{row.type === 'lead' ? '↗ ' : ''}{row.label}</span>
+              {row.hint && <span className="cmdk-row-hint">{row.hint}</span>}
+            </button>
+          ))}
+          {rows.length === 0 && <div className="cmdk-empty">No matches.</div>}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Shortcuts help (?) ──────────────────────────────────────
+function V4HelpOverlay({ open, onClose }) {
+  if (!open) return null;
+  const rows = [
+    ['J / K', 'Next / previous thread'],
+    ['Enter / click', 'Open thread'],
+    ['R', 'Reply (draft loads)'],
+    ['E', 'Archive and advance'],
+    ['H', 'Snooze until tomorrow 9am'],
+    ['U', 'Toggle read / unread'],
+    ['⌘K', 'Command palette'],
+    ['/', 'Search'],
+    ['Esc', 'Close composer, then back out'],
+    ['?', 'This help'],
+  ];
+  return (
+    <>
+      <div className="backdrop show" style={{ zIndex: 40 }} onClick={onClose} />
+      <div className="help-card" role="dialog" aria-label="Keyboard shortcuts">
+        <div className="help-title">Keyboard shortcuts</div>
+        {rows.map(([keys, what]) => (
+          <div key={keys} className="help-row">
+            <span className="help-keys">{keys}</span>
+            <span>{what}</span>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 function V4App() {
   const { USERS, LEADS, STAGE_BY_ID, ACTIVE_STAGE_IDS } = window.V3;
   const [t, setTweak] = useTweaks(V4_TWEAKS);
@@ -121,15 +203,25 @@ function V4App() {
     setView(V4DefaultViewForUser(user));
   }, [user]);
 
+  const [paletteOpen, setPaletteOpen] = React.useState(false);
+  const [helpOpen, setHelpOpen] = React.useState(false);
+
   React.useEffect(() => {
     const onKey = (e) => {
       if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
-        searchRef.current?.focus();
+        setPaletteOpen(open => !open);
+        return;
       }
-      if (e.key === 'Escape' && document.activeElement === searchRef.current) {
-        searchRef.current?.blur();
+      if (e.key === 'Escape') {
+        setHelpOpen(false);
+        if (document.activeElement === searchRef.current) searchRef.current?.blur();
+        return;
       }
+      const t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      if (e.key === '/') { e.preventDefault(); searchRef.current?.focus(); }
+      if (e.key === '?') { e.preventDefault(); setHelpOpen(true); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -192,6 +284,22 @@ function V4App() {
     pipeline: operationalLeads.filter(l => !['paid-out'].includes(l.stage)).reduce((s, l) => s + (l.value || 0), 0),
   };
   const inboxLabel = user === 'robert' ? 'Brief' : 'Inbox';
+
+  const paletteCommands = [
+    { label: 'Go to Company OS', hint: 'workspace', run: () => { setView('company-os'); setOpenId(null); } },
+    { label: 'Go to Today', run: () => { setView('today'); setOpenId(null); } },
+    { label: 'Go to Calendar', run: () => { setView('calendar'); setOpenId(null); } },
+    { label: 'Go to ' + inboxLabel, run: () => { setView('inbox'); } },
+    { label: 'Go to Invoices', run: () => { setView('invoices'); setOpenId(null); } },
+    { label: 'Go to New Leads', run: () => { setView('new-leads'); setOpenId(null); } },
+    { label: 'Go to Network', run: () => { setView('leads'); } },
+    { label: 'View as Asher', hint: 'shared lane', run: () => { setTweak('viewAs', 'asher'); setOpenId(null); } },
+    { label: 'View as Sammy', hint: 'shared lane', run: () => { setTweak('viewAs', 'sammy'); setOpenId(null); } },
+    { label: 'View as Robert', hint: 'creator lane', run: () => { setTweak('viewAs', 'robert'); setOpenId(null); } },
+    { label: t.theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode', run: () => setTweak('theme', t.theme === 'dark' ? 'light' : 'dark') },
+    { label: 'Keyboard shortcuts', hint: '?', run: () => setHelpOpen(true) },
+    { label: 'Refresh data', run: () => window.location.reload() },
+  ];
 
   return (
     <div className="app" data-screen-label={`ALIGNED v4 — ${view}`}>
@@ -387,6 +495,12 @@ function V4App() {
       {openLead && view !== 'inbox' && (
         <V3Drawer lead={openLead} user={user} queue={triageQueue} onNavigate={setOpenId} onClose={() => setOpenId(null)} />
       )}
+
+      <V4CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)}
+                        commands={paletteCommands}
+                        leads={mergedLeads.filter(l => !l.isRobertBrief)}
+                        onOpenLead={(id) => setOpenId(id)} />
+      <V4HelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
 
       {/* Brief viewer modal */}
       {briefId && (

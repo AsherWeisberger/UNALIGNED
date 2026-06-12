@@ -527,6 +527,27 @@ function V4CompanyOsOperator({ activeLead, sender, setSender, recipients, draft,
 // Superhuman workspace — splits rail + thread list + reader
 // ─────────────────────────────────────────────────────────────
 
+// PATCH a card in Supabase and update local state optimistically,
+// same pattern as V3MoveLeadStage.
+function V4CosPatchLead(lead, fields, localPatch) {
+  const id = lead?.rowId || lead?.id;
+  if (!id) return;
+  fetch(V3_SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(id), {
+    method: 'PATCH',
+    headers: {
+      apikey: V3_SUPABASE_ANON_KEY,
+      Authorization: 'Bearer ' + V3_SUPABASE_ANON_KEY,
+      'Content-Type': 'application/json',
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify(fields),
+  }).catch(err => console.warn('[ALIGNED v4] lead patch failed:', err));
+  const updated = (window.V3.LEADS || []).map(item =>
+    String(item.id) === String(lead.id) ? { ...item, ...localPatch } : item);
+  window.V3.LEADS = updated;
+  window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated } }));
+}
+
 function V4CosBriefBoard() {
   const todayLabel = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   return (
@@ -680,12 +701,26 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead })
   const live = base.filter(l => !['trash', 'dead-leads'].includes(l.stage));
   const byStale = (a, b) => (b.daysInStage || 0) - (a.daysInStage || 0);
   const byRecent = (a, b) => V3TimestampForUi(b.lastTouchAt) - V3TimestampForUi(a.lastTouchAt);
+
+  // Snooze, Superhuman style — H hides a thread until tomorrow 9am.
+  // Stored per browser; snoozed threads live in their own split.
+  const [snoozes, setSnoozes] = React.useState(() => {
+    try { return JSON.parse(window.localStorage.getItem('v4-snoozes') || '{}'); } catch (e) { return {}; }
+  });
+  React.useEffect(() => {
+    try { window.localStorage.setItem('v4-snoozes', JSON.stringify(snoozes)); } catch (e) {}
+  }, [snoozes]);
+  const nowTs = Date.now();
+  const isSnoozed = (l) => snoozes[l.id] && Date.parse(snoozes[l.id]) > nowTs;
+  const awake = live.filter(l => !isSnoozed(l));
+
   const splits = [
-    { id: 'reply',   label: 'Reply now',       hot: true, items: live.filter(l => l.unread && l.nextMove?.who).sort(byStale) },
-    { id: 'follow',  label: 'Follow ups',      items: live.filter(l => !l.unread && TEAM.includes(l.nextMove?.who) && (l.daysInStage || 0) <= 21).sort(byStale) },
-    { id: 'robert',  label: 'Robert',          items: live.filter(l => l.nextMove?.who === 'robert').sort(byRecent) },
-    { id: 'waiting', label: 'Waiting on them', items: live.filter(l => !l.nextMove?.who && !['done', 'paid-out'].includes(l.stage)).sort(byRecent) },
-    { id: 'closed',  label: 'Done and paid',   items: live.filter(l => ['done', 'paid-out'].includes(l.stage)).sort(byRecent) },
+    { id: 'reply',   label: 'Reply now',       hot: true, items: awake.filter(l => l.unread && l.nextMove?.who).sort(byStale) },
+    { id: 'follow',  label: 'Follow ups',      items: awake.filter(l => !l.unread && TEAM.includes(l.nextMove?.who) && (l.daysInStage || 0) <= 21).sort(byStale) },
+    { id: 'robert',  label: 'Robert',          items: awake.filter(l => l.nextMove?.who === 'robert').sort(byRecent) },
+    { id: 'waiting', label: 'Waiting on them', items: awake.filter(l => !l.nextMove?.who && !['done', 'paid-out'].includes(l.stage)).sort(byRecent) },
+    { id: 'snoozed', label: 'Snoozed',         items: live.filter(isSnoozed).sort((a, b) => Date.parse(snoozes[a.id]) - Date.parse(snoozes[b.id])) },
+    { id: 'closed',  label: 'Done and paid',   items: awake.filter(l => ['done', 'paid-out'].includes(l.stage)).sort(byRecent) },
     { id: 'brief',   label: 'Daily brief',     brief: true },
   ];
 
@@ -706,12 +741,38 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead })
     const next = items[Math.min(items.length - 1, Math.max(0, (idx === -1 ? 0 : idx + delta)))];
     if (next) setSelId(next.id);
   };
+  const advanceFrom = (lead) => {
+    const idx = items.findIndex(l => String(l.id) === String(lead.id));
+    const next = items[idx + 1] || items[idx - 1] || null;
+    if (next) setSelId(next.id);
+  };
   const archive = () => {
     if (!selected) return;
-    const idx = items.findIndex(l => String(l.id) === String(selected.id));
-    const next = items[idx + 1] || items[idx - 1] || null;
+    advanceFrom(selected);
     window.V3.MoveLeadStage(selected, 'trash');
-    if (next) setSelId(next.id);
+  };
+  // H — snooze until tomorrow 9am (or wake it from the Snoozed split)
+  const snoozeSelected = () => {
+    if (!selected) return;
+    advanceFrom(selected);
+    if (split.id === 'snoozed') {
+      setSnoozes(s => { const copy = { ...s }; delete copy[selected.id]; return copy; });
+    } else {
+      const until = new Date();
+      until.setDate(until.getDate() + 1);
+      until.setHours(9, 0, 0, 0);
+      setSnoozes(s => ({ ...s, [selected.id]: until.toISOString() }));
+    }
+  };
+  // U — toggle read state, backed by new_reply_at in Supabase
+  const toggleRead = () => {
+    if (!selected) return;
+    if (selected.unread) {
+      V4CosPatchLead(selected, { new_reply_at: null }, { unread: false });
+    } else {
+      const ts = new Date().toISOString();
+      V4CosPatchLead(selected, { new_reply_at: ts }, { unread: true });
+    }
   };
 
   React.useEffect(() => {
@@ -729,6 +790,8 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead })
       if (e.key === 'k' || e.key === 'K' || e.key === 'ArrowUp')   { e.preventDefault(); moveSel(-1); }
       if (e.key === 'r' || e.key === 'R') { e.preventDefault(); if (selected) setComposeOpen(true); }
       if (e.key === 'e' || e.key === 'E') { e.preventDefault(); archive(); }
+      if (e.key === 'h' || e.key === 'H') { e.preventDefault(); snoozeSelected(); }
+      if (e.key === 'u' || e.key === 'U') { e.preventDefault(); toggleRead(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -766,6 +829,10 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead })
             <span><kbd>J</kbd><kbd>K</kbd> move</span>
             <span><kbd>R</kbd> reply</span>
             <span><kbd>E</kbd> archive</span>
+            <span><kbd>H</kbd> snooze</span>
+            <span><kbd>U</kbd> unread</span>
+            <span><kbd>⌘K</kbd> commands</span>
+            <span><kbd>?</kbd> help</span>
           </div>
         </nav>
         {split.brief ? (
@@ -786,7 +853,13 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead })
                   <span className="cos2-row-snip">{l.nextMove?.text || ''}</span>
                 </button>
               ))}
-              {items.length === 0 && <div className="dq-empty">Nothing here. Inbox zero.</div>}
+              {items.length === 0 && (
+                <div className="cos2-zero">
+                  <span className="cos2-zero-mark">✓</span>
+                  <strong>Inbox zero</strong>
+                  <span>Nothing in {split.label.toLowerCase()}. Breathe.</span>
+                </div>
+              )}
             </div>
             <V4CosReader lead={selected} user={user}
                          composeOpen={composeOpen} setComposeOpen={setComposeOpen}

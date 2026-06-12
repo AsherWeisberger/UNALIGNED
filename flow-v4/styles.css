@@ -2494,6 +2494,81 @@ a { color: inherit; }
 }
 .drawer.is-closed { transform: translateX(110%); }
 
+/* ── Command palette (⌘K) ── */
+.cmdk {
+  position: fixed; top: 14vh; left: 50%; transform: translateX(-50%);
+  width: min(560px, 92vw);
+  background: var(--surface);
+  border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  z-index: 41;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.cmdk-input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 0; border-bottom: 1px solid var(--line);
+  outline: 0;
+  background: transparent;
+  font: 500 14px/1.3 var(--font-body); color: var(--text);
+}
+.cmdk-list { max-height: 46vh; overflow-y: auto; padding: 6px; }
+.cmdk-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  width: 100%;
+  padding: 9px 11px;
+  border: 0; border-radius: 7px;
+  background: transparent;
+  font: 500 13px/1.3 var(--font-body); color: var(--text-2);
+  cursor: pointer; text-align: left;
+}
+.cmdk-row.is-active { background: var(--accent-soft); color: var(--accent-deep); }
+.cmdk-row-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmdk-row-hint { font: 500 11px/1 var(--font-mono); color: var(--text-3); flex-shrink: 0; }
+.cmdk-empty { padding: 18px; text-align: center; font: 400 12.5px/1.4 var(--font-body); color: var(--text-3); }
+
+/* ── Shortcuts help (?) ── */
+.help-card {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: min(420px, 92vw);
+  background: var(--surface);
+  border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  z-index: 41;
+  padding: 18px 20px 14px;
+}
+.help-title { font: 600 14px/1.2 var(--font-display); color: var(--text); margin-bottom: 12px; }
+.help-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 6px 0;
+  font: 400 12.5px/1.4 var(--font-body); color: var(--text-2);
+}
+.help-keys {
+  flex: 0 0 110px;
+  font: 600 11px/1 var(--font-mono); color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px;
+  padding: 4px 7px;
+  text-align: center;
+}
+
+/* ── Inbox zero ── */
+.cos2-zero {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 48px 16px;
+  text-align: center;
+}
+.cos2-zero-mark {
+  display: flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; border-radius: 50%;
+  background: var(--accent-soft); color: var(--accent-deep);
+  font-size: 20px; font-weight: 700;
+  margin-bottom: 4px;
+}
+.cos2-zero strong { font: 600 14px/1.2 var(--font-display); color: var(--text); }
+.cos2-zero span:last-child { font: 400 12px/1.4 var(--font-body); color: var(--text-3); }
+
 /* ── Superhuman workspace: Company OS three-pane ── */
 .cos2-page { background: var(--bg); }
 .cos2-top {
