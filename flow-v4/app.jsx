@@ -191,8 +191,7 @@ function V4App() {
             Invoices
           </button>
           <button className="hd-nav-btn" aria-current={view === 'leads' ? 'page' : undefined} onClick={() => { setView('leads'); }}>Network</button>
-          <button className="hd-nav-btn" aria-current={view === 'board' ? 'page' : undefined} onClick={() => { setView('board'); }}>Pipeline</button>
-          <button className="hd-nav-btn" aria-current={view === 'company-os' ? 'page' : undefined} onClick={() => { setView('company-os'); setOpenId(null); }}>Company OS Beta</button>
+          <button className="hd-nav-btn" aria-current={view === 'company-os' ? 'page' : undefined} onClick={() => { setView('company-os'); setOpenId(null); }}>Company OS</button>
         </div>
 
         <div className="hd-search">
@@ -339,11 +338,6 @@ function V4App() {
                 onClick={() => { setView('leads'); }}>
           <V3Icon name="leads" w={18} />
           Network
-        </button>
-        <button className="ft-tab" aria-current={view === 'board' ? 'page' : undefined}
-                onClick={() => { setView('board'); }}>
-          <V3Icon name="table" w={18} />
-          Pipeline
         </button>
         <button className="ft-tab" aria-current={view === 'company-os' ? 'page' : undefined}
                 onClick={() => { setView('company-os'); setOpenId(null); }}>

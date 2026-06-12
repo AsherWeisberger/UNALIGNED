@@ -3624,6 +3624,69 @@ body[data-theme="dark"] .twk-panel {
 
 /* ── Section wrappers ───────────────────────────────────── */
 .cos-section { margin-bottom: 22px; }
+
+/* ── Team Pulse — per-person lanes ── */
+.cos-pulse-section-head {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+}
+.cos-pulse-grid {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px;
+}
+.cos-pulse-lane {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  display: flex; flex-direction: column;
+  min-width: 0;
+}
+.cos-pulse-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--line);
+}
+.cos-pulse-id { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.cos-pulse-id strong { font: 600 13.5px/1.2 var(--font-body); color: var(--text); }
+.cos-pulse-id span { font: 500 10.5px/1 var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); }
+.cos-pulse-body { display: flex; flex-direction: column; padding: 7px; gap: 4px; }
+.cos-pulse-item {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 8px 9px;
+  border: 1px solid transparent; border-radius: 8px;
+  background: transparent;
+  text-align: left; cursor: pointer;
+  min-width: 0;
+}
+.cos-pulse-item:hover { background: var(--surface-2); border-color: var(--line); }
+.cos-pulse-top { display: flex; align-items: center; gap: 8px; }
+.cos-pulse-brand {
+  font: 600 12.5px/1.25 var(--font-body); color: var(--text);
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cos-pulse-age {
+  font: 600 10.5px/1 var(--font-mono); color: var(--text-3);
+  padding: 3px 6px; border-radius: 99px;
+  background: var(--surface-2); border: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.cos-pulse-age.is-late { color: var(--bad); background: var(--bad-soft); border-color: color-mix(in oklab, var(--bad) 30%, transparent); }
+.cos-pulse-move {
+  font: 400 12px/1.4 var(--font-body); color: var(--text-2);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.cos-pulse-empty {
+  padding: 16px 12px; text-align: center;
+  font: 400 12px/1.4 var(--font-body); color: var(--text-3);
+}
+.cos-pulse-more {
+  padding: 6px 9px 8px;
+  font: 500 11px/1 var(--font-mono); color: var(--text-3);
+}
+@media (max-width: 900px) {
+  .cos-pulse-grid { grid-template-columns: 1fr; }
+}
+
 .cos-eyebrow {
   font: 500 10.5px/1 var(--font-mono);
   text-transform: uppercase; letter-spacing: 0.12em;

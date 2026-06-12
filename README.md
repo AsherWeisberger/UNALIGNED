@@ -9,7 +9,7 @@ This folder has a few generations of the project in it. Here is the simple versi
   - this is the new ALIGNED design
   - it now pulls real leads into the aligned inbox
 
-GitHub Pages is publishing from `main`. Active development is happening on `AI-DESIGN`, then the live static bundle is copied to `main` when it is ready.
+GitHub Pages publishes from the `AI-DESIGN` branch through the Deploy Pages workflow (`.github/workflows/deploy-pages.yml`), which compiles the JSX and swaps in production React at deploy time. Push to `AI-DESIGN` and the live site rebuilds automatically. Edit the `.jsx` sources directly, never compiled output.
 
 ## What the older app is
 

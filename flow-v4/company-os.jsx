@@ -277,6 +277,45 @@ function senderShortLabel(sender) {
 // Sub-components
 // ─────────────────────────────────────────────────────────────
 
+// ─────────────────────────────────────────────────────────────
+// Team Pulse — per-person lanes computed from live leads
+// ─────────────────────────────────────────────────────────────
+
+function V4CompanyOsPulseLane({ person, items, onOpenLead }) {
+  const shown = items.slice(0, 6);
+  return (
+    <section className="cos-pulse-lane">
+      <div className="cos-pulse-head">
+        <V3Avatar name={person.name} color={person.color} size="sm" />
+        <div className="cos-pulse-id">
+          <strong>{person.name}</strong>
+          <span>{person.role}</span>
+        </div>
+        <span className="cos-panel-count">{items.length}</span>
+      </div>
+      <div className="cos-pulse-body">
+        {shown.map(lead => (
+          <button key={lead.id} type="button" className="cos-pulse-item" onClick={() => onOpenLead?.(lead.id)}>
+            <span className="cos-pulse-top">
+              <span className="cos-pulse-brand">{lead.brand}</span>
+              <span className={'cos-pulse-age' + ((lead.daysInStage || 0) >= 10 ? ' is-late' : '')}>
+                {lead.daysInStage || 0}d
+              </span>
+            </span>
+            <span className="cos-pulse-move">{lead.nextMove?.text || 'Review thread'}</span>
+          </button>
+        ))}
+        {items.length === 0 && (
+          <div className="cos-pulse-empty">Clear. Nothing waiting on {person.name}.</div>
+        )}
+        {items.length > shown.length && (
+          <div className="cos-pulse-more">+{items.length - shown.length} more in queue</div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function V4CompanyOsBuildingIcon({ size = 22 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -524,7 +563,22 @@ function V4CompanyOsView({ leads = [], query = '', onOpenLead }) {
 
   const p0Count = activeLeads.filter(l => l.needsReply || l.stage === 'invoice-sent').length;
   const leadInboxCount = activeLeads.length;
-  const sourceCount = new Set(activeLeads.map(l => l.brand).filter(Boolean)).size || 5;
+  const invoicedOutstanding = activeLeads
+    .filter(l => l.stage === 'invoice-sent')
+    .reduce((s, l) => s + (l.value || 0), 0);
+  const openPipeline = activeLeads
+    .filter(l => !['done', 'paid-out'].includes(l.stage))
+    .reduce((s, l) => s + (l.value || 0), 0);
+
+  const pulseLanes = ['robert', 'asher', 'sammy'].map(id => ({
+    person: window.V3.USERS[id],
+    items: activeLeads
+      .filter(l => (l.nextMove?.who || l.ownerId) === id)
+      .sort((a, b) =>
+        ((b.needsReply ? 1 : 0) - (a.needsReply ? 1 : 0)) ||
+        ((b.daysInStage || 0) - (a.daysInStage || 0))
+      ),
+  }));
 
   const today = new Date();
   const todayLabel = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -558,10 +612,24 @@ function V4CompanyOsView({ leads = [], query = '', onOpenLead }) {
         <div className="cos-topbar-kpis">
           <span className="cos-kpi"><strong>{p0Count}</strong> P0</span>
           <span className="cos-kpi cos-kpi-accent"><strong>{leadInboxCount}</strong> Lead inbox</span>
-          <span className="cos-kpi"><strong>{sourceCount}</strong> Sources</span>
-          <button type="button" className="cos-refresh-btn">↻ Refresh Gmail</button>
+          <span className="cos-kpi"><strong>{V4CompanyOsMoney(invoicedOutstanding) || '$0'}</strong> Invoiced</span>
+          <span className="cos-kpi"><strong>{V4CompanyOsMoney(openPipeline) || '$0'}</strong> In play</span>
+          <button type="button" className="cos-refresh-btn" onClick={() => window.location.reload()}>↻ Refresh</button>
         </div>
       </header>
+
+      {/* ── Team Pulse ──────────────────────────────────────── */}
+      <section className="cos-section cos-pulse">
+        <div className="cos-pulse-section-head">
+          <span className="cos-eyebrow">Team Pulse</span>
+          <span className="cos-section-date">who moves next, live from the inbox</span>
+        </div>
+        <div className="cos-pulse-grid">
+          {pulseLanes.map(lane => (
+            <V4CompanyOsPulseLane key={lane.person.id} person={lane.person} items={lane.items} onOpenLead={onOpenLead} />
+          ))}
+        </div>
+      </section>
 
       {/* ── Daily Operating Brief ───────────────────────────── */}
       <section className="cos-section cos-brief">

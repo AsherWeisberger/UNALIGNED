@@ -255,7 +255,9 @@ function V3NormalizeOwner(owner) {
 function V3ParseMoney(value) {
   if (value == null || value === '') return null;
   const n = Number(String(value).replace(/[^0-9.-]/g, ''));
-  return Number.isFinite(n) ? n : null;
+  if (!Number.isFinite(n)) return null;
+  // Deal sizes never exceed five figures; bigger numbers are bad AI extractions
+  return (n > 100000 || n < 0) ? null : n;
 }
 
 function V3DomainBrand(email) {
