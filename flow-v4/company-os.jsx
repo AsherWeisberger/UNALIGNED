@@ -548,6 +548,103 @@ function V4CosPatchLead(lead, fields, localPatch) {
   window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated } }));
 }
 
+// Overview — glanceable metrics, live activity, team status, priorities
+function V4CosOverview({ leads, replyCount }) {
+  const { USERS } = window.V3;
+  const now = Date.now();
+  const todayKey = new Date().toDateString();
+  const newToday = leads.filter(l => l.receivedAt && new Date(l.receivedAt).toDateString() === todayKey).length;
+  const doneWeek = leads.filter(l =>
+    ['done', 'paid-out'].includes(l.stage) &&
+    l.lastTouchAt && (now - Date.parse(l.lastTouchAt)) < 7 * 86400000).length;
+  const pipeline = leads.filter(l => !['done', 'paid-out'].includes(l.stage)).reduce((s, l) => s + (l.value || 0), 0);
+
+  const events = [];
+  for (const l of leads) {
+    if (l.unread && l.lastTouchAt) events.push({ t: Date.parse(l.lastTouchAt) || 0, type: 'reply', label: `${l.brand} — new message from ${l.contactName.split(' ')[0]}` });
+    if (l.receivedAt && (now - Date.parse(l.receivedAt)) < 14 * 86400000) events.push({ t: Date.parse(l.receivedAt) || 0, type: 'new', label: `New lead — ${l.brand} (${l.source})` });
+    if (['done', 'paid-out'].includes(l.stage) && l.lastTouchAt && (now - Date.parse(l.lastTouchAt)) < 14 * 86400000) events.push({ t: Date.parse(l.lastTouchAt) || 0, type: 'closed', label: `${l.brand} — ${l.stage === 'paid-out' ? 'paid out' : 'done'}` });
+  }
+  events.sort((a, b) => b.t - a.t);
+  const feed = events.slice(0, 10);
+
+  const STATUS_DEFAULTS = { robert: 'Creator work', asher: 'Working the inbox', sammy: 'Sales follow ups' };
+  const [teamStatus, setTeamStatus] = React.useState(() => {
+    try { return JSON.parse(window.localStorage.getItem('v4-team-status') || '{}'); } catch (e) { return {}; }
+  });
+  const setStatus = (id, text) => setTeamStatus(s => {
+    const next = { ...s, [id]: text };
+    try { window.localStorage.setItem('v4-team-status', JSON.stringify(next)); } catch (e) {}
+    return next;
+  });
+
+  return (
+    <div className="cosov">
+      <div className="cosov-metrics">
+        <div className="cosov-card"><strong>{newToday}</strong><span>New leads today</span></div>
+        <div className="cosov-card cosov-card-hot"><strong>{replyCount}</strong><span>Need a reply</span></div>
+        <div className="cosov-card"><strong>{doneWeek}</strong><span>Closed this week</span></div>
+        <div className="cosov-card"><strong>{V4CompanyOsMoney(pipeline) || '$0'}</strong><span>Pipeline in play</span></div>
+      </div>
+
+      <div className="cosov-grid">
+        <section className="cos-panel cosov-panel">
+          <div className="cos-panel-head"><h3>Recent activity</h3><span className="cos-panel-count">{feed.length}</span></div>
+          <div className="cosov-feed">
+            {feed.map((e, i) => (
+              <div key={i} className="cosov-event">
+                <span className={'cosov-event-dot is-' + e.type}></span>
+                <span className="cosov-event-label">{e.label}</span>
+                <span className="cosov-event-when">{V3RelativeTime(new Date(e.t).toISOString())}</span>
+              </div>
+            ))}
+            {feed.length === 0 && <div className="dq-empty">Quiet. No recent activity.</div>}
+          </div>
+        </section>
+
+        <div className="cosov-side">
+          <section className="cos-panel cosov-panel">
+            <div className="cos-panel-head"><h3>Team</h3></div>
+            <div className="cosov-team">
+              {['robert', 'asher', 'sammy'].map(id => {
+                const u = USERS[id];
+                return (
+                  <div key={id} className="cosov-member">
+                    <V3Avatar name={u.name} color={u.color} size="sm" />
+                    <div className="cosov-member-text">
+                      <strong>{u.name}</strong>
+                      <input className="cosov-status-input"
+                             value={teamStatus[id] ?? STATUS_DEFAULTS[id]}
+                             onChange={e => setStatus(id, e.target.value)}
+                             placeholder="What are they on?" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="cos-panel cosov-panel">
+            <div className="cos-panel-head"><h3>Current priorities</h3><span className="cos-panel-count">{V4_COMPANY_OS_PREP.length}</span></div>
+            <div className="cosov-priorities">
+              {V4_COMPANY_OS_PREP.map(item => (
+                <div key={item.title} className="cosov-priority">
+                  <strong>{item.title}</strong>
+                  <span className="cos-chips">
+                    {item.tags.slice(0, 3).map(t => <span key={t} className="cos-chip cos-chip-tight">{t}</span>)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <V4CosBriefBoard />
+    </div>
+  );
+}
+
 function V4CosBriefBoard() {
   const todayLabel = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   return (
@@ -721,7 +818,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead })
     { id: 'waiting', label: 'Waiting on them', items: awake.filter(l => !l.nextMove?.who && !['done', 'paid-out'].includes(l.stage)).sort(byRecent) },
     { id: 'snoozed', label: 'Snoozed',         items: live.filter(isSnoozed).sort((a, b) => Date.parse(snoozes[a.id]) - Date.parse(snoozes[b.id])) },
     { id: 'closed',  label: 'Done and paid',   items: awake.filter(l => ['done', 'paid-out'].includes(l.stage)).sort(byRecent) },
-    { id: 'brief',   label: 'Daily brief',     brief: true },
+    { id: 'brief',   label: 'Overview',        brief: true },
   ];
 
   const [splitId, setSplitId] = React.useState('reply');
@@ -836,7 +933,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead })
           </div>
         </nav>
         {split.brief ? (
-          <div className="cos2-main-scroll"><V4CosBriefBoard /></div>
+          <div className="cos2-main-scroll"><V4CosOverview leads={live} replyCount={splits[0].items.length} /></div>
         ) : (
           <>
             <div className="cos2-list">

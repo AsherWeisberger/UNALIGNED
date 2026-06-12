@@ -320,3 +320,120 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// ── Lead ingestion API — for AI systems pushing leads from any source ──
+// Contract documented in docs/LEAD_INGEST.md. Auth: Bearer token checked
+// against _secrets/lead_ingest. Dedupes on (source, externalId) via the
+// cards.email_id column, matching how the Gmail scrapers dedupe.
+
+const INGEST_SOURCES = ['email', 'instagram_dm', 'twitter_dm', 'linkedin', 'other'];
+
+function normalizeIngestSource(value) {
+  const s = String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (INGEST_SOURCES.includes(s)) return s;
+  if (s === 'ig' || s === 'instagram') return 'instagram_dm';
+  if (s === 'x' || s === 'twitter' || s === 'x_dm') return 'twitter_dm';
+  if (s === 'gmail' || s === 'mail') return 'email';
+  if (s === 'linkedin_dm') return 'linkedin';
+  return null;
+}
+
+exports.ingestLead = functions.https.onRequest(async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') return res.status(204).send('');
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
+
+  try {
+    const secretSnap = await db.collection('_secrets').doc('lead_ingest').get();
+    if (!secretSnap.exists) return res.status(500).json({ error: 'Ingest secret not configured' });
+    const { token, supabase_url, supabase_key } = secretSnap.data();
+
+    const auth = String(req.headers.authorization || '');
+    if (!token || auth !== `Bearer ${token}`) {
+      return res.status(401).json({ error: 'Invalid or missing bearer token' });
+    }
+
+    const body = req.body || {};
+    const source = normalizeIngestSource(body.source);
+    if (!source) {
+      return res.status(400).json({ error: `source must be one of: ${INGEST_SOURCES.join(', ')}` });
+    }
+    const senderName = String(body.senderName || '').trim();
+    const senderEmail = String(body.senderEmail || '').trim();
+    const senderHandle = String(body.senderHandle || '').trim();
+    const preview = String(body.preview || '').trim();
+    if (!senderName && !senderEmail && !senderHandle) {
+      return res.status(400).json({ error: 'Provide at least one of senderName, senderEmail, senderHandle' });
+    }
+    if (!preview) return res.status(400).json({ error: 'preview is required' });
+
+    const priority = ['low', 'normal', 'high', 'urgent'].includes(String(body.priority || '').toLowerCase())
+      ? String(body.priority).toLowerCase() : 'normal';
+    const receivedAt = body.receivedAt && !isNaN(Date.parse(body.receivedAt))
+      ? new Date(body.receivedAt).toISOString() : new Date().toISOString();
+    const externalId = String(body.externalId || '').trim();
+    const dedupeKey = externalId ? `${source}:${externalId}` : null;
+
+    const subject = String(body.subject || '').trim();
+    const displayName = senderName || senderHandle || senderEmail;
+    const record = {
+      title: subject || `${displayName} via ${source.replace('_', ' ')}`,
+      list_id: 'new',
+      contact_name: displayName,
+      email: senderEmail || null,
+      business_name: String(body.company || '').trim() || null,
+      lead_source: `ingest-${source}`,
+      description: preview,
+      priority,
+      date_received_iso: receivedAt,
+      created_by: 'ingest-api',
+      assignee: String(body.assignedTo || '').trim() || null,
+      estimated_value: body.estimatedValue != null ? String(body.estimatedValue) : null,
+      new_reply_at: receivedAt,
+      moved_at: receivedAt,
+    };
+    if (dedupeKey) record.email_id = dedupeKey;
+
+    const sb = (path, opts) => fetch(`${supabase_url}/rest/v1/${path}`, {
+      ...opts,
+      headers: {
+        apikey: supabase_key,
+        Authorization: `Bearer ${supabase_key}`,
+        'Content-Type': 'application/json',
+        ...(opts.headers || {}),
+      },
+    });
+
+    if (dedupeKey) {
+      const existing = await sb(`cards?email_id=eq.${encodeURIComponent(dedupeKey)}&select=id`, { method: 'GET' });
+      const rows = await existing.json();
+      if (Array.isArray(rows) && rows.length) {
+        const update = { description: preview, new_reply_at: receivedAt, priority };
+        if (subject) update.title = subject;
+        const patch = await sb(`cards?id=eq.${encodeURIComponent(rows[0].id)}`, {
+          method: 'PATCH',
+          headers: { Prefer: 'return=minimal' },
+          body: JSON.stringify(update),
+        });
+        if (!patch.ok) throw new Error(`Supabase update failed: ${patch.status}`);
+        return res.json({ ok: true, action: 'updated', id: rows[0].id });
+      }
+    }
+
+    const insert = await sb('cards', {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify(record),
+    });
+    if (!insert.ok) {
+      const detail = await insert.text();
+      throw new Error(`Supabase insert failed: ${insert.status} ${detail.slice(0, 200)}`);
+    }
+    const created = await insert.json();
+    return res.json({ ok: true, action: 'created', id: created[0]?.id ?? null });
+  } catch (err) {
+    console.error('ingestLead error:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
