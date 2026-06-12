@@ -32,6 +32,7 @@ import re
 import sys
 import time
 import typing
+from email.utils import getaddresses
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -56,7 +57,7 @@ CHUNK_SIZE         = 15    # emails per AI extraction batch (was 50 — smaller 
 CHECKPOINT_INTERVAL = 100
 
 CREDENTIALS_DIR = Path("/Users/asherweisberger/.config/google-credentials")
-TOKEN_FILE      = CREDENTIALS_DIR / "gmail-token.json"
+TOKEN_FILE      = Path(os.environ.get("GMAIL_TOKEN_FILE", str(CREDENTIALS_DIR / "gmail-token.json")))
 CHECKPOINT_FILE = CREDENTIALS_DIR / "scraper_v4_checkpoint.json"
 LOG_FILE        = CREDENTIALS_DIR / "scraper_v4.log"
 LAST_RUN_FILE   = CREDENTIALS_DIR / "scraper_v4_last_run.txt"
@@ -97,7 +98,7 @@ INTENT_PHRASES = [
     "brand deal", "affiliate deal",
 ]
 
-METADATA_HEADERS = ["From", "Subject", "Date"]
+METADATA_HEADERS = ["From", "To", "Cc", "Subject", "Date"]
 
 COLUMN_MAP = {
     "partnership":   "first-touch",
@@ -317,6 +318,8 @@ async def fetch_all_metadata(token: str, query: str) -> list[dict]:
                         "id":              msg_id,
                         "subject":         hdrs.get("Subject", "").strip(),
                         "from":            hdrs.get("From", "").strip(),
+                        "to":              hdrs.get("To", "").strip(),
+                        "cc":              hdrs.get("Cc", "").strip(),
                         "date_raw":        raw_date,
                         "date":            _parse_date_display(raw_date),
                         "date_iso":        _parse_date_iso(raw_date),
@@ -485,11 +488,19 @@ async def fetch_thread_conversation(
     for msg in thread.get("messages", []):
         hdrs     = {h["name"]: h["value"] for h in msg.get("payload", {}).get("headers", [])}
         sender   = hdrs.get("From", "Unknown").strip()
+        to_raw   = hdrs.get("To", "").strip()
+        cc_raw   = hdrs.get("Cc", "").strip()
         raw_date = hdrs.get("Date", "").strip()
         body     = _clean_body(_decode_body(msg.get("payload", {}))) or msg.get("snippet", "").strip()
         if body:
+            recipients = [addr for _name, addr in getaddresses([to_raw, cc_raw]) if addr]
             conversation.append({
+                "id":       msg.get("id", ""),
                 "from":     sender,
+                "to":       to_raw,
+                "cc":       cc_raw,
+                "to_emails": recipients,
+                "subject":  hdrs.get("Subject", "").strip(),
                 "date":     _parse_date_display(raw_date),
                 "date_iso": _parse_date_iso(raw_date),
                 "body":     body,

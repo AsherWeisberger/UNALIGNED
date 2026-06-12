@@ -281,15 +281,19 @@ function senderShortLabel(sender) {
 // Team Pulse — per-person lanes computed from live leads
 // ─────────────────────────────────────────────────────────────
 
-function V4CompanyOsPulseLane({ person, items, onOpenLead }) {
-  const shown = items.slice(0, 6);
+function V4CompanyOsPulseLane({ lane, onOpenLead }) {
+  const { items } = lane;
+  const members = lane.members.map(id => window.V3.USERS[id]).filter(Boolean);
+  const shown = items.slice(0, members.length > 1 ? 8 : 6);
   return (
     <section className="cos-pulse-lane">
       <div className="cos-pulse-head">
-        <V3Avatar name={person.name} color={person.color} size="sm" />
+        <span className="cos-pulse-avatars">
+          {members.map(m => <V3Avatar key={m.id} name={m.name} color={m.color} size="sm" />)}
+        </span>
         <div className="cos-pulse-id">
-          <strong>{person.name}</strong>
-          <span>{person.role}</span>
+          <strong>{lane.label}</strong>
+          <span>{lane.sub}</span>
         </div>
         <span className="cos-panel-count">{items.length}</span>
       </div>
@@ -306,7 +310,7 @@ function V4CompanyOsPulseLane({ person, items, onOpenLead }) {
           </button>
         ))}
         {items.length === 0 && (
-          <div className="cos-pulse-empty">Clear. Nothing waiting on {person.name}.</div>
+          <div className="cos-pulse-empty">Clear. Nothing waiting on {lane.label}.</div>
         )}
         {items.length > shown.length && (
           <div className="cos-pulse-more">+{items.length - shown.length} more in queue</div>
@@ -570,10 +574,15 @@ function V4CompanyOsView({ leads = [], query = '', onOpenLead }) {
     .filter(l => !['done', 'paid-out'].includes(l.stage))
     .reduce((s, l) => s + (l.value || 0), 0);
 
-  const pulseLanes = ['robert', 'asher', 'sammy'].map(id => ({
-    person: window.V3.USERS[id],
+  // Lanes show only leads where someone on the team owes the next move;
+  // threads waiting on the client live in Watch/Waiting instead.
+  const pulseLanes = [
+    { id: 'robert',   label: 'Robert',             sub: 'Creator',       members: ['robert'] },
+    { id: 'partners', label: 'Unaligned Partners', sub: 'Asher + Sammy', members: ['asher', 'sammy'] },
+  ].map(lane => ({
+    ...lane,
     items: activeLeads
-      .filter(l => (l.nextMove?.who || l.ownerId) === id)
+      .filter(l => lane.members.includes(l.nextMove?.who))
       .sort((a, b) =>
         ((b.needsReply ? 1 : 0) - (a.needsReply ? 1 : 0)) ||
         ((b.daysInStage || 0) - (a.daysInStage || 0))
@@ -626,7 +635,7 @@ function V4CompanyOsView({ leads = [], query = '', onOpenLead }) {
         </div>
         <div className="cos-pulse-grid">
           {pulseLanes.map(lane => (
-            <V4CompanyOsPulseLane key={lane.person.id} person={lane.person} items={lane.items} onOpenLead={onOpenLead} />
+            <V4CompanyOsPulseLane key={lane.id} lane={lane} onOpenLead={onOpenLead} />
           ))}
         </div>
       </section>

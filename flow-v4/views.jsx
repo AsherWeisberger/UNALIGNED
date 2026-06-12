@@ -1649,6 +1649,99 @@ const CAL_TZ = 'America/Los_Angeles';
 
 const EMPTY_FORM = { title: '', date: '', startTime: '09:00', endTime: '10:00', location: '', allDay: false };
 
+function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
+  const q = String(query || '').trim();
+  const reviewLeads = React.useMemo(() => {
+    const source = (Array.isArray(leads) ? leads : []).filter(lead => {
+      if (window.V3.IsNewLeadReview) return window.V3.IsNewLeadReview(lead);
+      return lead && lead.stage === 'new';
+    });
+    return source
+      .filter(lead => window.V3.LeadMatchesQuery ? window.V3.LeadMatchesQuery(lead, q) : true)
+      .sort((a, b) => V3TimestampForUi(b.lastTouchAt || b.receivedAt) - V3TimestampForUi(a.lastTouchAt || a.receivedAt));
+  }, [leads, q]);
+
+  const counts = {
+    total: reviewLeads.length,
+    needsReply: reviewLeads.filter(l => l.needsReply).length,
+    pricing: reviewLeads.filter(l => /rate|pricing|paid|sponsor|quote|repost/i.test([l.notes, l.evidence, l.nextMove?.text].join(' '))).length,
+  };
+
+  const moveLead = (lead, nextStage) => {
+    window.V3.MoveLeadStage(lead, nextStage, leads);
+  };
+
+  return (
+    <div className="page new-leads-page">
+      <div className="page-hd">
+        <div>
+          <div className="page-eyebrow">Asher intake</div>
+          <h1 className="page-title">New Leads</h1>
+          <div className="page-sub">Fresh Gmail leads waiting to be accepted into the active board.</div>
+        </div>
+        <div className="invoice-stats">
+          <span className="invoice-stat warn">{counts.needsReply} need reply</span>
+          <span className="invoice-stat good">{counts.pricing} pricing signal</span>
+          <span className="invoice-stat total">{counts.total} total</span>
+        </div>
+      </div>
+
+      <div className="new-leads-shell">
+        {reviewLeads.map(lead => {
+          const latest = Array.isArray(lead.thread) && lead.thread.length ? lead.thread[lead.thread.length - 1] : null;
+          const summary = String(lead.notes || latest?.body || lead.nextMove?.text || '').replace(/\s+/g, ' ').trim();
+          const evidence = String(lead.evidence || latest?.body || '').replace(/\s+/g, ' ').trim();
+          const source = String(lead.source || 'Gmail').replace(/^GMAIL-?/i, '').replace(/-/g, ' ');
+          return (
+            <article key={lead.id} className="new-lead-card">
+              <div className="new-lead-main">
+                <div className="new-lead-avatar">
+                  <V3Avatar name={lead.contactName} color={lead.color} size="sm" />
+                </div>
+                <div className="new-lead-content">
+                  <div className="new-lead-topline">
+                    <h2>{lead.contactName || 'Unknown contact'}</h2>
+                    <span>{lead.lastTouch || 'new'}</span>
+                  </div>
+                  <div className="new-lead-meta">
+                    <strong>{lead.brand || 'Unknown company'}</strong>
+                    {lead.email && <span>{lead.email}</span>}
+                    <span>{source}</span>
+                  </div>
+                  <p className="new-lead-summary">{summary || 'No summary available yet.'}</p>
+                  {evidence && <div className="new-lead-evidence">{evidence.slice(0, 280)}</div>}
+                  <div className="new-lead-foot">
+                    <span>{lead.thread?.length || 0} email{(lead.thread?.length || 0) === 1 ? '' : 's'}</span>
+                    <span>{lead.gmailThreadId ? 'Thread linked' : 'No thread link'}</span>
+                    {lead.suggestedStage && <span>Suggested: {lead.suggestedStage}</span>}
+                  </div>
+                </div>
+              </div>
+              <div className="new-lead-actions">
+                <button type="button" className="btn btn-sm btn-accent" onClick={() => moveLead(lead, 'first-touch')}>
+                  <V3Icon name="plus" w={12} />
+                  Add to Board
+                </button>
+                <button type="button" className="btn btn-sm btn-ghost" onClick={() => onOpenLead?.(lead.id)}>
+                  <V3Icon name="doc" w={12} />
+                  Open
+                </button>
+                <button type="button" className="btn btn-sm btn-danger" onClick={() => moveLead(lead, 'trash')}>
+                  <V3Icon name="trash" w={12} />
+                  Trash
+                </button>
+              </div>
+            </article>
+          );
+        })}
+        {reviewLeads.length === 0 && (
+          <V3Empty icon="leads" title="No new leads waiting." sub="Fresh Asher/Codex Gmail leads will appear here before they enter the board." />
+        )}
+      </div>
+    </div>
+  );
+}
+
 function V4CalendarView({ query = '' }) {
   const [events, setEvents]   = React.useState(null);
   const [err, setErr]         = React.useState(null);
@@ -1884,4 +1977,4 @@ function V4CalendarView({ query = '' }) {
   );
 }
 
-Object.assign(window, { V4TodayView, V4RobertBriefView, V4InboxView, V4LeadsView, V4CalendarView });
+Object.assign(window, { V4TodayView, V4RobertBriefView, V4InboxView, V4LeadsView, V4NewLeadsView, V4CalendarView });

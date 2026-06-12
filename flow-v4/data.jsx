@@ -176,6 +176,7 @@ function V3NormalizeSupabaseLead(row) {
   const timelineDays = V3TimelineDaysFromRow(row);
   const briefPayload = V3ParseBriefDescription(row.description);
   const isRobertBrief = V3IsRobertBriefRow(row) || briefPayload.kind === 'official-posting' || briefPayload.type === 'official-posting';
+  const leadSource = row.lead_source || (row.gmail_thread_id ? 'Gmail' : 'Manual');
   return {
     id: String(row.id),
     contactName: name,
@@ -200,7 +201,11 @@ function V3NormalizeSupabaseLead(row) {
     draftReply: V3ParseDraftReply(row.draft_reply),
     draftReplyStatus: row.draft_reply_status || '',
     rowId: row.id,
-    source: row.lead_source || (row.gmail_thread_id ? 'Gmail' : 'Manual'),
+    source: leadSource,
+    rawDescription: row.description || '',
+    notes: briefPayload.rich_description || briefPayload.notes || row.notes || '',
+    evidence: briefPayload.evidence || '',
+    suggestedStage: briefPayload.suggested_stage || row.suggested_stage || '',
     isRobertBrief,
     briefTitle: briefPayload.title || row.brief_title || row.briefTitle || '',
     briefSubtitle: briefPayload.subtitle || row.brief_subtitle || row.briefSubtitle || '',
@@ -670,6 +675,8 @@ function V3LeadMatchesQuery(lead, query) {
     lead?.nextMove?.text,
     lead?.nextMove?.action,
     lead?.source,
+    lead?.notes,
+    lead?.evidence,
     ...(Array.isArray(lead?.thread) ? lead.thread.flatMap(msg => [
       msg?.from,
       msg?.subject,
@@ -680,6 +687,16 @@ function V3LeadMatchesQuery(lead, query) {
   ].flat().join(' '));
   if (hay.includes(q)) return true;
   return q.split(' ').filter(Boolean).every(token => hay.includes(token));
+}
+
+function V3IsNewLeadReview(lead) {
+  if (!lead || lead.isRobertBrief) return false;
+  const source = String(lead.source || '').toLowerCase();
+  const reviewSource =
+    source.includes('gmail-codex-new-lead') ||
+    source.includes('gmail-asher') ||
+    source.includes('asherunaligned');
+  return reviewSource && lead.stage === 'new';
 }
 
 function V3PendingReplyMatchesLead(pending, lead) {
@@ -1596,7 +1613,7 @@ function V3MoveLeadStage(lead, nextStage, leads = window.V3?.LEADS || V3_LEADS) 
   window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated } }));
 }
 
-window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage };
+window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview };
 
 V3LoadSupabaseLeads().then(leads => {
   window.V3.LEADS = leads;

@@ -22,6 +22,7 @@ function V4App() {
     today: '',
     invoices: '',
     board: '',
+    'new-leads': '',
     inbox: '',
     leads: '',
     calendar: '',
@@ -106,6 +107,7 @@ function V4App() {
     if (view === 'today') return 'Search today…';
     if (view === 'inbox') return user === 'robert' ? 'Search briefs…' : 'Search inbox…';
     if (view === 'invoices') return 'Search invoices…';
+    if (view === 'new-leads') return 'Search new leads…';
     if (view === 'leads') return 'Search network…';
     if (view === 'board') return 'Search pipeline…';
     if (view === 'company-os') return 'Search Company OS…';
@@ -141,10 +143,16 @@ function V4App() {
     .filter(l => !l.isRobertBrief)
     .filter(l => window.V3.LeadVisibleToProfile(l, user))
     .filter(l => window.V3.LeadMatchesQuery ? window.V3.LeadMatchesQuery(l, search) : true);
+  const operationalLeads = visibleLeads.filter(l => !(window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(l)));
+  const newLeadCount = mergedLeads.filter(l =>
+    window.V3.IsNewLeadReview &&
+    window.V3.IsNewLeadReview(l) &&
+    window.V3.LeadVisibleToProfile(l, user)
+  ).length;
   // Look up against mergedLeads so the packet drawer opens for any lead
   // (e.g. Company OS shows leads outside the current profile's lane).
   const openLead = mergedLeads.find(l => l.id === openId) || null;
-  const unreadCount = visibleLeads.filter(l => l.unread).length;
+  const unreadCount = operationalLeads.filter(l => l.unread).length;
   // Leads hidden from this profile's lane (so empty views can explain themselves)
   const laneHiddenActive = mergedLeads.filter(l =>
     !l.isRobertBrief &&
@@ -160,12 +168,12 @@ function V4App() {
   };
 
   const stats = {
-    total: visibleLeads.length,
-    assigned: visibleLeads.filter(l => window.V3.LeadIsMineForProfile(l, user)).length,
-    hot: visibleLeads.filter(l => l.stage === 'rates-sent' && l.daysInStage >= 5).length,
-    stuck: visibleLeads.filter(l => l.daysInStage >= 10 && !['paid-out'].includes(l.stage)).length,
-    newToday: visibleLeads.filter(l => l.receivedAt && new Date(l.receivedAt).toDateString() === new Date().toDateString()).length,
-    pipeline: visibleLeads.filter(l => !['paid-out'].includes(l.stage)).reduce((s, l) => s + (l.value || 0), 0),
+    total: operationalLeads.length,
+    assigned: operationalLeads.filter(l => window.V3.LeadIsMineForProfile(l, user)).length,
+    hot: operationalLeads.filter(l => l.stage === 'rates-sent' && l.daysInStage >= 5).length,
+    stuck: operationalLeads.filter(l => l.daysInStage >= 10 && !['paid-out'].includes(l.stage)).length,
+    newToday: operationalLeads.filter(l => l.receivedAt && new Date(l.receivedAt).toDateString() === new Date().toDateString()).length,
+    pipeline: operationalLeads.filter(l => !['paid-out'].includes(l.stage)).reduce((s, l) => s + (l.value || 0), 0),
   };
   const inboxLabel = user === 'robert' ? 'Brief' : 'Inbox';
 
@@ -189,6 +197,10 @@ function V4App() {
           </button>
           <button className="hd-nav-btn" aria-current={view === 'invoices' ? 'page' : undefined} onClick={() => { setView('invoices'); setOpenId(null); }}>
             Invoices
+          </button>
+          <button className="hd-nav-btn" aria-current={view === 'new-leads' ? 'page' : undefined} onClick={() => { setView('new-leads'); setOpenId(null); }}>
+            New Leads
+            {newLeadCount > 0 && <span className="cnt">{newLeadCount}</span>}
           </button>
           <button className="hd-nav-btn" aria-current={view === 'leads' ? 'page' : undefined} onClick={() => { setView('leads'); }}>Network</button>
           <button className="hd-nav-btn" aria-current={view === 'company-os' ? 'page' : undefined} onClick={() => { setView('company-os'); setOpenId(null); }}>Company OS</button>
@@ -256,10 +268,10 @@ function V4App() {
             <div className="fs-divider"></div>
             <span className="fs-total">TOTAL <strong>{stats.total}</strong></span>
             <span className={'fs-chip' + (ownerFilter === 'all' ? ' active' : '')} onClick={() => setOwnerFilter('all')}>
-              All <span className="fs-chip-cnt">{visibleLeads.length}</span>
+              All <span className="fs-chip-cnt">{operationalLeads.length}</span>
             </span>
             {Object.values(USERS).map(u => {
-              const n = visibleLeads.filter(l => l.ownerId === u.id).length;
+              const n = operationalLeads.filter(l => l.ownerId === u.id).length;
               return (
                 <span key={u.id} className={'fs-chip' + (ownerFilter === u.id ? ' active' : '')} onClick={() => setOwnerFilter(u.id)}>
                   {u.name} <span className="fs-chip-cnt">{n}</span>
@@ -284,21 +296,24 @@ function V4App() {
         )}
 
         {view === 'today' && (
-          <V4TodayView user={user} leads={visibleLeads} query={search} onOpenLead={setOpenId} onGoInbox={() => setView('inbox')} />
+          <V4TodayView user={user} leads={operationalLeads} query={search} onOpenLead={setOpenId} onGoInbox={() => setView('inbox')} />
         )}
         {view === 'board' && (
-          <V3BoardView leads={visibleLeads} query={search} openId={openId} onOpen={setOpenId} user={user}
+          <V3BoardView leads={operationalLeads} query={search} openId={openId} onOpen={setOpenId} user={user}
                        ownerFilter={ownerFilter} setOwnerFilter={setOwnerFilter} />
         )}
         {view === 'inbox' && (user === 'robert'
           ? <V4RobertBriefView leads={mergedLeads} query={search} user={user} onOpenLead={setOpenId} />
-          : <V4InboxView leads={visibleLeads} query={search} user={user} />
+          : <V4InboxView leads={operationalLeads} query={search} user={user} />
         )}
         {view === 'invoices' && (
           <V4InvoicesView query={search} />
         )}
+        {view === 'new-leads' && (
+          <V4NewLeadsView leads={mergedLeads} query={search} onOpenLead={setOpenId} />
+        )}
         {view === 'leads' && (
-          <V4LeadsView leads={visibleLeads} query={search} openId={openId} onOpenLead={setOpenId} user={user} />
+          <V4LeadsView leads={operationalLeads} query={search} openId={openId} onOpenLead={setOpenId} user={user} />
         )}
         {view === 'calendar' && (
           <V4CalendarView query={search} />
@@ -311,7 +326,7 @@ function V4App() {
       {/* ─── Footer ─── */}
       <footer className="ft">
         <span className="dot"></span>
-        <span>Synced · {visibleLeads.length} cards · {visibleLeads.filter(l => !['paid-out'].includes(l.stage)).length} active</span>
+        <span>Synced · {operationalLeads.length} cards · {operationalLeads.filter(l => !['paid-out'].includes(l.stage)).length} active · {newLeadCount} new leads</span>
         <span className="right">v4.0 · {me.name} ({me.role}) · ALIGNED</span>
         <button className="ft-tab" aria-current={view === 'today' ? 'page' : undefined}
                 onClick={() => { setView('today'); setOpenId(null); }}>
@@ -333,6 +348,12 @@ function V4App() {
                 onClick={() => { setView('invoices'); setOpenId(null); }}>
           <V3Icon name="invoice" w={18} />
           Invoices
+        </button>
+        <button className="ft-tab" aria-current={view === 'new-leads' ? 'page' : undefined}
+                onClick={() => { setView('new-leads'); setOpenId(null); }}>
+          <V3Icon name="plus" w={18} />
+          Leads
+          {newLeadCount > 0 && <span className="ft-tab-badge">{newLeadCount > 99 ? '99+' : newLeadCount}</span>}
         </button>
         <button className="ft-tab" aria-current={view === 'leads' ? 'page' : undefined}
                 onClick={() => { setView('leads'); }}>
@@ -370,7 +391,7 @@ function V4App() {
                     onChange={v => setTweak('viewAs', v)} />
         <TweakSection label="View" />
         <TweakSelect label="Page" value={view}
-                    options={['today','board','company-os','leads','inbox','invoices','calendar']}
+                    options={['today','board','new-leads','company-os','leads','inbox','invoices','calendar']}
                     onChange={v => { setView(v); setOpenId(null); }} />
         <TweakSection label="Appearance" />
         <TweakRadio label="Theme" value={t.theme}
