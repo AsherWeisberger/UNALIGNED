@@ -281,10 +281,30 @@ function senderShortLabel(sender) {
 // Team Pulse — per-person lanes computed from live leads
 // ─────────────────────────────────────────────────────────────
 
+function V4CompanyOsPulseItem({ lead, onOpenLead }) {
+  return (
+    <button type="button" className="cos-pulse-item" onClick={() => onOpenLead?.(lead.id)}>
+      <span className="cos-pulse-top">
+        <span className="cos-pulse-brand">{lead.brand}</span>
+        <span className={'cos-pulse-age' + ((lead.daysInStage || 0) >= 10 ? ' is-late' : '')}>
+          {lead.daysInStage || 0}d
+        </span>
+      </span>
+      <span className="cos-pulse-move">{lead.nextMove?.text || 'Review thread'}</span>
+    </button>
+  );
+}
+
 function V4CompanyOsPulseLane({ lane, onOpenLead }) {
   const { items } = lane;
   const members = lane.members.map(id => window.V3.USERS[id]).filter(Boolean);
-  const shown = items.slice(0, members.length > 1 ? 8 : 6);
+  // Only an actual new inbound message counts as reply-now; auto-drafted
+  // replies exist on most rows and are routine follow-up work
+  const replyNow = items.filter(l => l.unread);
+  const followUps = items.filter(l => !replyNow.includes(l));
+  const shownReply = replyNow.slice(0, 6);
+  const shownFollow = followUps.slice(0, replyNow.length ? 4 : 6);
+  const hiddenCount = items.length - shownReply.length - shownFollow.length;
   return (
     <section className="cos-pulse-lane">
       <div className="cos-pulse-head">
@@ -295,25 +315,27 @@ function V4CompanyOsPulseLane({ lane, onOpenLead }) {
           <strong>{lane.label}</strong>
           <span>{lane.sub}</span>
         </div>
+        {replyNow.length > 0 && <span className="cos-pulse-count-hot">{replyNow.length} reply now</span>}
         <span className="cos-panel-count">{items.length}</span>
       </div>
       <div className="cos-pulse-body">
-        {shown.map(lead => (
-          <button key={lead.id} type="button" className="cos-pulse-item" onClick={() => onOpenLead?.(lead.id)}>
-            <span className="cos-pulse-top">
-              <span className="cos-pulse-brand">{lead.brand}</span>
-              <span className={'cos-pulse-age' + ((lead.daysInStage || 0) >= 10 ? ' is-late' : '')}>
-                {lead.daysInStage || 0}d
-              </span>
-            </span>
-            <span className="cos-pulse-move">{lead.nextMove?.text || 'Review thread'}</span>
-          </button>
-        ))}
+        {shownReply.length > 0 && (
+          <div className="cos-pulse-subhead is-hot">
+            <span>Reply now</span><span>{replyNow.length}</span>
+          </div>
+        )}
+        {shownReply.map(lead => <V4CompanyOsPulseItem key={lead.id} lead={lead} onOpenLead={onOpenLead} />)}
+        {shownReply.length > 0 && shownFollow.length > 0 && (
+          <div className="cos-pulse-subhead">
+            <span>Follow ups</span><span>{followUps.length}</span>
+          </div>
+        )}
+        {shownFollow.map(lead => <V4CompanyOsPulseItem key={lead.id} lead={lead} onOpenLead={onOpenLead} />)}
         {items.length === 0 && (
           <div className="cos-pulse-empty">Clear. Nothing waiting on {lane.label}.</div>
         )}
-        {items.length > shown.length && (
-          <div className="cos-pulse-more">+{items.length - shown.length} more in queue</div>
+        {hiddenCount > 0 && (
+          <div className="cos-pulse-more">+{hiddenCount} more in queue</div>
         )}
       </div>
     </section>
@@ -582,6 +604,7 @@ function V4CompanyOsView({ leads = [], query = '', onOpenLead }) {
   ].map(lane => ({
     ...lane,
     items: activeLeads
+      .filter(l => !(window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(l)))
       .filter(l => lane.members.includes(l.nextMove?.who))
       .sort((a, b) =>
         ((b.needsReply ? 1 : 0) - (a.needsReply ? 1 : 0)) ||
