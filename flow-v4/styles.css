@@ -2502,6 +2502,49 @@ a { color: inherit; }
 }
 .drawer-id { font: 500 11px/1 var(--font-mono); color: var(--text-3); }
 .drawer-hd-actions { margin-left: auto; display: flex; gap: 2px; }
+.drawer-hd-brand {
+  font: 600 13px/1.2 var(--font-body); color: var(--text);
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.drawer-hd-stage {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: 600 10.5px/1 var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em;
+  flex-shrink: 0;
+}
+.drawer-hd-stage-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+/* Key facts strip — replaces the six-row meta grid */
+.drawer-facts {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 0 22px 12px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.drawer-fact {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 9px; border-radius: 99px;
+  border: 1px solid var(--line); background: var(--surface-2);
+  font: 500 11.5px/1.2 var(--font-body); color: var(--text-2);
+  max-width: 100%;
+}
+.drawer-fact.mono { font-family: var(--font-mono); }
+.drawer-fact-wide {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Collapsed reply bar */
+.drawer-reply-bar {
+  display: flex; align-items: center; gap: 9px;
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid var(--line); border-radius: 9px;
+  background: var(--surface-2);
+  font: 500 12.5px/1 var(--font-body); color: var(--text-2);
+  cursor: pointer; text-align: left;
+}
+.drawer-reply-bar:hover { background: var(--accent-soft); color: var(--accent-deep); border-color: var(--accent-tint); }
+.drawer-reply-bar span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .drawer-top {
   padding: 16px 22px 12px;
