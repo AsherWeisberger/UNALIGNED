@@ -164,7 +164,7 @@ function V4App() {
     assigned: visibleLeads.filter(l => window.V3.LeadIsMineForProfile(l, user)).length,
     hot: visibleLeads.filter(l => l.stage === 'rates-sent' && l.daysInStage >= 5).length,
     stuck: visibleLeads.filter(l => l.daysInStage >= 10 && !['paid-out'].includes(l.stage)).length,
-    newToday: 3,
+    newToday: visibleLeads.filter(l => l.receivedAt && new Date(l.receivedAt).toDateString() === new Date().toDateString()).length,
     pipeline: visibleLeads.filter(l => !['paid-out'].includes(l.stage)).reduce((s, l) => s + (l.value || 0), 0),
   };
   const inboxLabel = user === 'robert' ? 'Brief' : 'Inbox';

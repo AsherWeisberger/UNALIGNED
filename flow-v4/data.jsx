@@ -191,6 +191,7 @@ function V3NormalizeSupabaseLead(row) {
     timelineDays,
     lastTouch: V3RelativeTime(lastTouchAt || row.moved_at || received),
     lastTouchAt: lastTouchAt || row.moved_at || received || null,
+    receivedAt: received || null,
     needsReply,
     approve: row.draft_reply ? ownerId : null,
     color: __v3Color(name + brand),
