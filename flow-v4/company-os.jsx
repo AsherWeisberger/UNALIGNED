@@ -523,146 +523,277 @@ function V4CompanyOsOperator({ activeLead, sender, setSender, recipients, draft,
 // Main view
 // ─────────────────────────────────────────────────────────────
 
-function V4CompanyOsView({ leads = [], query = '', onOpenLead }) {
-  const activeLeads = React.useMemo(() => {
-    return leads
-      .filter(lead => !lead.isRobertBrief)
-      .filter(lead => lead.stage !== 'trash' && lead.stage !== 'dead-leads')
-      .filter(lead => (lead.daysInStage || 0) <= 21)
-      .filter(lead => V4CompanyOsFilterLead(lead, query))
-      .sort((a, b) => {
-        const pa = (a.needsReply ? 100 : 0) + (a.stage === 'invoice-sent' ? 40 : 0) - (a.daysInStage || 0);
-        const pb = (b.needsReply ? 100 : 0) + (b.stage === 'invoice-sent' ? 40 : 0) - (b.daysInStage || 0);
-        return pb - pa;
-      });
-  }, [leads, query]);
+// ─────────────────────────────────────────────────────────────
+// Superhuman workspace — splits rail + thread list + reader
+// ─────────────────────────────────────────────────────────────
 
-  const p0Count = activeLeads.filter(l => l.needsReply || l.stage === 'invoice-sent').length;
-  const leadInboxCount = activeLeads.length;
-  const invoicedOutstanding = activeLeads
-    .filter(l => l.stage === 'invoice-sent')
-    .reduce((s, l) => s + (l.value || 0), 0);
-  const openPipeline = activeLeads
-    .filter(l => !['done', 'paid-out'].includes(l.stage))
-    .reduce((s, l) => s + (l.value || 0), 0);
+function V4CosBriefBoard() {
+  const todayLabel = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return (
+    <section className="cos-section cos-brief" style={{ padding: '18px 22px 40px' }}>
+      <div className="cos-brief-head">
+        <div>
+          <div className="cos-section-eyebrow-row">
+            <span className="cos-eyebrow">Daily Operating Brief</span>
+            <span className="cos-section-date">{todayLabel}</span>
+          </div>
+          <h2 className="cos-section-title">What needs action, what is waiting, and what must not be touched</h2>
+        </div>
+        <p className="cos-section-sub">
+          Built from the latest Asher/Robert outreach cleanup so old threads do not get answered like first-touch leads.
+        </p>
+      </div>
+      <div className="cos-brief-grid">
+        <section className="cos-panel cos-panel-prep">
+          <div className="cos-panel-head">
+            <h3>Needs Prep / Action</h3>
+            <span className="cos-panel-count">{V4_COMPANY_OS_PREP.length}</span>
+          </div>
+          <div className="cos-panel-body">
+            {V4_COMPANY_OS_PREP.map(item => <V4CompanyOsActionItem key={item.title} item={item} />)}
+          </div>
+        </section>
+        <section className="cos-panel cos-panel-watch">
+          <div className="cos-panel-head">
+            <h3>Watch / Waiting</h3>
+            <span className="cos-panel-count">{V4_COMPANY_OS_WAITING.length}</span>
+          </div>
+          <div className="cos-panel-body">
+            {V4_COMPANY_OS_WAITING.map(item => <V4CompanyOsWatchItem key={item.title} item={item} />)}
+          </div>
+        </section>
+        <section className="cos-panel cos-rules">
+          <div className="cos-panel-head">
+            <h3>Operating Rules</h3>
+            <span className="cos-panel-count">{V4_COMPANY_OS_RULES.length}</span>
+          </div>
+          <ul>
+            {V4_COMPANY_OS_RULES.map(rule => <li key={rule}>{rule}</li>)}
+          </ul>
+        </section>
+        <section className="cos-panel cos-panel-done">
+          <div className="cos-panel-head">
+            <h3>Completed Campaigns</h3>
+            <span className="cos-panel-count">{V4_COMPANY_OS_DONE.length}</span>
+          </div>
+          <div className="cos-done-grid">
+            {V4_COMPANY_OS_DONE.map(item => <V4CompanyOsDoneItem key={item.title} item={item} />)}
+          </div>
+        </section>
+      </div>
+    </section>
+  );
+}
 
-  // Lanes show only leads where someone on the team owes the next move;
-  // threads waiting on the client live in Watch/Waiting instead.
-  const pulseLanes = [
-    { id: 'robert',   label: 'Robert',             sub: 'Creator',       members: ['robert'] },
-    { id: 'partners', label: 'Unaligned Partners', sub: 'Asher + Sammy', members: ['asher', 'sammy'] },
-  ].map(lane => ({
-    ...lane,
-    items: activeLeads
-      .filter(l => !(window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(l)))
-      .filter(l => lane.members.includes(l.nextMove?.who))
-      .sort((a, b) =>
-        ((b.needsReply ? 1 : 0) - (a.needsReply ? 1 : 0)) ||
-        ((b.daysInStage || 0) - (a.daysInStage || 0))
-      ),
-  }));
+function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
+  const { STAGE_BY_ID, USERS } = window.V3;
+  const [tab, setTab] = React.useState('thread');
+  React.useEffect(() => { setTab('thread'); }, [lead?.id]);
+  if (!lead) {
+    return <div className="cos2-reader"><div className="cos2-reader-empty">Select a thread from the list.</div></div>;
+  }
+  const stage = STAGE_BY_ID[lead.stage];
+  const nextOwner = lead.nextMove?.who ? USERS[lead.nextMove.who] : null;
+  const isMine = window.V3.MoveIsMineForProfile(lead, user);
+  const isThem = !lead.nextMove?.who && !['paid-out'].includes(lead.stage);
+  const replyAction = ['Reply', 'Send', 'Nudge'].includes(lead.nextMove?.action);
+  const owner = lead.ownerId ? USERS[lead.ownerId] : null;
+  return (
+    <div className="cos2-reader">
+      <div className="drawer-hd">
+        <button className="hd-icon-btn cos2-back" onClick={onBack} aria-label="Back to list">
+          <V3Icon name="chev_d" w={14} style={{ transform: 'rotate(90deg)' }} />
+        </button>
+        <span className="drawer-hd-brand">{lead.brand}</span>
+        <span className="drawer-hd-stage" style={{ color: stage.color }}>
+          <span className="drawer-hd-stage-dot" style={{ background: stage.color }}></span>
+          {stage.name}
+        </span>
+      </div>
+      <div className="drawer-top">
+        <V3Avatar name={lead.contactName} color={lead.color} size="lg" />
+        <div className="drawer-top-text">
+          {lead.category && <span className={'cat-tab cat-' + lead.category} style={{ marginBottom: 6 }}>{lead.category}</span>}
+          <h2 className="drawer-top-name">{lead.contactName}</h2>
+          <div className="drawer-top-co">{lead.contactRole} at <strong>{lead.brand}</strong></div>
+        </div>
+      </div>
+      <div className={'next-move ' + (isMine ? '' : 'them')}>
+        <div className="next-move-icon">
+          <V3Icon name={isMine ? 'reply' : 'clock'} w={18} />
+        </div>
+        <div className="next-move-text">
+          <div className="next-move-eyebrow">
+            Next move {isMine ? '· yours' : isThem ? `· waiting on ${lead.contactName.split(' ')[0]}` : nextOwner ? `· ${nextOwner.name}'s` : ''}
+          </div>
+          <div className="next-move-title">{lead.nextMove?.text}</div>
+        </div>
+        {isMine && replyAction && (
+          <div className="next-move-actions">
+            <button className="btn btn-sm btn-accent" onClick={() => setComposeOpen(true)}>
+              <V3Icon name="arrow_r" w={13} />
+              {lead.nextMove.action}
+            </button>
+          </div>
+        )}
+      </div>
+      <div className="drawer-facts">
+        {lead.value ? <span className="drawer-fact mono">{v3Money(lead.value)}</span> : null}
+        {owner && <span className="drawer-fact"><V3Avatar name={owner.name} color={owner.color} size="xs" /> {owner.name}</span>}
+        <span className="drawer-fact mono">{lead.daysInStage}d in stage</span>
+        <span className="drawer-fact">{lead.source}</span>
+        {lead.deliverables ? <span className="drawer-fact drawer-fact-wide" title={lead.deliverables}>{lead.deliverables}</span> : null}
+      </div>
+      <div className="drawer-tabs">
+        <button className="dr-tab" aria-selected={tab === 'thread'} onClick={() => setTab('thread')}>
+          Email thread <span className="cnt">{lead.thread.length}</span>
+        </button>
+        <button className="dr-tab" aria-selected={tab === 'stands'} onClick={() => setTab('stands')}>
+          Where this stands
+        </button>
+      </div>
+      <div className="drawer-body">
+        {tab === 'thread' && <V3Thread lead={lead} />}
+        {tab === 'stands' && <V3Stands lead={lead} />}
+      </div>
+      <div className="drawer-foot">
+        {composeOpen ? (
+          <V3InlineReply lead={lead} user={user} onCollapse={() => setComposeOpen(false)} />
+        ) : (
+          <button className="drawer-reply-bar" onClick={() => setComposeOpen(true)}>
+            <V3Icon name="reply" w={14} />
+            <span>Reply to {lead.contactName.split(' ')[0]}{lead.draftReply ? ' — draft ready' : ''}</span>
+            <V3Icon name="chev_d" w={12} style={{ transform: 'rotate(180deg)' }} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
-  const today = new Date();
-  const todayLabel = today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead }) {
+  const TEAM = ['asher', 'sammy'];
+  const base = React.useMemo(() => leads
+    .filter(l => !l.isRobertBrief)
+    .filter(l => !(window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(l)))
+    .filter(l => V4CompanyOsFilterLead(l, query)), [leads, query]);
+  const live = base.filter(l => !['trash', 'dead-leads'].includes(l.stage));
+  const byStale = (a, b) => (b.daysInStage || 0) - (a.daysInStage || 0);
+  const byRecent = (a, b) => V3TimestampForUi(b.lastTouchAt) - V3TimestampForUi(a.lastTouchAt);
+  const splits = [
+    { id: 'reply',   label: 'Reply now',       hot: true, items: live.filter(l => l.unread && l.nextMove?.who).sort(byStale) },
+    { id: 'follow',  label: 'Follow ups',      items: live.filter(l => !l.unread && TEAM.includes(l.nextMove?.who) && (l.daysInStage || 0) <= 21).sort(byStale) },
+    { id: 'robert',  label: 'Robert',          items: live.filter(l => l.nextMove?.who === 'robert').sort(byRecent) },
+    { id: 'waiting', label: 'Waiting on them', items: live.filter(l => !l.nextMove?.who && !['done', 'paid-out'].includes(l.stage)).sort(byRecent) },
+    { id: 'closed',  label: 'Done and paid',   items: live.filter(l => ['done', 'paid-out'].includes(l.stage)).sort(byRecent) },
+    { id: 'brief',   label: 'Daily brief',     brief: true },
+  ];
 
-  const topPrep = V4_COMPANY_OS_PREP;
-  const watchItems = V4_COMPANY_OS_WAITING;
-  const doneItems = V4_COMPANY_OS_DONE;
+  const [splitId, setSplitId] = React.useState('reply');
+  const [selId, setSelId] = React.useState(null);
+  const [composeOpen, setComposeOpen] = React.useState(false);
+  const [mobileOpen, setMobileOpen] = React.useState(false);
+  const split = splits.find(s => s.id === splitId) || splits[0];
+  const items = split.items || [];
+  const selected = items.find(l => String(l.id) === String(selId)) || items[0] || null;
+
+  React.useEffect(() => { setSelId(null); setMobileOpen(false); setComposeOpen(false); }, [splitId]);
+  React.useEffect(() => { setComposeOpen(selected ? Boolean(selected.unread) : false); }, [selected?.id]);
+
+  const moveSel = (delta) => {
+    if (!items.length) return;
+    const idx = items.findIndex(l => String(l.id) === String(selected?.id));
+    const next = items[Math.min(items.length - 1, Math.max(0, (idx === -1 ? 0 : idx + delta)))];
+    if (next) setSelId(next.id);
+  };
+  const archive = () => {
+    if (!selected) return;
+    const idx = items.findIndex(l => String(l.id) === String(selected.id));
+    const next = items[idx + 1] || items[idx - 1] || null;
+    window.V3.MoveLeadStage(selected, 'trash');
+    if (next) setSelId(next.id);
+  };
+
+  React.useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        if (composeOpen) setComposeOpen(false);
+        else if (mobileOpen) setMobileOpen(false);
+        return;
+      }
+      const t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (split.brief) return;
+      if (e.key === 'j' || e.key === 'J' || e.key === 'ArrowDown') { e.preventDefault(); moveSel(1); }
+      if (e.key === 'k' || e.key === 'K' || e.key === 'ArrowUp')   { e.preventDefault(); moveSel(-1); }
+      if (e.key === 'r' || e.key === 'R') { e.preventDefault(); if (selected) setComposeOpen(true); }
+      if (e.key === 'e' || e.key === 'E') { e.preventDefault(); archive(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
+  const replyCount = splits[0].items.length;
+  const p0Count = live.filter(l => l.unread || l.stage === 'invoice-sent').length;
+  const invoicedOutstanding = live.filter(l => l.stage === 'invoice-sent').reduce((s, l) => s + (l.value || 0), 0);
+  const openPipeline = live.filter(l => !['done', 'paid-out'].includes(l.stage)).reduce((s, l) => s + (l.value || 0), 0);
 
   return (
-    <section className="page company-os-page">
-      {/* ── Sub-header ──────────────────────────────────────── */}
-      <header className="cos-topbar">
-        <div className="cos-topbar-id">
-          <span className="cos-topbar-icon"><V4CompanyOsBuildingIcon size={24} /></span>
-          <div className="cos-topbar-id-text">
-            <div className="cos-topbar-eyebrow-row">
-              <span className="cos-eyebrow">Company OS Beta</span>
-              <span className="cos-topbar-status">Live Unaligned demo</span>
-            </div>
-            <h1 className="cos-topbar-title">UnalignedOS</h1>
-          </div>
-        </div>
-        <div className="cos-topbar-kpis">
-          <span className="cos-kpi"><strong>{p0Count}</strong> P0</span>
-          <span className="cos-kpi cos-kpi-accent"><strong>{leadInboxCount}</strong> Lead inbox</span>
-          <span className="cos-kpi"><strong>{V4CompanyOsMoney(invoicedOutstanding) || '$0'}</strong> Invoiced</span>
-          <span className="cos-kpi"><strong>{V4CompanyOsMoney(openPipeline) || '$0'}</strong> In play</span>
-          <button type="button" className="cos-refresh-btn" onClick={() => window.location.reload()}>↻ Refresh</button>
-        </div>
+    <section className="page cos2-page">
+      <header className="cos2-top">
+        <span className="cos2-brand">
+          <V4CompanyOsBuildingIcon size={18} />
+          <strong>UnalignedOS</strong>
+        </span>
+        <span className="cos-kpi cos-kpi-tight"><strong>{p0Count}</strong> P0</span>
+        <span className="cos-kpi cos-kpi-tight cos-kpi-accent"><strong>{replyCount}</strong> reply now</span>
+        <span className="cos-kpi cos-kpi-tight"><strong>{V4CompanyOsMoney(invoicedOutstanding) || '$0'}</strong> Invoiced</span>
+        <span className="cos-kpi cos-kpi-tight"><strong>{V4CompanyOsMoney(openPipeline) || '$0'}</strong> In play</span>
+        <button type="button" className="cos-refresh-btn cos2-refresh" onClick={() => window.location.reload()}>↻ Refresh</button>
       </header>
-
-      {/* ── Team Pulse ──────────────────────────────────────── */}
-      <section className="cos-section cos-pulse">
-        <div className="cos-pulse-section-head">
-          <span className="cos-eyebrow">Team Pulse</span>
-          <span className="cos-section-date">who moves next, live from the inbox</span>
-        </div>
-        <div className="cos-pulse-grid">
-          {pulseLanes.map(lane => (
-            <V4CompanyOsPulseLane key={lane.id} lane={lane} onOpenLead={onOpenLead} />
+      <div className={'cos2-body' + (mobileOpen ? ' is-mobile-open' : '')}>
+        <nav className="cos2-rail" aria-label="Splits">
+          {splits.map(s => (
+            <button key={s.id} type="button"
+                    className={'cos2-split' + (s.id === split.id ? ' is-active' : '') + (s.hot ? ' is-hot' : '')}
+                    onClick={() => setSplitId(s.id)}>
+              <span>{s.label}</span>
+              {!s.brief && <span className="cos2-split-cnt">{s.items.length}</span>}
+            </button>
           ))}
-        </div>
-      </section>
-
-      {/* ── Daily Operating Brief ───────────────────────────── */}
-      <section className="cos-section cos-brief">
-        <div className="cos-brief-head">
-          <div>
-            <div className="cos-section-eyebrow-row">
-              <span className="cos-eyebrow">Asher Inbox Command Center</span>
-              <span className="cos-section-date">{todayLabel}</span>
-            </div>
-            <h2 className="cos-section-title">What needs action, what is waiting, and what must not be touched</h2>
+          <div className="dq-hints cos2-hints">
+            <span><kbd>J</kbd><kbd>K</kbd> move</span>
+            <span><kbd>R</kbd> reply</span>
+            <span><kbd>E</kbd> archive</span>
           </div>
-          <p className="cos-section-sub">
-            Built from the latest Asher/Robert outreach cleanup so old threads do not get answered like first-touch leads.
-          </p>
-        </div>
-
-        <div className="cos-brief-grid">
-          <section className="cos-panel cos-panel-prep">
-            <div className="cos-panel-head">
-              <h3>Needs Prep / Action</h3>
-              <span className="cos-panel-count">{topPrep.length}</span>
+        </nav>
+        {split.brief ? (
+          <div className="cos2-main-scroll"><V4CosBriefBoard /></div>
+        ) : (
+          <>
+            <div className="cos2-list">
+              {items.map(l => (
+                <button key={l.id} type="button"
+                        className={'cos2-row' + (String(l.id) === String(selected?.id) ? ' is-current' : '')}
+                        onClick={() => { setSelId(l.id); setMobileOpen(true); }}>
+                  <span className="cos2-row-top">
+                    {l.unread && <span className="dq-dot" />}
+                    <span className="cos2-row-brand">{l.brand}</span>
+                    <span className="cos2-row-when">{l.lastTouch}</span>
+                  </span>
+                  <span className="cos2-row-name">{l.contactName}</span>
+                  <span className="cos2-row-snip">{l.nextMove?.text || ''}</span>
+                </button>
+              ))}
+              {items.length === 0 && <div className="dq-empty">Nothing here. Inbox zero.</div>}
             </div>
-            <div className="cos-panel-body">
-              {topPrep.map(item => <V4CompanyOsActionItem key={item.title} item={item} />)}
-            </div>
-          </section>
-
-          <section className="cos-panel cos-panel-watch">
-            <div className="cos-panel-head">
-              <h3>Watch / Waiting</h3>
-              <span className="cos-panel-count">{watchItems.length}</span>
-            </div>
-            <div className="cos-panel-body">
-              {watchItems.map(item => <V4CompanyOsWatchItem key={item.title} item={item} />)}
-            </div>
-          </section>
-
-          <section className="cos-panel cos-rules">
-            <div className="cos-panel-head">
-              <h3>Operating Rules</h3>
-              <span className="cos-panel-count">{V4_COMPANY_OS_RULES.length}</span>
-            </div>
-            <ul>
-              {V4_COMPANY_OS_RULES.map(rule => <li key={rule}>{rule}</li>)}
-            </ul>
-          </section>
-
-          <section className="cos-panel cos-panel-done">
-            <div className="cos-panel-head">
-              <h3>Completed Campaigns</h3>
-              <span className="cos-panel-count">{doneItems.length}</span>
-            </div>
-            <div className="cos-done-grid">
-              {doneItems.map(item => <V4CompanyOsDoneItem key={item.title} item={item} />)}
-            </div>
-          </section>
-        </div>
-      </section>
-
+            <V4CosReader lead={selected} user={user}
+                         composeOpen={composeOpen} setComposeOpen={setComposeOpen}
+                         onBack={() => setMobileOpen(false)} />
+          </>
+        )}
+      </div>
     </section>
   );
 }

@@ -2494,6 +2494,118 @@ a { color: inherit; }
 }
 .drawer.is-closed { transform: translateX(110%); }
 
+/* ── Superhuman workspace: Company OS three-pane ── */
+.cos2-page { background: var(--bg); }
+.cos2-top {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+  background: var(--surface);
+}
+.cos2-brand {
+  display: inline-flex; align-items: center; gap: 8px;
+  font: 600 14px/1 var(--font-display);
+  color: var(--text);
+  margin-right: 8px;
+}
+.cos2-brand svg { color: var(--accent); }
+.cos2-refresh { margin-left: auto; }
+.cos2-body {
+  flex: 1; min-height: 0;
+  display: grid;
+  grid-template-columns: 200px 380px minmax(0, 1fr);
+}
+.cos2-rail {
+  border-right: 1px solid var(--line);
+  background: var(--bg);
+  overflow-y: auto;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 10px 8px;
+}
+.cos2-split {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid transparent; border-radius: 7px;
+  background: transparent;
+  font: 500 12.5px/1.2 var(--font-body); color: var(--text-2);
+  cursor: pointer; text-align: left;
+}
+.cos2-split:hover { background: var(--surface-2); }
+.cos2-split.is-active {
+  background: var(--surface); border-color: var(--line);
+  color: var(--text); font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+.cos2-split-cnt {
+  font: 600 10.5px/1 var(--font-mono);
+  padding: 2px 7px; border-radius: 99px;
+  background: var(--surface-2); border: 1px solid var(--line);
+  color: var(--text-3);
+}
+.cos2-split.is-hot .cos2-split-cnt {
+  color: var(--bad); background: var(--bad-soft);
+  border-color: color-mix(in oklab, var(--bad) 30%, transparent);
+}
+.cos2-hints { border-top: 0; padding-left: 4px; flex-wrap: wrap; }
+.cos2-list {
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 8px;
+  min-height: 0;
+  background: var(--bg);
+}
+.cos2-row {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 9px 10px;
+  border: 1px solid transparent; border-radius: 8px;
+  background: transparent;
+  text-align: left; cursor: pointer;
+  min-width: 0;
+}
+.cos2-row:hover { background: var(--surface-2); }
+.cos2-row.is-current { background: var(--surface); border-color: var(--line); box-shadow: var(--shadow-sm); }
+.cos2-row-top { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.cos2-row-brand {
+  font: 600 12.5px/1.25 var(--font-body); color: var(--text);
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cos2-row-when { font: 500 10.5px/1 var(--font-mono); color: var(--text-3); flex-shrink: 0; }
+.cos2-row-name { font: 500 11.5px/1.3 var(--font-body); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cos2-row-snip { font: 400 11.5px/1.35 var(--font-body); color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cos2-reader {
+  display: flex; flex-direction: column;
+  min-width: 0; min-height: 0; overflow: hidden;
+  background: var(--surface);
+}
+.cos2-reader-empty {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  font: 400 13px/1.4 var(--font-body); color: var(--text-3);
+  padding: 40px;
+}
+.cos2-main-scroll { grid-column: 2 / -1; overflow-y: auto; min-height: 0; }
+.cos2-back { display: none; }
+@media (max-width: 900px) {
+  .cos2-body { grid-template-columns: minmax(0, 1fr); }
+  .cos2-rail {
+    flex-direction: row; overflow-x: auto; overflow-y: hidden;
+    border-right: 0; border-bottom: 1px solid var(--line);
+    padding: 8px 10px;
+  }
+  .cos2-split { flex-shrink: 0; }
+  .cos2-hints { display: none; }
+  .cos2-list { border-right: 0; }
+  .cos2-reader { display: none; }
+  .cos2-body.is-mobile-open .cos2-reader {
+    display: flex;
+    position: fixed; inset: 0; z-index: 30;
+  }
+  .cos2-body.is-mobile-open .cos2-back { display: inline-flex; }
+  .cos2-main-scroll { grid-column: auto; }
+}
+
 /* ── Superhuman split: full-screen triage — queue pane + conversation ── */
 .drawer-split {
   left: 0;
