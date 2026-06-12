@@ -18,6 +18,8 @@ Usage:
     python scraper_v4.py               # incremental (since last run)
     python scraper_v4.py --full        # 1-year backfill
     python scraper_v4.py --dry-run     # filter + thread fetch only, no AI or write
+    python scraper_v4.py --handoff-only # scrape full threads and write Codex handoff JSON
+    python scraper_v4.py --import-codex-leads extracted.json
 """
 
 import asyncio
@@ -58,6 +60,7 @@ TOKEN_FILE      = CREDENTIALS_DIR / "gmail-token.json"
 CHECKPOINT_FILE = CREDENTIALS_DIR / "scraper_v4_checkpoint.json"
 LOG_FILE        = CREDENTIALS_DIR / "scraper_v4.log"
 LAST_RUN_FILE   = CREDENTIALS_DIR / "scraper_v4_last_run.txt"
+HANDOFF_DIR     = CREDENTIALS_DIR / "codex_handoffs"
 
 # ─── Gmail query — explicit business-intent signals only ───────────────────
 # Deliberately narrow. Generic words like "ai", "tech", "startup" are removed
@@ -499,6 +502,19 @@ def _header_map(payload: dict) -> dict[str, str]:
     return {h["name"].lower(): h["value"] for h in payload.get("headers", [])}
 
 
+def extract_email_addresses(raw: str) -> list[str]:
+    if not raw:
+        return []
+    addresses = re.findall(r"<([^>]+)>", raw)
+    if not addresses:
+        addresses = re.findall(r"[\w.+%-]+@[\w.-]+\.[A-Za-z]{2,}", raw)
+    return [a.strip() for a in addresses if a.strip()]
+
+
+def _parse_rfc_date(raw_date: str) -> str:
+    return _parse_date_iso(raw_date) or _parse_date_display(raw_date)
+
+
 def _collect_attachment_names(payload: dict) -> list[str]:
     names: list[str] = []
     filename = payload.get("filename") or ""
@@ -866,6 +882,71 @@ def _build_extract_prompt(emails: list[dict], conversations: dict[str, list[dict
         parts.append(f"\n{'='*60}\nEMAIL {i+1}/{len(emails)}\n{'='*60}")
         parts.append(_format_thread_for_prompt(e, convo))
     return "\n".join(parts)
+
+
+def write_codex_handoff(
+    emails: list[dict],
+    conversations: dict[str, list[dict]],
+    query: str,
+    cutoff: str,
+    mode: str,
+) -> Path:
+    """
+    Persist a clean, secret-free handoff file for Codex extraction.
+
+    Hermes owns Gmail collection and thread fetch. Codex can read this JSON,
+    perform the AI extraction with the user's Codex subscription/session, then
+    hand extracted leads back for Supabase import.
+    """
+    HANDOFF_DIR.mkdir(parents=True, exist_ok=True)
+    ts = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+    path = HANDOFF_DIR / f"unaligned-handoff-{ts}.json"
+
+    payload = {
+        "schema": "unaligned.codex_handoff.v1",
+        "created_at_utc": datetime.utcnow().replace(tzinfo=timezone.utc).isoformat(),
+        "mode": mode,
+        "cutoff": cutoff,
+        "gmail_query": query,
+        "source_script": str(Path(__file__).resolve()),
+        "instructions": {
+            "task": "Extract qualified UNALIGNED partnership/sponsorship/media leads from these Gmail threads.",
+            "output": (
+                "Write a JSON object shaped as "
+                '{"handoff_path": "<this file path>", "leads": [...]} '
+                "where leads uses the scraper_v4 extraction schema. "
+                "The object is imported with scraper_v4.py --import-codex-leads."
+            ),
+            "lead_schema": {
+                "email_id": "original Gmail message id from emails[].id",
+                "title": "short card title",
+                "name": "contact name or null",
+                "business": "company/project name or null",
+                "email_addr": "best email address or null",
+                "phone": "phone or null",
+                "date": "email date if useful",
+                "notes": "specific opportunity summary",
+                "evidence": "exact quoted sentence proving it is a real lead",
+                "deal_value": "budget/value/tier signal or empty string",
+                "intent": "partnership | sponsorship | interview | collaboration | intro | other",
+                "priority": "hot | warm | cold",
+                "reply_hook": "one concrete opener sentence for a reply",
+            },
+            "strict_rules": [
+                "Return [] for emails that do not clearly qualify.",
+                "Do not guess missing fields; use null or empty string.",
+                "Every extracted lead must include evidence quoted from the email thread.",
+                "priority=hot requires a specific ask plus budget, timeline, or urgency.",
+                "Do not write to Supabase directly; only write the extracted JSON file for import.",
+            ],
+        },
+        "emails": emails,
+        "conversations": conversations,
+    }
+
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    log.info(f"Codex handoff written: {path}")
+    return path
 
 
 AI_CONCURRENCY   = 3    # max parallel Claude calls at once
@@ -1455,6 +1536,81 @@ def set_last_run_date(date_str: str):
         log.warning(f"Could not write last_run file: {e}")
 
 
+def import_codex_leads(extraction_path: str) -> int:
+    """
+    Import Codex-extracted leads back into Supabase.
+
+    Expected extraction JSON:
+      {
+        "handoff_path": "/path/to/unaligned-handoff-....json",
+        "leads": [ ... scraper_v4 lead schema ... ]
+      }
+    A bare JSON array is also accepted if a sibling `handoff_path` field is not
+    needed because each lead already includes `_original_email` and `_conversation`.
+    """
+    validate_supabase()
+
+    path = Path(extraction_path).expanduser()
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(raw, dict):
+        leads = raw.get("leads", [])
+        handoff_path = raw.get("handoff_path") or raw.get("source_handoff")
+    elif isinstance(raw, list):
+        leads = raw
+        handoff_path = None
+    else:
+        raise ValueError("Codex extraction must be a JSON object with leads[] or a bare leads array.")
+
+    if not isinstance(leads, list):
+        raise ValueError("Codex extraction `leads` must be a JSON array.")
+
+    handoff = {}
+    if handoff_path:
+        hp = Path(str(handoff_path)).expanduser()
+        handoff = json.loads(hp.read_text(encoding="utf-8"))
+
+    emails = handoff.get("emails", []) if isinstance(handoff, dict) else []
+    conversations = handoff.get("conversations", {}) if isinstance(handoff, dict) else {}
+    id_map = {e.get("id"): e for e in emails if e.get("id")}
+    existing_ids, existing_thread_map = get_existing_cards_index()
+
+    cards = []
+    for lead in leads:
+        if not isinstance(lead, dict):
+            continue
+        eid = str(lead.get("email_id", "")).strip()
+        if not eid or eid in existing_ids:
+            continue
+
+        original = id_map.get(eid) or lead.get("_original_email") or {}
+        conversation = conversations.get(eid) or lead.get("_conversation") or []
+        if not original:
+            log.warning(f"Codex lead skipped — no original email found for email_id={eid}")
+            continue
+
+        tid = str(original.get("gmail_thread_id", "")).strip()
+        if tid and tid in existing_thread_map:
+            existing_card = existing_thread_map[tid]
+            current_stage = existing_card.get("list_id", "")
+            if current_stage in ("new", "first-touch", "engaged", "unreplied", "discovery"):
+                new_stage = (
+                    "rates-sent" if thread_has_reply(conversation) and has_pricing_signal(conversation, lead)
+                    else "engaged" if thread_has_reply(conversation)
+                    else current_stage
+                )
+                if new_stage != current_stage:
+                    update_card_stage_by_thread(tid, new_stage, conversation)
+            existing_ids.add(eid)
+            continue
+
+        cards.append(build_card(lead, original, conversation))
+        existing_ids.add(eid)
+
+    written = upsert_cards(cards)
+    log.info(f"Codex import complete: {written}/{len(cards)} cards written from {path}")
+    return written
+
+
 # ─────────────────────────────────────────────────────────────
 # MAIN PIPELINE
 # ─────────────────────────────────────────────────────────────
@@ -1463,19 +1619,22 @@ async def run_pipeline(
     incremental: bool = True,
     full_backfill: bool = False,
     dry_run: bool = False,
+    handoff_only: bool = False,
 ) -> int:
     start  = datetime.utcnow()
     log.info("═" * 64)
     log.info(f"scraper_v4 started — {start.strftime('%Y-%m-%d %H:%M UTC')}")
     if dry_run:
         log.info("DRY RUN — no AI calls, no Supabase writes")
+    if handoff_only:
+        log.info("HANDOFF ONLY — Gmail scrape + full thread fetch, then Codex handoff JSON; no AI calls or Supabase writes")
     log.info("═" * 64)
 
     token  = get_gmail_token()
-    client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_KEY) if not dry_run else None
+    client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_KEY) if not (dry_run or handoff_only) else None
 
     # Validate Supabase auth before doing any work — fail fast, alert immediately
-    if not dry_run:
+    if not dry_run and not handoff_only:
         validate_supabase()
 
     # Build query + determine cutoff date
@@ -1497,12 +1656,12 @@ async def run_pipeline(
     existing_ids, existing_thread_map = get_existing_cards_index()
 
     # Sync Robert's official posting briefs from Gmail into Supabase
-    if not dry_run:
+    if not dry_run and not handoff_only:
         await sync_official_posting_briefs(token, existing_thread_map)
 
     # Step 1.5 — Re-check active tracked threads for replies missed by the search query
     # (e.g. lead replies to Robert where the reply subject doesn't match any search keyword)
-    if not dry_run:
+    if not dry_run and not handoff_only:
         await check_active_threads_for_replies(existing_thread_map, token, cutoff)
 
     # Step 1 — Scrape metadata
@@ -1519,12 +1678,17 @@ async def run_pipeline(
         set_last_run_date(datetime.utcnow().strftime("%Y/%m/%d"))
         return 0
 
-    if dry_run:
-        log.info(f"DRY RUN complete — {len(filtered)} emails passed filter. Exiting.")
-        return len(filtered)
-
     # Step 3 — Fetch full threads for ALL filtered emails (key change from v3)
     conversations = await fetch_all_conversations(filtered, token)
+
+    if handoff_only:
+        path = write_codex_handoff(filtered, conversations, query, cutoff, "full" if full_backfill else "incremental")
+        log.info(f"HANDOFF complete — {len(filtered)} filtered emails written for Codex: {path}")
+        return len(filtered)
+
+    if dry_run:
+        log.info(f"DRY RUN complete — {len(filtered)} emails passed filter and full threads were fetched. Exiting.")
+        return len(filtered)
 
     # Step 4 — id_map for dedup (existing_ids + existing_thread_map already loaded above)
     id_map = {e["id"]: e for e in filtered}
@@ -1591,13 +1755,23 @@ async def run_pipeline(
 # ─────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    if "--import-codex-leads" in sys.argv:
+        idx = sys.argv.index("--import-codex-leads")
+        if idx + 1 >= len(sys.argv):
+            log.error("--import-codex-leads requires a JSON file path.")
+            sys.exit(2)
+        result = import_codex_leads(sys.argv[idx + 1])
+        sys.exit(0 if result is not None else 1)
+
     full_backfill = "--full"    in sys.argv
     dry_run       = "--dry-run" in sys.argv
+    handoff_only  = "--handoff-only" in sys.argv
     incremental   = not full_backfill
 
     result = asyncio.run(run_pipeline(
         incremental=incremental,
         full_backfill=full_backfill,
         dry_run=dry_run,
+        handoff_only=handoff_only,
     ))
     sys.exit(0 if result is not None else 1)

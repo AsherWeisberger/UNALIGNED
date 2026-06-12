@@ -35,6 +35,7 @@ class InvoiceItem:
     title: str
     company: str
     folder: str
+    source_dir: str
     file: str
     href: str
     kind: str
@@ -77,7 +78,7 @@ def copy_invoice(source: Path, destination: Path) -> None:
         shutil.copy2(source, destination)
 
 
-def collect_bucket(source_dir: Path, asset_dir: Path, folder_label: str, href_prefix: str) -> list[InvoiceItem]:
+def collect_bucket(source_dir: Path, asset_dir: Path, folder_label: str, source_label: str, href_prefix: str) -> list[InvoiceItem]:
     items: list[InvoiceItem] = []
     if not source_dir.exists():
         return items
@@ -96,6 +97,7 @@ def collect_bucket(source_dir: Path, asset_dir: Path, folder_label: str, href_pr
                 title=title,
                 company=company,
                 folder=folder_label,
+                source_dir=source_label,
                 file=source.name,
                 href=f"{href_prefix}/{quoted_file}",
                 kind=source.suffix.lower().lstrip(".").upper(),
@@ -118,7 +120,7 @@ def build_buckets(group: str) -> list[dict[str, object]]:
         else "Archived for reference."
     )
     root_folder = "OUTSTANDING / OPEN OUTSTANDING" if group == "OUTSTANDING" else "DONE / ARCHIVED"
-    root_items = collect_bucket(source_group, asset_group, root_folder, href_group)
+    root_items = collect_bucket(source_group, asset_group, root_folder, group, href_group)
     if root_items:
         buckets.append({"label": root_label, "note": root_note, "items": root_items})
 
@@ -129,7 +131,7 @@ def build_buckets(group: str) -> list[dict[str, object]]:
             child_slug = re.sub(r"[^a-z0-9]+", "-", child.name.lower()).strip("-")
             label = titleize_folder(child.name)
             folder_label = f"{group} / {child.name}"
-            items = collect_bucket(child, asset_group / child_slug, folder_label, f"{href_group}/{child_slug}")
+            items = collect_bucket(child, asset_group / child_slug, folder_label, f"{group}/{child.name}", f"{href_group}/{child_slug}")
             if items:
                 buckets.append(
                     {
@@ -152,6 +154,7 @@ def render_items(items: list[InvoiceItem], indent: str) -> list[str]:
                 f"{indent}  title: {js_string(item.title)},",
                 f"{indent}  company: {js_string(item.company)},",
                 f"{indent}  folder: {js_string(item.folder)},",
+                f"{indent}  sourceDir: {js_string(item.source_dir)},",
                 f"{indent}  file: {js_string(item.file)},",
                 f"{indent}  href: {js_string(item.href)},",
                 f"{indent}  kind: {js_string(item.kind)},",
