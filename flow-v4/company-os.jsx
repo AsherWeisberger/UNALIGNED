@@ -542,51 +542,6 @@ function V4CompanyOsView({ leads = [], query = '', onOpenLead }) {
       });
   }, [leads, query]);
 
-  const [activeId, setActiveId] = React.useState(null);
-  const [sender, setSender] = React.useState('asher');
-  const [view, setView] = React.useState('queue');
-  const [copied, setCopied] = React.useState(false);
-
-  const activeLead = activeLeads.find(lead => lead.id === activeId) || activeLeads[0] || null;
-  const stageIndex = V4CompanyOsStageIndex(activeLead);
-  const recipients = activeLead && window.V3ReplyRecipients
-    ? window.V3ReplyRecipients(activeLead, sender)
-    : { to: [], cc: [] };
-  const draft = React.useMemo(
-    () => V4CompanyOsDraft(activeLead, sender),
-    [activeLead?.id, activeLead?.draftReply?.body, sender]
-  );
-
-  React.useEffect(() => {
-    if (activeLead && activeLead.id !== activeId) setActiveId(activeLead.id);
-  }, [activeLead?.id]);
-
-  const copyDraft = async () => {
-    if (!draft) return;
-    await navigator.clipboard.writeText(draft);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1600);
-  };
-
-  const sendDraft = async () => {
-    if (!activeLead || !draft || !window.V3SendLeadEmail) {
-      await copyDraft();
-      return;
-    }
-    const [subjectLine, ...bodyLines] = draft.split('\n');
-    const subject = subjectLine.replace(/^Subject:\s*/i, '').trim();
-    const body = bodyLines.join('\n').trim();
-    await window.V3SendLeadEmail({
-      lead: activeLead,
-      sender,
-      to: recipients.to,
-      cc: recipients.cc,
-      subject,
-      body,
-      attachPdf: sender === 'asher',
-    });
-  };
-
   const p0Count = activeLeads.filter(l => l.needsReply || l.stage === 'invoice-sent').length;
   const leadInboxCount = activeLeads.length;
   const invoicedOutstanding = activeLeads
@@ -618,14 +573,6 @@ function V4CompanyOsView({ leads = [], query = '', onOpenLead }) {
   const topPrep = V4_COMPANY_OS_PREP;
   const watchItems = V4_COMPANY_OS_WAITING;
   const doneItems = V4_COMPANY_OS_DONE;
-
-  const dealCardTags = activeLead ? [
-    V4CompanyOsPhase(activeLead),
-    activeLead.needsReply ? 'needs Robert' : 'queued',
-    'today',
-  ] : [];
-
-  const nextLeads = activeLeads.filter(l => l.id !== activeLead?.id).slice(0, 6);
 
   return (
     <section className="page company-os-page">
@@ -721,132 +668,6 @@ function V4CompanyOsView({ leads = [], query = '', onOpenLead }) {
         </div>
       </section>
 
-      {/* ── Deal Machine ────────────────────────────────────── */}
-      <section className="cos-section cos-machine">
-        <div className="cos-machine-head">
-          <div className="cos-machine-title">
-            <span className="cos-machine-icon"><V4CompanyOsRocketIcon size={18} /></span>
-            <h2>Deal Machine</h2>
-            <span className="cos-machine-pills">
-              <span className="cos-kpi cos-kpi-tight">{topPrep.length} today</span>
-              <span className="cos-kpi cos-kpi-tight">{leadInboxCount} leads</span>
-              <span className="cos-kpi cos-kpi-tight">{senderShortLabel(sender)} replies</span>
-            </span>
-          </div>
-          <div className="cos-toggle">
-            <button
-              type="button"
-              className={view === 'queue' ? 'cos-toggle-btn is-active' : 'cos-toggle-btn'}
-              onClick={() => setView('queue')}
-            >Queue</button>
-            <button
-              type="button"
-              className={view === 'calendar' ? 'cos-toggle-btn is-active' : 'cos-toggle-btn'}
-              onClick={() => setView('calendar')}
-            >Calendar</button>
-          </div>
-        </div>
-
-        <div className="cos-machine-grid">
-          {/* Deal card */}
-          <article className="cos-deal-card">
-            <div className="cos-deal-card-head">
-              <div className="cos-chips">
-                {dealCardTags.map(t => <span key={t} className="cos-chip cos-chip-soft">{t}</span>)}
-              </div>
-              {activeLead && (
-                <button
-                  type="button"
-                  className="cos-deal-card-open"
-                  onClick={() => onOpenLead?.(activeLead.id)}
-                >Open brief</button>
-              )}
-            </div>
-            <h2 className="cos-deal-card-subject">
-              {activeLead?.title || activeLead?.brand || 'No lead selected'}
-            </h2>
-
-            <div className="cos-deal-current-job">
-              <div className="cos-eyebrow">Current Job</div>
-              <strong>{V4CompanyOsJob(activeLead)}</strong>
-              <p>{V4CompanyOsWhy(activeLead)}</p>
-            </div>
-
-            <div className="cos-deal-path-wrap">
-              <div className="cos-deal-path-head">
-                <div className="cos-eyebrow">Deal Path</div>
-                <span className="cos-chip cos-chip-soft">
-                  {V4_COMPANY_OS_STAGES[stageIndex]?.label || 'New'}
-                </span>
-              </div>
-              <V4CompanyOsDealPath stageIndex={stageIndex} />
-            </div>
-
-            <div className="cos-deal-info-grid">
-              <div className="cos-deal-info">
-                <div className="cos-eyebrow">Client Inputs</div>
-                <div className="cos-chips">
-                  <span className="cos-chip cos-chip-tight">budget</span>
-                  <span className="cos-chip cos-chip-tight">timing</span>
-                  <span className="cos-chip cos-chip-tight">deliverables</span>
-                  <span className="cos-chip cos-chip-tight">payment path</span>
-                  <span className="cos-chip cos-chip-tight">Robert ask</span>
-                </div>
-              </div>
-              <div className="cos-deal-info">
-                <div className="cos-eyebrow">Invoice / Pay</div>
-                <p>Invoice comes after package, scope, deliverables, and timing are agreed. Payment is not cleared yet.</p>
-              </div>
-              <div className="cos-deal-info">
-                <div className="cos-eyebrow">Robert Brief</div>
-                <p>Create or rewrite the company brief into a 60-second Robert brief before execution.</p>
-              </div>
-              <div className="cos-deal-info">
-                <div className="cos-eyebrow">Done Rule</div>
-                <p>Done means Robert has executed, brief is stored, and payment is cleared or tracked.</p>
-              </div>
-            </div>
-          </article>
-
-          {/* Operator */}
-          <V4CompanyOsOperator
-            activeLead={activeLead}
-            sender={sender}
-            setSender={setSender}
-            recipients={recipients}
-            draft={draft}
-            copied={copied}
-            copyDraft={copyDraft}
-            sendDraft={sendDraft}
-          />
-
-          {/* Next Leads sidebar */}
-          <aside className="cos-leads-sidebar">
-            <div className="cos-section-head">
-              <div>
-                <div className="cos-eyebrow">Next Leads</div>
-              </div>
-              <span className="cos-panel-count">{activeLeads.length}</span>
-            </div>
-            <div className="cos-leads-list">
-              {activeLead && (
-                <V4CompanyOsLeadCard lead={activeLead} isActive onClick={() => setActiveId(activeLead.id)} />
-              )}
-              {nextLeads.map(lead => (
-                <V4CompanyOsLeadCard
-                  key={lead.id}
-                  lead={lead}
-                  isActive={false}
-                  onClick={() => setActiveId(lead.id)}
-                />
-              ))}
-              {activeLeads.length === 0 && (
-                <div className="cos-leads-empty">No live leads in the queue.</div>
-              )}
-            </div>
-          </aside>
-        </div>
-      </section>
     </section>
   );
 }
