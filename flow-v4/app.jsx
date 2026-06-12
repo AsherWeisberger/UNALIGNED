@@ -145,6 +145,12 @@ function V4App() {
   // (e.g. Company OS shows leads outside the current profile's lane).
   const openLead = mergedLeads.find(l => l.id === openId) || null;
   const unreadCount = visibleLeads.filter(l => l.unread).length;
+  // Leads hidden from this profile's lane (so empty views can explain themselves)
+  const laneHiddenActive = mergedLeads.filter(l =>
+    !l.isRobertBrief &&
+    !window.V3.LeadVisibleToProfile(l, user) &&
+    !['done', 'paid-out', 'trash', 'dead-leads'].includes(l.stage)
+  ).length;
 
   // Scope tag matching the Today scope card
   const SCOPE_TAG = {
@@ -251,16 +257,30 @@ function V4App() {
             <div className="fs-divider"></div>
             <span className="fs-total">TOTAL <strong>{stats.total}</strong></span>
             <span className={'fs-chip' + (ownerFilter === 'all' ? ' active' : '')} onClick={() => setOwnerFilter('all')}>
-              All <span className="fs-chip-cnt">{leads.length}</span>
+              All <span className="fs-chip-cnt">{visibleLeads.length}</span>
             </span>
             {Object.values(USERS).map(u => {
-              const n = leads.filter(l => l.ownerId === u.id).length;
+              const n = visibleLeads.filter(l => l.ownerId === u.id).length;
               return (
                 <span key={u.id} className={'fs-chip' + (ownerFilter === u.id ? ' active' : '')} onClick={() => setOwnerFilter(u.id)}>
                   {u.name} <span className="fs-chip-cnt">{n}</span>
                 </span>
               );
             })}
+          </div>
+        )}
+
+        {/* Lane note — shown when this profile's lane hides active leads */}
+        {user === 'robert' && laneHiddenActive > 0 && ['today', 'board', 'leads'].includes(view) && (
+          <div className="lane-note">
+            <V3Icon name="leads" w={12} />
+            <span>
+              You are viewing the <strong>{SCOPE_TAG[user]}</strong>. {laneHiddenActive} active leads
+              live in the shared sales lane and are not shown here.
+            </span>
+            <button className="lane-note-btn" onClick={() => { setTweak('viewAs', 'asher'); setOpenId(null); }}>
+              View shared lane
+            </button>
           </div>
         )}
 
