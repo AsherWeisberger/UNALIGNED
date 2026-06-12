@@ -153,6 +153,22 @@ function V4App() {
   // (e.g. Company OS shows leads outside the current profile's lane).
   const openLead = mergedLeads.find(l => l.id === openId) || null;
   const unreadCount = operationalLeads.filter(l => l.unread).length;
+  // Triage queue for the split lead view: every actionable thread, urgent first.
+  // Mirrors the Team Pulse ordering so J/K walks the same list you see there.
+  const triageQueue = React.useMemo(() => {
+    const eligible = mergedLeads
+      .filter(l => !l.isRobertBrief)
+      .filter(l => !['trash', 'dead-leads'].includes(l.stage))
+      .filter(l => (l.daysInStage || 0) <= 21)
+      .filter(l => !(window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(l)))
+      .filter(l => l.nextMove?.who);
+    const byStale = (a, b) => (b.daysInStage || 0) - (a.daysInStage || 0);
+    return [
+      ...eligible.filter(l => l.unread).sort(byStale),
+      ...eligible.filter(l => !l.unread).sort(byStale),
+    ];
+  }, [mergedLeads]);
+
   // Leads hidden from this profile's lane (so empty views can explain themselves)
   const laneHiddenActive = mergedLeads.filter(l =>
     !l.isRobertBrief &&
@@ -368,7 +384,9 @@ function V4App() {
       </footer>
 
       {/* Detail drawer — suppressed in Inbox; the inbox's right pane is its own reader */}
-      {openLead && view !== 'inbox' && <V3Drawer lead={openLead} user={user} onClose={() => setOpenId(null)} />}
+      {openLead && view !== 'inbox' && (
+        <V3Drawer lead={openLead} user={user} queue={triageQueue} onNavigate={setOpenId} onClose={() => setOpenId(null)} />
+      )}
 
       {/* Brief viewer modal */}
       {briefId && (

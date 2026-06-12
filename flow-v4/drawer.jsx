@@ -1,6 +1,53 @@
 // FLOW v3 — Detail drawer (right slide-in)
 
-function V3Drawer({ lead, user, onClose }) {
+function V3DrawerQueue({ queue, currentId, onNavigate }) {
+  const currentRef = React.useRef(null);
+  React.useEffect(() => {
+    currentRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [currentId]);
+  const replyNow = queue.filter(l => l.unread);
+  const followUps = queue.filter(l => !l.unread);
+  const renderItem = (l) => {
+    const isCurrent = String(l.id) === String(currentId);
+    return (
+      <button
+        key={l.id}
+        ref={isCurrent ? currentRef : null}
+        type="button"
+        className={'dq-item' + (isCurrent ? ' is-current' : '')}
+        onClick={() => onNavigate(l.id)}
+      >
+        <span className="dq-item-top">
+          {l.unread && <span className="dq-dot" />}
+          <span className="dq-brand">{l.brand}</span>
+          <span className={'dq-age' + ((l.daysInStage || 0) >= 10 ? ' is-late' : '')}>{l.daysInStage || 0}d</span>
+        </span>
+        <span className="dq-move">{l.nextMove?.text || l.contactName}</span>
+      </button>
+    );
+  };
+  return (
+    <nav className="drawer-queue" aria-label="Lead queue">
+      {replyNow.length > 0 && (
+        <div className="dq-subhead is-hot"><span>Reply now</span><span>{replyNow.length}</span></div>
+      )}
+      {replyNow.map(renderItem)}
+      {followUps.length > 0 && (
+        <div className="dq-subhead"><span>Follow ups</span><span>{followUps.length}</span></div>
+      )}
+      {followUps.map(renderItem)}
+      {queue.length === 0 && <div className="dq-empty">Queue is clear.</div>}
+      <div className="dq-hints">
+        <span><kbd>J</kbd><kbd>K</kbd> move</span>
+        <span><kbd>R</kbd> reply</span>
+        <span><kbd>E</kbd> archive</span>
+        <span><kbd>Esc</kbd> close</span>
+      </div>
+    </nav>
+  );
+}
+
+function V3Drawer({ lead, user, queue = [], onNavigate, onClose }) {
   const { STAGE_BY_ID, USERS, ACTIVE_STAGE_IDS } = window.V3;
   // Open straight to the Brief tab when there's something requiring action,
   // otherwise lead with the real conversation
@@ -17,6 +64,45 @@ function V3Drawer({ lead, user, onClose }) {
     setComposeOpen(Boolean(lead?.unread));
   }, [lead?.id]);
 
+  const queueIndex = queue.findIndex(l => String(l.id) === String(lead?.id));
+  const goTo = React.useCallback((delta) => {
+    if (!queue.length || !onNavigate) return;
+    const idx = queue.findIndex(l => String(l.id) === String(lead?.id));
+    const next = idx === -1 ? queue[0] : queue[Math.min(queue.length - 1, Math.max(0, idx + delta))];
+    if (next && String(next.id) !== String(lead?.id)) onNavigate(next.id);
+  }, [queue, lead?.id, onNavigate]);
+
+  // E — archive the thread and advance, Superhuman style. The queue
+  // recomputes from the leads-loaded event MoveLeadStage fires.
+  const archiveAndAdvance = React.useCallback(() => {
+    if (!lead) return;
+    const idx = queue.findIndex(l => String(l.id) === String(lead.id));
+    const next = idx === -1 ? queue[0] : (queue[idx + 1] || queue[idx - 1]);
+    window.V3.MoveLeadStage(lead, 'trash');
+    if (next && String(next.id) !== String(lead.id) && onNavigate) onNavigate(next.id);
+    else onClose?.();
+  }, [lead, queue, onNavigate, onClose]);
+
+  // Superhuman keys: J/K walk the queue, R replies, E archives, Esc backs out.
+  React.useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        if (composeOpen) setComposeOpen(false);
+        else onClose?.();
+        return;
+      }
+      const t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === 'j' || e.key === 'J' || e.key === 'ArrowDown') { e.preventDefault(); goTo(1); }
+      if (e.key === 'k' || e.key === 'K' || e.key === 'ArrowUp')   { e.preventDefault(); goTo(-1); }
+      if (e.key === 'r' || e.key === 'R') { e.preventDefault(); setComposeOpen(true); }
+      if (e.key === 'e' || e.key === 'E') { e.preventDefault(); archiveAndAdvance(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [goTo, onClose, composeOpen, archiveAndAdvance]);
+
   if (!lead) return null;
   const stage = STAGE_BY_ID[lead.stage];
   const owner = lead.ownerId ? USERS[lead.ownerId] : null;
@@ -28,12 +114,27 @@ function V3Drawer({ lead, user, onClose }) {
   return (
     <>
       <div className="backdrop show" onClick={onClose} />
-      <aside className="drawer">
+      <aside className={'drawer' + (queue.length ? ' drawer-split' : '')}>
+        {queue.length > 0 && (
+          <V3DrawerQueue queue={queue} currentId={lead.id} onNavigate={onNavigate} />
+        )}
+        <div className="drawer-main">
         <div className="drawer-hd">
           <button className="hd-icon-btn" onClick={onClose} aria-label="Close">
             <V3Icon name="x" w={15} />
           </button>
           <span className="drawer-hd-brand">{lead.brand}</span>
+          {queue.length > 0 && (
+            <span className="drawer-hd-nav">
+              <span className="drawer-hd-pos">{queueIndex === -1 ? '—' : (queueIndex + 1) + ' of ' + queue.length}</span>
+              <button className="hd-icon-btn" onClick={() => goTo(-1)} disabled={queueIndex <= 0} aria-label="Previous lead" title="Previous (K)">
+                <V3Icon name="chev_d" w={13} style={{ transform: 'rotate(180deg)' }} />
+              </button>
+              <button className="hd-icon-btn" onClick={() => goTo(1)} disabled={queueIndex !== -1 && queueIndex >= queue.length - 1} aria-label="Next lead" title="Next (J)">
+                <V3Icon name="chev_d" w={13} />
+              </button>
+            </span>
+          )}
           <span className="drawer-hd-stage" style={{ color: stage.color }}>
             <span className="drawer-hd-stage-dot" style={{ background: stage.color }}></span>
             {stage.name}
@@ -122,6 +223,7 @@ function V3Drawer({ lead, user, onClose }) {
               <V3Icon name="chev_d" w={12} style={{ transform: 'rotate(180deg)' }} />
             </button>
           )}
+        </div>
         </div>
       </aside>
     </>
