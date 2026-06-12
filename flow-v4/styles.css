@@ -2483,7 +2483,7 @@ a { color: inherit; }
 .drawer {
   position: fixed;
   top: 0; right: 0; bottom: 0;
-  width: 460px;
+  width: min(760px, 94vw);
   background: var(--surface);
   border-left: 1px solid var(--line);
   box-shadow: var(--shadow-lg);
