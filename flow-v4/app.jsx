@@ -238,8 +238,7 @@ function V4App() {
   const operationalLeads = visibleLeads.filter(l => !(window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(l)));
   const newLeadCount = mergedLeads.filter(l =>
     window.V3.IsNewLeadReview &&
-    window.V3.IsNewLeadReview(l) &&
-    window.V3.LeadVisibleToProfile(l, user)
+    window.V3.IsNewLeadReview(l)
   ).length;
   // Look up against mergedLeads so the packet drawer opens for any lead
   // (e.g. Company OS shows leads outside the current profile's lane).

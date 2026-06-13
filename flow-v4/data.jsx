@@ -300,6 +300,27 @@ function V3TimestampForUi(value) {
   return Number.isFinite(t) ? t : 0;
 }
 
+function V3LeadActivityTimestamp(lead) {
+  if (!lead) return 0;
+  return Math.max(
+    V3TimestampForUi(lead.lastTouchAt),
+    V3TimestampForUi(lead.receivedAt),
+    ...(Array.isArray(lead.thread) ? lead.thread.map(msg => V3TimestampForUi(msg.date || msg.dateIso || msg.timestamp || msg.when)) : [0])
+  );
+}
+
+function V3LeadReceivedTimestamp(lead) {
+  if (!lead) return 0;
+  return Math.max(
+    V3TimestampForUi(lead.receivedAt),
+    Array.isArray(lead.thread) && lead.thread.length ? V3TimestampForUi(lead.thread[0].date || lead.thread[0].dateIso || lead.thread[0].timestamp || lead.thread[0].when) : 0
+  );
+}
+
+function V3SortLeadsByActivity(a, b) {
+  return V3LeadActivityTimestamp(b) - V3LeadActivityTimestamp(a);
+}
+
 function V3LatestThreadDate(thread) {
   if (!Array.isArray(thread) || !thread.length) return null;
   let newest = 0;
@@ -364,7 +385,7 @@ function V3ThreadFromRow(row, name, brand, stage) {
       to: V3EmailsFromValue(m.to || m.to_list || m.recipients?.to),
       cc: V3EmailsFromValue(m.cc || m.cc_list || m.recipients?.cc),
       replyTo: V3EmailsFromValue(m.reply_to || m.replyTo),
-    }));
+    })).sort((a, b) => V3TimestampForUi(a.date || a.dateIso || a.when) - V3TimestampForUi(b.date || b.dateIso || b.when));
   }
   return [{
     from: name,
@@ -694,9 +715,28 @@ function V3IsNewLeadReview(lead) {
   const source = String(lead.source || '').toLowerCase();
   const reviewSource =
     source.includes('gmail-codex-new-lead') ||
+    source.includes('gmail-robert') ||
+    source.includes('robert') ||
     source.includes('gmail-asher') ||
     source.includes('asherunaligned');
-  return reviewSource && lead.stage === 'new';
+  return lead.stage === 'new' && (reviewSource || lead.ownerId === 'robert');
+}
+
+function V3NewLeadReason(lead) {
+  const source = String(lead?.source || '').toLowerCase();
+  const text = [
+    lead?.notes,
+    lead?.evidence,
+    lead?.deliverables,
+    lead?.nextMove?.text,
+    ...(Array.isArray(lead?.thread) ? lead.thread.slice(-3).flatMap(msg => [msg?.subject, msg?.body]) : []),
+  ].filter(Boolean).join(' ').toLowerCase();
+  if (lead?.ownerId === 'robert' || source.includes('robert')) return 'Robert inbox lead';
+  if (text.match(/\b(rate|pricing|budget|paid|sponsor|quote repost|qrt|invoice)\b/)) return 'Commercial signal';
+  if (text.match(/\b(interview|podcast|call|meeting|demo)\b/)) return 'Collaboration ask';
+  if (source.includes('asher')) return 'Asher inbox lead';
+  if (source.includes('gmail')) return 'Gmail lead';
+  return 'Needs review';
 }
 
 function V3PendingReplyMatchesLead(pending, lead) {
@@ -795,7 +835,7 @@ async function V3SendLeadEmail({ lead, sender, to, cc, subject, body, attachPdf 
   return data;
 }
 
-Object.assign(window, { V3SenderForUser, V3SenderName, V3SenderSignature, V3EnsureSenderSignature, V3ComposeReplyDraft, V3SubjectForLead, V3DefaultCc, V3InternalEmails, V3SenderEmails, V3IsSelfRecipient, V3SplitEmails, V3EmailsFromValue, V3ExtractEmail, V3LeadReplyToEmail, V3ThreadParticipants, V3LeadMatchesQuery, V3UniqueEmails, V3ReplyRecipients, V3ThreadMessageKey, V3PendingReplyKey, V3PendingReplyMatchesLead, V3PrunePendingReplies, V3MergePendingReplies, V3SendLeadEmail });
+Object.assign(window, { V3SenderForUser, V3SenderName, V3SenderSignature, V3EnsureSenderSignature, V3ComposeReplyDraft, V3SubjectForLead, V3DefaultCc, V3InternalEmails, V3SenderEmails, V3IsSelfRecipient, V3SplitEmails, V3EmailsFromValue, V3ExtractEmail, V3LeadReplyToEmail, V3ThreadParticipants, V3LeadMatchesQuery, V3UniqueEmails, V3ReplyRecipients, V3ThreadMessageKey, V3PendingReplyKey, V3PendingReplyMatchesLead, V3PrunePendingReplies, V3MergePendingReplies, V3SendLeadEmail, V3LeadActivityTimestamp, V3LeadReceivedTimestamp, V3SortLeadsByActivity, V3NewLeadReason });
 
 
 // FLOW v3 — data with category labels matching UNALIGNED's INTERVIEW / COLLABORATION / PARTNERSHIP / INTRO tabs
@@ -1533,6 +1573,14 @@ const V3GmailTime = (() => {
 
   const full = (v) => {
     const d = parse(v); if (!d) return '';
+    const raw = String(v instanceof Date ? '' : (v || '')).trim();
+    const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(raw) ||
+      /T(?:00:00:00(?:\.000)?|12:00:00(?:\.000)?)(?:Z|[+-]\d{2}:?\d{2})?$/.test(raw) ||
+      /\b12:00\s*(?:AM|PM)\b/i.test(raw) ||
+      (d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0);
+    if (dateOnly) {
+      return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    }
     return d.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
       .replace(/,([^,]*)$/, ',$1'); // pass-through; toLocaleString already gives a nice format
   };
@@ -1557,7 +1605,7 @@ const V3GmailTime = (() => {
 
   const tooltip = (v) => {
     const d = parse(v); if (!d) return '';
-    return full(d) + ' (' + relative(d) + ')';
+    return full(v) + ' (' + relative(d) + ')';
   };
 
   return { list, full, relative, tooltip, parse };
@@ -1613,7 +1661,7 @@ function V3MoveLeadStage(lead, nextStage, leads = window.V3?.LEADS || V3_LEADS) 
   window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated } }));
 }
 
-window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview };
+window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, NewLeadReason: V3NewLeadReason };
 
 V3LoadSupabaseLeads().then(leads => {
   window.V3.LEADS = leads;

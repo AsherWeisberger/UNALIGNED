@@ -1668,7 +1668,7 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
     });
     return source
       .filter(lead => window.V3.LeadMatchesQuery ? window.V3.LeadMatchesQuery(lead, q) : true)
-      .sort((a, b) => V3TimestampForUi(b.lastTouchAt || b.receivedAt) - V3TimestampForUi(a.lastTouchAt || a.receivedAt));
+      .sort((a, b) => (window.V3SortLeadsByActivity ? window.V3SortLeadsByActivity(a, b) : V3TimestampForUi(b.lastTouchAt || b.receivedAt) - V3TimestampForUi(a.lastTouchAt || a.receivedAt)));
   }, [leads, q]);
 
   const counts = {
@@ -1681,13 +1681,28 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
     window.V3.MoveLeadStage(lead, nextStage, leads);
   };
 
+  const groupedLeads = React.useMemo(() => {
+    const groups = new Map();
+    for (const lead of reviewLeads) {
+      const stamp = window.V3LeadActivityTimestamp ? window.V3LeadActivityTimestamp(lead) : V3TimestampForUi(lead.lastTouchAt || lead.receivedAt);
+      const date = stamp ? new Date(stamp) : null;
+      const key = date ? date.toDateString() : 'No date';
+      const label = date
+        ? date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: date.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' })
+        : 'No date';
+      if (!groups.has(key)) groups.set(key, { key, label, items: [] });
+      groups.get(key).items.push(lead);
+    }
+    return Array.from(groups.values());
+  }, [reviewLeads]);
+
   return (
     <div className="page new-leads-page">
       <div className="page-hd">
         <div>
-          <div className="page-eyebrow">Asher intake</div>
+          <div className="page-eyebrow">Robert + Asher intake</div>
           <h1 className="page-title">New Leads</h1>
-          <div className="page-sub">Fresh Gmail leads waiting to be accepted into the active board.</div>
+          <div className="page-sub">Chronological Gmail leads waiting to be accepted, replied to, or rejected before they enter the active board.</div>
         </div>
         <div className="invoice-stats">
           <span className="invoice-stat warn">{counts.needsReply} need reply</span>
@@ -1697,55 +1712,73 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
       </div>
 
       <div className="new-leads-shell">
-        {reviewLeads.map(lead => {
-          const latest = Array.isArray(lead.thread) && lead.thread.length ? lead.thread[lead.thread.length - 1] : null;
-          const summary = String(lead.notes || latest?.body || lead.nextMove?.text || '').replace(/\s+/g, ' ').trim();
-          const evidence = String(lead.evidence || latest?.body || '').replace(/\s+/g, ' ').trim();
-          const source = String(lead.source || 'Gmail').replace(/^GMAIL-?/i, '').replace(/-/g, ' ');
-          return (
-            <article key={lead.id} className="new-lead-card">
-              <div className="new-lead-main">
-                <div className="new-lead-avatar">
-                  <V3Avatar name={lead.contactName} color={lead.color} size="sm" />
-                </div>
-                <div className="new-lead-content">
-                  <div className="new-lead-topline">
-                    <h2>{lead.contactName || 'Unknown contact'}</h2>
-                    <span>{lead.lastTouch || 'new'}</span>
+        {groupedLeads.map(group => (
+          <section key={group.key} className="new-lead-day">
+            <div className="new-lead-day-hd">
+              <span>{group.label}</span>
+              <strong>{group.items.length}</strong>
+            </div>
+            {group.items.map(lead => {
+              const latest = Array.isArray(lead.thread) && lead.thread.length ? lead.thread[lead.thread.length - 1] : null;
+              const first = Array.isArray(lead.thread) && lead.thread.length ? lead.thread[0] : null;
+              const summary = String(lead.notes || latest?.body || lead.nextMove?.text || '').replace(/\s+/g, ' ').trim();
+              const evidence = String(lead.evidence || latest?.body || '').replace(/\s+/g, ' ').trim();
+              const source = String(lead.source || 'Gmail').replace(/^GMAIL-?/i, '').replace(/-/g, ' ');
+              const reason = window.V3NewLeadReason ? window.V3NewLeadReason(lead) : 'Needs review';
+              const receivedStamp = window.V3.GmailTime.full(lead.receivedAt || first?.date || first?.when);
+              const latestStamp = window.V3.GmailTime.full(lead.lastTouchAt || latest?.date || latest?.when);
+              const latestListStamp = window.V3.GmailTime.list(lead.lastTouchAt || latest?.date || latest?.when) || lead.lastTouch || 'new';
+              return (
+                <article key={lead.id} className="new-lead-card">
+                  <div className="new-lead-main">
+                    <div className="new-lead-avatar">
+                      <V3Avatar name={lead.contactName} color={lead.color} size="sm" />
+                    </div>
+                    <div className="new-lead-content">
+                      <div className="new-lead-topline">
+                        <h2>{lead.contactName || 'Unknown contact'}</h2>
+                        <span title={latestStamp || undefined}>{latestListStamp}</span>
+                      </div>
+                      <div className="new-lead-meta">
+                        <strong>{lead.brand || 'Unknown company'}</strong>
+                        {lead.email && <span>{lead.email}</span>}
+                        <span>{source}</span>
+                      </div>
+                      <div className="new-lead-reason-row">
+                        <span className="new-lead-reason">{reason}</span>
+                        {lead.gmailThreadId && <span className="new-lead-thread-id">Thread {String(lead.gmailThreadId).slice(-6)}</span>}
+                        {receivedStamp && <span>Received {receivedStamp}</span>}
+                      </div>
+                      <p className="new-lead-summary">{summary || 'No summary available yet.'}</p>
+                      {evidence && <div className="new-lead-evidence">{evidence.slice(0, 280)}</div>}
+                      <div className="new-lead-foot">
+                        <span>{lead.thread?.length || 0} email{(lead.thread?.length || 0) === 1 ? '' : 's'}</span>
+                        <span>Latest {latestStamp || latestListStamp}</span>
+                        {lead.suggestedStage && <span>Suggested: {lead.suggestedStage}</span>}
+                      </div>
+                    </div>
                   </div>
-                  <div className="new-lead-meta">
-                    <strong>{lead.brand || 'Unknown company'}</strong>
-                    {lead.email && <span>{lead.email}</span>}
-                    <span>{source}</span>
+                  <div className="new-lead-actions">
+                    <button type="button" className="btn btn-sm btn-accent" onClick={() => moveLead(lead, 'first-touch')}>
+                      <V3Icon name="plus" w={12} />
+                      Add to Board
+                    </button>
+                    <button type="button" className="btn btn-sm btn-ghost" onClick={() => onOpenLead?.(lead.id)}>
+                      <V3Icon name="doc" w={12} />
+                      Open Chain
+                    </button>
+                    <button type="button" className="btn btn-sm btn-danger" onClick={() => moveLead(lead, 'trash')}>
+                      <V3Icon name="trash" w={12} />
+                      Trash
+                    </button>
                   </div>
-                  <p className="new-lead-summary">{summary || 'No summary available yet.'}</p>
-                  {evidence && <div className="new-lead-evidence">{evidence.slice(0, 280)}</div>}
-                  <div className="new-lead-foot">
-                    <span>{lead.thread?.length || 0} email{(lead.thread?.length || 0) === 1 ? '' : 's'}</span>
-                    <span>{lead.gmailThreadId ? 'Thread linked' : 'No thread link'}</span>
-                    {lead.suggestedStage && <span>Suggested: {lead.suggestedStage}</span>}
-                  </div>
-                </div>
-              </div>
-              <div className="new-lead-actions">
-                <button type="button" className="btn btn-sm btn-accent" onClick={() => moveLead(lead, 'first-touch')}>
-                  <V3Icon name="plus" w={12} />
-                  Add to Board
-                </button>
-                <button type="button" className="btn btn-sm btn-ghost" onClick={() => onOpenLead?.(lead.id)}>
-                  <V3Icon name="doc" w={12} />
-                  Open
-                </button>
-                <button type="button" className="btn btn-sm btn-danger" onClick={() => moveLead(lead, 'trash')}>
-                  <V3Icon name="trash" w={12} />
-                  Trash
-                </button>
-              </div>
-            </article>
-          );
-        })}
+                </article>
+              );
+            })}
+          </section>
+        ))}
         {reviewLeads.length === 0 && (
-          <V3Empty icon="leads" title="No new leads waiting." sub="Fresh Asher/Codex Gmail leads will appear here before they enter the board." />
+          <V3Empty icon="leads" title="No new leads waiting." sub="Fresh Robert and Asher Gmail leads will appear here before they enter the board." />
         )}
       </div>
     </div>

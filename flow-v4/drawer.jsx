@@ -468,30 +468,56 @@ function V3Stands({ lead }) {
 }
 
 function V3Thread({ lead }) {
+  const messages = React.useMemo(() => {
+    const source = Array.isArray(lead?.thread) ? lead.thread : [];
+    return [...source].sort((a, b) =>
+      V3TimestampForUi(a.date || a.dateIso || a.timestamp || a.when) -
+      V3TimestampForUi(b.date || b.dateIso || b.timestamp || b.when)
+    );
+  }, [lead?.id, lead?.thread]);
   return (
     <div className="act">
-      {lead.thread.map((m, i) => (
-        <div key={i} className="act-item">
-          <div className="act-item-hd">
-            <V3Avatar name={m.from} color={m.from === 'Sammy' ? '#16894a' : m.from === 'Asher' ? '#2f5fd6' : lead.color} size="xs" />
-            <div className="act-item-sender">
-              <div className="act-item-from-row">
-                <span className="from">{m.from}</span>
-                <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{m.subject}</span>
-                {m.pending && <span className="act-item-pending">Pending sync</span>}
-              </div>
-              {(m.to?.length || m.cc?.length) ? (
-                <div className="act-item-participants">
-                  {m.to?.length ? <span><strong>To:</strong> {m.to.join(', ')}</span> : null}
-                  {m.cc?.length ? <span><strong>Cc:</strong> {m.cc.join(', ')}</span> : null}
+      <div className="act-thread-meta">
+        <span>{messages.length} email{messages.length === 1 ? '' : 's'}</span>
+        {lead.gmailThreadId && <span>Gmail thread {String(lead.gmailThreadId).slice(-8)}</span>}
+        {messages[0] && <span>Started {window.V3.GmailTime.full(messages[0].date || messages[0].when) || messages[0].when}</span>}
+      </div>
+      {messages.map((m, i) => {
+        const senderEmail = V3ExtractEmail(m.from) ||
+          (m.from === 'Asher' ? 'asherunaligned@gmail.com' :
+           m.from === 'Sammy' ? 'unalignedx@gmail.com' :
+           m.from === 'Robert' ? 'scobleizer@gmail.com' : '');
+        const dateValue = m.date || m.dateIso || m.timestamp || m.when;
+        return (
+          <div key={i} className="act-item">
+            <div className="act-item-hd">
+              <V3Avatar name={m.from} color={m.from === 'Sammy' ? '#16894a' : m.from === 'Asher' ? '#2f5fd6' : lead.color} size="xs" />
+              <div className="act-item-sender">
+                <div className="act-item-from-row">
+                  <span className="from">{m.from || 'Unknown sender'}</span>
+                  {senderEmail && <span className="from-email">&lt;{senderEmail}&gt;</span>}
+                  {m.pending && <span className="act-item-pending">Pending sync</span>}
                 </div>
-              ) : null}
+                {m.subject && <div className="act-item-subject">{m.subject}</div>}
+                {(m.to?.length || m.cc?.length || m.replyTo?.length) ? (
+                  <div className="act-item-participants">
+                    {m.to?.length ? <span><strong>To:</strong> {m.to.join(', ')}</span> : null}
+                    {m.cc?.length ? <span><strong>Cc:</strong> {m.cc.join(', ')}</span> : null}
+                    {m.replyTo?.length ? <span><strong>Reply-To:</strong> {m.replyTo.join(', ')}</span> : null}
+                  </div>
+                ) : null}
+              </div>
+              <div className="act-item-time-wrap">
+                <span className="time" title={window.V3.GmailTime.tooltip(dateValue) || undefined}>
+                  {window.V3.GmailTime.full(dateValue) || m.when || ''}
+                </span>
+                {window.V3.GmailTime.relative(dateValue) && <span className="time-rel">{window.V3.GmailTime.relative(dateValue)}</span>}
+              </div>
             </div>
-            <span className="time">{m.when}</span>
+            <div className="act-item-body">{m.body}</div>
           </div>
-          <div className="act-item-body">{m.body}</div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
