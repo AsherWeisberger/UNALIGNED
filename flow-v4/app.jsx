@@ -2,7 +2,7 @@
 
 const V4_TWEAKS = /*EDITMODE-BEGIN*/{
   "viewAs": "robert",
-  "theme": "dark",
+  "theme": "light",
   "view": "company-os"
 }/*EDITMODE-END*/;
 
