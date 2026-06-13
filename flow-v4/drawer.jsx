@@ -56,12 +56,12 @@ function V3Drawer({ lead, user, queue = [], onNavigate, onClose }) {
     (user === 'robert' && l.brief.status === 'ready')
   )) ? 'brief' : 'thread';
   const [tab, setTab] = React.useState(() => pickInitialTab(lead));
-  // The composer stays out of the way unless you owe a reply or ask for it
-  const [composeOpen, setComposeOpen] = React.useState(() => Boolean(lead?.unread));
+  // Keep reading/triage first; reply is one click or R away.
+  const [composeOpen, setComposeOpen] = React.useState(false);
   // Reset to the right defaults whenever the drawer switches to a different lead.
   React.useEffect(() => {
     setTab(pickInitialTab(lead));
-    setComposeOpen(Boolean(lead?.unread));
+    setComposeOpen(false);
   }, [lead?.id]);
 
   const queueIndex = queue.findIndex(l => String(l.id) === String(lead?.id));
@@ -316,18 +316,18 @@ function V3InlineReply({ lead, user, onCollapse }) {
   };
 
   const RecipientChips = ({ label, list, field, draft, setDraft }) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 32, padding: '5px 8px', border: '1px solid var(--line)', borderRadius: 6, background: 'var(--surface)' }}>
-      <span style={{ flex: '0 0 24px', fontSize: 11, color: 'var(--text-3)' }}>{label}</span>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, flex: 1 }}>
+    <div className="mail-compose-recips">
+      <span className="mail-compose-recips-label">{label}</span>
+      <div className="mail-compose-recips-list">
         {list.length ? list.map(email => (
-          <span key={field + email} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, maxWidth: '100%', padding: '3px 7px', border: '1px solid var(--line)', borderRadius: 999, background: 'var(--surface-2)', fontSize: 11.5, color: 'var(--text)' }}>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220 }}>{email}</span>
-            <button type="button" disabled={status === 'sending'} onClick={() => removeRecipient(field, email)} aria-label={'Remove ' + email} title={'Remove ' + email} style={{ border: 0, background: 'transparent', color: 'var(--text-3)', padding: 0, display: 'inline-flex', cursor: 'pointer' }}>
+          <span key={field + email} className="mail-compose-chip">
+            <span>{email}</span>
+            <button type="button" disabled={status === 'sending'} onClick={() => removeRecipient(field, email)} aria-label={'Remove ' + email} title={'Remove ' + email}>
               <V3Icon name="x" w={11} />
             </button>
           </span>
         )) : (
-          <span style={{ fontSize: 11.5, color: 'var(--bad)' }}>{field === 'to' ? 'No recipients selected' : 'No CCs'}</span>
+          <span className="mail-compose-empty-recips">{field === 'to' ? 'No recipients selected' : 'No CCs'}</span>
         )}
         <input
           value={draft}
@@ -341,7 +341,7 @@ function V3InlineReply({ lead, user, onCollapse }) {
             }
           }}
           placeholder={field === 'to' ? 'Add recipient' : 'Add cc'}
-          style={{ flex: '1 1 130px', minWidth: 110, border: 0, outline: 0, background: 'transparent', color: 'var(--text)', fontSize: 11.5 }}
+          className="mail-compose-recips-input"
         />
       </div>
     </div>
@@ -385,36 +385,37 @@ function V3InlineReply({ lead, user, onCollapse }) {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 7, width: '100%' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 180px) 1fr auto', gap: 7 }}>
-        <select className="brief-input" value={sender} disabled={status === 'sending'} onChange={e => setSender(e.target.value)} title="Sender">
+    <div className="mail-compose">
+      <div className="mail-compose-topbar">
+        <select className="mail-compose-sender" value={sender} disabled={status === 'sending'} onChange={e => setSender(e.target.value)} title="Sender">
           <option value="robert">Robert Scoble</option>
           <option value="sam">Sam Levin / UnalignedX</option>
           <option value="asher">Asher</option>
         </select>
-        <button className={'btn btn-sm ' + (internalOnly ? 'btn-accent' : 'btn-ghost')} type="button" disabled={status === 'sending'} onClick={() => setInternalOnly(value => !value)} title="Send only to Robert, Sam, and Asher">
+        <button className={'mail-compose-mode ' + (internalOnly ? 'is-active' : '')} type="button" disabled={status === 'sending'} onClick={() => setInternalOnly(value => !value)} title="Send only to Robert, Sam, and Asher">
           <V3Icon name="mail" w={12} /> {internalOnly ? 'Internal email chain' : 'Talk internally'}
         </button>
         {onCollapse && (
-          <button className="btn btn-sm btn-ghost" type="button" onClick={onCollapse} title="Hide composer" aria-label="Hide composer">
+          <button className="mail-compose-collapse" type="button" onClick={onCollapse} title="Hide composer" aria-label="Hide composer">
             <V3Icon name="chev_d" w={12} />
           </button>
         )}
       </div>
       <RecipientChips label="To" list={to} field="to" draft={toDraft} setDraft={setToDraft} />
       {!internalOnly && <RecipientChips label="Cc" list={cc} field="cc" draft={ccDraft} setDraft={setCcDraft} />}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 7 }}>
-        <input className="brief-input" value={subject} readOnly disabled title="Subject" />
+      <div className="mail-compose-subject-row">
+        <span>Subject</span>
+        <input value={subject} readOnly disabled title="Subject" />
+      </div>
+      <div className="mail-compose-editor">
         <textarea
-          className="brief-input"
-          style={{ minHeight: 100, resize: 'vertical' }}
           value={body}
           disabled={status === 'sending'}
           onChange={e => setBody(e.target.value)}
           placeholder={`Reply to ${lead.contactName.split(' ')[0]}...`}
         />
       </div>
-      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 11.5, color: 'var(--text-2)', userSelect: 'none' }}>
+      <label className="mail-compose-attach">
         <input
           type="checkbox"
           checked={attachPdf}
@@ -423,12 +424,12 @@ function V3InlineReply({ lead, user, onCollapse }) {
         />
         Attach SINGLE TIER.pdf
       </label>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ flex: 1, minWidth: 0, fontSize: 10.5, color: success ? 'var(--good)' : error ? 'var(--bad)' : 'var(--text-3)' }}>
+      <div className="mail-compose-footer">
+        <div className={'mail-compose-status ' + (success ? 'is-success' : error || isSelfRecipient ? 'is-error' : '')}>
           {success || error || (isSelfRecipient ? `${V3SenderName(sender)} is also a recipient. Remove them before sending.` : status === 'sent' ? 'Sent.' : `Lead chain · sending as ${V3SenderName(sender)}${lead.gmailThreadId && sender === 'robert' ? ' in the Gmail thread' : ''}`)}
         </div>
         <button
-          className={'btn btn-sm ' + (status === 'sent' ? 'btn-success' : 'btn-accent')}
+          className={'mail-compose-send ' + (status === 'sent' ? 'is-sent' : '')}
           onClick={send}
           disabled={status === 'sending'}
           aria-live="polite"

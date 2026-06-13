@@ -841,7 +841,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead })
   const selected = items.find(l => String(l.id) === String(selId)) || items[0] || null;
 
   React.useEffect(() => { setSelId(null); setMobileOpen(false); setComposeOpen(false); }, [splitId]);
-  React.useEffect(() => { setComposeOpen(selected ? Boolean(selected.unread) : false); }, [selected?.id]);
+  React.useEffect(() => { setComposeOpen(false); }, [selected?.id]);
 
   const moveSel = (delta) => {
     if (!items.length) return;
