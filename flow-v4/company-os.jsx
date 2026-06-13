@@ -7,13 +7,23 @@
 
 const V4_COMPANY_OS_PREP = [
   {
-    title: 'Perceptron / Agentic Detection',
-    tags: ['P0', 'paid June 9', 'live-link missing'],
+    title: 'MaineCoon / EchoNLab',
+    tags: ['P0', 'rate accepted', 'invoice owed'],
     points: [
-      'Eric confirmed payment on June 9, 2026, then said on June 10 that Perceptron would post in about two hours and shared preview copy for Agentic Detection.',
-      'The thread still does not show the final launch URL or Robert\'s repost URL, so paid execution is not fully documented yet.',
-      'The only useful next move is to get the exact live post link, confirm Robert\'s repost actually ran, and keep that proof on the paid thread.',
-      'Do not open the robotics follow-on conversation until the first paid deliverable is executed and linked.',
+      'Judy at EchoNLab replied on June 13, 2026 that the $1,895 quote repost rate works for the MaineCoon realtime launch and said they may consider a Tier 3 custom post after the official model launch.',
+      'Asher now owns the commercial close: send invoice details, get payment in before posting, and collect the official blog post link, timing, and key talking points for the June 16 launch window.',
+      'This is not Robert-ready until the payment path and official launch URL are both locked in-thread.',
+      'If they want the follow-on custom post, keep it as a separate second sale after the first repost is paid and executed.',
+    ],
+  },
+  {
+    title: 'Perceptron / Agentic Detection',
+    tags: ['P0', 'paid', 'live-link missing'],
+    points: [
+      'Perceptron already cleared payment for the Agentic Detection quote-tweet, but the operating thread still does not show the final launch URL or Robert\'s actual repost URL.',
+      'Asher\'s job is no longer product framing. It is proof capture: live post, Robert repost, and any payment artifact that closes the paid record cleanly.',
+      'Do not let the robotics follow-on conversation absorb attention until the first paid launch is fully linked and archived.',
+      'A paid thread without the live link is still open work.',
     ],
   },
   {
@@ -21,19 +31,9 @@ const V4_COMPANY_OS_PREP = [
     tags: ['P0', 'framework updated', 'payment clarification'],
     points: [
       'Annika replied on June 11, 2026 with Alibaba\'s final content buckets: Qoderwork, Qwen Cloud, ACL paper coverage, and the Alibaba Cloud booth, all framed as soft promotion.',
-      'Asher answered the same day with the revised 8-piece structure and flagged that pass fees plus the first payment due June 20 need to be clarified before purchases continue.',
-      'The framework itself is now usable. The remaining blocker is commercial cleanup around exhibitor-pass fees, first payment timing, and any other travel exposure.',
-      'Do not approve more pass, hotel, or flight spend until the reimbursement and payment path are explicit in writing.',
-    ],
-  },
-  {
-    title: 'AhaCreator 3.0 / Arc Growth',
-    tags: ['P0', 'tested', 'awaiting final ok'],
-    points: [
-      'Lumina confirmed on June 10, 2026 that Robert had been added to the testing flow, and Asher said testing was complete before sending the draft back on June 11.',
-      'Lumina\'s latest asks were narrow: add the risk-filtering line, change creator count to 10K+, use the UTM link, and hide creator details in screenshots.',
-      'Asher sent the updated doc back on June 11, 2026 and is now waiting for a final clean approval rather than more access fixes.',
-      'Treat this as CTA and approval cleanup, not a demo-access problem.',
+      'Asher answered the same day with the revised 8-piece structure and explicitly held on pass registration until first payment due June 20 and exhibitor-pass fees are clarified in writing.',
+      'The framework itself is workable now. The open issue is commercial and reimbursement cleanup, not editorial direction.',
+      'Do not approve more pass, hotel, or flight spend until the payment date, pass fees, and addendum path are explicit.',
     ],
   },
   {
@@ -56,27 +56,37 @@ const V4_COMPANY_OS_PREP = [
       'Do not hand this to Robert yet; there is still no paid slot, no final content date, and no execution brief to act on.',
     ],
   },
+  {
+    title: 'KroWork / EezyCollab',
+    tags: ['P1', 'reopened', 'terms sent'],
+    points: [
+      'Meilinda kept pushing for a June 15 KroWork quote repost, and Asher replied on June 12, 2026 with the real structure: $1,895 for the quote repost, or $3,995 if they also require a two-week pin.',
+      'That means the old hard-pass framing is stale. The thread is commercially reopened, but only on Unaligned terms and only if they send the official post, preferred timing, product-test access, and prepay confirmation.',
+      'Asher owns the next move only if the brand accepts the updated rates and terms. Until then, Robert should not do product review, draft work, or scheduling.',
+      'Pinned inventory is separate inventory. Treat it as such every time.',
+    ],
+  },
 ];
 
 const V4_COMPANY_OS_WAITING = [
   {
-    title: 'FloatSchedule / Judy Gao',
-    tags: ['watch', 'testing first', 'timing owed'],
+    title: 'AhaCreator 3.0 / Arc Growth',
+    tags: ['watch', 'testing done', 'final ok owed'],
     points: [
-      'Judy told Robert on June 8, 2026 to keep testing FloatSchedule, especially AI scheduling, calendar sync, and meeting prep.',
-      'Robert drafted that he would send feedback plus availability after a proper run-through, but there is still no real testing readout or locked content date in-thread.',
-      'Wait on Robert\'s product reaction, then move it back into action with 1-2 concrete timing windows.',
-      'No Robert brief exists until the product test is real.',
+      'Lumina said on June 11, 2026 that the updated AhaCreator draft looked solid and only asked for small polish items: risk filtering language, 10K+ creator count, the UTM link, and blurred creator data in screenshots.',
+      'Asher sent the revised doc back the same day and there is still no newer brand reply in-thread, which means this is final-approval waiting, not demo-access chaos anymore.',
+      'Nothing useful happens until the clean green light lands.',
+      'If they answer with approval, move it back into action only long enough to confirm post timing and final asset handoff.',
     ],
   },
   {
     title: 'HeyGen / Andrew Mok',
-    tags: ['watch', 'times sent', 'invite still loose'],
+    tags: ['watch', 'scheduled', '30-min adjust'],
     points: [
-      'Andrew asked on June 11, 2026 for a quick brainstorm call after Kevin handed the thread to him.',
-      'Robert replied on June 11 with availability and then again early June 12 with a broad 9 AM to 1 PM PT window, but there is still no invite or scoped partnership ask in-thread.',
-      'Watch for an actual invite, then move it back into action with one clean scheduling confirmation.',
-      'This is still exploratory; there is no Robert execution brief yet.',
+      'Asher locked Andrew into Wednesday, June 17, 2026 at 11:00 AM PT and sent the Google Meet details, then Andrew asked to shorten it to 30 minutes because he has another meeting at 11:30.',
+      'That means the call is basically set, but the calendar duration still needs one final adjustment so nobody joins with mismatched expectations.',
+      'Keep it in waiting until the invite reflects the final 30-minute block.',
+      'This is still exploratory strategy, not a Robert execution brief.',
     ],
   },
   {
@@ -90,23 +100,23 @@ const V4_COMPANY_OS_WAITING = [
     ],
   },
   {
-    title: 'Exploratory Inbound / Eastworlds + Joe Devon',
-    tags: ['watch', 'needs context', 'not Robert-ready'],
+    title: 'FloatSchedule / Judy Gao',
+    tags: ['watch', 'testing first', 'timing owed'],
     points: [
-      'Eastworlds has a strong Chimborazo robot-climb story, but the thread still lacks real scope, budget, deliverable shape, and timing.',
-      'Joe Devon replied on June 11, 2026 that he is not even sure which event Robert meant, so that thread is context-repair, not a live opportunity.',
-      'Keep both in email until the opportunity is concrete enough to summarize in one sentence.',
-      'Do not create a Robert brief from vague admiration, story ideas, or crossed wires.',
+      'Judy told Robert on June 8, 2026 to keep testing FloatSchedule, especially AI scheduling, calendar sync, and meeting prep, and Robert drafted that he would send feedback plus availability after a proper run-through.',
+      'Asher followed on June 8 asking Judy to send the desired content shape and tier, but there is still no real product-feedback email, no chosen package, and no locked content date.',
+      'Wait on Robert\'s actual testing readout and one concrete timing window before moving this back into action.',
+      'No Robert brief exists until the product test is real and the deliverable is named.',
     ],
   },
   {
-    title: 'Do-Not-Touch / Hard Pass',
-    tags: ['EezyCollab', 'KroWork', 'keep closed'],
+    title: 'Exploratory Inbound / Eastworlds + Joe Devon',
+    tags: ['watch', 'needs context', 'not Robert-ready'],
     points: [
-      'EezyCollab kept following up on KroWork after Robert looped in Asher and Sam, but the internal position remains no.',
-      'The fact that the product sounds relevant does not override the existing hard-pass call.',
-      'Do not negotiate, brief Robert, or spend more reply energy here unless Sam or Robert explicitly reopens it.',
-      'A follow-up from the brand is not a reopen by itself.',
+      'Eastworlds now has clearer story constraints around the Chimborazo robot-climb claim, but it still lacks an agreed budget, deliverable, payment path, and execution date.',
+      'Joe Devon replied on June 11, 2026 that he is not even sure which event Robert meant, so that thread is context-repair, not a live opportunity.',
+      'Keep both in email until the opportunity is concrete enough to summarize in one sentence.',
+      'Do not create a Robert brief from vague admiration, story ideas, or crossed wires.',
     ],
   },
 ];
@@ -166,6 +176,7 @@ const V4_COMPANY_OS_RULES = [
   'A live post is not a closed deal. If the receipt is missing, the item stays in action until proof lands.',
   'If payment proof lands outside the client thread, attach or log that proof against the invoice before marking the deal done.',
   'If a client wants split payment, post-live payment, net terms, stealth posting, or no paid-promotion disclosure, the answer is no until the thread proves otherwise.',
+  'Pinned posts are separate inventory. If a client wants the top slot held, price the pin separately instead of quietly bundling it into the repost.',
   'If copy is already approved and the date is already set, do not reopen strategy. Lock timing, execute, and return the live link.',
   'If a client has paid but the launch URL or final asset is missing, chase the live link before opening any next campaign discussion.',
   'Every Robert brief must fit inside 60 seconds and include scope, timing, deliverable, approval path, payment path, and why Robert is the right fit now.',

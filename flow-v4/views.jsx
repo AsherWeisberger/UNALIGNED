@@ -387,6 +387,16 @@ const V4_INVOICE_GROUPS = [
         note: 'Active invoices still waiting on payment.',
         items: [
           {
+            id: 'invoice-cutback-selects-061226',
+            title: 'Cutback',
+            company: 'Selects',
+            folder: 'OUTSTANDING / OPEN OUTSTANDING',
+            sourceDir: 'OUTSTANDING',
+            file: 'invoice_Cutback_Selects_061226.pdf',
+            href: 'flow-v4/assets/invoices/outstanding/invoice_Cutback_Selects_061226.pdf',
+            kind: 'PDF',
+          },
+          {
             id: 'invoice-omane-060826',
             title: 'Omane',
             company: 'Omane',
