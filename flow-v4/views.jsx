@@ -1635,6 +1635,7 @@ const EMPTY_FORM = { title: '', date: '', startTime: '09:00', endTime: '10:00', 
 
 function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
   const q = String(query || '').trim();
+  const [sourceTab, setSourceTab] = React.useState('gmail');
   const reviewLeads = React.useMemo(() => {
     const source = (Array.isArray(leads) ? leads : []).filter(lead => {
       if (window.V3.IsNewLeadReview) return window.V3.IsNewLeadReview(lead);
@@ -1649,16 +1650,25 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
     total: reviewLeads.length,
     needsReply: reviewLeads.filter(l => l.needsReply).length,
     pricing: reviewLeads.filter(l => /rate|pricing|paid|sponsor|quote|repost/i.test([l.notes, l.evidence, l.nextMove?.text].join(' '))).length,
+    gmail: reviewLeads.filter(l => (window.V3.NewLeadSourceKind ? window.V3.NewLeadSourceKind(l) : 'gmail') === 'gmail').length,
+    x: reviewLeads.filter(l => (window.V3.NewLeadSourceKind ? window.V3.NewLeadSourceKind(l) : 'gmail') === 'x').length,
   };
 
   const moveLead = (lead, nextStage) => {
     window.V3.MoveLeadStage(lead, nextStage, leads);
   };
 
+  const visibleLeads = React.useMemo(() => {
+    return reviewLeads.filter(lead => {
+      const kind = window.V3.NewLeadSourceKind ? window.V3.NewLeadSourceKind(lead) : 'gmail';
+      return sourceTab === 'x' ? kind === 'x' : kind === 'gmail';
+    });
+  }, [reviewLeads, sourceTab]);
+
   const groupedLeads = React.useMemo(() => {
     const groups = new Map();
-    for (const lead of reviewLeads) {
-      const stamp = window.V3LeadActivityTimestamp ? window.V3LeadActivityTimestamp(lead) : V3TimestampForUi(lead.lastTouchAt || lead.receivedAt);
+    for (const lead of visibleLeads) {
+      const stamp = window.V3LeadReceivedTimestamp ? window.V3LeadReceivedTimestamp(lead) : V3TimestampForUi(lead.receivedAt || lead.lastTouchAt);
       const date = stamp ? new Date(stamp) : null;
       const key = date ? date.toDateString() : 'No date';
       const label = date
@@ -1668,7 +1678,7 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
       groups.get(key).items.push(lead);
     }
     return Array.from(groups.values());
-  }, [reviewLeads]);
+  }, [visibleLeads]);
 
   return (
     <div className="page new-leads-page">
@@ -1676,16 +1686,36 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
         <div>
           <div className="page-eyebrow">Robert + Asher intake</div>
           <h1 className="page-title">New Leads</h1>
-          <div className="page-sub">Chronological Gmail leads waiting to be accepted, replied to, or rejected before they enter the active board.</div>
+          <div className="page-sub">A clean intake queue for Robert Gmail and X leads, sorted newest to oldest before they enter the active board.</div>
         </div>
         <div className="invoice-stats">
           <span className="invoice-stat warn">{counts.needsReply} need reply</span>
           <span className="invoice-stat good">{counts.pricing} pricing signal</span>
+          <span className="invoice-stat total">{counts.gmail} gmail</span>
+          <span className="invoice-stat total">{counts.x} x</span>
           <span className="invoice-stat total">{counts.total} total</span>
         </div>
       </div>
 
       <div className="new-leads-shell">
+        <div className="new-leads-tabs" role="tablist" aria-label="New lead sources">
+          {[
+            { key: 'gmail', label: 'Gmail', count: counts.gmail },
+            { key: 'x', label: 'X', count: counts.x },
+          ].map(tab => (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={sourceTab === tab.key}
+              className={'new-leads-tab' + (sourceTab === tab.key ? ' is-active' : '')}
+              onClick={() => setSourceTab(tab.key)}
+            >
+              <span>{tab.label}</span>
+              <strong>{tab.count}</strong>
+            </button>
+          ))}
+        </div>
         {groupedLeads.map(group => (
           <section key={group.key} className="new-lead-day">
             <div className="new-lead-day-hd">
@@ -1695,51 +1725,71 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
             {group.items.map(lead => {
               const latest = Array.isArray(lead.thread) && lead.thread.length ? lead.thread[lead.thread.length - 1] : null;
               const first = Array.isArray(lead.thread) && lead.thread.length ? lead.thread[0] : null;
-              const summary = String(lead.notes || latest?.body || lead.nextMove?.text || '').replace(/\s+/g, ' ').trim();
-              const evidence = String(lead.evidence || latest?.body || '').replace(/\s+/g, ' ').trim();
-              const source = String(lead.source || 'Gmail').replace(/^GMAIL-?/i, '').replace(/-/g, ' ');
+              const kind = window.V3.NewLeadSourceKind ? window.V3.NewLeadSourceKind(lead) : 'gmail';
+              const summary = window.V3.NewLeadSummary ? window.V3.NewLeadSummary(lead) : String(lead.notes || latest?.body || lead.nextMove?.text || '').replace(/\s+/g, ' ').trim();
+              const source = window.V3.NewLeadSourceLabel ? window.V3.NewLeadSourceLabel(lead) : 'Gmail';
+              const handle = window.V3.NewLeadHandle ? window.V3.NewLeadHandle(lead) : '';
+              const identity = window.V3.NewLeadPrimaryIdentity ? window.V3.NewLeadPrimaryIdentity(lead) : (lead.contactName || 'Unknown contact');
               const reason = window.V3NewLeadReason ? window.V3NewLeadReason(lead) : 'Needs review';
               const receivedStamp = window.V3.GmailTime.full(lead.receivedAt || first?.date || first?.when);
-              const latestStamp = window.V3.GmailTime.full(lead.lastTouchAt || latest?.date || latest?.when);
-              const latestListStamp = window.V3.GmailTime.list(lead.lastTouchAt || latest?.date || latest?.when) || lead.lastTouch || 'new';
+              const receivedListStamp = window.V3.GmailTime.list(lead.receivedAt || first?.date || first?.when) || lead.lastTouch || 'new';
+              const metaBrand = lead.brand && String(lead.brand).trim().toLowerCase() !== String(identity || '').trim().toLowerCase() ? lead.brand : '';
+              const xSecondary = [handle, lead.email || '', metaBrand].filter(Boolean);
+              const gmailSecondary = [lead.email || '', metaBrand].filter(Boolean);
               return (
-                <article key={lead.id} className="new-lead-card">
+                <article key={lead.id} className="new-lead-card new-lead-row">
                   <div className="new-lead-main">
                     <div className="new-lead-avatar">
                       <V3Avatar name={lead.contactName} color={lead.color} size="sm" />
                     </div>
                     <div className="new-lead-content">
                       <div className="new-lead-topline">
-                        <h2>{lead.contactName || 'Unknown contact'}</h2>
-                        <span title={latestStamp || undefined}>{latestListStamp}</span>
+                        <div className="new-lead-topline-main">
+                          <span className={'new-lead-source-chip' + (kind === 'x' ? ' is-x' : '')}>{source}</span>
+                          <h2>{identity}</h2>
+                        </div>
+                        <span title={receivedStamp || undefined}>{receivedListStamp}</span>
                       </div>
                       <div className="new-lead-meta">
-                        <strong>{lead.brand || 'Unknown company'}</strong>
-                        {lead.email && <span>{lead.email}</span>}
-                        <span>{source}</span>
+                        {kind === 'x' ? (
+                          <>
+                            {xSecondary.map((item, index) => index === 0 ? <strong key={item}>{item}</strong> : <span key={item}>{item}</span>)}
+                          </>
+                        ) : (
+                          <>
+                            {gmailSecondary.map((item, index) => index === 0 ? <strong key={item}>{item}</strong> : <span key={item}>{item}</span>)}
+                          </>
+                        )}
                       </div>
                       <div className="new-lead-reason-row">
                         <span className="new-lead-reason">{reason}</span>
                         {lead.gmailThreadId && <span className="new-lead-thread-id">Thread {String(lead.gmailThreadId).slice(-6)}</span>}
-                        {receivedStamp && <span>Received {receivedStamp}</span>}
+                        {kind === 'x' && lead.xMessageCount ? <span>{lead.xMessageCount} messages</span> : null}
                       </div>
                       <p className="new-lead-summary">{summary || 'No summary available yet.'}</p>
-                      {evidence && <div className="new-lead-evidence">{evidence.slice(0, 280)}</div>}
-                      <div className="new-lead-foot">
-                        <span>{lead.thread?.length || 0} email{(lead.thread?.length || 0) === 1 ? '' : 's'}</span>
-                        <span>Latest {latestStamp || latestListStamp}</span>
-                        {lead.suggestedStage && <span>Suggested: {lead.suggestedStage}</span>}
-                      </div>
                     </div>
                   </div>
                   <div className="new-lead-actions">
+                    {kind === 'x' && lead.xOpenDm ? (
+                      <button type="button" className="btn btn-sm btn-ghost" onClick={() => window.open(lead.xOpenDm, '_blank', 'noopener')}>
+                        <V3Icon name="network" w={12} />
+                        Open DM
+                      </button>
+                    ) : (
+                      <button type="button" className="btn btn-sm btn-ghost" onClick={() => onOpenLead?.(lead.id)}>
+                        <V3Icon name="reply" w={12} />
+                        Open & reply
+                      </button>
+                    )}
+                    {kind === 'x' && lead.email ? (
+                      <button type="button" className="btn btn-sm btn-ghost" onClick={() => onOpenLead?.(lead.id)}>
+                        <V3Icon name="mail" w={12} />
+                        Email lead
+                      </button>
+                    ) : null}
                     <button type="button" className="btn btn-sm btn-accent" onClick={() => moveLead(lead, 'first-touch')}>
                       <V3Icon name="plus" w={12} />
                       Add to Board
-                    </button>
-                    <button type="button" className="btn btn-sm btn-ghost" onClick={() => onOpenLead?.(lead.id)}>
-                      <V3Icon name="doc" w={12} />
-                      Open Chain
                     </button>
                     <button type="button" className="btn btn-sm btn-danger" onClick={() => moveLead(lead, 'trash')}>
                       <V3Icon name="trash" w={12} />
@@ -1751,8 +1801,14 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
             })}
           </section>
         ))}
-        {reviewLeads.length === 0 && (
-          <V3Empty icon="leads" title="No new leads waiting." sub="Fresh Robert and Asher Gmail leads will appear here before they enter the board." />
+        {visibleLeads.length === 0 && (
+          <V3Empty
+            icon="leads"
+            title={sourceTab === 'x' ? 'No X leads synced yet.' : 'No Gmail leads waiting.'}
+            sub={sourceTab === 'x'
+              ? 'The X scraper lane is ready. New X leads will appear here as they sync in.'
+              : 'Fresh Robert and Asher Gmail leads will appear here before they enter the board.'}
+          />
         )}
       </div>
     </div>

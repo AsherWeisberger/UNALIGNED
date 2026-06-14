@@ -3,6 +3,18 @@
 const V3_SUPABASE_URL = "https://hbnpwphxjurvtydezwgh.supabase.co";
 const V3_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhibnB3cGh4anVydnR5ZGV6d2doIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MTQ1MzIsImV4cCI6MjA5MDk5MDUzMn0.p5E48__GlGqjC17Z28q8fYFK-qV8CmiidYIP02vGe4s";
 
+async function V3LoadXDmIntakeRows() {
+  try {
+    const res = await fetch('flow-v4/assets/x_dm_daily_intake.json?v=20260614-new-leads-sources-1');
+    if (!res.ok) throw new Error('X intake ' + res.status);
+    const rows = await res.json();
+    return Array.isArray(rows) ? rows : [];
+  } catch (e) {
+    console.warn('Failed to load X DM intake', e);
+    return [];
+  }
+}
+
 async function V3LoadSupabaseLeads() {
   const rows = [];
   for (let offset = 0; ; offset += 1000) {
@@ -42,6 +54,8 @@ async function V3LoadSupabaseLeads() {
   }
 
   const leads = [...canonical.values()].map(V3NormalizeSupabaseLead);
+  const xRows = await V3LoadXDmIntakeRows();
+  leads.push(...V3NormalizeXDmLeads(xRows, leads));
   if (!leads.some(lead => String(lead.email || '').trim().toLowerCase() === 'jocelyn.cruz@hockeystick.io')) {
     leads.push(V3HockeystickFallbackLead());
   }
@@ -292,6 +306,153 @@ function V3NormalizeDateForUi(value) {
   if (!raw) return null;
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw + 'T12:00:00';
   return raw;
+}
+
+function V3LeadIdentityKey(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/@/g, '')
+    .replace(/\.(com|ai|io|co|org|net|app|xyz|tech|ly|fm|vc|us|me|cc)\b/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function V3NormalizeXDmLeads(rows, existingLeads = []) {
+  const list = Array.isArray(rows) ? rows : [];
+  const existingEmails = new Set(existingLeads.map(lead => String(lead?.email || '').trim().toLowerCase()).filter(Boolean));
+  const existingDomains = new Set(
+    existingLeads
+      .map(lead => String(lead?.email || '').trim().toLowerCase())
+      .filter(email => /@/.test(email))
+      .map(email => email.split('@')[1])
+  );
+  const existingIdentityKeys = new Set(
+    existingLeads.flatMap(lead => [
+      lead?.contactName,
+      lead?.brand,
+      lead?.email ? String(lead.email).split('@')[0] : '',
+      lead?.email ? String(lead.email).split('@')[1] : '',
+      lead?.xHandle,
+    ].map(V3LeadIdentityKey)).filter(Boolean)
+  );
+  return list
+    .filter(row => row && row.newLead !== false)
+    .filter(row => !row.alreadyEmailedInRobertGmail)
+    .filter(row => {
+      const emails = String(row.contactEmails || '')
+        .split(/[,\s|]+/)
+        .map(item => item.trim().toLowerCase())
+        .filter(item => /@/.test(item));
+      if (emails.some(email => existingEmails.has(email))) return false;
+      if (emails.some(email => existingDomains.has(email.split('@')[1]))) return false;
+      const keys = [
+        row.xName,
+        row.xUsername,
+        ...emails.map(email => email.split('@')[0]),
+        ...emails.map(email => email.split('@')[1]),
+      ].map(V3LeadIdentityKey).filter(Boolean);
+      if (keys.some(key => existingIdentityKeys.has(key))) return false;
+      return true;
+    })
+    .map(V3NormalizeXDmLeadRow);
+}
+
+function V3NormalizeXDmLeadRow(row) {
+  const name = String(row.xName || 'Unknown X lead').trim();
+  const emails = String(row.contactEmails || '')
+    .split(/[,\s|]+/)
+    .map(item => item.trim().toLowerCase())
+    .filter(item => /@/.test(item));
+  const email = emails[0] || '';
+  const brand = String(row.xName || '').replace(/^@/, '').trim() || V3DomainBrand(email) || 'X lead';
+  const received = V3NormalizeDateForUi(row.newestDmDate || '');
+  const summary = String(row.summaryForTeam || row.lastLeadMessage || '').trim();
+  const latestLeadMessage = String(row.lastLeadMessage || '').trim();
+  const dmLink = String(row.openDm || '').trim();
+  const handle = String(row.xUsername || '').trim();
+  const nextStep = String(row.bestNextStep || '').trim();
+  const currentStatus = String(row.currentStatus || '').trim();
+  const quickNote = String(row.quickNote || '').trim();
+  const owner = String(row.recommendedOwner || '').toLowerCase();
+  const ownerId = owner.includes('robert') ? 'robert' : (owner.includes('sam') ? 'sammy' : 'asher');
+  const type = String(row.leadType || '').toLowerCase();
+  const category = type.includes('interview') || type.includes('media') || type.includes('event')
+    ? 'interview'
+    : (type.includes('intro') || type.includes('network')
+      ? 'intro'
+      : (type.includes('paid') || type.includes('sponsor')
+        ? 'partnership'
+        : 'collaboration'));
+  return {
+    id: 'xdm-' + String(row.rank || brand || name).replace(/[^a-z0-9_-]+/gi, '-').toLowerCase(),
+    contactName: name,
+    contactRole: 'X DM lead',
+    brand,
+    stage: 'new',
+    value: null,
+    deliverables: String(row.leadType || 'X DM lead'),
+    ownerId,
+    category,
+    daysInStage: V3DaysSince(received),
+    activityDays: V3DaysSince(received),
+    timelineDays: null,
+    lastTouch: V3RelativeTime(received),
+    lastTouchAt: received || null,
+    receivedAt: received || null,
+    needsReply: true,
+    approve: null,
+    color: __v3Color(name + brand),
+    email,
+    gmailThreadId: '',
+    draftReply: null,
+    draftReplyStatus: '',
+    rowId: dmLink || ('xdm:' + name),
+    source: 'x-dm-intake',
+    rawDescription: summary,
+    notes: summary,
+    evidence: latestLeadMessage,
+    suggestedStage: '',
+    isRobertBrief: false,
+    briefTitle: '',
+    briefSubtitle: '',
+    briefSubject: '',
+    briefSentAt: '',
+    briefFrom: '',
+    briefTo: [],
+    briefCc: [],
+    briefPartner: '',
+    briefCompany: '',
+    briefSummary: '',
+    briefBody: '',
+    briefAction: '',
+    briefNotes: [],
+    briefAttachment: null,
+    briefLinks: [],
+    briefStatus: '',
+    nextMove: { who: ownerId, text: nextStep || 'Open X thread and move to email.', action: 'Reply' },
+    timeline: __v3Timeline('new', 0, name, brand),
+    thread: [{
+      from: handle || name,
+      when: V3RelativeTime(received),
+      date: received || null,
+      subject: String(row.leadType || 'X DM lead'),
+      body: latestLeadMessage || summary,
+      to: [],
+      cc: [],
+      replyTo: [],
+    }],
+    progress: Math.max(0, V3_ACTIVE_STAGE_IDS.indexOf('new')),
+    unread: true,
+    xHandle: handle,
+    xOpenDm: dmLink,
+    xLeadScore: Number(row.leadScore || 0),
+    xContactInfo: String(row.contactInfo || ''),
+    xBestNextStep: nextStep,
+    xMessageCount: Number(row.messageCount || 0),
+    xCurrentStatus: currentStatus,
+    xEmailDraft: String(row.emailDraft || ''),
+    xQuickNote: quickNote,
+  };
 }
 
 function V3TimestampForUi(value) {
@@ -714,15 +875,80 @@ function V3IsNewLeadReview(lead) {
   if (!lead || lead.isRobertBrief) return false;
   const source = String(lead.source || '').toLowerCase();
   const reviewSource =
+    source.includes('x-dm-intake') ||
     source.includes('gmail-codex-new-lead') ||
     source.includes('gmail-robert') ||
     source.includes('robert') ||
     source.includes('gmail-asher') ||
-    source.includes('asherunaligned');
+    source.includes('asherunaligned') ||
+    source.includes('ingest-twitter_dm');
   return lead.stage === 'new' && (reviewSource || lead.ownerId === 'robert');
 }
 
+function V3NewLeadSourceKind(lead) {
+  const source = String(lead?.source || '').toLowerCase();
+  if (source.includes('x-dm-intake') || source.includes('twitter_dm') || source.includes('ingest-twitter_dm')) return 'x';
+  return 'gmail';
+}
+
+function V3NewLeadSourceLabel(lead) {
+  return V3NewLeadSourceKind(lead) === 'x' ? 'X' : 'Gmail';
+}
+
+function V3NewLeadHandle(lead) {
+  if (lead?.xHandle) return String(lead.xHandle).trim();
+  const text = [
+    lead?.contactName,
+    lead?.brand,
+    lead?.source,
+    lead?.deliverables,
+    lead?.notes,
+    lead?.evidence,
+    lead?.title,
+    ...(Array.isArray(lead?.thread) ? lead.thread.flatMap(msg => [msg?.from, msg?.subject, msg?.body]) : []),
+  ].filter(Boolean).join(' ');
+  const lowered = String(text).toLowerCase();
+  const urlMatches = [...lowered.matchAll(/(?:x|twitter)\.com\/([a-z0-9_]{2,30})\b/g)]
+    .map(match => match[1])
+    .filter(handle => !['scobleizer', 'unalignedx'].includes(handle));
+  if (urlMatches.length) return '@' + urlMatches[0];
+  const mentions = [...String(text).matchAll(/(^|[\s(>])@([A-Za-z0-9_]{2,30})\b/g)]
+    .map(match => match[2])
+    .filter(handle => !['Robert', 'Scobleizer', 'UnalignedX', 'Asher'].includes(handle));
+  return mentions.length ? ('@' + mentions[0]) : '';
+}
+
+function V3NewLeadSummary(lead) {
+  const latest = Array.isArray(lead?.thread) && lead.thread.length ? lead.thread[lead.thread.length - 1] : null;
+  const source = V3NewLeadSourceKind(lead);
+  const raw = source === 'x'
+    ? (lead?.xQuickNote || lead?.notes || lead?.evidence || latest?.body || lead?.nextMove?.text || lead?.deliverables || '')
+    : (lead?.notes || latest?.body || lead?.evidence || lead?.nextMove?.text || lead?.deliverables || '');
+  return String(raw || '')
+    .replace(/Robert['’]s latest position:\s*/gi, 'Robert: ')
+    .replace(/Latest lead message:\s*/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function V3NewLeadPrimaryIdentity(lead) {
+  if (!lead) return 'Unknown contact';
+  if (V3NewLeadSourceKind(lead) === 'x') return lead.contactName || V3NewLeadHandle(lead) || 'Unknown account';
+  return lead.contactName || lead.email || 'Unknown contact';
+}
+
 function V3NewLeadReason(lead) {
+  if (V3NewLeadSourceKind(lead) === 'x') {
+    const status = String(lead?.xCurrentStatus || lead?.xBestNextStep || '').toLowerCase();
+    if (status.includes('needs live check')) return 'Needs live check';
+    if (status.includes('already routed')) return 'Already routed';
+    if (status.includes('robert was last')) return 'Waiting on them';
+    if (status.includes('route scheduling')) return 'Route to email';
+    if (status.includes('invoice')) return 'Payment follow-up';
+    if (status.includes('lead waiting')) return 'Needs reply';
+    if (status.includes('soft future-business handoff')) return 'Future handoff';
+    return 'X lead';
+  }
   const source = String(lead?.source || '').toLowerCase();
   const text = [
     lead?.notes,
@@ -734,6 +960,7 @@ function V3NewLeadReason(lead) {
   if (lead?.ownerId === 'robert' || source.includes('robert')) return 'Robert inbox lead';
   if (text.match(/\b(rate|pricing|budget|paid|sponsor|quote repost|qrt|invoice)\b/)) return 'Commercial signal';
   if (text.match(/\b(interview|podcast|call|meeting|demo)\b/)) return 'Collaboration ask';
+  if (V3NewLeadSourceKind(lead) === 'x') return 'X lead';
   if (source.includes('asher')) return 'Asher inbox lead';
   if (source.includes('gmail')) return 'Gmail lead';
   return 'Needs review';
@@ -1661,7 +1888,7 @@ function V3MoveLeadStage(lead, nextStage, leads = window.V3?.LEADS || V3_LEADS) 
   window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated } }));
 }
 
-window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, NewLeadReason: V3NewLeadReason };
+window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, NewLeadReason: V3NewLeadReason, NewLeadSourceKind: V3NewLeadSourceKind, NewLeadSourceLabel: V3NewLeadSourceLabel, NewLeadHandle: V3NewLeadHandle, NewLeadSummary: V3NewLeadSummary, NewLeadPrimaryIdentity: V3NewLeadPrimaryIdentity };
 
 V3LoadSupabaseLeads().then(leads => {
   window.V3.LEADS = leads;
