@@ -924,10 +924,33 @@ function V3NewLeadSummary(lead) {
   const raw = source === 'x'
     ? (lead?.notes || lead?.xQuickNote || lead?.evidence || latest?.body || lead?.nextMove?.text || lead?.deliverables || '')
     : (lead?.notes || latest?.body || lead?.evidence || lead?.nextMove?.text || lead?.deliverables || '');
-  let text = String(raw || '')
+  let text = String(raw || '');
+  // The stored body often contains the whole thread (the lead's latest message
+  // followed by an earlier quoted reply). Truncate at the first quote marker so
+  // only the lead's message shows. Done before whitespace is collapsed so the
+  // newline-anchored markers still match.
+  const quoteMarkers = [
+    /\n\s*\[recovered quoted[^\]]*\]/i,          // pipeline artifact wrapping the quoted reply
+    /\n\s*on\b.{0,160}?\bwrote:/is,              // "On <date> <name> wrote:"
+    /\n\s*-{2,}\s*original message\s*-{2,}/i,    // "----- Original Message -----"
+    /\n\s*from:\s.{0,80}@/i,                     // quoted "From: name <email>" header block
+    /\n\s*(?:发件人|寄件者)\s*[：:]/,             // Chinese "From:" quoted header block
+    /<blockquote/i,                              // HTML quoted reply
+    /<div[^>]*class="[^"]*gmail_quote/i,         // Gmail HTML quote container
+    /\n\s*[^\n]{0,80}<[^>\n]+@[^>\n]+>[^\n]{0,80}(?:写道|寫道|wrote)\s*[：:]/i, // "Name <email> … wrote:/写道:" (any locale)
+    /\n\s*>/,                                    // leading ">" quote lines
+  ];
+  for (const marker of quoteMarkers) {
+    const at = text.search(marker);
+    if (at > 0) text = text.slice(0, at);
+  }
+  text = text
     .replace(/Robert['’]s latest position:\s*/gi, 'Robert: ')
     .replace(/Latest lead message:\s*/gi, '')
-    .replace(/\[[^\]]*\]/g, ' ')                 // drop bracketed artifacts e.g. [Recovered quoted confirmation]
+    // strip HTML tags (whitelisted names so emails in <angle brackets> survive)
+    .replace(/<\/?(?:div|p|br|span|a|b|i|u|strong|em|blockquote|ul|ol|li|table|tr|td|th|h[1-6]|img|font|hr|pre|code)\b[^>]*\/?>/gi, ' ')
+    .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&#3[49];|&quot;|&apos;/gi, "'")
+    .replace(/\[[^\]]*\]/g, ' ')                 // drop any remaining bracketed artifacts
     .replace(/\s+/g, ' ')
     .trim();
   // Lead with the substance: strip an opening greeting and a closing sign-off
