@@ -47,6 +47,7 @@ class InvoiceItem:
     stripe_amount_due: float | None = None
     stripe_amount_paid: float | None = None
     stripe_currency: str = ""
+    stripe_dashboard_url: str = ""
     stripe_hosted_invoice_url: str = ""
     stripe_invoice_pdf: str = ""
 
@@ -175,6 +176,7 @@ def collect_bucket(
                 stripe_amount_due=stripe.get("amount_due"),
                 stripe_amount_paid=stripe.get("amount_paid"),
                 stripe_currency=str(stripe.get("currency") or ""),
+                stripe_dashboard_url=str(stripe.get("dashboard_url") or ""),
                 stripe_hosted_invoice_url=str(stripe.get("hosted_invoice_url") or ""),
                 stripe_invoice_pdf=str(stripe.get("invoice_pdf") or ""),
             )
@@ -220,7 +222,7 @@ def build_stripe_bucket(group: str, stripe_rows: list[dict], matched_stripe_ids:
         contact = str(row.get("customer_email") or "").strip()
         number = str(row.get("number") or "").strip()
         company = contact or number or "Stripe"
-        href = str(row.get("hosted_invoice_url") or row.get("invoice_pdf") or "").strip()
+        href = str(row.get("dashboard_url") or row.get("hosted_invoice_url") or row.get("invoice_pdf") or "").strip()
         file_label = number or stripe_id or "stripe-invoice"
         items.append(
             InvoiceItem(
@@ -238,6 +240,7 @@ def build_stripe_bucket(group: str, stripe_rows: list[dict], matched_stripe_ids:
                 stripe_amount_due=row.get("amount_due"),
                 stripe_amount_paid=row.get("amount_paid"),
                 stripe_currency=str(row.get("currency") or ""),
+                stripe_dashboard_url=str(row.get("dashboard_url") or ""),
                 stripe_hosted_invoice_url=str(row.get("hosted_invoice_url") or ""),
                 stripe_invoice_pdf=str(row.get("invoice_pdf") or ""),
             )
@@ -321,6 +324,7 @@ def render_items(items: list[InvoiceItem], indent: str) -> list[str]:
                 f"{indent}  stripeAmountDue: {js_optional_number(item.stripe_amount_due)},",
                 f"{indent}  stripeAmountPaid: {js_optional_number(item.stripe_amount_paid)},",
                 f"{indent}  stripeCurrency: {js_optional_string(item.stripe_currency)},",
+                f"{indent}  stripeDashboardUrl: {js_optional_string(item.stripe_dashboard_url)},",
                 f"{indent}  stripeHostedInvoiceUrl: {js_optional_string(item.stripe_hosted_invoice_url)},",
                 f"{indent}  stripeInvoicePdf: {js_optional_string(item.stripe_invoice_pdf)},",
                 f"{indent}}},",

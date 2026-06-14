@@ -44,6 +44,13 @@ def compact_key(value: str | None) -> str:
     return "".join(ch.lower() for ch in str(value or "") if ch.isalnum())
 
 
+def stripe_dashboard_url(invoice_id: str, livemode: bool) -> str:
+    base = "https://dashboard.stripe.com"
+    if not livemode:
+        base += "/test"
+    return f"{base}/invoices/{invoice_id}"
+
+
 def request_json(secret: str, starting_after: str | None = None) -> dict:
     params = {"limit": 100}
     if starting_after:
@@ -61,6 +68,8 @@ def request_json(secret: str, starting_after: str | None = None) -> dict:
 
 def normalize_invoice(row: dict) -> dict:
     metadata = row.get("metadata") or {}
+    invoice_id = row.get("id") or ""
+    livemode = bool(row.get("livemode"))
     customer_name = row.get("customer_name") or metadata.get("company") or metadata.get("customer_name") or ""
     description = row.get("description") or ""
     local_invoice_file = metadata.get("local_invoice_file") or ""
@@ -73,9 +82,11 @@ def normalize_invoice(row: dict) -> dict:
         compact_key(row.get("number")),
     }
     return {
-        "id": row.get("id") or "",
+        "id": invoice_id,
         "number": row.get("number") or "",
         "status": row.get("status") or "",
+        "livemode": livemode,
+        "dashboard_url": stripe_dashboard_url(invoice_id, livemode) if invoice_id else "",
         "customer_name": customer_name,
         "customer_email": row.get("customer_email") or "",
         "description": description,

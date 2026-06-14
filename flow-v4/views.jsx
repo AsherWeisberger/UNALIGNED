@@ -394,37 +394,39 @@ const V4_INVOICE_GROUPS = [
             source: 'Stripe',
             sourceDir: 'STRIPE',
             file: 'RYKHX5KX-0001',
-            href: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MTk5NzIyNg0200PF0dod3E?s=ap',
+            href: 'https://dashboard.stripe.com/invoices/in_1ThwN2K0WeauAYMJFm1x0dPG',
             kind: 'STRIPE',
             stripeStatus: 'open',
             stripePaid: false,
             stripeAmountDue: 1952.0,
             stripeAmountPaid: 0.0,
             stripeCurrency: 'USD',
-            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MTk5NzIyNg0200PF0dod3E?s=ap',
-            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MTk5NzIyNg0200PF0dod3E/pdf?s=ap',
+            stripeDashboardUrl: 'https://dashboard.stripe.com/invoices/in_1ThwN2K0WeauAYMJFm1x0dPG',
+            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MTk5ODgyNg0200a3EZm0QM?s=ap',
+            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MTk5ODgyNg0200a3EZm0QM/pdf?s=ap',
           },
         ],
       },
       {
-        label: 'Not Confirmed But Confirmed',
+        label: 'Check Mailed',
         note: 'Synced from this invoice subfolder.',
         items: [
           {
             id: 'invoice-mayank-clinesdk-051326',
             title: 'Mayank',
             company: 'ClineSDK',
-            folder: 'OUTSTANDING / NOT CONFIRMED BUT CONFIRMED',
+            folder: 'OUTSTANDING / CHECK MAILED',
             source: 'Manual',
-            sourceDir: 'OUTSTANDING/NOT CONFIRMED BUT CONFIRMED',
+            sourceDir: 'OUTSTANDING/CHECK MAILED',
             file: 'invoice_Mayank_ClineSDK_051326.pdf',
-            href: 'flow-v4/assets/invoices/outstanding/not-confirmed-but-confirmed/invoice_Mayank_ClineSDK_051326.pdf',
+            href: 'flow-v4/assets/invoices/outstanding/check-mailed/invoice_Mayank_ClineSDK_051326.pdf',
             kind: 'PDF',
             stripeStatus: null,
             stripePaid: false,
             stripeAmountDue: null,
             stripeAmountPaid: null,
             stripeCurrency: null,
+            stripeDashboardUrl: null,
             stripeHostedInvoiceUrl: null,
             stripeInvoicePdf: null,
           },
@@ -458,6 +460,7 @@ const V4_INVOICE_GROUPS = [
             stripeAmountDue: null,
             stripeAmountPaid: null,
             stripeCurrency: null,
+            stripeDashboardUrl: null,
             stripeHostedInvoiceUrl: null,
             stripeInvoicePdf: null,
           },
@@ -476,6 +479,7 @@ const V4_INVOICE_GROUPS = [
             stripeAmountDue: null,
             stripeAmountPaid: null,
             stripeCurrency: null,
+            stripeDashboardUrl: null,
             stripeHostedInvoiceUrl: null,
             stripeInvoicePdf: null,
           },
@@ -494,6 +498,7 @@ const V4_INVOICE_GROUPS = [
             stripeAmountDue: null,
             stripeAmountPaid: null,
             stripeCurrency: null,
+            stripeDashboardUrl: null,
             stripeHostedInvoiceUrl: null,
             stripeInvoicePdf: null,
           },
@@ -512,6 +517,7 @@ const V4_INVOICE_GROUPS = [
             stripeAmountDue: null,
             stripeAmountPaid: null,
             stripeCurrency: null,
+            stripeDashboardUrl: null,
             stripeHostedInvoiceUrl: null,
             stripeInvoicePdf: null,
           },
@@ -530,6 +536,7 @@ const V4_INVOICE_GROUPS = [
             stripeAmountDue: null,
             stripeAmountPaid: null,
             stripeCurrency: null,
+            stripeDashboardUrl: null,
             stripeHostedInvoiceUrl: null,
             stripeInvoicePdf: null,
           },
@@ -548,6 +555,7 @@ const V4_INVOICE_GROUPS = [
             stripeAmountDue: null,
             stripeAmountPaid: null,
             stripeCurrency: null,
+            stripeDashboardUrl: null,
             stripeHostedInvoiceUrl: null,
             stripeInvoicePdf: null,
           },
@@ -566,6 +574,7 @@ const V4_INVOICE_GROUPS = [
             stripeAmountDue: null,
             stripeAmountPaid: null,
             stripeCurrency: null,
+            stripeDashboardUrl: null,
             stripeHostedInvoiceUrl: null,
             stripeInvoicePdf: null,
           },
@@ -584,6 +593,7 @@ const V4_INVOICE_GROUPS = [
             stripeAmountDue: null,
             stripeAmountPaid: null,
             stripeCurrency: null,
+            stripeDashboardUrl: null,
             stripeHostedInvoiceUrl: null,
             stripeInvoicePdf: null,
           },
@@ -602,6 +612,7 @@ const V4_INVOICE_GROUPS = [
             stripeAmountDue: null,
             stripeAmountPaid: null,
             stripeCurrency: null,
+            stripeDashboardUrl: null,
             stripeHostedInvoiceUrl: null,
             stripeInvoicePdf: null,
           },
@@ -620,6 +631,7 @@ const V4_INVOICE_GROUPS = [
             stripeAmountDue: null,
             stripeAmountPaid: null,
             stripeCurrency: null,
+            stripeDashboardUrl: null,
             stripeHostedInvoiceUrl: null,
             stripeInvoicePdf: null,
           },
@@ -638,6 +650,7 @@ const V4_INVOICE_GROUPS = [
             stripeAmountDue: null,
             stripeAmountPaid: null,
             stripeCurrency: null,
+            stripeDashboardUrl: null,
             stripeHostedInvoiceUrl: null,
             stripeInvoicePdf: null,
           },
@@ -656,6 +669,7 @@ const V4_INVOICE_GROUPS = [
             stripeAmountDue: null,
             stripeAmountPaid: null,
             stripeCurrency: null,
+            stripeDashboardUrl: null,
             stripeHostedInvoiceUrl: null,
             stripeInvoicePdf: null,
           },
@@ -674,6 +688,7 @@ const V4_INVOICE_GROUPS = [
             stripeAmountDue: null,
             stripeAmountPaid: null,
             stripeCurrency: null,
+            stripeDashboardUrl: null,
             stripeHostedInvoiceUrl: null,
             stripeInvoicePdf: null,
           },
@@ -692,6 +707,7 @@ const V4_INVOICE_GROUPS = [
             stripeAmountDue: null,
             stripeAmountPaid: null,
             stripeCurrency: null,
+            stripeDashboardUrl: null,
             stripeHostedInvoiceUrl: null,
             stripeInvoicePdf: null,
           },
@@ -710,6 +726,7 @@ const V4_INVOICE_GROUPS = [
             stripeAmountDue: null,
             stripeAmountPaid: null,
             stripeCurrency: null,
+            stripeDashboardUrl: null,
             stripeHostedInvoiceUrl: null,
             stripeInvoicePdf: null,
           },
@@ -728,6 +745,7 @@ const V4_INVOICE_GROUPS = [
             stripeAmountDue: null,
             stripeAmountPaid: null,
             stripeCurrency: null,
+            stripeDashboardUrl: null,
             stripeHostedInvoiceUrl: null,
             stripeInvoicePdf: null,
           },
@@ -764,7 +782,7 @@ function V4InvoiceCard({ item, onComplete, completingId }) {
   const canComplete = String(item.sourceDir || '').startsWith('OUTSTANDING');
   const isCompleting = completingId === item.id;
   const stripeStatus = String(item.stripeStatus || '').trim();
-  const openHref = item.href || item.stripeHostedInvoiceUrl || item.stripeInvoicePdf || '';
+  const openHref = item.stripeDashboardUrl || item.href || item.stripeHostedInvoiceUrl || item.stripeInvoicePdf || '';
   const stripeTone = item.stripePaid ? 'paid' : (
     stripeStatus === 'open' || stripeStatus === 'draft' ? 'open' : (
       stripeStatus === 'void' || stripeStatus === 'uncollectible' ? 'void' : 'neutral'
@@ -798,7 +816,7 @@ function V4InvoiceCard({ item, onComplete, completingId }) {
               {stripeAmountLabel && <span>{item.stripePaid ? 'Paid ' : 'Due '}{stripeAmountLabel}</span>}
               {item.stripeHostedInvoiceUrl && (
                 <a className="invoice-stripe-link" href={item.stripeHostedInvoiceUrl} target="_blank" rel="noreferrer">
-                  Hosted invoice
+                  Customer invoice
                 </a>
               )}
               {item.stripeInvoicePdf && (

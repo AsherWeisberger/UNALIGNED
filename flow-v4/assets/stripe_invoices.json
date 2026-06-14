@@ -1,11 +1,13 @@
 {
-  "fetched_at": "2026-06-14T17:00:26.782659Z",
+  "fetched_at": "2026-06-14T17:27:06.328579Z",
   "count": 1,
   "invoices": [
     {
       "id": "in_1ThwN2K0WeauAYMJFm1x0dPG",
       "number": "RYKHX5KX-0001",
       "status": "open",
+      "livemode": true,
+      "dashboard_url": "https://dashboard.stripe.com/invoices/in_1ThwN2K0WeauAYMJFm1x0dPG",
       "customer_name": "Judy — Echon Labs",
       "customer_email": "collab@echonlab.com",
       "description": "One quote repost on Robert Scoble’s X account for official blog / technical launch post. Robert will provide commentary in his own voice. Payment required before posting.",
@@ -16,8 +18,8 @@
       "created": 1781375608,
       "due_date": 1781980532,
       "paid": false,
-      "hosted_invoice_url": "https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MTk5NzIyNg0200PF0dod3E?s=ap",
-      "invoice_pdf": "https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MTk5NzIyNg0200PF0dod3E/pdf?s=ap",
+      "hosted_invoice_url": "https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MTk5ODgyNg0200a3EZm0QM?s=ap",
+      "invoice_pdf": "https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MTk5ODgyNg0200a3EZm0QM/pdf?s=ap",
       "local_invoice_file": "",
       "local_invoice_id": "",
       "match_keys": [
