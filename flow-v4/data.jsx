@@ -1898,23 +1898,57 @@ const V3GmailTime = (() => {
   }
 })();
 
+const V3_SUPABASE_HEADERS = {
+  apikey: V3_SUPABASE_ANON_KEY,
+  Authorization: 'Bearer ' + V3_SUPABASE_ANON_KEY,
+  'Content-Type': 'application/json',
+};
+
 function V3MoveLeadStage(lead, nextStage, leads = window.V3?.LEADS || V3_LEADS) {
-  const id = lead?.rowId || lead?.id;
-  if (!id) return;
   const normalizedStage = V3NormalizeStage(nextStage);
   const updated = leads.map(item => String(item.id) === String(lead.id) ? { ...item, stage: normalizedStage } : item);
-  fetch(V3_SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(id), {
-    method: 'PATCH',
-    headers: {
-      apikey: V3_SUPABASE_ANON_KEY,
-      Authorization: 'Bearer ' + V3_SUPABASE_ANON_KEY,
-      'Content-Type': 'application/json',
-      Prefer: 'return=minimal',
-    },
-    body: JSON.stringify({ list_id: normalizedStage }),
-  }).catch(err => console.warn('[ALIGNED v4] stage update failed:', err));
   window.V3.LEADS = updated;
   window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated } }));
+
+  // X DM intake leads are not backed by a Supabase row, so a PATCH would no-op
+  // and the lead would resurface on the next scrape. Persist the decision as a
+  // card instead — its contact_name makes the daily X intake dedupe skip this
+  // lead on future loads, and we relink the in-memory id so Restore can PATCH it.
+  const isXIntake = String(lead?.source || '').includes('x-dm-intake') || String(lead?.id || '').startsWith('xdm-');
+  if (isXIntake) {
+    fetch(V3_SUPABASE_URL + '/rest/v1/cards', {
+      method: 'POST',
+      headers: { ...V3_SUPABASE_HEADERS, Prefer: 'return=representation' },
+      body: JSON.stringify({
+        list_id: normalizedStage,
+        title: lead.contactName || lead.brand || 'X lead',
+        contact_name: lead.contactName || '',
+        lead_source: 'x-dm-intake',
+        website: lead.xOpenDm || (lead.xHandle ? 'https://x.com/' + String(lead.xHandle).replace(/^@/, '') : ''),
+        email: lead.email || '',
+        intent: lead.deliverables || '',
+      }),
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(rows => {
+        const newId = Array.isArray(rows) && rows[0] ? rows[0].id : null;
+        if (newId == null) return;
+        const relinked = (window.V3.LEADS || updated).map(item =>
+          String(item.id) === String(lead.id) ? { ...item, id: newId, rowId: newId, source: 'x-dm-intake' } : item);
+        window.V3.LEADS = relinked;
+        window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: relinked } }));
+      })
+      .catch(err => console.warn('[ALIGNED v4] x suppress failed:', err));
+    return;
+  }
+
+  const id = lead?.rowId || lead?.id;
+  if (!id) return;
+  fetch(V3_SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(id), {
+    method: 'PATCH',
+    headers: { ...V3_SUPABASE_HEADERS, Prefer: 'return=minimal' },
+    body: JSON.stringify({ list_id: normalizedStage }),
+  }).catch(err => console.warn('[ALIGNED v4] stage update failed:', err));
 }
 
 window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, NewLeadReason: V3NewLeadReason, NewLeadSourceKind: V3NewLeadSourceKind, NewLeadSourceLabel: V3NewLeadSourceLabel, NewLeadHandle: V3NewLeadHandle, NewLeadSummary: V3NewLeadSummary, NewLeadPrimaryIdentity: V3NewLeadPrimaryIdentity };

@@ -1863,6 +1863,12 @@ const EMPTY_FORM = { title: '', date: '', startTime: '09:00', endTime: '10:00', 
 function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
   const q = String(query || '').trim();
   const [sourceTab, setSourceTab] = React.useState('gmail');
+  // A lead belongs to the New Leads queue by its source, independent of stage —
+  // reuse IsNewLeadReview with a forced 'new' stage so the same source rules
+  // also identify trashed intake leads for the Trash bin.
+  const isReviewSource = (lead) => window.V3.IsNewLeadReview ? window.V3.IsNewLeadReview({ ...lead, stage: 'new' }) : true;
+  const sortByActivity = (a, b) => (window.V3SortLeadsByActivity ? window.V3SortLeadsByActivity(a, b) : V3TimestampForUi(b.lastTouchAt || b.receivedAt) - V3TimestampForUi(a.lastTouchAt || a.receivedAt));
+
   const reviewLeads = React.useMemo(() => {
     const source = (Array.isArray(leads) ? leads : []).filter(lead => {
       if (window.V3.IsNewLeadReview) return window.V3.IsNewLeadReview(lead);
@@ -1870,7 +1876,14 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
     });
     return source
       .filter(lead => window.V3.LeadMatchesQuery ? window.V3.LeadMatchesQuery(lead, q) : true)
-      .sort((a, b) => (window.V3SortLeadsByActivity ? window.V3SortLeadsByActivity(a, b) : V3TimestampForUi(b.lastTouchAt || b.receivedAt) - V3TimestampForUi(a.lastTouchAt || a.receivedAt)));
+      .sort(sortByActivity);
+  }, [leads, q]);
+
+  const trashLeads = React.useMemo(() => {
+    return (Array.isArray(leads) ? leads : [])
+      .filter(lead => lead && lead.stage === 'trash' && isReviewSource(lead))
+      .filter(lead => window.V3.LeadMatchesQuery ? window.V3.LeadMatchesQuery(lead, q) : true)
+      .sort(sortByActivity);
   }, [leads, q]);
 
   const counts = {
@@ -1879,18 +1892,21 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
     pricing: reviewLeads.filter(l => /rate|pricing|paid|sponsor|quote|repost/i.test([l.notes, l.evidence, l.nextMove?.text].join(' '))).length,
     gmail: reviewLeads.filter(l => (window.V3.NewLeadSourceKind ? window.V3.NewLeadSourceKind(l) : 'gmail') === 'gmail').length,
     x: reviewLeads.filter(l => (window.V3.NewLeadSourceKind ? window.V3.NewLeadSourceKind(l) : 'gmail') === 'x').length,
+    trash: trashLeads.length,
   };
 
   const moveLead = (lead, nextStage) => {
     window.V3.MoveLeadStage(lead, nextStage, leads);
   };
 
+  const isTrashTab = sourceTab === 'trash';
   const visibleLeads = React.useMemo(() => {
+    if (isTrashTab) return trashLeads;
     return reviewLeads.filter(lead => {
       const kind = window.V3.NewLeadSourceKind ? window.V3.NewLeadSourceKind(lead) : 'gmail';
       return sourceTab === 'x' ? kind === 'x' : kind === 'gmail';
     });
-  }, [reviewLeads, sourceTab]);
+  }, [reviewLeads, trashLeads, sourceTab, isTrashTab]);
 
   const groupedLeads = React.useMemo(() => {
     const groups = new Map();
@@ -1929,6 +1945,7 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
           {[
             { key: 'gmail', label: 'Gmail', count: counts.gmail },
             { key: 'x', label: 'X', count: counts.x },
+            { key: 'trash', label: 'Trash', count: counts.trash },
           ].map(tab => (
             <button
               key={tab.key}
@@ -2015,14 +2032,23 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
                         Email lead
                       </button>
                     ) : null}
-                    <button type="button" className="btn btn-sm btn-accent" onClick={() => moveLead(lead, 'first-touch')}>
-                      <V3Icon name="plus" w={12} />
-                      Add to Board
-                    </button>
-                    <button type="button" className="btn btn-sm btn-danger" onClick={() => moveLead(lead, 'trash')}>
-                      <V3Icon name="trash" w={12} />
-                      Trash
-                    </button>
+                    {isTrashTab ? (
+                      <button type="button" className="btn btn-sm btn-accent" onClick={() => moveLead(lead, 'new')}>
+                        <V3Icon name="reply" w={12} />
+                        Restore
+                      </button>
+                    ) : (
+                      <>
+                        <button type="button" className="btn btn-sm btn-accent" onClick={() => moveLead(lead, 'first-touch')}>
+                          <V3Icon name="plus" w={12} />
+                          Add to Board
+                        </button>
+                        <button type="button" className="btn btn-sm btn-danger" onClick={() => moveLead(lead, 'trash')}>
+                          <V3Icon name="trash" w={12} />
+                          Trash
+                        </button>
+                      </>
+                    )}
                   </div>
                 </article>
               );
@@ -2031,11 +2057,13 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
         ))}
         {visibleLeads.length === 0 && (
           <V3Empty
-            icon="leads"
-            title={sourceTab === 'x' ? 'No X leads synced yet.' : 'No Gmail leads waiting.'}
-            sub={sourceTab === 'x'
-              ? 'The X scraper lane is ready. New X leads will appear here as they sync in.'
-              : 'Fresh Robert and Asher Gmail leads will appear here before they enter the board.'}
+            icon={isTrashTab ? 'trash' : 'leads'}
+            title={isTrashTab ? 'Trash is empty.' : (sourceTab === 'x' ? 'No X leads synced yet.' : 'No Gmail leads waiting.')}
+            sub={isTrashTab
+              ? 'Leads you trash land here and stay out of the scrape. Restore one to send it back to its queue.'
+              : (sourceTab === 'x'
+                ? 'The X scraper lane is ready. New X leads will appear here as they sync in.'
+                : 'Fresh Robert and Asher Gmail leads will appear here before they enter the board.')}
           />
         )}
       </div>
