@@ -6346,3 +6346,71 @@ body[data-theme="dark"] .mail-compose-footer {
     margin-left: 0;
   }
 }
+
+/* Superhuman's web app uses split tabs across the top when space gets tight. */
+@media (max-width: 1180px) {
+  .cos2-top .cos-kpi {
+    display: none;
+  }
+
+  .cos2-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .cos2-rail {
+    grid-row: 1;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    min-height: 48px;
+    padding: 7px 10px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+
+  .cos2-rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .cos2-split {
+    flex: 0 0 auto;
+    min-height: 31px;
+    padding: 7px 10px;
+  }
+
+  .cos2-hints {
+    display: none;
+  }
+
+  .cos2-list {
+    grid-row: 2;
+    border-right: 0;
+    padding: 0;
+  }
+
+  .cos2-row {
+    min-height: 56px;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+
+  .cos2-reader {
+    display: none;
+  }
+
+  .cos2-body.is-mobile-open .cos2-reader {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+  }
+
+  .cos2-body.is-mobile-open .cos2-back {
+    display: inline-flex;
+  }
+}
