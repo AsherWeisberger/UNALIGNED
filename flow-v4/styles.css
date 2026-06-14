@@ -589,7 +589,9 @@ a { color: inherit; }
 /* ─── App shell ──────────────────────────────────────────── */
 .app {
   display: grid;
-  grid-template-columns: 1fr;
+  /* minmax(0, 1fr) (not bare 1fr, whose implicit auto minimum lets wide
+     panes push the column past the viewport and cause horizontal scroll). */
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: 48px 1fr 26px;
   grid-template-areas: "hd" "main" "ft";
   height: 100vh;
@@ -3884,6 +3886,28 @@ body[data-theme="dark"] .twk-panel {
 .cr-deliv { color: var(--text-3); }
 .cr-time { color: var(--text-3); font-variant-numeric: tabular-nums; letter-spacing: -0.005em; cursor: help; }
 
+/* Mid-width: the full top nav needs ~1328px, which forced horizontal scroll
+   on anything narrower (even before the Company OS layout was shown there).
+   Compress it — drop the redundant scope pill, tighten the gaps and search —
+   so the shell fits without scrolling while the three/two-pane layout shows. */
+@media (min-width: 901px) and (max-width: 1340px) {
+  .hd { gap: 8px; }
+  .hd-context { display: none; }
+  .hd-search { max-width: 200px; }
+  .hd-nav-btn { padding: 6px 8px; }
+}
+
+/* Below ~1140px the nav still does not fit, so trim the non-essential status
+   indicator and brand tag and tighten further to keep the shell scroll-free. */
+@media (min-width: 901px) and (max-width: 1140px) {
+  .hd { gap: 5px; padding: 0 8px; }
+  .hd-sync { display: none; }
+  .hd-brand-tag { display: none; }
+  .hd-nav-btn { padding: 6px 6px; }
+  .hd-search { max-width: 160px; min-width: 0; }
+  .hd-search input { min-width: 0; }
+}
+
 @media (max-width: 900px) {
   .app { grid-template-rows: auto 1fr auto; }
   .hd {
@@ -6142,8 +6166,15 @@ body[data-theme="light"] .cmdk-row.is-active {
   font-weight: 600;
 }
 
-@media (max-width: 1180px) {
-  .cos2-body {
+/* Keep the three-pane Company OS layout down to 1024px. The themed
+   .cos2-body rules already define three columns, so above 1024px the reader
+   simply stays visible. Between 901-1024px we collapse to rail + list (the
+   reader opens as an overlay); 900px and below is the mobile layout, so this
+   band is floored at 901px to avoid overriding the mobile single column. */
+@media (min-width: 901px) and (max-width: 1024px) {
+  .cos2-body,
+  body[data-theme="light"] .cos2-body,
+  body[data-theme="dark"] .cos2-body {
     grid-template-columns: 178px minmax(0, 1fr);
   }
 
@@ -6556,7 +6587,7 @@ body[data-theme="dark"] .mail-compose-footer {
 }
 
 /* Superhuman's web app uses split tabs across the top when space gets tight. */
-@media (max-width: 1180px) {
+@media (max-width: 900px) {
   .cos2-top .cos-kpi {
     display: none;
   }
