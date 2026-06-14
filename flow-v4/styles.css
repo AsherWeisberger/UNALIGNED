@@ -6106,6 +6106,29 @@ body[data-theme="light"] .cmdk-row.is-active {
   padding-bottom: 16px;
 }
 
+/* On narrow widths the shared grid header squeezes the title to zero width
+   ("N..."). Stack the New Leads header so the title stays whole and the
+   stat pills wrap onto their own full-width row. */
+@media (max-width: 640px) {
+  .new-leads-page .page-hd {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .new-leads-page .page-title {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    min-width: 0;
+  }
+  .new-leads-page .invoice-stats {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+}
+
 .hd-nav-btn {
   white-space: nowrap;
 }

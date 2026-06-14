@@ -922,7 +922,7 @@ function V3NewLeadSummary(lead) {
   const latest = Array.isArray(lead?.thread) && lead.thread.length ? lead.thread[lead.thread.length - 1] : null;
   const source = V3NewLeadSourceKind(lead);
   const raw = source === 'x'
-    ? (lead?.xQuickNote || lead?.notes || lead?.evidence || latest?.body || lead?.nextMove?.text || lead?.deliverables || '')
+    ? (lead?.notes || lead?.xQuickNote || lead?.evidence || latest?.body || lead?.nextMove?.text || lead?.deliverables || '')
     : (lead?.notes || latest?.body || lead?.evidence || lead?.nextMove?.text || lead?.deliverables || '');
   return String(raw || '')
     .replace(/Robert['’]s latest position:\s*/gi, 'Robert: ')
