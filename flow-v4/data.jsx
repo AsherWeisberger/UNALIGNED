@@ -924,11 +924,17 @@ function V3NewLeadSummary(lead) {
   const raw = source === 'x'
     ? (lead?.notes || lead?.xQuickNote || lead?.evidence || latest?.body || lead?.nextMove?.text || lead?.deliverables || '')
     : (lead?.notes || latest?.body || lead?.evidence || lead?.nextMove?.text || lead?.deliverables || '');
-  return String(raw || '')
+  let text = String(raw || '')
     .replace(/Robert['’]s latest position:\s*/gi, 'Robert: ')
     .replace(/Latest lead message:\s*/gi, '')
+    .replace(/\[[^\]]*\]/g, ' ')                 // drop bracketed artifacts e.g. [Recovered quoted confirmation]
     .replace(/\s+/g, ' ')
     .trim();
+  // Lead with the substance: strip an opening greeting and a closing sign-off
+  // so the card shows what the lead actually wants, not "Hi Asher, ... Warm regards".
+  text = text.replace(/^(hi|hello|hey|dear|greetings|good (?:morning|afternoon|evening))\b[^,.!?]*[,!]?\s+/i, '');
+  text = text.replace(/[\s,]*\b(warm(?:est)? regards|best regards|kind regards|warm wishes|best wishes|kind wishes|all the best|talk soon|many thanks|thanks so much|regards|cheers|sincerely(?: yours)?)\b[\s\S]{0,40}$/i, '');
+  return text.trim();
 }
 
 function V3NewLeadPrimaryIdentity(lead) {

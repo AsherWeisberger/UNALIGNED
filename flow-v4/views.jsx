@@ -1960,7 +1960,9 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
               const reason = window.V3NewLeadReason ? window.V3NewLeadReason(lead) : 'Needs review';
               const receivedStamp = window.V3.GmailTime.full(lead.receivedAt || first?.date || first?.when);
               const receivedListStamp = window.V3.GmailTime.list(lead.receivedAt || first?.date || first?.when) || lead.lastTouch || 'new';
-              const metaBrand = lead.brand && String(lead.brand).trim().toLowerCase() !== String(identity || '').trim().toLowerCase() ? lead.brand : '';
+              const brandRaw = String(lead.brand || '').trim();
+              const isPlaceholderBrand = /^(gmail|x|x lead|unknown.*)$/i.test(brandRaw);
+              const metaBrand = brandRaw && !isPlaceholderBrand && brandRaw.toLowerCase() !== String(identity || '').trim().toLowerCase() ? lead.brand : '';
               const xSecondary = [handle, lead.email || '', metaBrand].filter(Boolean);
               const gmailSecondary = [lead.email || '', metaBrand].filter(Boolean);
               return (
@@ -1990,7 +1992,6 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
                       </div>
                       <div className="new-lead-reason-row">
                         <span className="new-lead-reason">{reason}</span>
-                        {lead.gmailThreadId && <span className="new-lead-thread-id">Thread {String(lead.gmailThreadId).slice(-6)}</span>}
                         {kind === 'x' && lead.xMessageCount ? <span>{lead.xMessageCount} messages</span> : null}
                       </div>
                       <p className="new-lead-summary">{summary || 'No summary available yet.'}</p>
