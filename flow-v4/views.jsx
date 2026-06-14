@@ -383,6 +383,30 @@ const V4_INVOICE_GROUPS = [
     tone: 'warn',
     buckets: [
       {
+        label: 'Stripe',
+        note: 'New Stripe invoices live here. Legacy manual invoices from your folders stay in their own buckets below.',
+        items: [
+          {
+            id: 'stripe-in1thwn2k0weauaymjfm1x0dpg',
+            title: 'Judy — Echon Labs',
+            company: 'collab@echonlab.com',
+            folder: 'STRIPE / OPEN',
+            source: 'Stripe',
+            sourceDir: 'STRIPE',
+            file: 'RYKHX5KX-0001',
+            href: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MTk5NzIyNg0200PF0dod3E?s=ap',
+            kind: 'STRIPE',
+            stripeStatus: 'open',
+            stripePaid: false,
+            stripeAmountDue: 1952.0,
+            stripeAmountPaid: 0.0,
+            stripeCurrency: 'USD',
+            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MTk5NzIyNg0200PF0dod3E?s=ap',
+            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MTk5NzIyNg0200PF0dod3E/pdf?s=ap',
+          },
+        ],
+      },
+      {
         label: 'Not Confirmed But Confirmed',
         note: 'Synced from this invoice subfolder.',
         items: [
@@ -391,10 +415,18 @@ const V4_INVOICE_GROUPS = [
             title: 'Mayank',
             company: 'ClineSDK',
             folder: 'OUTSTANDING / NOT CONFIRMED BUT CONFIRMED',
+            source: 'Manual',
             sourceDir: 'OUTSTANDING/NOT CONFIRMED BUT CONFIRMED',
             file: 'invoice_Mayank_ClineSDK_051326.pdf',
             href: 'flow-v4/assets/invoices/outstanding/not-confirmed-but-confirmed/invoice_Mayank_ClineSDK_051326.pdf',
             kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
           },
         ],
       },
@@ -416,160 +448,288 @@ const V4_INVOICE_GROUPS = [
             title: 'ArcGrowth',
             company: 'AhaCreator',
             folder: 'DONE / ARCHIVED',
+            source: 'Manual',
             sourceDir: 'DONE',
             file: 'invoice_ArcGrowth_AhaCreator_052126.pdf',
             href: 'flow-v4/assets/invoices/done/invoice_ArcGrowth_AhaCreator_052126.pdf',
             kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
           },
           {
             id: 'invoice-cutback-selects-061226',
             title: 'Cutback',
             company: 'Selects',
             folder: 'DONE / ARCHIVED',
+            source: 'Manual',
             sourceDir: 'DONE',
             file: 'invoice_Cutback_Selects_061226.pdf',
             href: 'flow-v4/assets/invoices/done/invoice_Cutback_Selects_061226.pdf',
             kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
           },
           {
             id: 'invoice-eezycollab-team9-052226',
             title: 'EezyCollab',
             company: 'Team9',
             folder: 'DONE / ARCHIVED',
+            source: 'Manual',
             sourceDir: 'DONE',
             file: 'invoice_EezyCollab_Team9_052226.pdf',
             href: 'flow-v4/assets/invoices/done/invoice_EezyCollab_Team9_052226.pdf',
             kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
           },
           {
             id: 'invoice-hockeystick-voxcpm2-051526',
             title: 'HockeyStick',
             company: 'VOXCPM2',
             folder: 'DONE / ARCHIVED',
+            source: 'Manual',
             sourceDir: 'DONE',
             file: 'invoice_HockeyStick_VOXCPM2_051526.pdf',
             href: 'flow-v4/assets/invoices/done/invoice_HockeyStick_VOXCPM2_051526.pdf',
             kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
           },
           {
             id: 'invoice-jay-langchainai-051326',
             title: 'Jay',
             company: 'LangChainAI',
             folder: 'DONE / ARCHIVED',
+            source: 'Manual',
             sourceDir: 'DONE',
             file: 'invoice_Jay_LangChainAI_051326.pdf',
             href: 'flow-v4/assets/invoices/done/invoice_Jay_LangChainAI_051326.pdf',
             kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
           },
           {
             id: 'invoice-lobehub-051626',
             title: 'LobeHub',
             company: 'LobeHub',
             folder: 'DONE / ARCHIVED',
+            source: 'Manual',
             sourceDir: 'DONE',
             file: 'invoice_LobeHub_051626.pdf',
             href: 'flow-v4/assets/invoices/done/invoice_LobeHub_051626.pdf',
             kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
           },
           {
             id: 'invoice-marketingguys-kombai-qrt-060126',
             title: 'MarketingGuys',
             company: 'Kombai QRT',
             folder: 'DONE / ARCHIVED',
+            source: 'Manual',
             sourceDir: 'DONE',
             file: 'invoice_MarketingGuys_Kombai_QRT_060126.pdf',
             href: 'flow-v4/assets/invoices/done/invoice_MarketingGuys_Kombai_QRT_060126.pdf',
             kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
           },
           {
             id: 'invoice-omane-060826',
             title: 'Omane',
             company: 'Omane',
             folder: 'DONE / ARCHIVED',
+            source: 'Manual',
             sourceDir: 'DONE',
             file: 'invoice_Omane_060826.pdf',
             href: 'flow-v4/assets/invoices/done/invoice_Omane_060826.pdf',
             kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
           },
           {
             id: 'invoice-omane-ormannheim-051826',
             title: 'Omane',
             company: 'OrMannheim',
             folder: 'DONE / ARCHIVED',
+            source: 'Manual',
             sourceDir: 'DONE',
             file: 'invoice_Omane_OrMannheim_051826.pdf',
             href: 'flow-v4/assets/invoices/done/invoice_Omane_OrMannheim_051826.pdf',
             kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
           },
           {
             id: 'invoice-omane-viktor-060826',
             title: 'Omane',
             company: 'Viktor',
             folder: 'DONE / ARCHIVED',
+            source: 'Manual',
             sourceDir: 'DONE',
             file: 'invoice_Omane_Viktor_060826.pdf',
             href: 'flow-v4/assets/invoices/done/invoice_Omane_Viktor_060826.pdf',
             kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
           },
           {
             id: 'invoice-playos-sintra-tier5-052126',
             title: 'PlayOS',
             company: 'Sintra Tier5',
             folder: 'DONE / ARCHIVED',
+            source: 'Manual',
             sourceDir: 'DONE',
             file: 'invoice_PlayOS_Sintra_Tier5_052126.pdf',
             href: 'flow-v4/assets/invoices/done/invoice_PlayOS_Sintra_Tier5_052126.pdf',
             kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
           },
           {
             id: 'invoice-polsia-sfphysicalcampaign-060426',
             title: 'Polsia',
             company: 'SFPhysicalCampaign',
             folder: 'DONE / ARCHIVED',
+            source: 'Manual',
             sourceDir: 'DONE',
             file: 'invoice_Polsia_SFPhysicalCampaign_060426.pdf',
             href: 'flow-v4/assets/invoices/done/invoice_Polsia_SFPhysicalCampaign_060426.pdf',
             kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
           },
           {
             id: 'invoice-polsia-tier3-052126',
             title: 'Polsia',
             company: 'Tier3',
             folder: 'DONE / ARCHIVED',
+            source: 'Manual',
             sourceDir: 'DONE',
             file: 'invoice_Polsia_Tier3_052126.pdf',
             href: 'flow-v4/assets/invoices/done/invoice_Polsia_Tier3_052126.pdf',
             kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
           },
           {
             id: 'invoice-polyai-04232026',
             title: 'PolyAI',
             company: 'PolyAI',
             folder: 'DONE / ARCHIVED',
+            source: 'Manual',
             sourceDir: 'DONE',
             file: 'invoice_PolyAI_04232026.html',
             href: 'flow-v4/assets/invoices/done/invoice_PolyAI_04232026.html',
             kind: 'HTML',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
           },
           {
             id: 'invoice-vivi-eezycollab-051426',
             title: 'Vivi',
             company: 'EezyCollab',
             folder: 'DONE / ARCHIVED',
+            source: 'Manual',
             sourceDir: 'DONE',
             file: 'invoice_Vivi_EezyCollab_051426.pdf',
             href: 'flow-v4/assets/invoices/done/invoice_Vivi_EezyCollab_051426.pdf',
             kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
           },
           {
             id: 'invoice-stav-invoice',
             title: 'STAV',
             company: 'INVOICE',
             folder: 'DONE / ARCHIVED',
+            source: 'Manual',
             sourceDir: 'DONE',
             file: 'STAV INVOICE.pdf',
             href: 'flow-v4/assets/invoices/done/STAV%20INVOICE.pdf',
             kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
           },
         ],
       },
@@ -582,14 +742,36 @@ const V4_INVOICE_ACTION_URL = 'http://127.0.0.1:8765/complete-invoice';
 function V4InvoiceMatchesQuery(item, query) {
   const q = String(query || '').trim().toLowerCase();
   if (!q) return true;
-  return [item.title, item.company, item.folder, item.sourceDir, item.file, item.kind, item.href]
+  return [item.title, item.company, item.folder, item.source, item.sourceDir, item.file, item.kind, item.href, item.stripeStatus, item.stripeCurrency]
     .filter(Boolean)
     .some(value => String(value).toLowerCase().includes(q));
+}
+
+function V4InvoiceMoney(amount, currency = 'USD') {
+  if (amount == null || amount === '') return '';
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: String(currency || 'USD').toUpperCase(),
+      maximumFractionDigits: 2,
+    }).format(Number(amount));
+  } catch (e) {
+    return '$' + Number(amount).toFixed(2);
+  }
 }
 
 function V4InvoiceCard({ item, onComplete, completingId }) {
   const canComplete = String(item.sourceDir || '').startsWith('OUTSTANDING');
   const isCompleting = completingId === item.id;
+  const stripeStatus = String(item.stripeStatus || '').trim();
+  const openHref = item.href || item.stripeHostedInvoiceUrl || item.stripeInvoicePdf || '';
+  const stripeTone = item.stripePaid ? 'paid' : (
+    stripeStatus === 'open' || stripeStatus === 'draft' ? 'open' : (
+      stripeStatus === 'void' || stripeStatus === 'uncollectible' ? 'void' : 'neutral'
+    )
+  );
+  const stripeAmount = item.stripePaid ? item.stripeAmountPaid : item.stripeAmountDue;
+  const stripeAmountLabel = stripeAmount != null ? V4InvoiceMoney(stripeAmount, item.stripeCurrency) : '';
   return (
     <div className="invoice-card">
       <div className="invoice-card-top">
@@ -600,11 +782,38 @@ function V4InvoiceCard({ item, onComplete, completingId }) {
           <div className="invoice-card-title-row">
             <strong>{item.title}</strong>
             <span className={'invoice-kind invoice-kind-' + item.kind.toLowerCase()}>{item.kind}</span>
+            {item.source && (
+              <span className="invoice-source-badge">{item.source}</span>
+            )}
+            {stripeStatus && (
+              <span className={'invoice-stripe-badge is-' + stripeTone}>
+                Stripe {item.stripePaid ? 'paid' : stripeStatus}
+              </span>
+            )}
           </div>
           <div className="invoice-card-company">{item.company}</div>
           <div className="invoice-card-folder">{item.folder}</div>
+          {(stripeAmountLabel || item.stripeHostedInvoiceUrl) && (
+            <div className="invoice-stripe-meta">
+              {stripeAmountLabel && <span>{item.stripePaid ? 'Paid ' : 'Due '}{stripeAmountLabel}</span>}
+              {item.stripeHostedInvoiceUrl && (
+                <a className="invoice-stripe-link" href={item.stripeHostedInvoiceUrl} target="_blank" rel="noreferrer">
+                  Hosted invoice
+                </a>
+              )}
+              {item.stripeInvoicePdf && (
+                <a className="invoice-stripe-link" href={item.stripeInvoicePdf} target="_blank" rel="noreferrer">
+                  Stripe PDF
+                </a>
+              )}
+            </div>
+          )}
         </div>
-        <a className="invoice-open" href={item.href} target="_blank" rel="noreferrer">Open</a>
+        {openHref ? (
+          <a className="invoice-open" href={openHref} target="_blank" rel="noreferrer">Open</a>
+        ) : (
+          <span className="invoice-open is-disabled">No link</span>
+        )}
       </div>
       <div className="invoice-card-file">{item.file}</div>
       {canComplete && (
@@ -693,7 +902,7 @@ function V4InvoicesView({ query = '' }) {
         <div>
           <div className="page-eyebrow">Invoices</div>
           <h1 className="page-title">Invoices</h1>
-          <div className="page-sub">Outstanding and done invoices from your local folder tree.</div>
+          <div className="page-sub">Outstanding and done invoices from your local folder tree, with Stripe payment status when connected.</div>
         </div>
         <div className="invoice-stats">
           <span className="invoice-stat warn">{outstandingCount} outstanding</span>
