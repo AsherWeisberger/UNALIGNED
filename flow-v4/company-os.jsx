@@ -897,6 +897,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead })
     { id: 'unscoped',   label: 'Needs scope',  section: 'By type', items: unscopedItems },
     { id: 'snoozed', label: 'Snoozed',         section: 'System', items: live.filter(isSnoozed).sort((a, b) => Date.parse(snoozes[a.id]) - Date.parse(snoozes[b.id])) },
     { id: 'closed',  label: 'Done and paid',   section: 'System', items: awake.filter(l => ['done', 'paid-out'].includes(l.stage)).sort(byRecent) },
+    { id: 'trash',   label: 'Trash',           section: 'System', trash: true, items: base.filter(l => ['trash', 'dead-leads'].includes(l.stage)).sort(byRecent) },
     { id: 'brief',   label: 'Overview',        section: 'System', brief: true },
   ];
 
@@ -1022,16 +1023,25 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead })
           <>
             <div className="cos2-list">
               {items.map(l => (
-                <button key={l.id} type="button"
-                        className={'cos2-row' + (String(l.id) === String(selected?.id) ? ' is-current' : '')}
-                        onClick={() => { setSelId(l.id); setMobileOpen(true); }}>
-                  <span className="cos2-row-top">
-                    {l.unread && <span className="dq-dot" />}
-                    <span className="cos2-row-brand">{l.brand}</span>
-                    <span className="cos2-row-when">{l.lastTouch}</span>
-                  </span>
-                  <span className="cos2-row-snip"><strong>{l.contactName}</strong>{l.nextMove?.text ? ' · ' + l.nextMove.text : ''}</span>
-                </button>
+                <div key={l.id} className={'cos2-row-wrap' + (String(l.id) === String(selected?.id) ? ' is-current' : '')}>
+                  <button type="button"
+                          className={'cos2-row' + (String(l.id) === String(selected?.id) ? ' is-current' : '')}
+                          onClick={() => { setSelId(l.id); setMobileOpen(true); }}>
+                    <span className="cos2-row-top">
+                      {l.unread && <span className="dq-dot" />}
+                      <span className="cos2-row-brand">{l.brand}</span>
+                      <span className="cos2-row-when">{l.lastTouch}</span>
+                    </span>
+                    <span className="cos2-row-snip"><strong>{l.contactName}</strong>{l.nextMove?.text ? ' · ' + l.nextMove.text : ''}</span>
+                  </button>
+                  <button type="button"
+                          className="cos2-row-act"
+                          title={split.trash ? 'Restore to board' : 'Move to trash'}
+                          aria-label={split.trash ? 'Restore lead' : 'Trash lead'}
+                          onClick={(e) => { e.stopPropagation(); window.V3.MoveLeadStage(l, split.trash ? 'new' : 'trash'); }}>
+                    <V3Icon name={split.trash ? 'reply' : 'trash'} w={13} />
+                  </button>
+                </div>
               ))}
               {items.length === 0 && (
                 <div className="cos2-zero">
