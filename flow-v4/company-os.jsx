@@ -957,8 +957,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead })
                     <span className="cos2-row-brand">{l.brand}</span>
                     <span className="cos2-row-when">{l.lastTouch}</span>
                   </span>
-                  <span className="cos2-row-name">{l.contactName}</span>
-                  <span className="cos2-row-snip">{l.nextMove?.text || ''}</span>
+                  <span className="cos2-row-snip"><strong>{l.contactName}</strong>{l.nextMove?.text ? ' · ' + l.nextMove.text : ''}</span>
                 </button>
               ))}
               {items.length === 0 && (

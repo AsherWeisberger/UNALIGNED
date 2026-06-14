@@ -5925,6 +5925,40 @@ body[data-theme="light"] .cmdk-row.is-active {
   white-space: nowrap;
 }
 
+.cos2-row {
+  min-height: 58px;
+}
+
+.cos2-row-snip strong {
+  color: var(--text-2);
+  font-weight: 600;
+}
+
+@media (max-width: 1180px) {
+  .cos2-body {
+    grid-template-columns: 178px minmax(0, 1fr);
+  }
+
+  .cos2-reader {
+    display: none;
+  }
+
+  .cos2-body.is-mobile-open .cos2-reader {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+  }
+
+  .cos2-body.is-mobile-open .cos2-back {
+    display: inline-flex;
+  }
+
+  .cos2-list {
+    border-right: 0;
+  }
+}
+
 .new-leads-shell {
   max-width: 1180px;
   width: 100%;
@@ -6291,7 +6325,7 @@ body[data-theme="dark"] .mail-compose-footer {
   }
 
   .cos2-row {
-    min-height: 76px;
+    min-height: 62px;
   }
 }
 
