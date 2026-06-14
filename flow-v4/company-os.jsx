@@ -259,6 +259,45 @@ function V4CompanyOsPriority(lead) {
   return 'P1';
 }
 
+function V4CompanyOsTier(lead) {
+  if (!lead) return null;
+  if (lead.brief?.tier) return Number(lead.brief.tier) || null;
+  const text = [
+    lead.deliverables,
+    lead.notes,
+    lead.evidence,
+    lead.nextMove?.text,
+    ...(Array.isArray(lead.thread) ? lead.thread.map(m => `${m.subject || ''} ${m.body || ''}`) : []),
+  ].filter(Boolean).join(' ').toLowerCase();
+  const explicit = text.match(/\btier\s*([1-7])\b/);
+  if (explicit) return Number(explicit[1]);
+  const value = Number(lead.value || 0);
+  if (value >= 5800) return 7;
+  if (value >= 3900) return 6;
+  if (value >= 2900) return 5;
+  if (value >= 2400) return 4;
+  if (value >= 1950) return 3;
+  if (value >= 1800) return 2;
+  if (value > 0) return 1;
+  return null;
+}
+
+function V4CompanyOsType(lead) {
+  const text = [
+    lead?.category,
+    lead?.deliverables,
+    lead?.notes,
+    lead?.evidence,
+    lead?.nextMove?.text,
+    ...(Array.isArray(lead?.thread) ? lead.thread.map(m => `${m.subject || ''} ${m.body || ''}`) : []),
+  ].filter(Boolean).join(' ').toLowerCase();
+  if (/\b(interview|podcast|speaker|fireside|webinar|panel)\b/.test(text)) return 'interview';
+  if (/\b(intro|introduction|connect|network)\b/.test(text)) return 'intro';
+  if (/\b(partner|partnership|sponsor|sponsorship|paid)\b/.test(text)) return 'partnership';
+  if (/\b(collab|collaboration|campaign|post|repost|thread|retweet|linkedin|newsletter)\b/.test(text)) return 'collaboration';
+  return lead?.category || 'unscoped';
+}
+
 function V4CompanyOsPhase(lead) {
   const stage = lead?.stage || 'new';
   if (stage === 'invoice-sent') return 'Invoice / Payment';
@@ -821,15 +860,31 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead })
   const nowTs = Date.now();
   const isSnoozed = (l) => snoozes[l.id] && Date.parse(snoozes[l.id]) > nowTs;
   const awake = live.filter(l => !isSnoozed(l));
+  const activeDeals = awake.filter(l => !['trash', 'dead-leads', 'done', 'paid-out'].includes(l.stage));
+  const tierSplits = [1, 2, 3, 4, 5, 6, 7].map(tier => ({
+    id: `tier-${tier}`,
+    label: `Tier ${tier}`,
+    section: 'Packages',
+    items: activeDeals.filter(l => V4CompanyOsTier(l) === tier).sort(byRecent),
+  }));
+  const interviewItems = activeDeals.filter(l => V4CompanyOsType(l) === 'interview').sort(byRecent);
+  const partnershipItems = activeDeals.filter(l => V4CompanyOsType(l) === 'partnership').sort(byRecent);
+  const introItems = activeDeals.filter(l => V4CompanyOsType(l) === 'intro').sort(byRecent);
+  const unscopedItems = activeDeals.filter(l => !V4CompanyOsTier(l) && !['interview', 'partnership', 'intro'].includes(V4CompanyOsType(l))).sort(byRecent);
 
   const splits = [
-    { id: 'reply',   label: 'Reply now',       hot: true, items: awake.filter(l => l.unread && l.nextMove?.who).sort(byStale) },
-    { id: 'follow',  label: 'Follow ups',      items: awake.filter(l => !l.unread && TEAM.includes(l.nextMove?.who) && (l.daysInStage || 0) <= 21).sort(byStale) },
-    { id: 'robert',  label: 'Robert',          items: awake.filter(l => l.nextMove?.who === 'robert').sort(byRecent) },
-    { id: 'waiting', label: 'Waiting on them', items: awake.filter(l => !l.nextMove?.who && !['done', 'paid-out'].includes(l.stage)).sort(byRecent) },
-    { id: 'snoozed', label: 'Snoozed',         items: live.filter(isSnoozed).sort((a, b) => Date.parse(snoozes[a.id]) - Date.parse(snoozes[b.id])) },
-    { id: 'closed',  label: 'Done and paid',   items: awake.filter(l => ['done', 'paid-out'].includes(l.stage)).sort(byRecent) },
-    { id: 'brief',   label: 'Overview',        brief: true },
+    { id: 'reply',   label: 'Reply now',       section: 'Action', hot: true, items: awake.filter(l => l.unread && l.nextMove?.who).sort(byStale) },
+    { id: 'follow',  label: 'Follow ups',      section: 'Action', items: awake.filter(l => !l.unread && TEAM.includes(l.nextMove?.who) && (l.daysInStage || 0) <= 21).sort(byStale) },
+    { id: 'robert',  label: 'Robert',          section: 'Action', items: awake.filter(l => l.nextMove?.who === 'robert').sort(byRecent) },
+    { id: 'waiting', label: 'Waiting on them', section: 'Action', items: awake.filter(l => !l.nextMove?.who && !['done', 'paid-out'].includes(l.stage)).sort(byRecent) },
+    ...tierSplits,
+    { id: 'interviews', label: 'Interviews',   section: 'By type', items: interviewItems },
+    { id: 'partners',   label: 'Partnerships', section: 'By type', items: partnershipItems },
+    { id: 'intros',     label: 'Intros',       section: 'By type', items: introItems },
+    { id: 'unscoped',   label: 'Needs scope',  section: 'By type', items: unscopedItems },
+    { id: 'snoozed', label: 'Snoozed',         section: 'System', items: live.filter(isSnoozed).sort((a, b) => Date.parse(snoozes[a.id]) - Date.parse(snoozes[b.id])) },
+    { id: 'closed',  label: 'Done and paid',   section: 'System', items: awake.filter(l => ['done', 'paid-out'].includes(l.stage)).sort(byRecent) },
+    { id: 'brief',   label: 'Overview',        section: 'System', brief: true },
   ];
 
   const [splitId, setSplitId] = React.useState('reply');
@@ -925,13 +980,18 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead })
       </header>
       <div className={'cos2-body' + (mobileOpen ? ' is-mobile-open' : '')}>
         <nav className="cos2-rail" aria-label="Splits">
-          {splits.map(s => (
-            <button key={s.id} type="button"
-                    className={'cos2-split' + (s.id === split.id ? ' is-active' : '') + (s.hot ? ' is-hot' : '')}
-                    onClick={() => setSplitId(s.id)}>
-              <span>{s.label}</span>
-              {!s.brief && <span className="cos2-split-cnt">{s.items.length}</span>}
-            </button>
+          {splits.map((s, idx) => (
+            <React.Fragment key={s.id}>
+              {(idx === 0 || splits[idx - 1].section !== s.section) && (
+                <div className="cos2-split-section">{s.section}</div>
+              )}
+              <button type="button"
+                      className={'cos2-split' + (s.id === split.id ? ' is-active' : '') + (s.hot ? ' is-hot' : '')}
+                      onClick={() => setSplitId(s.id)}>
+                <span>{s.label}</span>
+                {!s.brief && <span className="cos2-split-cnt">{s.items.length}</span>}
+              </button>
+            </React.Fragment>
           ))}
           <div className="dq-hints cos2-hints">
             <span><kbd>J</kbd><kbd>K</kbd> move</span>
