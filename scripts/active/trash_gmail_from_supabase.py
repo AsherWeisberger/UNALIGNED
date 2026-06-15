@@ -20,8 +20,10 @@ Notes:
 - Trashing is reversible from Gmail's Trash for ~30 days.
 - Uses the public anon Supabase key (read-only here), same as daily_gmail_sync.
 """
+import argparse
 import json
 import os
+import sys
 import logging
 import urllib.request
 import urllib.error
@@ -46,6 +48,12 @@ SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 
 
 def get_gmail_service():
+    """Return an authorized Gmail service, or None if not authorized yet.
+
+    A browser consent prompt is only opened in an interactive terminal, so an
+    unattended cron run never hangs — it just skips until someone authorizes
+    once by running this script manually.
+    """
     creds = None
     if os.path.exists(MODIFY_TOKEN_FILE):
         try:
@@ -61,6 +69,10 @@ def get_gmail_service():
             creds = None
 
     if not creds or not creds.valid:
+        if not sys.stdin.isatty():
+            log("Not authorized for gmail.modify yet and not interactive — skipping. "
+                "Run this script once in a terminal to grant consent.")
+            return None
         log("Opening browser for one-time Gmail consent (gmail.modify)…")
         flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRET_FILE, SCOPES)
         creds = flow.run_local_server(port=0)
@@ -97,6 +109,11 @@ def load_trashed_cards():
 
 
 def main():
+    ap = argparse.ArgumentParser(description="Move trashed leads' Gmail threads to Gmail Trash.")
+    ap.add_argument('--limit', type=int, default=0, help='Only process the first N (0 = all). Good for a first test.')
+    ap.add_argument('--dry-run', action='store_true', help='List what would be trashed without touching Gmail.')
+    args = ap.parse_args()
+
     processed = set()
     if os.path.exists(PROCESSED_FILE):
         try:
@@ -106,11 +123,21 @@ def main():
 
     rows = load_trashed_cards()
     todo = [r for r in rows if str(r.get('gmail_thread_id')) not in processed]
-    log(f"{len(rows)} trashed cards with a Gmail thread; {len(todo)} not yet trashed in Gmail")
+    if args.limit > 0:
+        todo = todo[:args.limit]
+    log(f"{len(rows)} trashed cards with a Gmail thread; {len(todo)} to process this run")
     if not todo:
         return
 
+    if args.dry_run:
+        for r in todo:
+            log(f"  [dry-run] would trash {r.get('gmail_thread_id')} — "
+                f"{r.get('business_name') or r.get('contact_name') or '?'}")
+        return
+
     service = get_gmail_service()
+    if service is None:
+        return
     trashed = 0
     for r in todo:
         tid = str(r.get('gmail_thread_id'))
