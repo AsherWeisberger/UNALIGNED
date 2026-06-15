@@ -84,7 +84,10 @@ def hdrs(prefer="return=minimal"):
 def fetch_active_cards():
     """Fetch all non-terminal deal cards with their stored email threads."""
     cards, offset = [], 0
-    terminal_filter = ",".join(f'"{s}"' for s in TERMINAL_STAGES)
+    # Never analyze/move terminal cards OR trashed leads — a trashed lead must
+    # stay trashed and never be auto-moved back onto an active stage.
+    skip_stages = TERMINAL_STAGES | {"trash", "dead-leads"}
+    terminal_filter = ",".join(f'"{s}"' for s in skip_stages)
     while True:
         r = httpx.get(
             f"{SUPABASE_URL}/rest/v1/cards"

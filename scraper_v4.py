@@ -1320,7 +1320,7 @@ def update_card_stage_by_thread(gmail_thread_id: str, new_list_id: str, conversa
         return False
 
 
-_INACTIVE_STAGES = {"done", "paid-out", "dead-leads"}
+_INACTIVE_STAGES = {"done", "paid-out", "dead-leads", "trash"}
 
 async def check_active_threads_for_replies(
     existing_thread_map: dict, token: str, last_run_date_str: str
