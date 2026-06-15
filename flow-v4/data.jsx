@@ -957,6 +957,10 @@ function V3NewLeadSummary(lead) {
   // so the card shows what the lead actually wants, not "Hi Asher, ... Warm regards".
   text = text.replace(/^(hi|hello|hey|dear|greetings|good (?:morning|afternoon|evening))\b[^,.!?]*[,!]?\s+/i, '');
   text = text.replace(/[\s,]*\b(warm(?:est)? regards|best regards|kind regards|warm wishes|best wishes|kind wishes|all the best|talk soon|many thanks|thanks so much|regards|cheers|sincerely(?: yours)?)\b[\s\S]{0,40}$/i, '');
+  // also strip a bare comma sign-off followed by a name ("Best, Kevin Picchi",
+  // "Thanks, Joe"). The capital after the comma keeps prose like
+  // "the best, most reliable option" from being treated as a sign-off.
+  text = text.replace(/\s*\b([Bb]est|[Tt]hanks|[Tt]hank you|[Cc]heers|[Ss]incerely|[Rr]egards|[Tt]alk soon|[Tt]ake care)\s*,\s+[A-Z][^,]{0,45}$/, '');
   return text.trim();
 }
 
