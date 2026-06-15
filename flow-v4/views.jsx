@@ -1860,6 +1860,32 @@ const CAL_TZ = 'America/Los_Angeles';
 
 const EMPTY_FORM = { title: '', date: '', startTime: '09:00', endTime: '10:00', location: '', allDay: false };
 
+// Split a summary into a highlighted opening "gist" + the rest, skipping
+// sentence breaks that are really abbreviations ("Mt.", "Inc.", "U.S.") or
+// initials, so the gist is a clean first line rather than a mid-word cut.
+const V4_GIST_ABBR = /\b(mt|st|inc|ltd|co|corp|dr|mr|mrs|ms|jr|sr|vs|etc|approx|no|fig|dept|gov|u\.s|a\.m|p\.m|e\.g|i\.e)\.$/i;
+function V4SplitGist(text) {
+  const s = String(text || '').trim();
+  const re = /([.!?])\s+(?=[A-Z0-9"'“‘])/g;
+  let m;
+  while ((m = re.exec(s))) {
+    const head = s.slice(0, m.index + 1);
+    if (head.trim().length < 20) continue;
+    if (m[1] === '.' && (V4_GIST_ABBR.test(head) || /\b[A-Z]\.$/.test(head))) continue;
+    if (head.length <= 200) return { gist: head.trim(), detail: s.slice(m.index + 1).trim() };
+    break; // first sentence is a long run-on — fall through to a word-boundary cut
+  }
+  // No usable sentence break (e.g. a run-on with a URL): cut at a word boundary
+  // so the gist stays a short headline and the remainder becomes detail.
+  if (s.length > 150) {
+    let cut = s.slice(0, 140);
+    const sp = cut.lastIndexOf(' ');
+    if (sp > 90) cut = cut.slice(0, sp);
+    return { gist: cut.trim(), detail: s.slice(cut.length).trim() };
+  }
+  return { gist: s, detail: '' };
+}
+
 function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
   const q = String(query || '').trim();
   const [sourceTab, setSourceTab] = React.useState('gmail');
@@ -1971,6 +1997,10 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
               const first = Array.isArray(lead.thread) && lead.thread.length ? lead.thread[0] : null;
               const kind = window.V3.NewLeadSourceKind ? window.V3.NewLeadSourceKind(lead) : 'gmail';
               const summary = window.V3.NewLeadSummary ? window.V3.NewLeadSummary(lead) : String(lead.notes || latest?.body || lead.nextMove?.text || '').replace(/\s+/g, ' ').trim();
+              // Pull the opening sentence out as a highlighted "gist" so the
+              // intent ("X is asking for an intro") pops on the list; the rest
+              // of the message reads as lighter supporting detail beneath it.
+              const { gist: summaryGist, detail: summaryDetail } = V4SplitGist(summary);
               const source = window.V3.NewLeadSourceLabel ? window.V3.NewLeadSourceLabel(lead) : 'Gmail';
               const handle = window.V3.NewLeadHandle ? window.V3.NewLeadHandle(lead) : '';
               const identity = window.V3.NewLeadPrimaryIdentity ? window.V3.NewLeadPrimaryIdentity(lead) : (lead.contactName || 'Unknown contact');
@@ -2011,7 +2041,14 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
                         <span className="new-lead-reason">{reason}</span>
                         {kind === 'x' && lead.xMessageCount ? <span>{lead.xMessageCount} messages</span> : null}
                       </div>
-                      <p className="new-lead-summary">{summary || 'No summary available yet.'}</p>
+                      {summaryGist ? (
+                        <div className="new-lead-gist">
+                          <p className="new-lead-gist-line">{summaryGist}</p>
+                          {summaryDetail && <p className="new-lead-summary">{summaryDetail}</p>}
+                        </div>
+                      ) : (
+                        <p className="new-lead-summary">No summary available yet.</p>
+                      )}
                     </div>
                   </div>
                   <div className="new-lead-actions">
