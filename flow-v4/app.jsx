@@ -442,7 +442,16 @@ function V4App() {
           <V4CalendarView query={search} />
         )}
         {view === 'company-os' && (
-          <V4CompanyOsView leads={mergedLeads} query={search} user={user} onOpenLead={setOpenId} />
+          <V4CompanyOsView
+            leads={mergedLeads}
+            query={search}
+            user={user}
+            onOpenLead={setOpenId}
+            onNavigateView={(nextView, nextOpenId = null) => {
+              setView(nextView);
+              setOpenId(nextOpenId);
+            }}
+          />
         )}
       </main>
 

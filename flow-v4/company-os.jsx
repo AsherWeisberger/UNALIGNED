@@ -7,73 +7,63 @@
 
 const V4_COMPANY_OS_PREP = [
   {
-    title: 'MaineCoon / EchoNLab',
-    tags: ['P0', 'invoice sent', 'launch assets owed'],
+    title: 'Eastworlds / Danial + Sean',
+    tags: ['P0', 'payment overdue', 'direction locked'],
     points: [
-      'Judy accepted the $1,895 Tier 2 quote repost on June 13, 2026, and Asher sent the Stripe invoice link to collab@echonlab.com that same day.',
-      'The launch is still not Robert-ready. The thread still needs payment proof, the official launch post URL, the posting window, and any required tags or CTA for the June 16 run.',
-      'Robert already drafted an internal MaineCoon checklist, but no execution brief should start until both the payment proof and official source post are visible.',
-      'If they want the Tier 3 custom post after launch, sell it as a second paid campaign, not a bundled add-on.',
+      'Sean locked the June 17, 2026 direction around Eastworlds infrastructure, not just the Chimborazo climb: Starlink-fed edge inference, repeatability, and Everest as the next proof point.',
+      'The schedule slipped because payment still was not in by the end of June 17. Sean only said the CFO was processing it, and Asher had to chase again twice.',
+      'This is still Asher-owned terms work first: get payment proof, keep the exact accuracy language intact, and only then hand Robert the final execution brief.',
+      'No draft, no posting promise, and no calendar hold should move forward until the receipt is in-thread.',
     ],
   },
   {
-    title: 'Venice AI / Jay A',
-    tags: ['P0', 'date out', 'yes still missing'],
+    title: 'iLands / Flot monthly package',
+    tags: ['P0', 'copy due june 19', 'legacy package'],
     points: [
-      'Jay clarified on June 9, 2026 that Venice AI is a separate Erik Voorhees interview, not the stalled Riverside thread.',
-      'Asher offered June 22, 2026 after 1:00 PM PT. Jay said on June 13 he is still checking with the Venice team on that slot.',
-      'Asher also reset pricing on June 13: Venice is now $2,495 plus the 3% Stripe fee, while Riverside keeps the legacy $1,800 commitment.',
-      'This stays on Asher until there is one explicit yes, one exact time, and one clean payment path. A soft hold is not a booking.',
+      'Zoe sent the iLands brief on June 17, 2026 and clarified that this is copy-only for post three of an older four-post monthly package, not a new paid slot.',
+      'Draft copy is due before June 19 and the planned release date is June 26, but the sponsor still has not provided the final source post URL.',
+      'Asher does not need to chase invoice details here anymore. The real job is to convert the notion brief into one 60-second Robert execution brief with angle, copy shape, timing, and handoff owner.',
+      'Treat this as existing inventory fulfillment. Do not re-price it mid-thread unless Zoe explicitly opens a renewal conversation.',
+    ],
+  },
+  {
+    title: 'Nitrosend / OMANE video 2',
+    tags: ['P0', 'live', 'receipt still owed'],
+    points: [
+      'Ori sent the live Nitrosend announcement on June 17, 2026, Robert posted the QRT the same day, and Asher submitted the final link immediately.',
+      'Asher also attached the invoice in the live thread and explicitly asked for the receipt there, but no payment proof is visible yet.',
+      'This is not closed just because the post is up. The action left is payment proof capture tied to the invoice_Omane_NitroSend_061726.pdf artifact.',
+      'Do not let this disappear into thank-you replies. Keep it on Asher until receipt lands.',
     ],
   },
   {
     title: 'KroWork / EezyCollab',
-    tags: ['P0', 'rate dispute', 'official post not sent'],
+    tags: ['P0', 'reply owed', 'future rates ask'],
     points: [
-      'Asher reset KroWork to current pricing on June 12, 2026: $1,895 for the quote repost or $3,995 total if they also want the 14-day pin.',
-      'Stephanie pushed back on June 15 and asked to keep the legacy $995 single repost benchmark, saying they are ready to send the official post, talking points, and product access once price is confirmed.',
-      'The thread is still blocked on one explicit commercial answer from Asher plus the standard prerequisites: official source post, exact posting window, product access, and payment before anything goes live.',
-      'Do not let an old bundle benchmark quietly reset the single-post floor. Hold the line unless Sam decides otherwise in writing.',
-    ],
-  },
-  {
-    title: 'Flot / Zoe Wang',
-    tags: ['P0', 'reply owed', 'june 16-18 window'],
-    points: [
-      'Zoe opened a fresh June 15, 2026 ask for a Flot / Partnerly quote collaboration in the June 16-18 window around a real-time interactive audio-video model.',
-      'The thread has no package reply yet, no exact sponsor-selected date, no official post, no payment path, and no disclosure or approval boundaries captured in writing.',
-      'This is Asher-owned first response work: set rate, confirm deliverable shape, ask for the live source post and timing, and lock payment before Robert sees execution details.',
-      'No Robert brief exists yet because the ask is still just a date window plus product category.',
+      'Stephanie formally passed on the KroWork slot because the $1,895 quote repost rate was above budget, but she came back on June 18 asking whether the older $2,490 Thread + QR bundle benchmark can still be saved for future brands.',
+      'That means the dead KroWork execution itself is over, but the commercial thread is still active because EezyCollab wants a stored future pricing answer.',
+      'Asher owes one clean reply that separates historical one-off deal memory from current standard rates, without reopening negotiation on the canceled KroWork slot.',
+      'Do not let a prior LobeHub package quietly become a standing entitlement unless Sam approves that in writing.',
     ],
   },
   {
     title: 'HeyGen / Andrew Mok',
-    tags: ['P0', 'meeting set', 'invite cleanup'],
+    tags: ['P1', 'meeting thread stale', 'follow-up owed'],
     points: [
-      'Robert and Andrew landed on Wednesday, June 17, 2026 at 11:00 AM PT for the brainstorm call, and Asher sent the Meet details on June 12.',
-      'Andrew then asked to shorten it to 30 minutes because he has another meeting at 11:30, and Asher replied that he would adjust it.',
-      'The thread still does not show the corrected 30-minute invite, so the scheduling cleanup is not done yet.',
-      'Treat this as calendar admin only. No Robert execution brief exists until the live partnership scope becomes concrete.',
-    ],
-  },
-  {
-    title: 'Perceptron / Agentic Detection',
-    tags: ['P0', 'paid', 'final links owed'],
-    points: [
-      'Eric confirmed payment on June 9, 2026 and sent the launch copy preview on June 10, 2026, but the thread still does not show the final live Perceptron link.',
-      'The closeout is incomplete until both links are attached: the source launch post and Robert\'s actual repost URL.',
-      'Asher owns artifact capture only here. No more strategy work is needed, just the proof trail.',
-      'Do not open the robotics follow-on until the first paid execution is fully linked and archived.',
+      'Andrew asked on June 12, 2026 to shorten the June 17 brainstorm to 30 minutes, and Asher said he would adjust it.',
+      'The visible thread never shows the corrected invite or any post-call outcome, so the commercial state is still fuzzy even though the meeting date has passed.',
+      'Keep this on Asher as cleanup and follow-through, not as a Robert execution item. The next useful artifact is a short recap with actual partnership shape, not more calendar churn.',
+      'No Robert brief exists until HeyGen names a concrete sponsorable build, scope, and budget path.',
     ],
   },
   {
     title: 'Skillshare / Michael Turner',
-    tags: ['P1', 'rate sent', 'catalog step pending'],
+    tags: ['P1', 'impact invite missing', 'full prepay possible'],
     points: [
-      'Michael pitched one natural 60-second Skillshare mention plus 42% rev share, and Asher answered on June 8, 2026 with the $1,995 rate.',
-      'On June 11, Asher confirmed the Skillshare verification email was legitimate and told Michael to open the catalog so Robert can browse.',
-      'The thread still lacks a rate acceptance, catalog access follow-through, and real timing for the content piece.',
-      'Until that lands, this stays on Asher as commercial follow-up, not a Robert brief.',
+      'Michael accepted the $1,995 rate and said on June 15, 2026 that full upfront payment can work through Impact before content goes live.',
+      'The blocker moved from price to workflow: Asher still had not received the separate Impact invite as of June 17 and asked Michael to resend or clarify.',
+      'This stays on Asher until the actual platform invite, agreement, and browseable catalog are in hand. Payment theory alone is not execution readiness.',
+      'Do not pull Robert into course selection until Impact access is real.',
     ],
   },
 ];
@@ -81,52 +71,42 @@ const V4_COMPANY_OS_PREP = [
 const V4_COMPANY_OS_WAITING = [
   {
     title: 'ACL / Hockey Stick',
-    tags: ['watch', 'commercial hold', 'june 20 due'],
+    tags: ['watch', 'brief in hand', 'ticket dispute unresolved'],
     points: [
-      'Annika gave the final Alibaba content buckets on June 11, 2026, and Asher answered with the revised 8-piece structure the same day.',
-      'The framework is no longer the blocker. The hold is commercial: first payment due June 20, exhibitor-pass fees, and reimbursement/addendum clarity in writing.',
-      'Do not spend more on passes, flights, or hotels until the payment and reimbursement path is explicit.',
-      'This comes back into action only when the money and pass terms are clear enough to approve logistics.',
-    ],
-  },
-  {
-    title: 'AhaCreator 3.0 / Arc Growth',
-    tags: ['watch', 'testing done', 'final ok owed'],
-    points: [
-      'Lumina said on June 11, 2026 that the updated AhaCreator draft looked solid and only asked for small polish items: risk filtering language, 10K+ creator count, blurred screenshots, and the UTM link.',
-      'Asher sent the revised doc back the same day, and there is still no newer response in-thread.',
-      'Nothing useful happens until the clean green light lands.',
-      'If they approve, move it back into action only long enough to confirm post timing and final asset handoff.',
+      'Annika delivered the final Alibaba brief on June 17, 2026 and confirmed the exhibitor registration link no longer matters for Robert\'s ticket.',
+      'The work is now waiting on clean commercial reality, not content structure: the ticket reimbursement conflict is still unresolved even though they want script review in advance.',
+      'Hold this in watch until payment timing and expense treatment are explicit enough to trust, then move it back into action for the script pass.',
+      'Do not book extra travel or absorb new event costs off apology language alone.',
     ],
   },
   {
     title: 'Riverside / Savion',
-    tags: ['watch', 'dates pending', 'speaker TBD'],
+    tags: ['watch', 'interview done', 'launch hold'],
     points: [
-      'Savion said on June 11, 2026 that Nadav still wants to move forward but is out of office and has not sent dates yet.',
-      'Jay and Asher both pushed again on June 13, and there is still no interview slot or replacement executive locked in the thread.',
-      'Nothing useful is owed until Riverside sends concrete availability.',
-      'If dates land, move it back into action immediately and confirm the spokesperson before prep starts.',
+      'The Riverside interview finally happened on June 16, 2026, and Robert told Savion it went well.',
+      'Savion then asked them to hold publication until the new product launch next week, which means the old "waiting on a date" status is obsolete.',
+      'This is now a clean watch item for one launch green light and final posting instructions.',
+      'Do not treat the recorded interview as launch-ready content until Riverside says go.',
     ],
   },
   {
-    title: 'FloatSchedule / Judy Gao',
-    tags: ['watch', 'testing first', 'timing owed'],
+    title: 'Golden Egg / creator roster',
+    tags: ['watch', 'onboarded', 'tax packet owed'],
     points: [
-      'Judy told Robert on June 8, 2026 to keep testing FloatSchedule, especially AI scheduling, calendar sync, and meeting prep, and Robert said he would send feedback plus availability after a proper run-through.',
-      'Asher then asked Judy to name the actual content piece and promotion tier, but there is still no test readout, no selected deliverable, and no locked date.',
-      'Wait on Robert\'s real testing readout and one concrete timing window before moving this back into action.',
-      'No Robert brief exists until the product test is real and the deliverable is named.',
+      'Golden Egg accepted the Net-15 roster onboarding on June 17, 2026 and said Robert is now in their creator pool for future launches.',
+      'Wesley immediately asked for tax documents, bank information, address, and phone details so the payout setup is complete.',
+      'This is waiting, not live execution. The next move is Asher-side paperwork, then silence until a real campaign appears.',
+      'Do not confuse platform onboarding with a booked partnership.',
     ],
   },
   {
-    title: 'Viture / Leo Li',
-    tags: ['watch', 'proposal sent', 'review next week'],
+    title: 'Flot / fresh quote inquiry',
+    tags: ['watch', 'sponsor confirm missing', 'not sold'],
     points: [
-      'Sam sent the seven-month Viture proposal on June 10, 2026, and Leo replied on June 12 that they will review it internally and get back next week.',
-      'Asher followed with enthusiasm on June 13, but there is still no yes, no, budget commit, or scoped first deliverable.',
-      'Leave this in waiting until Viture comes back with an actual decision or a narrower pilot ask.',
-      'Do not spin up Robert work off proposal energy alone.',
+      'Zoe\'s separate June 15-18 real-time audio-video quote repost ask never matured into a sold slot.',
+      'She only said on June 16 that they would confirm by the next day, and the thread never advanced to date lock, invoice details, or launch assets.',
+      'Keep it parked until there is one exact sponsor-approved ask instead of another soft maybe.',
+      'Do not merge this with the older iLands monthly package just because the same operator sent both.',
     ],
   },
   {
@@ -143,13 +123,23 @@ const V4_COMPANY_OS_WAITING = [
 
 const V4_COMPANY_OS_DONE = [
   {
-    title: 'Omane / Nitrosend',
-    tags: ['June 3 live', 'paid June 11', 'proof landed'],
+    title: 'MaineCoon / EchoNLab',
+    tags: ['June 16 live', 'receipt landed', 'closed'],
     points: [
-      'Nitrosend went live on June 3, 2026 and the invoice was already out.',
-      'Payment proof landed on June 11, 2026 via the Wells Fargo alert showing a $1,000 Zelle deposit with memo "Omane Media."',
-      'This is closed by bank proof, not by a client receipt email.',
-      'Keep the Wells Fargo proof tied to the invoice so the archive stays clean.',
+      'Judy accepted the $1,895 quote repost, sent the official source post, and then delivered the payment receipt on June 17, 2026 after the June 16 launch.',
+      'Robert\'s live QRT is captured in-thread at https://x.com/Scobleizer/status/2066954693579006223?s=20 and the receipt PDF is attached in the same chain.',
+      'This is fully closed now because the source post, Robert post, and receipt all exist in one place.',
+      'If EchoNLab wants the later custom post, treat it as a fresh campaign, not unfinished residue from this one.',
+    ],
+  },
+  {
+    title: 'Perceptron / Agentic Detection',
+    tags: ['June 10 live', 'paid', 'proof trail complete'],
+    points: [
+      'Eric confirmed payment on June 9, 2026 and then sent the official launch link on June 10: https://x.com/perceptroninc/status/2064732691845824833?s=20.',
+      'The first paid execution is now properly evidenced and closed, and the thread has already shifted to possible follow-on launches later in June.',
+      'Archive the first campaign cleanly before treating the robotics or next-launch chatter as a new deal.',
+      'A future QRT discussion is a new scope, not unfinished cleanup.',
     ],
   },
   {
@@ -195,8 +185,11 @@ const V4_COMPANY_OS_RULES = [
   'No paid post, travel spend, hotel, or extra pass cost happens before payment proof, written reimbursement, written budget approval, or clearly prepaid package coverage is visible in-thread.',
   'A live post is not a closed deal. If the receipt or bank proof is missing, the item stays in action until proof lands.',
   'If payment proof lands outside the client thread, log it against the invoice before calling the deal done.',
+  'If a sponsor changes story angle or technical framing after a slot is penciled in, freeze drafting until payment proof is in and the new framing is written down cleanly.',
   'Once an invoice link is already in-thread, stop re-explaining the package and chase only payment proof, live asset, and posting window.',
+  'If an older package still has unused posts left, treat the remaining inventory as fulfillment work, not a chance to send a fresh invoice unless the thread itself says the old package is over.',
   'If an agency cites an old bundle benchmark to force a cheaper single-post rate, treat it as a negotiation, not a precedent reset.',
+  'If a brand passes on a slot for budget but asks for future pricing benchmarks, answer the future-rate question once without reopening the dead campaign.',
   'If a client wants split payment, post-live payment, net terms, stealth posting, or no paid-promotion disclosure, the answer is no until the thread proves otherwise.',
   'Pinned posts are separate inventory. If a client wants the top slot held, price the pin separately instead of quietly bundling it into the repost.',
   'If a client has paid but the launch URL or Robert repost URL is missing, chase the links before opening any next-campaign discussion.',
@@ -215,12 +208,79 @@ const V4_COMPANY_OS_RULES = [
 ];
 
 const V4_COMPANY_OS_STAGES = [
-  { key: 'new', label: 'Robert contacted' },
-  { key: 'intro', label: 'Team intro' },
-  { key: 'client', label: 'Client work' },
-  { key: 'invoice', label: 'Invoice/pay' },
-  { key: 'brief', label: '60-sec brief' },
-  { key: 'done', label: 'Done' },
+  { key: 'new', label: 'Lead in' },
+  { key: 'scope', label: 'Scope' },
+  { key: 'pricing', label: 'Pricing' },
+  { key: 'terms', label: 'Terms / pay' },
+  { key: 'brief', label: 'Brief / calendar' },
+  { key: 'done', label: 'Closed' },
+];
+
+const V4_BRIEF_ACTION_URL = 'http://127.0.0.1:8766/generate-brief';
+const V4_BRIEF_DOC_ACTION_URL = 'http://127.0.0.1:8767/generate-brief-doc';
+const V4_BRIEF_CALENDAR_ACTION_URL = 'http://127.0.0.1:8767/create-calendar-hold';
+
+const V4_COMPANY_OS_TOOLKIT = [
+  {
+    id: 'brief-maker',
+    title: 'Brief Maker',
+    status: 'Live',
+    kind: 'Skill',
+    useFor: 'Turn a sold deal into a clean one-page Robert brief PDF.',
+    trigger: 'Make a brief. Create a campaign brief. Brief for Robert.',
+    output: 'One-page PDF saved to Desktop/UNALIGNED',
+    note: 'Best for sponsorship launches where Robert needs exact posting instructions, facts, and copy options in under 60 seconds.',
+  },
+  {
+    id: 'x-intake',
+    title: 'X Lead Intake',
+    status: 'In progress',
+    kind: 'Automation',
+    useFor: 'Pull Robert X DM leads into New Leads without dragging old threads back in.',
+    trigger: 'Run X scrape. Refresh X leads.',
+    output: 'Newest-first X leads with handle, date, and summary',
+    note: 'This is the live-DM intake path you wanted so X stays a source for fresh opportunities only.',
+  },
+  {
+    id: 'gmail-intake',
+    title: 'Robert Gmail Intake',
+    status: 'Live',
+    kind: 'Automation',
+    useFor: 'Pull new Gmail opportunities from Robert into New Leads.',
+    trigger: 'Run Gmail sync. Refresh Robert Gmail leads.',
+    output: 'Newest-first Gmail leads with sender, email, date, and summary',
+    note: 'Company OS remains Asher-first. Robert Gmail is only used for fresh lead intake.',
+  },
+  {
+    id: 'company-operator',
+    title: 'Company Operator',
+    status: 'Live',
+    kind: 'Workflow',
+    useFor: 'Keep replies, follow ups, execution state, and quick actions in one operator view.',
+    trigger: 'Open Company OS',
+    output: 'Reply queue, execution block, stage actions, and operator readout',
+    note: 'This is the main command surface. It is where the autonomous layer will eventually run from.',
+  },
+  {
+    id: 'stripe-sync',
+    title: 'Stripe Sync',
+    status: 'Live',
+    kind: 'Finance',
+    useFor: 'Track new Stripe invoices while keeping legacy manual invoices in Company OS.',
+    trigger: 'Open invoices. Open Stripe invoice.',
+    output: 'Invoice rows that can jump into Stripe for payment status',
+    note: 'New transactions should flow through Stripe. Older custom invoice history stays preserved locally.',
+  },
+  {
+    id: 'calendar-brief-ops',
+    title: 'Calendar and Brief Ops',
+    status: 'Next',
+    kind: 'Execution',
+    useFor: 'Auto-create Robert brief docs and place them on Robert calendar as tasks.',
+    trigger: 'When a deal is sold and ready for execution',
+    output: 'Google Doc brief plus Robert calendar task with publishing window',
+    note: 'This is the next autonomous layer to wire after the execution panel you just approved.',
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -234,7 +294,8 @@ function V4CompanyOsMoney(value) {
 
 function V4CompanyOsStageIndex(lead) {
   const stage = lead?.stage || 'new';
-  if (stage === 'paid-out' || stage === 'done') return 5;
+  if (stage === 'paid-out') return 5;
+  if (stage === 'done') return 4;
   if (stage === 'invoice-sent') return 3;
   if (stage === 'negotiating' || stage === 'rates-sent') return 2;
   if (stage === 'first-touch' || stage === 'engaged') return 1;
@@ -247,7 +308,8 @@ function V4CompanyOsWhy(lead) {
   if (lead.stage === 'invoice-sent') return 'Deal terms appear close enough to verify payment and invoice status.';
   if (lead.stage === 'rates-sent') return 'Pricing/package is in motion; keep the client work moving toward a clear scope.';
   if (lead.stage === 'negotiating') return 'Client and package details need to become a clean brief, invoice, or both.';
-  if (lead.stage === 'done' || lead.stage === 'paid-out') return 'Execution appears complete; confirm payment and archive cleanly.';
+  if (lead.stage === 'done') return 'The deal is sold. Robert now needs a clean brief, a calendar slot, and execution details.';
+  if (lead.stage === 'paid-out') return 'Execution appears complete; confirm payment and archive cleanly.';
   return 'Robert is the source of the lead and final executor. Asher handles the back-and-forth. Sammy is oversight.';
 }
 
@@ -256,7 +318,8 @@ function V4CompanyOsJob(lead) {
   if (lead.stage === 'invoice-sent') return 'Verify payment, invoice state, and what is blocking the post.';
   if (lead.stage === 'rates-sent') return 'Get budget, date, deliverables, and approval path into one clean answer.';
   if (lead.stage === 'negotiating') return 'Turn the back-and-forth into a deal shape Robert can execute.';
-  if (lead.stage === 'done' || lead.stage === 'paid-out') return 'Make sure the brief, payment, and archive are complete.';
+  if (lead.stage === 'done') return 'Confirm the brief, calendar slot, live instructions, and approval path.';
+  if (lead.stage === 'paid-out') return 'Make sure the brief, payment, and archive are complete.';
   return 'Asher gets the deal facts before Robert sees anything.';
 }
 
@@ -325,22 +388,175 @@ function V4CompanyOsType(lead) {
 
 function V4CompanyOsPhase(lead) {
   const stage = lead?.stage || 'new';
-  if (stage === 'invoice-sent') return 'Invoice / Payment';
-  if (stage === 'negotiating' || stage === 'rates-sent') return 'Client Work';
-  if (stage === 'first-touch' || stage === 'engaged') return 'Team Intro';
-  if (stage === 'done' || stage === 'paid-out') return 'Done';
-  return 'Client Work';
+  if (stage === 'invoice-sent') return 'Terms / Payment';
+  if (stage === 'negotiating') return 'Negotiation';
+  if (stage === 'rates-sent') return 'Pricing';
+  if (stage === 'first-touch' || stage === 'engaged') return 'Scope';
+  if (stage === 'done') return 'Brief / Calendar';
+  if (stage === 'paid-out') return 'Closed';
+  return 'Intake';
 }
 
 function V4CompanyOsPhaseTag(lead) {
   if (lead?.stage === 'invoice-sent') return 'verify first';
+  if (lead?.stage === 'done') return 'robert ready';
   if (lead?.needsReply) return 'needs reply';
   return 'next move';
+}
+
+function V4OperatorStatus(lead) {
+  const status = String(lead?.draftReplyStatus || '').toLowerCase();
+  if (status === 'escalated') return { label: 'Needs approval', tone: 'warn' };
+  if (status === 'pending') return { label: 'Draft ready', tone: 'good' };
+  if (status === 'sent') return { label: 'Auto-sent', tone: 'neutral' };
+  if (lead?.operatorAnalysis?.needs_reply) return { label: 'Reply suggested', tone: 'soft' };
+  return { label: 'Monitoring', tone: 'soft' };
+}
+
+function V4OperatorReplyTypeLabel(value) {
+  return String(value || '')
+    .replace(/-/g, ' ')
+    .replace(/\b\w/g, ch => ch.toUpperCase());
+}
+
+function V4CompanyOsExecutionMeta(lead) {
+  const tierId = V4CompanyOsTier(lead);
+  const tier = tierId ? window.V3?.TIERS?.[tierId] : null;
+  const brief = lead?.brief || null;
+  const links = Array.isArray(brief?.links) ? brief.links.filter(Boolean) : [];
+  const docLink = links.find(link => /docs\.google\.com|drive\.google\.com/i.test(String(link)));
+  const calendarLink = links.find(link => /calendar\.google\.com/i.test(String(link)));
+  const postingWindow = brief?.postingWindow || lead?.operatorSummary?.launch_timing || '';
+  const executionOwner = lead?.stage === 'done' ? 'Robert' : 'Asher';
+
+  let briefState = 'Not started';
+  if (brief?.status === 'awaiting-approval') briefState = 'Awaiting Asher approval';
+  else if (brief?.status === 'ready') briefState = 'Ready for Robert';
+  else if (brief?.status === 'in-production') briefState = 'In production';
+  else if (brief?.status === 'shipped') briefState = 'Shipped';
+  else if (brief) briefState = 'Drafted';
+  else if (lead?.stage === 'done') briefState = 'Needs brief';
+
+  let docState = 'Not needed yet';
+  if (docLink) docState = 'Linked';
+  else if (brief || lead?.stage === 'done') docState = 'Create Google Doc';
+
+  let calendarState = 'Not needed yet';
+  if (calendarLink) calendarState = 'Placed on calendar';
+  else if (lead?.stage === 'done') calendarState = 'Create Robert task';
+
+  let pdfState = 'Not scoped yet';
+  if (tier) pdfState = 'Ready to attach';
+  if (lead?.stage === 'invoice-sent' || lead?.stage === 'done') pdfState = tier ? 'Use in pricing / execution thread' : pdfState;
+
+  return {
+    tier,
+    tierLine: tier ? `Tier ${tier.id} · ${tier.name} · ${V4CompanyOsMoney(tier.price)}` : 'No tier locked yet',
+    deliverableLine: tier?.items?.join(' · ') || lead?.deliverables || 'No deliverables named yet',
+    briefState,
+    docState,
+    docLink: docLink || '',
+    calendarState,
+    calendarLink: calendarLink || '',
+    pdfState,
+    pdfLink: 'docs/SINGLE_TIER.pdf',
+    postingWindow: postingWindow || 'No publish window locked yet',
+    executionOwner,
+  };
+}
+
+function V4QuickStageActions(lead) {
+  if (!lead) return [];
+  const actions = [
+    { stage: 'first-touch', label: 'Scope' },
+    { stage: 'rates-sent', label: 'Pricing' },
+    { stage: 'negotiating', label: 'Negotiate' },
+    { stage: 'invoice-sent', label: 'Terms' },
+    { stage: 'done', label: 'Brief' },
+    { stage: 'paid-out', label: 'Close' },
+  ];
+  return actions.filter(action => action.stage !== lead.stage);
 }
 
 function senderShortLabel(sender) {
   const map = { asher: 'Asher', robert: 'Robert', sam: 'Sammy' };
   return map[sender] || 'Asher';
+}
+
+function V4BriefMakerDefaultState() {
+  return {
+    title: '',
+    subtitle: 'For Robert. Read in 60 seconds',
+    filename: '',
+    go_live: '',
+    go_live_note: '',
+    what_to_do_text: '',
+    key_facts_text: '',
+    tag: '',
+    link: '',
+    hashtags: '',
+    draft_1_label: 'Option 1. The Angle. Recommended',
+    draft_1_text: '',
+    draft_2_label: 'Option 2. Enterprise angle',
+    draft_2_text: '',
+    draft_3_label: 'Option 3. Operator angle',
+    draft_3_text: '',
+    submit_url: '',
+    calendar_title: '',
+    calendar_date: '',
+    calendar_start: '',
+    calendar_end: '',
+  };
+}
+
+function V4BriefMakerFilename(value) {
+  const cleaned = String(value || '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  return cleaned || 'Robert_Brief';
+}
+
+function V4BriefMakerConfig(form) {
+  const steps = String(form.what_to_do_text || '')
+    .split('\n')
+    .map(item => item.trim())
+    .filter(Boolean);
+  const facts = String(form.key_facts_text || '')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map(line => {
+      const parts = line.split('|');
+      if (parts.length >= 2) return [parts[0].trim(), parts.slice(1).join('|').trim()];
+      return ['', line];
+    })
+    .filter(([left, right]) => left || right);
+  const drafts = [1, 2, 3]
+    .map(index => ({
+      label: String(form[`draft_${index}_label`] || '').trim(),
+      text: String(form[`draft_${index}_text`] || '').trim(),
+    }))
+    .filter(item => item.label || item.text);
+  const mustInclude = {};
+  if (form.tag) mustInclude.tag = String(form.tag).trim();
+  if (form.link) mustInclude.link = String(form.link).trim();
+  if (form.hashtags) mustInclude.hashtags = String(form.hashtags).trim();
+
+  const payload = {
+    title: String(form.title || '').trim(),
+  };
+  if (form.subtitle) payload.subtitle = String(form.subtitle).trim();
+  payload.filename = String(form.filename || '').trim() || V4BriefMakerFilename(payload.title);
+  if (form.go_live) payload.go_live = String(form.go_live).trim();
+  if (form.go_live_note) payload.go_live_note = String(form.go_live_note).trim();
+  if (steps.length) payload.what_to_do = steps;
+  if (facts.length) payload.key_facts = facts;
+  if (Object.keys(mustInclude).length) payload.must_include = mustInclude;
+  if (drafts.length) payload.drafts = drafts;
+  if (form.submit_url) payload.submit_url = String(form.submit_url).trim();
+  if (form.calendar_title) payload.calendar_title = String(form.calendar_title).trim();
+  if (form.calendar_date) payload.calendar_date = String(form.calendar_date).trim();
+  if (form.calendar_start) payload.calendar_start = String(form.calendar_start).trim();
+  if (form.calendar_end) payload.calendar_end = String(form.calendar_end).trim();
+  return payload;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -485,6 +701,73 @@ function V4CompanyOsDoneItem({ item }) {
         {item.points.map(p => <li key={p}>{p}</li>)}
       </ul>
     </article>
+  );
+}
+
+function V4CompanyOsExecutionPanel({ lead, execution }) {
+  if (!lead) return null;
+  return (
+    <section className="cos-execution-panel">
+      <div className="cos-execution-head">
+        <div>
+          <div className="cos-operator-strip-eyebrow">Execution</div>
+          <h3>Tier, brief, PDF, calendar</h3>
+        </div>
+        <span className="cos-panel-count">{execution.executionOwner}</span>
+      </div>
+      <div className="cos-execution-grid">
+        <div className="cos-execution-card">
+          <div className="cos-execution-label">Tier package</div>
+          <div className="cos-execution-value">{execution.tierLine}</div>
+          <div className="cos-execution-sub">{execution.deliverableLine}</div>
+        </div>
+        <div className="cos-execution-card">
+          <div className="cos-execution-label">Sponsorship PDF</div>
+          <div className="cos-execution-value">{execution.pdfState}</div>
+          <div className="cos-execution-actions">
+            <a className="cos-execution-link" href={execution.pdfLink} target="_blank" rel="noreferrer">Open PDF</a>
+          </div>
+        </div>
+        <div className="cos-execution-card">
+          <div className="cos-execution-label">Robert brief</div>
+          <div className="cos-execution-value">{execution.briefState}</div>
+          <div className="cos-execution-actions">
+            {lead.brief && (
+              <button
+                type="button"
+                className="cos-execution-link is-button"
+                onClick={() => window.dispatchEvent(new CustomEvent('v3:open-brief', { detail: { leadId: lead.id } }))}
+              >
+                Open brief
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="cos-execution-card">
+          <div className="cos-execution-label">Google Doc</div>
+          <div className="cos-execution-value">{execution.docState}</div>
+          {execution.docLink && (
+            <div className="cos-execution-actions">
+              <a className="cos-execution-link" href={execution.docLink} target="_blank" rel="noreferrer">Open doc</a>
+            </div>
+          )}
+        </div>
+        <div className="cos-execution-card">
+          <div className="cos-execution-label">Calendar task</div>
+          <div className="cos-execution-value">{execution.calendarState}</div>
+          {execution.calendarLink && (
+            <div className="cos-execution-actions">
+              <a className="cos-execution-link" href={execution.calendarLink} target="_blank" rel="noreferrer">Open calendar</a>
+            </div>
+          )}
+        </div>
+        <div className="cos-execution-card">
+          <div className="cos-execution-label">Publish window</div>
+          <div className="cos-execution-value">{execution.postingWindow}</div>
+          <div className="cos-execution-sub">This is what the autonomous layer should turn into a dated task.</div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -778,6 +1061,475 @@ function V4CosBriefBoard() {
   );
 }
 
+function V4CosToolkit({ onNavigateView, onActivateSplit }) {
+  const [briefMakerOpen, setBriefMakerOpen] = React.useState(false);
+  const [briefForm, setBriefForm] = React.useState(() => V4BriefMakerDefaultState());
+  const [copied, setCopied] = React.useState(false);
+  const [briefStatus, setBriefStatus] = React.useState('idle');
+  const [briefError, setBriefError] = React.useState('');
+  const [briefResult, setBriefResult] = React.useState(null);
+  const [docStatus, setDocStatus] = React.useState('idle');
+  const [docError, setDocError] = React.useState('');
+  const [docResult, setDocResult] = React.useState(null);
+  const [calendarStatus, setCalendarStatus] = React.useState('idle');
+  const [calendarError, setCalendarError] = React.useState('');
+  const [calendarResult, setCalendarResult] = React.useState(null);
+  const briefConfig = React.useMemo(() => V4BriefMakerConfig(briefForm), [briefForm]);
+  const briefJson = React.useMemo(() => JSON.stringify(briefConfig, null, 2), [briefConfig]);
+
+  const updateBriefField = (key, value) => {
+    setBriefForm(curr => ({ ...curr, [key]: value }));
+    if (copied) setCopied(false);
+    if (briefStatus !== 'idle') {
+      setBriefStatus('idle');
+      setBriefError('');
+      setBriefResult(null);
+    }
+    if (docStatus !== 'idle') {
+      setDocStatus('idle');
+      setDocError('');
+      setDocResult(null);
+    }
+    if (calendarStatus !== 'idle') {
+      setCalendarStatus('idle');
+      setCalendarError('');
+      setCalendarResult(null);
+    }
+  };
+
+  const downloadBriefConfig = () => {
+    const blob = new Blob([briefJson], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const filename = (briefConfig.filename || V4BriefMakerFilename(briefConfig.title || 'Robert_Brief')) + '.json';
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const copyBriefConfig = async () => {
+    try {
+      await navigator.clipboard.writeText(briefJson);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.warn('brief config copy failed', err);
+    }
+  };
+
+  const resetBriefForm = () => {
+    setBriefForm(V4BriefMakerDefaultState());
+    setCopied(false);
+    setBriefStatus('idle');
+    setBriefError('');
+    setBriefResult(null);
+    setDocStatus('idle');
+    setDocError('');
+    setDocResult(null);
+    setCalendarStatus('idle');
+    setCalendarError('');
+    setCalendarResult(null);
+  };
+
+  const createBriefDoc = async () => {
+    if (!briefConfig.title) {
+      setDocStatus('error');
+      setDocError('Add a title first.');
+      return;
+    }
+    setDocStatus('creating');
+    setDocError('');
+    setDocResult(null);
+    try {
+      const res = await fetch(V4_BRIEF_DOC_ACTION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(briefConfig),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Google Doc creation failed.');
+      setDocResult(data);
+      setDocStatus('done');
+    } catch (err) {
+      setDocStatus('error');
+      setDocError(err.message || 'Google Doc creation failed.');
+    }
+  };
+
+  const createCalendarHold = async () => {
+    const calendarTitle = briefConfig.calendar_title || briefConfig.title;
+    if (!calendarTitle) {
+      setCalendarStatus('error');
+      setCalendarError('Add a title first.');
+      return;
+    }
+    if (!briefConfig.calendar_date || !briefConfig.calendar_start) {
+      setCalendarStatus('error');
+      setCalendarError('Add the calendar date and start time.');
+      return;
+    }
+    setCalendarStatus('creating');
+    setCalendarError('');
+    setCalendarResult(null);
+    try {
+      const res = await fetch(V4_BRIEF_CALENDAR_ACTION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...briefConfig,
+          calendar_title: calendarTitle,
+          doc_url: docResult?.url || '',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Calendar hold creation failed.');
+      setCalendarResult(data);
+      setCalendarStatus('done');
+    } catch (err) {
+      setCalendarStatus('error');
+      setCalendarError(err.message || 'Calendar hold creation failed.');
+    }
+  };
+
+  const generateBriefPdf = async () => {
+    if (!briefConfig.title) {
+      setBriefStatus('error');
+      setBriefError('Add a title first.');
+      return;
+    }
+    setBriefStatus('generating');
+    setBriefError('');
+    setBriefResult(null);
+    try {
+      const res = await fetch(V4_BRIEF_ACTION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(briefConfig),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Brief generation failed.');
+      setBriefResult(data);
+      setBriefStatus('done');
+    } catch (err) {
+      setBriefStatus('error');
+      setBriefError(err.message || 'Brief generation failed.');
+    }
+  };
+
+  const runAction = (action) => {
+    if (!action) return;
+    if (action.type === 'launch-brief-builder') {
+      setBriefMakerOpen(true);
+      return;
+    }
+    if (action.type === 'view') {
+      onNavigateView?.(action.view, action.openId || null);
+      return;
+    }
+    if (action.type === 'split') {
+      onActivateSplit?.(action.splitId);
+      return;
+    }
+    if (action.type === 'brief') {
+      window.dispatchEvent(new CustomEvent('v3:open-brief', { detail: { leadId: action.leadId } }));
+    }
+  };
+
+  const toolkitCards = V4_COMPANY_OS_TOOLKIT.map(tool => {
+    if (tool.id === 'brief-maker') {
+      return {
+        ...tool,
+        primaryLabel: 'Launch brief form',
+        primaryAction: { type: 'launch-brief-builder' },
+        secondaryLabel: 'Open pricing PDF',
+        secondaryHref: 'docs/SINGLE_TIER.pdf',
+      };
+    }
+    if (tool.id === 'x-intake') {
+      return {
+        ...tool,
+        primaryLabel: 'Open New Leads',
+        primaryAction: { type: 'view', view: 'new-leads' },
+        secondaryLabel: 'Focus X queue',
+        secondaryAction: { type: 'view', view: 'new-leads' },
+      };
+    }
+    if (tool.id === 'gmail-intake') {
+      return {
+        ...tool,
+        primaryLabel: 'Open New Leads',
+        primaryAction: { type: 'view', view: 'new-leads' },
+        secondaryLabel: 'Open reply queue',
+        secondaryAction: { type: 'split', splitId: 'reply' },
+      };
+    }
+    if (tool.id === 'company-operator') {
+      return {
+        ...tool,
+        primaryLabel: 'Open reply queue',
+        primaryAction: { type: 'split', splitId: 'reply' },
+        secondaryLabel: 'Open follow ups',
+        secondaryAction: { type: 'split', splitId: 'followups' },
+      };
+    }
+    if (tool.id === 'stripe-sync') {
+      return {
+        ...tool,
+        primaryLabel: 'Open invoices',
+        primaryAction: { type: 'view', view: 'invoices' },
+        secondaryLabel: 'Open terms queue',
+        secondaryAction: { type: 'split', splitId: 'payment' },
+      };
+    }
+    if (tool.id === 'calendar-brief-ops') {
+      return {
+        ...tool,
+        primaryLabel: 'Open calendar',
+        primaryAction: { type: 'view', view: 'calendar' },
+        secondaryLabel: 'Open execution queue',
+        secondaryAction: { type: 'split', splitId: 'briefing' },
+      };
+    }
+    return tool;
+  });
+
+  return (
+    <div className="cosov">
+      <div className="cos-section-eyebrow-row">
+        <span className="cos-eyebrow">Toolkit</span>
+        <span className="cos-section-date">{V4_COMPANY_OS_TOOLKIT.length} tools</span>
+      </div>
+      <h2 className="cos-section-title">The skills and systems behind Company OS</h2>
+      <p className="cos-section-sub cos-section-sub-left">
+        This is the operator stack. Lead intake, reply handling, briefs, invoicing, and execution tools live here so the system can become more autonomous without getting messy.
+      </p>
+      <div className="cos-toolkit-grid">
+        {toolkitCards.map(tool => (
+          <section key={tool.id} className="cos-panel cos-toolkit-card">
+            <div className="cos-panel-head">
+              <h3>{tool.title}</h3>
+              <span className={'cos-toolkit-status is-' + String(tool.status || '').toLowerCase().replace(/\s+/g, '-')}>{tool.status}</span>
+            </div>
+            <div className="cos-toolkit-body">
+              <div className="cos-toolkit-meta">
+                <span className="cos-chip cos-chip-tight">{tool.kind}</span>
+                <span className="cos-toolkit-output">{tool.output}</span>
+              </div>
+              <div className="cos-toolkit-row">
+                <div className="cos-toolkit-label">Use for</div>
+                <div className="cos-toolkit-value">{tool.useFor}</div>
+              </div>
+              <div className="cos-toolkit-row">
+                <div className="cos-toolkit-label">Trigger</div>
+                <div className="cos-toolkit-value">{tool.trigger}</div>
+              </div>
+              <div className="cos-toolkit-actions">
+                {tool.primaryHref ? (
+                  <a className="cos-toolkit-btn is-primary" href={tool.primaryHref} target="_blank" rel="noreferrer">
+                    {tool.primaryLabel}
+                  </a>
+                ) : tool.primaryAction ? (
+                  <button type="button" className="cos-toolkit-btn is-primary" onClick={() => runAction(tool.primaryAction)}>
+                    {tool.primaryLabel}
+                  </button>
+                ) : null}
+                {tool.secondaryAction ? (
+                  <button type="button" className="cos-toolkit-btn" onClick={() => runAction(tool.secondaryAction)}>
+                    {tool.secondaryLabel}
+                  </button>
+                ) : tool.secondaryHref ? (
+                  <a className="cos-toolkit-btn" href={tool.secondaryHref} target="_blank" rel="noreferrer">
+                    {tool.secondaryLabel}
+                  </a>
+                ) : null}
+              </div>
+              <div className="cos-toolkit-note">{tool.note}</div>
+            </div>
+          </section>
+        ))}
+      </div>
+      {briefMakerOpen && (
+        <div className="brief-modal-backdrop" onClick={() => setBriefMakerOpen(false)}>
+          <div className="brief-maker-panel" onClick={e => e.stopPropagation()}>
+            <div className="brief-modal-hd">
+              <div>
+                <div className="brief-modal-eyebrow">Toolkit</div>
+                <h2 className="brief-modal-title">Brief Maker</h2>
+              </div>
+              <div className="brief-modal-hd-actions">
+                <button type="button" className="cos-toolkit-btn is-primary" onClick={createBriefDoc}>
+                  {docStatus === 'creating' ? 'Creating Doc...' : 'Create Google Doc'}
+                </button>
+                <button type="button" className="cos-toolkit-btn" onClick={createCalendarHold}>
+                  {calendarStatus === 'creating' ? 'Adding hold...' : 'Add to Calendar'}
+                </button>
+                <button type="button" className="cos-toolkit-btn" onClick={generateBriefPdf}>
+                  {briefStatus === 'generating' ? 'Generating...' : 'Generate PDF'}
+                </button>
+                <button type="button" className="cos-toolkit-btn" onClick={downloadBriefConfig}>
+                  Download JSON
+                </button>
+                <button type="button" className="cos-toolkit-btn" onClick={copyBriefConfig}>
+                  {copied ? 'Copied' : 'Copy JSON'}
+                </button>
+                <button type="button" className="brief-modal-close" onClick={() => setBriefMakerOpen(false)} aria-label="Close brief maker">
+                  <V3Icon name="x" w={14} />
+                </button>
+              </div>
+            </div>
+            <div className="brief-maker-body">
+              <div className="brief-maker-form">
+                <div className="brief-maker-grid">
+                  <label className="brief-maker-field brief-maker-field-wide">
+                    <span>Title</span>
+                    <input className="brief-maker-input" value={briefForm.title} onChange={e => updateBriefField('title', e.target.value)} placeholder="Viktor $75M Series A Launch" />
+                  </label>
+                  <label className="brief-maker-field brief-maker-field-wide">
+                    <span>Subtitle</span>
+                    <input className="brief-maker-input" value={briefForm.subtitle} onChange={e => updateBriefField('subtitle', e.target.value)} placeholder="For Robert. Read in 60 seconds" />
+                  </label>
+                  <label className="brief-maker-field">
+                    <span>Filename</span>
+                    <input className="brief-maker-input" value={briefForm.filename} onChange={e => updateBriefField('filename', e.target.value)} placeholder={V4BriefMakerFilename(briefForm.title)} />
+                  </label>
+                  <label className="brief-maker-field">
+                    <span>Calendar title</span>
+                    <input className="brief-maker-input" value={briefForm.calendar_title} onChange={e => updateBriefField('calendar_title', e.target.value)} placeholder="Robert brief. Viktor launch" />
+                  </label>
+                  <label className="brief-maker-field">
+                    <span>Submit URL</span>
+                    <input className="brief-maker-input" value={briefForm.submit_url} onChange={e => updateBriefField('submit_url', e.target.value)} placeholder="forms.fillout.com/t/xxxx" />
+                  </label>
+                  <label className="brief-maker-field brief-maker-field-wide">
+                    <span>Go live</span>
+                    <input className="brief-maker-input" value={briefForm.go_live} onChange={e => updateBriefField('go_live', e.target.value)} placeholder="Tuesday June 9, 2026, 9:00 AM EST" />
+                  </label>
+                  <label className="brief-maker-field brief-maker-field-wide">
+                    <span>Go live note</span>
+                    <input className="brief-maker-input" value={briefForm.go_live_note} onChange={e => updateBriefField('go_live_note', e.target.value)} placeholder="Do NOT post early. First 30 minutes is the algorithm window." />
+                  </label>
+                  <label className="brief-maker-field brief-maker-field-wide">
+                    <span>What to do. One step per line</span>
+                    <textarea className="brief-maker-textarea" rows={4} value={briefForm.what_to_do_text} onChange={e => updateBriefField('what_to_do_text', e.target.value)} placeholder={'Post at the exact time.\nUse the strongest draft angle.\nSend the live post URL after publishing.'} />
+                  </label>
+                  <label className="brief-maker-field brief-maker-field-wide">
+                    <span>Key facts. Use Label | Detail per line</span>
+                    <textarea className="brief-maker-textarea" rows={5} value={briefForm.key_facts_text} onChange={e => updateBriefField('key_facts_text', e.target.value)} placeholder={'$75M Series A | Led by Accel\nWhat Viktor does | AI coworker for enterprise workflows'} />
+                  </label>
+                  <label className="brief-maker-field">
+                    <span>Tag</span>
+                    <input className="brief-maker-input" value={briefForm.tag} onChange={e => updateBriefField('tag', e.target.value)} placeholder="@viktor__com" />
+                  </label>
+                  <label className="brief-maker-field">
+                    <span>Link</span>
+                    <input className="brief-maker-input" value={briefForm.link} onChange={e => updateBriefField('link', e.target.value)} placeholder="getviktor.com" />
+                  </label>
+                  <label className="brief-maker-field brief-maker-field-wide">
+                    <span>Hashtags</span>
+                    <input className="brief-maker-input" value={briefForm.hashtags} onChange={e => updateBriefField('hashtags', e.target.value)} placeholder="#AIcoworker #SeriesA" />
+                  </label>
+                  <label className="brief-maker-field">
+                    <span>Calendar date</span>
+                    <input type="date" className="brief-maker-input" value={briefForm.calendar_date} onChange={e => updateBriefField('calendar_date', e.target.value)} />
+                  </label>
+                  <label className="brief-maker-field">
+                    <span>Start time</span>
+                    <input type="time" className="brief-maker-input" value={briefForm.calendar_start} onChange={e => updateBriefField('calendar_start', e.target.value)} />
+                  </label>
+                  <label className="brief-maker-field">
+                    <span>End time</span>
+                    <input type="time" className="brief-maker-input" value={briefForm.calendar_end} onChange={e => updateBriefField('calendar_end', e.target.value)} />
+                  </label>
+                </div>
+                <div className="brief-maker-drafts">
+                  {[1, 2, 3].map(index => (
+                    <div key={index} className="brief-maker-draft-card">
+                      <label className="brief-maker-field brief-maker-field-wide">
+                        <span>Draft {index} label</span>
+                        <input className="brief-maker-input" value={briefForm[`draft_${index}_label`]} onChange={e => updateBriefField(`draft_${index}_label`, e.target.value)} />
+                      </label>
+                      <label className="brief-maker-field brief-maker-field-wide">
+                        <span>Draft {index} copy</span>
+                        <textarea className="brief-maker-textarea" rows={5} value={briefForm[`draft_${index}_text`]} onChange={e => updateBriefField(`draft_${index}_text`, e.target.value)} placeholder="Short, punchy copy. Lead with the strongest fact. End with CTA and required tags." />
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <aside className="brief-maker-preview">
+                <div className="brief-maker-preview-head">
+                  <strong>Config preview</strong>
+                  <span>{(briefConfig.filename || V4BriefMakerFilename(briefConfig.title || 'Robert_Brief')) + '.json'}</span>
+                </div>
+                <pre className="brief-maker-json">{briefJson}</pre>
+                <div className="brief-maker-foot">
+                  <span>Output target</span>
+                  <strong>Desktop/UNALIGNED</strong>
+                </div>
+                <div className="brief-maker-server-status">
+                  {docStatus === 'done' && docResult && (
+                    <div className="brief-maker-result-card">
+                      <span className="brief-maker-server-ok">Google Doc ready.</span>
+                      <div className="brief-maker-result-actions">
+                        <a className="cos-toolkit-btn" href={docResult.url} target="_blank" rel="noreferrer">Open Doc</a>
+                        <button type="button" className="cos-toolkit-btn" onClick={() => navigator.clipboard.writeText(docResult.url)}>Copy Doc Link</button>
+                      </div>
+                    </div>
+                  )}
+                  {docStatus === 'error' && (
+                    <span className="brief-maker-server-error">{docError}</span>
+                  )}
+                  {docStatus === 'creating' && (
+                    <span className="brief-maker-server-note">Creating Google Doc on this Mac...</span>
+                  )}
+                  {calendarStatus === 'done' && calendarResult && (
+                    <div className="brief-maker-result-card">
+                      <span className="brief-maker-server-ok">Calendar hold ready.</span>
+                      <div className="brief-maker-result-actions">
+                        <a className="cos-toolkit-btn" href={calendarResult.htmlLink} target="_blank" rel="noreferrer">Open Event</a>
+                      </div>
+                    </div>
+                  )}
+                  {calendarStatus === 'error' && (
+                    <span className="brief-maker-server-error">{calendarError}</span>
+                  )}
+                  {calendarStatus === 'creating' && (
+                    <span className="brief-maker-server-note">Adding this brief to Robert&apos;s calendar...</span>
+                  )}
+                  {briefStatus === 'done' && briefResult && (
+                    <div className="brief-maker-result-card">
+                      <span className="brief-maker-server-ok">PDF ready.</span>
+                      <div className="brief-maker-result-actions">
+                        <a className="cos-toolkit-btn" href={briefResult.url} target="_blank" rel="noreferrer">Open PDF</a>
+                      </div>
+                    </div>
+                  )}
+                  {briefStatus === 'error' && (
+                    <span className="brief-maker-server-error">{briefError}</span>
+                  )}
+                  {briefStatus === 'generating' && (
+                    <span className="brief-maker-server-note">Building PDF on this Mac...</span>
+                  )}
+                  {briefResult?.path && briefStatus === 'done' && (
+                    <div className="brief-maker-server-path">{briefResult.path}</div>
+                  )}
+                </div>
+                <div className="brief-maker-footer-actions">
+                  <button type="button" className="cos-toolkit-btn" onClick={resetBriefForm}>Reset</button>
+                  <a className="cos-toolkit-btn" href="docs/SINGLE_TIER.pdf" target="_blank" rel="noreferrer">Open pricing PDF</a>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
   const { STAGE_BY_ID, USERS } = window.V3;
   const [tab, setTab] = React.useState('thread');
@@ -791,6 +1543,14 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
   const isThem = !lead.nextMove?.who && !['paid-out'].includes(lead.stage);
   const replyAction = ['Reply', 'Send', 'Nudge'].includes(lead.nextMove?.action);
   const owner = lead.ownerId ? USERS[lead.ownerId] : null;
+  const operatorStatus = V4OperatorStatus(lead);
+  const operatorSummary = lead.operatorSummary || {};
+  const operatorAnalysis = lead.operatorAnalysis || {};
+  const operatorEscalation = Array.isArray(lead.operatorEscalation) ? lead.operatorEscalation : [];
+  const execution = V4CompanyOsExecutionMeta(lead);
+  const quickStages = V4QuickStageActions(lead);
+  const moveLead = (nextStage) => window.V3.MoveLeadStage(lead, nextStage);
+  const clearUnread = () => V4CosPatchLead(lead, { new_reply_at: null }, { unread: false });
   return (
     <div className="cos2-reader">
       <div className="drawer-hd">
@@ -837,6 +1597,89 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
         <span className="drawer-fact">{lead.source}</span>
         {lead.deliverables ? <span className="drawer-fact drawer-fact-wide" title={lead.deliverables}>{lead.deliverables}</span> : null}
       </div>
+      <div className="cos-quick-actions">
+        <div className="cos-quick-actions-group">
+          <span className="cos-quick-actions-label">Quick actions</span>
+          <button className="cos-quick-btn is-primary" type="button" onClick={() => setComposeOpen(true)}>
+            {lead.draftReply ? 'Approve draft' : (replyAction ? lead.nextMove.action : 'Reply')}
+          </button>
+          {lead.unread && (
+            <button className="cos-quick-btn" type="button" onClick={clearUnread}>
+              Mark read
+            </button>
+          )}
+          <button className="cos-quick-btn is-danger" type="button" onClick={() => moveLead('trash')}>
+            Trash
+          </button>
+        </div>
+        <div className="cos-quick-actions-group">
+          <span className="cos-quick-actions-label">Move to</span>
+          {quickStages.map(action => (
+            <button
+              key={action.stage}
+              className="cos-quick-btn"
+              type="button"
+              onClick={() => moveLead(action.stage)}
+            >
+              {action.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {(lead.operatorMemory || lead.draftReply) && (
+        <section className="cos-operator-strip">
+          <div className="cos-operator-strip-head">
+            <div>
+              <div className="cos-operator-strip-eyebrow">Operator</div>
+              <h3>Lead operator readout</h3>
+            </div>
+            <span className={`cos-operator-status is-${operatorStatus.tone}`}>{operatorStatus.label}</span>
+          </div>
+          <div className="cos-operator-grid">
+            <div className="cos-operator-card">
+              <div className="cos-operator-card-label">Current read</div>
+              <div className="cos-operator-card-value">
+                {operatorSummary.current_status || operatorAnalysis.reason || 'Waiting for more thread context.'}
+              </div>
+            </div>
+            <div className="cos-operator-card">
+              <div className="cos-operator-card-label">Suggested next step</div>
+              <div className="cos-operator-card-value">
+                {operatorSummary.next_action || lead.nextMove?.text || 'Review thread'}
+              </div>
+            </div>
+            <div className="cos-operator-card">
+              <div className="cos-operator-card-label">Stage / reply type</div>
+              <div className="cos-operator-card-value">
+                {[operatorAnalysis.stage ? V4CompanyOsPhase({ stage: operatorAnalysis.stage }) : '', operatorAnalysis.reply_type ? V4OperatorReplyTypeLabel(operatorAnalysis.reply_type) : '']
+                  .filter(Boolean)
+                  .join(' · ') || 'No operator stage yet'}
+              </div>
+            </div>
+            <div className="cos-operator-card">
+              <div className="cos-operator-card-label">Rate / timing</div>
+              <div className="cos-operator-card-value">
+                {[operatorSummary.quoted_rate, operatorSummary.launch_timing].filter(Boolean).join(' · ') || 'No hard rate or date captured yet'}
+              </div>
+            </div>
+          </div>
+          {operatorSummary.lead_summary && (
+            <div className="cos-operator-summary">
+              <strong>Summary</strong>
+              <p>{operatorSummary.lead_summary}</p>
+            </div>
+          )}
+          {operatorEscalation.length > 0 && (
+            <div className="cos-operator-escalation">
+              <strong>Needs human eyes</strong>
+              <div className="cos-operator-escalation-list">
+                {operatorEscalation.map(item => <span key={item} className="cos-chip cos-chip-soft">{item.replace(/_/g, ' ')}</span>)}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+      <V4CompanyOsExecutionPanel lead={lead} execution={execution} />
       <div className="drawer-tabs">
         <button className="dr-tab" aria-selected={tab === 'thread'} onClick={() => setTab('thread')}>
           Email thread <span className="cnt">{lead.thread.length}</span>
@@ -864,8 +1707,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
   );
 }
 
-function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead }) {
-  const TEAM = ['asher', 'sammy'];
+function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, onNavigateView }) {
   const base = React.useMemo(() => leads
     .filter(l => !l.isRobertBrief)
     .filter(l => !(window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(l)))
@@ -886,23 +1728,22 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead })
   const isSnoozed = (l) => snoozes[l.id] && Date.parse(snoozes[l.id]) > nowTs;
   const awake = live.filter(l => !isSnoozed(l));
   const activeDeals = awake.filter(l => !['trash', 'dead-leads', 'done', 'paid-out'].includes(l.stage));
-  const tierSplits = [1, 2, 3, 4, 5, 6, 7].map(tier => ({
-    id: `tier-${tier}`,
-    label: `Tier ${tier}`,
-    section: 'Packages',
-    items: activeDeals.filter(l => V4CompanyOsTier(l) === tier).sort(byRecent),
-  }));
   const interviewItems = activeDeals.filter(l => V4CompanyOsType(l) === 'interview').sort(byRecent);
   const partnershipItems = activeDeals.filter(l => V4CompanyOsType(l) === 'partnership').sort(byRecent);
   const introItems = activeDeals.filter(l => V4CompanyOsType(l) === 'intro').sort(byRecent);
   const unscopedItems = activeDeals.filter(l => !V4CompanyOsTier(l) && !['interview', 'partnership', 'intro'].includes(V4CompanyOsType(l))).sort(byRecent);
+  const followUpItems = awake.filter(l => l.followUpDue && !l.unread).sort(byStale);
 
   const splits = [
-    { id: 'reply',   label: 'Reply now',       section: 'Action', hot: true, items: awake.filter(l => l.unread && l.nextMove?.who).sort(byStale) },
-    { id: 'follow',  label: 'Follow ups',      section: 'Action', items: awake.filter(l => !l.unread && TEAM.includes(l.nextMove?.who) && (l.daysInStage || 0) <= 21).sort(byStale) },
-    { id: 'robert',  label: 'Robert',          section: 'Action', items: awake.filter(l => l.nextMove?.who === 'robert').sort(byRecent) },
-    { id: 'waiting', label: 'Waiting on them', section: 'Action', items: awake.filter(l => !l.nextMove?.who && !['done', 'paid-out'].includes(l.stage)).sort(byRecent) },
-    ...tierSplits,
+    { id: 'reply',    label: 'New activity',     section: 'Workflow', hot: true, items: awake.filter(l => l.unread && l.nextMove?.who).sort(byStale) },
+    { id: 'followups',label: 'Follow ups',       section: 'Workflow', hot: followUpItems.length > 0, items: followUpItems },
+    { id: 'scope',    label: 'Needs scope',      section: 'Workflow', items: awake.filter(l => ['new', 'first-touch', 'engaged'].includes(l.stage)).sort(byRecent) },
+    { id: 'pricing',  label: 'Pricing sent',     section: 'Workflow', items: awake.filter(l => l.stage === 'rates-sent').sort(byStale) },
+    { id: 'nego',     label: 'Negotiating',      section: 'Workflow', items: awake.filter(l => l.stage === 'negotiating').sort(byStale) },
+    { id: 'payment',  label: 'Payment / terms',  section: 'Workflow', items: awake.filter(l => l.stage === 'invoice-sent').sort(byStale) },
+    { id: 'briefing', label: 'Brief / calendar', section: 'Workflow', items: awake.filter(l => l.stage === 'done').sort(byRecent) },
+    { id: 'waiting',  label: 'Waiting on them',  section: 'Workflow', items: awake.filter(l => !l.unread && !l.nextMove?.who && !['done', 'paid-out'].includes(l.stage)).sort(byRecent) },
+    { id: 'robert',   label: 'Robert ready',     section: 'Workflow', items: awake.filter(l => l.nextMove?.who === 'robert').sort(byRecent) },
     { id: 'interviews', label: 'Interviews',   section: 'By type', items: interviewItems },
     { id: 'partners',   label: 'Partnerships', section: 'By type', items: partnershipItems },
     { id: 'intros',     label: 'Intros',       section: 'By type', items: introItems },
@@ -911,6 +1752,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead })
     { id: 'closed',  label: 'Done and paid',   section: 'System', items: awake.filter(l => ['done', 'paid-out'].includes(l.stage)).sort(byRecent) },
     { id: 'trash',   label: 'Trash',           section: 'System', trash: true, items: base.filter(l => ['trash', 'dead-leads'].includes(l.stage)).sort(byRecent) },
     { id: 'brief',   label: 'Overview',        section: 'System', brief: true },
+    { id: 'toolkit', label: 'Toolkit',         section: 'System', toolkit: true, items: V4_COMPANY_OS_TOOLKIT },
   ];
 
   const [splitId, setSplitId] = React.useState('reply');
@@ -974,7 +1816,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead })
       const t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (split.brief) return;
+      if (split.brief || split.toolkit) return;
       if (e.key === 'j' || e.key === 'J' || e.key === 'ArrowDown') { e.preventDefault(); moveSel(1); }
       if (e.key === 'k' || e.key === 'K' || e.key === 'ArrowUp')   { e.preventDefault(); moveSel(-1); }
       if (e.key === 'r' || e.key === 'R') { e.preventDefault(); if (selected) setComposeOpen(true); }
@@ -986,7 +1828,8 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead })
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  const replyCount = splits[0].items.length;
+  const replyCount = splits.find(s => s.id === 'reply')?.items.length || 0;
+  const followUpCount = splits.find(s => s.id === 'followups')?.items.length || 0;
   const p0Count = live.filter(l => l.unread || l.stage === 'invoice-sent').length;
   const invoicedOutstanding = live.filter(l => l.stage === 'invoice-sent').reduce((s, l) => s + (l.value || 0), 0);
   const openPipeline = live.filter(l => !['done', 'paid-out'].includes(l.stage)).reduce((s, l) => s + (l.value || 0), 0);
@@ -1000,7 +1843,8 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead })
         </span>
         <span className="cos-kpi cos-kpi-tight"><strong>{p0Count}</strong> P0</span>
         <span className="cos-kpi cos-kpi-tight cos-kpi-accent"><strong>{replyCount}</strong> reply now</span>
-        <span className="cos-kpi cos-kpi-tight"><strong>{V4CompanyOsMoney(invoicedOutstanding) || '$0'}</strong> Invoiced</span>
+        <span className="cos-kpi cos-kpi-tight"><strong>{followUpCount}</strong> 2d follow ups</span>
+        <span className="cos-kpi cos-kpi-tight"><strong>{V4CompanyOsMoney(invoicedOutstanding) || '$0'}</strong> Terms / pay</span>
         <span className="cos-kpi cos-kpi-tight"><strong>{V4CompanyOsMoney(openPipeline) || '$0'}</strong> In play</span>
         <button type="button" className="cos-refresh-btn cos2-refresh" onClick={() => window.location.reload()}>↻ Refresh</button>
       </header>
@@ -1015,7 +1859,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead })
                       className={'cos2-split' + (s.id === split.id ? ' is-active' : '') + (s.hot ? ' is-hot' : '')}
                       onClick={() => setSplitId(s.id)}>
                 <span>{s.label}</span>
-                {!s.brief && <span className="cos2-split-cnt">{s.items.length}</span>}
+                {!s.brief && !s.toolkit && <span className="cos2-split-cnt">{s.items.length}</span>}
               </button>
             </React.Fragment>
           ))}
@@ -1030,7 +1874,9 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead })
           </div>
         </nav>
         {split.brief ? (
-          <div className="cos2-main-scroll"><V4CosOverview leads={live} replyCount={splits[0].items.length} /></div>
+          <div className="cos2-main-scroll"><V4CosOverview leads={live} replyCount={replyCount} /></div>
+        ) : split.toolkit ? (
+          <div className="cos2-main-scroll"><V4CosToolkit onNavigateView={onNavigateView} onActivateSplit={setSplitId} /></div>
         ) : (
           <>
             <div className="cos2-list">
@@ -1042,6 +1888,9 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead })
                     <span className="cos2-row-top">
                       {l.unread && <span className="dq-dot" />}
                       <span className="cos2-row-brand">{l.brand}</span>
+                      {(l.draftReply || l.operatorMemory) && (
+                        <span className={'cos2-row-operator is-' + V4OperatorStatus(l).tone}>{V4OperatorStatus(l).label}</span>
+                      )}
                       <span className="cos2-row-when">{l.lastTouch}</span>
                     </span>
                     <span className="cos2-row-snip"><strong>{l.contactName}</strong>{l.nextMove?.text ? ' · ' + l.nextMove.text : ''}</span>
