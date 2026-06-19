@@ -222,6 +222,7 @@ const V4_BRIEF_ACTION_URL = 'http://127.0.0.1:8766/generate-brief';
 const V4_BRIEF_DOC_ACTION_URL = 'http://127.0.0.1:8767/generate-brief-doc';
 const V4_BRIEF_CALENDAR_ACTION_URL = 'http://127.0.0.1:8767/create-calendar-hold';
 const V4_BRIEF_NOTION_IMPORT_URL = 'http://127.0.0.1:8767/import-notion-brief';
+const V4_BRIEF_SOURCE_IMPORT_URL = 'http://127.0.0.1:8767/import-source-brief';
 
 const V4_COMPANY_OS_TOOLKIT = [
   {
@@ -535,6 +536,7 @@ function V4BriefMakerDefaultState() {
     draft_3_label: 'Option 3. Operator angle',
     draft_3_text: '',
     submit_url: '',
+    source_url: '',
     notion_url: '',
     calendar_title: '',
     calendar_date: '',
@@ -586,6 +588,7 @@ function V4BriefMakerConfig(form) {
   if (Object.keys(mustInclude).length) payload.must_include = mustInclude;
   if (drafts.length) payload.drafts = drafts;
   if (form.submit_url) payload.submit_url = String(form.submit_url).trim();
+  if (form.source_url) payload.source_url = String(form.source_url).trim();
   if (form.notion_url) payload.notion_url = String(form.notion_url).trim();
   if (form.calendar_title) payload.calendar_title = String(form.calendar_title).trim();
   if (form.calendar_date) payload.calendar_date = String(form.calendar_date).trim();
@@ -1099,6 +1102,7 @@ function V4CosBriefBoard() {
 function V4CosToolkit({ onNavigateView, onActivateSplit }) {
   const [briefMakerOpen, setBriefMakerOpen] = React.useState(false);
   const [briefForm, setBriefForm] = React.useState(() => V4BriefMakerDefaultState());
+  const [briefAdvancedOpen, setBriefAdvancedOpen] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
   const [briefStatus, setBriefStatus] = React.useState('idle');
   const [briefError, setBriefError] = React.useState('');
@@ -1163,6 +1167,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
 
   const resetBriefForm = () => {
     setBriefForm(V4BriefMakerDefaultState());
+    setBriefAdvancedOpen(false);
     setCopied(false);
     setBriefStatus('idle');
     setBriefError('');
@@ -1177,10 +1182,36 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     setCalendarResult(null);
   };
 
+  const applyImportedBriefPayload = (payload, sourceUrl) => {
+    setBriefForm(curr => ({
+      ...curr,
+      title: payload.title || curr.title,
+      subtitle: payload.subtitle || curr.subtitle,
+      filename: payload.filename || curr.filename,
+      go_live: payload.go_live || curr.go_live,
+      go_live_note: payload.go_live_note || curr.go_live_note,
+      submit_url: payload.submit_url || curr.submit_url,
+      source_url: sourceUrl || curr.source_url,
+      notion_url: sourceUrl || curr.notion_url,
+      calendar_title: payload.calendar_title || curr.calendar_title || payload.title || curr.title,
+      what_to_do_text: Array.isArray(payload.what_to_do) ? payload.what_to_do.join('\n') : curr.what_to_do_text,
+      key_facts_text: Array.isArray(payload.key_facts) ? payload.key_facts.map(item => item.join(' | ')).join('\n') : curr.key_facts_text,
+      tag: payload.must_include?.tag || curr.tag,
+      link: payload.must_include?.link || curr.link,
+      hashtags: payload.must_include?.hashtags || curr.hashtags,
+      draft_1_label: payload.drafts?.[0]?.label || curr.draft_1_label,
+      draft_1_text: payload.drafts?.[0]?.text || curr.draft_1_text,
+      draft_2_label: payload.drafts?.[1]?.label || curr.draft_2_label,
+      draft_2_text: payload.drafts?.[1]?.text || curr.draft_2_text,
+      draft_3_label: payload.drafts?.[2]?.label || curr.draft_3_label,
+      draft_3_text: payload.drafts?.[2]?.text || curr.draft_3_text,
+    }));
+  };
+
   const createBriefDoc = async () => {
-    if (!briefConfig.title && !briefConfig.notion_url) {
+    if (!briefConfig.title && !briefConfig.source_url && !briefConfig.notion_url) {
       setDocStatus('error');
-      setDocError('Add a title or paste a public Notion brief link first.');
+      setDocError('Add a title or paste a public source brief link first.');
       return;
     }
     setDocStatus('creating');
@@ -1203,47 +1234,73 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
   };
 
   const importNotionBrief = async () => {
-    if (!briefConfig.notion_url) {
+    const sourceUrl = briefConfig.source_url || briefConfig.notion_url;
+    if (!sourceUrl) {
       setNotionStatus('error');
-      setNotionError('Paste a public Notion brief link first.');
+      setNotionError('Paste a public Notion page or Google Doc link first.');
       return;
     }
     setNotionStatus('importing');
     setNotionError('');
     try {
-      const res = await fetch(V4_BRIEF_NOTION_IMPORT_URL, {
+      const res = await fetch(V4_BRIEF_SOURCE_IMPORT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notion_url: briefConfig.notion_url }),
+        body: JSON.stringify({ source_url: sourceUrl }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || 'Notion import failed.');
       const payload = data.payload || {};
-      setBriefForm(curr => ({
-        ...curr,
-        title: payload.title || curr.title,
-        subtitle: payload.subtitle || curr.subtitle,
-        filename: payload.filename || curr.filename,
-        go_live: payload.go_live || curr.go_live,
-        go_live_note: payload.go_live_note || curr.go_live_note,
-        submit_url: payload.submit_url || curr.submit_url,
-        notion_url: briefConfig.notion_url,
-        what_to_do_text: Array.isArray(payload.what_to_do) ? payload.what_to_do.join('\n') : curr.what_to_do_text,
-        key_facts_text: Array.isArray(payload.key_facts) ? payload.key_facts.map(item => item.join(' | ')).join('\n') : curr.key_facts_text,
-        tag: payload.must_include?.tag || curr.tag,
-        link: payload.must_include?.link || curr.link,
-        hashtags: payload.must_include?.hashtags || curr.hashtags,
-        draft_1_label: payload.drafts?.[0]?.label || curr.draft_1_label,
-        draft_1_text: payload.drafts?.[0]?.text || curr.draft_1_text,
-        draft_2_label: payload.drafts?.[1]?.label || curr.draft_2_label,
-        draft_2_text: payload.drafts?.[1]?.text || curr.draft_2_text,
-        draft_3_label: payload.drafts?.[2]?.label || curr.draft_3_label,
-        draft_3_text: payload.drafts?.[2]?.text || curr.draft_3_text,
-      }));
+      applyImportedBriefPayload(payload, sourceUrl);
       setNotionStatus('done');
     } catch (err) {
       setNotionStatus('error');
-      setNotionError(err.message || 'Notion import failed.');
+      setNotionError(err.message || 'Source import failed.');
+    }
+  };
+
+  const buildBriefFromSource = async () => {
+    const sourceUrl = String(briefForm.source_url || briefForm.notion_url || '').trim();
+    if (!sourceUrl) {
+      setNotionStatus('error');
+      setNotionError('Paste a public Notion page or Google Doc link first.');
+      return;
+    }
+    setNotionStatus('importing');
+    setNotionError('');
+    setDocStatus('idle');
+    setDocError('');
+    setDocResult(null);
+    try {
+      const res = await fetch(V4_BRIEF_SOURCE_IMPORT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source_url: sourceUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Source import failed.');
+      const payload = data.payload || {};
+      applyImportedBriefPayload(payload, sourceUrl);
+      setNotionStatus('done');
+
+      setDocStatus('creating');
+      const docRes = await fetch(V4_BRIEF_DOC_ACTION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payload, source_url: sourceUrl }),
+      });
+      const docData = await docRes.json();
+      if (!docRes.ok || !docData.ok) throw new Error(docData.error || 'Google Doc creation failed.');
+      setDocResult(docData);
+      setDocStatus('done');
+    } catch (err) {
+      const message = err.message || 'Brief build failed.';
+      setNotionStatus('error');
+      setNotionError(message);
+      if (docStatus === 'creating' || /doc|google/i.test(message)) {
+        setDocStatus('error');
+        setDocError(message);
+      }
     }
   };
 
@@ -1448,11 +1505,14 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                 <h2 className="brief-modal-title">Brief Maker</h2>
               </div>
               <div className="brief-modal-hd-actions">
+                <button type="button" className="cos-toolkit-btn is-primary" onClick={buildBriefFromSource}>
+                  {notionStatus === 'importing' || docStatus === 'creating' ? 'Building from source...' : 'Build from source link'}
+                </button>
                 <button type="button" className="cos-toolkit-btn is-primary" onClick={createBriefDoc}>
                   {docStatus === 'creating' ? 'Creating Doc...' : 'Create Google Doc'}
                 </button>
                 <button type="button" className="cos-toolkit-btn" onClick={importNotionBrief}>
-                  {notionStatus === 'importing' ? 'Importing Notion...' : 'Import Notion'}
+                  {notionStatus === 'importing' ? 'Reading source...' : 'Import source only'}
                 </button>
                 <button type="button" className="cos-toolkit-btn" onClick={createCalendarHold}>
                   {calendarStatus === 'creating' ? 'Adding hold...' : 'Add to Calendar'}
@@ -1473,11 +1533,33 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
             </div>
             <div className="brief-maker-body">
               <div className="brief-maker-form">
-                <div className="brief-maker-grid">
+                <div className="brief-maker-source-panel">
                   <label className="brief-maker-field brief-maker-field-wide">
-                    <span>Notion brief link</span>
-                    <input className="brief-maker-input" value={briefForm.notion_url} onChange={e => updateBriefField('notion_url', e.target.value)} placeholder="https://workspace.notion.site/Your-brief-page" />
+                    <span>Source brief link</span>
+                    <input
+                      className="brief-maker-input"
+                      value={briefForm.source_url || briefForm.notion_url}
+                      onChange={e => {
+                        updateBriefField('source_url', e.target.value);
+                        updateBriefField('notion_url', e.target.value);
+                      }}
+                      placeholder="Paste a public Notion page or Google Doc link"
+                    />
                   </label>
+                  <div className="brief-maker-source-note">
+                    Paste one source link and let Company OS read it, extract the campaign facts, draft Robert copy, and build the Google Doc.
+                  </div>
+                  <div className="brief-maker-source-actions">
+                    <button type="button" className="cos-toolkit-btn is-primary" onClick={buildBriefFromSource}>
+                      {notionStatus === 'importing' || docStatus === 'creating' ? 'Building...' : 'Read source and make brief'}
+                    </button>
+                    <button type="button" className="cos-toolkit-btn" onClick={() => setBriefAdvancedOpen(open => !open)}>
+                      {briefAdvancedOpen ? 'Hide advanced fields' : 'Show advanced fields'}
+                    </button>
+                  </div>
+                </div>
+                {briefAdvancedOpen && (
+                <div className="brief-maker-grid">
                   <label className="brief-maker-field brief-maker-field-wide">
                     <span>Title</span>
                     <input className="brief-maker-input" value={briefForm.title} onChange={e => updateBriefField('title', e.target.value)} placeholder="Viktor $75M Series A Launch" />
@@ -1539,6 +1621,8 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                     <input type="time" className="brief-maker-input" value={briefForm.calendar_end} onChange={e => updateBriefField('calendar_end', e.target.value)} />
                   </label>
                 </div>
+                )}
+                {briefAdvancedOpen && (
                 <div className="brief-maker-drafts">
                   {[1, 2, 3].map(index => (
                     <div key={index} className="brief-maker-draft-card">
@@ -1553,6 +1637,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                     </div>
                   ))}
                 </div>
+                )}
               </div>
               <aside className="brief-maker-preview">
                 <div className="brief-maker-preview-head">
@@ -1567,14 +1652,14 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                 <div className="brief-maker-server-status">
                   {notionStatus === 'done' && (
                     <div className="brief-maker-result-card">
-                      <span className="brief-maker-server-ok">Notion brief imported.</span>
+                      <span className="brief-maker-server-ok">Source brief imported.</span>
                     </div>
                   )}
                   {notionStatus === 'error' && (
                     <span className="brief-maker-server-error">{notionError}</span>
                   )}
                   {notionStatus === 'importing' && (
-                    <span className="brief-maker-server-note">Reading the Notion brief and mapping it into Robert&apos;s format...</span>
+                    <span className="brief-maker-server-note">Reading the source brief and mapping it into Robert&apos;s format...</span>
                   )}
                   {docStatus === 'done' && docResult && (
                     <div className="brief-maker-result-card">
