@@ -186,9 +186,8 @@ function V3NormalizeSupabaseLead(row) {
   const lastTouchAt = V3NormalizeDateForUi(latestThreadDate || row.moved_at || received);
   const activityDays = V3DaysSince(lastTouchAt || row.moved_at || received);
   const rawStage = V3NormalizeStage(row.list_id);
-  // Auto-trash: last touch > 50 days and not already closed out
   const closedStage = V3NormalizeEmailLeadStage(row.email, rawStage);
-  const stage = (activityDays > 50 && !['paid-out', 'done', 'trash'].includes(closedStage)) ? 'trash' : closedStage;
+  const stage = closedStage;
   const daysInStage = V3DaysSince(row.moved_at || received);
   const followUpDue = V3LeadFollowUpDue(row, thread, stage, activityDays);
   const needsReply = Boolean(row.new_reply_at) || row.draft_reply_status === 'pending' || stage === 'new' || followUpDue;
@@ -1259,7 +1258,7 @@ Object.assign(window, { V3SenderForUser, V3SenderName, V3SenderSignature, V3Ensu
 // FLOW v3 — data with category labels matching UNALIGNED's INTERVIEW / COLLABORATION / PARTNERSHIP / INTRO tabs
 
 // ─── UNALIGNED Tiers (from SINGLE TIER pricing sheet) ────────
-const V3_TIERS = {
+let V3_TIERS = {
   1: { id: 1, price: 1195, name: 'Retweet',           short: 'RT',         items: ['1 retweet'] },
   2: { id: 2, price: 1895, name: 'Quote Repost',      short: 'QUOTE',      items: ['1 quote repost', "Robert's original quote (≤3 sentences)"] },
   3: { id: 3, price: 1995, name: 'Custom X Post',     short: 'CUSTOM X',   items: ['1 custom-written X post'] },
@@ -1278,7 +1277,7 @@ const V3_DELIV_TYPES = {
   'newsletter': { label: 'Newsletter',        icon: 'mail',    short: 'NEWSLETTER'},
 };
 
-const V3_USERS = {
+let V3_USERS = {
   asher:  { id: 'asher',  name: 'Asher',  role: 'Services', color: '#2f5fd6', initials: 'AW' },
   sammy:  { id: 'sammy',  name: 'Sammy',  role: 'Manager',  color: '#16894a', initials: 'SM' },
   robert: { id: 'robert', name: 'Robert', role: 'Creator',  color: '#a93268', initials: 'RW' },
@@ -2070,6 +2069,77 @@ const V3_SUPABASE_HEADERS = {
   'Content-Type': 'application/json',
 };
 
+function V3RefreshConfigGlobals() {
+  if (!window.V3) return;
+  window.V3.USERS = V3_USERS;
+  window.V3.TIERS = V3_TIERS;
+  window.dispatchEvent(new CustomEvent('v3:config-loaded', {
+    detail: { users: V3_USERS, tiers: V3_TIERS },
+  }));
+}
+
+async function V3LoadPricingTiers() {
+  try {
+    const res = await fetch(
+      V3_SUPABASE_URL + '/rest/v1/pricing_tiers?select=id,name,price,short,items,sort_order,is_active&order=sort_order.asc,id.asc',
+      { headers: V3_SUPABASE_HEADERS }
+    );
+    if (!res.ok) throw new Error('pricing_tiers ' + res.status);
+    const rows = await res.json();
+    if (!Array.isArray(rows) || !rows.length) return;
+    const next = {};
+    for (const row of rows) {
+      if (row && row.is_active === false) continue;
+      const id = Number(row.id);
+      if (!Number.isFinite(id)) continue;
+      next[id] = {
+        id,
+        price: Number(row.price || 0),
+        name: row.name || ('Tier ' + id),
+        short: row.short || ('T' + id),
+        items: Array.isArray(row.items) ? row.items.filter(Boolean).map(String) : [],
+      };
+    }
+    if (Object.keys(next).length) {
+      V3_TIERS = next;
+      V3RefreshConfigGlobals();
+    }
+  } catch (err) {
+    console.warn('[ALIGNED v4] pricing tiers load failed:', err);
+  }
+}
+
+async function V3LoadTeamUsers() {
+  try {
+    const res = await fetch(
+      V3_SUPABASE_URL + '/rest/v1/team_users?select=id,name,role,color,initials,lane,is_active,sort_order&is_active=eq.true&order=sort_order.asc,name.asc',
+      { headers: V3_SUPABASE_HEADERS }
+    );
+    if (!res.ok) throw new Error('team_users ' + res.status);
+    const rows = await res.json();
+    if (!Array.isArray(rows) || !rows.length) return;
+    const next = {};
+    for (const row of rows) {
+      const id = String(row.id || '').trim();
+      if (!id) continue;
+      next[id] = {
+        id,
+        name: row.name || id,
+        role: row.role || '',
+        color: row.color || '#2f5fd6',
+        initials: row.initials || String(row.name || id).split(/\s+/).slice(0, 2).map(part => part[0] || '').join('').toUpperCase(),
+        lane: row.lane || '',
+      };
+    }
+    if (Object.keys(next).length) {
+      V3_USERS = next;
+      V3RefreshConfigGlobals();
+    }
+  } catch (err) {
+    console.warn('[ALIGNED v4] team users load failed:', err);
+  }
+}
+
 function V3MoveLeadStage(lead, nextStage, leads = window.V3?.LEADS || V3_LEADS) {
   const normalizedStage = V3NormalizeStage(nextStage);
   const updated = leads.map(item => String(item.id) === String(lead.id) ? { ...item, stage: normalizedStage } : item);
@@ -2117,7 +2187,10 @@ function V3MoveLeadStage(lead, nextStage, leads = window.V3?.LEADS || V3_LEADS) 
   }).catch(err => console.warn('[ALIGNED v4] stage update failed:', err));
 }
 
-window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_VISIBLE_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_VISIBLE_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, CompanyOsQualifiedLead: V3CompanyOsQualifiedLead, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, NewLeadReason: V3NewLeadReason, NewLeadSourceKind: V3NewLeadSourceKind, NewLeadSourceLabel: V3NewLeadSourceLabel, NewLeadHandle: V3NewLeadHandle, NewLeadSummary: V3NewLeadSummary, NewLeadPrimaryIdentity: V3NewLeadPrimaryIdentity };
+window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_VISIBLE_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_VISIBLE_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, CompanyOsQualifiedLead: V3CompanyOsQualifiedLead, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, NewLeadReason: V3NewLeadReason, NewLeadSourceKind: V3NewLeadSourceKind, NewLeadSourceLabel: V3NewLeadSourceLabel, NewLeadHandle: V3NewLeadHandle, NewLeadSummary: V3NewLeadSummary, NewLeadPrimaryIdentity: V3NewLeadPrimaryIdentity, LeadMatchesQuery: V3LeadMatchesQuery, PrunePendingReplies: V3PrunePendingReplies, MergePendingReplies: V3MergePendingReplies };
+
+V3LoadPricingTiers();
+V3LoadTeamUsers();
 
 V3LoadSupabaseLeads().then(leads => {
   window.V3.LEADS = leads;

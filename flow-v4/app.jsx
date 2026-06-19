@@ -93,6 +93,7 @@ function V4HelpOverlay({ open, onClose }) {
 }
 
 function V4App() {
+  const [, setConfigVersion] = React.useState(0);
   const { USERS, LEADS, STAGE_BY_ID, ACTIVE_STAGE_IDS } = window.V3;
   const [t, setTweak] = useTweaks(V4_TWEAKS);
   const [view, setView] = React.useState(V4DefaultViewForUser(t.viewAs));
@@ -113,13 +114,7 @@ function V4App() {
   const [toast, setToast] = React.useState(null);
   const toastTimer = React.useRef(null);
   const searchRef = React.useRef(null);
-  const [pendingReplies, setPendingReplies] = React.useState(() => {
-    try {
-      return JSON.parse(window.localStorage.getItem('v3-pending-replies') || '[]') || [];
-    } catch (e) {
-      return [];
-    }
-  });
+  const [pendingReplies, setPendingReplies] = React.useState([]);
 
   React.useEffect(() => {
     const h = (e) => setBriefId(e.detail.leadId);
@@ -137,6 +132,12 @@ function V4App() {
     };
     window.addEventListener('v3:leads-loaded', h);
     return () => window.removeEventListener('v3:leads-loaded', h);
+  }, []);
+
+  React.useEffect(() => {
+    const h = () => setConfigVersion(v => v + 1);
+    window.addEventListener('v3:config-loaded', h);
+    return () => window.removeEventListener('v3:config-loaded', h);
   }, []);
 
   React.useEffect(() => {
@@ -169,12 +170,6 @@ function V4App() {
       if (toastTimer.current) clearTimeout(toastTimer.current);
     };
   }, []);
-
-  React.useEffect(() => {
-    try {
-      window.localStorage.setItem('v3-pending-replies', JSON.stringify(pendingReplies));
-    } catch (e) {}
-  }, [pendingReplies]);
 
   React.useEffect(() => {
     document.body.setAttribute('data-theme', t.theme);

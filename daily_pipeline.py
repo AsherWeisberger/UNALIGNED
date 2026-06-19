@@ -44,22 +44,43 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 DRY_RUN = "--dry-run" in sys.argv
 
 # Opus 4.6 pricing per million tokens
-PRICE_INPUT_PER_M  = 15.00
-PRICE_OUTPUT_PER_M = 75.00
+OPUS_INPUT_PER_M  = 15.00
+OPUS_OUTPUT_PER_M = 75.00
 
-# Haiku 4.5 pricing (used for dedup checks)
+# Haiku 4.5 pricing
 HAIKU_INPUT_PER_M  = 0.80
 HAIKU_OUTPUT_PER_M = 4.00
 
-_run_input_tokens  = 0
-_run_output_tokens = 0
+PIPELINE_MAX_COST_USD = float(os.environ.get("PIPELINE_MAX_COST_USD", "0") or "0")
 
-def _track(resp):
+_run_haiku_input_tokens = 0
+_run_haiku_output_tokens = 0
+_run_opus_input_tokens = 0
+_run_opus_output_tokens = 0
+
+def _track(resp, family):
     """Add token counts from a Claude response to this run's totals."""
-    global _run_input_tokens, _run_output_tokens
-    if hasattr(resp, 'usage') and resp.usage:
-        _run_input_tokens  += getattr(resp.usage, 'input_tokens',  0)
-        _run_output_tokens += getattr(resp.usage, 'output_tokens', 0)
+    global _run_haiku_input_tokens, _run_haiku_output_tokens
+    global _run_opus_input_tokens, _run_opus_output_tokens
+    if not hasattr(resp, 'usage') or not resp.usage:
+        return
+    input_tokens = getattr(resp.usage, 'input_tokens', 0)
+    output_tokens = getattr(resp.usage, 'output_tokens', 0)
+    if family == "haiku":
+        _run_haiku_input_tokens += input_tokens
+        _run_haiku_output_tokens += output_tokens
+    else:
+        _run_opus_input_tokens += input_tokens
+        _run_opus_output_tokens += output_tokens
+
+
+def run_cost_usd(extra_haiku_in=0, extra_haiku_out=0, extra_opus_in=0, extra_opus_out=0):
+    return (
+        ((_run_haiku_input_tokens + extra_haiku_in) / 1_000_000 * HAIKU_INPUT_PER_M) +
+        ((_run_haiku_output_tokens + extra_haiku_out) / 1_000_000 * HAIKU_OUTPUT_PER_M) +
+        ((_run_opus_input_tokens + extra_opus_in) / 1_000_000 * OPUS_INPUT_PER_M) +
+        ((_run_opus_output_tokens + extra_opus_out) / 1_000_000 * OPUS_OUTPUT_PER_M)
+    )
 
 # Stages that are "terminal" — don't analyze or move these
 TERMINAL_STAGES = {"done", "paid-out", "dead-leads"}
@@ -93,7 +114,7 @@ def fetch_active_cards():
             f"{SUPABASE_URL}/rest/v1/cards"
             f"?select=id,title,contact_name,business_name,list_id,priority,"
             f"estimated_value,intent,description,email_thread,draft_reply,"
-            f"draft_reply_status,labels,activity,email_id"
+            f"draft_reply_status,labels,activity,email_id,created_at,moved_at,new_reply_at"
             f"&list_id=not.in.({terminal_filter})"
             f"&limit=1000&offset={offset}",
             headers=hdrs(), timeout=30,
@@ -138,6 +159,65 @@ def patch_card(card_id, data):
         headers=hdrs(), json=data, timeout=15,
     )
     return r.status_code in (200, 204)
+
+
+def latest_thread_timestamp(card):
+    thread = card.get("email_thread") or []
+    if isinstance(thread, str):
+        try:
+            thread = json.loads(thread)
+        except Exception:
+            thread = []
+    stamps = []
+    for msg in thread:
+        raw = msg.get("date_iso") or msg.get("date") or msg.get("when") or ""
+        if not raw:
+            continue
+        try:
+            stamps.append(datetime.fromisoformat(str(raw).replace("Z", "+00:00")).timestamp())
+        except Exception:
+            try:
+                stamps.append(datetime.strptime(str(raw), "%a, %b %d, %Y, %I:%M %p").timestamp())
+            except Exception:
+                continue
+    if stamps:
+        return max(stamps)
+    fallback = card.get("moved_at") or card.get("created_at") or card.get("new_reply_at") or ""
+    if fallback:
+        try:
+            return datetime.fromisoformat(str(fallback).replace("Z", "+00:00")).timestamp()
+        except Exception:
+            return None
+    return None
+
+
+def auto_trash_stale_cards(cards):
+    """Persist stale cards to trash so the frontend does not fake-hide them."""
+    stale = []
+    keep = []
+    now_ts = datetime.now(timezone.utc).timestamp()
+    for card in cards:
+        stage = card.get("list_id") or "new"
+        if stage in TERMINAL_STAGES or stage == "trash":
+            continue
+        latest_ts = latest_thread_timestamp(card)
+        if latest_ts is None:
+            keep.append(card)
+            continue
+        age_days = (now_ts - latest_ts) / 86400
+        if age_days > 50:
+            stale.append(card)
+        else:
+            keep.append(card)
+
+    trashed = []
+    for card in stale:
+        if DRY_RUN or patch_card(card["id"], {
+            "list_id": "trash",
+            "moved_at": datetime.now(timezone.utc).isoformat(),
+        }):
+            trashed.append(card)
+    return keep, trashed
 
 
 def send_telegram(msg):
@@ -222,11 +302,11 @@ def analyze_stage(card, client):
 
     try:
         resp = client.messages.create(
-            model="claude-opus-4-6",
+            model="claude-haiku-4-5-20251001",
             max_tokens=256,
             messages=[{"role": "user", "content": STAGE_PROMPT + context}],
         )
-        _track(resp)
+        _track(resp, "haiku")
         text = resp.content[0].text.strip()
         if "```" in text:
             for part in text.split("```"):
@@ -367,7 +447,7 @@ def draft_reply(card, reply_type, client):
             max_tokens=512,
             messages=[{"role": "user", "content": context}],
         )
-        _track(resp)
+        _track(resp, "opus")
         body = resp.content[0].text.strip()
 
         # Ensure correct signature is present
@@ -588,15 +668,27 @@ def main():
 
     print("Fetching active deal cards...")
     cards = fetch_active_cards()
-    print(f"Found {len(cards)} active deal cards to analyze.\n")
+    print(f"Found {len(cards)} active deal cards before stale cleanup.\n")
 
     client = anthropic.Anthropic(api_key=ANTHROPIC_KEY)
+
+    cards, auto_trashed = auto_trash_stale_cards(cards)
+    if auto_trashed:
+        print(f"Auto-trashed {len(auto_trashed)} stale card(s) older than 50 days.")
+    print(f"Analyzing {len(cards)} active deal cards after stale cleanup.\n")
 
     moved       = []
     drafted     = []
     errors      = []
+    budget_hit  = False
+    analyzed_count = 0
 
     for i, card in enumerate(cards):
+        if PIPELINE_MAX_COST_USD > 0 and run_cost_usd() >= PIPELINE_MAX_COST_USD:
+            budget_hit = True
+            print(f"\nBudget cap reached at ${run_cost_usd():.4f}. Stopping before remaining cards.")
+            break
+        analyzed_count += 1
         cid   = card["id"]
         name  = card.get("contact_name") or "?"
         biz   = card.get("business_name") or "?"
@@ -666,19 +758,25 @@ def main():
     print(f"\n{'='*62}")
     print(f"  SUMMARY")
     print(f"{'='*62}")
-    print(f"  Cards analyzed:    {len(cards)}")
+    print(f"  Cards analyzed:    {analyzed_count}")
     print(f"  Stage moves:       {len(moved)}")
     print(f"  Replies drafted:   {len(drafted)}")
+    print(f"  Auto-trashed:      {len(auto_trashed)}")
     print(f"  Dupes merged:      {dedup_merged}")
     print(f"  Errors:            {len(errors)}")
-    run_cost  = (_run_input_tokens / 1_000_000 * PRICE_INPUT_PER_M) + (_run_output_tokens / 1_000_000 * PRICE_OUTPUT_PER_M)
-    run_cost += (h_in / 1_000_000 * HAIKU_INPUT_PER_M) + (h_out / 1_000_000 * HAIKU_OUTPUT_PER_M)
-    print(f"  Tokens this run:   {_run_input_tokens:,} in / {_run_output_tokens:,} out  (≈ ${run_cost:.4f})")
+    run_cost = run_cost_usd(extra_haiku_in=h_in, extra_haiku_out=h_out)
+    total_in = _run_haiku_input_tokens + _run_opus_input_tokens + h_in
+    total_out = _run_haiku_output_tokens + _run_opus_output_tokens + h_out
+    print(f"  Tokens this run:   {total_in:,} in / {total_out:,} out  (≈ ${run_cost:.4f})")
+    print(f"  Haiku usage:       {_run_haiku_input_tokens + h_in:,} in / {_run_haiku_output_tokens + h_out:,} out")
+    print(f"  Opus usage:        {_run_opus_input_tokens:,} in / {_run_opus_output_tokens:,} out")
+    if budget_hit:
+        print(f"  Budget cap:        hit (${PIPELINE_MAX_COST_USD:.2f})")
     if DRY_RUN:
         print(f"\n  DRY RUN — no changes written.")
 
     # Flush token usage to Supabase
-    if not DRY_RUN and (_run_input_tokens or _run_output_tokens):
+    if not DRY_RUN and (total_in or total_out):
         try:
             import json as _json
             existing = httpx.get(
@@ -691,8 +789,12 @@ def main():
                 stats = _json.loads(raw) if raw and raw.strip().startswith("{") else {}
             except Exception:
                 stats = {}
-            stats["pipeline_input_tokens"]  = stats.get("pipeline_input_tokens",  0) + _run_input_tokens
-            stats["pipeline_output_tokens"] = stats.get("pipeline_output_tokens", 0) + _run_output_tokens
+            stats["pipeline_input_tokens"]  = stats.get("pipeline_input_tokens",  0) + total_in
+            stats["pipeline_output_tokens"] = stats.get("pipeline_output_tokens", 0) + total_out
+            stats["pipeline_haiku_input_tokens"] = stats.get("pipeline_haiku_input_tokens", 0) + _run_haiku_input_tokens + h_in
+            stats["pipeline_haiku_output_tokens"] = stats.get("pipeline_haiku_output_tokens", 0) + _run_haiku_output_tokens + h_out
+            stats["pipeline_opus_input_tokens"] = stats.get("pipeline_opus_input_tokens", 0) + _run_opus_input_tokens
+            stats["pipeline_opus_output_tokens"] = stats.get("pipeline_opus_output_tokens", 0) + _run_opus_output_tokens
             stats["pipeline_runs"]          = stats.get("pipeline_runs", 0) + 1
             stats["last_run"]               = datetime.now(timezone.utc).isoformat()
             # UPSERT: creates the row if it doesn't exist, updates if it does
@@ -703,13 +805,13 @@ def main():
                 json={"id": "usage_stats", "anthropic_key": _json.dumps(stats)},
                 timeout=10
             )
-            print(f"  Usage logged to Supabase ({_run_input_tokens:,} in / {_run_output_tokens:,} out).")
+            print(f"  Usage logged to Supabase ({total_in:,} in / {total_out:,} out).")
         except Exception as e:
             print(f"  ⚠ Could not log usage: {e}")
 
     # Telegram
     tg_lines = [f"🤖 <b>UNALIGNED Daily Pipeline</b> — {datetime.now().strftime('%b %d')}"]
-    tg_lines.append(f"📊 {len(cards)} deals analyzed")
+    tg_lines.append(f"📊 {analyzed_count} deals analyzed")
     if moved:
         tg_lines.append(f"\n<b>Stage moves ({len(moved)}):</b>")
         for m in moved[:8]:
@@ -718,10 +820,14 @@ def main():
         tg_lines.append(f"\n<b>Replies queued for approval ({len(drafted)}):</b>")
         for d in drafted[:8]:
             tg_lines.append(f"  ✉ {d}")
+    if auto_trashed:
+        tg_lines.append(f"\n🗑 {len(auto_trashed)} stale lead(s) moved to trash")
     if dedup_merged:
         tg_lines.append(f"\n🔀 {dedup_merged} duplicate card(s) merged")
     if errors:
         tg_lines.append(f"\n⚠ {len(errors)} errors")
+    if budget_hit:
+        tg_lines.append(f"\n💸 Budget cap hit at ${PIPELINE_MAX_COST_USD:.2f}")
     send_telegram("\n".join(tg_lines))
 
     print(f"{'='*62}\n")

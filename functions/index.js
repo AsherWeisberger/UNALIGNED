@@ -11,7 +11,6 @@ const SENDERS = {
     id: 'robert',
     name: 'Robert Scoble',
     email: 'scobleizer@gmail.com',
-    type: 'gmail_oauth',
     secretDoc: 'gmail_oauth',
     fallbackSecretDoc: 'robert_gmail',
   },
@@ -19,14 +18,12 @@ const SENDERS = {
     id: 'sam',
     name: 'Sam Levin',
     email: 'UnalignedX@gmail.com',
-    type: 'smtp',
     secretDoc: 'sam_gmail',
   },
   asher: {
     id: 'asher',
     name: 'Asher',
     email: 'AsherUnaligned@gmail.com',
-    type: 'smtp',
     secretDoc: 'asher_gmail',
   },
 };
@@ -56,19 +53,21 @@ async function getRobertGmailAuth() {
   return cachedRobertAuth;
 }
 
-async function sendViaRobert(to, subject, body, cc, attachments, threadId, replyHeaders) {
+async function sendViaGmail(sender, to, subject, body, cc, attachments, threadId, replyHeaders) {
   try {
     const auth = await getRobertGmailAuth();
     const gmail = google.gmail({ version: 'v1', auth });
-    const raw = makeMime(to, cc, subject, body, SENDERS.robert, attachments, replyHeaders);
+    const raw = makeMime(to, cc, subject, body, sender, attachments, replyHeaders);
     const result = await gmail.users.messages.send({
       userId: 'me',
       resource: threadId ? { ...raw, threadId } : raw,
     });
     return result.data.id;
   } catch (err) {
-    console.warn('Robert OAuth send failed, falling back to SMTP:', err.message);
-    return sendViaSmtp({ ...SENDERS.robert, type: 'smtp', secretDoc: SENDERS.robert.fallbackSecretDoc }, to, subject, body, cc, attachments, replyHeaders);
+    console.warn(`Gmail OAuth send failed for ${sender.id}:`, err.message);
+    const fallbackDoc = sender.fallbackSecretDoc || sender.secretDoc;
+    if (!fallbackDoc) throw err;
+    return sendViaSmtp({ ...sender, secretDoc: fallbackDoc }, to, subject, body, cc, attachments, replyHeaders);
   }
 }
 
@@ -308,11 +307,7 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
       }
     }
 
-    if (sender.type === 'smtp') {
-      messageId = await sendViaSmtp(sender, to, subject, body, ccList, attachments, replyHeaders);
-    } else {
-      messageId = await sendViaRobert(to, subject, body, ccList, attachments, threadId, replyHeaders);
-    }
+    messageId = await sendViaGmail(sender, to, subject, body, ccList, attachments, threadId, replyHeaders);
 
     res.json({ success: true, messageId, from: sender.id, threadId: threadId || null });
   } catch (err) {
