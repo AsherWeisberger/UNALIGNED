@@ -70,6 +70,12 @@ NON_BUSINESS_SIGNALS = (
     "how are you",
 )
 
+GROUP_CHAT_SIGNALS = (
+    " sent a post",
+    " reacted ",
+    "screenshots protected",
+)
+
 MONTHS = {
     "jan": 1,
     "feb": 2,
@@ -341,6 +347,22 @@ def inbox_signature(candidate: dict) -> str:
     )
 
 
+def is_group_chat_candidate(candidate: dict) -> bool:
+    url = thread_url_key(candidate.get("url") or "")
+    text = " ".join(
+        [
+            candidate.get("title") or "",
+            candidate.get("preview") or "",
+        ]
+    ).lower()
+
+    if "/i/chat/g" in url:
+        return True
+    if any(signal in text for signal in GROUP_CHAT_SIGNALS):
+        return True
+    return False
+
+
 def is_business_candidate(candidate: dict, thread: dict | None = None) -> bool:
     text_parts = [
         candidate.get("title") or "",
@@ -488,6 +510,30 @@ def main() -> None:
             candidate["parsedDate"] = parse_inbox_timestamp(candidate.get("timestamp") or "", today)
             signature = inbox_signature(candidate)
             prior = processed_threads.get(url)
+
+            if is_group_chat_candidate(candidate):
+                processed_threads[url] = {
+                    "title": candidate.get("title") or "",
+                    "timestamp": candidate.get("timestamp") or "",
+                    "parsed_date": candidate.get("parsedDate"),
+                    "preview": candidate.get("preview") or "",
+                    "inbox_signature": signature,
+                    "processed_at": now_iso(),
+                    "business_candidate": False,
+                    "skipped_as": "group_chat",
+                    "message_count": 0,
+                }
+                irrelevant_streak += 1
+                print(
+                    f"[{inspected}] {candidate.get('title') or 'Untitled'} | "
+                    f"{candidate.get('timestamp') or 'no-time'} | group-skip",
+                    flush=True,
+                )
+                if irrelevant_streak >= args.max_irrelevant_streak:
+                    stop_reason = "irrelevant_streak"
+                    stop_signature = signature
+                    break
+                continue
 
             if prior and prior.get("inbox_signature") == signature:
                 known_streak += 1
