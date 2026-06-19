@@ -106,9 +106,10 @@ INBOX_EXTRACT_JS = r"""
       return href;
     }
   };
-  const links = Array.from(document.querySelectorAll('a[href*="/messages/"]'));
+  const links = Array.from(document.querySelectorAll('a[href*="/i/chat/"], a[href*="/messages/"]'));
   const seen = new Set();
   const rows = [];
+  const timeRe = /(\d{1,2}:\d{2}\s*(AM|PM))|(\d+\s*[smhdw])|([A-Z][a-z]{2}\s+\d{1,2})|((Mon|Tue|Wed|Thu|Fri|Sat|Sun))/i;
 
   for (const link of links) {
     const href = normalize(link.getAttribute('href'));
@@ -119,13 +120,23 @@ INBOX_EXTRACT_JS = r"""
     if (rect.bottom < 0 || rect.top > window.innerHeight) continue;
     if (rect.width < 120 || rect.height < 24) continue;
 
-    const text = clean(link.innerText || '');
+    const text = clean(link.textContent || link.innerText || '');
     if (!text) continue;
 
     const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
-    const title = lines[0] || '';
-    const timestamp = lines.find(line => /(\d{1,2}:\d{2}\s*(AM|PM))|(\d+\s*[smhdw])|([A-Z][a-z]{2}\s+\d{1,2})|^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)$/i.test(line)) || '';
-    const preview = lines.slice(1).join(' ');
+    let title = lines[0] || '';
+    let timestamp = lines.find(line => timeRe.test(line)) || '';
+    let preview = lines.slice(1).join(' ');
+
+    if (!timestamp) {
+      const match = text.match(timeRe);
+      if (match) {
+        timestamp = match[0];
+        const idx = text.indexOf(timestamp);
+        title = clean(text.slice(0, idx)) || title;
+        preview = clean(text.slice(idx + timestamp.length)) || preview;
+      }
+    }
 
     seen.add(href);
     rows.push({
@@ -450,7 +461,7 @@ def main() -> None:
     processed_threads = state["processed_threads"]
     today = datetime.now()
 
-    open_url(inbox_tab, "https://x.com/messages", args.wait)
+    open_url(inbox_tab, "https://x.com/i/chat", args.wait)
 
     seen_candidates: set[str] = set()
     scraped_new_threads: list[dict] = []
