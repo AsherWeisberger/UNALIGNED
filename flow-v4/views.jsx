@@ -387,6 +387,25 @@ const V4_INVOICE_GROUPS = [
         note: 'New Stripe invoices live here. Legacy manual invoices from your folders stay in their own buckets below.',
         items: [
           {
+            id: 'stripe-in1timqck0weauaymjabporweh',
+            title: 'Annika Wang',
+            company: 'annika.wang@hockeystick.io',
+            folder: 'STRIPE / OPEN',
+            source: 'Stripe',
+            sourceDir: 'STRIPE',
+            file: 'LIS6UY6W-0001',
+            href: 'https://dashboard.stripe.com/invoices/in_1TimqCK0WeauAYMJABpOrweH',
+            kind: 'STRIPE',
+            stripeStatus: 'open',
+            stripePaid: false,
+            stripeAmountDue: 10000.0,
+            stripeAmountPaid: 0.0,
+            stripeCurrency: 'USD',
+            stripeDashboardUrl: 'https://dashboard.stripe.com/invoices/in_1TimqCK0WeauAYMJABpOrweH',
+            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaURHYmRwNmJuODJLem9yTUVWd3FOYnZHRGgwTzhmLDE3MjMyNDgxNg0200Darc3ihX?s=ap',
+            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaURHYmRwNmJuODJLem9yTUVWd3FOYnZHRGgwTzhmLDE3MjMyNDgxNg0200Darc3ihX/pdf?s=ap',
+          },
+          {
             id: 'stripe-in1thwn2k0weauaymjfm1x0dpg',
             title: 'Judy — Echon Labs',
             company: 'collab@echonlab.com',
@@ -402,8 +421,109 @@ const V4_INVOICE_GROUPS = [
             stripeAmountPaid: 0.0,
             stripeCurrency: 'USD',
             stripeDashboardUrl: 'https://dashboard.stripe.com/invoices/in_1ThwN2K0WeauAYMJFm1x0dPG',
-            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MTk5ODgyNg0200a3EZm0QM?s=ap',
-            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MTk5ODgyNg0200a3EZm0QM/pdf?s=ap',
+            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MjMyNDgxNg02003o83pGq3?s=ap',
+            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MjMyNDgxNg02003o83pGq3/pdf?s=ap',
+          },
+          {
+            id: 'stripe-in1tic8ek0weauaymjz0v1f90g',
+            title: 'Sean Kim x EASTWORLD',
+            company: 'sean@virtuals.io',
+            folder: 'STRIPE / OPEN',
+            source: 'Stripe',
+            sourceDir: 'STRIPE',
+            file: 'WYB8J2D8-0001',
+            href: 'https://dashboard.stripe.com/invoices/in_1Tic8eK0WeauAYMJZ0v1f90G',
+            kind: 'STRIPE',
+            stripeStatus: 'open',
+            stripePaid: false,
+            stripeAmountDue: 2055.0,
+            stripeAmountPaid: 0.0,
+            stripeCurrency: 'USD',
+            stripeDashboardUrl: 'https://dashboard.stripe.com/invoices/in_1Tic8eK0WeauAYMJZ0v1f90G',
+            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaTJEbTlWd3NYV3JMVGZzQ2s4OUFMM3dHM2RuVDR0LDE3MjMyNDgxNg0200mLmql2Zu?s=ap',
+            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaTJEbTlWd3NYV3JMVGZzQ2s4OUFMM3dHM2RuVDR0LDE3MjMyNDgxNg0200mLmql2Zu/pdf?s=ap',
+          },
+        ],
+      },
+      {
+        label: 'Open outstanding',
+        note: 'Active invoices still waiting on payment.',
+        items: [
+          {
+            id: 'invoice-echonlab-mainecoon-061626',
+            title: 'EchonLab',
+            company: 'MaineCoon',
+            folder: 'OUTSTANDING / OPEN OUTSTANDING',
+            source: 'Manual',
+            sourceDir: 'OUTSTANDING',
+            file: 'invoice_EchonLab_MaineCoon_061626.pdf',
+            href: 'flow-v4/assets/invoices/outstanding/invoice_EchonLab_MaineCoon_061626.pdf',
+            kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeDashboardUrl: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
+          },
+          {
+            id: 'invoice-hockeystickgrowth-acl2026-firstpayment-062026',
+            title: 'HockeyStickGrowth',
+            company: 'ACL2026 FirstPayment',
+            folder: 'OUTSTANDING / OPEN OUTSTANDING',
+            source: 'Manual',
+            sourceDir: 'OUTSTANDING',
+            file: 'invoice_HockeyStickGrowth_ACL2026_FirstPayment_062026.pdf',
+            href: 'flow-v4/assets/invoices/outstanding/invoice_HockeyStickGrowth_ACL2026_FirstPayment_062026.pdf',
+            kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeDashboardUrl: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
+          },
+          {
+            id: 'invoice-jay-riversideinterview-061526',
+            title: 'Jay',
+            company: 'RiversideInterview',
+            folder: 'OUTSTANDING / OPEN OUTSTANDING',
+            source: 'Manual',
+            sourceDir: 'OUTSTANDING',
+            file: 'invoice_Jay_RiversideInterview_061526.pdf',
+            href: 'flow-v4/assets/invoices/outstanding/invoice_Jay_RiversideInterview_061526.pdf',
+            kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeDashboardUrl: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
+          },
+          {
+            id: 'invoice-omane-nitrosend-061726',
+            title: 'Omane',
+            company: 'NitroSend',
+            folder: 'OUTSTANDING / OPEN OUTSTANDING',
+            source: 'Manual',
+            sourceDir: 'OUTSTANDING',
+            file: 'invoice_Omane_NitroSend_061726.pdf',
+            href: 'flow-v4/assets/invoices/outstanding/invoice_Omane_NitroSend_061726.pdf',
+            kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeDashboardUrl: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
           },
         ],
       },
@@ -1886,6 +2006,23 @@ function V4SplitGist(text) {
   return { gist: s, detail: '' };
 }
 
+function V4NewLeadHasPricingSignal(lead) {
+  const text = [
+    lead?.notes,
+    lead?.evidence,
+    lead?.deliverables,
+    lead?.nextMove?.text,
+    lead?.thread?.[0]?.subject,
+    lead?.thread?.[0]?.body,
+  ].filter(Boolean).join(' ');
+  return /\b(rate|pricing|budget|quote|quoted|paid|payment|invoice|sponsor|sponsorship|deliverable|package|repost)\b/i.test(text);
+}
+
+function V4NewLeadWorkflowLabel(lead) {
+  if (V4NewLeadHasPricingSignal(lead)) return 'Route to pricing';
+  return 'Route to scope';
+}
+
 function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
   const q = String(query || '').trim();
   const [sourceTab, setSourceTab] = React.useState('gmail');
@@ -1916,6 +2053,7 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
     total: reviewLeads.length,
     needsReply: reviewLeads.filter(l => l.needsReply).length,
     pricing: reviewLeads.filter(l => /rate|pricing|paid|sponsor|quote|repost/i.test([l.notes, l.evidence, l.nextMove?.text].join(' '))).length,
+    scope: reviewLeads.filter(l => !V4NewLeadHasPricingSignal(l)).length,
     gmail: reviewLeads.filter(l => (window.V3.NewLeadSourceKind ? window.V3.NewLeadSourceKind(l) : 'gmail') === 'gmail').length,
     x: reviewLeads.filter(l => (window.V3.NewLeadSourceKind ? window.V3.NewLeadSourceKind(l) : 'gmail') === 'x').length,
     trash: trashLeads.length,
@@ -1955,11 +2093,12 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
         <div>
           <div className="page-eyebrow">Robert + Asher intake</div>
           <h1 className="page-title">New Leads</h1>
-          <div className="page-sub">A clean intake queue for Robert Gmail and X leads, sorted newest to oldest before they enter the active board.</div>
+          <div className="page-sub">A clean intake queue for Robert Gmail and Robert X leads, sorted newest to oldest before they enter the active board.</div>
         </div>
         <div className="invoice-stats">
           <span className="invoice-stat warn">{counts.needsReply} need reply</span>
-          <span className="invoice-stat good">{counts.pricing} pricing signal</span>
+          <span className="invoice-stat good">{counts.scope} route to scope</span>
+          <span className="invoice-stat total">{counts.pricing} route to pricing</span>
           <span className="invoice-stat total">{counts.gmail} gmail</span>
           <span className="invoice-stat total">{counts.x} x</span>
           <span className="invoice-stat total">{counts.total} total</span>
@@ -2010,6 +2149,8 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
               const brandRaw = String(lead.brand || '').trim();
               const isPlaceholderBrand = /^(gmail|x|x lead|unknown.*)$/i.test(brandRaw);
               const metaBrand = brandRaw && !isPlaceholderBrand && brandRaw.toLowerCase() !== String(identity || '').trim().toLowerCase() ? lead.brand : '';
+              const hasPricingSignal = V4NewLeadHasPricingSignal(lead);
+              const workflowLabel = V4NewLeadWorkflowLabel(lead);
               const xSecondary = [handle, lead.email || '', metaBrand].filter(Boolean);
               const gmailSecondary = [lead.email || '', metaBrand].filter(Boolean);
               return (
@@ -2039,6 +2180,7 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
                       </div>
                       <div className="new-lead-reason-row">
                         <span className="new-lead-reason">{reason}</span>
+                        <span className={'new-lead-workflow-chip' + (hasPricingSignal ? ' is-pricing' : ' is-scope')}>{workflowLabel}</span>
                         {kind === 'x' && lead.xMessageCount ? <span>{lead.xMessageCount} messages</span> : null}
                       </div>
                       {summaryGist ? (
@@ -2076,9 +2218,13 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
                       </button>
                     ) : (
                       <>
-                        <button type="button" className="btn btn-sm btn-accent" onClick={() => moveLead(lead, 'first-touch')}>
+                        <button type="button" className="btn btn-sm btn-ghost" onClick={() => moveLead(lead, 'first-touch')}>
                           <V3Icon name="plus" w={12} />
-                          Add to Board
+                          Scope
+                        </button>
+                        <button type="button" className="btn btn-sm btn-accent" onClick={() => moveLead(lead, hasPricingSignal ? 'rates-sent' : 'engaged')}>
+                          <V3Icon name="plus" w={12} />
+                          {hasPricingSignal ? 'Pricing' : 'Qualify'}
                         </button>
                         <button type="button" className="btn btn-sm btn-danger" onClick={() => moveLead(lead, 'trash')}>
                           <V3Icon name="trash" w={12} />
@@ -2100,7 +2246,7 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
               ? 'Leads you trash land here and stay out of the scrape. Restore one to send it back to its queue.'
               : (sourceTab === 'x'
                 ? 'The X scraper lane is ready. New X leads will appear here as they sync in.'
-                : 'Fresh Robert and Asher Gmail leads will appear here before they enter the board.')}
+                : 'Fresh Robert Gmail leads will appear here before they enter the board.')}
           />
         )}
       </div>

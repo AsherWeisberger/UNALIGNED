@@ -2,10 +2,11 @@
 
 const V3_SUPABASE_URL = "https://hbnpwphxjurvtydezwgh.supabase.co";
 const V3_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhibnB3cGh4anVydnR5ZGV6d2doIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MTQ1MzIsImV4cCI6MjA5MDk5MDUzMn0.p5E48__GlGqjC17Z28q8fYFK-qV8CmiidYIP02vGe4s";
+const V3_MIN_VISIBLE_TS = Date.parse('2026-01-01T00:00:00Z');
 
 async function V3LoadXDmIntakeRows() {
   try {
-    const res = await fetch('flow-v4/assets/x_dm_daily_intake.json?v=20260614-new-leads-sources-1');
+    const res = await fetch('flow-v4/assets/x_dm_daily_intake.json?v=20260618-company-os-cleanup-3');
     if (!res.ok) throw new Error('X intake ' + res.status);
     const rows = await res.json();
     return Array.isArray(rows) ? rows : [];
@@ -53,13 +54,13 @@ async function V3LoadSupabaseLeads() {
     if (!prev || scoreRow(row) > scoreRow(prev)) canonical.set(key, row);
   }
 
-  const leads = [...canonical.values()].map(V3NormalizeSupabaseLead);
+  const leads = V3FilterVisibleLeads([...canonical.values()].map(V3NormalizeSupabaseLead));
   const xRows = await V3LoadXDmIntakeRows();
-  leads.push(...V3NormalizeXDmLeads(xRows, leads));
+  leads.push(...V3FilterVisibleLeads(V3NormalizeXDmLeads(xRows, leads)));
   if (!leads.some(lead => String(lead.email || '').trim().toLowerCase() === 'jocelyn.cruz@hockeystick.io')) {
     leads.push(V3HockeystickFallbackLead());
   }
-  return leads;
+  return V3FilterVisibleLeads(leads);
 }
 
 function V3NormalizeEmailLeadStage(email, rawStage) {
@@ -93,6 +94,12 @@ function V3ParseBriefDescription(value) {
   } catch (e) {
     return { body: value };
   }
+}
+
+function V3ParseOperatorMemory(value) {
+  const payload = V3ParseBriefDescription(value);
+  const memory = payload && typeof payload === 'object' ? payload.operator_memory : null;
+  return memory && typeof memory === 'object' ? memory : null;
 }
 
 function V3NormalizeRobertBriefRow(row) {
@@ -183,12 +190,14 @@ function V3NormalizeSupabaseLead(row) {
   const closedStage = V3NormalizeEmailLeadStage(row.email, rawStage);
   const stage = (activityDays > 50 && !['paid-out', 'done', 'trash'].includes(closedStage)) ? 'trash' : closedStage;
   const daysInStage = V3DaysSince(row.moved_at || received);
-  const needsReply = Boolean(row.new_reply_at) || row.draft_reply_status === 'pending' || stage === 'new';
+  const followUpDue = V3LeadFollowUpDue(row, thread, stage, activityDays);
+  const needsReply = Boolean(row.new_reply_at) || row.draft_reply_status === 'pending' || stage === 'new' || followUpDue;
   const ownerId = V3NormalizeOwner(row.assignee || row.created_by);
   const value = V3ParseMoney(row.estimated_value);
   const category = V3CategoryFromRow(row);
   const timelineDays = V3TimelineDaysFromRow(row);
   const briefPayload = V3ParseBriefDescription(row.description);
+  const operatorMemory = V3ParseOperatorMemory(row.description);
   const isRobertBrief = V3IsRobertBriefRow(row) || briefPayload.kind === 'official-posting' || briefPayload.type === 'official-posting';
   const leadSource = row.lead_source || (row.gmail_thread_id ? 'Gmail' : 'Manual');
   return {
@@ -203,6 +212,7 @@ function V3NormalizeSupabaseLead(row) {
     category,
     daysInStage,
     activityDays,
+    followUpDue,
     timelineDays,
     lastTouch: V3RelativeTime(lastTouchAt || row.moved_at || received),
     lastTouchAt: lastTouchAt || row.moved_at || received || null,
@@ -214,6 +224,11 @@ function V3NormalizeSupabaseLead(row) {
     gmailThreadId: row.gmail_thread_id || '',
     draftReply: V3ParseDraftReply(row.draft_reply),
     draftReplyStatus: row.draft_reply_status || '',
+    operatorMemory,
+    operatorSummary: operatorMemory?.summary || null,
+    operatorAnalysis: operatorMemory?.analysis || null,
+    operatorEscalation: Array.isArray(operatorMemory?.escalation) ? operatorMemory.escalation : [],
+    operatorUpdatedAt: operatorMemory?.updated_at || null,
     rowId: row.id,
     source: leadSource,
     rawDescription: row.description || '',
@@ -254,6 +269,30 @@ function V3ParseDraftReply(value) {
   } catch (e) {
     return { subject: '', body: value };
   }
+}
+
+function V3IsTeamParticipant(value) {
+  const text = String(value || '').toLowerCase();
+  return [
+    'scobleizer@gmail.com',
+    'asherunaligned@gmail.com',
+    'unalignedx@gmail.com',
+    'samlevin@mac.com',
+    'sam levin',
+    'robert scoble',
+    'asher weisberger',
+    'unaligned',
+  ].some(marker => text.includes(marker));
+}
+
+function V3LeadFollowUpDue(row, thread, stage, activityDays) {
+  if (!row || !Array.isArray(thread) || !thread.length) return false;
+  if (['trash', 'dead-leads', 'paid-out'].includes(stage)) return false;
+  if (row.new_reply_at) return false;
+  if ((row.draft_reply_status || '').toLowerCase() === 'pending') return false;
+  const latest = thread[thread.length - 1];
+  if (!latest || !V3IsTeamParticipant(latest.from)) return false;
+  return Number(activityDays || 0) >= 2;
 }
 
 function V3NormalizeStage(stage) {
@@ -306,6 +345,60 @@ function V3NormalizeDateForUi(value) {
   if (!raw) return null;
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw + 'T12:00:00';
   return raw;
+}
+
+function V3DateIsVisible(value) {
+  const t = V3TimestampForUi(value);
+  return !t || t >= V3_MIN_VISIBLE_TS;
+}
+
+function V3LeadDatedValues(lead) {
+  return [
+    lead?.receivedAt,
+    lead?.lastTouchAt,
+    lead?.briefSentAt,
+    ...(Array.isArray(lead?.thread) ? lead.thread.map(msg => msg?.date || msg?.dateIso || msg?.timestamp || msg?.when) : []),
+  ]
+    .map(V3TimestampForUi)
+    .filter(t => Number.isFinite(t) && t > 0);
+}
+
+function V3PruneLeadForVisibleRange(lead) {
+  if (!lead) return null;
+  const dated = V3LeadDatedValues(lead);
+  if (dated.length && Math.max(...dated) < V3_MIN_VISIBLE_TS) return null;
+
+  const next = { ...lead };
+  if (Array.isArray(lead.thread)) {
+    next.thread = lead.thread.filter(msg => V3DateIsVisible(msg?.date || msg?.dateIso || msg?.timestamp || msg?.when));
+  }
+
+  const threadDates = (next.thread || [])
+    .map(msg => V3NormalizeDateForUi(msg?.date || msg?.dateIso || msg?.timestamp || msg?.when))
+    .filter(Boolean);
+  if (threadDates.length) {
+    const sorted = threadDates.slice().sort((a, b) => V3TimestampForUi(a) - V3TimestampForUi(b));
+    if (!V3DateIsVisible(next.receivedAt)) next.receivedAt = sorted[0];
+    next.lastTouchAt = sorted[sorted.length - 1];
+  } else {
+    if (!V3DateIsVisible(next.receivedAt)) next.receivedAt = null;
+    if (!V3DateIsVisible(next.lastTouchAt)) next.lastTouchAt = next.receivedAt || null;
+  }
+
+  if (!V3DateIsVisible(next.briefSentAt)) next.briefSentAt = '';
+  next.lastTouch = next.lastTouchAt ? V3RelativeTime(next.lastTouchAt) : '';
+  if (next.lastTouchAt) next.activityDays = V3DaysSince(next.lastTouchAt);
+  return next;
+}
+
+function V3FilterVisibleLeads(leads) {
+  return (Array.isArray(leads) ? leads : [])
+    .map(V3PruneLeadForVisibleRange)
+    .filter(Boolean);
+}
+
+function V3FilterVisibleBriefs(briefs) {
+  return (Array.isArray(briefs) ? briefs : []).filter(brief => V3DateIsVisible(brief?.sentAt));
 }
 
 function V3LeadIdentityKey(value) {
@@ -530,6 +623,13 @@ function V3NextMoveFromRow(stage, name, owner, needsReply, row) {
   const first = String(name).split(' ')[0] || 'Lead';
   if (row.new_reply_at) return { who: owner, text: 'Reply to ' + first + ' - new message in thread', action: 'Reply' };
   if (row.draft_reply) return { who: owner, text: 'Review drafted reply for ' + first, action: 'Review' };
+  if (V3LeadFollowUpDue(row, Array.isArray(row.email_thread) ? row.email_thread : (Array.isArray(row.original_email) ? row.original_email : []), stage, V3DaysSince(V3LatestThreadDate(Array.isArray(row.email_thread) ? row.email_thread : (Array.isArray(row.original_email) ? row.original_email : [])) || row.moved_at || row.date_received_iso || row.created_at))) {
+    return {
+      who: owner || (stage === 'negotiating' || stage === 'invoice-sent' ? 'asher' : 'sammy'),
+      text: 'Follow up with ' + first + ' - no movement in 2d',
+      action: 'Nudge',
+    };
+  }
   return __v3NextMove(stage, name, owner, needsReply);
 }
 
@@ -873,22 +973,80 @@ function V3LeadMatchesQuery(lead, query) {
 
 function V3IsNewLeadReview(lead) {
   if (!lead || lead.isRobertBrief) return false;
-  const source = String(lead.source || '').toLowerCase();
-  const reviewSource =
-    source.includes('x-dm-intake') ||
-    source.includes('gmail-codex-new-lead') ||
-    source.includes('gmail-robert') ||
-    source.includes('robert') ||
-    source.includes('gmail-asher') ||
-    source.includes('asherunaligned') ||
-    source.includes('ingest-twitter_dm');
-  return lead.stage === 'new' && (reviewSource || lead.ownerId === 'robert');
+  const sourceKind = V3NewLeadSourceKind(lead);
+  const mailbox = V3LeadMailboxOrigin(lead);
+  if (mailbox === 'asher') return false;
+  if (sourceKind === 'x' || mailbox === 'robert') return !V3CompanyOsQualifiedLead(lead);
+  return false;
 }
 
 function V3NewLeadSourceKind(lead) {
   const source = String(lead?.source || '').toLowerCase();
   if (source.includes('x-dm-intake') || source.includes('twitter_dm') || source.includes('ingest-twitter_dm')) return 'x';
   return 'gmail';
+}
+
+function V3LeadMailboxOrigin(lead) {
+  const source = String(lead?.source || '').toLowerCase();
+  if (source.includes('x-dm-intake') || source.includes('twitter_dm') || source.includes('ingest-twitter_dm')) return 'x';
+  if (
+    source.includes('robert-gmail-new-lead') ||
+    source.includes('gmail-robert') ||
+    source.includes('robert gmail')
+  ) return 'robert';
+  if (
+    source.includes('asher-gmail') ||
+    source.includes('gmail-asher') ||
+    source.includes('asher candidate') ||
+    source.includes('asher gmail')
+  ) return 'asher';
+
+  const participants = V3ThreadParticipants(lead).map(email => String(email || '').toLowerCase());
+  if (participants.includes('asherunaligned@gmail.com')) return 'asher';
+  if (participants.includes('scobleizer@gmail.com')) return 'robert';
+  return 'unknown';
+}
+
+function V3LeadHasInternalReply(lead) {
+  const internal = new Set(['asherunaligned@gmail.com', 'scobleizer@gmail.com', 'unalignedx@gmail.com']);
+  return Array.isArray(lead?.thread) && lead.thread.some(msg => {
+    const from = String(msg?.from || '').toLowerCase();
+    const emails = [...from.matchAll(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/g)].map(match => match[0]);
+    return emails.some(email => internal.has(email));
+  });
+}
+
+function V3CompanyOsQualifiedLead(lead) {
+  if (!lead || lead.isRobertBrief) return false;
+  const stage = String(lead.stage || '').toLowerCase();
+  if (['rates-sent', 'negotiating', 'invoice-sent', 'done', 'paid-out'].includes(stage)) return true;
+
+  const sourceKind = V3NewLeadSourceKind(lead);
+  const mailbox = V3LeadMailboxOrigin(lead);
+  const context = [
+    lead?.brand,
+    lead?.deliverables,
+    lead?.notes,
+    lead?.evidence,
+    lead?.nextMove?.text,
+    ...(Array.isArray(lead?.thread) ? lead.thread.flatMap(msg => [msg?.subject, msg?.body]) : []),
+  ].filter(Boolean).join(' ').toLowerCase();
+  const hasCommercialSignal = /\b(rate|pricing|quote|budget|paid|payment|invoice|deliverable|campaign|sponsor|sponsorship|partnership|repost|post|thread|brief|launch)\b/.test(context);
+  const introLike = /\b(intro|introduction|connect|connection|network|meeting|coffee|founder chat|catch up)\b/.test(context);
+  const hasInternalReply = V3LeadHasInternalReply(lead);
+
+  if (mailbox === 'asher') {
+    return ['first-touch', 'engaged'].includes(stage) || lead.unread || lead.followUpDue || Number(lead.value || 0) > 0;
+  }
+
+  if (sourceKind === 'x' || mailbox === 'robert') {
+    if (!['first-touch', 'engaged'].includes(stage)) return false;
+    if (!hasInternalReply) return false;
+    if (introLike && !hasCommercialSignal) return false;
+    return hasCommercialSignal || Number(lead.value || 0) > 0;
+  }
+
+  return false;
 }
 
 function V3NewLeadSourceLabel(lead) {
@@ -1126,17 +1284,18 @@ const V3_USERS = {
   robert: { id: 'robert', name: 'Robert', role: 'Creator',  color: '#a93268', initials: 'RW' },
 };
 
-// Stages — match the existing FLOW columns (NEW → PAID OUT)
+// Stages — keep stable ids for automation, but use language that matches
+// the real lead-to-close workflow in Company OS.
 const V3_STAGES = [
-  { id: 'new',         name: 'New',          color: 'var(--st-new)',     short: 'NEW' },
-  { id: 'first-touch', name: 'First touch',  color: 'var(--st-touch)',   short: 'FIRST TOUCH' },
-  { id: 'engaged',     name: 'Engaged',      color: 'var(--st-engaged)', short: 'ENGAGED' },
+  { id: 'new',         name: 'New lead',      color: 'var(--st-new)',     short: 'NEW LEAD' },
+  { id: 'first-touch', name: 'Scoped',        color: 'var(--st-touch)',   short: 'SCOPED' },
+  { id: 'engaged',     name: 'Qualified',     color: 'var(--st-engaged)', short: 'QUALIFIED' },
   { id: 'rates-sent',  name: 'Rates sent',   color: 'var(--st-rates)',   short: 'RATES SENT' },
   { id: 'negotiating', name: 'Negotiating',  color: 'var(--st-nego)',    short: 'NEGOTIATING' },
-  { id: 'invoice-sent',name: 'Invoice sent', color: 'var(--st-invoice)', short: 'INVOICE SENT' },
+  { id: 'invoice-sent',name: 'Payment / terms', color: 'var(--st-invoice)', short: 'PAYMENT / TERMS' },
   { id: 'trash',       name: 'Trash',        color: 'var(--text-4)',     short: 'TRASH' },
-  { id: 'done',        name: 'Done',         color: 'var(--st-booked)',  short: 'DONE' },
-  { id: 'paid-out',    name: 'Paid out',     color: 'var(--st-paid)',    short: 'PAID OUT' },
+  { id: 'done',        name: 'Brief / calendar', color: 'var(--st-booked)',  short: 'BRIEF / CALENDAR' },
+  { id: 'paid-out',    name: 'Closed',       color: 'var(--st-paid)',    short: 'CLOSED' },
 ];
 const V3_STAGE_BY_ID = Object.fromEntries(V3_STAGES.map(s => [s.id, s]));
 const V3_ACTIVE_STAGE_IDS = ['new','first-touch','engaged','rates-sent','negotiating','invoice-sent','done','paid-out'];
@@ -1226,14 +1385,14 @@ function __v3Color(seed) {
 function __v3NextMove(stage, contact, owner, needsReply) {
   const first = contact.split(' ')[0];
   const map = {
-    'new':          { who: 'sammy',  text: `Open & qualify — first response to ${first}`,         action: 'Reply' },
-    'first-touch':  { who: needsReply ? 'sammy' : null, text: needsReply ? `Send follow-up — ${first} hasn't replied` : `Waiting on ${first} to reply`, action: needsReply ? 'Nudge' : '' },
-    'engaged':      { who: needsReply ? 'sammy' : null, text: needsReply ? `Reply — discovery questions, confirm scope` : `Awaiting ${first}'s reply`, action: 'Reply' },
-    'rates-sent':   { who: null,     text: `Waiting on ${first} — rates sent`,                    action: 'Nudge' },
-    'negotiating':  { who: needsReply ? 'asher' : null, text: needsReply ? `Send revised package — ${first} asked about usage` : `Awaiting ${first}'s reply on revised terms`, action: 'Send' },
-    'invoice-sent': { who: null,     text: `Awaiting payment — invoice sent`,                     action: '' },
-    'done':         { who: 'robert', text: `Record & post deliverables`,                          action: 'Post' },
-    'paid-out':     { who: null,     text: `Done — closed and paid`,                              action: '' },
+    'new':          { who: 'sammy',  text: `Qualify the lead and send first response to ${first}`, action: 'Reply' },
+    'first-touch':  { who: needsReply ? 'sammy' : null, text: needsReply ? `Tighten scope with ${first}` : `Waiting on ${first} to confirm scope`, action: needsReply ? 'Reply' : '' },
+    'engaged':      { who: needsReply ? 'sammy' : null, text: needsReply ? `Get timing, deliverable, and budget from ${first}` : `Awaiting ${first}'s scope details`, action: 'Reply' },
+    'rates-sent':   { who: null,     text: `Pricing is out — waiting on ${first}`,                action: 'Nudge' },
+    'negotiating':  { who: needsReply ? 'asher' : null, text: needsReply ? `Send revised terms to ${first}` : `Awaiting ${first}'s answer on price / terms`, action: 'Send' },
+    'invoice-sent': { who: null,     text: `Verify payment, contract, or invoice status`,         action: '' },
+    'done':         { who: 'robert', text: `Brief is ready — lock calendar and execute`,          action: 'Post' },
+    'paid-out':     { who: null,     text: `Closed — paid and archived`,                          action: '' },
   };
   return map[stage] || { who: null, text: '—', action: '' };
 }
@@ -1255,14 +1414,14 @@ function __v3Timeline(stage, days, contact, brand) {
 function __v3StageNote(stage, contact, brand) {
   const first = contact.split(' ')[0];
   return ({
-    'new':          `${first} from ${brand} reached out`,
-    'first-touch':  `Outreach sent`,
-    'engaged':      `${first} replied — discussing scope`,
-    'rates-sent':   `Rate card delivered`,
-    'negotiating':  `Discussing usage rights, mix`,
-    'invoice-sent': `Invoice issued`,
-    'done':         `Content live`,
-    'paid-out':     `Payment received`,
+    'new':          `${first} from ${brand} came in`,
+    'first-touch':  `Scope being clarified`,
+    'engaged':      `${first} replied — budget and timing in play`,
+    'rates-sent':   `Pricing package delivered`,
+    'negotiating':  `Working through terms and usage`,
+    'invoice-sent': `Payment path or contract is in motion`,
+    'done':         `Brief approved and queued for execution`,
+    'paid-out':     `Payment received and thread closed`,
   })[stage] || '';
 }
 
@@ -1559,9 +1718,12 @@ for (const lead of V3_LEADS) {
   if (V3_BRIEFS[lead.id]) lead.brief = V3_BRIEFS[lead.id];
 }
 
+const V3_VISIBLE_LEADS = V3FilterVisibleLeads(V3_LEADS);
+const V3_VISIBLE_ROBERT_BRIEFS = V3FilterVisibleBriefs(V3_ROBERT_BRIEFS);
+
 // Aggregates
 function v3FlowCounts() {
-  const leads = window.V3?.LEADS || V3_LEADS;
+  const leads = window.V3?.LEADS || V3_VISIBLE_LEADS;
   return V3_ACTIVE_STAGE_IDS.map(s => ({
     id: s,
     name: V3_STAGE_BY_ID[s].name,
@@ -1955,7 +2117,7 @@ function V3MoveLeadStage(lead, nextStage, leads = window.V3?.LEADS || V3_LEADS) 
   }).catch(err => console.warn('[ALIGNED v4] stage update failed:', err));
 }
 
-window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, NewLeadReason: V3NewLeadReason, NewLeadSourceKind: V3NewLeadSourceKind, NewLeadSourceLabel: V3NewLeadSourceLabel, NewLeadHandle: V3NewLeadHandle, NewLeadSummary: V3NewLeadSummary, NewLeadPrimaryIdentity: V3NewLeadPrimaryIdentity };
+window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_VISIBLE_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_VISIBLE_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, CompanyOsQualifiedLead: V3CompanyOsQualifiedLead, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, NewLeadReason: V3NewLeadReason, NewLeadSourceKind: V3NewLeadSourceKind, NewLeadSourceLabel: V3NewLeadSourceLabel, NewLeadHandle: V3NewLeadHandle, NewLeadSummary: V3NewLeadSummary, NewLeadPrimaryIdentity: V3NewLeadPrimaryIdentity };
 
 V3LoadSupabaseLeads().then(leads => {
   window.V3.LEADS = leads;

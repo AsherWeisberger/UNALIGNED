@@ -219,6 +219,7 @@ const V4_COMPANY_OS_STAGES = [
 const V4_BRIEF_ACTION_URL = 'http://127.0.0.1:8766/generate-brief';
 const V4_BRIEF_DOC_ACTION_URL = 'http://127.0.0.1:8767/generate-brief-doc';
 const V4_BRIEF_CALENDAR_ACTION_URL = 'http://127.0.0.1:8767/create-calendar-hold';
+const V4_BRIEF_NOTION_IMPORT_URL = 'http://127.0.0.1:8767/import-notion-brief';
 
 const V4_COMPANY_OS_TOOLKIT = [
   {
@@ -404,6 +405,18 @@ function V4CompanyOsPhaseTag(lead) {
   return 'next move';
 }
 
+function V4CompanyOsMailboxOrigin(lead) {
+  const source = String(lead?.source || '').toLowerCase();
+  if (source.includes('x-dm-intake') || source.includes('twitter_dm') || source.includes('ingest-twitter_dm')) return 'x';
+  if (source.includes('robert-gmail-new-lead') || source.includes('gmail-robert') || source.includes('robert gmail')) return 'robert';
+  if (source.includes('asher-gmail') || source.includes('gmail-asher') || source.includes('asher candidate') || source.includes('asher gmail')) return 'asher';
+  const participants = (window.V3ThreadParticipants ? window.V3ThreadParticipants(lead) : [])
+    .map(email => String(email || '').toLowerCase());
+  if (participants.includes('asherunaligned@gmail.com')) return 'asher';
+  if (participants.includes('scobleizer@gmail.com')) return 'robert';
+  return 'unknown';
+}
+
 function V4OperatorStatus(lead) {
   const status = String(lead?.draftReplyStatus || '').toLowerCase();
   if (status === 'escalated') return { label: 'Needs approval', tone: 'warn' };
@@ -502,6 +515,7 @@ function V4BriefMakerDefaultState() {
     draft_3_label: 'Option 3. Operator angle',
     draft_3_text: '',
     submit_url: '',
+    notion_url: '',
     calendar_title: '',
     calendar_date: '',
     calendar_start: '',
@@ -552,6 +566,7 @@ function V4BriefMakerConfig(form) {
   if (Object.keys(mustInclude).length) payload.must_include = mustInclude;
   if (drafts.length) payload.drafts = drafts;
   if (form.submit_url) payload.submit_url = String(form.submit_url).trim();
+  if (form.notion_url) payload.notion_url = String(form.notion_url).trim();
   if (form.calendar_title) payload.calendar_title = String(form.calendar_title).trim();
   if (form.calendar_date) payload.calendar_date = String(form.calendar_date).trim();
   if (form.calendar_start) payload.calendar_start = String(form.calendar_start).trim();
@@ -1071,6 +1086,8 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
   const [docStatus, setDocStatus] = React.useState('idle');
   const [docError, setDocError] = React.useState('');
   const [docResult, setDocResult] = React.useState(null);
+  const [notionStatus, setNotionStatus] = React.useState('idle');
+  const [notionError, setNotionError] = React.useState('');
   const [calendarStatus, setCalendarStatus] = React.useState('idle');
   const [calendarError, setCalendarError] = React.useState('');
   const [calendarResult, setCalendarResult] = React.useState(null);
@@ -1089,6 +1106,10 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
       setDocStatus('idle');
       setDocError('');
       setDocResult(null);
+    }
+    if (notionStatus !== 'idle') {
+      setNotionStatus('idle');
+      setNotionError('');
     }
     if (calendarStatus !== 'idle') {
       setCalendarStatus('idle');
@@ -1129,15 +1150,17 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     setDocStatus('idle');
     setDocError('');
     setDocResult(null);
+    setNotionStatus('idle');
+    setNotionError('');
     setCalendarStatus('idle');
     setCalendarError('');
     setCalendarResult(null);
   };
 
   const createBriefDoc = async () => {
-    if (!briefConfig.title) {
+    if (!briefConfig.title && !briefConfig.notion_url) {
       setDocStatus('error');
-      setDocError('Add a title first.');
+      setDocError('Add a title or paste a public Notion brief link first.');
       return;
     }
     setDocStatus('creating');
@@ -1156,6 +1179,51 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     } catch (err) {
       setDocStatus('error');
       setDocError(err.message || 'Google Doc creation failed.');
+    }
+  };
+
+  const importNotionBrief = async () => {
+    if (!briefConfig.notion_url) {
+      setNotionStatus('error');
+      setNotionError('Paste a public Notion brief link first.');
+      return;
+    }
+    setNotionStatus('importing');
+    setNotionError('');
+    try {
+      const res = await fetch(V4_BRIEF_NOTION_IMPORT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notion_url: briefConfig.notion_url }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Notion import failed.');
+      const payload = data.payload || {};
+      setBriefForm(curr => ({
+        ...curr,
+        title: payload.title || curr.title,
+        subtitle: payload.subtitle || curr.subtitle,
+        filename: payload.filename || curr.filename,
+        go_live: payload.go_live || curr.go_live,
+        go_live_note: payload.go_live_note || curr.go_live_note,
+        submit_url: payload.submit_url || curr.submit_url,
+        notion_url: briefConfig.notion_url,
+        what_to_do_text: Array.isArray(payload.what_to_do) ? payload.what_to_do.join('\n') : curr.what_to_do_text,
+        key_facts_text: Array.isArray(payload.key_facts) ? payload.key_facts.map(item => item.join(' | ')).join('\n') : curr.key_facts_text,
+        tag: payload.must_include?.tag || curr.tag,
+        link: payload.must_include?.link || curr.link,
+        hashtags: payload.must_include?.hashtags || curr.hashtags,
+        draft_1_label: payload.drafts?.[0]?.label || curr.draft_1_label,
+        draft_1_text: payload.drafts?.[0]?.text || curr.draft_1_text,
+        draft_2_label: payload.drafts?.[1]?.label || curr.draft_2_label,
+        draft_2_text: payload.drafts?.[1]?.text || curr.draft_2_text,
+        draft_3_label: payload.drafts?.[2]?.label || curr.draft_3_label,
+        draft_3_text: payload.drafts?.[2]?.text || curr.draft_3_text,
+      }));
+      setNotionStatus('done');
+    } catch (err) {
+      setNotionStatus('error');
+      setNotionError(err.message || 'Notion import failed.');
     }
   };
 
@@ -1363,6 +1431,9 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                 <button type="button" className="cos-toolkit-btn is-primary" onClick={createBriefDoc}>
                   {docStatus === 'creating' ? 'Creating Doc...' : 'Create Google Doc'}
                 </button>
+                <button type="button" className="cos-toolkit-btn" onClick={importNotionBrief}>
+                  {notionStatus === 'importing' ? 'Importing Notion...' : 'Import Notion'}
+                </button>
                 <button type="button" className="cos-toolkit-btn" onClick={createCalendarHold}>
                   {calendarStatus === 'creating' ? 'Adding hold...' : 'Add to Calendar'}
                 </button>
@@ -1383,6 +1454,10 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
             <div className="brief-maker-body">
               <div className="brief-maker-form">
                 <div className="brief-maker-grid">
+                  <label className="brief-maker-field brief-maker-field-wide">
+                    <span>Notion brief link</span>
+                    <input className="brief-maker-input" value={briefForm.notion_url} onChange={e => updateBriefField('notion_url', e.target.value)} placeholder="https://workspace.notion.site/Your-brief-page" />
+                  </label>
                   <label className="brief-maker-field brief-maker-field-wide">
                     <span>Title</span>
                     <input className="brief-maker-input" value={briefForm.title} onChange={e => updateBriefField('title', e.target.value)} placeholder="Viktor $75M Series A Launch" />
@@ -1470,6 +1545,17 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                   <strong>Desktop/UNALIGNED</strong>
                 </div>
                 <div className="brief-maker-server-status">
+                  {notionStatus === 'done' && (
+                    <div className="brief-maker-result-card">
+                      <span className="brief-maker-server-ok">Notion brief imported.</span>
+                    </div>
+                  )}
+                  {notionStatus === 'error' && (
+                    <span className="brief-maker-server-error">{notionError}</span>
+                  )}
+                  {notionStatus === 'importing' && (
+                    <span className="brief-maker-server-note">Reading the Notion brief and mapping it into Robert&apos;s format...</span>
+                  )}
                   {docStatus === 'done' && docResult && (
                     <div className="brief-maker-result-card">
                       <span className="brief-maker-server-ok">Google Doc ready.</span>
@@ -1549,54 +1635,12 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
   const operatorEscalation = Array.isArray(lead.operatorEscalation) ? lead.operatorEscalation : [];
   const execution = V4CompanyOsExecutionMeta(lead);
   const quickStages = V4QuickStageActions(lead);
+  const mailboxOrigin = V4CompanyOsMailboxOrigin(lead);
+  const compactMeta = [lead.brand, lead.email].filter(Boolean).join(' · ');
   const moveLead = (nextStage) => window.V3.MoveLeadStage(lead, nextStage);
   const clearUnread = () => V4CosPatchLead(lead, { new_reply_at: null }, { unread: false });
-  return (
-    <div className="cos2-reader">
-      <div className="drawer-hd">
-        <button className="hd-icon-btn cos2-back" onClick={onBack} aria-label="Back to list">
-          <V3Icon name="chev_d" w={14} style={{ transform: 'rotate(90deg)' }} />
-        </button>
-        <span className="drawer-hd-brand">{lead.brand}</span>
-        <span className="drawer-hd-stage" style={{ color: stage.color }}>
-          <span className="drawer-hd-stage-dot" style={{ background: stage.color }}></span>
-          {stage.name}
-        </span>
-      </div>
-      <div className="drawer-top">
-        <V3Avatar name={lead.contactName} color={lead.color} size="lg" />
-        <div className="drawer-top-text">
-          {lead.category && <span className={'cat-tab cat-' + lead.category} style={{ marginBottom: 6 }}>{lead.category}</span>}
-          <h2 className="drawer-top-name">{lead.contactName}</h2>
-          <div className="drawer-top-co">{lead.contactRole} at <strong>{lead.brand}</strong></div>
-        </div>
-      </div>
-      <div className={'next-move ' + (isMine ? '' : 'them')}>
-        <div className="next-move-icon">
-          <V3Icon name={isMine ? 'reply' : 'clock'} w={18} />
-        </div>
-        <div className="next-move-text">
-          <div className="next-move-eyebrow">
-            Next move {isMine ? '· yours' : isThem ? `· waiting on ${lead.contactName.split(' ')[0]}` : nextOwner ? `· ${nextOwner.name}'s` : ''}
-          </div>
-          <div className="next-move-title">{lead.nextMove?.text}</div>
-        </div>
-        {isMine && replyAction && (
-          <div className="next-move-actions">
-            <button className="btn btn-sm btn-accent" onClick={() => setComposeOpen(true)}>
-              <V3Icon name="arrow_r" w={13} />
-              {lead.nextMove.action}
-            </button>
-          </div>
-        )}
-      </div>
-      <div className="drawer-facts">
-        {lead.value ? <span className="drawer-fact mono">{v3Money(lead.value)}</span> : null}
-        {owner && <span className="drawer-fact"><V3Avatar name={owner.name} color={owner.color} size="xs" /> {owner.name}</span>}
-        <span className="drawer-fact mono">{lead.daysInStage}d in stage</span>
-        <span className="drawer-fact">{lead.source}</span>
-        {lead.deliverables ? <span className="drawer-fact drawer-fact-wide" title={lead.deliverables}>{lead.deliverables}</span> : null}
-      </div>
+  const readerOps = (
+    <>
       <div className="cos-quick-actions">
         <div className="cos-quick-actions-group">
           <span className="cos-quick-actions-label">Quick actions</span>
@@ -1680,6 +1724,64 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
         </section>
       )}
       <V4CompanyOsExecutionPanel lead={lead} execution={execution} />
+    </>
+  );
+  return (
+    <div className="cos2-reader">
+      <div className="drawer-hd">
+        <button className="hd-icon-btn cos2-back" onClick={onBack} aria-label="Back to list">
+          <V3Icon name="chev_d" w={14} style={{ transform: 'rotate(90deg)' }} />
+        </button>
+        <span className="drawer-hd-brand">{lead.brand}</span>
+        <span className="drawer-hd-stage" style={{ color: stage.color }}>
+          <span className="drawer-hd-stage-dot" style={{ background: stage.color }}></span>
+          {stage.name}
+        </span>
+      </div>
+      <div className="cos-reader-hero">
+        <div className="drawer-top">
+          <V3Avatar name={lead.contactName} color={lead.color} size="lg" />
+          <div className="drawer-top-text">
+            <div className="drawer-top-meta">
+              {lead.category && <span className={'cat-tab cat-' + lead.category}>{lead.category}</span>}
+              <span className="drawer-top-chip">{lead.source}</span>
+              {mailboxOrigin === 'asher' && <span className="drawer-top-chip">Asher thread</span>}
+              {mailboxOrigin === 'robert' && <span className="drawer-top-chip">Robert intake</span>}
+              {mailboxOrigin === 'x' && <span className="drawer-top-chip">X intake</span>}
+              {owner && <span className="drawer-top-chip">Owner · {owner.name}</span>}
+            </div>
+            <h2 className="drawer-top-name">{lead.contactName}</h2>
+            <div className="drawer-top-co">
+              {compactMeta ? <strong>{compactMeta}</strong> : (lead.contactRole || 'Lead thread')}
+            </div>
+          </div>
+        </div>
+        <div className={'next-move ' + (isMine ? '' : 'them')}>
+          <div className="next-move-icon">
+            <V3Icon name={isMine ? 'reply' : 'clock'} w={18} />
+          </div>
+          <div className="next-move-text">
+            <div className="next-move-eyebrow">
+              Next move {isMine ? '· yours' : isThem ? `· waiting on ${lead.contactName.split(' ')[0]}` : nextOwner ? `· ${nextOwner.name}'s` : ''}
+            </div>
+            <div className="next-move-title">{lead.nextMove?.text}</div>
+          </div>
+          {isMine && replyAction && (
+            <div className="next-move-actions">
+              <button className="btn btn-sm btn-accent" onClick={() => setComposeOpen(true)}>
+                <V3Icon name="arrow_r" w={13} />
+                {lead.nextMove.action}
+              </button>
+            </div>
+          )}
+        </div>
+        <div className="drawer-facts">
+          {lead.value ? <span className="drawer-fact mono">{v3Money(lead.value)}</span> : null}
+          <span className="drawer-fact mono">{lead.daysInStage}d in stage</span>
+          <span className="drawer-fact">{stage.name}</span>
+          {lead.deliverables ? <span className="drawer-fact drawer-fact-wide" title={lead.deliverables}>{lead.deliverables}</span> : null}
+        </div>
+      </div>
       <div className="drawer-tabs">
         <button className="dr-tab" aria-selected={tab === 'thread'} onClick={() => setTab('thread')}>
           Email thread <span className="cnt">{lead.thread.length}</span>
@@ -1690,7 +1792,12 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
       </div>
       <div className="drawer-body">
         {tab === 'thread' && <V3Thread lead={lead} />}
-        {tab === 'stands' && <V3Stands lead={lead} />}
+        {tab === 'stands' && (
+          <div className="cos-reader-stands">
+            {readerOps}
+            <V3Stands lead={lead} />
+          </div>
+        )}
       </div>
       <div className="drawer-foot">
         {composeOpen ? (
@@ -1727,29 +1834,26 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   const nowTs = Date.now();
   const isSnoozed = (l) => snoozes[l.id] && Date.parse(snoozes[l.id]) > nowTs;
   const awake = live.filter(l => !isSnoozed(l));
-  const activeDeals = awake.filter(l => !['trash', 'dead-leads', 'done', 'paid-out'].includes(l.stage));
-  const interviewItems = activeDeals.filter(l => V4CompanyOsType(l) === 'interview').sort(byRecent);
-  const partnershipItems = activeDeals.filter(l => V4CompanyOsType(l) === 'partnership').sort(byRecent);
-  const introItems = activeDeals.filter(l => V4CompanyOsType(l) === 'intro').sort(byRecent);
-  const unscopedItems = activeDeals.filter(l => !V4CompanyOsTier(l) && !['interview', 'partnership', 'intro'].includes(V4CompanyOsType(l))).sort(byRecent);
   const followUpItems = awake.filter(l => l.followUpDue && !l.unread).sort(byStale);
+  const activeItems = awake.filter(l => !['done', 'paid-out', 'trash', 'dead-leads'].includes(l.stage));
+  const replyItems = activeItems.filter(l => l.unread && l.nextMove?.who).sort(byStale);
+  const pricingItems = activeItems.filter(l => l.stage === 'rates-sent').sort(byStale);
+  const negoItems = activeItems.filter(l => l.stage === 'negotiating').sort(byStale);
+  const paymentItems = activeItems.filter(l => l.stage === 'invoice-sent').sort(byStale);
+  const briefingItems = awake.filter(l => l.stage === 'done').sort(byRecent);
+  const waitingItems = activeItems.filter(l => !l.unread && !l.nextMove?.who).sort(byRecent);
+  const closedItems = awake.filter(l => ['done', 'paid-out'].includes(l.stage)).sort(byRecent);
 
   const splits = [
-    { id: 'reply',    label: 'New activity',     section: 'Workflow', hot: true, items: awake.filter(l => l.unread && l.nextMove?.who).sort(byStale) },
+    { id: 'reply',    label: 'New activity',     section: 'Workflow', hot: true, items: replyItems },
     { id: 'followups',label: 'Follow ups',       section: 'Workflow', hot: followUpItems.length > 0, items: followUpItems },
-    { id: 'scope',    label: 'Needs scope',      section: 'Workflow', items: awake.filter(l => ['new', 'first-touch', 'engaged'].includes(l.stage)).sort(byRecent) },
-    { id: 'pricing',  label: 'Pricing sent',     section: 'Workflow', items: awake.filter(l => l.stage === 'rates-sent').sort(byStale) },
-    { id: 'nego',     label: 'Negotiating',      section: 'Workflow', items: awake.filter(l => l.stage === 'negotiating').sort(byStale) },
-    { id: 'payment',  label: 'Payment / terms',  section: 'Workflow', items: awake.filter(l => l.stage === 'invoice-sent').sort(byStale) },
-    { id: 'briefing', label: 'Brief / calendar', section: 'Workflow', items: awake.filter(l => l.stage === 'done').sort(byRecent) },
-    { id: 'waiting',  label: 'Waiting on them',  section: 'Workflow', items: awake.filter(l => !l.unread && !l.nextMove?.who && !['done', 'paid-out'].includes(l.stage)).sort(byRecent) },
-    { id: 'robert',   label: 'Robert ready',     section: 'Workflow', items: awake.filter(l => l.nextMove?.who === 'robert').sort(byRecent) },
-    { id: 'interviews', label: 'Interviews',   section: 'By type', items: interviewItems },
-    { id: 'partners',   label: 'Partnerships', section: 'By type', items: partnershipItems },
-    { id: 'intros',     label: 'Intros',       section: 'By type', items: introItems },
-    { id: 'unscoped',   label: 'Needs scope',  section: 'By type', items: unscopedItems },
+    { id: 'pricing',  label: 'Pricing sent',     section: 'Workflow', items: pricingItems },
+    { id: 'nego',     label: 'Negotiating',      section: 'Workflow', items: negoItems },
+    { id: 'payment',  label: 'Payment / terms',  section: 'Workflow', items: paymentItems },
+    { id: 'briefing', label: 'Brief / calendar', section: 'Workflow', items: briefingItems },
+    { id: 'waiting',  label: 'Waiting on them',  section: 'Workflow', items: waitingItems },
     { id: 'snoozed', label: 'Snoozed',         section: 'System', items: live.filter(isSnoozed).sort((a, b) => Date.parse(snoozes[a.id]) - Date.parse(snoozes[b.id])) },
-    { id: 'closed',  label: 'Done and paid',   section: 'System', items: awake.filter(l => ['done', 'paid-out'].includes(l.stage)).sort(byRecent) },
+    { id: 'closed',  label: 'Done and paid',   section: 'System', items: closedItems },
     { id: 'trash',   label: 'Trash',           section: 'System', trash: true, items: base.filter(l => ['trash', 'dead-leads'].includes(l.stage)).sort(byRecent) },
     { id: 'brief',   label: 'Overview',        section: 'System', brief: true },
     { id: 'toolkit', label: 'Toolkit',         section: 'System', toolkit: true, items: V4_COMPANY_OS_TOOLKIT },
@@ -1858,7 +1962,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
               <button type="button"
                       className={'cos2-split' + (s.id === split.id ? ' is-active' : '') + (s.hot ? ' is-hot' : '')}
                       onClick={() => setSplitId(s.id)}>
-                <span>{s.label}</span>
+                <span className="cos2-split-label">{s.label}</span>
                 {!s.brief && !s.toolkit && <span className="cos2-split-cnt">{s.items.length}</span>}
               </button>
             </React.Fragment>
@@ -1886,14 +1990,18 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
                           className={'cos2-row' + (String(l.id) === String(selected?.id) ? ' is-current' : '')}
                           onClick={() => { setSelId(l.id); setMobileOpen(true); }}>
                     <span className="cos2-row-top">
-                      {l.unread && <span className="dq-dot" />}
-                      <span className="cos2-row-brand">{l.brand}</span>
+                      <span className="cos2-row-brandline">
+                        {l.unread && <span className="dq-dot" />}
+                        <span className="cos2-row-brand">{l.brand}</span>
+                        <span className={'cos2-row-source is-' + String(l.source || '').toLowerCase()}>{l.source || 'lead'}</span>
+                      </span>
                       {(l.draftReply || l.operatorMemory) && (
                         <span className={'cos2-row-operator is-' + V4OperatorStatus(l).tone}>{V4OperatorStatus(l).label}</span>
                       )}
                       <span className="cos2-row-when">{l.lastTouch}</span>
                     </span>
-                    <span className="cos2-row-snip"><strong>{l.contactName}</strong>{l.nextMove?.text ? ' · ' + l.nextMove.text : ''}</span>
+                    <span className="cos2-row-name">{l.contactName}</span>
+                    <span className="cos2-row-snip">{l.nextMove?.text || l.deliverables || l.email || 'Open thread'}</span>
                   </button>
                   <button type="button"
                           className="cos2-row-act"
