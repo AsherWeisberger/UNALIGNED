@@ -343,6 +343,24 @@ function V4CompanyOsFilterLead(lead, query) {
     .some(value => String(value).toLowerCase().includes(q));
 }
 
+function V4CompanyOsListSnippet(lead) {
+  if (!lead) return 'Open thread';
+  const latest = Array.isArray(lead.thread) && lead.thread.length ? lead.thread[lead.thread.length - 1] : null;
+  const sourceKind = window.V3?.NewLeadSourceKind ? window.V3.NewLeadSourceKind(lead) : 'gmail';
+  const summary = sourceKind === 'x' && window.V3?.NewLeadSummary
+    ? window.V3.NewLeadSummary(lead)
+    : String(
+        lead.operatorSummary?.lead_summary ||
+        latest?.body ||
+        latest?.subject ||
+        lead.notes ||
+        lead.deliverables ||
+        lead.nextMove?.text ||
+        ''
+      );
+  return summary.replace(/\s+/g, ' ').trim() || lead.email || 'Open thread';
+}
+
 function V4CompanyOsPriority(lead) {
   if (!lead) return 'P1';
   if (lead.needsReply) return 'P0';
@@ -1638,7 +1656,9 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
   const execution = V4CompanyOsExecutionMeta(lead);
   const quickStages = V4QuickStageActions(lead);
   const mailboxOrigin = V4CompanyOsMailboxOrigin(lead);
-  const compactMeta = [lead.brand, lead.email].filter(Boolean).join(' · ');
+  const compactMeta = [lead.contactRole, lead.email].filter(Boolean).join(' · ');
+  const listSnippet = V4CompanyOsListSnippet(lead);
+  const operatorBadgeVisible = operatorStatus.label !== 'Monitoring';
   const moveLead = (nextStage) => window.V3.MoveLeadStage(lead, nextStage);
   const clearUnread = () => V4CosPatchLead(lead, { new_reply_at: null }, { unread: false });
   const readerOps = (
@@ -1745,28 +1765,36 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
           <V3Avatar name={lead.contactName} color={lead.color} size="lg" />
           <div className="drawer-top-text">
             <div className="drawer-top-meta">
-              {lead.category && <span className={'cat-tab cat-' + lead.category}>{lead.category}</span>}
               <span className="drawer-top-chip">{lead.source}</span>
-              {mailboxOrigin === 'asher' && <span className="drawer-top-chip">Asher thread</span>}
-              {mailboxOrigin === 'robert' && <span className="drawer-top-chip">Robert intake</span>}
-              {mailboxOrigin === 'x' && <span className="drawer-top-chip">X intake</span>}
+              {mailboxOrigin === 'asher' && <span className="drawer-top-chip">Asher</span>}
+              {mailboxOrigin === 'robert' && <span className="drawer-top-chip">Robert</span>}
+              {mailboxOrigin === 'x' && <span className="drawer-top-chip">X</span>}
               {owner && <span className="drawer-top-chip">Owner · {owner.name}</span>}
+              {lead.category && <span className={'cat-tab cat-' + lead.category}>{lead.category}</span>}
             </div>
             <h2 className="drawer-top-name">{lead.contactName}</h2>
             <div className="drawer-top-co">
-              {compactMeta ? <strong>{compactMeta}</strong> : (lead.contactRole || 'Lead thread')}
+              <strong>{lead.brand}</strong>
+              {compactMeta ? <span> · {compactMeta}</span> : null}
             </div>
           </div>
         </div>
-        <div className={'next-move ' + (isMine ? '' : 'them')}>
+        <div className="drawer-facts">
+          {lead.value ? <span className="drawer-fact mono">{v3Money(lead.value)}</span> : null}
+          <span className="drawer-fact mono">{lead.daysInStage}d in stage</span>
+          <span className="drawer-fact">{stage.name}</span>
+          {lead.deliverables ? <span className="drawer-fact drawer-fact-wide" title={lead.deliverables}>{lead.deliverables}</span> : null}
+          {operatorBadgeVisible ? <span className="drawer-fact">{operatorStatus.label}</span> : null}
+        </div>
+        <div className={'next-move next-move-compact ' + (isMine ? '' : 'them')}>
           <div className="next-move-icon">
-            <V3Icon name={isMine ? 'reply' : 'clock'} w={18} />
+            <V3Icon name={isMine ? 'reply' : 'clock'} w={16} />
           </div>
           <div className="next-move-text">
             <div className="next-move-eyebrow">
-              Next move {isMine ? '· yours' : isThem ? `· waiting on ${lead.contactName.split(' ')[0]}` : nextOwner ? `· ${nextOwner.name}'s` : ''}
+              {isMine ? 'Your move' : isThem ? `Waiting on ${lead.contactName.split(' ')[0]}` : nextOwner ? `${nextOwner.name}'s move` : 'Next move'}
             </div>
-            <div className="next-move-title">{lead.nextMove?.text}</div>
+            <div className="next-move-title">{lead.nextMove?.text || listSnippet}</div>
           </div>
           {isMine && replyAction && (
             <div className="next-move-actions">
@@ -1776,12 +1804,6 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
               </button>
             </div>
           )}
-        </div>
-        <div className="drawer-facts">
-          {lead.value ? <span className="drawer-fact mono">{v3Money(lead.value)}</span> : null}
-          <span className="drawer-fact mono">{lead.daysInStage}d in stage</span>
-          <span className="drawer-fact">{stage.name}</span>
-          {lead.deliverables ? <span className="drawer-fact drawer-fact-wide" title={lead.deliverables}>{lead.deliverables}</span> : null}
         </div>
       </div>
       <div className="drawer-tabs">
@@ -1988,6 +2010,11 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
             <div className="cos2-list">
               {items.map(l => (
                 <div key={l.id} className={'cos2-row-wrap' + (String(l.id) === String(selected?.id) ? ' is-current' : '')}>
+                  {(() => {
+                    const rowOperator = V4OperatorStatus(l);
+                    const showRowOperator = rowOperator.label !== 'Monitoring';
+                    const rowSnippet = V4CompanyOsListSnippet(l);
+                    return (
                   <button type="button"
                           className={'cos2-row' + (String(l.id) === String(selected?.id) ? ' is-current' : '')}
                           onClick={() => { setSelId(l.id); setMobileOpen(true); }}>
@@ -1997,14 +2024,16 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
                         <span className="cos2-row-brand">{l.brand}</span>
                         <span className={'cos2-row-source is-' + String(l.source || '').toLowerCase()}>{l.source || 'lead'}</span>
                       </span>
-                      {(l.draftReply || l.operatorMemory) && (
-                        <span className={'cos2-row-operator is-' + V4OperatorStatus(l).tone}>{V4OperatorStatus(l).label}</span>
+                      {showRowOperator && (l.draftReply || l.operatorMemory) && (
+                        <span className={'cos2-row-operator is-' + rowOperator.tone}>{rowOperator.label}</span>
                       )}
                       <span className="cos2-row-when">{l.lastTouch}</span>
                     </span>
                     <span className="cos2-row-name">{l.contactName}</span>
-                    <span className="cos2-row-snip">{l.nextMove?.text || l.deliverables || l.email || 'Open thread'}</span>
+                    <span className="cos2-row-snip">{rowSnippet}</span>
                   </button>
+                    );
+                  })()}
                   <button type="button"
                           className="cos2-row-act"
                           title={split.trash ? 'Restore to board' : 'Move to trash'}
