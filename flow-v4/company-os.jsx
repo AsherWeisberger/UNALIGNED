@@ -222,39 +222,11 @@ const V4_BRIEF_TAILSCALE_BASE_URL = 'https://mac-studio.tail50d3a2.ts.net';
 const V4_BRIEF_LOCAL_BASE_URL = 'http://127.0.0.1:8767';
 
 function V4ShouldUseMachineHostedApp() {
-  try {
-    const ua = String(window.navigator?.userAgent || '');
-    const vendor = String(window.navigator?.vendor || '');
-    const isIOS = /iPhone|iPad|iPod/i.test(ua);
-    const isSafariDesktop = /Safari/i.test(ua) && /Apple/i.test(vendor) && !/Chrome|CriOS|EdgiOS|Edg|OPR|Firefox/i.test(ua);
-    return isIOS || isSafariDesktop;
-  } catch (err) {
-    return false;
-  }
+  return false;
 }
 
 function V4MaybeRedirectToMachineHostedApp() {
-  try {
-    const current = new URL(String(window.location?.href || ''));
-    const isGithubHosted = current.hostname === 'asherweisberger.github.io';
-    const isAlreadyMachineHosted = current.hostname === 'mac-studio.tail50d3a2.ts.net';
-    const bypass = current.searchParams.get('no_machine_redirect') === '1';
-    if (!isGithubHosted || isAlreadyMachineHosted || bypass || !V4ShouldUseMachineHostedApp()) return false;
-    const target = new URL(V4_BRIEF_TAILSCALE_BASE_URL + '/');
-    if (current.search) target.search = current.search;
-    if (target.search) {
-      const merged = new URLSearchParams(target.search);
-      merged.set('from', 'github');
-      target.search = '?' + merged.toString();
-    } else {
-      target.search = '?from=github';
-    }
-    if (current.hash) target.hash = current.hash;
-    window.location.replace(target.toString());
-    return true;
-  } catch (err) {
-    return false;
-  }
+  return false;
 }
 
 function V4IsLocalBriefPage() {
