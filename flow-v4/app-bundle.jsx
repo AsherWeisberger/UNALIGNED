@@ -725,7 +725,7 @@ const V3_MIN_VISIBLE_TS = Date.parse('2026-01-01T00:00:00Z');
 
 async function V3LoadXDmIntakeRows() {
   try {
-    const res = await fetch('flow-v4/assets/x_dm_daily_intake.json?v=20260619-live-x-inbox-1');
+    const res = await fetch('flow-v4/assets/x_dm_daily_intake.json?v=20260620-live-x-inbox-1');
     if (!res.ok) throw new Error('X intake ' + res.status);
     const rows = await res.json();
     return Array.isArray(rows) ? rows : [];
