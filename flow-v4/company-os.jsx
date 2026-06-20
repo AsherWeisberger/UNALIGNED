@@ -2033,6 +2033,15 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   const items = split.items || [];
   const selected = items.find(l => String(l.id) === String(selId)) || items[0] || null;
 
+  React.useEffect(() => {
+    try {
+      const current = new URL(String(window.location?.href || ''));
+      if (current.searchParams.get('open') === 'brief-maker') {
+        setSplitId('toolkit');
+      }
+    } catch (err) {}
+  }, []);
+
   React.useEffect(() => { setSelId(null); setMobileOpen(false); setComposeOpen(false); }, [splitId]);
   React.useEffect(() => { setComposeOpen(false); }, [selected?.id]);
 
