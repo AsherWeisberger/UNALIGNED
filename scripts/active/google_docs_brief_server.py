@@ -41,6 +41,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/documents",
     "https://www.googleapis.com/auth/drive.file",
     "https://www.googleapis.com/auth/calendar.events",
+    "https://www.googleapis.com/auth/tasks",
 ]
 OPENCODE_CONFIG_FILE = Path.home() / ".config" / "opencode" / "opencode.json"
 DEFAULT_LLM_TARGETS = [
@@ -158,6 +159,8 @@ def load_docs_service(interactive: bool = True):
             creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), SCOPES)
         except Exception:
             creds = None
+    if creds and not creds.has_scopes(SCOPES):
+        creds = None
     if creds and creds.expired and creds.refresh_token:
         try:
             creds.refresh(google.auth.transport.requests.Request())
@@ -180,6 +183,8 @@ def load_calendar_service(interactive: bool = True):
           creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), SCOPES)
       except Exception:
           creds = None
+    if creds and not creds.has_scopes(SCOPES):
+        creds = None
     if creds and creds.expired and creds.refresh_token:
         try:
             creds.refresh(google.auth.transport.requests.Request())
@@ -193,6 +198,30 @@ def load_calendar_service(interactive: bool = True):
     if not creds:
         raise RuntimeError("Google Calendar auth is not ready.")
     return build("calendar", "v3", credentials=creds)
+
+
+def load_tasks_service(interactive: bool = True):
+    creds = None
+    if TOKEN_FILE.exists():
+        try:
+            creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), SCOPES)
+        except Exception:
+            creds = None
+    if creds and not creds.has_scopes(SCOPES):
+        creds = None
+    if creds and creds.expired and creds.refresh_token:
+        try:
+            creds.refresh(google.auth.transport.requests.Request())
+            TOKEN_FILE.write_text(creds.to_json(), encoding="utf-8")
+        except Exception:
+            creds = None
+    if not creds and interactive:
+        flow = InstalledAppFlow.from_client_secrets_file(str(CLIENT_SECRET_FILE), SCOPES)
+        creds = flow.run_local_server(port=0)
+        TOKEN_FILE.write_text(creds.to_json(), encoding="utf-8")
+    if not creds:
+        raise RuntimeError("Google Tasks auth is not ready.")
+    return build("tasks", "v1", credentials=creds)
 
 
 def line(value: str | None) -> str:
@@ -1373,23 +1402,37 @@ def create_calendar_hold(payload: dict) -> dict:
     if doc_url:
         note_lines.extend(["", f"Brief doc: {doc_url}"])
     description = "\n".join([part for part in note_lines if part is not None]).strip()
+    if mode == "all_day":
+        service = load_tasks_service(interactive=True)
+        due_at = datetime.strptime(date_value, "%Y-%m-%d").replace(hour=0, minute=0, second=0, microsecond=0)
+        task = {
+            "title": title,
+            "notes": description,
+            "due": due_at.isoformat() + "Z",
+        }
+        created = service.tasks().insert(tasklist="@default", body=task).execute()
+        return {
+            "ok": True,
+            "taskId": created.get("id"),
+            "htmlLink": created.get("webViewLink"),
+            "title": title,
+            "mode": mode,
+            "kind": "task",
+        }
+
     service = load_calendar_service(interactive=True)
     event = {
         "summary": title,
         "description": description,
-    }
-    if mode == "all_day":
-        event["start"] = {"date": start_at.strftime("%Y-%m-%d")}
-        event["end"] = {"date": (start_at + timedelta(days=1)).strftime("%Y-%m-%d")}
-    else:
-        event["start"] = {
+        "start": {
             "dateTime": start_at.isoformat(),
             "timeZone": "America/New_York",
-        }
-        event["end"] = {
+        },
+        "end": {
             "dateTime": end_at.isoformat(),
             "timeZone": "America/New_York",
-        }
+        },
+    }
     created = service.events().insert(calendarId="primary", body=event).execute()
     return {
         "ok": True,
@@ -1397,6 +1440,7 @@ def create_calendar_hold(payload: dict) -> dict:
         "htmlLink": created.get("htmlLink"),
         "title": title,
         "mode": mode,
+        "kind": "event",
     }
 
 
@@ -1479,6 +1523,12 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
                     "Google Calendar API is disabled for the local Google Cloud project. "
                     "Enable it here: "
                     "https://console.cloud.google.com/apis/library/calendar-json.googleapis.com?project=48186730929"
+                )
+            if "tasks.googleapis.com" in message or "auth/tasks" in message:
+                message = (
+                    "Google Tasks needs one-time approval for the brief machine. "
+                    "If Google prompts you, approve Tasks access. If the API is disabled, enable it here: "
+                    "https://console.cloud.google.com/apis/library/tasks.googleapis.com?project=48186730929"
                 )
             send_json(self, 400, {"ok": False, "error": message})
         except Exception as exc:

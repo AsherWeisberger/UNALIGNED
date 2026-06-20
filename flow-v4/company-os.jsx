@@ -1921,8 +1921,16 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                       )}
                       {calendarStatus === 'done' && calendarResult && (
                         <div className="brief-maker-result-actions">
-                          <span className="brief-maker-server-ok">Placed on Robert&apos;s calendar.</span>
-                          <a className="cos-toolkit-btn" href={calendarResult.htmlLink} target="_blank" rel="noreferrer">Open calendar task</a>
+                          <span className="brief-maker-server-ok">
+                            {calendarResult.kind === 'task'
+                              ? 'Added to Robert’s Google Tasks.'
+                              : 'Placed on Robert’s calendar.'}
+                          </span>
+                          {calendarResult.htmlLink && (
+                            <a className="cos-toolkit-btn" href={calendarResult.htmlLink} target="_blank" rel="noreferrer">
+                              {calendarResult.kind === 'task' ? 'Open task' : 'Open calendar event'}
+                            </a>
+                          )}
                         </div>
                       )}
                     </div>
