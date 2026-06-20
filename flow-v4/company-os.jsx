@@ -239,6 +239,23 @@ function V4BriefServiceHeaders(extra = {}) {
   return headers;
 }
 
+function V4LoadBriefApiToken() {
+  try {
+    return String(window.localStorage.getItem('v4_brief_api_token') || '').trim();
+  } catch (err) {
+    return '';
+  }
+}
+
+function V4StoreBriefApiToken(value) {
+  const token = String(value || '').trim();
+  try {
+    if (token) window.localStorage.setItem('v4_brief_api_token', token);
+    else window.localStorage.removeItem('v4_brief_api_token');
+  } catch (err) {}
+  return token;
+}
+
 async function V4BriefServiceFetch(url, options = {}) {
   const makeRequest = () => fetch(url, {
     ...options,
@@ -1151,6 +1168,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
   const [briefMakerOpen, setBriefMakerOpen] = React.useState(false);
   const [briefForm, setBriefForm] = React.useState(() => V4BriefMakerDefaultState());
   const [briefAdvancedOpen, setBriefAdvancedOpen] = React.useState(false);
+  const [briefApiToken, setBriefApiToken] = React.useState(() => V4LoadBriefApiToken());
   const [copied, setCopied] = React.useState(false);
   const [briefStatus, setBriefStatus] = React.useState('idle');
   const [briefError, setBriefError] = React.useState('');
@@ -1188,6 +1206,11 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
       setCalendarError('');
       setCalendarResult(null);
     }
+  };
+
+  const saveBriefApiToken = value => {
+    const next = V4StoreBriefApiToken(value);
+    setBriefApiToken(next);
   };
 
   const downloadBriefConfig = () => {
@@ -1587,6 +1610,16 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                         updateBriefField('notion_url', e.target.value);
                       }}
                       placeholder="Paste a public Notion page or Google Doc link"
+                    />
+                  </label>
+                  <label className="brief-maker-field brief-maker-field-wide">
+                    <span>Brief Maker access token</span>
+                    <input
+                      className="brief-maker-input"
+                      value={briefApiToken}
+                      onChange={e => setBriefApiToken(e.target.value)}
+                      onBlur={e => saveBriefApiToken(e.target.value)}
+                      placeholder="Paste the token once to connect this browser"
                     />
                   </label>
                   <div className="brief-maker-source-note">
