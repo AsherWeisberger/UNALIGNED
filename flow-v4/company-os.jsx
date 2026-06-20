@@ -218,11 +218,12 @@ const V4_COMPANY_OS_STAGES = [
   { key: 'done', label: 'Closed' },
 ];
 
+const V4_BRIEF_FUNCTIONS_BASE_URL = 'https://us-central1-unaligned-fc556.cloudfunctions.net';
 const V4_BRIEF_ACTION_URL = 'http://127.0.0.1:8766/generate-brief';
-const V4_BRIEF_DOC_ACTION_URL = 'http://127.0.0.1:8767/generate-brief-doc';
-const V4_BRIEF_CALENDAR_ACTION_URL = 'http://127.0.0.1:8767/create-calendar-hold';
-const V4_BRIEF_NOTION_IMPORT_URL = 'http://127.0.0.1:8767/import-notion-brief';
-const V4_BRIEF_SOURCE_IMPORT_URL = 'http://127.0.0.1:8767/import-source-brief';
+const V4_BRIEF_DOC_ACTION_URL = V4_BRIEF_FUNCTIONS_BASE_URL + '/generateBriefDoc';
+const V4_BRIEF_CALENDAR_ACTION_URL = V4_BRIEF_FUNCTIONS_BASE_URL + '/createBriefCalendarHold';
+const V4_BRIEF_NOTION_IMPORT_URL = V4_BRIEF_FUNCTIONS_BASE_URL + '/importBriefSource';
+const V4_BRIEF_SOURCE_IMPORT_URL = V4_BRIEF_FUNCTIONS_BASE_URL + '/importBriefSource';
 
 const V4_COMPANY_OS_TOOLKIT = [
   {
@@ -1674,7 +1675,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                     <span className="brief-maker-server-error">{docError}</span>
                   )}
                   {docStatus === 'creating' && (
-                    <span className="brief-maker-server-note">Creating Google Doc on this Mac...</span>
+                    <span className="brief-maker-server-note">Creating Google Doc in the hosted brief service...</span>
                   )}
                   {calendarStatus === 'done' && calendarResult && (
                     <div className="brief-maker-result-card">
@@ -1688,7 +1689,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                     <span className="brief-maker-server-error">{calendarError}</span>
                   )}
                   {calendarStatus === 'creating' && (
-                    <span className="brief-maker-server-note">Adding this brief to Robert&apos;s calendar...</span>
+                    <span className="brief-maker-server-note">Adding this brief to Robert&apos;s calendar in the hosted brief service...</span>
                   )}
                   {briefStatus === 'done' && briefResult && (
                     <div className="brief-maker-result-card">
