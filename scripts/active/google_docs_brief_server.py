@@ -12,6 +12,7 @@ can be dropped directly into Robert's calendar.
 from __future__ import annotations
 
 import json
+import mimetypes
 import os
 import re
 import subprocess
@@ -19,6 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from urllib import request, error
+from urllib.parse import unquote, urlparse
 
 import google.auth.transport.requests
 from google.oauth2.credentials import Credentials
@@ -34,6 +36,7 @@ CLIENT_SECRET_FILE = STATE_DIR / "client_secret.json"
 TOKEN_FILE = STATE_DIR / "google-docs-brief-token.json"
 API_TOKEN_FILE = STATE_DIR / "brief_api_token.txt"
 NOTION_EXTRACTOR = Path("/Users/asherweisberger/Desktop/UNALIGNED/MASTER FILES/scripts/active/extract_notion_brief.mjs")
+WEB_ROOT = Path("/Users/asherweisberger/Desktop/UNALIGNED/MASTER FILES")
 SCOPES = [
     "https://www.googleapis.com/auth/documents",
     "https://www.googleapis.com/auth/drive.file",
@@ -81,13 +84,40 @@ def send_json(handler: BaseHTTPRequestHandler, status: int, payload: dict) -> No
         handler.send_response(status)
         handler.send_header("Content-Type", "application/json")
         handler.send_header("Access-Control-Allow-Origin", allowed_origin(handler.headers.get("Origin")))
-        handler.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
+        handler.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         handler.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Brief-Token")
+        handler.send_header("Vary", "Origin, Access-Control-Request-Private-Network")
+        if line(handler.headers.get("Access-Control-Request-Private-Network")).lower() == "true":
+            handler.send_header("Access-Control-Allow-Private-Network", "true")
         handler.send_header("Content-Length", str(len(body)))
         handler.end_headers()
         handler.wfile.write(body)
     except BrokenPipeError:
         pass
+
+
+def safe_static_path(request_path: str) -> Path | None:
+    parsed = urlparse(request_path or "/")
+    raw_path = unquote(parsed.path or "/")
+    candidate = "index.html" if raw_path in {"", "/"} else raw_path.lstrip("/")
+    resolved = (WEB_ROOT / candidate).resolve()
+    try:
+        resolved.relative_to(WEB_ROOT.resolve())
+    except ValueError:
+        return None
+    if not resolved.is_file():
+        return None
+    return resolved
+
+
+def send_file(handler: BaseHTTPRequestHandler, file_path: Path) -> None:
+    mime_type, _ = mimetypes.guess_type(str(file_path))
+    body = file_path.read_bytes()
+    handler.send_response(200)
+    handler.send_header("Content-Type", mime_type or "application/octet-stream")
+    handler.send_header("Content-Length", str(len(body)))
+    handler.end_headers()
+    handler.wfile.write(body)
 
 
 def require_api_token(handler: BaseHTTPRequestHandler) -> bool:
@@ -163,6 +193,10 @@ def line(value: str | None) -> str:
 def slug_filename(value: str) -> str:
     cleaned = re.sub(r"[^A-Za-z0-9]+", "_", str(value or "")).strip("_")
     return cleaned or "Robert_Brief"
+
+
+def gdoc_units(value: str) -> int:
+    return len(str(value or "").encode("utf-16-le")) // 2
 
 
 def extract_google_doc_id(url: str) -> str:
@@ -781,31 +815,66 @@ def import_source_brief(source_url: str) -> dict:
 
 
 def build_doc_text(payload: dict) -> str:
-    sections: list[str] = []
+    text, _ = build_doc_blocks(payload)
+    return text
+
+
+def split_doc_paragraphs(value: str) -> list[str]:
+    normalized = str(value or "").replace("\u000b", "\n")
+    parts = [line(item) for item in normalized.splitlines()]
+    return [item for item in parts if item]
+
+
+def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
+    blocks: list[dict] = []
+
+    def push(kind: str, text_value: str = "", *, shaded: bool = False, bold: bool = False) -> None:
+        blocks.append({
+            "kind": kind,
+            "text": text_value,
+            "shaded": shaded,
+            "bold": bold,
+        })
+
+    def push_section(heading: str, values: list[str], *, split_values: bool = True) -> None:
+        cleaned_values: list[str] = []
+        for value in values:
+            if not value:
+                continue
+            if split_values:
+                cleaned_values.extend(split_doc_paragraphs(value))
+            else:
+                cleaned_values.append(line(value))
+        cleaned_values = [item for item in cleaned_values if item]
+        if not cleaned_values:
+            return
+        push("spacer")
+        push("section_heading", heading)
+        for item in cleaned_values:
+            push("body", item, shaded=True)
+
     title = line(payload.get("title")) or "UNALIGNED Robert Brief"
     company_name = line(payload.get("company_name"))
-    sections.append(title)
+    push("title", title)
     if line(payload.get("subtitle")):
-        sections.append(line(payload.get("subtitle")))
-
-    section_map: list[tuple[str, list[str]]] = []
+        push("subtitle", line(payload.get("subtitle")))
 
     if line(payload.get("about_company")):
-        heading = f"ABOUT {company_name}" if company_name else "ABOUT THE COMPANY"
-        section_map.append((heading, [line(payload.get("about_company"))]))
+        heading = f"About {company_name}" if company_name else "About the Company"
+        push_section(heading, [line(payload.get("about_company"))])
 
     core_idea = line(payload.get("core_idea"))
     if core_idea:
-        section_map.append(("THE CORE IDEA", [core_idea]))
+        push_section("The Core Idea", [core_idea])
 
     how_it_works_lines = [line(payload.get("how_it_works")), line(payload.get("announcement"))]
     how_it_works_lines = [item for item in how_it_works_lines if item]
     if how_it_works_lines:
-        section_map.append(("HOW IT WORKS / THE ANNOUNCEMENT", how_it_works_lines))
+        push_section("How it Works / The Story", how_it_works_lines)
 
-    angles = payload.get("angles_or_accuracy_requirements") or []
+    angles = [line(item) for item in (payload.get("angles_or_accuracy_requirements") or []) if line(item)]
     if angles:
-        section_map.append(("ANGLES OR HARD ACCURACY REQUIREMENTS", [line(item) for item in angles if line(item)]))
+        push_section("Hard Accuracy Requirements", angles)
 
     where_it_lives = payload.get("where_it_lives") or []
     where_lines: list[str] = []
@@ -816,110 +885,135 @@ def build_doc_text(payload: dict) -> str:
             if label or value:
                 where_lines.append(f"{label}: {value}" if label else value)
     must_include = payload.get("must_include") or {}
-    if line(must_include.get("tag")):
+    if line(must_include.get("tag")) and not any(current.startswith("Company X:") for current in where_lines):
         where_lines.append(f"Company X: {line(must_include.get('tag'))}")
-    if line(must_include.get("link")):
+    if line(must_include.get("link")) and not any(current.startswith("Website:") for current in where_lines):
         where_lines.append(f"Website: {line(must_include.get('link'))}")
     if line(must_include.get("hashtags")):
         where_lines.append(f"Hashtags: {line(must_include.get('hashtags'))}")
     if where_lines:
-        section_map.append(("WHERE IT LIVES", where_lines))
+        push_section("Where it Lives", where_lines)
 
     status_lines: list[str] = []
     if line(payload.get("deliverable_type")):
-        status_lines.append(f"Deliverable: {line(payload.get('deliverable_type'))}")
+        status_lines.append(f"This is a {line(payload.get('deliverable_type'))} deliverable.")
     if line(payload.get("go_live")):
         status_lines.append(f"Go live: {line(payload.get('go_live'))}")
     if line(payload.get("go_live_note")):
         status_lines.append(line(payload.get("go_live_note")))
     status_lines.extend([line(item) for item in (payload.get("status_note") or []) if line(item)])
     if status_lines:
-        section_map.append(("STATUS NOTE", status_lines))
+        push_section("Status Note", status_lines)
 
     if line(payload.get("why_alignednews")):
-        section_map.append(("WHY IT MATTERS FOR ALIGNEDNEWS", [line(payload.get("why_alignednews"))]))
+        push_section("Why it matters for AlignedNews", [line(payload.get("why_alignednews"))])
 
     drafts = payload.get("drafts") or []
-    if drafts:
-        draft_lines: list[str] = []
-        for draft in drafts:
-            if not isinstance(draft, dict):
-                continue
+    valid_drafts = [item for item in drafts if isinstance(item, dict) and (line(item.get("label")) or line(item.get("text")))]
+    if valid_drafts:
+        push("spacer")
+        push("section_heading", "Post to publish")
+        push("blank")
+        for idx, draft in enumerate(valid_drafts):
             label = line(draft.get("label"))
-            text = line(draft.get("text"))
+            text_value = line(draft.get("text"))
             if label:
-                draft_lines.append(label)
-            if text:
-                draft_lines.append(text)
-            draft_lines.append("")
-        while draft_lines and not draft_lines[-1]:
-            draft_lines.pop()
-        section_map.append(("POST TO PUBLISH", draft_lines))
-
-    for heading, values in section_map:
-        if not values:
-            continue
-        sections.extend(["", heading])
-        sections.extend([item for item in values if item is not None])
+                push("draft_label", label, bold=True)
+            for paragraph in split_doc_paragraphs(text_value):
+                push("body", paragraph, shaded=True)
+            if idx != len(valid_drafts) - 1:
+                push("blank")
 
     if line(payload.get("submit_url")):
-        sections.extend(["", f"After posting, submit the live post URL here: {line(payload.get('submit_url'))}"])
+        push("spacer")
+        push("body", f"After posting, submit the live post URL here: {line(payload.get('submit_url'))}", shaded=False)
 
-    text = "\n".join(sections).strip() + "\n"
-    return text
+    lines: list[str] = []
+    for block in blocks:
+        text_value = block.get("text") or ""
+        if block["kind"] in {"spacer", "blank"}:
+            lines.append("")
+        else:
+            lines.append(text_value)
+    text = "\n".join(lines).rstrip() + "\n"
+    return text, blocks
 
 
-def build_requests(text: str) -> list[dict]:
-    # Minimal structure for now: title and key section labels bolded with heading styles.
+def build_requests(text: str, blocks: list[dict]) -> list[dict]:
     requests: list[dict] = [{"insertText": {"location": {"index": 1}, "text": text}}]
     idx = 1
-    lines = text.splitlines(True)
-    section_titles = {
-        "ABOUT THE COMPANY",
-        "THE CORE IDEA",
-        "HOW IT WORKS / THE ANNOUNCEMENT",
-        "ANGLES OR HARD ACCURACY REQUIREMENTS",
-        "WHERE IT LIVES",
-        "STATUS NOTE",
-        "WHY IT MATTERS FOR ALIGNEDNEWS",
-        "POST TO PUBLISH",
-    }
-    for i, raw in enumerate(lines):
+    dark = {"color": {"rgbColor": {"red": 0.039215688, "green": 0.039215688, "blue": 0.039215688}}}
+    muted = {"color": {"rgbColor": {"red": 0.99215686, "green": 0.99215686, "blue": 0.9882353}}}
+    heading_color = {"color": {"rgbColor": {"red": 0.14117648, "green": 0.14117648, "blue": 0.14117648}}}
+
+    for block in blocks:
         start = idx
-        idx += len(raw)
-        stripped = raw.rstrip("\n")
-        if i == 0:
+        text_value = block.get("text") or ""
+        idx += gdoc_units(text_value) + 1
+        end = idx
+        text_end = end - 1
+        kind = block["kind"]
+        if kind in {"spacer", "blank"}:
+            continue
+        if kind == "title":
             requests.append({
                 "updateParagraphStyle": {
-                    "range": {"startIndex": start, "endIndex": idx},
+                    "range": {"startIndex": start, "endIndex": end},
                     "paragraphStyle": {"namedStyleType": "TITLE"},
                     "fields": "namedStyleType",
                 }
             })
-        elif i == 1 and stripped:
+            continue
+        if kind == "subtitle":
             requests.append({
                 "updateParagraphStyle": {
-                    "range": {"startIndex": start, "endIndex": idx},
+                    "range": {"startIndex": start, "endIndex": end},
                     "paragraphStyle": {"namedStyleType": "SUBTITLE"},
                     "fields": "namedStyleType",
                 }
             })
-        elif stripped in section_titles or stripped.startswith("ABOUT "):
+            continue
+        if kind == "section_heading":
             requests.append({
                 "updateParagraphStyle": {
-                    "range": {"startIndex": start, "endIndex": idx},
-                    "paragraphStyle": {"namedStyleType": "HEADING_2"},
+                    "range": {"startIndex": start, "endIndex": end},
+                    "paragraphStyle": {"namedStyleType": "HEADING_1"},
                     "fields": "namedStyleType",
                 }
             })
-        elif stripped.startswith("Option "):
             requests.append({
                 "updateTextStyle": {
-                    "range": {"startIndex": start, "endIndex": idx - 1 if raw.endswith("\n") else idx},
-                    "textStyle": {"bold": True},
-                    "fields": "bold",
+                    "range": {"startIndex": start, "endIndex": text_end},
+                    "textStyle": {
+                        "foregroundColor": heading_color,
+                    },
+                    "fields": "foregroundColor",
                 }
             })
+            continue
+
+        requests.append({
+            "updateParagraphStyle": {
+                "range": {"startIndex": start, "endIndex": end},
+                "paragraphStyle": {
+                    "namedStyleType": "NORMAL_TEXT",
+                    "shading": {"backgroundColor": muted} if block.get("shaded") else {},
+                },
+                "fields": "namedStyleType,shading.backgroundColor",
+            }
+        })
+        requests.append({
+            "updateTextStyle": {
+                "range": {"startIndex": start, "endIndex": text_end},
+                "textStyle": {
+                    "foregroundColor": dark,
+                    "fontSize": {"magnitude": 10.5, "unit": "PT"},
+                    "weightedFontFamily": {"fontFamily": "Roboto", "weight": 400},
+                    "bold": bool(block.get("bold")),
+                },
+                "fields": "foregroundColor,fontSize,weightedFontFamily,bold",
+            }
+        })
     return requests
 
 
@@ -950,8 +1044,8 @@ def create_brief_doc(payload: dict) -> dict:
     service = load_docs_service(interactive=True)
     doc = service.documents().create(body={"title": title}).execute()
     document_id = doc["documentId"]
-    text = build_doc_text(payload)
-    requests = build_requests(text)
+    text, blocks = build_doc_blocks(payload)
+    requests = build_requests(text, blocks)
     service.documents().batchUpdate(documentId=document_id, body={"requests": requests}).execute()
     return {
         "ok": True,
@@ -1004,16 +1098,23 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
         send_json(self, 204, {})
 
     def do_GET(self) -> None:
-        if self.path != "/health":
+        if self.path == "/health":
+            send_json(self, 200, {
+                "ok": True,
+                "service": "google-docs-brief-server",
+                "host": HOST,
+                "port": PORT,
+                "time": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            })
+            return
+        file_path = safe_static_path(self.path)
+        if file_path is None:
             send_json(self, 404, {"ok": False, "error": "Unknown endpoint."})
             return
-        send_json(self, 200, {
-            "ok": True,
-            "service": "google-docs-brief-server",
-            "host": HOST,
-            "port": PORT,
-            "time": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        })
+        try:
+            send_file(self, file_path)
+        except BrokenPipeError:
+            pass
 
     def do_POST(self) -> None:
         if self.path not in ("/generate-brief-doc", "/create-calendar-hold", "/import-notion-brief", "/import-source-brief"):
