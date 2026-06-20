@@ -12,11 +12,13 @@ can be dropped directly into Robert's calendar.
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from datetime import datetime, timedelta
+from urllib import request, error
 
 import google.auth.transport.requests
 from google.oauth2.credentials import Credentials
@@ -30,12 +32,41 @@ PORT = 8767
 STATE_DIR = Path.home() / ".config" / "google-credentials"
 CLIENT_SECRET_FILE = STATE_DIR / "client_secret.json"
 TOKEN_FILE = STATE_DIR / "google-docs-brief-token.json"
+API_TOKEN_FILE = STATE_DIR / "brief_api_token.txt"
 NOTION_EXTRACTOR = Path("/Users/asherweisberger/Desktop/UNALIGNED/MASTER FILES/scripts/active/extract_notion_brief.mjs")
 SCOPES = [
     "https://www.googleapis.com/auth/documents",
     "https://www.googleapis.com/auth/drive.file",
     "https://www.googleapis.com/auth/calendar.events",
 ]
+OPENCODE_CONFIG_FILE = Path.home() / ".config" / "opencode" / "opencode.json"
+DEFAULT_LLM_TARGETS = [
+    {"base_url": "http://127.0.0.1:8000/v1", "model": "qwen3.5-9b-4bit", "label": "Rapid-MLX Qwen 3.5 9B"},
+    {"base_url": "http://127.0.0.1:11434/v1", "model": "hermes-fast:latest", "label": "Ollama Hermes Fast"},
+]
+ALLOWED_ORIGINS = {
+    "https://asherweisberger.github.io",
+    "http://127.0.0.1:4174",
+    "http://localhost:4174",
+    "http://127.0.0.1:4173",
+    "http://localhost:4173",
+}
+
+
+def get_api_token() -> str:
+    token = line(os.environ.get("BRIEF_API_TOKEN"))
+    if token:
+        return token
+    if API_TOKEN_FILE.exists():
+        return line(API_TOKEN_FILE.read_text(encoding="utf-8"))
+    return ""
+
+
+def allowed_origin(origin: str | None) -> str:
+    normalized = line(origin)
+    if normalized in ALLOWED_ORIGINS:
+        return normalized
+    return "*"
 
 
 def send_json(handler: BaseHTTPRequestHandler, status: int, payload: dict) -> None:
@@ -43,14 +74,25 @@ def send_json(handler: BaseHTTPRequestHandler, status: int, payload: dict) -> No
     try:
         handler.send_response(status)
         handler.send_header("Content-Type", "application/json")
-        handler.send_header("Access-Control-Allow-Origin", "*")
+        handler.send_header("Access-Control-Allow-Origin", allowed_origin(handler.headers.get("Origin")))
         handler.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
-        handler.send_header("Access-Control-Allow-Headers", "Content-Type")
+        handler.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Brief-Token")
         handler.send_header("Content-Length", str(len(body)))
         handler.end_headers()
         handler.wfile.write(body)
     except BrokenPipeError:
         pass
+
+
+def require_api_token(handler: BaseHTTPRequestHandler) -> bool:
+    token = get_api_token()
+    if not token:
+        return True
+    auth = line(handler.headers.get("Authorization"))
+    if auth == f"Bearer {token}":
+        return True
+    header_token = line(handler.headers.get("X-Brief-Token"))
+    return header_token == token
 
 
 def load_docs_service(interactive: bool = True):
@@ -151,104 +193,437 @@ def pick_first_url(text: str) -> str:
     return match.group(0) if match else ""
 
 
-def notion_to_brief_payload(notion: dict, notion_url: str) -> dict:
-    lines = notion.get("lines") or []
-    title = line(notion.get("title")) or "Robert Brief"
-    intro = []
-    for current in lines:
-        if current == title or current == "Skip to content" or current == "Get Notion free":
+def post_json(url: str, payload: dict, timeout: int = 120) -> dict:
+    data = json.dumps(payload).encode("utf-8")
+    req = request.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
+    with request.urlopen(req, timeout=timeout) as response:
+        body = response.read().decode("utf-8")
+        return json.loads(body or "{}")
+
+
+def fetch_json(url: str, timeout: int = 15) -> dict:
+    req = request.Request(url, headers={"Content-Type": "application/json"}, method="GET")
+    with request.urlopen(req, timeout=timeout) as response:
+        body = response.read().decode("utf-8")
+        return json.loads(body or "{}")
+
+
+def extract_json_block(text: str) -> dict:
+    raw = line(text)
+    if not raw:
+        raise ValueError("Empty model response.")
+    raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.I)
+    raw = re.sub(r"\s*```$", "", raw)
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        match = re.search(r"\{.*\}", raw, flags=re.S)
+        if match:
+            return json.loads(match.group(0))
+    raise ValueError("Could not parse model JSON response.")
+
+
+def load_local_llm_targets() -> list[dict]:
+    targets: list[dict] = []
+    if OPENCODE_CONFIG_FILE.exists():
+        try:
+            config = json.loads(OPENCODE_CONFIG_FILE.read_text(encoding="utf-8") or "{}")
+            providers = config.get("provider") or {}
+            rapid = providers.get("rapidmlx") or {}
+            ollama = providers.get("ollama") or {}
+            rapid_base = line((rapid.get("options") or {}).get("baseURL"))
+            ollama_base = line((ollama.get("options") or {}).get("baseURL"))
+            if rapid_base:
+                for model_id in (rapid.get("models") or {}).keys():
+                    targets.append({"base_url": rapid_base, "model": model_id, "label": f"Rapid-MLX {model_id}"})
+            if ollama_base:
+                for model_id in (ollama.get("models") or {}).keys():
+                    targets.append({"base_url": ollama_base, "model": model_id, "label": f"Ollama {model_id}"})
+        except Exception:
+            pass
+    for default in DEFAULT_LLM_TARGETS:
+        if not any(item["base_url"] == default["base_url"] and item["model"] == default["model"] for item in targets):
+            targets.append(default)
+    return targets
+
+
+def llm_prompt_for_brief(source: dict) -> str:
+    title = line(source.get("title")) or "Robert Brief"
+    source_url = line(source.get("source_url"))
+    links = source.get("links") or []
+    source_text = line(source.get("source_text"))
+    link_lines = "\n".join(
+        f"- {line(item.get('text'))}: {line(item.get('href'))}"
+        for item in links[:20]
+        if line(item.get("href"))
+    )
+    trimmed_source = source_text[:3500]
+    return f"""Extract a Robert Scoble sponsorship brief from the source below.
+
+Return valid JSON only. No markdown. No explanation. No invented facts.
+Use short confident prose. No hyphens or em dashes.
+
+Return exactly this JSON:
+{{
+  "title": "",
+  "company_name": "",
+  "about_company": "",
+  "core_idea": "",
+  "how_it_works": "",
+  "announcement": "",
+  "deliverable_type": "",
+  "go_live": "",
+  "go_live_note": "",
+  "angles_or_accuracy_requirements": [],
+  "where_it_lives": [["Label", "Value"]],
+  "status_note": [],
+  "why_alignednews": "",
+  "drafts": [
+    {{"label": "Option 1. Core angle. Recommended", "text": ""}},
+    {{"label": "Option 2. Why now angle", "text": ""}},
+    {{"label": "Option 3. Operator angle", "text": ""}}
+  ],
+  "must_include": {{
+    "tag": "",
+    "link": "",
+    "hashtags": ""
+  }},
+  "submit_url": ""
+}}
+
+House rules:
+- Match locked client accuracy language word for word.
+- Drafts should end with CTA and required tags when present.
+
+Source title:
+{title}
+
+Source URL:
+{source_url}
+
+Linked references:
+{link_lines or "(none)"}
+
+Source text:
+{trimmed_source}
+"""
+
+
+def query_local_brief_model(source: dict) -> dict | None:
+    prompt = llm_prompt_for_brief(source)
+    targets = load_local_llm_targets()
+    errors: list[str] = []
+    for target in targets:
+        base_url = line(target.get("base_url")).rstrip("/")
+        model = line(target.get("model"))
+        if not base_url or not model:
             continue
-        intro.append(current)
-        if len(intro) >= 3:
+        try:
+            fetch_json(f"{base_url}/models", timeout=8)
+            payload = {
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": "You are a precise JSON extraction engine."},
+                    {"role": "user", "content": prompt},
+                ],
+                "temperature": 0.1,
+                "max_tokens": 900,
+            }
+            data = post_json(f"{base_url}/chat/completions", payload, timeout=35)
+            content = (((data.get("choices") or [{}])[0]).get("message") or {}).get("content", "")
+            parsed = extract_json_block(content)
+            if isinstance(parsed, dict):
+                parsed["_local_model"] = {"base_url": base_url, "model": model, "label": target.get("label")}
+                return parsed
+        except Exception as exc:
+            errors.append(f"{target.get('label') or model}: {exc}")
+            continue
+    if errors:
+        print("Local brief extraction fallback:", " | ".join(errors))
+    return None
+
+
+def merge_brief_payload(base: dict, llm_payload: dict | None) -> dict:
+    if not llm_payload:
+        return base
+    merged = dict(base)
+    scalar_fields = (
+        "title",
+        "company_name",
+        "about_company",
+        "core_idea",
+        "how_it_works",
+        "announcement",
+        "deliverable_type",
+        "go_live",
+        "go_live_note",
+        "why_alignednews",
+        "submit_url",
+    )
+    for field in scalar_fields:
+        value = line(llm_payload.get(field))
+        if value:
+            merged[field] = value
+    for field in ("angles_or_accuracy_requirements", "status_note", "drafts", "where_it_lives"):
+        value = llm_payload.get(field)
+        if value:
+            merged[field] = value
+    must_include = dict(base.get("must_include") or {})
+    llm_must_include = llm_payload.get("must_include") or {}
+    for field in ("tag", "link", "hashtags"):
+        value = line(llm_must_include.get(field))
+        if value:
+            must_include[field] = value
+    merged["must_include"] = must_include
+    local_model = llm_payload.get("_local_model")
+    if local_model:
+        merged["local_model"] = local_model
+    return merged
+
+
+def clean_sentence(value: str | None) -> str:
+    text = line(value)
+    if not text:
+        return ""
+    text = re.sub(r"\s+", " ", text).strip(" .")
+    return f"{text}." if text else ""
+
+
+def clean_points(values: list[str], limit: int = 6) -> list[str]:
+    output: list[str] = []
+    for item in values:
+        cleaned = clean_sentence(item)
+        if cleaned and cleaned not in output:
+            output.append(cleaned)
+        if len(output) >= limit:
             break
-    summary = " ".join(intro).strip()
-    launch_lines = extract_section(lines, "Campaign Timeline")
-    focus_lines = extract_section(lines, "Campaign Focus")
-    customer_lines = extract_section(lines, "Notable Poly AI Customers")
-    problem_lines = extract_section(lines, "The Problem:")
-    solution_lines = extract_section(lines, "The Solution:")
-    structure_lines = extract_section(lines, "Recommended Post Structure")
-    viral_lines = extract_section(lines, "How to Write Viral Posts")
+    return output
 
-    launch_period = ""
-    for current in launch_lines:
-        if "launch period" in current.lower():
-            launch_period = current.replace("📅", "").strip()
+
+def find_first_matching_line(lines: list[str], patterns: tuple[str, ...]) -> str:
+    for current in lines:
+        lowered = current.lower()
+        if any(re.search(pattern, lowered, re.I) for pattern in patterns):
+            return current
+    return ""
+
+
+def collect_matching_lines(lines: list[str], patterns: tuple[str, ...], limit: int = 6) -> list[str]:
+    matches: list[str] = []
+    for current in lines:
+        lowered = current.lower()
+        if any(re.search(pattern, lowered, re.I) for pattern in patterns):
+            matches.append(current)
+        if len(matches) >= limit:
             break
-    if not launch_period:
-        for current in lines:
-            if "launch period" in current.lower():
-                launch_period = current.replace("📅", "").strip()
-                break
+    return matches
 
-    customer_sample = ", ".join([item for item in customer_lines if item][:5])
-    goal_lines = [item for item in focus_lines if item and "Primary goal" not in item][:4]
-    goals = [item for item in goal_lines if not item.lower().startswith(("drive demo bookings", "for this launch"))]
 
-    what_to_do = [
-        "Read the imported Notion brief and keep the strongest launch angle intact.",
-        "Lead with the strongest customer pain point and how the product solves it.",
-        "Keep the post tight, clear, and native to Robert's voice on the target platform.",
-        "Send the draft back for approval before posting live.",
-    ]
-    if structure_lines:
-        what_to_do = [item for item in structure_lines[:5] if len(item.split()) <= 18] or what_to_do
+def infer_company_name(title: str, lines: list[str]) -> str:
+    title = line(title)
+    if title:
+        first_part = re.split(r"[|:•]", title)[0].strip()
+        if 1 <= len(first_part.split()) <= 6:
+            return first_part
+    company_line = find_first_matching_line(lines, (r"\bcompany\b", r"\bclient\b", r"\bbrand\b"))
+    if company_line and ":" in company_line:
+        return line(company_line.split(":", 1)[1])
+    return title or "Company"
 
-    key_facts = []
-    if summary:
-        key_facts.append(["Campaign summary", summary[:220]])
-    if goals:
-        key_facts.append(["Launch focus", " ".join(goals)[:220]])
-    if customer_sample:
-        key_facts.append(["Social proof", customer_sample[:220]])
-    if problem_lines:
-        key_facts.append(["Problem", " ".join(problem_lines[:3])[:220]])
-    if solution_lines:
-        key_facts.append(["Solution", " ".join(solution_lines[:3])[:220]])
 
-    urls = [item.get("href", "") for item in notion.get("links") or [] if item.get("href")]
-    site_link = ""
-    for current in urls:
-        if "notion." not in current and "linkedin.com" not in current and "x.com" not in current:
-            site_link = current
-            break
-    if not site_link:
-        site_link = notion_url
+def extract_handles(text: str) -> list[str]:
+    return re.findall(r"@[\w.]+", text or "")
 
-    draft_seed = goals[0] if goals else summary or title
-    draft_cta = "Book a demo" if re.search(r"\bdemo\b", " ".join(lines), re.I) else "Learn more"
-    draft_one = (
-        f"{draft_seed}. PolyAI is pushing voice agents into something much more usable for real businesses. "
-        f"If this launch lands, expect more companies to replace clunky support flows with AI that actually sounds human. "
-        f"{draft_cta}."
-    ).strip()
-    draft_two = (
-        f"Most customer service AI still feels robotic. PolyAI is betting that better voice agents win when they sound real, move fast, and plug into the stack teams already use. "
-        f"{draft_cta}."
-    ).strip()
-    draft_three = (
-        f"The interesting part of this launch is not hype. It is whether voice agents can lower support costs and still feel natural to the customer. "
-        f"That is the bar PolyAI is trying to clear. {draft_cta}."
-    ).strip()
+
+def infer_deliverable_type(lines: list[str]) -> str:
+    joined = " ".join(lines)
+    lowered = joined.lower()
+    if "quote repost" in lowered or "quote + repost" in lowered:
+        return "Quote repost"
+    if "dedicated thread" in lowered or "thread" in lowered:
+        return "Dedicated thread"
+    if "linkedin" in lowered:
+        return "LinkedIn post"
+    if "custom post" in lowered:
+        return "Custom post"
+    if "post" in lowered:
+        return "Custom post"
+    return ""
+
+
+def build_structured_brief_payload(
+    *,
+    title: str,
+    subtitle: str,
+    source_url: str,
+    lines: list[str],
+    links: list[dict],
+    source_label: str,
+) -> dict:
+    company = infer_company_name(title, lines)
+    intro_lines = [current for current in lines if current != title][:10]
+    summary = " ".join(intro_lines[:4]).strip()
+
+    about_line = find_first_matching_line(
+        lines,
+        (r"\bwhat (it|they) do\b", r"\babout\b", r"\boverview\b", r"\bcompany\b", r"\bproduct\b"),
+    ) or summary
+    core_idea = find_first_matching_line(
+        lines,
+        (r"\bcore idea\b", r"\bmoat\b", r"\bwhy it matters\b", r"\bwhy now\b", r"\bthesis\b"),
+    ) or summary
+    how_it_works = find_first_matching_line(
+        lines,
+        (r"\bhow it works\b", r"\bmechanic\b", r"\bworkflow\b", r"\bproduct works\b", r"\bsolution\b"),
+    ) or summary
+    announcement = find_first_matching_line(
+        lines,
+        (r"\bannounce\b", r"\blaunch\b", r"\bseries [a-z]\b", r"\bnew\b", r"\bshipping\b", r"\brollout\b"),
+    ) or summary
+    go_live = find_first_matching_line(
+        lines,
+        (r"\bgo live\b", r"\bposting window\b", r"\bpost on\b", r"\bpublish\b", r"\blive on\b"),
+    )
+    deliverable_type = infer_deliverable_type(lines)
+
+    accuracy_lines = collect_matching_lines(
+        lines,
+        (r"\bmust say\b", r"\bexact\b", r"\bdo not say\b", r"\bnon.?negotiable\b", r"\bmust include\b", r"\baccuracy\b"),
+        limit=6,
+    )
+    angle_lines = collect_matching_lines(
+        lines,
+        (r"\bangle\b", r"\bhook\b", r"\bpositioning\b", r"\bwhy it matters\b", r"\bcore idea\b"),
+        limit=6,
+    )
+    tags = []
+    for current in lines[:80]:
+        tags.extend(extract_handles(current))
+    tags = list(dict.fromkeys(tags))[:6]
+    urls = [item.get("href", "") for item in links or [] if item.get("href")]
+    urls.extend(re.findall(r"https?://[^\s)>\]]+", "\n".join(lines[:200])))
+    deduped_urls = list(dict.fromkeys([u for u in urls if u]))[:10]
+    disclosure_lines = collect_matching_lines(
+        lines,
+        (r"paid partnership", r"made with ai", r"not financial advice", r"disclosure", r"\bad\b", r"\bsponsored\b"),
+        limit=5,
+    )
+    status_notes = collect_matching_lines(
+        lines,
+        (r"\breview\b", r"\bapproval\b", r"\bwait for\b", r"\bblocker\b", r"\bunpaid\b", r"\binvoice\b", r"\bcreative direction\b"),
+        limit=6,
+    )
+    asset_lines = collect_matching_lines(
+        lines,
+        (r"\bdrive\b", r"\basset\b", r"\bvideo\b", r"\bstills\b", r"\bvisual\b", r"\battach\b"),
+        limit=5,
+    )
+    site_link = next(
+        (
+            u for u in deduped_urls
+            if all(x not in u.lower() for x in ("notion.", "docs.google.com"))
+        ),
+        source_url,
+    )
+    founder_handle = next((handle for handle in tags[1:]), "")
+    company_handle = tags[0] if tags else ""
+    quote_post = next((u for u in deduped_urls if "x.com" in u.lower() or "twitter.com" in u.lower()), "")
+    submit_url = next((u for u in deduped_urls if "fillout.com" in u.lower() or "forms." in u.lower()), "")
+    hashtags = " ".join(re.findall(r"#[A-Za-z0-9_]+", "\n".join(lines[:200])))
+
+    about_company = clean_sentence(about_line or f"{company} is the company behind this campaign")
+    core_idea_text = clean_sentence(core_idea or announcement or summary)
+    how_it_works_text = clean_sentence(how_it_works or summary)
+    announcement_text = clean_sentence(announcement or summary)
+    why_alignednews = clean_sentence(
+        f"This fits AlignedNews because Robert can frame {company} through the broader AI shift, not just the product launch"
+    )
+
+    draft_seed = announcement_text or core_idea_text or about_company
+    cta = "Learn more."
+    if re.search(r"\bdemo\b", "\n".join(lines), re.I):
+        cta = "Book a demo."
+    elif re.search(r"\bsign up\b", "\n".join(lines), re.I):
+        cta = "Sign up."
+    disclosure_suffix = " Paid partnership." if disclosure_lines else ""
+    tag_suffix = f" {company_handle}" if company_handle else ""
+    draft_one = clean_sentence(
+        f"{draft_seed} The bigger point is that this shows where AI products get real when they solve an actual bottleneck. See more at {site_link}{tag_suffix}.{disclosure_suffix}"
+    )
+    draft_two = clean_sentence(
+        f"{company} is interesting because the moat is in how the product works in practice, not just the pitch deck. This is the kind of thing I watch closely at AlignedNews. {cta}{tag_suffix}{disclosure_suffix}"
+    )
+    draft_three = clean_sentence(
+        f"What stands out here is the operating leverage. If this lands, teams move faster with less friction and a cleaner workflow. {cta}{tag_suffix}{disclosure_suffix}"
+    )
+
+    where_it_lives = []
+    if site_link:
+        where_it_lives.append(["Website", site_link])
+    if company_handle:
+        where_it_lives.append(["Company X", company_handle])
+    if founder_handle:
+        where_it_lives.append(["Founder X", founder_handle])
+    if quote_post:
+        where_it_lives.append(["Post to quote", quote_post])
+    for asset in asset_lines[:2]:
+        where_it_lives.append(["Assets", asset])
 
     payload = {
-        "title": title,
-        "subtitle": "For Robert. Built from the Notion campaign brief.",
-        "filename": slug_filename(title),
-        "go_live": launch_period,
-        "go_live_note": "Confirm the exact posting window before going live.",
-        "what_to_do": what_to_do,
-        "key_facts": key_facts[:5],
-        "must_include": {"link": site_link},
+        "title": f"{company} x UNALIGNED x ROBERT SCOBLE",
+        "subtitle": subtitle,
+        "filename": slug_filename(company or title),
+        "company_name": company,
+        "about_company": about_company,
+        "core_idea": core_idea_text,
+        "how_it_works": how_it_works_text,
+        "announcement": announcement_text,
+        "deliverable_type": deliverable_type,
+        "go_live": go_live,
+        "go_live_note": clean_sentence("Confirm the exact posting window before going live"),
+        "angles_or_accuracy_requirements": clean_points(accuracy_lines or angle_lines, limit=6),
+        "where_it_lives": where_it_lives,
+        "status_note": clean_points(
+            [go_live, *disclosure_lines, *status_notes, *asset_lines],
+            limit=8,
+        ),
+        "why_alignednews": why_alignednews,
         "drafts": [
-            {"label": "Option 1. Launch angle. Recommended", "text": draft_one},
-            {"label": "Option 2. Customer pain angle", "text": draft_two},
+            {"label": "Option 1. Core angle. Recommended", "text": draft_one},
+            {"label": "Option 2. Why now angle", "text": draft_two},
             {"label": "Option 3. Operator angle", "text": draft_three},
         ],
-        "source_url": notion_url,
-        "source_text": "\n".join(lines[:220]),
+        "must_include": {
+            "tag": company_handle,
+            "link": site_link,
+            "hashtags": hashtags,
+        },
+        "source_url": source_url,
+        "source_text": "\n".join(lines[:350]),
+        "source_label": source_label,
     }
-    return payload
+    if submit_url:
+        payload["submit_url"] = submit_url
+    llm_payload = query_local_brief_model({
+        "title": title,
+        "source_url": source_url,
+        "source_text": payload.get("source_text"),
+        "links": links,
+    })
+    return merge_brief_payload(payload, llm_payload)
+
+
+def notion_to_brief_payload(notion: dict, notion_url: str) -> dict:
+    lines = [item for item in (notion.get("lines") or []) if item not in ("Skip to content", "Get Notion free")]
+    title = line(notion.get("title")) or "Robert Brief"
+    return build_structured_brief_payload(
+        title=title,
+        subtitle="For Robert. Built from the Notion campaign brief.",
+        source_url=notion_url,
+        lines=lines,
+        links=notion.get("links") or [],
+        source_label="Notion",
+    )
 
 
 def google_doc_to_source(document_id: str) -> dict:
@@ -287,95 +662,14 @@ def google_doc_to_source(document_id: str) -> dict:
 def source_to_brief_payload(source: dict, source_url: str) -> dict:
     lines = source.get("lines") or []
     title = line(source.get("title")) or "Robert Brief"
-
-    intro = []
-    for current in lines:
-        if current == title:
-            continue
-        intro.append(current)
-        if len(intro) >= 4:
-            break
-    summary = " ".join(intro).strip()
-
-    launch_line = next((item for item in lines if re.search(r"\b(go live|launch|posting window|post on|publish)\b", item, re.I)), "")
-    submit_line = next((item for item in lines if "fillout.com" in item.lower() or "forms." in item.lower()), "")
-    tag_line = next((item for item in lines if "@" in item and re.search(r"\b(tag|handle|account)\b", item, re.I)), "")
-    hashtag_line = next((item for item in lines if "#" in item), "")
-
-    action_lines = [
-        item for item in lines
-        if re.search(r"\b(post|use|mention|include|lead with|send|attach|publish|draft)\b", item, re.I)
-    ][:5]
-    if not action_lines:
-        action_lines = [
-            "Read the source brief and keep the strongest campaign angle intact.",
-            "Lead with the sharpest fact and the clearest business takeaway.",
-            "Keep the copy native to Robert's voice and platform.",
-            "Send the draft back for approval before posting live.",
-        ]
-
-    fact_lines = [
-        item for item in lines
-        if len(item.split()) >= 3 and not re.search(r"\b(post|mention|include|draft|send|publish)\b", item, re.I)
-    ][:8]
-    key_facts = []
-    for item in fact_lines:
-        if "|" in item:
-            left, right = item.split("|", 1)
-            key_facts.append([line(left), line(right)])
-        elif ":" in item and len(item.split(":", 1)[0].split()) <= 6:
-            left, right = item.split(":", 1)
-            key_facts.append([line(left), line(right)])
-        else:
-            key_facts.append(["Key fact", item])
-    if summary and not key_facts:
-        key_facts.append(["Campaign summary", summary[:220]])
-
-    urls = [item.get("href", "") for item in source.get("links") or [] if item.get("href")]
-    primary_link = next((u for u in urls if all(x not in u.lower() for x in ("notion.", "docs.google.com", "drive.google.com", "x.com", "linkedin.com"))), "")
-    if not primary_link:
-        primary_link = source_url
-
-    tag_match = re.search(r"@[\w.]+", tag_line or "")
-    hashtags = " ".join(re.findall(r"#[A-Za-z0-9_]+", hashtag_line or ""))
-
-    draft_seed = next((pair[1] for pair in key_facts if pair[1]), summary or title)
-    draft_cta = "Learn more"
-    if re.search(r"\bdemo\b", " ".join(lines), re.I):
-        draft_cta = "Book a demo"
-    elif re.search(r"\bsign up\b", " ".join(lines), re.I):
-        draft_cta = "Sign up"
-
-    draft_one = f"{draft_seed}. This is the kind of launch that matters when the company is solving a real bottleneck instead of chasing AI theater. {draft_cta}."
-    draft_two = f"The strongest angle here is not hype. It is the business case, what changes for the customer, why now, and why this company has a shot to win. {draft_cta}."
-    draft_three = f"What stands out is the operating leverage. If this works as pitched, teams get a cleaner workflow, faster output, and less friction where it used to bog down. {draft_cta}."
-
-    payload = {
-        "title": title,
-        "subtitle": "For Robert. Built from the source brief.",
-        "filename": slug_filename(title),
-        "go_live": launch_line,
-        "go_live_note": "Confirm the exact posting window before going live.",
-        "what_to_do": action_lines,
-        "key_facts": key_facts[:6],
-        "must_include": {
-            "link": primary_link,
-        },
-        "drafts": [
-            {"label": "Option 1. Core angle. Recommended", "text": draft_one},
-            {"label": "Option 2. Business case angle", "text": draft_two},
-            {"label": "Option 3. Operator angle", "text": draft_three},
-        ],
-        "source_url": source_url,
-        "source_text": "\n".join(lines[:220]),
-    }
-    if submit_line:
-        payload["submit_url"] = pick_first_url(submit_line) or submit_line
-    if tag_match:
-        payload["must_include"]["tag"] = tag_match.group(0)
-    if hashtags:
-        payload["must_include"]["hashtags"] = hashtags
-    return payload
+    return build_structured_brief_payload(
+        title=title,
+        subtitle="For Robert. Built from the source brief.",
+        source_url=source_url,
+        lines=lines,
+        links=source.get("links") or [],
+        source_label="Source",
+    )
 
 
 def import_notion_brief(notion_url: str) -> dict:
@@ -431,59 +725,85 @@ def import_source_brief(source_url: str) -> dict:
 
 def build_doc_text(payload: dict) -> str:
     sections: list[str] = []
-    sections.append(line(payload.get("title")) or "UNALIGNED Robert Brief")
+    title = line(payload.get("title")) or "UNALIGNED Robert Brief"
+    company_name = line(payload.get("company_name"))
+    sections.append(title)
     if line(payload.get("subtitle")):
         sections.append(line(payload.get("subtitle")))
 
-    if line(payload.get("go_live")) or line(payload.get("go_live_note")):
-        sections.extend([
-            "",
-            "GO LIVE",
-            line(payload.get("go_live")),
-            line(payload.get("go_live_note")),
-        ])
+    section_map: list[tuple[str, list[str]]] = []
 
-    what_to_do = payload.get("what_to_do") or []
-    if what_to_do:
-        sections.extend(["", "WHAT TO DO"])
-        for item in what_to_do:
-            item = line(item)
-            if item:
-                sections.append(f"- {item}")
+    if line(payload.get("about_company")):
+        heading = f"ABOUT {company_name}" if company_name else "ABOUT THE COMPANY"
+        section_map.append((heading, [line(payload.get("about_company"))]))
 
-    key_facts = payload.get("key_facts") or []
-    if key_facts:
-        sections.extend(["", "KEY FACTS TO WORK IN"])
-        for pair in key_facts:
-            if isinstance(pair, (list, tuple)) and len(pair) >= 2:
-                left = line(pair[0])
-                right = line(" | ".join(str(x) for x in pair[1:]))
-                if left or right:
-                    sections.append(f"{left}: {right}" if left else right)
+    core_idea = line(payload.get("core_idea"))
+    if core_idea:
+        section_map.append(("THE CORE IDEA", [core_idea]))
 
+    how_it_works_lines = [line(payload.get("how_it_works")), line(payload.get("announcement"))]
+    how_it_works_lines = [item for item in how_it_works_lines if item]
+    if how_it_works_lines:
+        section_map.append(("HOW IT WORKS / THE ANNOUNCEMENT", how_it_works_lines))
+
+    angles = payload.get("angles_or_accuracy_requirements") or []
+    if angles:
+        section_map.append(("ANGLES OR HARD ACCURACY REQUIREMENTS", [line(item) for item in angles if line(item)]))
+
+    where_it_lives = payload.get("where_it_lives") or []
+    where_lines: list[str] = []
+    for item in where_it_lives:
+        if isinstance(item, (list, tuple)) and len(item) >= 2:
+            label = line(item[0])
+            value = line(item[1])
+            if label or value:
+                where_lines.append(f"{label}: {value}" if label else value)
     must_include = payload.get("must_include") or {}
-    if must_include:
-        sections.extend(["", "MUST INCLUDE IN YOUR POST"])
-        if line(must_include.get("tag")):
-            sections.append(f"Tag: {line(must_include.get('tag'))}")
-        if line(must_include.get("link")):
-            sections.append(f"Link: {line(must_include.get('link'))}")
-        if line(must_include.get("hashtags")):
-            sections.append(f"Hashtags: {line(must_include.get('hashtags'))}")
+    if line(must_include.get("tag")):
+        where_lines.append(f"Company X: {line(must_include.get('tag'))}")
+    if line(must_include.get("link")):
+        where_lines.append(f"Website: {line(must_include.get('link'))}")
+    if line(must_include.get("hashtags")):
+        where_lines.append(f"Hashtags: {line(must_include.get('hashtags'))}")
+    if where_lines:
+        section_map.append(("WHERE IT LIVES", where_lines))
+
+    status_lines: list[str] = []
+    if line(payload.get("deliverable_type")):
+        status_lines.append(f"Deliverable: {line(payload.get('deliverable_type'))}")
+    if line(payload.get("go_live")):
+        status_lines.append(f"Go live: {line(payload.get('go_live'))}")
+    if line(payload.get("go_live_note")):
+        status_lines.append(line(payload.get("go_live_note")))
+    status_lines.extend([line(item) for item in (payload.get("status_note") or []) if line(item)])
+    if status_lines:
+        section_map.append(("STATUS NOTE", status_lines))
+
+    if line(payload.get("why_alignednews")):
+        section_map.append(("WHY IT MATTERS FOR ALIGNEDNEWS", [line(payload.get("why_alignednews"))]))
 
     drafts = payload.get("drafts") or []
     if drafts:
-        sections.extend(["", "DRAFT POST OPTIONS"])
+        draft_lines: list[str] = []
         for draft in drafts:
             if not isinstance(draft, dict):
                 continue
             label = line(draft.get("label"))
             text = line(draft.get("text"))
             if label:
-                sections.append(label)
+                draft_lines.append(label)
             if text:
-                sections.append(text)
-            sections.append("")
+                draft_lines.append(text)
+            draft_lines.append("")
+        while draft_lines and not draft_lines[-1]:
+            draft_lines.pop()
+        section_map.append(("POST TO PUBLISH", draft_lines))
+
+    for heading, values in section_map:
+        if not values:
+            continue
+        sections.extend(["", heading])
+        sections.extend([item for item in values if item is not None])
 
     if line(payload.get("submit_url")):
         sections.extend(["", f"After posting, submit the live post URL here: {line(payload.get('submit_url'))}"])
@@ -498,11 +818,14 @@ def build_requests(text: str) -> list[dict]:
     idx = 1
     lines = text.splitlines(True)
     section_titles = {
-        "GO LIVE",
-        "WHAT TO DO",
-        "KEY FACTS TO WORK IN",
-        "MUST INCLUDE IN YOUR POST",
-        "DRAFT POST OPTIONS",
+        "ABOUT THE COMPANY",
+        "THE CORE IDEA",
+        "HOW IT WORKS / THE ANNOUNCEMENT",
+        "ANGLES OR HARD ACCURACY REQUIREMENTS",
+        "WHERE IT LIVES",
+        "STATUS NOTE",
+        "WHY IT MATTERS FOR ALIGNEDNEWS",
+        "POST TO PUBLISH",
     }
     for i, raw in enumerate(lines):
         start = idx
@@ -524,7 +847,7 @@ def build_requests(text: str) -> list[dict]:
                     "fields": "namedStyleType",
                 }
             })
-        elif stripped in section_titles:
+        elif stripped in section_titles or stripped.startswith("ABOUT "):
             requests.append({
                 "updateParagraphStyle": {
                     "range": {"startIndex": start, "endIndex": idx},
@@ -626,6 +949,9 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         if self.path not in ("/generate-brief-doc", "/create-calendar-hold", "/import-notion-brief", "/import-source-brief"):
             send_json(self, 404, {"ok": False, "error": "Unknown endpoint."})
+            return
+        if not require_api_token(self):
+            send_json(self, 401, {"ok": False, "error": "Missing or invalid brief API token."})
             return
         try:
             length = int(self.headers.get("Content-Length", "0"))

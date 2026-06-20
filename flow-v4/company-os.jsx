@@ -219,11 +219,58 @@ const V4_COMPANY_OS_STAGES = [
 ];
 
 const V4_BRIEF_FUNCTIONS_BASE_URL = 'https://us-central1-unaligned-fc556.cloudfunctions.net';
+const V4_BRIEF_TAILSCALE_BASE_URL = 'https://mac-studio.tail50d3a2.ts.net';
+
+function V4BriefServiceBaseUrl() {
+  try {
+    const override = String(window.localStorage.getItem('v4_brief_service_base_url') || '').trim();
+    return override || V4_BRIEF_TAILSCALE_BASE_URL || V4_BRIEF_FUNCTIONS_BASE_URL;
+  } catch (err) {
+    return V4_BRIEF_TAILSCALE_BASE_URL || V4_BRIEF_FUNCTIONS_BASE_URL;
+  }
+}
+
+function V4BriefServiceHeaders(extra = {}) {
+  const headers = { 'Content-Type': 'application/json', ...extra };
+  try {
+    const token = String(window.localStorage.getItem('v4_brief_api_token') || '').trim();
+    if (token) headers.Authorization = 'Bearer ' + token;
+  } catch (err) {}
+  return headers;
+}
+
+async function V4BriefServiceFetch(url, options = {}) {
+  const makeRequest = () => fetch(url, {
+    ...options,
+    headers: V4BriefServiceHeaders(options.headers || {}),
+  });
+
+  let res = await makeRequest();
+  if (res.status !== 401) return res;
+
+  let token = '';
+  try {
+    token = String(window.localStorage.getItem('v4_brief_api_token') || '').trim();
+  } catch (err) {}
+
+  if (!token) {
+    const prompted = window.prompt('Paste your Brief Maker access token');
+    token = String(prompted || '').trim();
+    if (token) {
+      try { window.localStorage.setItem('v4_brief_api_token', token); } catch (err) {}
+    }
+  }
+
+  if (!token) return res;
+  res = await makeRequest();
+  return res;
+}
+
 const V4_BRIEF_ACTION_URL = 'http://127.0.0.1:8766/generate-brief';
-const V4_BRIEF_DOC_ACTION_URL = V4_BRIEF_FUNCTIONS_BASE_URL + '/generateBriefDoc';
-const V4_BRIEF_CALENDAR_ACTION_URL = V4_BRIEF_FUNCTIONS_BASE_URL + '/createBriefCalendarHold';
-const V4_BRIEF_NOTION_IMPORT_URL = V4_BRIEF_FUNCTIONS_BASE_URL + '/importBriefSource';
-const V4_BRIEF_SOURCE_IMPORT_URL = V4_BRIEF_FUNCTIONS_BASE_URL + '/importBriefSource';
+const V4_BRIEF_DOC_ACTION_URL = V4BriefServiceBaseUrl() + '/generate-brief-doc';
+const V4_BRIEF_CALENDAR_ACTION_URL = V4BriefServiceBaseUrl() + '/create-calendar-hold';
+const V4_BRIEF_NOTION_IMPORT_URL = V4BriefServiceBaseUrl() + '/import-source-brief';
+const V4_BRIEF_SOURCE_IMPORT_URL = V4BriefServiceBaseUrl() + '/import-source-brief';
 
 const V4_COMPANY_OS_TOOLKIT = [
   {
@@ -1219,9 +1266,8 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     setDocError('');
     setDocResult(null);
     try {
-      const res = await fetch(V4_BRIEF_DOC_ACTION_URL, {
+      const res = await V4BriefServiceFetch(V4_BRIEF_DOC_ACTION_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(briefConfig),
       });
       const data = await res.json();
@@ -1244,9 +1290,8 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     setNotionStatus('importing');
     setNotionError('');
     try {
-      const res = await fetch(V4_BRIEF_SOURCE_IMPORT_URL, {
+      const res = await V4BriefServiceFetch(V4_BRIEF_SOURCE_IMPORT_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source_url: sourceUrl }),
       });
       const data = await res.json();
@@ -1273,9 +1318,8 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     setDocError('');
     setDocResult(null);
     try {
-      const res = await fetch(V4_BRIEF_SOURCE_IMPORT_URL, {
+      const res = await V4BriefServiceFetch(V4_BRIEF_SOURCE_IMPORT_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source_url: sourceUrl }),
       });
       const data = await res.json();
@@ -1285,9 +1329,8 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
       setNotionStatus('done');
 
       setDocStatus('creating');
-      const docRes = await fetch(V4_BRIEF_DOC_ACTION_URL, {
+      const docRes = await V4BriefServiceFetch(V4_BRIEF_DOC_ACTION_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...payload, source_url: sourceUrl }),
       });
       const docData = await docRes.json();
@@ -1321,9 +1364,8 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     setCalendarError('');
     setCalendarResult(null);
     try {
-      const res = await fetch(V4_BRIEF_CALENDAR_ACTION_URL, {
+      const res = await V4BriefServiceFetch(V4_BRIEF_CALENDAR_ACTION_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...briefConfig,
           calendar_title: calendarTitle,
@@ -1675,7 +1717,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                     <span className="brief-maker-server-error">{docError}</span>
                   )}
                   {docStatus === 'creating' && (
-                    <span className="brief-maker-server-note">Creating Google Doc in the hosted brief service...</span>
+                    <span className="brief-maker-server-note">Creating Google Doc in your brief service...</span>
                   )}
                   {calendarStatus === 'done' && calendarResult && (
                     <div className="brief-maker-result-card">
@@ -1689,7 +1731,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                     <span className="brief-maker-server-error">{calendarError}</span>
                   )}
                   {calendarStatus === 'creating' && (
-                    <span className="brief-maker-server-note">Adding this brief to Robert&apos;s calendar in the hosted brief service...</span>
+                    <span className="brief-maker-server-note">Adding this brief to Robert&apos;s calendar in your brief service...</span>
                   )}
                   {briefStatus === 'done' && briefResult && (
                     <div className="brief-maker-result-card">
