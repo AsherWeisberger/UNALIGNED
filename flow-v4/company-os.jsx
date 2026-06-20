@@ -1504,10 +1504,14 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
 
   const createCalendarHoldWithConfig = async (config, docUrl) => {
     const calendarTitle = config.calendar_title || config.title;
+    const calendarMode = config.calendar_mode || 'all_day';
     if (!calendarTitle) {
       throw new Error('Add a title first.');
     }
-    if (!config.calendar_date || !config.calendar_start) {
+    if (!config.calendar_date) {
+      throw new Error('Add the calendar date.');
+    }
+    if (calendarMode === 'timed' && !config.calendar_start) {
       throw new Error('Add the calendar date and start time.');
     }
     const res = await V4BriefServiceFetch('/create-calendar-hold', {
@@ -1569,7 +1573,13 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
       setDocResult(docData);
       setDocStatus('done');
 
-      if (workingConfig.calendar_date && workingConfig.calendar_start) {
+      if (
+        workingConfig.calendar_date &&
+        (
+          (workingConfig.calendar_mode || 'all_day') === 'all_day' ||
+          workingConfig.calendar_start
+        )
+      ) {
         setCalendarStatus('creating');
         const calendarData = await createCalendarHoldWithConfig(workingConfig, docData.url || '');
         setCalendarResult(calendarData);

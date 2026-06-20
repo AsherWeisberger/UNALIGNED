@@ -1350,9 +1350,17 @@ def create_calendar_hold(payload: dict) -> dict:
     title = line(payload.get("calendar_title")) or line(payload.get("title"))
     if not title:
         raise ValueError("Calendar title is required.")
-    start_at, end_at = parse_calendar_window(payload)
-    doc_url = line(payload.get("doc_url"))
     mode = calendar_mode(payload)
+    date_value = line(payload.get("calendar_date"))
+    start_value = line(payload.get("calendar_start"))
+    if not date_value:
+        raise ValueError("Calendar date is required.")
+    if mode == "timed":
+        start_at, end_at = parse_calendar_window(payload)
+    else:
+        start_at = datetime.strptime(date_value, "%Y-%m-%d")
+        end_at = start_at + timedelta(days=1)
+    doc_url = line(payload.get("doc_url"))
     note_lines = [
         line(payload.get("subtitle")),
         "",
@@ -1360,7 +1368,7 @@ def create_calendar_hold(payload: dict) -> dict:
         line(payload.get("go_live")),
         line(payload.get("go_live_note")),
     ]
-    if mode == "all_day":
+    if mode == "all_day" and start_value:
         note_lines.extend(["", f"Target time: {start_at.strftime('%I:%M %p').lstrip('0')}"])
     if doc_url:
         note_lines.extend(["", f"Brief doc: {doc_url}"])
