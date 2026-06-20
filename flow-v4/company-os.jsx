@@ -220,14 +220,18 @@ const V4_COMPANY_OS_STAGES = [
 
 const V4_BRIEF_FUNCTIONS_BASE_URL = 'https://us-central1-unaligned-fc556.cloudfunctions.net';
 const V4_BRIEF_TAILSCALE_BASE_URL = 'https://mac-studio.tail50d3a2.ts.net';
+const V4_BRIEF_LOCAL_BASE_URL = 'http://127.0.0.1:8767';
 
 function V4BriefServiceBaseUrl() {
   try {
+    const protocol = String(window.location?.protocol || '');
+    const hostname = String(window.location?.hostname || '');
     const override = String(window.localStorage.getItem('v4_brief_service_base_url') || '').trim();
     if (override && override !== V4_BRIEF_FUNCTIONS_BASE_URL) return override;
+    if (protocol === 'file:' || hostname === '127.0.0.1' || hostname === 'localhost') return V4_BRIEF_LOCAL_BASE_URL;
     return V4_BRIEF_TAILSCALE_BASE_URL;
   } catch (err) {
-    return V4_BRIEF_TAILSCALE_BASE_URL;
+    return V4_BRIEF_LOCAL_BASE_URL;
   }
 }
 
