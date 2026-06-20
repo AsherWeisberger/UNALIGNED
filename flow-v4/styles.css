@@ -1858,6 +1858,15 @@ a { color: inherit; }
   gap: 10px;
   text-align: left;
 }
+.brief-maker-mode-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.brief-maker-mode-toggle .cos-toolkit-btn {
+  width: 100%;
+  justify-content: center;
+}
 .brief-maker-empty-state {
   display: flex;
   flex-direction: column;
@@ -1904,12 +1913,17 @@ a { color: inherit; }
 .brief-maker-result-actions {
   display: flex;
   justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 .brief-maker-result-actions .cos-toolkit-btn {
   min-width: 184px;
 }
 @media (max-width: 680px) {
   .brief-maker-field-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .brief-maker-mode-toggle {
     grid-template-columns: minmax(0, 1fr);
   }
 }

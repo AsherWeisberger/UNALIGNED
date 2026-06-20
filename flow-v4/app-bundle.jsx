@@ -7454,6 +7454,7 @@ function V4BriefMakerDefaultState() {
     source_url: '',
     notion_url: '',
     calendar_title: '',
+    calendar_mode: 'all_day',
     calendar_date: '',
     calendar_start: '',
     calendar_end: '',
@@ -7506,6 +7507,7 @@ function V4BriefMakerConfig(form) {
   if (form.source_url) payload.source_url = String(form.source_url).trim();
   if (form.notion_url) payload.notion_url = String(form.notion_url).trim();
   if (form.calendar_title) payload.calendar_title = String(form.calendar_title).trim();
+  if (form.calendar_mode) payload.calendar_mode = String(form.calendar_mode).trim();
   if (form.calendar_date) payload.calendar_date = String(form.calendar_date).trim();
   if (form.calendar_start) payload.calendar_start = String(form.calendar_start).trim();
   if (form.calendar_end) payload.calendar_end = String(form.calendar_end).trim();
@@ -7545,6 +7547,19 @@ function V4InferCalendarFieldsFromGoLive(goLiveText) {
     calendar_start: V4NormalizeCalendarTime(parsed),
     calendar_end: V4NormalizeCalendarTime(end),
   };
+}
+
+function V4InferCalendarMode(payload) {
+  const haystack = [
+    payload?.title,
+    payload?.subtitle,
+    payload?.go_live,
+    Array.isArray(payload?.what_to_do) ? payload.what_to_do.join(' ') : '',
+  ].join(' ').toLowerCase();
+  if (/\b(interview|meeting|call|zoom|podcast|spaces|livestream)\b/.test(haystack)) {
+    return 'timed';
+  }
+  return 'all_day';
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -8193,6 +8208,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
 
   const applyImportedBriefPayload = (payload, sourceUrl) => {
     const inferredCalendar = V4InferCalendarFieldsFromGoLive(payload.go_live);
+    const inferredMode = payload.calendar_mode || V4InferCalendarMode(payload);
     setBriefForm(curr => ({
       ...curr,
       title: payload.title || curr.title,
@@ -8204,6 +8220,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
       source_url: sourceUrl || curr.source_url,
       notion_url: sourceUrl || curr.notion_url,
       calendar_title: payload.calendar_title || curr.calendar_title || payload.title || curr.title,
+      calendar_mode: payload.calendar_mode || curr.calendar_mode || inferredMode,
       calendar_date: payload.calendar_date || curr.calendar_date || inferredCalendar?.calendar_date || '',
       calendar_start: payload.calendar_start || curr.calendar_start || inferredCalendar?.calendar_start || '',
       calendar_end: payload.calendar_end || curr.calendar_end || inferredCalendar?.calendar_end || '',
@@ -8319,6 +8336,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
         ...payload,
         source_url: sourceUrl,
         calendar_title: payload.calendar_title || payload.title || '',
+        calendar_mode: payload.calendar_mode || V4InferCalendarMode(payload),
         calendar_date: payload.calendar_date || inferredCalendar?.calendar_date || '',
         calendar_start: payload.calendar_start || inferredCalendar?.calendar_start || '',
         calendar_end: payload.calendar_end || inferredCalendar?.calendar_end || '',
@@ -8616,6 +8634,25 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                           />
                         </label>
                         <label className="brief-maker-field">
+                          <span>Calendar mode</span>
+                          <div className="brief-maker-mode-toggle">
+                            <button
+                              type="button"
+                              className={'cos-toolkit-btn' + ((briefForm.calendar_mode || 'all_day') === 'all_day' ? ' is-primary' : '')}
+                              onClick={() => updateBriefField('calendar_mode', 'all_day')}
+                            >
+                              All-day task
+                            </button>
+                            <button
+                              type="button"
+                              className={'cos-toolkit-btn' + ((briefForm.calendar_mode || 'all_day') === 'timed' ? ' is-primary' : '')}
+                              onClick={() => updateBriefField('calendar_mode', 'timed')}
+                            >
+                              Timed event
+                            </button>
+                          </div>
+                        </label>
+                        <label className="brief-maker-field">
                           <span>Date</span>
                           <input
                             className="brief-maker-input"
@@ -8643,6 +8680,11 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                           />
                         </label>
                       </div>
+                      <span className="brief-maker-server-note">
+                        {(briefForm.calendar_mode || 'all_day') === 'all_day'
+                          ? 'All-day task keeps the brief pinned at the top of Robert’s calendar. The actual target time still stays in the description.'
+                          : 'Timed event is best for interviews, meetings, calls, and anything Robert must attend at an exact hour.'}
+                      </span>
                       <div className="brief-maker-result-actions">
                         <a className="cos-toolkit-btn is-primary" href={docResult.url} target="_blank" rel="noreferrer">Open Google Doc</a>
                         <button type="button" className="cos-toolkit-btn" onClick={createCalendarHold}>

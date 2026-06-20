@@ -53,6 +53,7 @@ PREFERRED_LOCAL_MODELS = [
 ]
 ALLOWED_ORIGINS = {
     "https://asherweisberger.github.io",
+    "https://mac-studio.tail50d3a2.ts.net",
     "http://127.0.0.1:4174",
     "http://localhost:4174",
     "http://127.0.0.1:4173",
@@ -60,6 +61,10 @@ ALLOWED_ORIGINS = {
 }
 
 LOCAL_BRIEF_LLM_ENABLED = str(os.environ.get("LOCAL_BRIEF_LLM_ENABLED") or "0").strip().lower() in {"1", "true", "yes", "on"}
+
+mimetypes.add_type("text/jsx", ".jsx")
+mimetypes.add_type("application/javascript", ".js")
+mimetypes.add_type("application/javascript", ".mjs")
 
 
 def get_api_token() -> str:
@@ -110,14 +115,16 @@ def safe_static_path(request_path: str) -> Path | None:
     return resolved
 
 
-def send_file(handler: BaseHTTPRequestHandler, file_path: Path) -> None:
+def send_file(handler: BaseHTTPRequestHandler, file_path: Path, *, head_only: bool = False) -> None:
     mime_type, _ = mimetypes.guess_type(str(file_path))
     body = file_path.read_bytes()
     handler.send_response(200)
     handler.send_header("Content-Type", mime_type or "application/octet-stream")
+    handler.send_header("Cache-Control", "no-store")
     handler.send_header("Content-Length", str(len(body)))
     handler.end_headers()
-    handler.wfile.write(body)
+    if not head_only:
+        handler.wfile.write(body)
 
 
 def require_api_token(handler: BaseHTTPRequestHandler) -> bool:
@@ -125,6 +132,8 @@ def require_api_token(handler: BaseHTTPRequestHandler) -> bool:
     client_host = line((handler.client_address or ("",))[0]).lower()
     host = line(handler.headers.get("Host")).lower()
     if origin == "https://asherweisberger.github.io" and host.startswith("mac-studio.tail50d3a2.ts.net"):
+        return True
+    if origin == "https://mac-studio.tail50d3a2.ts.net" and host.startswith("mac-studio.tail50d3a2.ts.net"):
         return True
     if client_host in {"127.0.0.1", "::1", "localhost"} and (
         host.startswith("127.0.0.1:8767")
@@ -489,6 +498,13 @@ def clean_points(values: list[str], limit: int = 6) -> list[str]:
     return output
 
 
+def strip_prefix(value: str, prefix: str) -> str:
+    current = line(value)
+    if current.lower().startswith(prefix.lower()):
+        return line(current[len(prefix):])
+    return current
+
+
 def find_first_matching_line(lines: list[str], patterns: tuple[str, ...]) -> str:
     for current in lines:
         lowered = current.lower()
@@ -508,10 +524,71 @@ def collect_matching_lines(lines: list[str], patterns: tuple[str, ...], limit: i
     return matches
 
 
+def collect_lines_after_marker(lines: list[str], marker_pattern: str, stop_patterns: tuple[str, ...], limit: int = 8) -> list[str]:
+    start = None
+    for idx, current in enumerate(lines):
+        if re.search(marker_pattern, current, re.I):
+            start = idx + 1
+            break
+    if start is None:
+        return []
+    output: list[str] = []
+    for current in lines[start:]:
+        if any(re.search(pattern, current, re.I) for pattern in stop_patterns):
+            break
+        if line(current):
+            output.append(line(current))
+        if len(output) >= limit:
+            break
+    return output
+
+
+def parse_thread_sections(lines: list[str]) -> list[dict]:
+    sections: list[dict] = []
+    current = None
+    for raw in lines:
+        text = line(raw)
+        if not text:
+            continue
+        if re.match(r"^T\d+\s*[·-]", text):
+            if current:
+                sections.append(current)
+            current = {"label": text, "body": []}
+            continue
+        if current and re.match(r"^(First post|X thread|LinkedIn post|📥|🔗)", text):
+            sections.append(current)
+            current = None
+            continue
+        if current and (
+            text.startswith("Asset:")
+            or text.startswith("@")
+            or text.startswith("Reply ")
+            or text.startswith("Reply:")
+            or text.startswith("Reply (")
+        ):
+            current["body"].append(text)
+            continue
+        if current and not re.match(r"^(🧩|📌)", text):
+            current["body"].append(text)
+    if current:
+        sections.append(current)
+    return [section for section in sections if section.get("body")]
+
+
 def infer_company_name(title: str, lines: list[str]) -> str:
     title = line(title)
+    for current in lines:
+        text = line(current)
+        match = re.match(r"^([A-Za-z0-9][A-Za-z0-9 .&+-]{1,40}?)\s+x\s+", text, re.I)
+        if match:
+            return line(match.group(1))
     if title:
-        first_part = re.split(r"[|:•]", title)[0].strip()
+        first_part = re.split(r"[|:•—-]", title)[0].strip()
+        if "@Scobleizer" in first_part and len(lines) > 0:
+            campaign_line = next((line(item) for item in lines if re.search(r"\bx\b", line(item)) and ("Dedicated post" in item or "quote-repost" in item or "LinkedIn" in item)), "")
+            match = re.match(r"^([A-Za-z0-9][A-Za-z0-9 .&+-]{1,40}?)\s+x\s+", campaign_line, re.I)
+            if match:
+                return line(match.group(1))
         if 1 <= len(first_part.split()) <= 6:
             return first_part
     company_line = find_first_matching_line(lines, (r"\bcompany\b", r"\bclient\b", r"\bbrand\b"))
@@ -540,6 +617,19 @@ def infer_deliverable_type(lines: list[str]) -> str:
     return ""
 
 
+def infer_campaign_platform(text: str) -> str:
+    current = line(text).lower()
+    if "teams" in current:
+        return "Teams"
+    if "slack" in current:
+        return "Slack"
+    if "linkedin" in current:
+        return "LinkedIn"
+    if "x" in current or "twitter" in current:
+        return "X"
+    return ""
+
+
 def build_structured_brief_payload(
     *,
     title: str,
@@ -550,41 +640,64 @@ def build_structured_brief_payload(
     source_label: str,
 ) -> dict:
     company = infer_company_name(title, lines)
-    intro_lines = [current for current in lines if current != title][:10]
+    thread_sections = parse_thread_sections(lines)
+    filtered_lines = [
+        current for current in lines
+        if current
+        and current not in {"Skip to content", "Get Notion free", "✍️", "🧵", "📌", "🧩", "🔗"}
+        and not re.fullmatch(r"[^\w\s]+", current)
+        and current != title
+    ]
+    campaign_line = next((line(item) for item in lines if re.search(r"\bx\b", line(item)) and ("Dedicated post" in item or "quote-repost" in item or "LinkedIn" in item)), "")
+    creator_line = next((line(item) for item in lines if item.startswith("Creator:")), "")
+    go_live_line = next((line(item) for item in lines if item.startswith("Go-live:")), "")
+    guardrails_line = next((line(item) for item in lines if "Guardrails" in item), "")
+    reply_line = next((line(item) for item in lines if item.startswith("Reply ")), "")
+    intro_lines = filtered_lines[:12]
     summary = " ".join(intro_lines[:4]).strip()
+    joined_lines = "\n".join(lines)
+    campaign_platform = infer_campaign_platform(" ".join([title, campaign_line, go_live_line, guardrails_line]))
 
     about_line = find_first_matching_line(
-        lines,
+        filtered_lines,
         (r"\bwhat (it|they) do\b", r"\babout\b", r"\boverview\b", r"\bcompany\b", r"\bproduct\b"),
-    ) or summary
+    ) or campaign_line or summary
     core_idea = find_first_matching_line(
+        filtered_lines,
+        (r"\bcore idea\b", r"\bmoat\b", r"\bwhy it matters\b", r"\bwhy now\b", r"\bthesis\b", r"\bai employee\b", r"\bassistant and an employee\b"),
+    ) or next((section["body"][0] for section in thread_sections if section["label"].startswith("T2")), "") or summary
+    how_it_works_parts = collect_lines_after_marker(
         lines,
-        (r"\bcore idea\b", r"\bmoat\b", r"\bwhy it matters\b", r"\bwhy now\b", r"\bthesis\b"),
-    ) or summary
-    how_it_works = find_first_matching_line(
+        r"^T2\s*[·-]",
+        (r"^T\d+\s*[·-]", r"^Reply ", r"^📥", r"^🔗"),
+        limit=5,
+    ) + collect_lines_after_marker(
         lines,
+        r"^T3\s*[·-]",
+        (r"^T\d+\s*[·-]", r"^Reply ", r"^📥", r"^🔗"),
+        limit=5,
+    )
+    how_it_works_parts = [item for item in how_it_works_parts if not item.startswith("Asset:")]
+    how_it_works = " ".join(how_it_works_parts[:3]).strip() or find_first_matching_line(
+        filtered_lines,
         (r"\bhow it works\b", r"\bmechanic\b", r"\bworkflow\b", r"\bproduct works\b", r"\bsolution\b"),
     ) or summary
     announcement = find_first_matching_line(
-        lines,
+        filtered_lines,
         (r"\bannounce\b", r"\blaunch\b", r"\bseries [a-z]\b", r"\bnew\b", r"\bshipping\b", r"\brollout\b"),
-    ) or summary
+    ) or campaign_line or summary
     go_live = find_first_matching_line(
-        lines,
+        filtered_lines,
         (r"\bgo live\b", r"\bposting window\b", r"\bpost on\b", r"\bpublish\b", r"\blive on\b"),
-    )
+    ) or go_live_line
     deliverable_type = infer_deliverable_type(lines)
 
     accuracy_lines = collect_matching_lines(
         lines,
-        (r"\bmust say\b", r"\bexact\b", r"\bdo not say\b", r"\bnon.?negotiable\b", r"\bmust include\b", r"\baccuracy\b"),
+        (r"\bmust say\b", r"\bexact\b", r"\bdo not say\b", r"\bnon.?negotiable\b", r"\bmust include\b", r"\baccuracy\b", r"\bguardrails\b", r"\bno em dashes\b", r"\bno hashtags\b"),
         limit=6,
     )
-    angle_lines = collect_matching_lines(
-        lines,
-        (r"\bangle\b", r"\bhook\b", r"\bpositioning\b", r"\bwhy it matters\b", r"\bcore idea\b"),
-        limit=6,
-    )
+    angle_lines = [section["label"] + ": " + " ".join(section["body"][:2]) for section in thread_sections[:5]]
     tags = []
     for current in lines[:80]:
         tags.extend(extract_handles(current))
@@ -607,6 +720,7 @@ def build_structured_brief_payload(
         (r"\bdrive\b", r"\basset\b", r"\bvideo\b", r"\bstills\b", r"\bvisual\b", r"\battach\b"),
         limit=5,
     )
+    asset_lines = [item for item in asset_lines if "guardrails" not in item.lower()]
     site_link = next(
         (
             u for u in deduped_urls
@@ -614,49 +728,193 @@ def build_structured_brief_payload(
         ),
         source_url,
     )
-    founder_handle = next((handle for handle in tags[1:]), "")
-    company_handle = tags[0] if tags else ""
+    non_robert_handles = [handle for handle in tags if handle.lower() not in {"@scobleizer", "@wednesday"}]
+    company_handle = non_robert_handles[0] if non_robert_handles else (tags[0] if tags else "")
+    founder_handle = next((handle for handle in tags if handle != company_handle and handle.lower() != "@scobleizer"), "")
     quote_post = next((u for u in deduped_urls if "x.com" in u.lower() or "twitter.com" in u.lower()), "")
     submit_url = next((u for u in deduped_urls if "fillout.com" in u.lower() or "forms." in u.lower()), "")
     hashtags = " ".join(re.findall(r"#[A-Za-z0-9_]+", "\n".join(lines[:200])))
+    direct_site_link = next((u for u in deduped_urls if all(x not in u.lower() for x in ("x.com", "twitter.com", "notion.", "docs.google.com", "drive.google.com"))), "")
+    if direct_site_link:
+        site_link = direct_site_link
 
+    if campaign_line:
+        about_line = campaign_line
     about_company = clean_sentence(about_line or f"{company} is the company behind this campaign")
-    core_idea_text = clean_sentence(core_idea or announcement or summary)
+    core_idea_text = clean_sentence(
+        next((section["body"][0] for section in thread_sections if section["label"].startswith("T2")), "")
+        or core_idea
+        or announcement
+        or summary
+    )
     how_it_works_text = clean_sentence(how_it_works or summary)
     announcement_text = clean_sentence(announcement or summary)
     why_alignednews = clean_sentence(
-        f"This fits AlignedNews because Robert can frame {company} through the broader AI shift, not just the product launch"
+        (
+            f"The idea of an AI employee that works inside a team's real workflow is exactly the kind of platform shift AlignedNews should cover. "
+            f"It gives Robert a way to frame {company} as part of where work is going, not just as another product launch."
+        )
+        if re.search(r"\bai employee\b", joined_lines, re.I)
+        else f"This fits AlignedNews because Robert can frame {company} through the broader AI shift, not just the product launch"
     )
+
+    def unique_clean(items: list[str], *, drop_prefixes: tuple[str, ...] = ()) -> list[str]:
+        output: list[str] = []
+        seen: set[str] = set()
+        for raw in items:
+            current = line(raw)
+            if not current:
+                continue
+            for prefix in drop_prefixes:
+                current = strip_prefix(current, prefix)
+            current = clean_sentence(current)
+            key = current.lower()
+            if not current or key in seen:
+                continue
+            seen.add(key)
+            output.append(current)
+        return output
+
+    def first_sentence(value: str) -> str:
+        current = clean_sentence(value)
+        parts = re.split(r"(?<=[.!?])\s+", current)
+        return line(parts[0]) if parts else current
+
+    def first_sentences(value: str, count: int = 2) -> str:
+        current = clean_sentence(value)
+        parts = [line(part) for part in re.split(r"(?<=[.!?])\s+", current) if line(part)]
+        return " ".join(parts[:count]).strip()
+
+    def derive_angle_points() -> list[str]:
+        points: list[str] = []
+        if thread_sections:
+            for section in thread_sections[:4]:
+                body = " ".join(
+                    item for item in (section.get("body") or [])
+                    if not item.startswith("Asset:")
+                    and not item.startswith("@")
+                    and not item.startswith("Reply ")
+                )
+                label = re.sub(r"^T\d+\s*[·-]\s*", "", line(section.get("label")))
+                if body and label:
+                    points.append(f"{label}: {first_sentences(body, 2)}")
+        if guardrails_line:
+            guardrails_body = re.sub(r"^Guardrails.*?:", "", guardrails_line).strip()
+            guardrail_parts = [line(part) for part in re.split(r"\.\s+|\;\s*", guardrails_body) if line(part)]
+            prioritized = []
+            for part in guardrail_parts:
+                lowered = part.lower()
+                if "never open" in lowered or "teams-first" in lowered:
+                    prioritized.append(part)
+                elif "one narrative lane" in lowered or "one proof point" in lowered:
+                    prioritized.append(part)
+                elif "no hashtags" in lowered or "no em dashes" in lowered:
+                    prioritized.append(part)
+            if prioritized:
+                points.extend(clean_points(prioritized[:3], limit=3))
+        return clean_points(points or accuracy_lines or angle_lines, limit=6)
+
+    def compact_status_lines() -> list[str]:
+        status: list[str] = []
+        if deliverable_type:
+            status.append(f"Deliverable: {deliverable_type}.")
+        if go_live_line:
+            status.append(f"Go live: {strip_prefix(go_live_line, 'Go-live:')}.")
+        elif go_live:
+            status.append(f"Go live: {go_live}.")
+        if campaign_platform == "X":
+            status.append("Use native disclosure settings on X if this is sponsored.")
+        if campaign_platform == "Teams":
+            status.append("Keep the story Teams first. Do not drift into a generic AI tools post.")
+        if reply_line:
+            reply_body = re.sub(r"^Reply(?:\s*\(.*?\))?:\s*", "", reply_line).strip()
+            status.append(f"Reply tweet: {reply_body}")
+        status.extend(disclosure_lines)
+        status.extend([item for item in status_notes if not item.startswith("Go-live:") and not item.startswith("Creator:")])
+        return unique_clean(status, drop_prefixes=("Go-live:", "Creator:"))
+
+    def compact_where_it_lives() -> list[list[str]]:
+        rows: list[list[str]] = []
+        if site_link:
+            rows.append(["Website", site_link])
+        if company_handle:
+            rows.append(["Company X", company_handle])
+        if founder_handle and founder_handle.lower() not in {"@wednesday"}:
+            rows.append(["Founder X", founder_handle])
+        media_link = next((u for u in deduped_urls if "youtube.com" in u.lower() or "youtu.be" in u.lower()), "")
+        if media_link:
+            rows.append(["Announcement video", media_link])
+        elif "quote-repost" in campaign_line.lower() and "not a quote-repost" not in campaign_line.lower() and quote_post:
+            rows.append(["Post to quote", quote_post])
+        drive_link = next((u for u in deduped_urls if "drive.google.com" in u.lower()), "")
+        if drive_link:
+            rows.append(["Assets", drive_link])
+        return rows
 
     draft_seed = announcement_text or core_idea_text or about_company
     cta = "Learn more."
-    if re.search(r"\bdemo\b", "\n".join(lines), re.I):
+    if re.search(r"\bdemo\b", joined_lines, re.I):
         cta = "Book a demo."
-    elif re.search(r"\bsign up\b", "\n".join(lines), re.I):
+    elif re.search(r"\bsign up\b", joined_lines, re.I):
         cta = "Sign up."
     disclosure_suffix = " Paid partnership." if disclosure_lines else ""
     tag_suffix = f" {company_handle}" if company_handle else ""
-    draft_one = clean_sentence(
-        f"{draft_seed} The bigger point is that this shows where AI products get real when they solve an actual bottleneck. See more at {site_link}{tag_suffix}.{disclosure_suffix}"
-    )
-    draft_two = clean_sentence(
-        f"{company} is interesting because the moat is in how the product works in practice, not just the pitch deck. This is the kind of thing I watch closely at AlignedNews. {cta}{tag_suffix}{disclosure_suffix}"
-    )
-    draft_three = clean_sentence(
-        f"What stands out here is the operating leverage. If this lands, teams move faster with less friction and a cleaner workflow. {cta}{tag_suffix}{disclosure_suffix}"
+    t1_body = next((section["body"] for section in thread_sections if section["label"].startswith("T1")), [])
+    t2_body = next((section["body"] for section in thread_sections if section["label"].startswith("T2")), [])
+    t3_body = next((section["body"] for section in thread_sections if section["label"].startswith("T3")), [])
+    t4_body = next((section["body"] for section in thread_sections if section["label"].startswith("T4")), [])
+    t5_body = next((section["body"] for section in thread_sections if section["label"].startswith("T5")), [])
+
+    def join_draft_paragraphs(*parts: str) -> str:
+        cleaned = [clean_sentence(part) for part in parts if line(part)]
+        return "\n\n".join(cleaned)
+
+    t1_first = first_sentences(" ".join([item for item in t1_body if not item.startswith("Asset:")]), 3)
+    t2_first = first_sentences(" ".join([item for item in t2_body if not item.startswith("Asset:")]), 3)
+    t3_first = first_sentences(" ".join([item for item in t3_body if not item.startswith("Asset:")]), 3)
+    t4_first = first_sentences(" ".join([item for item in t4_body if not item.startswith("Asset:")]), 2)
+    t5_first = first_sentences(" ".join([item for item in t5_body if not item.startswith("@") and not item.startswith("Reply ")]), 2)
+    reply_body = re.sub(r"^Reply(?:\s*\(.*?\))?:\s*", "", reply_line).strip()
+    reply_clean = clean_sentence(f"Reply tweet: {reply_body}")
+
+    draft_one = join_draft_paragraphs(
+        t1_first,
+        t2_first,
+        f"{t3_first} {t4_first}".strip(),
+        f"{t5_first} {company_handle}".strip(),
+        reply_clean,
     )
 
-    where_it_lives = []
-    if site_link:
-        where_it_lives.append(["Website", site_link])
-    if company_handle:
-        where_it_lives.append(["Company X", company_handle])
-    if founder_handle:
-        where_it_lives.append(["Founder X", founder_handle])
-    if quote_post:
-        where_it_lives.append(["Post to quote", quote_post])
-    for asset in asset_lines[:2]:
-        where_it_lives.append(["Assets", asset])
+    draft_two = join_draft_paragraphs(
+        "Most AI tools still wait for a prompt. The more interesting shift is when the work starts getting done inside the system where a team already operates.",
+        t2_first,
+        f"{t4_first} {t3_first}".strip(),
+        f"That is exactly the kind of operating shift I track at AlignedNews.com. {company_handle}".strip(),
+        reply_clean,
+    )
+
+    draft_three = join_draft_paragraphs(
+        "The line I keep watching is the one between assistant and employee.",
+        t3_first,
+        t4_first,
+        f"{t5_first} {company_handle}".strip(),
+        reply_clean,
+    )
+
+    if not draft_one:
+        draft_one = clean_sentence(
+            f"{draft_seed} The bigger point is that this shows where AI products get real when they solve an actual bottleneck. See more at {site_link}{tag_suffix}.{disclosure_suffix}"
+        )
+    if not draft_two:
+        draft_two = clean_sentence(
+            f"{company} is interesting because the moat is in how the product works in practice, not just the pitch deck. This is the kind of thing I watch closely at AlignedNews. {cta}{tag_suffix}{disclosure_suffix}"
+        )
+    if not draft_three:
+        draft_three = clean_sentence(
+            f"What stands out here is the operating leverage. If this lands, teams move faster with less friction and a cleaner workflow. {cta}{tag_suffix}{disclosure_suffix}"
+        )
+
+    where_it_lives = compact_where_it_lives()
 
     payload = {
         "title": f"{company} x UNALIGNED x ROBERT SCOBLE",
@@ -669,18 +927,15 @@ def build_structured_brief_payload(
         "announcement": announcement_text,
         "deliverable_type": deliverable_type,
         "go_live": go_live,
-        "go_live_note": clean_sentence("Confirm the exact posting window before going live"),
-        "angles_or_accuracy_requirements": clean_points(accuracy_lines or angle_lines, limit=6),
+        "go_live_note": clean_sentence("Your job is to send the draft for review and post only when approved on the shared timeline"),
+        "angles_or_accuracy_requirements": derive_angle_points(),
         "where_it_lives": where_it_lives,
-        "status_note": clean_points(
-            [go_live, *disclosure_lines, *status_notes, *asset_lines],
-            limit=8,
-        ),
+        "status_note": compact_status_lines(),
         "why_alignednews": why_alignednews,
         "drafts": [
-            {"label": "Option 1. Core angle. Recommended", "text": draft_one},
-            {"label": "Option 2. Why now angle", "text": draft_two},
-            {"label": "Option 3. Operator angle", "text": draft_three},
+            {"label": "Option 1 (recommended)", "text": draft_one},
+            {"label": "Option 2 (operator angle)", "text": draft_two},
+            {"label": "Option 3 (AI employee angle)", "text": draft_three},
         ],
         "must_include": {
             "tag": company_handle,
@@ -828,15 +1083,25 @@ def split_doc_paragraphs(value: str) -> list[str]:
 def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
     blocks: list[dict] = []
 
-    def push(kind: str, text_value: str = "", *, shaded: bool = False, bold: bool = False) -> None:
+    def push(kind: str, text_value: str = "", *, shaded: bool = False, bold: bool = False, lead_label: str = "") -> None:
         blocks.append({
             "kind": kind,
             "text": text_value,
             "shaded": shaded,
             "bold": bold,
+            "lead_label": lead_label,
         })
 
-    def push_section(heading: str, values: list[str], *, split_values: bool = True) -> None:
+    def push_section(heading: str, entries: list[tuple[str, str]]) -> None:
+        cleaned_entries = [(line(label), line(value)) for label, value in entries if line(value)]
+        if not cleaned_entries:
+            return
+        push("spacer")
+        push("section_heading", heading)
+        for label, value in cleaned_entries:
+            push("body", value, shaded=True, lead_label=label)
+
+    def combine_values(label: str, values: list[str], *, split_values: bool = True) -> list[tuple[str, str]]:
         cleaned_values: list[str] = []
         for value in values:
             if not value:
@@ -847,11 +1112,8 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
                 cleaned_values.append(line(value))
         cleaned_values = [item for item in cleaned_values if item]
         if not cleaned_values:
-            return
-        push("spacer")
-        push("section_heading", heading)
-        for item in cleaned_values:
-            push("body", item, shaded=True)
+            return []
+        return [(label, "\n".join(cleaned_values))]
 
     title = line(payload.get("title")) or "UNALIGNED Robert Brief"
     company_name = line(payload.get("company_name"))
@@ -859,22 +1121,23 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
     if line(payload.get("subtitle")):
         push("subtitle", line(payload.get("subtitle")))
 
+    overview_entries: list[tuple[str, str]] = []
     if line(payload.get("about_company")):
-        heading = f"About {company_name}" if company_name else "About the Company"
-        push_section(heading, [line(payload.get("about_company"))])
-
+        label = f"About {company_name}" if company_name else "About the Company"
+        overview_entries.extend(combine_values(label, [line(payload.get("about_company"))]))
     core_idea = line(payload.get("core_idea"))
     if core_idea:
-        push_section("The Core Idea", [core_idea])
+        overview_entries.extend(combine_values("The Core Idea", [core_idea]))
+    push_section("Project Overview", overview_entries)
 
     how_it_works_lines = [line(payload.get("how_it_works")), line(payload.get("announcement"))]
     how_it_works_lines = [item for item in how_it_works_lines if item]
     if how_it_works_lines:
-        push_section("How it Works / The Story", how_it_works_lines)
+        push_section("How It Works", combine_values("How it Works / The Announcement", how_it_works_lines))
 
     angles = [line(item) for item in (payload.get("angles_or_accuracy_requirements") or []) if line(item)]
     if angles:
-        push_section("Hard Accuracy Requirements", angles)
+        push_section("Potential Content Angles", combine_values("Angles to choose from", angles))
 
     where_it_lives = payload.get("where_it_lives") or []
     where_lines: list[str] = []
@@ -891,34 +1154,38 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
         where_lines.append(f"Website: {line(must_include.get('link'))}")
     if line(must_include.get("hashtags")):
         where_lines.append(f"Hashtags: {line(must_include.get('hashtags'))}")
+
+    status_lines = [line(item) for item in (payload.get("status_note") or []) if line(item)]
+    if not status_lines:
+        if line(payload.get("deliverable_type")):
+            status_lines.append(f"This is a {line(payload.get('deliverable_type'))} deliverable.")
+        if line(payload.get("go_live")):
+            status_lines.append(f"Go live: {line(payload.get('go_live'))}")
+        if line(payload.get("go_live_note")):
+            status_lines.append(line(payload.get("go_live_note")))
+
+    logistics_entries: list[tuple[str, str]] = []
     if where_lines:
-        push_section("Where it Lives", where_lines)
-
-    status_lines: list[str] = []
-    if line(payload.get("deliverable_type")):
-        status_lines.append(f"This is a {line(payload.get('deliverable_type'))} deliverable.")
-    if line(payload.get("go_live")):
-        status_lines.append(f"Go live: {line(payload.get('go_live'))}")
-    if line(payload.get("go_live_note")):
-        status_lines.append(line(payload.get("go_live_note")))
-    status_lines.extend([line(item) for item in (payload.get("status_note") or []) if line(item)])
+        logistics_entries.extend(combine_values("Where it Lives", where_lines))
     if status_lines:
-        push_section("Status Note", status_lines)
-
+        logistics_entries.extend(combine_values("Status Note", status_lines))
     if line(payload.get("why_alignednews")):
-        push_section("Why it matters for AlignedNews", [line(payload.get("why_alignednews"))])
+        logistics_entries.extend(combine_values("Why it matters for AlignedNews", [line(payload.get("why_alignednews"))]))
+    if logistics_entries:
+        push_section("Important Logistics", logistics_entries)
 
     drafts = payload.get("drafts") or []
     valid_drafts = [item for item in drafts if isinstance(item, dict) and (line(item.get("label")) or line(item.get("text")))]
     if valid_drafts:
         push("spacer")
-        push("section_heading", "Post to publish")
+        push("section_heading", "Draft Options")
+        push("body", "Post to publish (draft options)", shaded=True)
         push("blank")
         for idx, draft in enumerate(valid_drafts):
             label = line(draft.get("label"))
-            text_value = line(draft.get("text"))
+            text_value = str(draft.get("text") or "").strip()
             if label:
-                push("draft_label", label, bold=True)
+                push("draft_label", label, bold=True, shaded=True)
             for paragraph in split_doc_paragraphs(text_value):
                 push("body", paragraph, shaded=True)
             if idx != len(valid_drafts) - 1:
@@ -934,7 +1201,8 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
         if block["kind"] in {"spacer", "blank"}:
             lines.append("")
         else:
-            lines.append(text_value)
+            lead_label = line(block.get("lead_label"))
+            lines.append(f"{lead_label}\u000b{text_value}" if lead_label else text_value)
     text = "\n".join(lines).rstrip() + "\n"
     return text, blocks
 
@@ -949,7 +1217,9 @@ def build_requests(text: str, blocks: list[dict]) -> list[dict]:
     for block in blocks:
         start = idx
         text_value = block.get("text") or ""
-        idx += gdoc_units(text_value) + 1
+        lead_label = line(block.get("lead_label"))
+        full_text = f"{lead_label}\u000b{text_value}" if lead_label else text_value
+        idx += gdoc_units(full_text) + 1
         end = idx
         text_end = end - 1
         kind = block["kind"]
@@ -1014,6 +1284,20 @@ def build_requests(text: str, blocks: list[dict]) -> list[dict]:
                 "fields": "foregroundColor,fontSize,weightedFontFamily,bold",
             }
         })
+        if lead_label:
+            label_end = start + gdoc_units(lead_label)
+            requests.append({
+                "updateTextStyle": {
+                    "range": {"startIndex": start, "endIndex": label_end},
+                    "textStyle": {
+                        "bold": True,
+                        "foregroundColor": dark,
+                        "fontSize": {"magnitude": 10.5, "unit": "PT"},
+                        "weightedFontFamily": {"fontFamily": "Roboto", "weight": 400},
+                    },
+                    "fields": "bold,foregroundColor,fontSize,weightedFontFamily",
+                }
+            })
     return requests
 
 
@@ -1031,6 +1315,13 @@ def parse_calendar_window(payload: dict) -> tuple[datetime, datetime]:
     if end_at <= start_at:
         end_at = start_at + timedelta(minutes=30)
     return start_at, end_at
+
+
+def calendar_mode(payload: dict) -> str:
+    mode = line(payload.get("calendar_mode")).lower()
+    if mode in {"timed", "all_day"}:
+        return mode
+    return "all_day"
 
 
 def create_brief_doc(payload: dict) -> dict:
@@ -1061,6 +1352,7 @@ def create_calendar_hold(payload: dict) -> dict:
         raise ValueError("Calendar title is required.")
     start_at, end_at = parse_calendar_window(payload)
     doc_url = line(payload.get("doc_url"))
+    mode = calendar_mode(payload)
     note_lines = [
         line(payload.get("subtitle")),
         "",
@@ -1068,6 +1360,8 @@ def create_calendar_hold(payload: dict) -> dict:
         line(payload.get("go_live")),
         line(payload.get("go_live_note")),
     ]
+    if mode == "all_day":
+        note_lines.extend(["", f"Target time: {start_at.strftime('%I:%M %p').lstrip('0')}"])
     if doc_url:
         note_lines.extend(["", f"Brief doc: {doc_url}"])
     description = "\n".join([part for part in note_lines if part is not None]).strip()
@@ -1075,25 +1369,54 @@ def create_calendar_hold(payload: dict) -> dict:
     event = {
         "summary": title,
         "description": description,
-        "start": {
+    }
+    if mode == "all_day":
+        event["start"] = {"date": start_at.strftime("%Y-%m-%d")}
+        event["end"] = {"date": (start_at + timedelta(days=1)).strftime("%Y-%m-%d")}
+    else:
+        event["start"] = {
             "dateTime": start_at.isoformat(),
             "timeZone": "America/New_York",
-        },
-        "end": {
+        }
+        event["end"] = {
             "dateTime": end_at.isoformat(),
             "timeZone": "America/New_York",
-        },
-    }
+        }
     created = service.events().insert(calendarId="primary", body=event).execute()
     return {
         "ok": True,
         "eventId": created.get("id"),
         "htmlLink": created.get("htmlLink"),
         "title": title,
+        "mode": mode,
     }
 
 
 class DocsBriefHandler(BaseHTTPRequestHandler):
+    def do_HEAD(self) -> None:
+        parsed = urlparse(self.path or "/")
+        if parsed.path == "/health":
+            body = json.dumps({
+                "ok": True,
+                "service": "google-docs-brief-server",
+                "host": HOST,
+                "port": PORT,
+                "time": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            }).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            return
+        file_path = safe_static_path(self.path)
+        if file_path is None:
+            send_json(self, 404, {"ok": False, "error": "Unknown endpoint."})
+            return
+        try:
+            send_file(self, file_path, head_only=True)
+        except BrokenPipeError:
+            pass
+
     def do_OPTIONS(self) -> None:
         send_json(self, 204, {})
 
