@@ -280,6 +280,9 @@ async function V4BriefServiceFetch(url, options = {}) {
 
   if (!token) return res;
   res = await makeRequest();
+  if (res.status === 401) {
+    throw new Error('Brief Maker token is missing or incorrect. Paste the access token into the token field and try again.');
+  }
   return res;
 }
 
@@ -1617,7 +1620,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                     <input
                       className="brief-maker-input"
                       value={briefApiToken}
-                      onChange={e => setBriefApiToken(e.target.value)}
+                      onChange={e => saveBriefApiToken(e.target.value)}
                       onBlur={e => saveBriefApiToken(e.target.value)}
                       placeholder="Paste the token once to connect this browser"
                     />
