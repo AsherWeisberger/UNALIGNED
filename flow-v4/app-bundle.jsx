@@ -1,6 +1,3 @@
-// AUTO-GENERATED BUNDLE FOR HOSTED COMPANY OS
-
-// ---- tweaks-panel.jsx ----
 
 // tweaks-panel.jsx
 // Reusable Tweaks shell + form-control helpers.
@@ -571,7 +568,6 @@ Object.assign(window, {
 });
 
 
-// ---- flow-v4/components.jsx ----
 // FLOW v3 — atoms
 
 const V3_ICONS = {
@@ -721,7 +717,6 @@ Object.assign(window, {
 });
 
 
-// ---- flow-v4/data.jsx ----
 // FLOW v4 — live Supabase/email helpers
 
 const V3_SUPABASE_URL = "https://hbnpwphxjurvtydezwgh.supabase.co";
@@ -2922,7 +2917,6 @@ V3LoadSupabaseLeads().then(leads => {
 }).catch(err => console.error('Supabase load failed:', err));
 
 
-// ---- flow-v4/board.jsx ----
 // FLOW v3 — Board view
 
 function V3BoardView({ leads, openId, onOpen, user, ownerFilter, setOwnerFilter }) {
@@ -3116,7 +3110,6 @@ function V3BoardCard({ lead, isActive, user, onOpen, onMoveStage }) {
 Object.assign(window, { V3BoardView });
 
 
-// ---- flow-v4/brief.jsx ----
 // FLOW v3 — Brief panel (Asher) + Brief viewer modal (Robert)
 //
 // Briefs are attached to closed deals (stage = 'done' or 'invoice-sent').
@@ -3696,7 +3689,6 @@ function V3BriefDelivCard({ deliv, idx, brand, canShip, onShip, onUnship }) {
 Object.assign(window, { V3BriefPanel, V3BriefViewer, V3BriefStatusPill });
 
 
-// ---- flow-v4/drawer.jsx ----
 // FLOW v3 — Detail drawer (right slide-in)
 
 function V3DrawerQueue({ queue, currentId, onNavigate }) {
@@ -4225,7 +4217,6 @@ function V3Thread({ lead }) {
 Object.assign(window, { V3Drawer });
 
 
-// ---- flow-v4/views.jsx ----
 // FLOW v4 — Today / Inbox / Leads views
 // Today rebuilt as a tabbed work surface: NOW · NEXT · LATER · DONE.
 // NOW = big action cards. NEXT/LATER = compact rows.
@@ -6783,7 +6774,6 @@ function V4CalendarView({ query = '' }) {
 Object.assign(window, { V4TodayView, V4RobertBriefView, V4InboxView, V4LeadsView, V4NewLeadsView, V4CalendarView });
 
 
-// ---- flow-v4/company-os.jsx ----
 // Company OS Beta — full port of the localhost Hermes Workspace UI.
 // Built on the gh-pages flow-v4 stack (inline Babel JSX + vanilla CSS).
 
@@ -8628,9 +8618,9 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                           <span>Calendar task title</span>
                           <input
                             className="brief-maker-input"
-                            value={briefForm.calendar_title || briefForm.title}
+                            value={briefForm.calendar_title}
                             onChange={e => updateBriefField('calendar_title', e.target.value)}
-                            placeholder="Robert brief task title"
+                            placeholder={briefForm.title || 'Robert brief task title'}
                           />
                         </label>
                         <label className="brief-maker-field">
@@ -9156,7 +9146,6 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
 window.V4CompanyOsView = V4CompanyOsView;
 
 
-// ---- flow-v4/app.jsx ----
 // FLOW v4 — main app shell (refined top bar + view wiring)
 
 const V4_TWEAKS = /*EDITMODE-BEGIN*/{

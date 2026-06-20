@@ -1842,9 +1842,9 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                           <span>Calendar task title</span>
                           <input
                             className="brief-maker-input"
-                            value={briefForm.calendar_title || briefForm.title}
+                            value={briefForm.calendar_title}
                             onChange={e => updateBriefField('calendar_title', e.target.value)}
-                            placeholder="Robert brief task title"
+                            placeholder={briefForm.title || 'Robert brief task title'}
                           />
                         </label>
                         <label className="brief-maker-field">
