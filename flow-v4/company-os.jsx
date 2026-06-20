@@ -218,33 +218,23 @@ const V4_COMPANY_OS_STAGES = [
   { key: 'done', label: 'Closed' },
 ];
 
-const V4_BRIEF_FUNCTIONS_BASE_URL = 'https://us-central1-unaligned-fc556.cloudfunctions.net';
 const V4_BRIEF_TAILSCALE_BASE_URL = 'https://mac-studio.tail50d3a2.ts.net';
 const V4_BRIEF_LOCAL_BASE_URL = 'http://127.0.0.1:8767';
 
-function V4BriefServiceBaseUrl() {
+function V4IsLocalBriefPage() {
   try {
     const protocol = String(window.location?.protocol || '');
     const hostname = String(window.location?.hostname || '');
-    const override = String(window.localStorage.getItem('v4_brief_service_base_url') || '').trim();
-    if (override && override !== V4_BRIEF_FUNCTIONS_BASE_URL) return override;
-    if (protocol === 'file:' || hostname === '127.0.0.1' || hostname === 'localhost') return V4_BRIEF_LOCAL_BASE_URL;
-    return V4_BRIEF_TAILSCALE_BASE_URL;
+    return protocol === 'file:' || hostname === '127.0.0.1' || hostname === 'localhost';
   } catch (err) {
-    return V4_BRIEF_LOCAL_BASE_URL;
+    return true;
   }
 }
 
-function V4BriefServiceHostLabel() {
-  try {
-    return new URL(V4BriefServiceBaseUrl()).host || 'your brief machine';
-  } catch (err) {
-    return 'your brief machine';
-  }
-}
-
-function V4BriefServiceHealthUrl() {
-  return V4BriefServiceBaseUrl() + '/health';
+function V4BriefServiceCandidateUrls() {
+  return V4IsLocalBriefPage()
+    ? [V4_BRIEF_LOCAL_BASE_URL, V4_BRIEF_TAILSCALE_BASE_URL]
+    : [V4_BRIEF_TAILSCALE_BASE_URL, V4_BRIEF_LOCAL_BASE_URL];
 }
 
 function V4BriefServiceHeaders(extra = {}) {
@@ -273,17 +263,30 @@ function V4StoreBriefApiToken(value) {
   return token;
 }
 
-async function V4BriefServiceFetch(url, options = {}) {
-  const makeRequest = () => fetch(url, {
-    ...options,
-    headers: V4BriefServiceHeaders(options.headers || {}),
-  });
+async function V4BriefServiceFetch(path, options = {}) {
+  const candidates = V4BriefServiceCandidateUrls();
+  const tryRequest = async includeStoredToken => {
+    let lastNetworkError = null;
+    for (const baseUrl of candidates) {
+      try {
+        const res = await fetch(baseUrl + path, {
+          ...options,
+          headers: V4BriefServiceHeaders(options.headers || {}),
+        });
+        if (res.status === 401 && !includeStoredToken) return res;
+        return res;
+      } catch (err) {
+        lastNetworkError = err;
+      }
+    }
+    throw lastNetworkError || new Error('Could not reach your brief machine.');
+  };
 
   let res;
   try {
-    res = await makeRequest();
+    res = await tryRequest(false);
   } catch (err) {
-    throw new Error('Could not reach your brief machine at ' + V4BriefServiceHostLabel() + '. Make sure your Mac service is running and Tailscale Funnel is on.');
+    throw new Error('Could not reach your brief machine. Make sure the Mac service is running and Tailscale Funnel is on.');
   }
   if (res.status !== 401) return res;
 
@@ -302,21 +305,17 @@ async function V4BriefServiceFetch(url, options = {}) {
 
   if (!token) return res;
   try {
-    res = await makeRequest();
+    res = await tryRequest(true);
   } catch (err) {
-    throw new Error('Could not reach your brief machine at ' + V4BriefServiceHostLabel() + '. Make sure your Mac service is running and Tailscale Funnel is on.');
+    throw new Error('Could not reach your brief machine. Make sure the Mac service is running and Tailscale Funnel is on.');
   }
   if (res.status === 401) {
-    throw new Error('Brief Maker token is missing or incorrect. Paste the access token into the token field and try again.');
+    throw new Error('Brief Maker access was denied. Refresh the page and try again.');
   }
   return res;
 }
 
 const V4_BRIEF_ACTION_URL = 'http://127.0.0.1:8766/generate-brief';
-const V4_BRIEF_DOC_ACTION_URL = V4BriefServiceBaseUrl() + '/generate-brief-doc';
-const V4_BRIEF_CALENDAR_ACTION_URL = V4BriefServiceBaseUrl() + '/create-calendar-hold';
-const V4_BRIEF_NOTION_IMPORT_URL = V4BriefServiceBaseUrl() + '/import-source-brief';
-const V4_BRIEF_SOURCE_IMPORT_URL = V4BriefServiceBaseUrl() + '/import-source-brief';
 
 const V4_COMPANY_OS_TOOLKIT = [
   {
@@ -1215,6 +1214,16 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
   const briefConfig = React.useMemo(() => V4BriefMakerConfig(briefForm), [briefForm]);
   const briefJson = React.useMemo(() => JSON.stringify(briefConfig, null, 2), [briefConfig]);
 
+  React.useEffect(() => {
+    try {
+      const protocol = String(window.location?.protocol || '');
+      const hostname = String(window.location?.hostname || '');
+      if (protocol === 'file:' || hostname === '127.0.0.1' || hostname === 'localhost') {
+        window.localStorage.removeItem('v4_brief_service_base_url');
+      }
+    } catch (err) {}
+  }, []);
+
   const updateBriefField = (key, value) => {
     setBriefForm(curr => ({ ...curr, [key]: value }));
     if (copied) setCopied(false);
@@ -1251,7 +1260,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
       setBriefMachineStatus('checking');
       setBriefMachineNote('Checking your brief machine...');
       try {
-        const res = await fetch(V4BriefServiceHealthUrl(), { method: 'GET' });
+        const res = await V4BriefServiceFetch('/health', { method: 'GET' });
         const data = await res.json().catch(() => ({}));
         if (!active) return;
         if (res.ok && data.ok) {
@@ -1352,7 +1361,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     setDocError('');
     setDocResult(null);
     try {
-      const res = await V4BriefServiceFetch(V4_BRIEF_DOC_ACTION_URL, {
+      const res = await V4BriefServiceFetch('/generate-brief-doc', {
         method: 'POST',
         body: JSON.stringify(briefConfig),
       });
@@ -1376,7 +1385,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     setNotionStatus('importing');
     setNotionError('');
     try {
-      const res = await V4BriefServiceFetch(V4_BRIEF_SOURCE_IMPORT_URL, {
+      const res = await V4BriefServiceFetch('/import-source-brief', {
         method: 'POST',
         body: JSON.stringify({ source_url: sourceUrl }),
       });
@@ -1404,7 +1413,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     setDocError('');
     setDocResult(null);
     try {
-      const res = await V4BriefServiceFetch(V4_BRIEF_SOURCE_IMPORT_URL, {
+      const res = await V4BriefServiceFetch('/import-source-brief', {
         method: 'POST',
         body: JSON.stringify({ source_url: sourceUrl }),
       });
@@ -1415,7 +1424,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
       setNotionStatus('done');
 
       setDocStatus('creating');
-      const docRes = await V4BriefServiceFetch(V4_BRIEF_DOC_ACTION_URL, {
+      const docRes = await V4BriefServiceFetch('/generate-brief-doc', {
         method: 'POST',
         body: JSON.stringify({ ...payload, source_url: sourceUrl }),
       });
@@ -1450,7 +1459,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     setCalendarError('');
     setCalendarResult(null);
     try {
-      const res = await V4BriefServiceFetch(V4_BRIEF_CALENDAR_ACTION_URL, {
+      const res = await V4BriefServiceFetch('/create-calendar-hold', {
         method: 'POST',
         body: JSON.stringify({
           ...briefConfig,

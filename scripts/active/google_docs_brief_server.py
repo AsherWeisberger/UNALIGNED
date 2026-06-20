@@ -17,7 +17,7 @@ import re
 import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from urllib import request, error
 
 import google.auth.transport.requests
@@ -44,6 +44,10 @@ DEFAULT_LLM_TARGETS = [
     {"base_url": "http://127.0.0.1:8000/v1", "model": "qwen3.5-9b-4bit", "label": "Rapid-MLX Qwen 3.5 9B"},
     {"base_url": "http://127.0.0.1:11434/v1", "model": "hermes-fast:latest", "label": "Ollama Hermes Fast"},
 ]
+PREFERRED_LOCAL_MODELS = [
+    ("http://127.0.0.1:8000/v1", "qwen3.5-9b-4bit"),
+    ("http://127.0.0.1:11434/v1", "hermes-fast:latest"),
+]
 ALLOWED_ORIGINS = {
     "https://asherweisberger.github.io",
     "http://127.0.0.1:4174",
@@ -51,6 +55,8 @@ ALLOWED_ORIGINS = {
     "http://127.0.0.1:4173",
     "http://localhost:4173",
 }
+
+LOCAL_BRIEF_LLM_ENABLED = str(os.environ.get("LOCAL_BRIEF_LLM_ENABLED") or "0").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def get_api_token() -> str:
@@ -85,6 +91,17 @@ def send_json(handler: BaseHTTPRequestHandler, status: int, payload: dict) -> No
 
 
 def require_api_token(handler: BaseHTTPRequestHandler) -> bool:
+    origin = line(handler.headers.get("Origin")).lower()
+    client_host = line((handler.client_address or ("",))[0]).lower()
+    host = line(handler.headers.get("Host")).lower()
+    if origin == "https://asherweisberger.github.io" and host.startswith("mac-studio.tail50d3a2.ts.net"):
+        return True
+    if client_host in {"127.0.0.1", "::1", "localhost"} and (
+        host.startswith("127.0.0.1:8767")
+        or host.startswith("localhost:8767")
+        or origin in {"", "null", "file://", "http://127.0.0.1:4174", "http://localhost:4174", "http://127.0.0.1:4173", "http://localhost:4173"}
+    ):
+        return True
     token = get_api_token()
     if not token:
         return True
@@ -225,6 +242,40 @@ def extract_json_block(text: str) -> dict:
 
 def load_local_llm_targets() -> list[dict]:
     targets: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+
+    def add_target(base_url: str, model_id: str, label: str) -> None:
+        normalized_base = line(base_url).rstrip("/")
+        normalized_model = line(model_id)
+        if not normalized_base or not normalized_model:
+            return
+        key = (normalized_base, normalized_model)
+        if key in seen:
+            return
+        seen.add(key)
+        targets.append({"base_url": normalized_base, "model": normalized_model, "label": label})
+
+    available_by_base: dict[str, set[str]] = {}
+    for base_url, _ in PREFERRED_LOCAL_MODELS:
+        try:
+            models_payload = fetch_json(f"{base_url.rstrip('/')}/models", timeout=8)
+            model_ids = {
+                line(item.get("id"))
+                for item in (models_payload.get("data") or [])
+                if isinstance(item, dict) and line(item.get("id"))
+            }
+            if model_ids:
+                available_by_base[base_url.rstrip("/")] = model_ids
+        except Exception:
+            continue
+
+    for base_url, model_id in PREFERRED_LOCAL_MODELS:
+        normalized_base = base_url.rstrip("/")
+        available_models = available_by_base.get(normalized_base)
+        if available_models and model_id in available_models:
+            label = "Rapid-MLX Qwen 3.5 9B" if "8000" in normalized_base else f"Ollama {model_id}"
+            add_target(normalized_base, model_id, label)
+
     if OPENCODE_CONFIG_FILE.exists():
         try:
             config = json.loads(OPENCODE_CONFIG_FILE.read_text(encoding="utf-8") or "{}")
@@ -233,17 +284,22 @@ def load_local_llm_targets() -> list[dict]:
             ollama = providers.get("ollama") or {}
             rapid_base = line((rapid.get("options") or {}).get("baseURL"))
             ollama_base = line((ollama.get("options") or {}).get("baseURL"))
-            if rapid_base:
+            rapid_available = available_by_base.get(rapid_base.rstrip("/")) if rapid_base else None
+            ollama_available = available_by_base.get(ollama_base.rstrip("/")) if ollama_base else None
+            if rapid_base and rapid_available:
                 for model_id in (rapid.get("models") or {}).keys():
-                    targets.append({"base_url": rapid_base, "model": model_id, "label": f"Rapid-MLX {model_id}"})
-            if ollama_base:
+                    if model_id in rapid_available:
+                        add_target(rapid_base, model_id, f"Rapid-MLX {model_id}")
+            if ollama_base and ollama_available:
                 for model_id in (ollama.get("models") or {}).keys():
-                    targets.append({"base_url": ollama_base, "model": model_id, "label": f"Ollama {model_id}"})
+                    if model_id in ollama_available:
+                        add_target(ollama_base, model_id, f"Ollama {model_id}")
         except Exception:
             pass
     for default in DEFAULT_LLM_TARGETS:
-        if not any(item["base_url"] == default["base_url"] and item["model"] == default["model"] for item in targets):
-            targets.append(default)
+        available_models = available_by_base.get(default["base_url"].rstrip("/"))
+        if available_models and default["model"] in available_models:
+            add_target(default["base_url"], default["model"], default["label"])
     return targets
 
 
@@ -319,7 +375,6 @@ def query_local_brief_model(source: dict) -> dict | None:
         if not base_url or not model:
             continue
         try:
-            fetch_json(f"{base_url}/models", timeout=8)
             payload = {
                 "model": model,
                 "messages": [
@@ -604,6 +659,8 @@ def build_structured_brief_payload(
     }
     if submit_url:
         payload["submit_url"] = submit_url
+    if not LOCAL_BRIEF_LLM_ENABLED:
+        return payload
     llm_payload = query_local_brief_model({
         "title": title,
         "source_url": source_url,
@@ -945,6 +1002,18 @@ def create_calendar_hold(payload: dict) -> dict:
 class DocsBriefHandler(BaseHTTPRequestHandler):
     def do_OPTIONS(self) -> None:
         send_json(self, 204, {})
+
+    def do_GET(self) -> None:
+        if self.path != "/health":
+            send_json(self, 404, {"ok": False, "error": "Unknown endpoint."})
+            return
+        send_json(self, 200, {
+            "ok": True,
+            "service": "google-docs-brief-server",
+            "host": HOST,
+            "port": PORT,
+            "time": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        })
 
     def do_POST(self) -> None:
         if self.path not in ("/generate-brief-doc", "/create-calendar-hold", "/import-notion-brief", "/import-source-brief"):
