@@ -221,8 +221,36 @@ const V4_COMPANY_OS_STAGES = [
 const V4_BRIEF_TAILSCALE_BASE_URL = 'https://mac-studio.tail50d3a2.ts.net';
 const V4_BRIEF_LOCAL_BASE_URL = 'http://127.0.0.1:8767';
 
-function V4ShouldUseMachineHostedApp() {
-  return false;
+function V4ShouldUseMachineHostedBriefFlow() {
+  try {
+    const ua = String(window.navigator?.userAgent || '');
+    const vendor = String(window.navigator?.vendor || '');
+    const isIOS = /iPhone|iPad|iPod/i.test(ua);
+    const isSafariDesktop = /Safari/i.test(ua) && /Apple/i.test(vendor) && !/Chrome|CriOS|EdgiOS|Edg|OPR|Firefox/i.test(ua);
+    return isIOS || isSafariDesktop;
+  } catch (err) {
+    return false;
+  }
+}
+
+function V4IsGithubHostedPage() {
+  try {
+    return String(window.location?.hostname || '') === 'asherweisberger.github.io';
+  } catch (err) {
+    return false;
+  }
+}
+
+function V4OpenMachineHostedBriefMaker() {
+  try {
+    const target = new URL(V4_BRIEF_TAILSCALE_BASE_URL + '/');
+    target.searchParams.set('open', 'brief-maker');
+    target.searchParams.set('from', 'github');
+    window.location.assign(target.toString());
+    return true;
+  } catch (err) {
+    return false;
+  }
 }
 
 function V4MaybeRedirectToMachineHostedApp() {
@@ -1232,6 +1260,15 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     } catch (err) {}
   }, []);
 
+  React.useEffect(() => {
+    try {
+      const current = new URL(String(window.location?.href || ''));
+      if (current.searchParams.get('open') === 'brief-maker') {
+        setBriefMakerOpen(true);
+      }
+    } catch (err) {}
+  }, []);
+
   const updateBriefField = (key, value) => {
     setBriefForm(curr => ({ ...curr, [key]: value }));
     if (copied) setCopied(false);
@@ -1513,6 +1550,10 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
   const runAction = (action) => {
     if (!action) return;
     if (action.type === 'launch-brief-builder') {
+      if (V4IsGithubHostedPage() && V4ShouldUseMachineHostedBriefFlow()) {
+        V4OpenMachineHostedBriefMaker();
+        return;
+      }
       setBriefMakerOpen(true);
       return;
     }
