@@ -239,6 +239,10 @@ function V4BriefServiceHostLabel() {
   }
 }
 
+function V4BriefServiceHealthUrl() {
+  return V4BriefServiceBaseUrl() + '/health';
+}
+
 function V4BriefServiceHeaders(extra = {}) {
   const headers = { 'Content-Type': 'application/json', ...extra };
   try {
@@ -1190,6 +1194,8 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
   const [briefForm, setBriefForm] = React.useState(() => V4BriefMakerDefaultState());
   const [briefAdvancedOpen, setBriefAdvancedOpen] = React.useState(false);
   const [briefApiToken, setBriefApiToken] = React.useState(() => V4LoadBriefApiToken());
+  const [briefMachineStatus, setBriefMachineStatus] = React.useState('checking');
+  const [briefMachineNote, setBriefMachineNote] = React.useState('Checking your brief machine...');
   const [copied, setCopied] = React.useState(false);
   const [briefStatus, setBriefStatus] = React.useState('idle');
   const [briefError, setBriefError] = React.useState('');
@@ -1233,6 +1239,38 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     const next = V4StoreBriefApiToken(value);
     setBriefApiToken(next);
   };
+
+  React.useEffect(() => {
+    let active = true;
+
+    const checkMachine = async () => {
+      setBriefMachineStatus('checking');
+      setBriefMachineNote('Checking your brief machine...');
+      try {
+        const res = await fetch(V4BriefServiceHealthUrl(), { method: 'GET' });
+        const data = await res.json().catch(() => ({}));
+        if (!active) return;
+        if (res.ok && data.ok) {
+          setBriefMachineStatus('online');
+          setBriefMachineNote('Machine online. Ready from anywhere while this Mac is awake.');
+        } else {
+          setBriefMachineStatus('offline');
+          setBriefMachineNote('Machine reached, but the brief service did not answer cleanly.');
+        }
+      } catch (err) {
+        if (!active) return;
+        setBriefMachineStatus('offline');
+        setBriefMachineNote('Machine is not reachable right now. Check that your Mac is awake, Tailscale is connected, and the brief service is running.');
+      }
+    };
+
+    checkMachine();
+    const timer = window.setInterval(checkMachine, 45000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   const downloadBriefConfig = () => {
     const blob = new Blob([briefJson], { type: 'application/json' });
@@ -1474,10 +1512,9 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     if (tool.id === 'brief-maker') {
       return {
         ...tool,
-        primaryLabel: 'Launch brief form',
+        primaryLabel: 'Open Brief Maker',
         primaryAction: { type: 'launch-brief-builder' },
-        secondaryLabel: 'Open pricing PDF',
-        secondaryHref: 'docs/SINGLE_TIER.pdf',
+        simpleCard: true,
       };
     }
     if (tool.id === 'x-intake') {
@@ -1540,24 +1577,32 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
       </p>
       <div className="cos-toolkit-grid">
         {toolkitCards.map(tool => (
-          <section key={tool.id} className="cos-panel cos-toolkit-card">
+          <section key={tool.id} className={'cos-panel cos-toolkit-card' + (tool.simpleCard ? ' is-brief-maker' : '')}>
             <div className="cos-panel-head">
               <h3>{tool.title}</h3>
               <span className={'cos-toolkit-status is-' + String(tool.status || '').toLowerCase().replace(/\s+/g, '-')}>{tool.status}</span>
             </div>
             <div className="cos-toolkit-body">
-              <div className="cos-toolkit-meta">
-                <span className="cos-chip cos-chip-tight">{tool.kind}</span>
-                <span className="cos-toolkit-output">{tool.output}</span>
-              </div>
-              <div className="cos-toolkit-row">
-                <div className="cos-toolkit-label">Use for</div>
-                <div className="cos-toolkit-value">{tool.useFor}</div>
-              </div>
-              <div className="cos-toolkit-row">
-                <div className="cos-toolkit-label">Trigger</div>
-                <div className="cos-toolkit-value">{tool.trigger}</div>
-              </div>
+              {tool.simpleCard ? (
+                <div className="cos-toolkit-simple-copy">
+                  Build a Google Doc brief for Robert from one source link.
+                </div>
+              ) : (
+                <>
+                  <div className="cos-toolkit-meta">
+                    <span className="cos-chip cos-chip-tight">{tool.kind}</span>
+                    <span className="cos-toolkit-output">{tool.output}</span>
+                  </div>
+                  <div className="cos-toolkit-row">
+                    <div className="cos-toolkit-label">Use for</div>
+                    <div className="cos-toolkit-value">{tool.useFor}</div>
+                  </div>
+                  <div className="cos-toolkit-row">
+                    <div className="cos-toolkit-label">Trigger</div>
+                    <div className="cos-toolkit-value">{tool.trigger}</div>
+                  </div>
+                </>
+              )}
               <div className="cos-toolkit-actions">
                 {tool.primaryHref ? (
                   <a className="cos-toolkit-btn is-primary" href={tool.primaryHref} target="_blank" rel="noreferrer">
@@ -1578,7 +1623,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                   </a>
                 ) : null}
               </div>
-              <div className="cos-toolkit-note">{tool.note}</div>
+              {!tool.simpleCard && <div className="cos-toolkit-note">{tool.note}</div>}
             </div>
           </section>
         ))}
@@ -1588,31 +1633,9 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
           <div className="brief-maker-panel" onClick={e => e.stopPropagation()}>
             <div className="brief-modal-hd">
               <div>
-                <div className="brief-modal-eyebrow">Toolkit</div>
                 <h2 className="brief-modal-title">Brief Maker</h2>
               </div>
               <div className="brief-modal-hd-actions">
-                <button type="button" className="cos-toolkit-btn is-primary" onClick={buildBriefFromSource}>
-                  {notionStatus === 'importing' || docStatus === 'creating' ? 'Building from source...' : 'Build from source link'}
-                </button>
-                <button type="button" className="cos-toolkit-btn is-primary" onClick={createBriefDoc}>
-                  {docStatus === 'creating' ? 'Creating Doc...' : 'Create Google Doc'}
-                </button>
-                <button type="button" className="cos-toolkit-btn" onClick={importNotionBrief}>
-                  {notionStatus === 'importing' ? 'Reading source...' : 'Import source only'}
-                </button>
-                <button type="button" className="cos-toolkit-btn" onClick={createCalendarHold}>
-                  {calendarStatus === 'creating' ? 'Adding hold...' : 'Add to Calendar'}
-                </button>
-                <button type="button" className="cos-toolkit-btn" onClick={generateBriefPdf}>
-                  {briefStatus === 'generating' ? 'Generating...' : 'Generate PDF'}
-                </button>
-                <button type="button" className="cos-toolkit-btn" onClick={downloadBriefConfig}>
-                  Download JSON
-                </button>
-                <button type="button" className="cos-toolkit-btn" onClick={copyBriefConfig}>
-                  {copied ? 'Copied' : 'Copy JSON'}
-                </button>
                 <button type="button" className="brief-modal-close" onClick={() => setBriefMakerOpen(false)} aria-label="Close brief maker">
                   <V3Icon name="x" w={14} />
                 </button>
@@ -1621,8 +1644,13 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
             <div className="brief-maker-body">
               <div className="brief-maker-form">
                 <div className="brief-maker-source-panel">
+                  <div className="brief-maker-hero">
+                    <div className="brief-maker-hero-kicker">Robert brief</div>
+                    <h3>Paste a source link and build the doc</h3>
+                    <p>One clean input. One click. Brief Maker reads the source and creates the Google Doc on Robert&apos;s account.</p>
+                  </div>
                   <label className="brief-maker-field brief-maker-field-wide">
-                    <span>Source brief link</span>
+                    <span>Paste source link</span>
                     <input
                       className="brief-maker-input"
                       value={briefForm.source_url || briefForm.notion_url}
@@ -1633,184 +1661,47 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                       placeholder="Paste a public Notion page or Google Doc link"
                     />
                   </label>
-                  <label className="brief-maker-field brief-maker-field-wide">
-                    <span>Brief Maker access token</span>
-                    <input
-                      className="brief-maker-input"
-                      value={briefApiToken}
-                      onChange={e => saveBriefApiToken(e.target.value)}
-                      onBlur={e => saveBriefApiToken(e.target.value)}
-                      placeholder="Paste the token once to connect this browser"
-                    />
-                  </label>
                   <div className="brief-maker-source-note">
-                    Paste one source link and let Company OS read it, extract the campaign facts, draft Robert copy, and build the Google Doc.
-                  </div>
-                  <div className="brief-maker-source-note">
-                    Connected to <strong>{V4BriefServiceHostLabel()}</strong>. Your machine is the brain.
+                    Paste one link. Brief Maker will read it and build the Google Doc on Robert&apos;s account.
                   </div>
                   <div className="brief-maker-source-actions">
                     <button type="button" className="cos-toolkit-btn is-primary" onClick={buildBriefFromSource}>
-                      {notionStatus === 'importing' || docStatus === 'creating' ? 'Building...' : 'Read source and make brief'}
-                    </button>
-                    <button type="button" className="cos-toolkit-btn" onClick={() => setBriefAdvancedOpen(open => !open)}>
-                      {briefAdvancedOpen ? 'Hide advanced fields' : 'Show advanced fields'}
+                      {notionStatus === 'importing' || docStatus === 'creating' ? 'Building...' : 'Go'}
                     </button>
                   </div>
                 </div>
-                {briefAdvancedOpen && (
-                <div className="brief-maker-grid">
-                  <label className="brief-maker-field brief-maker-field-wide">
-                    <span>Title</span>
-                    <input className="brief-maker-input" value={briefForm.title} onChange={e => updateBriefField('title', e.target.value)} placeholder="Viktor $75M Series A Launch" />
-                  </label>
-                  <label className="brief-maker-field brief-maker-field-wide">
-                    <span>Subtitle</span>
-                    <input className="brief-maker-input" value={briefForm.subtitle} onChange={e => updateBriefField('subtitle', e.target.value)} placeholder="For Robert. Read in 60 seconds" />
-                  </label>
-                  <label className="brief-maker-field">
-                    <span>Filename</span>
-                    <input className="brief-maker-input" value={briefForm.filename} onChange={e => updateBriefField('filename', e.target.value)} placeholder={V4BriefMakerFilename(briefForm.title)} />
-                  </label>
-                  <label className="brief-maker-field">
-                    <span>Calendar title</span>
-                    <input className="brief-maker-input" value={briefForm.calendar_title} onChange={e => updateBriefField('calendar_title', e.target.value)} placeholder="Robert brief. Viktor launch" />
-                  </label>
-                  <label className="brief-maker-field">
-                    <span>Submit URL</span>
-                    <input className="brief-maker-input" value={briefForm.submit_url} onChange={e => updateBriefField('submit_url', e.target.value)} placeholder="forms.fillout.com/t/xxxx" />
-                  </label>
-                  <label className="brief-maker-field brief-maker-field-wide">
-                    <span>Go live</span>
-                    <input className="brief-maker-input" value={briefForm.go_live} onChange={e => updateBriefField('go_live', e.target.value)} placeholder="Tuesday June 9, 2026, 9:00 AM EST" />
-                  </label>
-                  <label className="brief-maker-field brief-maker-field-wide">
-                    <span>Go live note</span>
-                    <input className="brief-maker-input" value={briefForm.go_live_note} onChange={e => updateBriefField('go_live_note', e.target.value)} placeholder="Do NOT post early. First 30 minutes is the algorithm window." />
-                  </label>
-                  <label className="brief-maker-field brief-maker-field-wide">
-                    <span>What to do. One step per line</span>
-                    <textarea className="brief-maker-textarea" rows={4} value={briefForm.what_to_do_text} onChange={e => updateBriefField('what_to_do_text', e.target.value)} placeholder={'Post at the exact time.\nUse the strongest draft angle.\nSend the live post URL after publishing.'} />
-                  </label>
-                  <label className="brief-maker-field brief-maker-field-wide">
-                    <span>Key facts. Use Label | Detail per line</span>
-                    <textarea className="brief-maker-textarea" rows={5} value={briefForm.key_facts_text} onChange={e => updateBriefField('key_facts_text', e.target.value)} placeholder={'$75M Series A | Led by Accel\nWhat Viktor does | AI coworker for enterprise workflows'} />
-                  </label>
-                  <label className="brief-maker-field">
-                    <span>Tag</span>
-                    <input className="brief-maker-input" value={briefForm.tag} onChange={e => updateBriefField('tag', e.target.value)} placeholder="@viktor__com" />
-                  </label>
-                  <label className="brief-maker-field">
-                    <span>Link</span>
-                    <input className="brief-maker-input" value={briefForm.link} onChange={e => updateBriefField('link', e.target.value)} placeholder="getviktor.com" />
-                  </label>
-                  <label className="brief-maker-field brief-maker-field-wide">
-                    <span>Hashtags</span>
-                    <input className="brief-maker-input" value={briefForm.hashtags} onChange={e => updateBriefField('hashtags', e.target.value)} placeholder="#AIcoworker #SeriesA" />
-                  </label>
-                  <label className="brief-maker-field">
-                    <span>Calendar date</span>
-                    <input type="date" className="brief-maker-input" value={briefForm.calendar_date} onChange={e => updateBriefField('calendar_date', e.target.value)} />
-                  </label>
-                  <label className="brief-maker-field">
-                    <span>Start time</span>
-                    <input type="time" className="brief-maker-input" value={briefForm.calendar_start} onChange={e => updateBriefField('calendar_start', e.target.value)} />
-                  </label>
-                  <label className="brief-maker-field">
-                    <span>End time</span>
-                    <input type="time" className="brief-maker-input" value={briefForm.calendar_end} onChange={e => updateBriefField('calendar_end', e.target.value)} />
-                  </label>
-                </div>
-                )}
-                {briefAdvancedOpen && (
-                <div className="brief-maker-drafts">
-                  {[1, 2, 3].map(index => (
-                    <div key={index} className="brief-maker-draft-card">
-                      <label className="brief-maker-field brief-maker-field-wide">
-                        <span>Draft {index} label</span>
-                        <input className="brief-maker-input" value={briefForm[`draft_${index}_label`]} onChange={e => updateBriefField(`draft_${index}_label`, e.target.value)} />
-                      </label>
-                      <label className="brief-maker-field brief-maker-field-wide">
-                        <span>Draft {index} copy</span>
-                        <textarea className="brief-maker-textarea" rows={5} value={briefForm[`draft_${index}_text`]} onChange={e => updateBriefField(`draft_${index}_text`, e.target.value)} placeholder="Short, punchy copy. Lead with the strongest fact. End with CTA and required tags." />
-                      </label>
-                    </div>
-                  ))}
-                </div>
-                )}
               </div>
               <aside className="brief-maker-preview">
-                <div className="brief-maker-preview-head">
-                  <strong>Config preview</strong>
-                  <span>{(briefConfig.filename || V4BriefMakerFilename(briefConfig.title || 'Robert_Brief')) + '.json'}</span>
-                </div>
-                <pre className="brief-maker-json">{briefJson}</pre>
-                <div className="brief-maker-foot">
-                  <span>Output target</span>
-                  <strong>Desktop/UNALIGNED</strong>
-                </div>
                 <div className="brief-maker-server-status">
-                  {notionStatus === 'done' && (
-                    <div className="brief-maker-result-card">
-                      <span className="brief-maker-server-ok">Source brief imported.</span>
+                  {notionStatus === 'idle' && docStatus === 'idle' && (
+                    <div className="brief-maker-empty-state">
+                      <strong>Ready</strong>
+                      <span>Paste the link above, then press Go.</span>
                     </div>
                   )}
                   {notionStatus === 'error' && (
                     <span className="brief-maker-server-error">{notionError}</span>
                   )}
                   {notionStatus === 'importing' && (
-                    <span className="brief-maker-server-note">Reading the source brief and mapping it into Robert&apos;s format...</span>
-                  )}
-                  {docStatus === 'done' && docResult && (
-                    <div className="brief-maker-result-card">
-                      <span className="brief-maker-server-ok">Google Doc ready.</span>
-                      <div className="brief-maker-result-actions">
-                        <a className="cos-toolkit-btn" href={docResult.url} target="_blank" rel="noreferrer">Open Doc</a>
-                        <button type="button" className="cos-toolkit-btn" onClick={() => navigator.clipboard.writeText(docResult.url)}>Copy Doc Link</button>
-                      </div>
-                    </div>
+                    <span className="brief-maker-server-note">Reading the link and building Robert&apos;s Google Doc...</span>
                   )}
                   {docStatus === 'error' && (
                     <span className="brief-maker-server-error">{docError}</span>
                   )}
                   {docStatus === 'creating' && (
-                    <span className="brief-maker-server-note">Creating Google Doc in your brief service...</span>
+                    <span className="brief-maker-server-note">Creating the Google Doc on Robert&apos;s account...</span>
                   )}
-                  {calendarStatus === 'done' && calendarResult && (
+                  {docStatus === 'done' && docResult && (
                     <div className="brief-maker-result-card">
-                      <span className="brief-maker-server-ok">Calendar hold ready.</span>
+                      <span className="brief-maker-server-ok">Succeeded. Robert&apos;s Google Doc is ready.</span>
                       <div className="brief-maker-result-actions">
-                        <a className="cos-toolkit-btn" href={calendarResult.htmlLink} target="_blank" rel="noreferrer">Open Event</a>
+                        <a className="cos-toolkit-btn is-primary" href={docResult.url} target="_blank" rel="noreferrer">Open Google Doc</a>
                       </div>
                     </div>
-                  )}
-                  {calendarStatus === 'error' && (
-                    <span className="brief-maker-server-error">{calendarError}</span>
-                  )}
-                  {calendarStatus === 'creating' && (
-                    <span className="brief-maker-server-note">Adding this brief to Robert&apos;s calendar in your brief service...</span>
-                  )}
-                  {briefStatus === 'done' && briefResult && (
-                    <div className="brief-maker-result-card">
-                      <span className="brief-maker-server-ok">PDF ready.</span>
-                      <div className="brief-maker-result-actions">
-                        <a className="cos-toolkit-btn" href={briefResult.url} target="_blank" rel="noreferrer">Open PDF</a>
-                      </div>
-                    </div>
-                  )}
-                  {briefStatus === 'error' && (
-                    <span className="brief-maker-server-error">{briefError}</span>
-                  )}
-                  {briefStatus === 'generating' && (
-                    <span className="brief-maker-server-note">Building PDF on this Mac...</span>
-                  )}
-                  {briefResult?.path && briefStatus === 'done' && (
-                    <div className="brief-maker-server-path">{briefResult.path}</div>
                   )}
                 </div>
                 <div className="brief-maker-footer-actions">
                   <button type="button" className="cos-toolkit-btn" onClick={resetBriefForm}>Reset</button>
-                  <a className="cos-toolkit-btn" href="docs/SINGLE_TIER.pdf" target="_blank" rel="noreferrer">Open pricing PDF</a>
                 </div>
               </aside>
             </div>

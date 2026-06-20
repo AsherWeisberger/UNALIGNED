@@ -1840,12 +1840,35 @@ a { color: inherit; }
   gap: 10px;
 }
 .brief-maker-result-card {
-  display: grid;
-  gap: 10px;
-  padding: 12px;
-  border: 1px solid color-mix(in oklab, var(--accent) 22%, var(--line));
-  border-radius: 10px;
-  background: color-mix(in oklab, white 82%, var(--accent-soft));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  padding: 18px 18px 16px;
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid #e5e9f2;
+  box-shadow: 0 16px 34px -28px rgba(17, 32, 51, 0.28);
+}
+.brief-maker-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 20px 18px;
+  border: 1px dashed #d6dce8;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.68);
+}
+.brief-maker-empty-state strong {
+  font: 600 14px/1.2 var(--font-body);
+  color: var(--text);
+}
+.brief-maker-empty-state span {
+  font: 500 12px/1.5 var(--font-body);
+  color: var(--text-2);
 }
 .brief-maker-server-ok,
 .brief-maker-server-note,
@@ -1853,6 +1876,7 @@ a { color: inherit; }
 .brief-maker-server-path {
   font-size: 12.5px;
   line-height: 1.45;
+  text-align: center;
 }
 .brief-maker-server-ok {
   color: var(--accent-deep);
@@ -1869,6 +1893,13 @@ a { color: inherit; }
   color: var(--text-3);
   font-family: var(--font-mono);
   word-break: break-all;
+}
+.brief-maker-result-actions {
+  display: flex;
+  justify-content: center;
+}
+.brief-maker-result-actions .cos-toolkit-btn {
+  min-width: 184px;
 }
 .brief-modal-body {
   padding: 16px;
@@ -3101,6 +3132,23 @@ a { color: inherit; }
   flex-wrap: wrap;
   gap: 8px;
 }
+.cos-toolkit-card.is-brief-maker .cos-toolkit-body {
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+}
+.cos-toolkit-simple-copy {
+  max-width: 300px;
+  font: 500 13px/1.55 var(--font-body);
+  color: var(--text-2);
+}
+.cos-toolkit-card.is-brief-maker .cos-toolkit-actions {
+  width: 100%;
+  justify-content: center;
+}
+.cos-toolkit-card.is-brief-maker .cos-toolkit-btn {
+  min-width: 176px;
+}
 .cos-toolkit-btn {
   display: inline-flex;
   align-items: center;
@@ -3128,49 +3176,104 @@ a { color: inherit; }
   background: color-mix(in oklab, var(--accent) 88%, black);
 }
 .brief-maker-panel {
-  width: min(1200px, 100%);
-  max-height: min(88vh, 980px);
+  width: min(760px, calc(100vw - 32px));
+  max-height: min(88vh, 820px);
   overflow: hidden;
-  background: linear-gradient(180deg, #f0eee7 0%, #faf8f2 100%);
+  background: #fcfbf7;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  box-shadow: 0 24px 80px rgba(0,0,0,0.28);
+  border-radius: 20px;
+  box-shadow: 0 28px 80px rgba(18, 22, 31, 0.18);
   display: flex;
   flex-direction: column;
 }
 .brief-maker-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  display: flex;
+  flex-direction: column;
   gap: 0;
   min-height: 0;
   overflow: hidden;
 }
 .brief-maker-form {
-  padding: 16px;
+  padding: 20px 20px 12px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  background: linear-gradient(180deg, #f2efe8 0%, #f7f5ef 100%);
+  background: transparent;
 }
 .brief-maker-source-panel {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 14px;
-  border: 1px solid #d9e3f0;
-  border-radius: 12px;
-  background: #fcfdff;
-  box-shadow: 0 8px 22px -20px rgba(17, 32, 51, 0.28);
+  gap: 14px;
+  padding: 28px 28px 22px;
+  border: 1px solid #e3e7ef;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #fafbfd 100%);
+  box-shadow: 0 18px 40px -32px rgba(17, 32, 51, 0.3);
+}
+.brief-maker-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding-bottom: 6px;
+}
+.brief-maker-hero-kicker {
+  font: 600 10px/1 var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-3);
+}
+.brief-maker-hero h3 {
+  margin: 0;
+  font: 700 24px/1.1 var(--font-display);
+  color: var(--text);
+}
+.brief-maker-hero p {
+  margin: 0;
+  max-width: 480px;
+  font: 500 13px/1.55 var(--font-body);
+  color: var(--text-2);
 }
 .brief-maker-source-note {
   font: 500 12px/1.45 var(--font-body);
   color: var(--text-2);
+  text-align: center;
+}
+.brief-maker-health {
+  margin-top: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font: 500 12px/1.45 var(--font-body);
+  border: 1px solid #d9e3f0;
+}
+.brief-maker-health-online {
+  color: #1d6b43;
+  background: #eef8f1;
+  border-color: #cbe8d3;
+}
+.brief-maker-health-checking {
+  color: var(--text-2);
+  background: #f6f7fb;
+  border-color: #d9e3f0;
+}
+.brief-maker-health-offline {
+  color: #a13d2d;
+  background: #fff3f0;
+  border-color: #f1c7bd;
 }
 .brief-maker-source-actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  justify-content: center;
+  padding-top: 4px;
+}
+.brief-maker-source-actions .cos-toolkit-btn {
+  min-width: 180px;
+  min-height: 40px;
+  font-size: 13px;
 }
 .brief-maker-grid {
   display: grid;
@@ -3228,11 +3331,12 @@ a { color: inherit; }
   gap: 10px;
 }
 .brief-maker-preview {
-  border-left: 1px solid var(--line);
-  background: #f9f7f1;
+  border-top: 1px solid #ece7dc;
+  background: #f8f5ee;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  padding: 0 20px 20px;
 }
 .brief-maker-preview-head {
   display: flex;
@@ -3275,8 +3379,8 @@ a { color: inherit; }
 .brief-maker-server-status {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px 16px 0;
+  gap: 10px;
+  padding: 18px 0 0;
 }
 .brief-maker-server-ok,
 .brief-maker-server-note,
@@ -3293,9 +3397,10 @@ a { color: inherit; }
 }
 .brief-maker-footer-actions {
   display: flex;
+  justify-content: center;
   gap: 8px;
   flex-wrap: wrap;
-  padding: 0 16px 16px;
+  padding: 14px 0 0;
 }
 .cos-toolkit-status {
   display: inline-flex;
