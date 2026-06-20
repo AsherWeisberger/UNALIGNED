@@ -1484,6 +1484,27 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     }
   };
 
+  const createCalendarHoldWithConfig = async (config, docUrl) => {
+    const calendarTitle = config.calendar_title || config.title;
+    if (!calendarTitle) {
+      throw new Error('Add a title first.');
+    }
+    if (!config.calendar_date || !config.calendar_start) {
+      throw new Error('Add the calendar date and start time.');
+    }
+    const res = await V4BriefServiceFetch('/create-calendar-hold', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...config,
+        calendar_title: calendarTitle,
+        doc_url: docUrl || '',
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || 'Calendar hold creation failed.');
+    return data;
+  };
+
   const buildBriefFromSource = async () => {
     const sourceUrl = String(briefForm.source_url || briefForm.notion_url || '').trim();
     if (!sourceUrl) {
@@ -1496,6 +1517,9 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     setDocStatus('idle');
     setDocError('');
     setDocResult(null);
+    setCalendarStatus('idle');
+    setCalendarError('');
+    setCalendarResult(null);
     try {
       const res = await V4BriefServiceFetch('/import-source-brief', {
         method: 'POST',
@@ -1504,18 +1528,34 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || 'Source import failed.');
       const payload = data.payload || {};
+      const inferredCalendar = V4InferCalendarFieldsFromGoLive(payload.go_live);
+      const workingConfig = {
+        ...payload,
+        source_url: sourceUrl,
+        calendar_title: payload.calendar_title || payload.title || '',
+        calendar_date: payload.calendar_date || inferredCalendar?.calendar_date || '',
+        calendar_start: payload.calendar_start || inferredCalendar?.calendar_start || '',
+        calendar_end: payload.calendar_end || inferredCalendar?.calendar_end || '',
+      };
       applyImportedBriefPayload(payload, sourceUrl);
       setNotionStatus('done');
 
       setDocStatus('creating');
       const docRes = await V4BriefServiceFetch('/generate-brief-doc', {
         method: 'POST',
-        body: JSON.stringify({ ...payload, source_url: sourceUrl }),
+        body: JSON.stringify(workingConfig),
       });
       const docData = await docRes.json();
       if (!docRes.ok || !docData.ok) throw new Error(docData.error || 'Google Doc creation failed.');
       setDocResult(docData);
       setDocStatus('done');
+
+      if (workingConfig.calendar_date && workingConfig.calendar_start) {
+        setCalendarStatus('creating');
+        const calendarData = await createCalendarHoldWithConfig(workingConfig, docData.url || '');
+        setCalendarResult(calendarData);
+        setCalendarStatus('done');
+      }
     } catch (err) {
       const message = err.message || 'Brief build failed.';
       setNotionStatus('error');
@@ -1524,35 +1564,19 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
         setDocStatus('error');
         setDocError(message);
       }
+      if (/calendar/i.test(message)) {
+        setCalendarStatus('error');
+        setCalendarError(message);
+      }
     }
   };
 
   const createCalendarHold = async () => {
-    const calendarTitle = briefConfig.calendar_title || briefConfig.title;
-    if (!calendarTitle) {
-      setCalendarStatus('error');
-      setCalendarError('Add a title first.');
-      return;
-    }
-    if (!briefConfig.calendar_date || !briefConfig.calendar_start) {
-      setCalendarStatus('error');
-      setCalendarError('Add the calendar date and start time.');
-      return;
-    }
     setCalendarStatus('creating');
     setCalendarError('');
     setCalendarResult(null);
     try {
-      const res = await V4BriefServiceFetch('/create-calendar-hold', {
-        method: 'POST',
-        body: JSON.stringify({
-          ...briefConfig,
-          calendar_title: calendarTitle,
-          doc_url: docResult?.url || '',
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error || 'Calendar hold creation failed.');
+      const data = await createCalendarHoldWithConfig(briefConfig, docResult?.url || '');
       setCalendarResult(data);
       setCalendarStatus('done');
     } catch (err) {
