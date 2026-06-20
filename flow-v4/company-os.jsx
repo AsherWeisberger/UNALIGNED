@@ -224,9 +224,18 @@ const V4_BRIEF_TAILSCALE_BASE_URL = 'https://mac-studio.tail50d3a2.ts.net';
 function V4BriefServiceBaseUrl() {
   try {
     const override = String(window.localStorage.getItem('v4_brief_service_base_url') || '').trim();
-    return override || V4_BRIEF_TAILSCALE_BASE_URL || V4_BRIEF_FUNCTIONS_BASE_URL;
+    if (override && override !== V4_BRIEF_FUNCTIONS_BASE_URL) return override;
+    return V4_BRIEF_TAILSCALE_BASE_URL;
   } catch (err) {
-    return V4_BRIEF_TAILSCALE_BASE_URL || V4_BRIEF_FUNCTIONS_BASE_URL;
+    return V4_BRIEF_TAILSCALE_BASE_URL;
+  }
+}
+
+function V4BriefServiceHostLabel() {
+  try {
+    return new URL(V4BriefServiceBaseUrl()).host || 'your brief machine';
+  } catch (err) {
+    return 'your brief machine';
   }
 }
 
@@ -262,7 +271,12 @@ async function V4BriefServiceFetch(url, options = {}) {
     headers: V4BriefServiceHeaders(options.headers || {}),
   });
 
-  let res = await makeRequest();
+  let res;
+  try {
+    res = await makeRequest();
+  } catch (err) {
+    throw new Error('Could not reach your brief machine at ' + V4BriefServiceHostLabel() + '. Make sure your Mac service is running and Tailscale Funnel is on.');
+  }
   if (res.status !== 401) return res;
 
   let token = '';
@@ -279,7 +293,11 @@ async function V4BriefServiceFetch(url, options = {}) {
   }
 
   if (!token) return res;
-  res = await makeRequest();
+  try {
+    res = await makeRequest();
+  } catch (err) {
+    throw new Error('Could not reach your brief machine at ' + V4BriefServiceHostLabel() + '. Make sure your Mac service is running and Tailscale Funnel is on.');
+  }
   if (res.status === 401) {
     throw new Error('Brief Maker token is missing or incorrect. Paste the access token into the token field and try again.');
   }
@@ -1627,6 +1645,9 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                   </label>
                   <div className="brief-maker-source-note">
                     Paste one source link and let Company OS read it, extract the campaign facts, draft Robert copy, and build the Google Doc.
+                  </div>
+                  <div className="brief-maker-source-note">
+                    Connected to <strong>{V4BriefServiceHostLabel()}</strong>. Your machine is the brain.
                   </div>
                   <div className="brief-maker-source-actions">
                     <button type="button" className="cos-toolkit-btn is-primary" onClick={buildBriefFromSource}>
