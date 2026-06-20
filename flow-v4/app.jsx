@@ -546,3 +546,4 @@ function V4App() {
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<V4App />);
+if (window.__alignedBootMarkReady) window.__alignedBootMarkReady();

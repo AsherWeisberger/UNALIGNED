@@ -28,6 +28,48 @@
 </template>
 
 <div id="root"></div>
+<div id="boot-status" style="display:none;position:fixed;inset:24px;z-index:99999;padding:18px 20px;border-radius:12px;background:#fff7ed;color:#7c2d12;border:1px solid #fdba74;font:14px/1.5 -apple-system,BlinkMacSystemFont,Inter,sans-serif;box-shadow:0 18px 50px rgba(0,0,0,.15);overflow:auto;white-space:pre-wrap"></div>
+
+<script>
+(() => {
+  const bootState = { errors: [] };
+  const bootEl = document.getElementById('boot-status');
+  const showBootMessage = (message) => {
+    if (!bootEl) return;
+    bootEl.style.display = 'block';
+    bootEl.textContent = message;
+  };
+
+  window.__alignedBootOk = false;
+  window.__alignedBootMarkReady = () => {
+    window.__alignedBootOk = true;
+    if (bootEl) bootEl.style.display = 'none';
+  };
+
+  window.addEventListener('error', (event) => {
+    const msg = event?.message || 'Unknown startup error';
+    const src = event?.filename ? '\n' + event.filename : '';
+    const line = event?.lineno ? ':' + event.lineno : '';
+    bootState.errors.push(msg + src + line);
+    showBootMessage('Company OS hit a startup error.\n\n' + bootState.errors.join('\n\n'));
+  });
+
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = event?.reason;
+    const msg = typeof reason === 'string'
+      ? reason
+      : (reason && reason.message) || 'Unhandled promise rejection';
+    bootState.errors.push(msg);
+    showBootMessage('Company OS hit a startup error.\n\n' + bootState.errors.join('\n\n'));
+  });
+
+  window.setTimeout(() => {
+    if (!window.__alignedBootOk && !(bootState.errors || []).length) {
+      showBootMessage('Company OS did not finish loading. Safari is reaching the page, but one of the app scripts is not completing startup.');
+    }
+  }, 5000);
+})();
+</script>
 
 <script type="text/babel" src="tweaks-panel.jsx?v=20260531-inbox-command-center"></script>
 <script type="text/babel" src="flow-v4/components.jsx?v=20260531-inbox-command-center"></script>
