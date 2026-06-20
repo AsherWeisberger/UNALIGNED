@@ -1851,6 +1851,13 @@ a { color: inherit; }
   border: 1px solid #e5e9f2;
   box-shadow: 0 16px 34px -28px rgba(17, 32, 51, 0.28);
 }
+.brief-maker-field-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  text-align: left;
+}
 .brief-maker-empty-state {
   display: flex;
   flex-direction: column;
@@ -1900,6 +1907,11 @@ a { color: inherit; }
 }
 .brief-maker-result-actions .cos-toolkit-btn {
   min-width: 184px;
+}
+@media (max-width: 680px) {
+  .brief-maker-field-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .brief-modal-body {
   padding: 16px;

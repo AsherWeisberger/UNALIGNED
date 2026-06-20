@@ -726,6 +726,41 @@ function V4BriefMakerConfig(form) {
   return payload;
 }
 
+function V4NormalizeCalendarTime(date) {
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
+function V4NormalizeCalendarDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function V4InferCalendarFieldsFromGoLive(goLiveText) {
+  const raw = String(goLiveText || '').trim();
+  if (!raw) return null;
+  const normalized = raw
+    .replace(/\bEST\b/gi, 'UTC-05:00')
+    .replace(/\bEDT\b/gi, 'UTC-04:00')
+    .replace(/\bCST\b/gi, 'UTC-06:00')
+    .replace(/\bCDT\b/gi, 'UTC-05:00')
+    .replace(/\bMST\b/gi, 'UTC-07:00')
+    .replace(/\bMDT\b/gi, 'UTC-06:00')
+    .replace(/\bPST\b/gi, 'UTC-08:00')
+    .replace(/\bPDT\b/gi, 'UTC-07:00');
+  const parsed = new Date(normalized);
+  if (!Number.isFinite(parsed.getTime())) return null;
+  const end = new Date(parsed.getTime() + (30 * 60 * 1000));
+  return {
+    calendar_date: V4NormalizeCalendarDate(parsed),
+    calendar_start: V4NormalizeCalendarTime(parsed),
+    calendar_end: V4NormalizeCalendarTime(end),
+  };
+}
+
 // ─────────────────────────────────────────────────────────────
 // Sub-components
 // ─────────────────────────────────────────────────────────────
@@ -1371,6 +1406,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
   };
 
   const applyImportedBriefPayload = (payload, sourceUrl) => {
+    const inferredCalendar = V4InferCalendarFieldsFromGoLive(payload.go_live);
     setBriefForm(curr => ({
       ...curr,
       title: payload.title || curr.title,
@@ -1382,6 +1418,9 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
       source_url: sourceUrl || curr.source_url,
       notion_url: sourceUrl || curr.notion_url,
       calendar_title: payload.calendar_title || curr.calendar_title || payload.title || curr.title,
+      calendar_date: payload.calendar_date || curr.calendar_date || inferredCalendar?.calendar_date || '',
+      calendar_start: payload.calendar_start || curr.calendar_start || inferredCalendar?.calendar_start || '',
+      calendar_end: payload.calendar_end || curr.calendar_end || inferredCalendar?.calendar_end || '',
       what_to_do_text: Array.isArray(payload.what_to_do) ? payload.what_to_do.join('\n') : curr.what_to_do_text,
       key_facts_text: Array.isArray(payload.key_facts) ? payload.key_facts.map(item => item.join(' | ')).join('\n') : curr.key_facts_text,
       tag: payload.must_include?.tag || curr.tag,
@@ -1756,9 +1795,59 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                   {docStatus === 'done' && docResult && (
                     <div className="brief-maker-result-card">
                       <span className="brief-maker-server-ok">Succeeded. Robert&apos;s Google Doc is ready.</span>
+                      <div className="brief-maker-field-grid">
+                        <label className="brief-maker-field">
+                          <span>Calendar task title</span>
+                          <input
+                            className="brief-maker-input"
+                            value={briefForm.calendar_title || briefForm.title}
+                            onChange={e => updateBriefField('calendar_title', e.target.value)}
+                            placeholder="Robert brief task title"
+                          />
+                        </label>
+                        <label className="brief-maker-field">
+                          <span>Date</span>
+                          <input
+                            className="brief-maker-input"
+                            type="date"
+                            value={briefForm.calendar_date || ''}
+                            onChange={e => updateBriefField('calendar_date', e.target.value)}
+                          />
+                        </label>
+                        <label className="brief-maker-field">
+                          <span>Start</span>
+                          <input
+                            className="brief-maker-input"
+                            type="time"
+                            value={briefForm.calendar_start || ''}
+                            onChange={e => updateBriefField('calendar_start', e.target.value)}
+                          />
+                        </label>
+                        <label className="brief-maker-field">
+                          <span>End</span>
+                          <input
+                            className="brief-maker-input"
+                            type="time"
+                            value={briefForm.calendar_end || ''}
+                            onChange={e => updateBriefField('calendar_end', e.target.value)}
+                          />
+                        </label>
+                      </div>
                       <div className="brief-maker-result-actions">
                         <a className="cos-toolkit-btn is-primary" href={docResult.url} target="_blank" rel="noreferrer">Open Google Doc</a>
+                        <button type="button" className="cos-toolkit-btn" onClick={createCalendarHold}>
+                          {calendarStatus === 'creating' ? 'Adding to calendar...' : 'Add to Robert calendar'}
+                        </button>
                       </div>
+                      {calendarStatus === 'error' && (
+                        <span className="brief-maker-server-error">{calendarError}</span>
+                      )}
+                      {calendarStatus === 'done' && calendarResult && (
+                        <div className="brief-maker-result-actions">
+                          <span className="brief-maker-server-ok">Placed on Robert&apos;s calendar.</span>
+                          <a className="cos-toolkit-btn" href={calendarResult.htmlLink} target="_blank" rel="noreferrer">Open calendar task</a>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
