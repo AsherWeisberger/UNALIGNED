@@ -21,7 +21,7 @@ cd "$ROOT"
 
 /opt/homebrew/bin/python3 scripts/active/live_x_inbox_daily_scrape.py \
   --rebuild-intake \
-  --recent-days="${LIVE_X_RECENT_DAYS:-2}" \
+  --recent-days="${LIVE_X_RECENT_DAYS:-1}" \
   --max-candidates="${LIVE_X_MAX_CANDIDATES:-80}" \
   --max-irrelevant-streak="${LIVE_X_MAX_IRRELEVANT_STREAK:-25}" \
   --known-stop-streak="${LIVE_X_KNOWN_STOP_STREAK:-3}"

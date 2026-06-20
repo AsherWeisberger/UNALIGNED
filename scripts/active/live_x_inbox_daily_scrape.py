@@ -104,6 +104,20 @@ WEEKDAYS = {
 INBOX_EXTRACT_JS = r"""
 (() => {
   const clean = (s) => (s || '').replace(/\n{3,}/g, '\n\n').trim();
+  const isScrollable = (el) => {
+    if (!el) return false;
+    const style = getComputedStyle(el);
+    const overflowY = style.overflowY || '';
+    return /(auto|scroll|overlay)/i.test(overflowY) && el.scrollHeight > el.clientHeight + 20;
+  };
+  const scrollRootFor = (node) => {
+    let current = node;
+    while (current && current !== document.body) {
+      if (isScrollable(current)) return current;
+      current = current.parentElement;
+    }
+    return document.scrollingElement || document.documentElement;
+  };
   const normalize = (href) => {
     if (!href) return '';
     try {
@@ -116,6 +130,8 @@ INBOX_EXTRACT_JS = r"""
   const seen = new Set();
   const rows = [];
   const timeRe = /(\d{1,2}:\d{2}\s*(AM|PM))|(\d+\s*[smhdw])|([A-Z][a-z]{2}\s+\d{1,2})|((Mon|Tue|Wed|Thu|Fri|Sat|Sun))/i;
+  const sampleLink = links.find((link) => clean(link.textContent || link.innerText || ''));
+  const scrollRoot = scrollRootFor(sampleLink || document.body);
 
   for (const link of links) {
     const href = normalize(link.getAttribute('href'));
@@ -161,10 +177,83 @@ INBOX_EXTRACT_JS = r"""
     url: location.href,
     scrollY: Math.round(window.scrollY),
     viewportHeight: Math.round(window.innerHeight),
+    scrollRootTag: scrollRoot?.tagName || '',
+    scrollRootClass: scrollRoot?.className || '',
+    scrollTop: Math.round(scrollRoot?.scrollTop || 0),
+    scrollHeight: Math.round(scrollRoot?.scrollHeight || 0),
+    clientHeight: Math.round(scrollRoot?.clientHeight || 0),
     count: rows.length,
     threads: rows,
   });
 })()
+"""
+
+INBOX_SCROLL_JS = r"""
+((pixels) => {
+  const clean = (s) => (s || '').replace(/\n{3,}/g, '\n\n').trim();
+  const isScrollable = (el) => {
+    if (!el) return false;
+    const style = getComputedStyle(el);
+    const overflowY = style.overflowY || '';
+    return /(auto|scroll|overlay)/i.test(overflowY) && el.scrollHeight > el.clientHeight + 20;
+  };
+  const scrollRootFor = (node) => {
+    let current = node;
+    while (current && current !== document.body) {
+      if (isScrollable(current)) return current;
+      current = current.parentElement;
+    }
+    return document.scrollingElement || document.documentElement;
+  };
+  const links = Array.from(document.querySelectorAll('a[href*="/i/chat/"], a[href*="/messages/"]'));
+  const sampleLink = links.find((link) => clean(link.textContent || link.innerText || ''));
+  const scrollRoot = scrollRootFor(sampleLink || document.body);
+  const visibleLinks = links.filter((link) => {
+    const rect = link.getBoundingClientRect();
+    return rect.bottom > 0 && rect.top < window.innerHeight && rect.width > 120 && rect.height > 24;
+  });
+  const lastVisibleLink = visibleLinks[visibleLinks.length - 1] || sampleLink;
+  const before = Math.round(scrollRoot?.scrollTop || 0);
+  const beforeHref = lastVisibleLink?.getAttribute('href') || '';
+  const railTarget = lastVisibleLink || scrollRoot || document.body;
+  const targetRect = railTarget?.getBoundingClientRect ? railTarget.getBoundingClientRect() : null;
+  if (lastVisibleLink && typeof lastVisibleLink.scrollIntoView === 'function') {
+    lastVisibleLink.scrollIntoView({ block: 'end', inline: 'nearest', behavior: 'instant' });
+  }
+  const jump = Math.max(pixels, Math.round((scrollRoot?.clientHeight || pixels) * 0.92));
+  for (let i = 0; i < 3; i += 1) {
+    railTarget?.dispatchEvent?.(new WheelEvent('wheel', {
+      deltaY: Math.round(jump / 3),
+      bubbles: true,
+      cancelable: true,
+      clientX: targetRect ? Math.round(targetRect.left + Math.min(40, targetRect.width / 2)) : 0,
+      clientY: targetRect ? Math.round(targetRect.bottom - 18) : 0,
+    }));
+  }
+  if (scrollRoot && typeof scrollRoot.scrollBy === 'function') {
+    scrollRoot.scrollBy({ top: jump, left: 0, behavior: 'instant' });
+  } else {
+    window.scrollBy({ top: jump, left: 0, behavior: 'instant' });
+  }
+  const after = Math.round(scrollRoot?.scrollTop || 0);
+  const progressbar = document.querySelector('[role="progressbar"], [aria-label*="Loading" i]');
+  const refreshedLinks = Array.from(document.querySelectorAll('a[href*="/i/chat/"], a[href*="/messages/"]')).filter((link) => {
+    const rect = link.getBoundingClientRect();
+    return rect.bottom > 0 && rect.top < window.innerHeight && rect.width > 120 && rect.height > 24;
+  });
+  const lastAfterLink = refreshedLinks[refreshedLinks.length - 1];
+  return JSON.stringify({
+    before,
+    after,
+    moved: after - before,
+    beforeHref,
+    afterHref: lastAfterLink?.getAttribute('href') || '',
+    progressbarVisible: !!progressbar,
+    scrollHeight: Math.round(scrollRoot?.scrollHeight || 0),
+    clientHeight: Math.round(scrollRoot?.clientHeight || 0),
+    tag: scrollRoot?.tagName || '',
+  });
+})(__PIXELS__)
 """
 
 THREAD_EXTRACT_JS = r"""
@@ -192,6 +281,36 @@ THREAD_EXTRACT_JS = r"""
     messages: entries.slice(-24)
   });
 })()
+"""
+
+NATIVE_SCROLL_JXA = r"""
+ObjC.import('ApplicationServices');
+
+function mouseClick(x, y) {
+  const point = $.CGPointMake(x, y);
+  $.CGWarpMouseCursorPosition(point);
+  delay(0.05);
+  const down = $.CGEventCreateMouseEvent(null, $.kCGEventLeftMouseDown, point, $.kCGMouseButtonLeft);
+  $.CGEventPost($.kCGHIDEventTap, down);
+  const up = $.CGEventCreateMouseEvent(null, $.kCGEventLeftMouseUp, point, $.kCGMouseButtonLeft);
+  $.CGEventPost($.kCGHIDEventTap, up);
+}
+
+function wheel(x, y, amount, repeats) {
+  const point = $.CGPointMake(x, y);
+  $.CGWarpMouseCursorPosition(point);
+  delay(0.03);
+  for (let i = 0; i < repeats; i += 1) {
+    const evt = $.CGEventCreateScrollWheelEvent(null, $.kCGScrollEventUnitLine, 1, amount);
+    $.CGEventPost($.kCGHIDEventTap, evt);
+    delay(0.04);
+  }
+}
+
+const x = __X__;
+const y = __Y__;
+mouseClick(x, y);
+wheel(x, y, __AMOUNT__, __REPEATS__);
 """
 
 
@@ -230,6 +349,13 @@ def osa(script: str) -> str:
     return proc.stdout.strip()
 
 
+def osa_jxa(script: str) -> str:
+    proc = subprocess.run(["osascript", "-l", "JavaScript"], input=script, text=True, capture_output=True)
+    if proc.returncode != 0:
+        raise RuntimeError(proc.stderr.strip() or proc.stdout.strip())
+    return proc.stdout.strip()
+
+
 def ensure_chrome_tabs() -> tuple[int, int]:
     script = """
 tell application "Google Chrome"
@@ -245,6 +371,21 @@ end tell
     return (1, 2)
 
 
+def activate_chrome_tab(tab_index: int) -> tuple[int, int, int, int]:
+    script = f"""
+tell application "Google Chrome"
+  activate
+  set w to front window
+  set active tab index of w to {tab_index}
+  set b to bounds of w
+  return ((item 1 of b as text) & "," & (item 2 of b as text) & "," & (item 3 of b as text) & "," & (item 4 of b as text))
+end tell
+"""
+    raw = osa(script)
+    left, top, right, bottom = [int(part.strip()) for part in raw.split(",")]
+    return left, top, right, bottom
+
+
 def chrome_js(tab_index: int, js: str) -> str:
     escaped = js.replace("\\", "\\\\").replace('"', '\\"')
     return osa(
@@ -252,6 +393,11 @@ def chrome_js(tab_index: int, js: str) -> str:
         f'  execute tab {tab_index} of front window javascript "{escaped}"\n'
         f'end tell\n'
     )
+
+
+def extract_inbox_payload(tab_index: int) -> dict:
+    raw = chrome_js(tab_index, INBOX_EXTRACT_JS)
+    return json.loads(raw)
 
 
 def open_url(tab_index: int, url: str, wait: float) -> None:
@@ -265,11 +411,72 @@ def open_url(tab_index: int, url: str, wait: float) -> None:
 
 
 def scroll_inbox(tab_index: int, pixels: int) -> None:
-    chrome_js(
-        tab_index,
-        f"window.scrollBy({{ top: {pixels}, left: 0, behavior: 'instant' }}); 'ok';",
-    )
+    js = INBOX_SCROLL_JS.replace("__PIXELS__", str(int(pixels)))
+    try:
+        result = chrome_js(tab_index, js)
+        if result:
+            payload = json.loads(result)
+            moved = int(payload.get("moved") or 0)
+            if moved == 0:
+                chrome_js(
+                    tab_index,
+                    f"window.scrollBy({{ top: {pixels}, left: 0, behavior: 'instant' }}); 'ok';",
+                )
+    except Exception:
+        chrome_js(
+            tab_index,
+            f"window.scrollBy({{ top: {pixels}, left: 0, behavior: 'instant' }}); 'ok';",
+        )
     time.sleep(1.0)
+
+
+def native_scroll_inbox(tab_index: int, amount: int = -5, repeats: int = 8) -> None:
+    left, top, right, bottom = activate_chrome_tab(tab_index)
+    width = right - left
+    height = bottom - top
+    target_x = int(left + width * 0.28)
+    target_y = int(top + height * 0.80)
+    script = (
+        NATIVE_SCROLL_JXA.replace("__X__", str(target_x))
+        .replace("__Y__", str(target_y))
+        .replace("__AMOUNT__", str(amount))
+        .replace("__REPEATS__", str(repeats))
+    )
+    osa_jxa(script)
+    time.sleep(0.5)
+
+
+def inbox_batch_marker(payload: dict) -> tuple[int, str, str]:
+    threads = payload.get("threads") or []
+    first_url = thread_url_key((threads[0] if threads else {}).get("url") or "")
+    last_url = thread_url_key((threads[-1] if threads else {}).get("url") or "")
+    return (len(threads), first_url, last_url)
+
+
+def wait_for_inbox_batch_change(
+    tab_index: int,
+    baseline_payload: dict,
+    pixels: int,
+    attempts: int = 6,
+    settle_seconds: float = 0.5,
+) -> dict:
+    baseline_marker = inbox_batch_marker(baseline_payload)
+    latest_payload = baseline_payload
+
+    for attempt in range(1, attempts + 1):
+        native_scroll_inbox(tab_index)
+        scroll_inbox(tab_index, pixels)
+        time.sleep(settle_seconds)
+        latest_payload = extract_inbox_payload(tab_index)
+        latest_marker = inbox_batch_marker(latest_payload)
+        print(
+            f"[scroll wait {attempt}/{attempts}] baseline={baseline_marker} latest={latest_marker}",
+            flush=True,
+        )
+        if latest_marker != baseline_marker:
+            return latest_payload
+
+    return latest_payload
 
 
 def thread_url_key(url: str) -> str:
@@ -468,7 +675,7 @@ def main() -> None:
     parser.add_argument("--wait", type=float, default=4.5, help="Seconds to wait after each X navigation.")
     parser.add_argument("--between-min", type=float, default=1.5, help="Minimum pause between scraped threads.")
     parser.add_argument("--between-max", type=float, default=3.0, help="Maximum pause between scraped threads.")
-    parser.add_argument("--recent-days", type=int, default=2, help="Stop once visible inbox rows are older than this many days.")
+    parser.add_argument("--recent-days", type=int, default=1, help="Stop once visible inbox rows are older than this many days.")
     parser.add_argument("--max-candidates", type=int, default=80, help="Hard cap on inbox rows to inspect per run.")
     parser.add_argument("--max-irrelevant-streak", type=int, default=25, help="Stop after this many non-business threads in a row.")
     parser.add_argument("--known-stop-streak", type=int, default=3, help="Stop once this many already-processed rows appear in a row.")
@@ -495,8 +702,14 @@ def main() -> None:
     stop_signature = None
 
     for scroll_index in range(args.max_scrolls):
-        raw = chrome_js(inbox_tab, INBOX_EXTRACT_JS)
-        payload = json.loads(raw)
+        if scroll_index == 0:
+            payload = extract_inbox_payload(inbox_tab)
+        else:
+            prior_marker = inbox_batch_marker(payload)
+            payload = wait_for_inbox_batch_change(inbox_tab, payload, args.scroll_step)
+            if inbox_batch_marker(payload) == prior_marker:
+                stop_reason = "stalled_after_scroll"
+                break
         candidates = payload.get("threads") or []
 
         for candidate in candidates:
@@ -610,8 +823,6 @@ def main() -> None:
         if inspected >= args.max_candidates:
             stop_reason = "max_candidates"
             break
-
-        scroll_inbox(inbox_tab, args.scroll_step)
 
     state["updated_at"] = now_iso()
     state["last_stop_reason"] = stop_reason
