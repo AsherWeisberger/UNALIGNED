@@ -8096,6 +8096,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
   }, []);
 
   const updateBriefField = (key, value) => {
+    const isCalendarField = String(key || '').startsWith('calendar_');
     setBriefForm(curr => ({ ...curr, [key]: value }));
     if (copied) setCopied(false);
     if (briefStatus !== 'idle') {
@@ -8103,12 +8104,12 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
       setBriefError('');
       setBriefResult(null);
     }
-    if (docStatus !== 'idle') {
+    if (!isCalendarField && docStatus !== 'idle') {
       setDocStatus('idle');
       setDocError('');
       setDocResult(null);
     }
-    if (notionStatus !== 'idle') {
+    if (!isCalendarField && notionStatus !== 'idle') {
       setNotionStatus('idle');
       setNotionError('');
     }
