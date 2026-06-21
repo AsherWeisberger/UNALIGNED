@@ -8092,8 +8092,31 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
       if (current.searchParams.get('open') === 'brief-maker') {
         setBriefMakerOpen(true);
       }
+      if (current.searchParams.get('open') === 'robert-handoff') {
+        setHandoffPreviewOpen(true);
+      }
     } catch (err) {}
   }, []);
+
+  const loadRobertHandoffPreview = async () => {
+    setHandoffPreviewStatus('loading');
+    setHandoffPreviewError('');
+    try {
+      const res = await V4BriefServiceFetch('/robert-handoff-preview', { method: 'GET' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Could not load Robert handoff drafts.');
+      setHandoffPreviewData(data);
+      setHandoffPreviewStatus('done');
+    } catch (err) {
+      setHandoffPreviewStatus('error');
+      setHandoffPreviewError(err.message || 'Could not load Robert handoff drafts.');
+    }
+  };
+
+  React.useEffect(() => {
+    if (!handoffPreviewOpen) return;
+    if (handoffPreviewStatus === 'idle') loadRobertHandoffPreview();
+  }, [handoffPreviewOpen]);
 
   const updateBriefField = (key, value) => {
     const isCalendarField = String(key || '').startsWith('calendar_');
@@ -8195,6 +8218,22 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     setCalendarStatus('idle');
     setCalendarError('');
     setCalendarResult(null);
+  };
+
+  const copyHandoffDraft = async (draft, index) => {
+    const lines = [
+      `To: ${V4RobertHandoffRecipients(draft)}`,
+      `Subject: ${String(draft?.subject || '').trim()}`,
+      '',
+      String(draft?.body || '').trim(),
+    ].filter(Boolean);
+    try {
+      await navigator.clipboard.writeText(lines.join('\n'));
+      setHandoffCopiedIndex(index);
+      window.setTimeout(() => setHandoffCopiedIndex(-1), 1800);
+    } catch (err) {
+      console.warn('handoff draft copy failed', err);
+    }
   };
 
   const applyImportedBriefPayload = (payload, sourceUrl) => {
