@@ -387,42 +387,23 @@ const V4_INVOICE_GROUPS = [
         note: 'New Stripe invoices live here. Legacy manual invoices from your folders stay in their own buckets below.',
         items: [
           {
-            id: 'stripe-in1timqck0weauaymjabporweh',
-            title: 'Annika Wang',
-            company: 'annika.wang@hockeystick.io',
+            id: 'stripe-in1tjsxfk0weauaymjjq6bosxf',
+            title: 'Hockey Stick Growth LLC',
+            company: 'billing@hockeystick.io',
             folder: 'STRIPE / OPEN',
             source: 'Stripe',
             sourceDir: 'STRIPE',
-            file: 'LIS6UY6W-0001',
-            href: 'https://dashboard.stripe.com/invoices/in_1TimqCK0WeauAYMJABpOrweH',
+            file: 'F058AI3B-0001',
+            href: 'https://dashboard.stripe.com/invoices/in_1TjsxfK0WeauAYMJJQ6boSxf',
             kind: 'STRIPE',
             stripeStatus: 'open',
             stripePaid: false,
             stripeAmountDue: 10000.0,
             stripeAmountPaid: 0.0,
             stripeCurrency: 'USD',
-            stripeDashboardUrl: 'https://dashboard.stripe.com/invoices/in_1TimqCK0WeauAYMJABpOrweH',
-            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaURHYmRwNmJuODJLem9yTUVWd3FOYnZHRGgwTzhmLDE3MjMyNDgxNg0200Darc3ihX?s=ap',
-            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaURHYmRwNmJuODJLem9yTUVWd3FOYnZHRGgwTzhmLDE3MjMyNDgxNg0200Darc3ihX/pdf?s=ap',
-          },
-          {
-            id: 'stripe-in1thwn2k0weauaymjfm1x0dpg',
-            title: 'Judy — Echon Labs',
-            company: 'collab@echonlab.com',
-            folder: 'STRIPE / OPEN',
-            source: 'Stripe',
-            sourceDir: 'STRIPE',
-            file: 'RYKHX5KX-0001',
-            href: 'https://dashboard.stripe.com/invoices/in_1ThwN2K0WeauAYMJFm1x0dPG',
-            kind: 'STRIPE',
-            stripeStatus: 'open',
-            stripePaid: false,
-            stripeAmountDue: 1952.0,
-            stripeAmountPaid: 0.0,
-            stripeCurrency: 'USD',
-            stripeDashboardUrl: 'https://dashboard.stripe.com/invoices/in_1ThwN2K0WeauAYMJFm1x0dPG',
-            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MjMyNDgxNg02003o83pGq3?s=ap',
-            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MjMyNDgxNg02003o83pGq3/pdf?s=ap',
+            stripeDashboardUrl: 'https://dashboard.stripe.com/invoices/in_1TjsxfK0WeauAYMJJQ6boSxf',
+            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VakxmcEt4UUNhbENUN1FBNnZsd0xZQzNOdVdPSm9jLDE3MjQ5NzcxOA0200K8PCMPP8?s=ap',
+            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VakxmcEt4UUNhbENUN1FBNnZsd0xZQzNOdVdPSm9jLDE3MjQ5NzcxOA0200K8PCMPP8/pdf?s=ap',
           },
           {
             id: 'stripe-in1tic8ek0weauaymjz0v1f90g',
@@ -440,8 +421,8 @@ const V4_INVOICE_GROUPS = [
             stripeAmountPaid: 0.0,
             stripeCurrency: 'USD',
             stripeDashboardUrl: 'https://dashboard.stripe.com/invoices/in_1Tic8eK0WeauAYMJZ0v1f90G',
-            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaTJEbTlWd3NYV3JMVGZzQ2s4OUFMM3dHM2RuVDR0LDE3MjMyNDgxNg0200mLmql2Zu?s=ap',
-            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaTJEbTlWd3NYV3JMVGZzQ2s4OUFMM3dHM2RuVDR0LDE3MjMyNDgxNg0200mLmql2Zu/pdf?s=ap',
+            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaTJEbTlWd3NYV3JMVGZzQ2s4OUFMM3dHM2RuVDR0LDE3MjQ5NzcxOA02006iP8AsoU?s=ap',
+            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaTJEbTlWd3NYV3JMVGZzQ2s4OUFMM3dHM2RuVDR0LDE3MjQ5NzcxOA02006iP8AsoU/pdf?s=ap',
           },
         ],
       },
@@ -449,6 +430,25 @@ const V4_INVOICE_GROUPS = [
         label: 'Open outstanding',
         note: 'Active invoices still waiting on payment.',
         items: [
+          {
+            id: 'invoice-eastworlds-061926',
+            title: 'Eastworlds',
+            company: 'Eastworlds',
+            folder: 'OUTSTANDING / OPEN OUTSTANDING',
+            source: 'Manual',
+            sourceDir: 'OUTSTANDING',
+            file: 'invoice_Eastworlds_061926.pdf',
+            href: 'flow-v4/assets/invoices/outstanding/invoice_Eastworlds_061926.pdf',
+            kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeDashboardUrl: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
+          },
           {
             id: 'invoice-echonlab-mainecoon-061626',
             title: 'EchonLab',
@@ -458,6 +458,44 @@ const V4_INVOICE_GROUPS = [
             sourceDir: 'OUTSTANDING',
             file: 'invoice_EchonLab_MaineCoon_061626.pdf',
             href: 'flow-v4/assets/invoices/outstanding/invoice_EchonLab_MaineCoon_061626.pdf',
+            kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeDashboardUrl: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
+          },
+          {
+            id: 'invoice-goldenegg-banking-sample',
+            title: 'GoldenEgg',
+            company: 'banking sample',
+            folder: 'OUTSTANDING / OPEN OUTSTANDING',
+            source: 'Manual',
+            sourceDir: 'OUTSTANDING',
+            file: 'invoice_GoldenEgg_banking_sample.pdf',
+            href: 'flow-v4/assets/invoices/outstanding/invoice_GoldenEgg_banking_sample.pdf',
+            kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeDashboardUrl: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
+          },
+          {
+            id: 'invoice-goldeneggmedia-banking-sample',
+            title: 'GoldenEggMedia',
+            company: 'banking sample',
+            folder: 'OUTSTANDING / OPEN OUTSTANDING',
+            source: 'Manual',
+            sourceDir: 'OUTSTANDING',
+            file: 'invoice_GoldenEggMedia_banking_sample.pdf',
+            href: 'flow-v4/assets/invoices/outstanding/invoice_GoldenEggMedia_banking_sample.pdf',
             kind: 'PDF',
             stripeStatus: null,
             stripePaid: false,
@@ -525,6 +563,25 @@ const V4_INVOICE_GROUPS = [
             stripeHostedInvoiceUrl: null,
             stripeInvoicePdf: null,
           },
+          {
+            id: 'invoice-r3ach-061926',
+            title: 'R3ach',
+            company: 'R3ach',
+            folder: 'OUTSTANDING / OPEN OUTSTANDING',
+            source: 'Manual',
+            sourceDir: 'OUTSTANDING',
+            file: 'invoice_R3ach_061926.pdf',
+            href: 'flow-v4/assets/invoices/outstanding/invoice_R3ach_061926.pdf',
+            kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeDashboardUrl: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
+          },
         ],
       },
       {
@@ -561,6 +618,50 @@ const V4_INVOICE_GROUPS = [
     note: 'These invoices are finished and moved out of the active queue.',
     tone: 'good',
     buckets: [
+      {
+        label: 'Stripe',
+        note: 'Closed Stripe invoices live here. Legacy manual invoices from your folders stay in their own buckets below.',
+        items: [
+          {
+            id: 'stripe-in1timqck0weauaymjabporweh',
+            title: 'Annika Wang',
+            company: 'annika.wang@hockeystick.io',
+            folder: 'STRIPE / CLOSED',
+            source: 'Stripe',
+            sourceDir: 'STRIPE',
+            file: 'LIS6UY6W-0001',
+            href: 'https://dashboard.stripe.com/invoices/in_1TimqCK0WeauAYMJABpOrweH',
+            kind: 'STRIPE',
+            stripeStatus: 'void',
+            stripePaid: false,
+            stripeAmountDue: 10000.0,
+            stripeAmountPaid: 0.0,
+            stripeCurrency: 'USD',
+            stripeDashboardUrl: 'https://dashboard.stripe.com/invoices/in_1TimqCK0WeauAYMJABpOrweH',
+            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaURHYmRwNmJuODJLem9yTUVWd3FOYnZHRGgwTzhmLDE3MjQ5NzcxOA0200A9Dabk0L?s=ap',
+            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaURHYmRwNmJuODJLem9yTUVWd3FOYnZHRGgwTzhmLDE3MjQ5NzcxOA0200A9Dabk0L/pdf?s=ap',
+          },
+          {
+            id: 'stripe-in1thwn2k0weauaymjfm1x0dpg',
+            title: 'Judy — Echon Labs',
+            company: 'collab@echonlab.com',
+            folder: 'STRIPE / CLOSED',
+            source: 'Stripe',
+            sourceDir: 'STRIPE',
+            file: 'RYKHX5KX-0001',
+            href: 'https://dashboard.stripe.com/invoices/in_1ThwN2K0WeauAYMJFm1x0dPG',
+            kind: 'STRIPE',
+            stripeStatus: 'void',
+            stripePaid: false,
+            stripeAmountDue: 1952.0,
+            stripeAmountPaid: 0.0,
+            stripeCurrency: 'USD',
+            stripeDashboardUrl: 'https://dashboard.stripe.com/invoices/in_1ThwN2K0WeauAYMJFm1x0dPG',
+            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MjQ5NzcxOA0200BAZsiUgV?s=ap',
+            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MjQ5NzcxOA0200BAZsiUgV/pdf?s=ap',
+          },
+        ],
+      },
       {
         label: 'Done',
         note: 'Archived for reference.',
@@ -2194,17 +2295,16 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
                     </div>
                   </div>
                   <div className="new-lead-actions">
+                    <button type="button" className="btn btn-sm btn-ghost" onClick={() => onOpenLead?.(lead.id)}>
+                      <V3Icon name="reply" w={12} />
+                      {kind === 'x' ? 'Review lead' : 'Open & reply'}
+                    </button>
                     {kind === 'x' && lead.xOpenDm ? (
                       <button type="button" className="btn btn-sm btn-ghost" onClick={() => window.open(lead.xOpenDm, '_blank', 'noopener')}>
                         <V3Icon name="network" w={12} />
                         Open DM
                       </button>
-                    ) : (
-                      <button type="button" className="btn btn-sm btn-ghost" onClick={() => onOpenLead?.(lead.id)}>
-                        <V3Icon name="reply" w={12} />
-                        Open & reply
-                      </button>
-                    )}
+                    ) : null}
                     {kind === 'x' && lead.email ? (
                       <button type="button" className="btn btn-sm btn-ghost" onClick={() => onOpenLead?.(lead.id)}>
                         <V3Icon name="mail" w={12} />

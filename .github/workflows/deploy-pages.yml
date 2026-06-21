@@ -34,8 +34,8 @@ jobs:
       - name: Compile JSX
         run: |
           npm install --no-save @babel/core @babel/cli @babel/preset-react
-          npx babel _site/flow-v4 --out-dir _site/flow-v4 --presets @babel/preset-react
-          npx babel _site/tweaks-panel.jsx -o _site/tweaks-panel.js --presets @babel/preset-react
+          npx babel _site/flow-v4 --out-dir _site/flow-v4
+          npx babel _site/tweaks-panel.jsx -o _site/tweaks-panel.js
 
       - name: Rewrite index.html for compiled bundle
         run: python3 scripts/build_site.py _site
