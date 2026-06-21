@@ -4010,7 +4010,11 @@ function V3Drawer({ lead, user, queue = [], onNavigate, onClose }) {
 }
 
 function V3InlineReply({ lead, user, onCollapse }) {
-  const [sender, setSender] = React.useState(() => V3SenderForUser(user));
+  const defaultSender = React.useMemo(() => {
+    if (V4LeadSupportsRobertHandoff(lead) && String(lead?.draftReplyStatus || '').toLowerCase() === 'pending') return 'robert';
+    return V3SenderForUser(user);
+  }, [lead?.id, lead?.draftReplyStatus, user]);
+  const [sender, setSender] = React.useState(() => defaultSender);
   const [internalOnly, setInternalOnly] = React.useState(false);
   const draft = React.useMemo(() => V3ComposeReplyDraft(lead, sender), [lead.id, lead.draftReply?.body, lead.draftReply?.subject, lead.thread.length, lead.lastTouchAt, sender]);
   const initialRecipients = React.useMemo(() => V3ReplyRecipients(lead, sender, internalOnly), [lead.id, sender, internalOnly]);
@@ -4047,7 +4051,9 @@ function V3InlineReply({ lead, user, onCollapse }) {
   };
 
   React.useEffect(() => {
-    const nextSender = V3SenderForUser(user);
+    const nextSender = V4LeadSupportsRobertHandoff(lead) && String(lead?.draftReplyStatus || '').toLowerCase() === 'pending'
+      ? 'robert'
+      : V3SenderForUser(user);
     const next = V3ReplyRecipients(lead, nextSender, false);
     const nextDraft = V3ComposeReplyDraft(lead, nextSender);
     setSender(nextSender);
@@ -4140,7 +4146,11 @@ function V3InlineReply({ lead, user, onCollapse }) {
     setStatus('sending');
     setError('');
     try {
-      await V3SendLeadEmail({ lead, sender, to: recipient, cc: ccLine, subject, body: msg, attachPdf });
+      if (sender === 'robert' && V4LeadSupportsRobertHandoff(lead) && String(lead?.draftReplyStatus || '').toLowerCase() === 'pending') {
+        await V4SendRobertHandoffDraft(lead, { subject, body: msg, to_emails: to, cc_emails: cc });
+      } else {
+        await V3SendLeadEmail({ lead, sender, to: recipient, cc: ccLine, subject, body: msg, attachPdf });
+      }
       fetch(V3_SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(lead.id), {
         method: 'PATCH',
         headers: {
@@ -4213,7 +4223,7 @@ function V3InlineReply({ lead, user, onCollapse }) {
           disabled={status === 'sending'}
           aria-live="polite"
         >
-          <V3Icon name={status === 'sent' ? 'check' : 'send'} w={12} /> {status === 'sending' ? 'Sending…' : status === 'sent' ? 'Sent' : 'Send'}
+          <V3Icon name={status === 'sent' ? 'check' : 'send'} w={12} /> {status === 'sending' ? 'Sending…' : status === 'sent' ? 'Sent' : (sender === 'robert' && V4LeadSupportsRobertHandoff(lead) && String(lead?.draftReplyStatus || '').toLowerCase() === 'pending' ? 'Approve & send' : 'Send')}
         </button>
       </div>
     </div>
@@ -7261,6 +7271,41 @@ async function V4LoadRobertHandoffPreviewData() {
   }
 }
 
+function V4LeadSupportsRobertHandoff(lead) {
+  if (!lead || lead.isRobertBrief) return false;
+  const mailboxOrigin = V4CompanyOsMailboxOrigin(lead);
+  if (mailboxOrigin !== 'x' && mailboxOrigin !== 'robert') return false;
+  const emails = [
+    lead.email,
+    lead.xContactInfo,
+    lead.replyTo,
+    ...(Array.isArray(lead.thread) ? lead.thread.flatMap(msg => [msg?.from, msg?.to, msg?.cc, msg?.replyTo]) : []),
+  ].flat().join(' ');
+  return /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(String(emails || ''));
+}
+
+async function V4GenerateRobertHandoffDraft(lead) {
+  const res = await V4BriefServiceFetch('/draft-robert-handoff', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lead }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.ok || !data.draft) throw new Error(data.error || 'Could not generate the Robert handoff draft.');
+  return data.draft;
+}
+
+async function V4SendRobertHandoffDraft(lead, draft) {
+  const res = await V4BriefServiceFetch('/send-robert-handoff', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lead, draft }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.ok) throw new Error(data.error || 'Could not send the Robert handoff draft.');
+  return data;
+}
+
 const V4_BRIEF_ACTION_URL = 'http://127.0.0.1:8766/generate-brief';
 
 const V4_COMPANY_OS_TOOLKIT = [
@@ -9036,7 +9081,13 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
 function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
   const { STAGE_BY_ID, USERS } = window.V3;
   const [tab, setTab] = React.useState('thread');
+  const [handoffDraftLoading, setHandoffDraftLoading] = React.useState(false);
+  const [handoffDraftError, setHandoffDraftError] = React.useState('');
   React.useEffect(() => { setTab('thread'); }, [lead?.id]);
+  React.useEffect(() => {
+    setHandoffDraftLoading(false);
+    setHandoffDraftError('');
+  }, [lead?.id]);
   if (!lead) {
     return <div className="cos2-reader"><div className="cos2-reader-empty">Select a thread from the list.</div></div>;
   }
@@ -9058,15 +9109,41 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
   const listSnippet = V4CompanyOsListSnippet(lead);
   const operatorBadgeVisible = operatorStatus.label !== 'Monitoring';
   const xContextRows = V4XLeadContextRows(lead);
+  const supportsRobertHandoff = V4LeadSupportsRobertHandoff(lead);
+  const hasPendingRobertDraft = supportsRobertHandoff && Boolean(lead.draftReply) && String(lead.draftReplyStatus || '').toLowerCase() === 'pending';
+  const primaryLabel = supportsRobertHandoff
+    ? (hasPendingRobertDraft ? 'Approve draft' : 'Load Robert draft')
+    : (isXLead && !lead.email ? 'Prep email handoff' : (lead.draftReply ? 'Approve draft' : (replyAction ? lead.nextMove.action : 'Reply')));
   const moveLead = (nextStage) => window.V3.MoveLeadStage(lead, nextStage);
   const clearUnread = () => V4CosPatchLead(lead, { new_reply_at: null }, { unread: false });
+  const loadRobertDraft = async () => {
+    setHandoffDraftLoading(true);
+    setHandoffDraftError('');
+    try {
+      const draft = await V4GenerateRobertHandoffDraft(lead);
+      const patch = { draft_reply: draft, draft_reply_status: 'pending', new_reply_at: null };
+      V4CosPatchLead(lead, patch, { draftReply: draft, draftReplyStatus: 'pending', unread: false });
+      setComposeOpen(true);
+    } catch (err) {
+      setHandoffDraftError(err.message || 'Could not build the Robert draft.');
+    } finally {
+      setHandoffDraftLoading(false);
+    }
+  };
+  const handlePrimaryAction = () => {
+    if (supportsRobertHandoff && !hasPendingRobertDraft) {
+      loadRobertDraft();
+      return;
+    }
+    setComposeOpen(true);
+  };
   const readerOps = (
     <>
       <div className="cos-quick-actions">
         <div className="cos-quick-actions-group">
           <span className="cos-quick-actions-label">Quick actions</span>
-          <button className="cos-quick-btn is-primary" type="button" onClick={() => setComposeOpen(true)}>
-            {isXLead && !lead.email ? 'Prep email handoff' : (lead.draftReply ? 'Approve draft' : (replyAction ? lead.nextMove.action : 'Reply'))}
+          <button className="cos-quick-btn is-primary" type="button" onClick={handlePrimaryAction} disabled={handoffDraftLoading}>
+            {handoffDraftLoading ? 'Loading draft...' : primaryLabel}
           </button>
           {isXLead && lead.xOpenDm && (
             <button className="cos-quick-btn" type="button" onClick={() => window.open(lead.xOpenDm, '_blank', 'noopener')}>
@@ -9096,6 +9173,12 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
           ))}
         </div>
       </div>
+      {handoffDraftError && (
+        <div className="brief-maker-empty-state" style={{ marginTop: 12 }}>
+          <strong>Could not prepare the Robert draft</strong>
+          <span className="brief-maker-server-error">{handoffDraftError}</span>
+        </div>
+      )}
       {(lead.operatorMemory || lead.draftReply) && (
         <section className="cos-operator-strip">
           <div className="cos-operator-strip-head">
@@ -9277,9 +9360,9 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
         {composeOpen ? (
           <V3InlineReply lead={lead} user={user} onCollapse={() => setComposeOpen(false)} />
         ) : (
-          <button className="drawer-reply-bar" onClick={() => setComposeOpen(true)}>
+          <button className="drawer-reply-bar" onClick={handlePrimaryAction}>
             <V3Icon name="reply" w={14} />
-            <span>{isXLead && !lead.email ? `Prep handoff for ${lead.contactName.split(' ')[0]}` : `Reply to ${lead.contactName.split(' ')[0]}${lead.draftReply ? ' — draft ready' : ''}`}</span>
+            <span>{supportsRobertHandoff ? `${hasPendingRobertDraft ? 'Approve Robert draft' : 'Load Robert draft'} for ${lead.contactName.split(' ')[0]}` : (isXLead && !lead.email ? `Prep handoff for ${lead.contactName.split(' ')[0]}` : `Reply to ${lead.contactName.split(' ')[0]}${lead.draftReply ? ' — draft ready' : ''}`)}</span>
             <V3Icon name="chev_d" w={12} style={{ transform: 'rotate(180deg)' }} />
           </button>
         )}

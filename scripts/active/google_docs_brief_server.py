@@ -16,6 +16,7 @@ import mimetypes
 import os
 import re
 import subprocess
+import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
@@ -67,6 +68,19 @@ LOCAL_BRIEF_LLM_ENABLED = str(os.environ.get("LOCAL_BRIEF_LLM_ENABLED") or "0").
 mimetypes.add_type("text/jsx", ".jsx")
 mimetypes.add_type("application/javascript", ".js")
 mimetypes.add_type("application/javascript", ".mjs")
+
+ACTIVE_SCRIPTS_DIR = WEB_ROOT / "scripts" / "active"
+if str(ACTIVE_SCRIPTS_DIR) not in sys.path:
+    sys.path.append(str(ACTIVE_SCRIPTS_DIR))
+
+from robert_handoff_operator import (  # type: ignore
+    CC_EMAILS as ROBERT_HANDOFF_CC_EMAILS,
+    build_contextual_handoff,
+    create_mime_message,
+    load_env as load_robert_handoff_env,
+    load_gmail_send_service as load_robert_gmail_send_service,
+    mark_x_asset_sent as mark_robert_x_asset_sent,
+)
 
 
 def get_api_token() -> str:
@@ -1371,6 +1385,156 @@ def read_robert_handoff_preview() -> dict:
     }
 
 
+def unique_emails(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    cleaned: list[str] = []
+    for value in values:
+        email = line(value).lower()
+        if not email or "@" not in email or email in seen:
+            continue
+        seen.add(email)
+        cleaned.append(email)
+    return cleaned
+
+
+def extract_emails(value: object) -> list[str]:
+    if isinstance(value, list):
+        emails: list[str] = []
+        for item in value:
+            emails.extend(extract_emails(item))
+        return unique_emails(emails)
+    raw = line("" if value is None else str(value))
+    if not raw:
+        return []
+    matches = re.findall(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", raw, flags=re.I)
+    return unique_emails(matches)
+
+
+def mailbox_origin_from_lead(lead: dict) -> str:
+    source = line(lead.get("source") or "").lower()
+    if "x-dm-intake" in source or "twitter_dm" in source or "ingest-twitter_dm" in source:
+        return "x"
+    if "robert-gmail-new-lead" in source or "gmail-robert" in source or "robert gmail" in source:
+        return "robert"
+    return "gmail"
+
+
+def lead_thread_lines(lead: dict) -> list[str]:
+    rows: list[str] = []
+    thread = lead.get("thread") or []
+    if isinstance(thread, list):
+        for msg in thread[-4:]:
+            if not isinstance(msg, dict):
+                continue
+            sender = line(msg.get("from") or "")
+            subject = line(msg.get("subject") or "")
+            body = line(msg.get("body") or "")
+            pieces = [part for part in [sender, subject, body] if part]
+            if pieces:
+                rows.append(" | ".join(pieces))
+    return rows
+
+
+def robert_handoff_target_from_lead(lead: dict) -> dict:
+    kind = "x" if mailbox_origin_from_lead(lead) == "x" else "gmail"
+    to_emails = unique_emails(
+        extract_emails(lead.get("email"))
+        + extract_emails(lead.get("xContactInfo"))
+        + extract_emails(lead.get("replyTo"))
+    )
+    if not to_emails:
+        raise ValueError("No outside email was found for this lead yet.")
+    contact_name = line(lead.get("contactName") or lead.get("brand") or "there")
+    company_hint = line(lead.get("brand") or lead.get("contactName") or "Collaboration")
+    draft_reply = lead.get("draftReply") if isinstance(lead.get("draftReply"), dict) else {}
+    subject = line(
+        draft_reply.get("subject")
+        or lead.get("briefSubject")
+        or (f"Following up from X re: {company_hint}" if kind == "x" else f"{company_hint} collaboration")
+    )
+    context_parts = [
+        line(lead.get("notes") or ""),
+        line(lead.get("evidence") or ""),
+        line(lead.get("deliverables") or ""),
+        line((lead.get("operatorSummary") or {}).get("lead_summary") if isinstance(lead.get("operatorSummary"), dict) else ""),
+        *lead_thread_lines(lead),
+    ]
+    context = "\n".join(part for part in context_parts if part).strip()
+    if not context:
+        context = f"{contact_name} reached out about {company_hint}."
+    target = {
+        "kind": kind,
+        "to_emails": to_emails,
+        "contact_name": contact_name,
+        "x_name": contact_name,
+        "subject": subject,
+        "context": context,
+        "company_hint": company_hint,
+    }
+    if kind == "x":
+        target["key"] = line(lead.get("xOpenDm") or "") or "|".join(to_emails)
+    return target
+
+
+def build_robert_handoff_for_lead(lead: dict) -> dict:
+    target = robert_handoff_target_from_lead(lead)
+    draft = build_contextual_handoff(
+        kind=target["kind"],
+        contact_name=target["contact_name"],
+        subject=target["subject"],
+        company_hint=target.get("company_hint") or "",
+        context=target.get("context") or "",
+    )
+    return {
+        "ok": True,
+        "draft": {
+            "kind": target["kind"],
+            "to_emails": target["to_emails"],
+            "cc_emails": list(ROBERT_HANDOFF_CC_EMAILS),
+            "subject": draft["subject"],
+            "body": draft["body"],
+            "context": target.get("context") or "",
+        },
+    }
+
+
+def send_robert_handoff_for_lead(lead: dict, draft_payload: dict | None = None) -> dict:
+    load_robert_handoff_env()
+    send_service = load_robert_gmail_send_service(interactive=False)
+    if not send_service:
+        raise ValueError("Robert Gmail send service is unavailable. Re-auth Robert send access on this machine.")
+    target = robert_handoff_target_from_lead(lead)
+    draft_data = draft_payload if isinstance(draft_payload, dict) else {}
+    subject = line(draft_data.get("subject") or "")
+    body = line(draft_data.get("body") or "")
+    if not subject or not body:
+        generated = build_contextual_handoff(
+            kind=target["kind"],
+            contact_name=target["contact_name"],
+            subject=target["subject"],
+            company_hint=target.get("company_hint") or "",
+            context=target.get("context") or "",
+        )
+        subject = generated["subject"]
+        body = generated["body"]
+    payload = create_mime_message(target["to_emails"], subject, body, cc=list(ROBERT_HANDOFF_CC_EMAILS))
+    send_service.users().messages().send(userId="me", body=payload).execute()
+    if target["kind"] == "x" and target.get("key"):
+        mark_robert_x_asset_sent({str(target["key"])})
+    return {
+        "ok": True,
+        "sent": True,
+        "draft": {
+            "kind": target["kind"],
+            "to_emails": target["to_emails"],
+            "cc_emails": list(ROBERT_HANDOFF_CC_EMAILS),
+            "subject": subject,
+            "body": body,
+            "context": target.get("context") or "",
+        },
+    }
+
+
 def create_brief_doc(payload: dict) -> dict:
     source_url = line(payload.get("source_url")) or line(payload.get("notion_url"))
     if source_url and not line(payload.get("title")):
@@ -1516,7 +1680,7 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
             pass
 
     def do_POST(self) -> None:
-        if self.path not in ("/generate-brief-doc", "/create-calendar-hold", "/import-notion-brief", "/import-source-brief"):
+        if self.path not in ("/generate-brief-doc", "/create-calendar-hold", "/import-notion-brief", "/import-source-brief", "/draft-robert-handoff", "/send-robert-handoff"):
             send_json(self, 404, {"ok": False, "error": "Unknown endpoint."})
             return
         if not require_api_token(self):
@@ -1529,6 +1693,10 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
                 result = create_brief_doc(payload)
             elif self.path == "/import-notion-brief":
                 result = import_notion_brief(payload.get("notion_url"))
+            elif self.path == "/draft-robert-handoff":
+                result = build_robert_handoff_for_lead(payload.get("lead") or {})
+            elif self.path == "/send-robert-handoff":
+                result = send_robert_handoff_for_lead(payload.get("lead") or {}, payload.get("draft"))
             elif self.path == "/import-source-brief":
                 result = import_source_brief(payload.get("source_url") or payload.get("notion_url"))
             else:
