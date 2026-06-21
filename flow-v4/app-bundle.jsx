@@ -7161,6 +7161,16 @@ const V4_COMPANY_OS_TOOLKIT = [
     note: 'Company OS remains Asher-first. Robert Gmail is only used for fresh lead intake.',
   },
   {
+    id: 'robert-handoff',
+    title: 'Robert Handoff Drafts',
+    status: 'Live',
+    kind: 'Operator',
+    useFor: 'Review the intro emails Robert can send when a fresh lead should move to Asher and Sam.',
+    trigger: 'Open Robert handoff drafts. Refresh Robert intros.',
+    output: 'Context-aware draft emails with recipients, subject, and ready-to-review copy',
+    note: 'This is the approval layer before Robert starts the thread and hands the lead to Asher and Sam.',
+  },
+  {
     id: 'company-operator',
     title: 'Company Operator',
     status: 'Live',
@@ -7550,6 +7560,27 @@ function V4InferCalendarMode(payload) {
     return 'timed';
   }
   return 'all_day';
+}
+
+function V4RobertHandoffTimestamp(value) {
+  if (!value) return 'Not generated yet';
+  const parsed = new Date(value);
+  if (!Number.isFinite(parsed.getTime())) return String(value);
+  return parsed.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function V4RobertHandoffRecipients(draft) {
+  const list = Array.isArray(draft?.to_emails) ? draft.to_emails.filter(Boolean) : [];
+  return list.length ? list.join(', ') : 'No recipient found';
+}
+
+function V4RobertHandoffContext(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -8056,6 +8087,11 @@ function V4CosBriefBoard() {
 
 function V4CosToolkit({ onNavigateView, onActivateSplit }) {
   const [briefMakerOpen, setBriefMakerOpen] = React.useState(false);
+  const [handoffPreviewOpen, setHandoffPreviewOpen] = React.useState(false);
+  const [handoffPreviewStatus, setHandoffPreviewStatus] = React.useState('idle');
+  const [handoffPreviewError, setHandoffPreviewError] = React.useState('');
+  const [handoffPreviewData, setHandoffPreviewData] = React.useState(null);
+  const [handoffCopiedIndex, setHandoffCopiedIndex] = React.useState(-1);
   const [briefForm, setBriefForm] = React.useState(() => V4BriefMakerDefaultState());
   const [briefAdvancedOpen, setBriefAdvancedOpen] = React.useState(false);
   const [briefApiToken, setBriefApiToken] = React.useState(() => V4LoadBriefApiToken());
