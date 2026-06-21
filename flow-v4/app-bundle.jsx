@@ -918,6 +918,10 @@ function V3NormalizeSupabaseLead(row) {
   const operatorMemory = V3ParseOperatorMemory(row.description);
   const isRobertBrief = V3IsRobertBriefRow(row) || briefPayload.kind === 'official-posting' || briefPayload.type === 'official-posting';
   const leadSource = row.lead_source || (row.gmail_thread_id ? 'Gmail' : 'Manual');
+  const xWebsite = String(row.website || row.url || '').trim();
+  const xOpenDm = /https?:\/\/(?:www\.)?(?:x|twitter)\.com\/messages\//i.test(xWebsite) ? xWebsite : '';
+  const xHandleMatch = xWebsite.match(/https?:\/\/(?:www\.)?(?:x|twitter)\.com\/([A-Za-z0-9_]{2,30})\/?$/i);
+  const xHandle = xHandleMatch ? ('@' + xHandleMatch[1]) : '';
   return {
     id: String(row.id),
     contactName: name,
@@ -975,6 +979,9 @@ function V3NormalizeSupabaseLead(row) {
     thread,
     progress: Math.max(0, V3_ACTIVE_STAGE_IDS.indexOf(stage)),
     unread: Boolean(row.new_reply_at),
+    xHandle,
+    xOpenDm,
+    xContactInfo: String(row.contact_info || row.contactInfo || ''),
   };
 }
 
