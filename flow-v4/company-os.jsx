@@ -1316,8 +1316,31 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
       if (current.searchParams.get('open') === 'brief-maker') {
         setBriefMakerOpen(true);
       }
+      if (current.searchParams.get('open') === 'robert-handoff') {
+        setHandoffPreviewOpen(true);
+      }
     } catch (err) {}
   }, []);
+
+  const loadRobertHandoffPreview = async () => {
+    setHandoffPreviewStatus('loading');
+    setHandoffPreviewError('');
+    try {
+      const res = await V4BriefServiceFetch('/robert-handoff-preview', { method: 'GET' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Could not load Robert handoff drafts.');
+      setHandoffPreviewData(data);
+      setHandoffPreviewStatus('done');
+    } catch (err) {
+      setHandoffPreviewStatus('error');
+      setHandoffPreviewError(err.message || 'Could not load Robert handoff drafts.');
+    }
+  };
+
+  React.useEffect(() => {
+    if (!handoffPreviewOpen) return;
+    if (handoffPreviewStatus === 'idle') loadRobertHandoffPreview();
+  }, [handoffPreviewOpen]);
 
   const updateBriefField = (key, value) => {
     const isCalendarField = String(key || '').startsWith('calendar_');
@@ -1419,6 +1442,22 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     setCalendarStatus('idle');
     setCalendarError('');
     setCalendarResult(null);
+  };
+
+  const copyHandoffDraft = async (draft, index) => {
+    const lines = [
+      `To: ${V4RobertHandoffRecipients(draft)}`,
+      `Subject: ${String(draft?.subject || '').trim()}`,
+      '',
+      String(draft?.body || '').trim(),
+    ].filter(Boolean);
+    try {
+      await navigator.clipboard.writeText(lines.join('\n'));
+      setHandoffCopiedIndex(index);
+      window.setTimeout(() => setHandoffCopiedIndex(-1), 1800);
+    } catch (err) {
+      console.warn('handoff draft copy failed', err);
+    }
   };
 
   const applyImportedBriefPayload = (payload, sourceUrl) => {
@@ -1649,6 +1688,11 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
       setBriefMakerOpen(true);
       return;
     }
+    if (action.type === 'open-robert-handoff') {
+      setHandoffPreviewOpen(true);
+      loadRobertHandoffPreview();
+      return;
+    }
     if (action.type === 'view') {
       onNavigateView?.(action.view, action.openId || null);
       return;
@@ -1685,6 +1729,15 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
         ...tool,
         primaryLabel: 'Open New Leads',
         primaryAction: { type: 'view', view: 'new-leads' },
+        secondaryLabel: 'Open reply queue',
+        secondaryAction: { type: 'split', splitId: 'reply' },
+      };
+    }
+    if (tool.id === 'robert-handoff') {
+      return {
+        ...tool,
+        primaryLabel: 'Review drafts',
+        primaryAction: { type: 'open-robert-handoff' },
         secondaryLabel: 'Open reply queue',
         secondaryAction: { type: 'split', splitId: 'reply' },
       };
@@ -1940,6 +1993,83 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                   <button type="button" className="cos-toolkit-btn" onClick={resetBriefForm}>Reset</button>
                 </div>
               </aside>
+            </div>
+          </div>
+        </div>
+      )}
+      {handoffPreviewOpen && (
+        <div className="brief-modal-backdrop" onClick={() => setHandoffPreviewOpen(false)}>
+          <div className="brief-maker-panel handoff-preview-panel" onClick={e => e.stopPropagation()}>
+            <div className="brief-modal-hd">
+              <div>
+                <div className="brief-maker-hero-kicker">Robert operator</div>
+                <h2 className="brief-modal-title">Handoff Drafts</h2>
+              </div>
+              <div className="brief-modal-hd-actions">
+                <button type="button" className="cos-toolkit-btn" onClick={loadRobertHandoffPreview}>
+                  {handoffPreviewStatus === 'loading' ? 'Refreshing...' : 'Refresh'}
+                </button>
+                <button type="button" className="brief-modal-close" onClick={() => setHandoffPreviewOpen(false)} aria-label="Close handoff drafts">
+                  <V3Icon name="x" w={14} />
+                </button>
+              </div>
+            </div>
+            <div className="handoff-preview-body">
+              <div className="handoff-preview-headline">
+                <strong>{handoffPreviewData?.drafts?.length || 0} drafts ready</strong>
+                <span>
+                  {handoffPreviewData?.generated_at
+                    ? `Updated ${V4RobertHandoffTimestamp(handoffPreviewData.generated_at)}`
+                    : 'Preview file is waiting for the next operator run'}
+                </span>
+              </div>
+              {handoffPreviewStatus === 'loading' && (
+                <div className="brief-maker-empty-state">
+                  <strong>Loading drafts</strong>
+                  <span>Pulling the latest Robert handoff preview from your machine.</span>
+                </div>
+              )}
+              {handoffPreviewStatus === 'error' && (
+                <div className="brief-maker-empty-state">
+                  <strong>Could not load drafts</strong>
+                  <span className="brief-maker-server-error">{handoffPreviewError}</span>
+                </div>
+              )}
+              {handoffPreviewStatus === 'done' && !(handoffPreviewData?.drafts || []).length && (
+                <div className="brief-maker-empty-state">
+                  <strong>No drafts yet</strong>
+                  <span>Run the Robert handoff operator and the next preview set will show here.</span>
+                </div>
+              )}
+              {handoffPreviewStatus === 'done' && (handoffPreviewData?.drafts || []).length > 0 && (
+                <div className="handoff-preview-list">
+                  {(handoffPreviewData?.drafts || []).map((draft, index) => (
+                    <section key={`${draft.subject || 'draft'}-${index}`} className="handoff-preview-card">
+                      <div className="handoff-preview-card-top">
+                        <div className="handoff-preview-card-id">
+                          <span className="cos-chip cos-chip-tight">{String(draft?.kind || 'email').toUpperCase()}</span>
+                          <strong>{V4RobertHandoffRecipients(draft)}</strong>
+                        </div>
+                        <button type="button" className="cos-toolkit-btn" onClick={() => copyHandoffDraft(draft, index)}>
+                          {handoffCopiedIndex === index ? 'Copied' : 'Copy draft'}
+                        </button>
+                      </div>
+                      <div className="handoff-preview-row">
+                        <div className="handoff-preview-label">Subject</div>
+                        <div className="handoff-preview-value">{draft.subject || 'No subject'}</div>
+                      </div>
+                      <div className="handoff-preview-row">
+                        <div className="handoff-preview-label">Draft</div>
+                        <pre className="handoff-preview-copy">{String(draft.body || '').trim()}</pre>
+                      </div>
+                      <div className="handoff-preview-row is-context">
+                        <div className="handoff-preview-label">Why this lead</div>
+                        <div className="handoff-preview-context">{V4RobertHandoffContext(draft.context)}</div>
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

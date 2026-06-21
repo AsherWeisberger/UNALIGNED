@@ -3428,6 +3428,96 @@ a { color: inherit; }
   flex-wrap: wrap;
   padding: 14px 0 0;
 }
+.handoff-preview-panel {
+  width: min(980px, calc(100vw - 32px));
+  max-height: min(88vh, 860px);
+}
+.handoff-preview-body {
+  padding: 0 20px 22px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.handoff-preview-headline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 2px 0;
+}
+.handoff-preview-headline strong {
+  font: 700 18px/1.1 var(--font-display);
+  color: var(--text);
+}
+.handoff-preview-headline span {
+  font: 500 12px/1.4 var(--font-body);
+  color: var(--text-2);
+}
+.handoff-preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.handoff-preview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid #e3e7ef;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #fafbfd 100%);
+  box-shadow: 0 18px 40px -34px rgba(17, 32, 51, 0.3);
+}
+.handoff-preview-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.handoff-preview-card-id {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.handoff-preview-card-id strong {
+  font: 700 18px/1.2 var(--font-display);
+  color: var(--text);
+  word-break: break-word;
+}
+.handoff-preview-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.handoff-preview-label {
+  font: 600 10.5px/1 var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  padding-top: 4px;
+}
+.handoff-preview-value,
+.handoff-preview-context {
+  font: 500 13px/1.6 var(--font-body);
+  color: var(--text);
+}
+.handoff-preview-copy {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: 500 13px/1.65 var(--font-body);
+  color: var(--text);
+  padding: 16px 18px;
+  border: 1px solid #e6eaf1;
+  border-radius: 14px;
+  background: #f8fafc;
+}
+.handoff-preview-row.is-context .handoff-preview-context {
+  color: var(--text-2);
+}
 .cos-toolkit-status {
   display: inline-flex;
   align-items: center;
@@ -3462,6 +3552,10 @@ a { color: inherit; }
   .brief-maker-body { grid-template-columns: 1fr; }
   .brief-maker-preview { border-left: 0; border-top: 1px solid var(--line); }
   .brief-maker-grid { grid-template-columns: 1fr; }
+  .handoff-preview-headline,
+  .handoff-preview-card-top,
+  .handoff-preview-row { grid-template-columns: 1fr; display: flex; flex-direction: column; }
+  .handoff-preview-headline { align-items: flex-start; }
 }
 
 /* ── Inbox zero ── */

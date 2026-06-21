@@ -35,6 +35,7 @@ STATE_DIR = Path.home() / ".config" / "google-credentials"
 CLIENT_SECRET_FILE = STATE_DIR / "client_secret.json"
 TOKEN_FILE = STATE_DIR / "google-docs-brief-token.json"
 API_TOKEN_FILE = STATE_DIR / "brief_api_token.txt"
+ROBERT_HANDOFF_PREVIEW_FILE = STATE_DIR / "robert_handoff_operator_preview.json"
 NOTION_EXTRACTOR = Path("/Users/asherweisberger/Desktop/UNALIGNED/MASTER FILES/scripts/active/extract_notion_brief.mjs")
 WEB_ROOT = Path("/Users/asherweisberger/Desktop/UNALIGNED/MASTER FILES")
 SCOPES = [
@@ -1353,6 +1354,23 @@ def calendar_mode(payload: dict) -> str:
     return "all_day"
 
 
+def read_robert_handoff_preview() -> dict:
+    if not ROBERT_HANDOFF_PREVIEW_FILE.exists():
+        return {
+            "ok": True,
+            "generated_at": "",
+            "dry_run": True,
+            "drafts": [],
+        }
+    payload = json.loads(ROBERT_HANDOFF_PREVIEW_FILE.read_text(encoding="utf-8") or "{}")
+    return {
+        "ok": True,
+        "generated_at": line(payload.get("generated_at")),
+        "dry_run": bool(payload.get("dry_run")),
+        "drafts": payload.get("drafts") or [],
+    }
+
+
 def create_brief_doc(payload: dict) -> dict:
     source_url = line(payload.get("source_url")) or line(payload.get("notion_url"))
     if source_url and not line(payload.get("title")):
@@ -1481,6 +1499,12 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
                 "port": PORT,
                 "time": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             })
+            return
+        if self.path == "/robert-handoff-preview":
+            if not require_api_token(self):
+                send_json(self, 401, {"ok": False, "error": "Missing or invalid brief API token."})
+                return
+            send_json(self, 200, read_robert_handoff_preview())
             return
         file_path = safe_static_path(self.path)
         if file_path is None:
