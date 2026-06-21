@@ -8,22 +8,22 @@
 const V4_COMPANY_OS_PREP = [
   {
     title: 'Eastworlds / Danial + Sean',
-    tags: ['P0', 'bank details asked', 'draft frozen'],
+    tags: ['P0', 'paid by wire', 'review + schedule'],
     points: [
-      'Sean kept the infrastructure-first angle locked, and on June 19, 2026 the CFO finally replied that the Stripe invoice only allowed card payment and asked for bank transfer details instead.',
-      'That means the thread is no longer vague delay. The open item is one exact payment rail decision: either approved bank details or a confirmed Stripe workaround, then payment proof.',
-      'Asher still owns this before Robert touches copy. Keep the exact Chimborazo accuracy language intact and do not convert this into a live brief until money is visible in-thread.',
-      'No draft, no posting hold, and no execution promise moves until payment is settled.',
+      'The payment rail is no longer the blocker. On June 19, 2026 Ong Xie switched the Eastworlds deal from Stripe to bank transfer, sent a payment receipt the same day, and Asher replied with thanks plus the updated invoice and draft.',
+      'Sean\'s latest message arrived on June 20, 2026 saying the team is reviewing the materials and that scheduling the post for next week sounds right.',
+      'The live Asher-owned moves are narrower now: confirm the bank settlement actually lands, get sponsor edits on the updated draft, and lock one exact posting day for next week.',
+      'Do not treat the wire receipt as finished payment or the vague "next week" note as a booked calendar slot.',
     ],
   },
   {
     title: 'iLands / Flot monthly package',
-    tags: ['P0', 'copy due June 19', 'brief prep'],
+    tags: ['P0', 'package inventory', 'source link missing'],
     points: [
-      'Zoe sent the iLands brief on June 17, 2026 and clarified that this is copy-only for post three of an older four-post monthly package, not a new paid slot.',
-      'Draft copy is due by June 19, 2026 and the release target is June 26, 2026, but the sponsor still has not provided the final source post URL Robert would be quoting.',
-      'Asher does not need to chase invoice details here anymore. The real job is one 60-second Robert execution brief with angle, copy shape, timing, approval path, and owner.',
-      'Treat this as existing inventory fulfillment. Do not re-price it mid-thread unless Zoe explicitly opens a renewal conversation.',
+      'Zoe clarified on June 17, 2026 that iLands is post three of an older four-post package, and Robert only owes copy while the sponsor handles the video and images.',
+      'The release target is still June 26, 2026, but the quote/source post link has still not been provided, which means Robert cannot yet be handed a final execution brief.',
+      'Asher owns the cleanup here: get the official source post URL, confirm the review lane and posting window, and compress the ask into one 60-second Robert brief once those items are concrete.',
+      'Do not send a fresh invoice or reopen pricing on a package-fulfillment thread unless Zoe explicitly says the old package is over.',
     ],
   },
   {
@@ -38,22 +38,22 @@ const V4_COMPANY_OS_PREP = [
   },
   {
     title: 'ACL / Hockey Stick',
-    tags: ['P0', 'invoice live', 'script later'],
+    tags: ['P0', 'invoice due June 20', 'payment first'],
     points: [
-      'The ticket argument is parked for now, and Annika already confirmed the Alibaba registration link no longer matters for Robert\'s ticket path.',
-      'Asher sent the updated Stripe live invoice and standard PDF on June 18, 2026 directly to Annika and billing@hockeystick.io, so the payment rail is now explicit.',
-      'This is still Asher-owned terms work first: get first-payment movement and keep reimbursement risk written down before the script-review cycle starts.',
-      'Do not let client script requests outrun the first-payment trail.',
+      'The latest state hardened on June 19, 2026: Chang acknowledged the updated ACL invoice thread, Annika already sent the final Alibaba brief and asked for script review in advance, and Asher drafted a same-day follow-up asking for payment timing before the June 20 due date.',
+      'There is now a local first-payment PDF in the invoice assets, but there is still no actual payment proof in-thread and no clean resolution on the ticket reimbursement mismatch beyond "we cannot reimburse" language from Annika.',
+      'This stays Asher-owned until the first payment moves. Payment proof, reimbursement exposure, and client timing confirmation all come before Robert script work.',
+      'Do not let the existence of a final brief trick the board into treating this as execution-ready.',
     ],
   },
   {
-    title: 'Viktor / OMANE LinkedIn follow-through',
-    tags: ['P1', 'live on X', 'placement unclear'],
+    title: 'Marketing Guys / RunLayer',
+    tags: ['P1', 'new QRT ask', 'brief Monday'],
     points: [
-      'The X post is already live, and Vitor sent the LinkedIn first-comment tracked link plus placement notes on June 18, 2026.',
-      'Asher replied that Robert prefers a longer strategy-led LinkedIn post and asked them to clarify how they want the placement handled there.',
-      'This is not a new sale. It is execution cleanup: get the exact LinkedIn format answer, then hand Robert the shortest possible posting brief.',
-      'Do not mark the cross-platform campaign finished while the LinkedIn instruction path is still fuzzy.',
+      'Phillip came back on June 19, 2026 with a new QRT request for RunLayer targeting Wednesday, June 24, 2026 at 7:30 AM PT, using the same payment flow as the earlier Kombai campaign.',
+      'Asher already replied yes and asked for the brief, and Phillip said the rest of the materials should arrive on Monday, June 22, 2026.',
+      'That makes this an active prep item, not a real calendar lock yet. The remaining Asher tasks are official post, talking points, payment timing proof, and one short Robert execution note.',
+      'Do not build a Robert brief from a company URL and a launch description alone.',
     ],
   },
 ];
@@ -61,11 +61,11 @@ const V4_COMPANY_OS_PREP = [
 const V4_COMPANY_OS_WAITING = [
   {
     title: 'Golden Egg / creator roster',
-    tags: ['watch', 'packet sent', 'future only'],
+    tags: ['watch', 'onboarded', 'future only'],
     points: [
-      'Golden Egg accepted the Net-15 roster onboarding and then asked for tax documents, banking information, address, and phone details to finish payout setup.',
-      'Asher sent the W9 and banking sample on June 19, 2026, so the active move is done unless they ask for one missing field or a secure portal follow-up.',
-      'This is waiting, not live execution. Keep it parked until an actual campaign appears.',
+      'Wesley confirmed on June 19, 2026 that Golden Egg received the documents and that Robert is fully onboarded in their creator roster.',
+      'There is no live campaign attached to this thread now. The Asher-side work is finished unless Golden Egg asks for one missing field or sends a real campaign.',
+      'This is waiting, not execution.',
       'Do not confuse roster setup with booked revenue.',
     ],
   },
@@ -80,41 +80,43 @@ const V4_COMPANY_OS_WAITING = [
     ],
   },
   {
+    title: 'Base and Partner / exploratory AI tool',
+    tags: ['watch', 'bumped June 19', 'scope missing'],
+    points: [
+      'Asher already sent the sponsorship package, asked for company, product, deliverable mix, and timing, and then bumped Sahil again on June 19, 2026.',
+      'There is still no answer naming the client, scope, budget, or launch date beyond a rising AI tool for indie hackers and developers.',
+      'Keep it in waiting until the ask can be summarized in one sentence with company, deliverable, timing, and owner.',
+      'Do not create a Robert brief from rate-card interest alone.',
+    ],
+  },
+  {
     title: 'KroWork / EezyCollab',
     tags: ['watch', 'slot dead', 'future rates logged'],
     points: [
-      'Stephanie passed on the KroWork slot for budget, then asked whether the older $2,490 Thread + QR bundle could still be saved for future brands.',
-      'Asher already replied on June 18, 2026 that the old number was a one-off LobeHub exception, not a standing benchmark.',
-      'That means the dead KroWork execution is over. Keep the relationship warm, but wait for a new scoped brand ask.',
-      'Do not reopen the canceled KroWork negotiation unless a real budget or client changes.',
+      'Stephanie formally passed on the KroWork slot for budget and then asked whether the older $2,490 Thread + QR bundle could survive as a future benchmark.',
+      'Asher answered on June 18, 2026 that the LobeHub number was a one-off exception, not a standing floor.',
+      'The live KroWork deal is dead; only the future pricing relationship remains.',
+      'Do not reopen the canceled slot unless a new client or budget shows up.',
     ],
   },
   {
     title: 'Flot / fresh quote inquiry',
     tags: ['watch', 'sponsor confirm missing', 'not sold'],
     points: [
-      'Zoe\'s separate June 15-18 real-time audio-video quote repost ask never matured into a sold slot.',
-      'She only said on June 16 that they would confirm by the next day, and the thread never advanced to date lock, invoice details, or launch assets.',
-      'Keep it parked until there is one exact sponsor-approved ask instead of another soft maybe.',
-      'Do not merge this with the older iLands monthly package just because the same operator sent both.',
+      'Zoe\'s separate June 15-18 quote-collaboration inquiry still never matured into a sold slot, and there has been no later sponsor confirmation, invoice path, or launch asset packet.',
+      'Keep that thread parked separately from the older iLands monthly package.',
+      'This becomes real only when the sponsor confirms the scope and sends the live asset path.',
+      'Do not merge a maybe-quote inquiry into the active package-fulfillment work.',
     ],
   },
   {
-    title: 'Base and Partner / exploratory AI tool',
-    tags: ['watch', 'context first', 'not Robert-ready'],
+    title: 'OMANE / Viktor LinkedIn follow-through',
+    tags: ['watch', 'both links sent', 'ack only'],
     points: [
-      'Asher already sent the sponsorship package and bumped Sahil again on June 19, 2026, but they still have not named the client, deliverable mix, budget, or timing beyond a rising AI tool for indie hackers and developers.',
-      'This is real interest but still not a board-ready campaign. It stays in email until the ask can be described in one sentence with company, deliverable, timing, and owner.',
-      'Do not create a Robert brief from a rate-card request or a seed-user fishing conversation.',
-    ],
-  },
-  {
-    title: 'Exploratory Inbound / Standpoint',
-    tags: ['watch', 'founder interest', 'not sold'],
-    points: [
-      'Standpoint still has founder-interest momentum, but the thread remains exploratory rather than commercial.',
-      'Keep it out of Robert prep until there is one concrete scope, budget, timing, and payment path.',
-      'Promising does not equal ready.',
+      'The X post and LinkedIn live link were both sent back to OMANE on June 19, 2026, and Ori\'s latest reply was only an acknowledgment.',
+      'That means there is no immediate Asher action unless OMANE comes back with payment cleanup, another asset request, or the next post in the package.',
+      'Treat this as a quiet watch item, not a fresh prep item.',
+      'An acknowledgment emoji is not a new task.',
     ],
   },
 ];
@@ -183,6 +185,7 @@ const V4_COMPANY_OS_RULES = [
   'No paid post, travel spend, hotel, or extra pass cost happens before payment proof, written reimbursement, written budget approval, or clearly prepaid package coverage is visible in-thread.',
   'A live post is not a closed deal. If the receipt or bank proof is missing, the item stays in action until proof lands.',
   'A screenshot saying payment is scheduled is useful context, not closure. The deal stays open until the receipt, settled transfer, or bank proof is in-thread.',
+  'A wire receipt from the sponsor proves intent to pay, not bank settlement. Keep the item open until the money or bank confirmation actually lands.',
   'If payment proof lands outside the client thread, log it against the invoice before calling the deal done.',
   'If a sponsor switches from Stripe to bank transfer after the invoice is already live, settle the payment rail first and freeze drafting until that choice is explicit.',
   'If a sponsor changes story angle or technical framing after a slot is penciled in, freeze drafting until payment proof is in and the new framing is written down cleanly.',
@@ -196,6 +199,7 @@ const V4_COMPANY_OS_RULES = [
   'Pinned posts are separate inventory. If a client wants the top slot held, price the pin separately instead of quietly bundling it into the repost.',
   'If a client has paid but the launch URL or Robert repost URL is missing, chase the links before opening any next-campaign discussion.',
   'An interview is not scheduled when someone says a time might work. It is scheduled only when both sides say yes and the invite reflects the final duration.',
+  'A note like "next week works" is not a calendar lock. Robert only gets a brief after there is one exact date or time window.',
   'Venice is on the new interview price of $2,495 plus Stripe. Riverside keeps the old $1,800 commitment unless the thread changes in writing.',
   'If a meeting duration changes after a slot is picked, update the invite itself. An email promise to adjust is not enough.',
   'A quote repost is not executable until the official source post, assigned posting window, talking points, and approval boundaries are in the thread.',
@@ -220,6 +224,8 @@ const V4_COMPANY_OS_STAGES = [
 
 const V4_BRIEF_TAILSCALE_BASE_URL = 'https://mac-studio.tail50d3a2.ts.net';
 const V4_BRIEF_LOCAL_BASE_URL = 'http://127.0.0.1:8767';
+const V4_ROBERT_HANDOFF_STATIC_PREVIEW_URL = 'flow-v4/robert-handoff-preview.json?v=20260621-handoff-preview-3';
+const V4_ROBERT_HANDOFF_CACHE_KEY = 'v4_robert_handoff_preview_cache';
 
 function V4ShouldUseMachineHostedBriefFlow() {
   try {
@@ -351,6 +357,47 @@ async function V4BriefServiceFetch(path, options = {}) {
   return res;
 }
 
+function V4LoadCachedRobertHandoffPreview() {
+  try {
+    const raw = window.localStorage.getItem(V4_ROBERT_HANDOFF_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && parsed.ok ? parsed : null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function V4StoreCachedRobertHandoffPreview(data) {
+  try {
+    if (data && data.ok) {
+      window.localStorage.setItem(V4_ROBERT_HANDOFF_CACHE_KEY, JSON.stringify(data));
+    }
+  } catch (err) {}
+}
+
+async function V4LoadRobertHandoffPreviewData() {
+  try {
+    const res = await V4BriefServiceFetch('/robert-handoff-preview', { method: 'GET' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) throw new Error(data.error || 'Could not load Robert handoff drafts.');
+    V4StoreCachedRobertHandoffPreview(data);
+    return data;
+  } catch (machineErr) {
+    try {
+      const staticRes = await fetch(V4_ROBERT_HANDOFF_STATIC_PREVIEW_URL, { method: 'GET', cache: 'no-store' });
+      const staticData = await staticRes.json().catch(() => ({}));
+      if (staticRes.ok && staticData.ok) {
+        V4StoreCachedRobertHandoffPreview(staticData);
+        return staticData;
+      }
+    } catch (err) {}
+    const cached = V4LoadCachedRobertHandoffPreview();
+    if (cached) return cached;
+    throw machineErr;
+  }
+}
+
 const V4_BRIEF_ACTION_URL = 'http://127.0.0.1:8766/generate-brief';
 
 const V4_COMPANY_OS_TOOLKIT = [
@@ -383,6 +430,16 @@ const V4_COMPANY_OS_TOOLKIT = [
     trigger: 'Run Gmail sync. Refresh Robert Gmail leads.',
     output: 'Newest-first Gmail leads with sender, email, date, and summary',
     note: 'Company OS remains Asher-first. Robert Gmail is only used for fresh lead intake.',
+  },
+  {
+    id: 'robert-handoff',
+    title: 'Robert Handoff Drafts',
+    status: 'Live',
+    kind: 'Operator',
+    useFor: 'Review the intro emails Robert can send when a fresh lead should move to Asher and Sam.',
+    trigger: 'Open Robert handoff drafts. Refresh Robert intros.',
+    output: 'Context-aware draft emails with recipients, subject, and ready-to-review copy',
+    note: 'This is the approval layer before Robert starts the thread and hands the lead to Asher and Sam.',
   },
   {
     id: 'company-operator',
@@ -774,6 +831,27 @@ function V4InferCalendarMode(payload) {
     return 'timed';
   }
   return 'all_day';
+}
+
+function V4RobertHandoffTimestamp(value) {
+  if (!value) return 'Not generated yet';
+  const parsed = new Date(value);
+  if (!Number.isFinite(parsed.getTime())) return String(value);
+  return parsed.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function V4RobertHandoffRecipients(draft) {
+  const list = Array.isArray(draft?.to_emails) ? draft.to_emails.filter(Boolean) : [];
+  return list.length ? list.join(', ') : 'No recipient found';
+}
+
+function V4RobertHandoffContext(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1280,6 +1358,11 @@ function V4CosBriefBoard() {
 
 function V4CosToolkit({ onNavigateView, onActivateSplit }) {
   const [briefMakerOpen, setBriefMakerOpen] = React.useState(false);
+  const [handoffPreviewOpen, setHandoffPreviewOpen] = React.useState(false);
+  const [handoffPreviewStatus, setHandoffPreviewStatus] = React.useState('idle');
+  const [handoffPreviewError, setHandoffPreviewError] = React.useState('');
+  const [handoffPreviewData, setHandoffPreviewData] = React.useState(null);
+  const [handoffCopiedIndex, setHandoffCopiedIndex] = React.useState(-1);
   const [briefForm, setBriefForm] = React.useState(() => V4BriefMakerDefaultState());
   const [briefAdvancedOpen, setBriefAdvancedOpen] = React.useState(false);
   const [briefApiToken, setBriefApiToken] = React.useState(() => V4LoadBriefApiToken());
@@ -1326,9 +1409,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     setHandoffPreviewStatus('loading');
     setHandoffPreviewError('');
     try {
-      const res = await V4BriefServiceFetch('/robert-handoff-preview', { method: 'GET' });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.ok) throw new Error(data.error || 'Could not load Robert handoff drafts.');
+      const data = await V4LoadRobertHandoffPreviewData();
       setHandoffPreviewData(data);
       setHandoffPreviewStatus('done');
     } catch (err) {
