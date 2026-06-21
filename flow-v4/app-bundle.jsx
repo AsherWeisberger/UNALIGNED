@@ -725,7 +725,7 @@ const V3_MIN_VISIBLE_TS = Date.parse('2026-01-01T00:00:00Z');
 
 async function V3LoadXDmIntakeRows() {
   try {
-    const res = await fetch('flow-v4/assets/x_dm_daily_intake.json?v=20260620-live-x-inbox-1');
+    const res = await fetch('flow-v4/assets/x_dm_daily_intake.json?v=20260621-live-x-inbox-2');
     if (!res.ok) throw new Error('X intake ' + res.status);
     const rows = await res.json();
     return Array.isArray(rows) ? rows : [];
@@ -773,13 +773,19 @@ async function V3LoadSupabaseLeads() {
     if (!prev || scoreRow(row) > scoreRow(prev)) canonical.set(key, row);
   }
 
-  const leads = V3FilterVisibleLeads([...canonical.values()].map(V3NormalizeSupabaseLead));
   const xRows = await V3LoadXDmIntakeRows();
-  leads.push(...V3FilterVisibleLeads(V3NormalizeXDmLeads(xRows, leads)));
-  if (!leads.some(lead => String(lead.email || '').trim().toLowerCase() === 'jocelyn.cruz@hockeystick.io')) {
-    leads.push(V3HockeystickFallbackLead());
+  const leads = V3FilterVisibleLeads([...canonical.values()].map(V3NormalizeSupabaseLead))
+    .map(lead => {
+      if (V3NewLeadSourceKind(lead) !== 'x') return lead;
+      const intakeMatch = V3FindXdMIntakeMatch(lead, xRows);
+      return intakeMatch ? V3MergeXdMIntakeIntoLead(lead, intakeMatch) : lead;
+    });
+  const dedupedLeads = V3CollapseDuplicateXLeads(leads);
+  dedupedLeads.push(...V3FilterVisibleLeads(V3NormalizeXDmLeads(xRows, dedupedLeads)));
+  if (!dedupedLeads.some(lead => String(lead.email || '').trim().toLowerCase() === 'jocelyn.cruz@hockeystick.io')) {
+    dedupedLeads.push(V3HockeystickFallbackLead());
   }
-  return V3FilterVisibleLeads(leads);
+  return V3FilterVisibleLeads(dedupedLeads);
 }
 
 function V3NormalizeEmailLeadStage(email, rawStage) {
@@ -1271,6 +1277,81 @@ function V3NormalizeXDmLeadRow(row) {
     xEmailDraft: String(row.emailDraft || ''),
     xQuickNote: quickNote,
   };
+}
+
+function V3FindXdMIntakeMatch(lead, rows) {
+  if (!lead || !Array.isArray(rows) || !rows.length) return null;
+  const leadDm = String(lead.xOpenDm || '').trim();
+  const leadNameKey = V3LeadIdentityKey(lead.contactName || lead.brand || '');
+  return rows.find(row => {
+    const rowDm = String(row?.openDm || '').trim();
+    if (leadDm && rowDm && leadDm === rowDm) return true;
+    const rowNameKey = V3LeadIdentityKey(row?.xName || row?.contactName || '');
+    return Boolean(leadNameKey && rowNameKey && leadNameKey === rowNameKey);
+  }) || null;
+}
+
+function V3MergeXdMIntakeIntoLead(lead, row) {
+  if (!lead || !row) return lead;
+  const intakeLead = V3NormalizeXDmLeadRow(row);
+  const mergedThread = Array.isArray(lead.thread) && lead.thread.length && String(lead.thread[0]?.body || '').trim()
+    ? lead.thread
+    : intakeLead.thread;
+  const mergedNotes = String(lead.notes || '').trim() || intakeLead.notes;
+  const mergedEvidence = String(lead.evidence || '').trim() || intakeLead.evidence;
+  const mergedNextMoveText = String(lead.nextMove?.text || '').trim() || intakeLead.nextMove?.text || 'Open X thread and move to email.';
+  const mergedXHandle = String(lead.xHandle || '').trim() || intakeLead.xHandle;
+  const mergedContactInfo = String(lead.xContactInfo || '').trim() || intakeLead.xContactInfo;
+  const mergedReceivedAt = lead.receivedAt || intakeLead.receivedAt || null;
+  const mergedLastTouchAt = lead.lastTouchAt || intakeLead.lastTouchAt || mergedReceivedAt;
+  return {
+    ...lead,
+    contactRole: lead.contactRole || intakeLead.contactRole,
+    deliverables: lead.deliverables || intakeLead.deliverables,
+    category: lead.category || intakeLead.category,
+    notes: mergedNotes,
+    evidence: mergedEvidence,
+    rawDescription: String(lead.rawDescription || '').trim() || intakeLead.rawDescription,
+    thread: mergedThread,
+    lastTouchAt: mergedLastTouchAt,
+    receivedAt: mergedReceivedAt,
+    lastTouch: lead.lastTouch || intakeLead.lastTouch,
+    nextMove: {
+      who: lead.nextMove?.who || intakeLead.nextMove?.who || 'asher',
+      text: mergedNextMoveText,
+      action: lead.nextMove?.action || intakeLead.nextMove?.action || 'Reply',
+    },
+    xHandle: mergedXHandle,
+    xOpenDm: String(lead.xOpenDm || '').trim() || intakeLead.xOpenDm,
+    xContactInfo: mergedContactInfo,
+    xLeadScore: Number(lead.xLeadScore || intakeLead.xLeadScore || 0),
+    xBestNextStep: String(lead.xBestNextStep || '').trim() || intakeLead.xBestNextStep,
+    xMessageCount: Number(lead.xMessageCount || intakeLead.xMessageCount || 0),
+    xCurrentStatus: String(lead.xCurrentStatus || '').trim() || intakeLead.xCurrentStatus,
+    xEmailDraft: String(lead.xEmailDraft || '').trim() || intakeLead.xEmailDraft,
+    xQuickNote: String(lead.xQuickNote || '').trim() || intakeLead.xQuickNote,
+  };
+}
+
+function V3CollapseDuplicateXLeads(leads) {
+  const passthrough = [];
+  const xLeads = new Map();
+  for (const lead of Array.isArray(leads) ? leads : []) {
+    if (V3NewLeadSourceKind(lead) !== 'x') {
+      passthrough.push(lead);
+      continue;
+    }
+    const key = String(lead.xOpenDm || '').trim() || `x:${V3LeadIdentityKey(lead.contactName || lead.brand || lead.id)}`;
+    const prev = xLeads.get(key);
+    if (!prev) {
+      xLeads.set(key, lead);
+      continue;
+    }
+    const prevScore = (Date.parse(prev.lastTouchAt || prev.receivedAt || '') || 0) + Number(prev.rowId || prev.id || 0);
+    const nextScore = (Date.parse(lead.lastTouchAt || lead.receivedAt || '') || 0) + Number(lead.rowId || lead.id || 0);
+    if (nextScore >= prevScore) xLeads.set(key, lead);
+  }
+  return [...passthrough, ...xLeads.values()].filter(Boolean);
 }
 
 function V3TimestampForUi(value) {
