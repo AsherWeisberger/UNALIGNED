@@ -8957,7 +8957,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                   <div className="brief-maker-hero">
                     <div className="brief-maker-hero-kicker">Robert brief</div>
                     <h3>Paste a source link and build the doc</h3>
-                    <p>One clean input. One click. Brief Maker reads the source and creates the Google Doc on Robert&apos;s account.</p>
+                    <p>One clean input. One click. Brief Maker reads the source and creates the Google Doc on Robert's account.</p>
                   </div>
                   <label className="brief-maker-field brief-maker-field-wide">
                     <span>Paste source link</span>
@@ -8982,7 +8982,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                     />
                   </label>
                   <div className="brief-maker-source-note">
-                    Paste one link. Add the last sender email if you want extra context. Brief Maker will read it and build the Google Doc on Robert&apos;s account.
+                    Paste one link. Add the last sender email if you want extra context. Brief Maker will read it and build the Google Doc on Robert's account.
                   </div>
                   <div className="brief-maker-source-actions">
                     <button type="button" className="cos-toolkit-btn is-primary" onClick={buildBriefFromSource}>
@@ -9006,7 +9006,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                     <span className="brief-maker-server-note">
                       {briefJobStatus === 'queued'
                         ? 'Saved to your brief machine. Build is queued now.'
-                        : 'Reading the link and building Robert&apos;s Google Doc in the background...'}
+                        : "Reading the link and building Robert's Google Doc in the background..."}
                     </span>
                   )}
                   {docStatus === 'error' && (
@@ -9018,12 +9018,12 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                         ? 'Job queued. Your Mac is picking up the brief now.'
                         : briefJobStatus === 'running'
                           ? 'Job running on your Mac. You can leave this screen and come back.'
-                          : 'Creating the Google Doc on Robert&apos;s account...'}
+                          : "Creating the Google Doc on Robert's account..."}
                     </span>
                   )}
                   {docStatus === 'done' && docResult && (
                     <div className="brief-maker-result-card">
-                      <span className="brief-maker-server-ok">Succeeded. Robert&apos;s Google Doc is ready.</span>
+                      <span className="brief-maker-server-ok">Succeeded. Robert's Google Doc is ready.</span>
                       <div className="brief-maker-field-grid">
                         <label className="brief-maker-field">
                           <span>Calendar task title</span>

@@ -111,6 +111,11 @@ def utc_now_iso() -> str:
 LOCAL_TZ = ZoneInfo("America/New_York")
 
 
+def brief_log(message: str) -> None:
+    stamp = datetime.now(LOCAL_TZ).strftime("%Y-%m-%d %H:%M:%S")
+    print(f"{stamp} {message}", flush=True)
+
+
 def save_brief_jobs() -> None:
     with BRIEF_JOBS_LOCK:
         ordered = sorted(
@@ -186,6 +191,7 @@ def build_brief_job(payload: dict) -> dict:
     with BRIEF_JOBS_LOCK:
         BRIEF_JOBS[job_id] = job
     save_brief_jobs()
+    brief_log(f"[job {job_id}] queued source={source_url or '(manual)'}")
     return job
 
 
@@ -210,21 +216,27 @@ def run_brief_job(job_id: str) -> None:
         return
     payload = dict(job.get("request_payload") or {})
     update_brief_job(job_id, status="running", updated_at=utc_now_iso(), started_at=utc_now_iso(), error="")
+    brief_log(f"[job {job_id}] started")
     try:
+        brief_log(f"[job {job_id}] creating brief doc")
         result = create_brief_doc(payload)
         final_result = dict(result)
         merged_payload = dict(payload)
         if isinstance(final_result.get("payload"), dict):
             merged_payload.update(final_result.get("payload") or {})
+        brief_log(f"[job {job_id}] inferring calendar fields")
         inferred_calendar = infer_calendar_fields_from_payload(merged_payload)
         if inferred_calendar:
             merged_payload.update(inferred_calendar)
             if isinstance(final_result.get("payload"), dict):
                 final_result["payload"] = dict(final_result.get("payload") or {})
                 final_result["payload"].update(inferred_calendar)
+            brief_log(f"[job {job_id}] calendar fields inferred {inferred_calendar.get('calendar_date')} {inferred_calendar.get('calendar_start', '')}".rstrip())
+        brief_log(f"[job {job_id}] creating calendar item" if inferred_calendar or line(merged_payload.get("calendar_date")) else f"[job {job_id}] no calendar item requested")
         calendar_result = maybe_create_calendar_for_job(merged_payload, line(result.get("url")))
         if calendar_result:
             final_result["calendar"] = calendar_result
+            brief_log(f"[job {job_id}] calendar {calendar_result.get('kind')} ready")
         update_brief_job(
             job_id,
             status="done",
@@ -234,7 +246,9 @@ def run_brief_job(job_id: str) -> None:
             title=line(final_result.get("title")) or line(job.get("title")),
             error="",
         )
+        brief_log(f"[job {job_id}] done doc={line(final_result.get('url'))}")
     except Exception as exc:
+        brief_log(f"[job {job_id}] error {exc}")
         update_brief_job(
             job_id,
             status="error",
@@ -281,6 +295,9 @@ def safe_static_path(request_path: str) -> Path | None:
     parsed = urlparse(request_path or "/")
     raw_path = unquote(parsed.path or "/")
     candidate = "index.html" if raw_path in {"", "/"} else raw_path.lstrip("/")
+    path_parts = [part for part in Path(candidate).parts if part not in {"", "."}]
+    if any(part.startswith(".") for part in path_parts):
+        return None
     resolved = (WEB_ROOT / candidate).resolve()
     try:
         resolved.relative_to(WEB_ROOT.resolve())
@@ -1951,6 +1968,7 @@ def import_notion_brief(notion_url: str, email_context: str = "") -> dict:
         raise ValueError("Notion URL is required.")
     if "notion.so" not in notion_url and "notion.site" not in notion_url:
         raise ValueError("Paste a public Notion link.")
+    brief_log(f"Importing Notion source {notion_url}")
     result = subprocess.run(
         ["node", str(NOTION_EXTRACTOR), notion_url],
         check=True,
@@ -1974,6 +1992,7 @@ def import_source_brief(source_url: str, email_context: str = "") -> dict:
     source_url = line(source_url)
     if not source_url:
         raise ValueError("Source URL is required.")
+    brief_log(f"Importing source {source_url}")
 
     if "notion.so" in source_url or "notion.site" in source_url:
         return import_notion_brief(source_url, email_context=email_context)
@@ -2442,16 +2461,19 @@ def create_brief_doc(payload: dict) -> dict:
     email_context = line(payload.get("email_context"))
     imported = None
     if source_url and not line(payload.get("title")):
+        brief_log("Reading source brief")
         imported = import_source_brief(source_url, email_context=email_context)
         payload = imported["payload"]
     title = line(payload.get("title"))
     if not title:
         raise ValueError("Brief title is required.")
+    brief_log(f"Creating Google Doc: {title}")
     service = load_docs_service(interactive=True)
     doc = service.documents().create(body={"title": title}).execute()
     document_id = doc["documentId"]
     text, blocks = build_doc_blocks(payload)
     requests = build_requests(text, blocks)
+    brief_log("Writing Google Doc content")
     service.documents().batchUpdate(documentId=document_id, body={"requests": requests}).execute()
     response = {
         "ok": True,
@@ -2659,7 +2681,16 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
             send_json(self, 400, {"ok": False, "error": str(exc)})
 
     def log_message(self, format: str, *args) -> None:
-        print(format % args)
+        try:
+            message = format % args
+        except Exception:
+            message = format
+        path = line(self.path)
+        if path.startswith("/.git") or "/.git/" in path:
+            return
+        if self.command == "GET" and not path.startswith(("/health", "/brief-jobs", "/brief-job-status", "/robert-handoff-preview")):
+            return
+        brief_log(f"{self.command} {path} {message}")
 
 
 def main() -> None:
@@ -2668,10 +2699,10 @@ def main() -> None:
         server = ThreadingHTTPServer((HOST, PORT), DocsBriefHandler)
     except OSError as exc:
         if exc.errno == errno.EADDRINUSE:
-            print(f"Google Docs brief server already running at http://{HOST}:{PORT}")
+            brief_log(f"Google Docs brief server already running at http://{HOST}:{PORT}")
             return
         raise
-    print(f"Google Docs brief server listening at http://{HOST}:{PORT}")
+    brief_log(f"Google Docs brief server listening at http://{HOST}:{PORT}")
     server.serve_forever()
 
 
