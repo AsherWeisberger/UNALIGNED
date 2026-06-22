@@ -132,11 +132,21 @@ def load_brief_jobs() -> None:
     try:
         payload = json.loads(BRIEF_JOBS_FILE.read_text(encoding="utf-8") or "{}")
         jobs = payload.get("jobs") or []
+        changed = False
         with BRIEF_JOBS_LOCK:
             BRIEF_JOBS.clear()
             for item in jobs:
                 if isinstance(item, dict) and line(item.get("id")):
-                    BRIEF_JOBS[line(item.get("id"))] = item
+                    current = dict(item)
+                    if line(current.get("status")) in {"queued", "running"}:
+                        current["status"] = "error"
+                        current["error"] = "Brief build was interrupted when the local brief machine restarted. Please run it again."
+                        current["updated_at"] = utc_now_iso()
+                        current["finished_at"] = utc_now_iso()
+                        changed = True
+                    BRIEF_JOBS[line(current.get("id"))] = current
+        if changed:
+            save_brief_jobs()
     except Exception:
         pass
 
