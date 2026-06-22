@@ -3483,29 +3483,17 @@ a { color: inherit; }
 }
 .brief-maker-snake-head {
   position: absolute;
-  top: 10px;
+  top: 11px;
   left: calc(18px + (100% - 36px) * var(--snake-progress));
-  width: 22px;
-  height: 22px;
-  margin-left: -11px;
+  width: 20px;
+  height: 20px;
+  margin-left: -10px;
   border-radius: 999px;
-  background: radial-gradient(circle at 35% 35%, #fefefe 0 16%, #8db1ff 18%, #4a78ea 72%, #315fc8 100%);
-  box-shadow: 0 8px 18px -10px rgba(50, 88, 182, 0.9);
-  animation: brief-snake-bob 1.35s ease-in-out infinite;
+  background: #0b0b0d url("assets/unaligned-brief-orb.jpeg") center/cover no-repeat;
+  box-shadow: 0 10px 20px -12px rgba(24, 39, 75, 0.55);
+  animation: brief-snake-glide 1.8s ease-in-out infinite;
   z-index: 2;
 }
-.brief-maker-snake-head::before,
-.brief-maker-snake-head::after {
-  content: "";
-  position: absolute;
-  top: 7px;
-  width: 3px;
-  height: 3px;
-  border-radius: 999px;
-  background: rgba(255,255,255,0.96);
-}
-.brief-maker-snake-head::before { left: 6px; }
-.brief-maker-snake-head::after { right: 6px; }
 .brief-maker-snake-stop {
   position: relative;
   display: flex;
@@ -3530,8 +3518,8 @@ a { color: inherit; }
 }
 .brief-maker-snake-stop.is-live .brief-maker-snake-dot {
   border-color: #4a78ea;
-  background: #eff4ff;
-  box-shadow: 0 0 0 5px rgba(87, 125, 231, 0.12);
+  background: rgba(255,255,255,0.85);
+  box-shadow: 0 0 0 4px rgba(87, 125, 231, 0.10);
 }
 .brief-maker-snake-label {
   color: #6c7890;
@@ -3550,9 +3538,9 @@ a { color: inherit; }
   flex-wrap: wrap;
   padding: 14px 0 0;
 }
-@keyframes brief-snake-bob {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-3px); }
+@keyframes brief-snake-glide {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-1px) scale(1.02); }
 }
 .handoff-preview-panel {
   width: min(980px, calc(100vw - 32px));
