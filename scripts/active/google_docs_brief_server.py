@@ -875,6 +875,7 @@ Rules:
 - Option 1 must make a natural tie in to AlignedNews.com. The other options should do that too when it fits.
 - Pull from named proof points, product mechanics, launch details, and exact source language when useful.
 - Do not paste scheduling metadata like launch date, go live time, posting window, or approval notes into the draft copy.
+- Do not write compliance placeholders like "Paid partnership disclosure here for compliance" in the draft body.
 - Do not invent metrics or facts.
 - If a tag or link is required, include it in a natural close, not as a wall of text.
 
@@ -1260,6 +1261,31 @@ def clean_draft_text(value: str) -> str:
         "",
         text,
     )
+    text = re.sub(
+        r"(?im)^(?:paid partnership disclosure(?: here)?(?: for compliance)?|disclosure here(?: for compliance)?)\.?\s*$",
+        "",
+        text,
+    )
+    text = re.sub(
+        r"(?im)\n?(?:paid partnership disclosure(?: here)?(?: for compliance)?|disclosure here(?: for compliance)?)\.?(?=\n|$)",
+        "",
+        text,
+    )
+    text = re.sub(
+        r"(?im)^(?:paid partnership toggle|native paid partnership toggle|made with ai toggle|turn on paid partnership|turn on made with ai)\.?\s*$",
+        "",
+        text,
+    )
+    text = re.sub(
+        r"(?im)^(?:for compliance|compliance note|disclosure note)\s*:?\s*$",
+        "",
+        text,
+    )
+    text = re.sub(
+        r"(?im)^(?:paid partnership|sponsored|ad)\s+disclosure\.?\s*$",
+        "",
+        text,
+    )
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
@@ -1301,6 +1327,10 @@ def draft_text_is_lazy(value: str, joined_lines: str) -> bool:
         "different angle",
         "recommended.",
         "this fits alignednews because",
+        "paid partnership disclosure here",
+        "disclosure here for compliance",
+        "native paid partnership toggle",
+        "made with ai toggle",
     )
     if sum(1 for phrase in generic_phrases if phrase in lowered) >= 3:
         return True
