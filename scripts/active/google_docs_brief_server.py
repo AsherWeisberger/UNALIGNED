@@ -1452,8 +1452,8 @@ def extract_handles(text: str) -> list[str]:
     return re.findall(r"@[\w.]+", text or "")
 
 
-def infer_deliverable_type(lines: list[str]) -> str:
-    joined = " ".join(lines)
+def infer_deliverable_type(lines: list[str], extra_text: str = "") -> str:
+    joined = " ".join([*lines, line(extra_text)]).strip()
     lowered = joined.lower()
     if "quote repost" in lowered or "quote + repost" in lowered or "quote retweet" in lowered or "(qrt)" in lowered or "qrt" in lowered:
         return "Quote repost"
@@ -1470,8 +1470,8 @@ def infer_deliverable_type(lines: list[str]) -> str:
     return ""
 
 
-def infer_campaign_platform(text: str) -> str:
-    current = line(text).lower()
+def infer_campaign_platform(text: str, extra_text: str = "") -> str:
+    current = " ".join(part for part in [line(text), line(extra_text)] if part).lower()
     if "amplification x" in current or "x amplification" in current or "quote retweet" in current or "qrt" in current:
         return "X.com"
     if "youtube" in current or "youtu.be" in current:
@@ -1519,6 +1519,7 @@ def build_structured_brief_payload(
     lines: list[str],
     links: list[dict],
     source_label: str,
+    email_context: str = "",
 ) -> dict:
     company = infer_company_name(title, lines)
     thread_sections = parse_thread_sections(lines)
@@ -1552,7 +1553,8 @@ def build_structured_brief_payload(
     ]
     summary = " ".join(intro_lines[:4]).strip()
     joined_lines = "\n".join(lines)
-    campaign_platform = infer_campaign_platform(" ".join([title, campaign_line, go_live_line, guardrails_line]))
+    context_for_platform = " ".join([title, campaign_line, go_live_line, guardrails_line])
+    campaign_platform = infer_campaign_platform(context_for_platform, email_context)
 
     about_heading = collect_heading_section(filtered_lines, (rf"^About\s+{re.escape(company)}\b", r"^About\b", r"^Project Overview\b"), limit=5)
     why_people_care = collect_heading_section(filtered_lines, (r"^Why Would People Care\b", r"^Why People Care\b", r"^Why it matters\b"), limit=5)
@@ -1595,7 +1597,7 @@ def build_structured_brief_payload(
         filtered_lines,
         (r"\bgo live\b", r"\bposting window\b", r"\bpost on\b", r"\bpublish\b", r"\blive on\b"),
     ) or go_live_line
-    deliverable_type = infer_deliverable_type(lines)
+    deliverable_type = infer_deliverable_type(lines, email_context)
 
     accuracy_lines = collect_matching_lines(
         lines,
@@ -2039,6 +2041,7 @@ def notion_to_brief_payload(notion: dict, notion_url: str, email_context: str = 
         lines=lines,
         links=notion.get("links") or [],
         source_label="Notion",
+        email_context=email_context,
     )
     if line(email_context):
         payload["email_context"] = line(email_context)
@@ -2088,6 +2091,7 @@ def source_to_brief_payload(source: dict, source_url: str, email_context: str = 
         lines=lines,
         links=source.get("links") or [],
         source_label="Source",
+        email_context=email_context,
     )
     if line(email_context):
         payload["email_context"] = line(email_context)
