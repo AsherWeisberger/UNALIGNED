@@ -1455,8 +1455,10 @@ def extract_handles(text: str) -> list[str]:
 def infer_deliverable_type(lines: list[str]) -> str:
     joined = " ".join(lines)
     lowered = joined.lower()
-    if "quote repost" in lowered or "quote + repost" in lowered:
+    if "quote repost" in lowered or "quote + repost" in lowered or "quote retweet" in lowered or "(qrt)" in lowered or "qrt" in lowered:
         return "Quote repost"
+    if "amplification x" in lowered or "x amplification" in lowered:
+        return "Amplification X"
     if "dedicated thread" in lowered or "thread" in lowered:
         return "Dedicated thread"
     if "linkedin" in lowered:
@@ -1470,6 +1472,8 @@ def infer_deliverable_type(lines: list[str]) -> str:
 
 def infer_campaign_platform(text: str) -> str:
     current = line(text).lower()
+    if "amplification x" in current or "x amplification" in current or "quote retweet" in current or "qrt" in current:
+        return "X.com"
     if "youtube" in current or "youtu.be" in current:
         return "YouTube"
     if "tiktok" in current or "tik tok" in current:
@@ -1482,10 +1486,10 @@ def infer_campaign_platform(text: str) -> str:
         return "Teams"
     if "slack" in current:
         return "Slack"
-    if "linkedin" in current:
-        return "LinkedIn"
     if "x.com" in current or "twitter" in current or re.search(r"\bquote repost\b|\bquote post\b|\bx thread\b|\bdedicated thread\b|\bx post\b", current):
         return "X.com"
+    if "linkedin" in current:
+        return "LinkedIn"
     return ""
 
 
@@ -1520,7 +1524,18 @@ def build_structured_brief_payload(
         and current not in {"Skip to content", "Get Notion free", "✍️", "🧵", "📌", "🧩", "🔗"}
         and current != title
     ]
-    campaign_line = next((line(item) for item in lines if re.search(r"\bx\b", line(item)) and ("Dedicated post" in item or "quote-repost" in item or "LinkedIn" in item)), "")
+    campaign_line = next((
+        line(item) for item in lines
+        if re.search(r"\bx\b", line(item), re.I)
+        and (
+            "Dedicated post" in item
+            or "quote-repost" in item
+            or "quote retweet" in item.lower()
+            or "amplification x" in item.lower()
+            or "x amplification" in item.lower()
+            or "LinkedIn" in item
+        )
+    ), "")
     creator_line = next((line(item) for item in lines if item.startswith("Creator:")), "")
     go_live_line = next((line(item) for item in lines if item.startswith("Go-live:")), "")
     guardrails_line = next((line(item) for item in lines if "Guardrails" in item), "")
