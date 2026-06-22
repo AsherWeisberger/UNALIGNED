@@ -860,6 +860,7 @@ Rules:
   Reply 2:
 - Option 1 should be the strongest and most post ready.
 - Each option must use a genuinely different framing.
+- Option 1 must make a natural tie in to AlignedNews.com. The other options should do that too when it fits.
 - Pull from named proof points, product mechanics, launch details, and exact source language when useful.
 - Do not invent metrics or facts.
 - If a tag or link is required, include it in a natural close, not as a wall of text.
@@ -1044,6 +1045,11 @@ def merge_draft_payload(base: dict, llm_payload: dict | None) -> dict:
     why_alignednews = clean_sentence(llm_payload.get("why_alignednews"))
     if why_alignednews and not draft_text_is_lazy(why_alignednews, joined_lines):
         merged["why_alignednews"] = why_alignednews
+    merged["drafts"] = ensure_drafts_reference_alignednews(
+        list(merged.get("drafts") or []),
+        line(merged.get("why_alignednews")),
+        line(merged.get("deliverable_type")),
+    )
     local_model = llm_payload.get("_local_model")
     if local_model:
         merged["local_model"] = local_model
@@ -1056,6 +1062,49 @@ def clean_sentence(value: str | None) -> str:
         return ""
     text = re.sub(r"\s+", " ", text).strip(" .")
     return f"{text}." if text else ""
+
+
+def text_mentions_alignednews(value: str) -> bool:
+    lowered = str(value or "").lower()
+    return "alignednews.com" in lowered or "alignednews" in lowered
+
+
+def ensure_drafts_reference_alignednews(drafts: list[dict], why_alignednews: str, deliverable_type: str = "") -> list[dict]:
+    if not drafts:
+        return drafts
+    aligned_line = clean_sentence(why_alignednews)
+    if not aligned_line:
+        return drafts
+    if any(text_mentions_alignednews(item.get("text") or "") for item in drafts if isinstance(item, dict)):
+        return drafts
+
+    normalized: list[dict] = []
+    thread_mode = "thread" in str(deliverable_type or "").lower()
+    inserted = False
+    for idx, item in enumerate(drafts):
+        if not isinstance(item, dict):
+            continue
+        label_value = line(item.get("label"))
+        text_value = clean_draft_text(item.get("text") or "")
+        if idx == 0 and text_value and not inserted:
+            if thread_mode:
+                paragraphs = split_draft_paragraphs(text_value)
+                if paragraphs:
+                    last_block = paragraphs[-1]
+                    if "\n" in last_block:
+                        head, body = last_block.split("\n", 1)
+                        body = clean_sentence(f"{body} {aligned_line}")
+                        paragraphs[-1] = f"{head}\n{body}".strip()
+                    else:
+                        paragraphs.append(aligned_line)
+                    text_value = "\n\n".join(paragraphs).strip()
+                else:
+                    text_value = aligned_line
+            else:
+                text_value = f"{text_value}\n\n{aligned_line}".strip()
+            inserted = True
+        normalized.append({"label": label_value or "Option", "text": text_value})
+    return normalized or drafts
 
 
 def clean_points(values: list[str], limit: int = 6) -> list[str]:
