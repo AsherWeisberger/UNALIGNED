@@ -24,6 +24,7 @@ import errno
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from urllib import request, error
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -105,6 +106,9 @@ def get_api_token() -> str:
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+LOCAL_TZ = ZoneInfo("America/New_York")
 
 
 def save_brief_jobs() -> None:
@@ -208,8 +212,17 @@ def run_brief_job(job_id: str) -> None:
     update_brief_job(job_id, status="running", updated_at=utc_now_iso(), started_at=utc_now_iso(), error="")
     try:
         result = create_brief_doc(payload)
-        calendar_result = maybe_create_calendar_for_job(payload, line(result.get("url")))
         final_result = dict(result)
+        merged_payload = dict(payload)
+        if isinstance(final_result.get("payload"), dict):
+            merged_payload.update(final_result.get("payload") or {})
+        inferred_calendar = infer_calendar_fields_from_payload(merged_payload)
+        if inferred_calendar:
+            merged_payload.update(inferred_calendar)
+            if isinstance(final_result.get("payload"), dict):
+                final_result["payload"] = dict(final_result.get("payload") or {})
+                final_result["payload"].update(inferred_calendar)
+        calendar_result = maybe_create_calendar_for_job(merged_payload, line(result.get("url")))
         if calendar_result:
             final_result["calendar"] = calendar_result
         update_brief_job(
@@ -388,6 +401,117 @@ def load_tasks_service(interactive: bool = True):
 
 def line(value: str | None) -> str:
     return str(value or "").strip()
+
+
+def normalize_calendar_date(value: datetime) -> str:
+    return value.strftime("%Y-%m-%d")
+
+
+def normalize_calendar_time(value: datetime) -> str:
+    return value.strftime("%H:%M")
+
+
+def infer_calendar_mode_from_text(*values: str) -> str:
+    haystack = " ".join(line(value).lower() for value in values if line(value))
+    if re.search(r"\b(interview|meeting|call|zoom|podcast|spaces|livestream|webinar|demo)\b", haystack):
+        return "timed"
+    return "all_day"
+
+
+def parse_human_schedule_text(raw_value: str) -> dict | None:
+    raw = line(raw_value)
+    if not raw:
+        return None
+    text = raw
+    month_pattern = r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)"
+    fragment_match = re.search(
+        rf"((?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+)?{month_pattern}\s+\d{{1,2}}(?:st|nd|rd|th)?(?:\s*,?\s*\d{{4}})?(?:\s+at)?(?:\s+\d{{1,2}}(?::\d{{2}})?\s*(?:AM|PM))?(?:\s+(?:EST|EDT|CST|CDT|MST|MDT|PST|PDT|PT|ET|CT|MT))?",
+        text,
+        flags=re.I,
+    )
+    if fragment_match:
+        text = fragment_match.group(0)
+    text = re.sub(r"(?<=\d)(st|nd|rd|th)\b", "", text, flags=re.I)
+    text = re.sub(r"\b(EST|EDT|CST|CDT|MST|MDT|PST|PDT|PT|ET|CT|MT)\b", lambda m: {
+        "EST": "-0500",
+        "EDT": "-0400",
+        "CST": "-0600",
+        "CDT": "-0500",
+        "MST": "-0700",
+        "MDT": "-0600",
+        "PST": "-0800",
+        "PDT": "-0700",
+        "PT": "-0700",
+        "ET": "-0400",
+        "CT": "-0500",
+        "MT": "-0600",
+    }.get(m.group(1).upper(), m.group(0)), text)
+    text = re.sub(r"\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b,?\s*", "", text, flags=re.I)
+    text = re.sub(r"\b(?:on|at)\b", " ", text, flags=re.I)
+    text = re.sub(r"\s+", " ", text.replace(",", " ")).strip()
+    current_year = datetime.now(LOCAL_TZ).year
+    formats = [
+        ("%B %d %Y %I:%M %p %z", True),
+        ("%b %d %Y %I:%M %p %z", True),
+        ("%B %d %Y %H:%M %z", True),
+        ("%b %d %Y %H:%M %z", True),
+        ("%B %d %I:%M %p %z", True),
+        ("%b %d %I:%M %p %z", True),
+        ("%B %d %H:%M %z", True),
+        ("%b %d %H:%M %z", True),
+        ("%B %d %Y %I:%M %p", True),
+        ("%b %d %Y %I:%M %p", True),
+        ("%B %d %Y %H:%M", True),
+        ("%b %d %Y %H:%M", True),
+        ("%B %d %I:%M %p", True),
+        ("%b %d %I:%M %p", True),
+        ("%B %d %Y", False),
+        ("%b %d %Y", False),
+        ("%B %d", False),
+        ("%b %d", False),
+    ]
+    candidates = [text]
+    if not re.search(r"\b20\d{2}\b", text):
+        candidates.insert(0, re.sub(r"^([A-Za-z]+ \d+)", rf"\1 {current_year}", text))
+    for candidate in candidates:
+        for fmt, has_time in formats:
+            try:
+                parsed = datetime.strptime(candidate, fmt)
+                if parsed.tzinfo is None:
+                    parsed = parsed.replace(tzinfo=LOCAL_TZ)
+                else:
+                    parsed = parsed.astimezone(LOCAL_TZ)
+                end = parsed + timedelta(minutes=30)
+                payload = {
+                    "calendar_date": normalize_calendar_date(parsed),
+                    "calendar_mode": "timed" if has_time else "all_day",
+                }
+                if has_time:
+                    payload["calendar_start"] = normalize_calendar_time(parsed)
+                    payload["calendar_end"] = normalize_calendar_time(end)
+                return payload
+            except ValueError:
+                continue
+    return None
+
+
+def infer_calendar_fields_from_payload(payload: dict) -> dict:
+    if line(payload.get("calendar_date")):
+        return {}
+    hints = [
+        line(payload.get("email_context")),
+        line(payload.get("go_live")),
+        line(payload.get("go_live_note")),
+        line(payload.get("title")),
+        line(payload.get("announcement")),
+    ]
+    for hint in hints:
+        parsed = parse_human_schedule_text(hint)
+        if parsed:
+            if not line(parsed.get("calendar_mode")):
+                parsed["calendar_mode"] = infer_calendar_mode_from_text(*hints)
+            return parsed
+    return {}
 
 
 def slug_filename(value: str) -> str:
