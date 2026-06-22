@@ -3454,7 +3454,8 @@ a { color: inherit; }
   letter-spacing: 0.1em;
 }
 .brief-maker-snake-rail {
-  --snake-progress: 0;
+  --snake-step-count: 5;
+  --snake-step-index: 0;
   position: relative;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -3464,8 +3465,8 @@ a { color: inherit; }
 }
 .brief-maker-snake-line {
   position: absolute;
-  left: 18px;
-  right: 18px;
+  left: calc(50% / var(--snake-step-count));
+  right: calc(50% / var(--snake-step-count));
   top: 19px;
   height: 4px;
   border-radius: 999px;
@@ -3476,7 +3477,7 @@ a { color: inherit; }
   content: "";
   position: absolute;
   inset: 0;
-  width: calc(var(--snake-progress) * 100%);
+  width: calc((var(--snake-step-index) / (var(--snake-step-count) - 1)) * 100%);
   border-radius: inherit;
   background: linear-gradient(90deg, #77a3ff, #4f7ceb);
   box-shadow: 0 0 0 1px rgba(79, 124, 235, 0.08), 0 0 14px rgba(79, 124, 235, 0.22);
@@ -3484,7 +3485,7 @@ a { color: inherit; }
 .brief-maker-snake-head {
   position: absolute;
   top: 11px;
-  left: calc(18px + (100% - 36px) * var(--snake-progress));
+  left: calc((100% / var(--snake-step-count)) * (var(--snake-step-index) + 0.5));
   width: 20px;
   height: 20px;
   margin-left: -10px;

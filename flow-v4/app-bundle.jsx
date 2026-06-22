@@ -8358,9 +8358,16 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
   const [calendarStatus, setCalendarStatus] = React.useState('idle');
   const [calendarError, setCalendarError] = React.useState('');
   const [calendarResult, setCalendarResult] = React.useState(null);
+  const briefDebugStage = React.useMemo(() => {
+    try {
+      const current = new URL(String(window.location?.href || ''));
+      return String(current.searchParams.get('debugBriefStage') || '').trim();
+    } catch (err) {
+      return '';
+    }
+  }, []);
   const briefConfig = React.useMemo(() => V4BriefMakerConfig(briefForm), [briefForm]);
   const briefJson = React.useMemo(() => JSON.stringify(briefConfig, null, 2), [briefConfig]);
-  const briefLoadingActive = (notionStatus === 'importing' || docStatus === 'creating') && notionStatus !== 'error' && docStatus !== 'error';
   const briefWorkflowSteps = React.useMemo(() => [
     { key: 'reading_source', label: 'Source' },
     { key: 'extracting_facts', label: 'Facts' },
@@ -8368,32 +8375,45 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     { key: 'creating_doc', label: 'Doc' },
     { key: 'creating_calendar', label: 'Calendar' },
   ], []);
+  const effectiveBriefJobStatus = briefDebugStage ? 'running' : briefJobStatus;
+  const effectiveBriefJobStage = briefDebugStage || briefJobStage;
+  const effectiveBriefJobStageDetail = React.useMemo(() => {
+    if (!briefDebugStage) return briefJobStageDetail;
+    const labels = {
+      reading_source: 'Reading source brief',
+      extracting_facts: 'Extracting campaign facts',
+      writing_drafts: 'Writing draft options',
+      creating_doc: 'Creating Google Doc',
+      creating_calendar: 'Creating calendar item',
+    };
+    return labels[briefDebugStage] || 'Running brief build';
+  }, [briefDebugStage, briefJobStageDetail]);
+  const effectiveNotionStatus = briefDebugStage ? 'importing' : notionStatus;
+  const effectiveDocStatus = briefDebugStage ? 'creating' : docStatus;
+  const briefLoadingActive = (effectiveNotionStatus === 'importing' || effectiveDocStatus === 'creating') && effectiveNotionStatus !== 'error' && effectiveDocStatus !== 'error';
   const briefWorkflowIndex = React.useMemo(() => {
-    if (briefJobStatus === 'queued') return 0;
-    if (briefJobStage === 'reading_source') return 0;
-    if (briefJobStage === 'extracting_facts') return 1;
-    if (briefJobStage === 'writing_drafts') return 2;
-    if (briefJobStage === 'creating_doc' || briefJobStage === 'writing_doc' || briefJobStage === 'building_doc') return 3;
-    if (briefJobStage === 'inferring_calendar' || briefJobStage === 'creating_calendar') return 4;
-    if (briefJobStage === 'done') return briefWorkflowSteps.length - 1;
+    if (effectiveBriefJobStatus === 'queued') return 0;
+    if (effectiveBriefJobStage === 'reading_source') return 0;
+    if (effectiveBriefJobStage === 'extracting_facts') return 1;
+    if (effectiveBriefJobStage === 'writing_drafts') return 2;
+    if (effectiveBriefJobStage === 'creating_doc' || effectiveBriefJobStage === 'writing_doc' || effectiveBriefJobStage === 'building_doc') return 3;
+    if (effectiveBriefJobStage === 'inferring_calendar' || effectiveBriefJobStage === 'creating_calendar') return 4;
+    if (effectiveBriefJobStage === 'done') return briefWorkflowSteps.length - 1;
     return 0;
-  }, [briefJobStage, briefJobStatus, briefWorkflowSteps.length]);
-  const briefSnakeProgress = briefWorkflowSteps.length
-    ? (briefWorkflowIndex + 0.5) / briefWorkflowSteps.length
-    : 0;
+  }, [effectiveBriefJobStage, effectiveBriefJobStatus, briefWorkflowSteps.length]);
   const briefProgressNote = React.useMemo(() => {
-    if (briefJobStatus === 'queued') return 'Saved to your brief machine. Build is queued now.';
-    if (briefJobStageDetail) return briefJobStageDetail;
-    if (briefJobStage === 'reading_source') return 'Reading source brief';
-    if (briefJobStage === 'extracting_facts') return 'Extracting campaign facts';
-    if (briefJobStage === 'writing_drafts') return 'Writing draft options';
-    if (briefJobStage === 'creating_doc') return "Creating Robert's Google Doc";
-    if (briefJobStage === 'writing_doc') return 'Writing Google Doc content';
-    if (briefJobStage === 'inferring_calendar') return 'Reading posting date';
-    if (briefJobStage === 'creating_calendar') return 'Creating calendar item';
-    if (briefJobStatus === 'running') return 'Job running on your Mac. You can leave this screen and come back.';
+    if (effectiveBriefJobStatus === 'queued') return 'Saved to your brief machine. Build is queued now.';
+    if (effectiveBriefJobStageDetail) return effectiveBriefJobStageDetail;
+    if (effectiveBriefJobStage === 'reading_source') return 'Reading source brief';
+    if (effectiveBriefJobStage === 'extracting_facts') return 'Extracting campaign facts';
+    if (effectiveBriefJobStage === 'writing_drafts') return 'Writing draft options';
+    if (effectiveBriefJobStage === 'creating_doc') return "Creating Robert's Google Doc";
+    if (effectiveBriefJobStage === 'writing_doc') return 'Writing Google Doc content';
+    if (effectiveBriefJobStage === 'inferring_calendar') return 'Reading posting date';
+    if (effectiveBriefJobStage === 'creating_calendar') return 'Creating calendar item';
+    if (effectiveBriefJobStatus === 'running') return 'Job running on your Mac. You can leave this screen and come back.';
     return "Reading the link and building Robert's Google Doc in the background...";
-  }, [briefJobStage, briefJobStageDetail, briefJobStatus]);
+  }, [effectiveBriefJobStage, effectiveBriefJobStageDetail, effectiveBriefJobStatus]);
 
   React.useEffect(() => {
     try {
@@ -8416,6 +8436,12 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
       }
     } catch (err) {}
   }, []);
+
+  React.useEffect(() => {
+    if (briefDebugStage) {
+      setBriefMakerOpen(true);
+    }
+  }, [briefDebugStage]);
 
   const loadRobertHandoffPreview = async () => {
     setHandoffPreviewStatus('loading');
@@ -9041,22 +9067,22 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
               </div>
               <aside className="brief-maker-preview">
                 <div className="brief-maker-server-status">
-                  {notionStatus === 'idle' && docStatus === 'idle' && (
+                  {effectiveNotionStatus === 'idle' && effectiveDocStatus === 'idle' && (
                     <div className="brief-maker-empty-state">
                       <strong>Ready</strong>
                       <span>Paste the link above, then press Go.</span>
                     </div>
                   )}
-                  {notionStatus === 'error' && (
+                  {effectiveNotionStatus === 'error' && (
                     <span className="brief-maker-server-error">{notionError}</span>
                   )}
                   {briefLoadingActive && (
                     <div className="brief-maker-loading-card">
                       <div className="brief-maker-loading-top">
                         <strong>Brief machine</strong>
-                        <span>{briefJobStatus === 'queued' ? 'Queued' : 'Running'}</span>
+                        <span>{effectiveBriefJobStatus === 'queued' ? 'Queued' : 'Running'}</span>
                       </div>
-                      <div className="brief-maker-snake-rail" style={{ '--snake-progress': briefSnakeProgress }}>
+                      <div className="brief-maker-snake-rail" style={{ '--snake-step-count': briefWorkflowSteps.length, '--snake-step-index': briefWorkflowIndex }}>
                         <div className="brief-maker-snake-line" />
                         <div className="brief-maker-snake-head" />
                         {briefWorkflowSteps.map((step, idx) => (
@@ -9076,10 +9102,10 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                       <span className="brief-maker-server-note">{briefProgressNote}</span>
                     </div>
                   )}
-                  {docStatus === 'error' && (
+                  {effectiveDocStatus === 'error' && (
                     <span className="brief-maker-server-error">{docError}</span>
                   )}
-                  {docStatus === 'done' && docResult && (
+                  {effectiveDocStatus === 'done' && docResult && (
                     <div className="brief-maker-result-card">
                       <span className="brief-maker-server-ok">Succeeded. Robert's Google Doc is ready.</span>
                       <div className="brief-maker-field-grid">
