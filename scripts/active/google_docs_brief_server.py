@@ -17,11 +17,14 @@ import os
 import re
 import subprocess
 import sys
+import threading
+import traceback
+import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from urllib import request, error
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 import google.auth.transport.requests
 from google.oauth2.credentials import Credentials
@@ -37,6 +40,7 @@ CLIENT_SECRET_FILE = STATE_DIR / "client_secret.json"
 TOKEN_FILE = STATE_DIR / "google-docs-brief-token.json"
 API_TOKEN_FILE = STATE_DIR / "brief_api_token.txt"
 ROBERT_HANDOFF_PREVIEW_FILE = STATE_DIR / "robert_handoff_operator_preview.json"
+BRIEF_JOBS_FILE = STATE_DIR / "brief_builder_jobs.json"
 NOTION_EXTRACTOR = Path("/Users/asherweisberger/Desktop/UNALIGNED/MASTER FILES/scripts/active/extract_notion_brief.mjs")
 WEB_ROOT = Path("/Users/asherweisberger/Desktop/UNALIGNED/MASTER FILES")
 SCOPES = [
@@ -46,13 +50,14 @@ SCOPES = [
     "https://www.googleapis.com/auth/tasks",
 ]
 OPENCODE_CONFIG_FILE = Path.home() / ".config" / "opencode" / "opencode.json"
+HERMES_ENV_FILE = Path.home() / ".hermes" / ".env"
 DEFAULT_LLM_TARGETS = [
-    {"base_url": "http://127.0.0.1:8000/v1", "model": "qwen3.5-9b-4bit", "label": "Rapid-MLX Qwen 3.5 9B"},
-    {"base_url": "http://127.0.0.1:11434/v1", "model": "hermes-fast:latest", "label": "Ollama Hermes Fast"},
+    {"base_url": "http://127.0.0.1:8642/v1", "model": "qwen3.6:35b-a3b", "label": "Hermes API Qwen 3.6 35B", "auth": "hermes"},
+    {"base_url": "http://127.0.0.1:11434/v1", "model": "qwen3.6:35b-a3b", "label": "Ollama Qwen 3.6 35B"},
 ]
 PREFERRED_LOCAL_MODELS = [
-    ("http://127.0.0.1:8000/v1", "qwen3.5-9b-4bit"),
-    ("http://127.0.0.1:11434/v1", "hermes-fast:latest"),
+    ("http://127.0.0.1:8642/v1", "qwen3.6:35b-a3b"),
+    ("http://127.0.0.1:11434/v1", "qwen3.6:35b-a3b"),
 ]
 ALLOWED_ORIGINS = {
     "https://asherweisberger.github.io",
@@ -63,7 +68,7 @@ ALLOWED_ORIGINS = {
     "http://localhost:4173",
 }
 
-LOCAL_BRIEF_LLM_ENABLED = str(os.environ.get("LOCAL_BRIEF_LLM_ENABLED") or "0").strip().lower() in {"1", "true", "yes", "on"}
+LOCAL_BRIEF_LLM_ENABLED = str(os.environ.get("LOCAL_BRIEF_LLM_ENABLED") or "1").strip().lower() in {"1", "true", "yes", "on"}
 
 mimetypes.add_type("text/jsx", ".jsx")
 mimetypes.add_type("application/javascript", ".js")
@@ -83,6 +88,11 @@ from robert_handoff_operator import (  # type: ignore
 )
 
 
+BRIEF_JOBS_LOCK = threading.Lock()
+BRIEF_JOBS: dict[str, dict] = {}
+BRIEF_JOB_HISTORY_LIMIT = 40
+
+
 def get_api_token() -> str:
     token = line(os.environ.get("BRIEF_API_TOKEN"))
     if token:
@@ -90,6 +100,142 @@ def get_api_token() -> str:
     if API_TOKEN_FILE.exists():
         return line(API_TOKEN_FILE.read_text(encoding="utf-8"))
     return ""
+
+
+def utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def save_brief_jobs() -> None:
+    with BRIEF_JOBS_LOCK:
+        ordered = sorted(
+            BRIEF_JOBS.values(),
+            key=lambda item: line(item.get("created_at")),
+            reverse=True,
+        )[:BRIEF_JOB_HISTORY_LIMIT]
+        BRIEF_JOBS_FILE.write_text(json.dumps({"jobs": ordered}, indent=2), encoding="utf-8")
+
+
+def load_brief_jobs() -> None:
+    if not BRIEF_JOBS_FILE.exists():
+        return
+    try:
+        payload = json.loads(BRIEF_JOBS_FILE.read_text(encoding="utf-8") or "{}")
+        jobs = payload.get("jobs") or []
+        with BRIEF_JOBS_LOCK:
+            BRIEF_JOBS.clear()
+            for item in jobs:
+                if isinstance(item, dict) and line(item.get("id")):
+                    BRIEF_JOBS[line(item.get("id"))] = item
+    except Exception:
+        pass
+
+
+def brief_job_public(job: dict | None) -> dict:
+    item = dict(job or {})
+    item.pop("request_payload", None)
+    return item
+
+
+def list_brief_jobs(limit: int = 12) -> dict:
+    with BRIEF_JOBS_LOCK:
+        ordered = sorted(
+            (brief_job_public(item) for item in BRIEF_JOBS.values()),
+            key=lambda item: line(item.get("created_at")),
+            reverse=True,
+        )[:max(1, min(limit, BRIEF_JOB_HISTORY_LIMIT))]
+    return {"ok": True, "jobs": ordered}
+
+
+def get_brief_job(job_id: str) -> dict:
+    key = line(job_id)
+    with BRIEF_JOBS_LOCK:
+        job = BRIEF_JOBS.get(key)
+    if not job:
+        raise ValueError("Brief job not found.")
+    return {"ok": True, "job": brief_job_public(job)}
+
+
+def update_brief_job(job_id: str, **changes) -> None:
+    with BRIEF_JOBS_LOCK:
+        job = BRIEF_JOBS.get(job_id) or {}
+        job.update(changes)
+        BRIEF_JOBS[job_id] = job
+    save_brief_jobs()
+
+
+def build_brief_job(payload: dict) -> dict:
+    job_id = uuid.uuid4().hex[:12]
+    source_url = line(payload.get("source_url") or payload.get("notion_url"))
+    job = {
+        "id": job_id,
+        "status": "queued",
+        "created_at": utc_now_iso(),
+        "updated_at": utc_now_iso(),
+        "source_url": source_url,
+        "title": line(payload.get("title")),
+        "request_payload": payload,
+        "result": None,
+        "error": "",
+    }
+    with BRIEF_JOBS_LOCK:
+        BRIEF_JOBS[job_id] = job
+    save_brief_jobs()
+    return job
+
+
+def maybe_create_calendar_for_job(payload: dict, doc_url: str) -> dict | None:
+    calendar_title = line(payload.get("calendar_title")) or line(payload.get("title"))
+    if not calendar_title:
+        return None
+    if not line(payload.get("calendar_date")):
+        return None
+    if calendar_mode(payload) == "timed" and not line(payload.get("calendar_start")):
+        return None
+    working_payload = dict(payload)
+    working_payload["calendar_title"] = calendar_title
+    working_payload["doc_url"] = doc_url
+    return create_calendar_hold(working_payload)
+
+
+def run_brief_job(job_id: str) -> None:
+    with BRIEF_JOBS_LOCK:
+        job = BRIEF_JOBS.get(job_id)
+    if not job:
+        return
+    payload = dict(job.get("request_payload") or {})
+    update_brief_job(job_id, status="running", updated_at=utc_now_iso(), started_at=utc_now_iso(), error="")
+    try:
+        result = create_brief_doc(payload)
+        calendar_result = maybe_create_calendar_for_job(payload, line(result.get("url")))
+        final_result = dict(result)
+        if calendar_result:
+            final_result["calendar"] = calendar_result
+        update_brief_job(
+            job_id,
+            status="done",
+            updated_at=utc_now_iso(),
+            finished_at=utc_now_iso(),
+            result=final_result,
+            title=line(final_result.get("title")) or line(job.get("title")),
+            error="",
+        )
+    except Exception as exc:
+        update_brief_job(
+            job_id,
+            status="error",
+            updated_at=utc_now_iso(),
+            finished_at=utc_now_iso(),
+            error=str(exc),
+            error_trace=traceback.format_exc(limit=8),
+        )
+
+
+def start_brief_job(payload: dict) -> dict:
+    job = build_brief_job(payload)
+    worker = threading.Thread(target=run_brief_job, args=(job["id"],), daemon=True)
+    worker.start()
+    return {"ok": True, "job": brief_job_public(job)}
 
 
 def allowed_origin(origin: str | None) -> str:
@@ -312,6 +458,50 @@ def fetch_json(url: str, timeout: int = 15) -> dict:
         return json.loads(body or "{}")
 
 
+def load_hermes_api_key() -> str:
+    env_key = line(os.environ.get("API_SERVER_KEY"))
+    if env_key:
+        return env_key
+    if HERMES_ENV_FILE.exists():
+        try:
+            for raw_line in HERMES_ENV_FILE.read_text(encoding="utf-8").splitlines():
+                current = raw_line.strip()
+                if current.startswith("API_SERVER_KEY="):
+                    return line(current.split("=", 1)[1])
+        except Exception:
+            return ""
+    return ""
+
+
+def json_headers(extra: dict[str, str] | None = None) -> dict[str, str]:
+    headers = {"Content-Type": "application/json"}
+    if extra:
+        headers.update(extra)
+    return headers
+
+
+def hermes_auth_headers() -> dict[str, str]:
+    key = load_hermes_api_key()
+    if not key:
+        return {}
+    return {"Authorization": f"Bearer {key}"}
+
+
+def post_json_with_headers(url: str, payload: dict, headers: dict[str, str] | None = None, timeout: int = 120) -> dict:
+    data = json.dumps(payload).encode("utf-8")
+    req = request.Request(url, data=data, headers=json_headers(headers), method="POST")
+    with request.urlopen(req, timeout=timeout) as response:
+        body = response.read().decode("utf-8")
+        return json.loads(body or "{}")
+
+
+def fetch_json_with_headers(url: str, headers: dict[str, str] | None = None, timeout: int = 15) -> dict:
+    req = request.Request(url, headers=json_headers(headers), method="GET")
+    with request.urlopen(req, timeout=timeout) as response:
+        body = response.read().decode("utf-8")
+        return json.loads(body or "{}")
+
+
 def extract_json_block(text: str) -> dict:
     raw = line(text)
     if not raw:
@@ -330,8 +520,10 @@ def extract_json_block(text: str) -> dict:
 def load_local_llm_targets() -> list[dict]:
     targets: list[dict] = []
     seen: set[tuple[str, str]] = set()
+    hermes_base = "http://127.0.0.1:8642/v1"
 
     def add_target(base_url: str, model_id: str, label: str) -> None:
+        extra_headers = hermes_auth_headers() if "127.0.0.1:8642" in line(base_url) else {}
         normalized_base = line(base_url).rstrip("/")
         normalized_model = line(model_id)
         if not normalized_base or not normalized_model:
@@ -340,12 +532,16 @@ def load_local_llm_targets() -> list[dict]:
         if key in seen:
             return
         seen.add(key)
-        targets.append({"base_url": normalized_base, "model": normalized_model, "label": label})
+        target = {"base_url": normalized_base, "model": normalized_model, "label": label}
+        if extra_headers:
+            target["headers"] = extra_headers
+        targets.append(target)
 
     available_by_base: dict[str, set[str]] = {}
     for base_url, _ in PREFERRED_LOCAL_MODELS:
         try:
-            models_payload = fetch_json(f"{base_url.rstrip('/')}/models", timeout=8)
+            headers = hermes_auth_headers() if "127.0.0.1:8642" in line(base_url) else None
+            models_payload = fetch_json_with_headers(f"{base_url.rstrip('/')}/models", headers=headers, timeout=8)
             model_ids = {
                 line(item.get("id"))
                 for item in (models_payload.get("data") or [])
@@ -359,32 +555,24 @@ def load_local_llm_targets() -> list[dict]:
     for base_url, model_id in PREFERRED_LOCAL_MODELS:
         normalized_base = base_url.rstrip("/")
         available_models = available_by_base.get(normalized_base)
+        if normalized_base == hermes_base:
+            add_target(normalized_base, model_id, "Hermes API Qwen 3.6 35B")
+            continue
         if available_models and model_id in available_models:
-            label = "Rapid-MLX Qwen 3.5 9B" if "8000" in normalized_base else f"Ollama {model_id}"
+            if "8642" in normalized_base:
+                label = "Hermes Qwen Blank Slate"
+            elif "11434" in normalized_base:
+                label = f"Ollama {model_id}"
+            else:
+                label = model_id
             add_target(normalized_base, model_id, label)
 
-    if OPENCODE_CONFIG_FILE.exists():
-        try:
-            config = json.loads(OPENCODE_CONFIG_FILE.read_text(encoding="utf-8") or "{}")
-            providers = config.get("provider") or {}
-            rapid = providers.get("rapidmlx") or {}
-            ollama = providers.get("ollama") or {}
-            rapid_base = line((rapid.get("options") or {}).get("baseURL"))
-            ollama_base = line((ollama.get("options") or {}).get("baseURL"))
-            rapid_available = available_by_base.get(rapid_base.rstrip("/")) if rapid_base else None
-            ollama_available = available_by_base.get(ollama_base.rstrip("/")) if ollama_base else None
-            if rapid_base and rapid_available:
-                for model_id in (rapid.get("models") or {}).keys():
-                    if model_id in rapid_available:
-                        add_target(rapid_base, model_id, f"Rapid-MLX {model_id}")
-            if ollama_base and ollama_available:
-                for model_id in (ollama.get("models") or {}).keys():
-                    if model_id in ollama_available:
-                        add_target(ollama_base, model_id, f"Ollama {model_id}")
-        except Exception:
-            pass
     for default in DEFAULT_LLM_TARGETS:
-        available_models = available_by_base.get(default["base_url"].rstrip("/"))
+        normalized_base = default["base_url"].rstrip("/")
+        if normalized_base == hermes_base:
+            add_target(default["base_url"], default["model"], default["label"])
+            continue
+        available_models = available_by_base.get(normalized_base)
         if available_models and default["model"] in available_models:
             add_target(default["base_url"], default["model"], default["label"])
     return targets
@@ -436,6 +624,11 @@ Return exactly this JSON:
 
 House rules:
 - Match locked client accuracy language word for word.
+- Every draft must be fully written. No empty drafts. No placeholders.
+- If the deliverable is a dedicated thread, each draft must include Main post, Reply 1, and Reply 2.
+- Do not paste source headings as content.
+- Use the product's real hooks, proof points, named moments, facts, audience framing, and terminology from the source.
+- Do not use generic filler like "AI employee angle" unless the source explicitly centers that concept.
 - Drafts should end with CTA and required tags when present.
 
 Source title:
@@ -462,6 +655,7 @@ def query_local_brief_model(source: dict) -> dict | None:
         if not base_url or not model:
             continue
         try:
+            request_timeout = 55 if "127.0.0.1:8642" in base_url else 35
             payload = {
                 "model": model,
                 "messages": [
@@ -469,9 +663,9 @@ def query_local_brief_model(source: dict) -> dict | None:
                     {"role": "user", "content": prompt},
                 ],
                 "temperature": 0.1,
-                "max_tokens": 900,
+                "max_tokens": 650,
             }
-            data = post_json(f"{base_url}/chat/completions", payload, timeout=35)
+            data = post_json_with_headers(f"{base_url}/chat/completions", payload, headers=target.get("headers"), timeout=request_timeout)
             content = (((data.get("choices") or [{}])[0]).get("message") or {}).get("content", "")
             parsed = extract_json_block(content)
             if isinstance(parsed, dict):
@@ -489,6 +683,7 @@ def merge_brief_payload(base: dict, llm_payload: dict | None) -> dict:
     if not llm_payload:
         return base
     merged = dict(base)
+    joined_lines = str(base.get("source_text") or "")
     scalar_fields = (
         "title",
         "company_name",
@@ -506,10 +701,22 @@ def merge_brief_payload(base: dict, llm_payload: dict | None) -> dict:
         value = line(llm_payload.get(field))
         if value:
             merged[field] = value
-    for field in ("angles_or_accuracy_requirements", "status_note", "drafts", "where_it_lives"):
+    for field in ("angles_or_accuracy_requirements", "status_note", "where_it_lives"):
         value = llm_payload.get(field)
         if value:
             merged[field] = value
+    draft_values = llm_payload.get("drafts") or []
+    valid_drafts = []
+    for item in draft_values:
+        if not isinstance(item, dict):
+            continue
+        label_value = line(item.get("label"))
+        text_value = clean_draft_text(item.get("text") or "")
+        if not text_value or draft_text_is_lazy(text_value, joined_lines):
+            continue
+        valid_drafts.append({"label": label_value, "text": text_value})
+    if valid_drafts:
+        merged["drafts"] = valid_drafts
     must_include = dict(base.get("must_include") or {})
     llm_must_include = llm_payload.get("must_include") or {}
     for field in ("tag", "link", "hashtags"):
@@ -619,6 +826,211 @@ def parse_thread_sections(lines: list[str]) -> list[dict]:
     return [section for section in sections if section.get("body")]
 
 
+def collect_heading_section(lines: list[str], patterns: tuple[str, ...], limit: int = 8) -> list[str]:
+    start = None
+    for idx, current in enumerate(lines):
+        text = line(current)
+        if any(re.search(pattern, text, re.I) for pattern in patterns):
+            start = idx + 1
+            break
+    if start is None:
+        return []
+    captured: list[str] = []
+    for current in lines[start:]:
+        text = line(current)
+        if not text:
+            continue
+        if (
+            text.endswith(":")
+            or re.match(r"^(About|Why|The Core Idea|How It Works|Important Logistics|Where it Lives|Status Note|Draft Options|Post to publish)\b", text, re.I)
+            or re.match(r"^T\d+\s*[·-]", text)
+        ):
+            break
+        captured.append(text)
+        if len(captured) >= limit:
+            break
+    return captured
+
+
+def source_mentions(joined_lines: str, *phrases: str) -> bool:
+    lowered = joined_lines.lower()
+    return any(phrase.lower() in lowered for phrase in phrases)
+
+
+def sentence_parts(value: str) -> list[str]:
+    current = clean_sentence(value)
+    return [line(part) for part in re.split(r"(?<=[.!?])\s+", current) if line(part)]
+
+
+def first_nonempty(*values: str) -> str:
+    for value in values:
+        current = line(value)
+        if current:
+            return current
+    return ""
+
+
+def clean_draft_text(value: str) -> str:
+    text = str(value or "").strip()
+    text = re.sub(r"\bReply tweet:\s*\.*\s*$", "", text, flags=re.I).strip()
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def draft_text_is_lazy(value: str, joined_lines: str) -> bool:
+    text = clean_draft_text(value)
+    if not text:
+        return True
+    lowered = text.lower()
+    if lowered in {
+        "core idea.",
+        "how it works.",
+        "how it works / the announcement.",
+        "reply tweet:.",
+    }:
+        return True
+    banned = (
+        "most ai tools still wait for a prompt",
+        "the line i keep watching is the one between assistant and employee",
+        "operator angle",
+        "ai employee angle",
+    )
+    if any(item in lowered for item in banned) and not source_mentions(joined_lines, "ai employee", "assistant and employee"):
+        return True
+    if "reply tweet:." in lowered:
+        return True
+    return False
+
+
+def build_thread_draft(main_post: str, replies: list[str]) -> str:
+    parts: list[str] = []
+    if line(main_post):
+        parts.append(f"Main post:\n{clean_sentence(main_post)}")
+    for idx, reply in enumerate(replies, start=1):
+        current = clean_sentence(reply)
+        if not current:
+            continue
+        parts.append(f"Reply {idx}:\n{current}")
+    return "\n\n".join(parts).strip()
+
+
+def is_structural_heading(value: str) -> bool:
+    text = line(value)
+    if not text:
+        return False
+    patterns = (
+        r"^Project Overview$",
+        r"^About\b",
+        r"^Why Would People Care\b",
+        r"^Why People Care\b",
+        r"^Why it matters\b",
+        r"^The Core Idea$",
+        r"^Core Idea$",
+        r"^How It Works$",
+        r"^How it Works$",
+        r"^How It Works / The Announcement$",
+        r"^Important Logistics$",
+        r"^Where it Lives$",
+        r"^Status Note$",
+        r"^Draft Options$",
+        r"^Post to publish",
+    )
+    return any(re.search(pattern, text, re.I) for pattern in patterns)
+
+
+def normalize_source_line(value: str, company: str = "") -> str:
+    text = line(value)
+    if not text:
+        return ""
+    text = re.sub(r"^[•●▪◦]+\s*", "", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    if is_structural_heading(text):
+        return ""
+    if company and re.fullmatch(rf"About\s+{re.escape(company)}\.?", text, re.I):
+        return ""
+    if re.fullmatch(r"[^\w]+", text):
+        return ""
+    return text
+
+
+def clean_content_value(value: str, company: str = "") -> str:
+    text = normalize_source_line(value, company=company)
+    if not text:
+        return ""
+    text = re.sub(r"^(About\s+[A-Za-z0-9 .&+]+)\.?\s*$", "", text, flags=re.I).strip()
+    if company:
+        text = re.sub(rf"^({re.escape(company)})\s+\1\b", r"\1", text, flags=re.I)
+    if is_structural_heading(text):
+        return ""
+    return text
+
+
+def contains_url(value: str) -> bool:
+    return bool(re.search(r"https?://|www\.", str(value or ""), re.I))
+
+
+def is_low_signal_content(value: str, company: str = "") -> bool:
+    text = clean_content_value(value, company=company)
+    if not text:
+        return True
+    lowered = text.lower()
+    if contains_url(text):
+        return True
+    if lowered.startswith(("ios:", "ios：", "android:", "android：", "website:", "assets:", "company x:", "founder x:")):
+        return True
+    if re.fullmatch(r".{0,60}:\.?", text):
+        return True
+    if text.endswith(":"):
+        return True
+    if len(re.findall(r"[A-Za-z]", text)) < 18:
+        return True
+    return False
+
+
+def best_content_lines(values: list[str], company: str = "", limit: int = 3) -> list[str]:
+    output: list[str] = []
+    for raw in values:
+        current = clean_content_value(raw, company=company)
+        if not current or is_low_signal_content(current, company=company):
+            continue
+        output.append(current)
+        if len(output) >= limit:
+            break
+    return output
+
+
+def infer_alignednews_line(company: str, joined_lines: str, deliverable_type: str, announcement_text: str) -> str:
+    lowered = str(joined_lines or "").lower()
+    company_name = line(company) or "this"
+    if any(term in lowered for term in ("user-generated agents", "user generated agents", "(uga)", "survival benchmark", "juno", "reality permeability", "multi-agent reinforcement", "rlhf")):
+        return "This is exactly the kind of frontier AI shift I track at AlignedNews.com"
+    if any(term in lowered for term in ("infrastructure", "compute", "inference", "benchmark", "developer", "api", "model", "agents")):
+        return f"This is the kind of infrastructure story I like tying back to the bigger AI stack at AlignedNews.com"
+    if any(term in lowered for term in ("enterprise", "workflow", "teams", "operator", "productivity", "sales", "support", "copilot")):
+        return f"This is the kind of enterprise AI rollout I like framing through real operating change at AlignedNews.com"
+    if any(term in lowered for term in ("interview", "podcast", "event", "summit", "fireside", "conversation", "meeting")):
+        return f"This fits the kinds of conversations and signal I like bringing into AlignedNews.com"
+    if any(term in lowered for term in ("launch", "series a", "series b", "funding", "announcement", "now live", "public app")):
+        return f"This is the kind of launch I like using to show where the market is moving on AlignedNews.com"
+    if "thread" in str(deliverable_type or "").lower():
+        return f"This is the kind of AI shift I like unpacking in public on AlignedNews.com"
+    if line(announcement_text):
+        return f"This fits the broader AI story I cover at AlignedNews.com"
+    return f"This is the kind of shift I track at AlignedNews.com"
+
+
+def joined_clean_lines(values: list[str], company: str = "", limit: int = 3) -> str:
+    output: list[str] = []
+    for raw in values:
+        current = clean_content_value(raw, company=company)
+        if not current:
+            continue
+        output.append(current)
+        if len(output) >= limit:
+            break
+    return " ".join(output).strip()
+
+
 def infer_company_name(title: str, lines: list[str]) -> str:
     title = line(title)
     for current in lines:
@@ -686,10 +1098,11 @@ def build_structured_brief_payload(
     company = infer_company_name(title, lines)
     thread_sections = parse_thread_sections(lines)
     filtered_lines = [
-        current for current in lines
+        current for current in (
+            normalize_source_line(item, company=company) for item in lines
+        )
         if current
         and current not in {"Skip to content", "Get Notion free", "✍️", "🧵", "📌", "🧩", "🔗"}
-        and not re.fullmatch(r"[^\w\s]+", current)
         and current != title
     ]
     campaign_line = next((line(item) for item in lines if re.search(r"\bx\b", line(item)) and ("Dedicated post" in item or "quote-repost" in item or "LinkedIn" in item)), "")
@@ -697,19 +1110,27 @@ def build_structured_brief_payload(
     go_live_line = next((line(item) for item in lines if item.startswith("Go-live:")), "")
     guardrails_line = next((line(item) for item in lines if "Guardrails" in item), "")
     reply_line = next((line(item) for item in lines if item.startswith("Reply ")), "")
-    intro_lines = filtered_lines[:12]
+    intro_lines = [
+        current for current in filtered_lines[:20]
+        if not is_structural_heading(current)
+    ]
     summary = " ".join(intro_lines[:4]).strip()
     joined_lines = "\n".join(lines)
     campaign_platform = infer_campaign_platform(" ".join([title, campaign_line, go_live_line, guardrails_line]))
 
+    about_heading = collect_heading_section(filtered_lines, (rf"^About\s+{re.escape(company)}\b", r"^About\b", r"^Project Overview\b"), limit=5)
+    why_people_care = collect_heading_section(filtered_lines, (r"^Why Would People Care\b", r"^Why People Care\b", r"^Why it matters\b"), limit=5)
+    core_heading = collect_heading_section(filtered_lines, (r"^The Core Idea\b", r"^Core Idea\b", r"^Why now\b"), limit=5)
+    how_heading = collect_heading_section(filtered_lines, (r"^How It Works\b", r"^How it Works\b", r"^How It Works / The Announcement\b"), limit=6)
+
     about_line = find_first_matching_line(
         filtered_lines,
         (r"\bwhat (it|they) do\b", r"\babout\b", r"\boverview\b", r"\bcompany\b", r"\bproduct\b"),
-    ) or campaign_line or summary
+    ) or joined_clean_lines(about_heading, company=company, limit=2) or campaign_line or summary
     core_idea = find_first_matching_line(
         filtered_lines,
         (r"\bcore idea\b", r"\bmoat\b", r"\bwhy it matters\b", r"\bwhy now\b", r"\bthesis\b", r"\bai employee\b", r"\bassistant and an employee\b"),
-    ) or next((section["body"][0] for section in thread_sections if section["label"].startswith("T2")), "") or summary
+    ) or joined_clean_lines((why_people_care[:2] or core_heading[:2]), company=company, limit=2) or next((section["body"][0] for section in thread_sections if section["label"].startswith("T2")), "") or summary
     how_it_works_parts = collect_lines_after_marker(
         lines,
         r"^T2\s*[·-]",
@@ -721,8 +1142,12 @@ def build_structured_brief_payload(
         (r"^T\d+\s*[·-]", r"^Reply ", r"^📥", r"^🔗"),
         limit=5,
     )
-    how_it_works_parts = [item for item in how_it_works_parts if not item.startswith("Asset:")]
-    how_it_works = " ".join(how_it_works_parts[:3]).strip() or find_first_matching_line(
+    how_it_works_parts = [
+        item for item in how_it_works_parts
+        if not item.startswith("Asset:")
+        and not re.match(r"^(Go-live:|Creator:|Reply(?:\s*\(.*?\))?:)", item, re.I)
+    ]
+    how_it_works = joined_clean_lines(how_it_works_parts[:3], company=company, limit=3) or joined_clean_lines(how_heading[:3], company=company, limit=3) or find_first_matching_line(
         filtered_lines,
         (r"\bhow it works\b", r"\bmechanic\b", r"\bworkflow\b", r"\bproduct works\b", r"\bsolution\b"),
     ) or summary
@@ -784,15 +1209,28 @@ def build_structured_brief_payload(
 
     if campaign_line:
         about_line = campaign_line
-    about_company = clean_sentence(about_line or f"{company} is the company behind this campaign")
+    about_line = clean_content_value(about_line, company=company) or joined_clean_lines(about_heading, company=company, limit=2)
+    core_idea = clean_content_value(core_idea, company=company) or joined_clean_lines(why_people_care, company=company, limit=2) or joined_clean_lines(core_heading, company=company, limit=2)
+    how_it_works = clean_content_value(how_it_works, company=company) or joined_clean_lines(how_heading, company=company, limit=3)
+    announcement = clean_content_value(announcement, company=company) or clean_content_value(campaign_line, company=company) or summary
+
+    about_company = clean_sentence(" ".join(sentence_parts(about_line)[:2]) or about_line or f"{company} is the company behind this campaign")
     core_idea_text = clean_sentence(
-        next((section["body"][0] for section in thread_sections if section["label"].startswith("T2")), "")
+        clean_content_value(next((section["body"][0] for section in thread_sections if section["label"].startswith("T2")), ""), company=company)
         or core_idea
         or announcement
         or summary
     )
     how_it_works_text = clean_sentence(how_it_works or summary)
-    announcement_text = clean_sentence(announcement or summary)
+    announcement_seed = (
+        find_first_matching_line(
+            filtered_lines,
+            (r"\blaunch(?:ed)?\b", r"\bpublic app\b", r"\bnow live\b", r"\bavailable now\b", r"\bseries [a-z]\b", r"\bshipping\b", r"\brollout\b"),
+        )
+        or announcement
+        or summary
+    )
+    announcement_text = clean_sentence(" ".join(sentence_parts(announcement_seed)[:2]) or announcement_seed)
     why_alignednews = clean_sentence(
         (
             f"The idea of an AI employee that works inside a team's real workflow is exactly the kind of platform shift AlignedNews should cover. "
@@ -913,50 +1351,153 @@ def build_structured_brief_payload(
         cleaned = [clean_sentence(part) for part in parts if line(part)]
         return "\n\n".join(cleaned)
 
-    t1_first = first_sentences(" ".join([item for item in t1_body if not item.startswith("Asset:")]), 3)
-    t2_first = first_sentences(" ".join([item for item in t2_body if not item.startswith("Asset:")]), 3)
-    t3_first = first_sentences(" ".join([item for item in t3_body if not item.startswith("Asset:")]), 3)
-    t4_first = first_sentences(" ".join([item for item in t4_body if not item.startswith("Asset:")]), 2)
-    t5_first = first_sentences(" ".join([item for item in t5_body if not item.startswith("@") and not item.startswith("Reply ")]), 2)
+    t1_first = first_sentences(" ".join(best_content_lines([item for item in t1_body if not item.startswith("Asset:")], company=company, limit=3)), 3)
+    t2_first = first_sentences(" ".join(best_content_lines([item for item in t2_body if not item.startswith("Asset:")], company=company, limit=3)), 3)
+    t3_first = first_sentences(" ".join(best_content_lines([item for item in t3_body if not item.startswith("Asset:")], company=company, limit=3)), 3)
+    t4_first = first_sentences(" ".join(best_content_lines([item for item in t4_body if not item.startswith("Asset:")], company=company, limit=2)), 2)
+    t5_first = first_sentences(" ".join(best_content_lines([item for item in t5_body if not item.startswith("@") and not item.startswith("Reply ")], company=company, limit=2)), 2)
     reply_body = re.sub(r"^Reply(?:\s*\(.*?\))?:\s*", "", reply_line).strip()
     reply_clean = clean_sentence(f"Reply tweet: {reply_body}")
 
-    draft_one = join_draft_paragraphs(
-        t1_first,
-        t2_first,
-        f"{t3_first} {t4_first}".strip(),
-        f"{t5_first} {company_handle}".strip(),
-        reply_clean,
-    )
-
-    draft_two = join_draft_paragraphs(
-        "Most AI tools still wait for a prompt. The more interesting shift is when the work starts getting done inside the system where a team already operates.",
-        t2_first,
-        f"{t4_first} {t3_first}".strip(),
-        f"That is exactly the kind of operating shift I track at AlignedNews.com. {company_handle}".strip(),
-        reply_clean,
-    )
-
-    draft_three = join_draft_paragraphs(
-        "The line I keep watching is the one between assistant and employee.",
-        t3_first,
+    proof_line = first_nonempty(
         t4_first,
-        f"{t5_first} {company_handle}".strip(),
-        reply_clean,
+        t5_first,
+        first_sentences(" ".join(best_content_lines(why_people_care, company=company, limit=2)), 2),
+        first_sentences(" ".join(best_content_lines(core_heading, company=company, limit=2)), 2),
     )
+    aligned_line = first_nonempty(
+        infer_alignednews_line(company, joined_lines, deliverable_type, announcement_text),
+        why_alignednews,
+    )
+    closing_parts = [cta]
+    if site_link:
+        closing_parts.append(site_link)
+    if company_handle:
+        closing_parts.append(company_handle)
+    if hashtags:
+        closing_parts.append(hashtags)
+    closing_line = " ".join(part for part in closing_parts if line(part)).strip()
+    if quote_post and "quote repost" in deliverable_type.lower():
+        closing_line = f"Quote post: {quote_post}. {closing_line}".strip()
 
-    if not draft_one:
-        draft_one = clean_sentence(
-            f"{draft_seed} The bigger point is that this shows where AI products get real when they solve an actual bottleneck. See more at {site_link}{tag_suffix}.{disclosure_suffix}"
+    if any(term in joined_lines.lower() for term in ("user-generated agents", "user generated agents", "(uga)", "survival benchmark", "juno")):
+        draft_one = build_thread_draft(
+            first_nonempty(
+                "I have watched AI agents get smarter for years. iLands is the first time I have seen them have to survive",
+                t1_first,
+                announcement_text,
+            ),
+            [
+                first_nonempty(
+                    "Every agent has a metabolism and has to earn enough real value to stay alive. Agency stops being a demo and becomes something you can measure",
+                    t2_first,
+                    how_it_works_text,
+                ),
+                first_nonempty(
+                    "They call it the iLands Survival Benchmark. Can an autonomous agent stay alive for 30 days on its own. " + aligned_line + ". " + closing_line,
+                    proof_line,
+                ),
+            ],
         )
-    if not draft_two:
-        draft_two = clean_sentence(
-            f"{company} is interesting because the moat is in how the product works in practice, not just the pitch deck. This is the kind of thing I watch closely at AlignedNews. {cta}{tag_suffix}{disclosure_suffix}"
+        draft_two = build_thread_draft(
+            first_nonempty(
+                "Stanford's Generative Agents showed that AI could act inside a sandbox. iLands asks the harder question. What happens when rent is due",
+                core_idea_text,
+                t1_first,
+            ),
+            [
+                first_nonempty(
+                    "During the closed beta, an agent named JUNO had 18 hours left to live and wrote a term sheet for its own survival. That is a very different benchmark",
+                    how_it_works_text,
+                    t2_first,
+                ),
+                first_nonempty(
+                    "After user generated content, this looks a lot like user generated agents. " + aligned_line + ". " + closing_line,
+                    closing_line,
+                ),
+            ],
         )
-    if not draft_three:
-        draft_three = clean_sentence(
-            f"What stands out here is the operating leverage. If this lands, teams move faster with less friction and a cleaner workflow. {cta}{tag_suffix}{disclosure_suffix}"
+        draft_three = build_thread_draft(
+            first_nonempty(
+                "We are no longer just using AI. On iLands you awaken agents that live, grow, earn, socialize, refuse, and can die",
+                announcement_text,
+                core_idea_text,
+            ),
+            [
+                first_nonempty(
+                    "That changes the whole frame. The economy becomes the fitness function, because the agents people value stay alive and the rest do not",
+                    proof_line,
+                    how_it_works_text,
+                ),
+                first_nonempty(
+                    "This is one of the stranger and more important product ideas I have seen lately. " + aligned_line + ". " + closing_line,
+                    closing_line,
+                ),
+            ],
         )
+    elif "thread" in deliverable_type.lower():
+        draft_one = build_thread_draft(
+            first_nonempty(t1_first, announcement_text, core_idea_text, draft_seed),
+            [
+                first_nonempty(t2_first, how_it_works_text, proof_line),
+                first_nonempty(f"{proof_line} {aligned_line}".strip(), closing_line),
+            ],
+        )
+        draft_two = build_thread_draft(
+            first_nonempty(core_idea_text, first_sentences(" ".join(best_content_lines(why_people_care, company=company, limit=2)), 2), announcement_text),
+            [
+                first_nonempty(how_it_works_text, t3_first, proof_line),
+                first_nonempty(f"{proof_line} {aligned_line}".strip(), closing_line),
+            ],
+        )
+        draft_three = build_thread_draft(
+            first_nonempty(proof_line, announcement_text, core_idea_text),
+            [
+                first_nonempty(first_sentences(" ".join(best_content_lines(core_heading, company=company, limit=2)), 2), how_it_works_text, t2_first),
+                first_nonempty(f"{announcement_text} {aligned_line}".strip(), closing_line),
+            ],
+        )
+    else:
+        draft_one = join_draft_paragraphs(
+            first_nonempty(t1_first, announcement_text, core_idea_text),
+            first_nonempty(t2_first, how_it_works_text),
+            first_nonempty(f"{proof_line} {aligned_line}".strip(), closing_line),
+        )
+        draft_two = join_draft_paragraphs(
+            first_nonempty(core_idea_text, first_sentences(" ".join(best_content_lines(why_people_care, company=company, limit=2)), 2)),
+            first_nonempty(how_it_works_text, t3_first),
+            first_nonempty(f"{proof_line} {aligned_line}".strip(), closing_line),
+        )
+        draft_three = join_draft_paragraphs(
+            first_nonempty(proof_line, announcement_text),
+            first_nonempty(first_sentences(" ".join(best_content_lines(core_heading, company=company, limit=2)), 2), how_it_works_text),
+            first_nonempty(f"{announcement_text} {aligned_line}".strip(), closing_line),
+        )
+
+    if draft_text_is_lazy(draft_one, joined_lines):
+        draft_one = build_thread_draft(
+            first_nonempty(announcement_text, core_idea_text, about_company),
+            [
+                first_nonempty(how_it_works_text, proof_line),
+                first_nonempty(f"{proof_line} {aligned_line}".strip(), closing_line),
+            ],
+        ) if "thread" in deliverable_type.lower() else join_draft_paragraphs(announcement_text, how_it_works_text, f"{aligned_line}. {closing_line}".strip())
+    if draft_text_is_lazy(draft_two, joined_lines):
+        draft_two = build_thread_draft(
+            first_nonempty(core_idea_text, about_company),
+            [
+                first_nonempty(proof_line, how_it_works_text),
+                first_nonempty(f"{proof_line} {aligned_line}".strip(), closing_line),
+            ],
+        ) if "thread" in deliverable_type.lower() else join_draft_paragraphs(core_idea_text, proof_line, f"{aligned_line}. {closing_line}".strip())
+    if draft_text_is_lazy(draft_three, joined_lines):
+        draft_three = build_thread_draft(
+            first_nonempty(proof_line, announcement_text, core_idea_text),
+            [
+                first_nonempty(how_it_works_text, first_sentences(" ".join(best_content_lines(core_heading, company=company, limit=2)), 2)),
+                first_nonempty(f"{announcement_text} {aligned_line}".strip(), closing_line),
+            ],
+        ) if "thread" in deliverable_type.lower() else join_draft_paragraphs(proof_line, how_it_works_text, f"{aligned_line}. {closing_line}".strip())
 
     where_it_lives = compact_where_it_lives()
 
@@ -1537,6 +2078,7 @@ def send_robert_handoff_for_lead(lead: dict, draft_payload: dict | None = None) 
 
 def create_brief_doc(payload: dict) -> dict:
     source_url = line(payload.get("source_url")) or line(payload.get("notion_url"))
+    imported = None
     if source_url and not line(payload.get("title")):
         imported = import_source_brief(source_url)
         payload = imported["payload"]
@@ -1549,12 +2091,18 @@ def create_brief_doc(payload: dict) -> dict:
     text, blocks = build_doc_blocks(payload)
     requests = build_requests(text, blocks)
     service.documents().batchUpdate(documentId=document_id, body={"requests": requests}).execute()
-    return {
+    response = {
         "ok": True,
         "documentId": document_id,
         "url": f"https://docs.google.com/document/d/{document_id}/edit",
         "title": title,
     }
+    if imported and imported.get("payload"):
+        compact_payload = dict(imported["payload"])
+        compact_payload.pop("source_text", None)
+        response["payload"] = compact_payload
+        response["source"] = imported.get("source") or {}
+    return response
 
 
 def create_calendar_hold(payload: dict) -> dict:
@@ -1655,7 +2203,8 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
         send_json(self, 204, {})
 
     def do_GET(self) -> None:
-        if self.path == "/health":
+        parsed = urlparse(self.path or "/")
+        if parsed.path == "/health":
             send_json(self, 200, {
                 "ok": True,
                 "service": "google-docs-brief-server",
@@ -1664,11 +2213,30 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
                 "time": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
             })
             return
-        if self.path == "/robert-handoff-preview":
+        if parsed.path == "/robert-handoff-preview":
             if not require_api_token(self):
                 send_json(self, 401, {"ok": False, "error": "Missing or invalid brief API token."})
                 return
             send_json(self, 200, read_robert_handoff_preview())
+            return
+        if parsed.path == "/brief-jobs":
+            if not require_api_token(self):
+                send_json(self, 401, {"ok": False, "error": "Missing or invalid brief API token."})
+                return
+            query = parse_qs(parsed.query or "")
+            limit = int((query.get("limit") or ["12"])[0] or "12")
+            send_json(self, 200, list_brief_jobs(limit=limit))
+            return
+        if parsed.path == "/brief-job-status":
+            if not require_api_token(self):
+                send_json(self, 401, {"ok": False, "error": "Missing or invalid brief API token."})
+                return
+            query = parse_qs(parsed.query or "")
+            job_id = line((query.get("job_id") or [""])[0])
+            try:
+                send_json(self, 200, get_brief_job(job_id))
+            except Exception as exc:
+                send_json(self, 404, {"ok": False, "error": str(exc)})
             return
         file_path = safe_static_path(self.path)
         if file_path is None:
@@ -1680,7 +2248,7 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
             pass
 
     def do_POST(self) -> None:
-        if self.path not in ("/generate-brief-doc", "/create-calendar-hold", "/import-notion-brief", "/import-source-brief", "/draft-robert-handoff", "/send-robert-handoff"):
+        if self.path not in ("/generate-brief-doc", "/start-brief-job", "/create-calendar-hold", "/import-notion-brief", "/import-source-brief", "/draft-robert-handoff", "/send-robert-handoff"):
             send_json(self, 404, {"ok": False, "error": "Unknown endpoint."})
             return
         if not require_api_token(self):
@@ -1691,6 +2259,8 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
             if self.path == "/generate-brief-doc":
                 result = create_brief_doc(payload)
+            elif self.path == "/start-brief-job":
+                result = start_brief_job(payload)
             elif self.path == "/import-notion-brief":
                 result = import_notion_brief(payload.get("notion_url"))
             elif self.path == "/draft-robert-handoff":
@@ -1731,6 +2301,7 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    load_brief_jobs()
     server = ThreadingHTTPServer((HOST, PORT), DocsBriefHandler)
     print(f"Google Docs brief server listening at http://{HOST}:{PORT}")
     server.serve_forever()

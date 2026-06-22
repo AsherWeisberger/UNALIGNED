@@ -725,7 +725,7 @@ const V3_MIN_VISIBLE_TS = Date.parse('2026-01-01T00:00:00Z');
 
 async function V3LoadXDmIntakeRows() {
   try {
-    const res = await fetch('flow-v4/assets/x_dm_daily_intake.json?v=20260621-live-x-inbox-3');
+    const res = await fetch('flow-v4/assets/x_dm_daily_intake.json?v=20260622-live-x-inbox-dates-1');
     if (!res.ok) throw new Error('X intake ' + res.status);
     const rows = await res.json();
     return Array.isArray(rows) ? rows : [];
@@ -6918,116 +6918,126 @@ Object.assign(window, { V4TodayView, V4RobertBriefView, V4InboxView, V4LeadsView
 
 const V4_COMPANY_OS_PREP = [
   {
-    title: 'Eastworlds / Danial + Sean',
-    tags: ['P0', 'paid by wire', 'review + schedule'],
-    points: [
-      'On June 19, 2026 Ong Xie switched Eastworlds from Stripe to bank transfer, sent a wire receipt the same day, and Asher replied with the corrected invoice plus updated draft.',
-      'Sean followed on June 20, 2026 saying the team is reviewing the materials and that next week works for the posting window.',
-      'Asher still owns three concrete checks: bank settlement confirmation, sponsor notes on the draft, and one exact live day for next week.',
-      'Do not treat the wire receipt or the phrase "next week" as final clearance for Robert.',
-    ],
-  },
-  {
     title: 'iLands / Flot monthly package',
-    tags: ['P0', 'package inventory', 'source link missing'],
+    tags: ['P0', 'copy overdue', 'June 26 target'],
     points: [
-      'Zoe clarified on June 17, 2026 that iLands is post three of an older four-post package, and Robert only owes copy while the sponsor handles the video and images.',
-      'The release target is still June 26, 2026, but the quote/source post link has still not been provided, which means Robert cannot yet be handed a final execution brief.',
-      'Asher owns the cleanup here: get the official source post URL, confirm the review lane and posting window, and compress the ask into one 60-second Robert brief once those items are concrete.',
-      'Do not send a fresh invoice or reopen pricing on a package-fulfillment thread unless Zoe explicitly says the old package is over.',
+      'Zoe pushed again on June 22, 2026 because the draft deadline already passed and the sponsor still needs Robert copy before they can finish the video production.',
+      'This is still package-fulfillment work, not a fresh invoice lane: Robert only owes copy, while the sponsor handles the video and images.',
+      'The June 26 release target still stands, but the official source quote-post URL is still missing and Asher has not yet returned a clear delivery timing for the copy.',
+      'Asher owns the reply, the shortest useful 60-second Robert brief, and the final go/no-go timing. Do not call this ready while the copy is still missing.',
     ],
   },
   {
-    title: 'Nitrosend / OMANE video 2',
-    tags: ['P0', 'live', 'payment Monday'],
+    title: 'Riverside / launch-copy approval',
+    tags: ['P0', 'draft owed', 'after June 24'],
     points: [
-      'Ori sent the live Nitrosend post on June 17, 2026, Robert posted the QRT the same day, and Asher returned the final live link immediately.',
-      'On June 19, 2026 Ori sent a payment confirmation screenshot and said the transfer is scheduled for Monday, June 22, 2026 because U.S. banks were closed.',
-      'The remaining Asher task is simple but still open: capture settled payment proof against invoice_Omane_NitroSend_061726.pdf once the Monday transfer actually lands.',
-      'Keep this open until the paid receipt or bank settlement shows up in-thread.',
+      'The interview is done, but Savion changed the next step on June 21, 2026: Riverside now wants draft X copy plus the Facebook cross-post for review before anything goes live.',
+      'Savion said the post can run any time after June 24, 2026 once the messaging, tags, and launch framing are signed off, so the old "hold for launch" note is obsolete.',
+      'Robert already asked for the official press-release language so he can align wording with the launch. That means the live blocker is no longer scheduling the interview; it is copy prep and approval.',
+      'Asher owns one clean handoff: exact tags, approval path, draft copy, and final go-live window. Treat this as execution prep, not passive waiting.',
+    ],
+  },
+  {
+    title: 'Acti / June 30 QRT',
+    tags: ['P0', 'paid', 'slot to hold'],
+    points: [
+      'AK wrote on June 22, 2026 with the exact launch timing: the official announcement tweet goes live on June 30 at 7:30 AM PT, and they want Robert queued right behind it.',
+      'Payment is already confirmed on this thread, so the active work is no longer billing. The active work is draft prep, launch alignment, and protecting the time slot.',
+      'AK also asked for draft quote copy in the next couple of days using the confidential launch video and the existing agentic-keyboard brief.',
+      'Asher owns the Robert brief, the draft-review loop, and the final source-tweet handoff on launch morning. Do not reopen payment terms on a thread that is already paid.',
+    ],
+  },
+  {
+    title: 'Eastworlds / paid by wire',
+    tags: ['P0', 'wire receipt', 'schedule pending'],
+    points: [
+      'Ong Xie sent the Eastworlds wire receipt on June 19, 2026, Asher turned the updated draft around the same day, and Sean replied on June 20, 2026 that next week works for posting.',
+      'That moved Eastworlds forward, but it did not close it. There is still no bank settlement confirmation and no exact posting date.',
+      'Asher owns the remaining cleanup: settled-payment confirmation, sponsor notes on the revised draft, and one real calendar day for launch.',
+      'A wire receipt plus "next week" is enough to keep preparing, not enough to mark the item paid and ready.',
     ],
   },
   {
     title: 'ACL / Hockey Stick',
-    tags: ['P0', 'invoice due June 20', 'payment first'],
+    tags: ['P0', 'past due', 'payment first'],
     points: [
-      'On June 19, 2026 Chang acknowledged the updated ACL invoice thread, Annika had already sent the final Alibaba brief, and Asher followed up again for payment timing before the June 20 due date.',
-      'The due date has now passed without payment proof in-thread, and the ticket reimbursement problem is still unresolved beyond Annika\'s note that Alibaba will not reimburse the purchased pass.',
-      'This remains an Asher-side payment chase first. First payment proof, reimbursement exposure, and client timing clarity all come before Robert script work.',
-      'A final brief is not execution readiness when the money is still missing.',
+      'Chang acknowledged the updated ACL invoice thread on June 19, 2026, but the June 20 due date is now past and no payment proof landed in-thread.',
+      'The ticket reimbursement issue is still unresolved beyond Annika\'s note that Alibaba will not reimburse the purchased pass, which means the commercial mess is not cleaned up yet.',
+      'Asher already has a follow-up draft asking whether the updated invoice and Stripe link came through. That is still draft-state, which means the payment chase is not actually finished.',
+      'Keep Robert execution out of this until money, reimbursement exposure, and client timing are clean. A final brief is not clearance when the invoice is still unpaid.',
     ],
   },
   {
-    title: 'Marketing Guys / RunLayer',
-    tags: ['P1', 'new QRT ask', 'brief Monday'],
+    title: 'Viture / July 1 retainer start',
+    tags: ['P1', 'option A accepted', 'scope draft unsent'],
     points: [
-      'Phillip came back on June 19, 2026 with a new RunLayer QRT ask targeting Wednesday, June 24, 2026 at 7:30 AM PT and said the rest of the materials should arrive on Monday, June 22, 2026.',
-      'Asher already said yes in principle, but this is still prep, not a lock.',
-      'The remaining Asher tasks are the official source post, talking points, payment timing confirmation, and one 60-second Robert execution brief.',
-      'Do not build the Robert handoff from a company URL and launch teaser alone.',
+      'Emily said on June 21, 2026 that Viture wants to move forward with Option A and start on July 1, carrying the first phase through CES.',
+      'Asher already drafted the reply confirming the $5,995/month kickoff, but that message is still sitting in Drafts rather than closing the commercial scope in-thread.',
+      'The remaining Asher work is straightforward: send the short scope, lock the approval workflow and payment timing, and schedule the first strategy sync.',
+      'Treat this as commercial prep, not a Robert execution brief. First get the retainer scope over the line.',
     ],
   },
   {
-    title: 'iMerch / Peter three-campaign ask',
-    tags: ['P1', 'reply owed', 'no discount'],
+    title: 'OMANE / Nitro proof + Viktor data',
+    tags: ['P1', 'proof missing', 'data follow-up'],
     points: [
-      'Peter Zheng replied on June 20, 2026 asking for a cheaper X-only bundle across three campaigns: one custom Mars concept post, one Anvita Flow quote repost, and one AntLing launch post.',
-      'Sam replied the same day with the decision that matters: no discounts.',
-      'Asher owns the next step if this moves at all: answer from the standard rate card or hold until Peter sends real briefs and timing for each campaign.',
-      'Do not invent a new volume concession because the package sounds interesting.',
+      'Ori\'s June 19, 2026 screenshot only proved the Nitrosend transfer was scheduled for Monday, June 22, 2026. It did not prove the money actually settled against invoice_Omane_NitroSend_061726.pdf.',
+      'Separately, Ori asked on June 21, 2026 for the Viktor post views/data form so he could report back Monday morning Europe time.',
+      'Asher still owns both cleanup tasks: capture real payment proof once the transfer lands and make sure the Robert-side Viktor metrics request is not dropped.',
+      'Do not close OMANE just because the post went live. Proof trails and post-live data requests still count as active work.',
     ],
   },
 ];
 
 const V4_COMPANY_OS_WAITING = [
   {
+    title: 'Marketing Guys / RunLayer',
+    tags: ['watch', 'brief promised Monday', 'not locked'],
+    points: [
+      'Phillip pitched the next QRT on June 19, 2026 for Wednesday at 7:30 AM PT and said the rest of the materials would likely arrive on Monday, June 22, 2026.',
+      'Asher already answered with the correct guardrails: full brief, final target post, timing, billing/payment details, and quote guidance first.',
+      'Until those materials actually land, this is still waiting rather than an execution brief.',
+      'Do not build Robert prep from a company homepage and a launch teaser alone.',
+    ],
+  },
+  {
+    title: 'ZooClaw / EezyCollab intro',
+    tags: ['watch', 'new lead', 'terms mismatch'],
+    points: [
+      'Robert forwarded ZooClaw into the management lane on June 21, 2026 with a $2,495 ask for one thread plus one quote repost in the June 30 to July 4 window.',
+      'The thread says payment would happen within seven days after publishing via PayPal or bank transfer, which does not match the normal prepay rule for a fresh sponsor.',
+      'This stays in waiting until Asher resets terms, confirms real availability, and gets a proper brief rather than just a cold rate ask.',
+      'Do not quietly accept post-live payment on a brand-new deal.',
+    ],
+  },
+  {
+    title: 'iMerch / Peter three-campaign ask',
+    tags: ['watch', 'no discount', 'real briefs needed'],
+    points: [
+      'Peter asked on June 20, 2026 for a cheaper X-only bundle across three campaigns, and Sam already gave the only decision that matters: no discounts.',
+      'Asher has a draft response ready, but Peter still has not sent clean briefs and timing for each campaign, so the thread is not execution-ready.',
+      'Keep this parked until the ask is concrete enough to answer from the standard rate card without improvising scope.',
+      'Do not invent a volume concession because three campaigns sound attractive.',
+    ],
+  },
+  {
     title: 'Golden Egg / creator roster',
     tags: ['watch', 'onboarded', 'future only'],
     points: [
       'Wesley confirmed on June 19, 2026 that Golden Egg received the documents and that Robert is fully onboarded in their creator roster.',
-      'There is no live campaign attached to this thread now. The Asher-side work is finished unless Golden Egg asks for one missing field or sends a real campaign.',
-      'This is waiting, not execution.',
-      'Do not confuse roster setup with booked revenue.',
-    ],
-  },
-  {
-    title: 'Riverside / Savion',
-    tags: ['watch', 'interview done', 'launch hold'],
-    points: [
-      'The Riverside interview finally happened on June 16, 2026, and Robert told Savion it went well.',
-      'Savion then asked them to hold publication until the new product launch next week, which means the old "waiting on a date" status is obsolete.',
-      'This is now a clean watch item for one launch green light and final posting instructions.',
-      'Do not treat the recorded interview as launch-ready content until Riverside says go.',
+      'There is still no live campaign on this thread, so there is nothing for Robert or Asher to prep today.',
+      'This is admin-complete and waiting for a real booked campaign.',
+      'Do not confuse roster setup with revenue.',
     ],
   },
   {
     title: 'Base and Partner / exploratory AI tool',
     tags: ['watch', 'bumped June 19', 'scope missing'],
     points: [
-      'Asher already sent the sponsorship package, asked for company, product, deliverable mix, and timing, and then bumped Sahil again on June 19, 2026.',
-      'There is still no answer naming the client, scope, budget, or launch date beyond a rising AI tool for indie hackers and developers.',
-      'Keep it in waiting until the ask can be summarized in one sentence with company, deliverable, timing, and owner.',
-      'Do not create a Robert brief from rate-card interest alone.',
-    ],
-  },
-  {
-    title: 'KroWork / EezyCollab',
-    tags: ['watch', 'slot dead', 'future rates logged'],
-    points: [
-      'Stephanie formally passed on the KroWork slot for budget and then asked whether the older $2,490 Thread + QR bundle could survive as a future benchmark.',
-      'Asher answered on June 18, 2026 that the LobeHub number was a one-off exception, not a standing floor.',
-      'The live KroWork deal is dead; only the future pricing relationship remains.',
-      'Do not reopen the canceled slot unless a new client or budget shows up.',
-    ],
-  },
-  {
-    title: 'OMANE / Viktor LinkedIn follow-through',
-    tags: ['watch', 'both links sent', 'ack only'],
-    points: [
-      'The X post and LinkedIn live link were both sent back to OMANE on June 19, 2026, and Ori\'s latest reply was only an acknowledgment.',
-      'That means there is no immediate Asher action unless OMANE comes back with payment cleanup, another asset request, or the next post in the package.',
-      'Treat this as a quiet watch item, not a fresh prep item.',
-      'An acknowledgment emoji is not a new task.',
+      'Asher already sent the sponsorship package, asked for company, product, deliverable mix, and timing, and bumped Sahil again on June 19, 2026.',
+      'There is still no reply naming the client, the exact scope, the budget, or the launch date.',
+      'Keep it in waiting until the ask can be described in one sentence with company, deliverable, timing, and owner.',
+      'Do not create a Robert brief from generic interest in AI tools.',
     ],
   },
 ];
@@ -7097,18 +7107,21 @@ const V4_COMPANY_OS_RULES = [
   'A live post is not a closed deal. If the receipt or bank proof is missing, the item stays in action until proof lands.',
   'A screenshot saying payment is scheduled is useful context, not closure. The deal stays open until the receipt, settled transfer, or bank proof is in-thread.',
   'A wire receipt from the sponsor proves intent to pay, not bank settlement. Keep the item open until the money or bank confirmation actually lands.',
+  'If a campaign is already prepaid, stop re-litigating payment and focus only on the source post, draft approval, and exact launch timing.',
   'If payment proof lands outside the client thread, log it against the invoice before calling the deal done.',
   'If a sponsor switches from Stripe to bank transfer after the invoice is already live, settle the payment rail first and freeze drafting until that choice is explicit.',
   'If a sponsor changes story angle or technical framing after a slot is penciled in, freeze drafting until payment proof is in and the new framing is written down cleanly.',
   'Once an invoice link is already in-thread, stop re-explaining the package and chase only payment proof, live asset, and posting window.',
   'If an older package still has unused posts left, treat the remaining inventory as fulfillment work, not a chance to send a fresh invoice unless the thread itself says the old package is over.',
   'If a legacy package is still active, the chase is source post URL, timing, approval path, and the shortest useful Robert brief, not fresh pricing.',
+  'If a sponsor asks for draft copy before a launch goes live, keep the work on Asher\'s side until tags, cross-post requirements, and sign-off are all explicit in-thread.',
   'If Sam already says no discount, answer from the standard rate card or pause the thread. Do not negotiate against yourself.',
   'If an agency cites an old bundle benchmark to force a cheaper single-post rate, treat it as a negotiation, not a precedent reset.',
   'If a brand passes on a slot for budget but asks for future pricing benchmarks, answer the future-rate question once without reopening the dead campaign.',
   'If an onboarding thread asks for tax or bank documents with no live campaign attached, send the packet once, confirm receipt, then move it to waiting.',
   'Banking sample PDFs and onboarding paperwork are admin artifacts, not revenue, until a real campaign is attached.',
   'If a client wants split payment, post-live payment, net terms, stealth posting, or no paid-promotion disclosure, the answer is no until the thread proves otherwise.',
+  'If a fresh sponsor proposes payment after posting, treat it as a terms mismatch until prepay or an explicit exception is approved in writing.',
   'Pinned posts are separate inventory. If a client wants the top slot held, price the pin separately instead of quietly bundling it into the repost.',
   'If a client has paid but the launch URL or Robert repost URL is missing, chase the links before opening any next-campaign discussion.',
   'An interview is not scheduled when someone says a time might work. It is scheduled only when both sides say yes and the invite reflects the final duration.',
@@ -8331,6 +8344,8 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
   const [briefStatus, setBriefStatus] = React.useState('idle');
   const [briefError, setBriefError] = React.useState('');
   const [briefResult, setBriefResult] = React.useState(null);
+  const [briefJobId, setBriefJobId] = React.useState('');
+  const [briefJobStatus, setBriefJobStatus] = React.useState('idle');
   const [docStatus, setDocStatus] = React.useState('idle');
   const [docError, setDocError] = React.useState('');
   const [docResult, setDocResult] = React.useState(null);
@@ -8390,6 +8405,10 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
       setBriefStatus('idle');
       setBriefError('');
       setBriefResult(null);
+    }
+    if (briefJobId || briefJobStatus !== 'idle') {
+      setBriefJobId('');
+      setBriefJobStatus('idle');
     }
     if (!isCalendarField && docStatus !== 'idle') {
       setDocStatus('idle');
@@ -8474,6 +8493,8 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     setBriefStatus('idle');
     setBriefError('');
     setBriefResult(null);
+    setBriefJobId('');
+    setBriefJobStatus('idle');
     setDocStatus('idle');
     setDocError('');
     setDocResult(null);
@@ -8483,6 +8504,65 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     setCalendarError('');
     setCalendarResult(null);
   };
+
+  const loadBriefJobStatus = async jobId => {
+    const res = await V4BriefServiceFetch('/brief-job-status?job_id=' + encodeURIComponent(jobId), {
+      method: 'GET',
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || 'Could not load brief job.');
+    return data.job || null;
+  };
+
+  React.useEffect(() => {
+    if (!briefJobId) return;
+    let active = true;
+    let timer = null;
+
+    const poll = async () => {
+      try {
+        const job = await loadBriefJobStatus(briefJobId);
+        if (!active || !job) return;
+        setBriefJobStatus(job.status || 'idle');
+        if (job.status === 'done') {
+          const result = job.result || {};
+          const payload = result.payload || {};
+          const sourceUrl = payload.source_url || briefForm.source_url || briefForm.notion_url || job.source_url || '';
+          if (payload && Object.keys(payload).length) applyImportedBriefPayload(payload, sourceUrl);
+          setNotionStatus('done');
+          setDocResult(result);
+          setDocStatus('done');
+          if (result.calendar) {
+            setCalendarResult(result.calendar);
+            setCalendarStatus('done');
+          }
+          setBriefJobId('');
+          setBriefJobStatus('done');
+          return;
+        }
+        if (job.status === 'error') {
+          const message = job.error || 'Brief build failed.';
+          setNotionStatus('error');
+          setNotionError(message);
+          setDocStatus('error');
+          setDocError(message);
+          setBriefJobId('');
+          setBriefJobStatus('error');
+          return;
+        }
+        timer = window.setTimeout(poll, 2500);
+      } catch (err) {
+        if (!active) return;
+        timer = window.setTimeout(poll, 3500);
+      }
+    };
+
+    poll();
+    return () => {
+      active = false;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [briefJobId]);
 
   const copyHandoffDraft = async (draft, index) => {
     const lines = [
@@ -8622,60 +8702,39 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     setCalendarError('');
     setCalendarResult(null);
     try {
-      const res = await V4BriefServiceFetch('/import-source-brief', {
-        method: 'POST',
-        body: JSON.stringify({ source_url: sourceUrl }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error || 'Source import failed.');
-      const payload = data.payload || {};
-      const inferredCalendar = V4InferCalendarFieldsFromGoLive(payload.go_live);
-      const workingConfig = {
-        ...payload,
-        source_url: sourceUrl,
-        calendar_title: payload.calendar_title || payload.title || '',
-        calendar_mode: payload.calendar_mode || V4InferCalendarMode(payload),
-        calendar_date: payload.calendar_date || inferredCalendar?.calendar_date || '',
-        calendar_start: payload.calendar_start || inferredCalendar?.calendar_start || '',
-        calendar_end: payload.calendar_end || inferredCalendar?.calendar_end || '',
-      };
-      applyImportedBriefPayload(payload, sourceUrl);
-      setNotionStatus('done');
-
       setDocStatus('creating');
-      const docRes = await V4BriefServiceFetch('/generate-brief-doc', {
+      setBriefJobStatus('queued');
+      const blankCalendar = V4InferCalendarFieldsFromGoLive('');
+      const requestConfig = {
+        source_url: sourceUrl,
+        notion_url: sourceUrl,
+        calendar_title: briefForm.calendar_title || '',
+        calendar_mode: briefForm.calendar_mode || 'all_day',
+        calendar_date: briefForm.calendar_date || blankCalendar?.calendar_date || '',
+        calendar_start: briefForm.calendar_start || blankCalendar?.calendar_start || '',
+        calendar_end: briefForm.calendar_end || blankCalendar?.calendar_end || '',
+      };
+      const jobRes = await V4BriefServiceFetch('/start-brief-job', {
         method: 'POST',
-        body: JSON.stringify(workingConfig),
+        body: JSON.stringify(requestConfig),
       });
-      const docData = await docRes.json();
-      if (!docRes.ok || !docData.ok) throw new Error(docData.error || 'Google Doc creation failed.');
-      setDocResult(docData);
-      setDocStatus('done');
-
-      if (
-        workingConfig.calendar_date &&
-        (
-          (workingConfig.calendar_mode || 'all_day') === 'all_day' ||
-          workingConfig.calendar_start
-        )
-      ) {
-        setCalendarStatus('creating');
-        const calendarData = await createCalendarHoldWithConfig(workingConfig, docData.url || '');
-        setCalendarResult(calendarData);
-        setCalendarStatus('done');
-      }
+      const jobData = await jobRes.json();
+      if (!jobRes.ok || !jobData.ok) throw new Error(jobData.error || 'Brief build failed.');
+      const job = jobData.job || {};
+      setBriefJobId(job.id || '');
+      setBriefJobStatus(job.status || 'queued');
     } catch (err) {
       const message = err.message || 'Brief build failed.';
       setNotionStatus('error');
       setNotionError(message);
-      if (docStatus === 'creating' || /doc|google/i.test(message)) {
-        setDocStatus('error');
-        setDocError(message);
-      }
+      setDocStatus('error');
+      setDocError(message);
       if (/calendar/i.test(message)) {
         setCalendarStatus('error');
         setCalendarError(message);
       }
+      setBriefJobId('');
+      setBriefJobStatus('error');
     }
   };
 
@@ -8913,7 +8972,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                   </div>
                   <div className="brief-maker-source-actions">
                     <button type="button" className="cos-toolkit-btn is-primary" onClick={buildBriefFromSource}>
-                      {notionStatus === 'importing' || docStatus === 'creating' ? 'Building...' : 'Go'}
+                      {briefJobId || notionStatus === 'importing' || docStatus === 'creating' ? 'Building...' : 'Go'}
                     </button>
                   </div>
                 </div>
@@ -8930,13 +8989,23 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                     <span className="brief-maker-server-error">{notionError}</span>
                   )}
                   {notionStatus === 'importing' && (
-                    <span className="brief-maker-server-note">Reading the link and building Robert&apos;s Google Doc...</span>
+                    <span className="brief-maker-server-note">
+                      {briefJobStatus === 'queued'
+                        ? 'Saved to your brief machine. Build is queued now.'
+                        : 'Reading the link and building Robert&apos;s Google Doc in the background...'}
+                    </span>
                   )}
                   {docStatus === 'error' && (
                     <span className="brief-maker-server-error">{docError}</span>
                   )}
                   {docStatus === 'creating' && (
-                    <span className="brief-maker-server-note">Creating the Google Doc on Robert&apos;s account...</span>
+                    <span className="brief-maker-server-note">
+                      {briefJobStatus === 'queued'
+                        ? 'Job queued. Your Mac is picking up the brief now.'
+                        : briefJobStatus === 'running'
+                          ? 'Job running on your Mac. You can leave this screen and come back.'
+                          : 'Creating the Google Doc on Robert&apos;s account...'}
+                    </span>
                   )}
                   {docStatus === 'done' && docResult && (
                     <div className="brief-maker-result-card">
