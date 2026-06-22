@@ -54,11 +54,11 @@ SCOPES = [
 OPENCODE_CONFIG_FILE = Path.home() / ".config" / "opencode" / "opencode.json"
 HERMES_ENV_FILE = Path.home() / ".hermes" / ".env"
 DEFAULT_LLM_TARGETS = [
-    {"base_url": "http://127.0.0.1:8642/v1", "model": "qwen3.6:35b-a3b", "label": "Hermes API Qwen 3.6 35B", "auth": "hermes"},
+    {"base_url": "http://127.0.0.1:8642/v1", "model": "hermes-agent", "label": "Hermes API Qwen 3.6 35B", "auth": "hermes"},
     {"base_url": "http://127.0.0.1:11434/v1", "model": "qwen3.6:35b-a3b", "label": "Ollama Qwen 3.6 35B"},
 ]
 PREFERRED_LOCAL_MODELS = [
-    ("http://127.0.0.1:8642/v1", "qwen3.6:35b-a3b"),
+    ("http://127.0.0.1:8642/v1", "hermes-agent"),
     ("http://127.0.0.1:11434/v1", "qwen3.6:35b-a3b"),
 ]
 ALLOWED_ORIGINS = {
@@ -686,6 +686,7 @@ def load_local_llm_targets() -> list[dict]:
     targets: list[dict] = []
     seen: set[tuple[str, str]] = set()
     hermes_base = "http://127.0.0.1:8642/v1"
+    hermes_label = "Hermes API Qwen 3.6 35B"
 
     def add_target(base_url: str, model_id: str, label: str) -> None:
         extra_headers = hermes_auth_headers() if "127.0.0.1:8642" in line(base_url) else {}
@@ -718,11 +719,20 @@ def load_local_llm_targets() -> list[dict]:
             continue
 
     hermes_models = available_by_base.get(hermes_base) or set()
-    hermes_available = "qwen3.6:35b-a3b" in hermes_models
+    hermes_model = ""
+    if "hermes-agent" in hermes_models:
+        hermes_model = "hermes-agent"
+    elif "qwen3.6:35b-a3b" in hermes_models:
+        hermes_model = "qwen3.6:35b-a3b"
 
-    if hermes_available:
-        add_target(hermes_base, "qwen3.6:35b-a3b", "Hermes API Qwen 3.6 35B")
+    if hermes_model:
+        brief_log(f"brief-models: using Hermes model {hermes_model}")
+        add_target(hermes_base, hermes_model, hermes_label)
         return targets
+    if hermes_models:
+        brief_log(f"brief-models: Hermes reachable but preferred model missing. Available: {', '.join(sorted(hermes_models)[:8])}")
+    else:
+        brief_log("brief-models: Hermes unavailable or rejected, falling back")
 
     for base_url, model_id in PREFERRED_LOCAL_MODELS:
         normalized_base = base_url.rstrip("/")
@@ -929,7 +939,7 @@ def query_local_brief_json(
         if not base_url or not model:
             continue
         try:
-            request_timeout = 75 if "127.0.0.1:8642" in base_url else 45
+            request_timeout = 120 if "127.0.0.1:8642" in base_url else 90
             brief_log(f"{stage_label}: calling {target.get('label') or model}")
             payload = {
                 "model": model,
@@ -962,7 +972,7 @@ def query_local_brief_model(source: dict) -> dict | None:
     return query_local_brief_json(
         prompt=prompt,
         system_prompt="You are a precise JSON extraction engine.",
-        max_tokens=1100,
+        max_tokens=1800,
         stage_label="brief-facts",
     )
 
@@ -973,7 +983,7 @@ def query_local_brief_drafts(source: dict, base_payload: dict) -> dict | None:
     return query_local_brief_json(
         prompt=prompt,
         system_prompt="You write premium campaign copy and return strict JSON only.",
-        max_tokens=1200,
+        max_tokens=2200,
         stage_label="brief-drafts",
     )
 
