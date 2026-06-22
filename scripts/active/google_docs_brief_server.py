@@ -588,7 +588,7 @@ def llm_prompt_for_brief(source: dict) -> str:
         for item in links[:20]
         if line(item.get("href"))
     )
-    trimmed_source = source_text[:3500]
+    trimmed_source = source_text[:5500]
     return f"""Extract a Robert Scoble sponsorship brief from the source below.
 
 Return valid JSON only. No markdown. No explanation. No invented facts.
@@ -645,8 +645,103 @@ Source text:
 """
 
 
-def query_local_brief_model(source: dict) -> dict | None:
-    prompt = llm_prompt_for_brief(source)
+def llm_prompt_for_drafts(source: dict, base_payload: dict) -> str:
+    company_name = line(base_payload.get("company_name")) or "the company"
+    title = line(base_payload.get("title")) or "Robert Brief"
+    deliverable_type = line(base_payload.get("deliverable_type")) or "Custom post"
+    about_company = line(base_payload.get("about_company"))
+    core_idea = line(base_payload.get("core_idea"))
+    how_it_works = line(base_payload.get("how_it_works"))
+    announcement = line(base_payload.get("announcement"))
+    why_alignednews = line(base_payload.get("why_alignednews"))
+    go_live = line(base_payload.get("go_live"))
+    must_include = base_payload.get("must_include") or {}
+    tag = line(must_include.get("tag"))
+    link_value = line(must_include.get("link"))
+    hashtags = line(must_include.get("hashtags"))
+    angles = "\n".join(f"- {line(item)}" for item in (base_payload.get("angles_or_accuracy_requirements") or [])[:8] if line(item))
+    status_lines = "\n".join(f"- {line(item)}" for item in (base_payload.get("status_note") or [])[:8] if line(item))
+    source_text = line(source.get("source_text"))[:5500]
+    return f"""You are writing Robert Scoble campaign copy.
+
+Return valid JSON only. No markdown fence. No explanation.
+No hyphens or em dashes anywhere.
+Write like a sharp operator, not a marketing intern.
+Each draft must feel source specific, not templated.
+Do not repeat the same CTA line in every option.
+Do not fill space with links. Use links only where they help the close.
+Use AlignedNews.com naturally where it genuinely fits.
+
+Return exactly this JSON:
+{{
+  "why_alignednews": "",
+  "drafts": [
+    {{"label": "Option 1. Recommended", "text": ""}},
+    {{"label": "Option 2. Different angle", "text": ""}},
+    {{"label": "Option 3. Different angle", "text": ""}}
+  ]
+}}
+
+Rules:
+- If deliverable type is a dedicated thread, every draft must use:
+  Main post:
+  Reply 1:
+  Reply 2:
+- Option 1 should be the strongest and most post ready.
+- Each option must use a genuinely different framing.
+- Pull from named proof points, product mechanics, launch details, and exact source language when useful.
+- Do not invent metrics or facts.
+- If a tag or link is required, include it in a natural close, not as a wall of text.
+
+Campaign title:
+{title}
+
+Company:
+{company_name}
+
+Deliverable:
+{deliverable_type}
+
+About company:
+{about_company}
+
+Core idea:
+{core_idea}
+
+How it works:
+{how_it_works}
+
+Announcement:
+{announcement}
+
+Why it matters for AlignedNews:
+{why_alignednews}
+
+Go live:
+{go_live}
+
+Must include:
+- Tag: {tag or "(none)"}
+- Link: {link_value or "(none)"}
+- Hashtags: {hashtags or "(none)"}
+
+Angles and accuracy requirements:
+{angles or "- (none provided)"}
+
+Status notes:
+{status_lines or "- (none provided)"}
+
+Source text:
+{source_text}
+"""
+
+
+def query_local_brief_json(
+    *,
+    prompt: str,
+    system_prompt: str,
+    max_tokens: int,
+) -> dict | None:
     targets = load_local_llm_targets()
     errors: list[str] = []
     for target in targets:
@@ -655,15 +750,15 @@ def query_local_brief_model(source: dict) -> dict | None:
         if not base_url or not model:
             continue
         try:
-            request_timeout = 55 if "127.0.0.1:8642" in base_url else 35
+            request_timeout = 75 if "127.0.0.1:8642" in base_url else 45
             payload = {
                 "model": model,
                 "messages": [
-                    {"role": "system", "content": "You are a precise JSON extraction engine."},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt},
                 ],
-                "temperature": 0.1,
-                "max_tokens": 650,
+                "temperature": 0.2,
+                "max_tokens": max_tokens,
             }
             data = post_json_with_headers(f"{base_url}/chat/completions", payload, headers=target.get("headers"), timeout=request_timeout)
             content = (((data.get("choices") or [{}])[0]).get("message") or {}).get("content", "")
@@ -677,6 +772,24 @@ def query_local_brief_model(source: dict) -> dict | None:
     if errors:
         print("Local brief extraction fallback:", " | ".join(errors))
     return None
+
+
+def query_local_brief_model(source: dict) -> dict | None:
+    prompt = llm_prompt_for_brief(source)
+    return query_local_brief_json(
+        prompt=prompt,
+        system_prompt="You are a precise JSON extraction engine.",
+        max_tokens=1100,
+    )
+
+
+def query_local_brief_drafts(source: dict, base_payload: dict) -> dict | None:
+    prompt = llm_prompt_for_drafts(source, base_payload)
+    return query_local_brief_json(
+        prompt=prompt,
+        system_prompt="You write premium campaign copy and return strict JSON only.",
+        max_tokens=1200,
+    )
 
 
 def merge_brief_payload(base: dict, llm_payload: dict | None) -> dict:
@@ -724,6 +837,31 @@ def merge_brief_payload(base: dict, llm_payload: dict | None) -> dict:
         if value:
             must_include[field] = value
     merged["must_include"] = must_include
+    local_model = llm_payload.get("_local_model")
+    if local_model:
+        merged["local_model"] = local_model
+    return merged
+
+
+def merge_draft_payload(base: dict, llm_payload: dict | None) -> dict:
+    if not llm_payload:
+        return base
+    merged = dict(base)
+    joined_lines = str(base.get("source_text") or "")
+    valid_drafts = []
+    for item in (llm_payload.get("drafts") or []):
+        if not isinstance(item, dict):
+            continue
+        label_value = line(item.get("label"))
+        text_value = clean_draft_text(item.get("text") or "")
+        if not text_value or draft_text_is_lazy(text_value, joined_lines):
+            continue
+        valid_drafts.append({"label": label_value or "Option", "text": text_value})
+    if valid_drafts:
+        merged["drafts"] = valid_drafts
+    why_alignednews = clean_sentence(llm_payload.get("why_alignednews"))
+    if why_alignednews and not draft_text_is_lazy(why_alignednews, joined_lines):
+        merged["why_alignednews"] = why_alignednews
     local_model = llm_payload.get("_local_model")
     if local_model:
         merged["local_model"] = local_model
@@ -898,6 +1036,24 @@ def draft_text_is_lazy(value: str, joined_lines: str) -> bool:
     if any(item in lowered for item in banned) and not source_mentions(joined_lines, "ai employee", "assistant and employee"):
         return True
     if "reply tweet:." in lowered:
+        return True
+    stripped_lines = [line(item) for item in text.splitlines() if line(item)]
+    unique_lines = {item.lower() for item in stripped_lines}
+    if len(stripped_lines) >= 3 and len(unique_lines) <= max(1, len(stripped_lines) // 2):
+        return True
+    url_count = len(re.findall(r"https?://", text))
+    alpha_count = len(re.findall(r"[A-Za-z]", text))
+    if url_count >= 2 and alpha_count < 180:
+        return True
+    generic_phrases = (
+        "general outreach",
+        "paid / sponsorship",
+        "learn more.",
+        "different angle",
+        "recommended.",
+        "this fits alignednews because",
+    )
+    if sum(1 for phrase in generic_phrases if phrase in lowered) >= 3:
         return True
     return False
 
@@ -1535,13 +1691,16 @@ def build_structured_brief_payload(
         payload["submit_url"] = submit_url
     if not LOCAL_BRIEF_LLM_ENABLED:
         return payload
-    llm_payload = query_local_brief_model({
+    source_payload = {
         "title": title,
         "source_url": source_url,
         "source_text": payload.get("source_text"),
         "links": links,
-    })
-    return merge_brief_payload(payload, llm_payload)
+    }
+    llm_payload = query_local_brief_model(source_payload)
+    merged = merge_brief_payload(payload, llm_payload)
+    draft_payload = query_local_brief_drafts(source_payload, merged)
+    return merge_draft_payload(merged, draft_payload)
 
 
 def notion_to_brief_payload(notion: dict, notion_url: str) -> dict:
