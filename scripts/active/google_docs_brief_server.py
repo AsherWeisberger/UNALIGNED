@@ -864,6 +864,7 @@ Rules:
 - Each option must use a genuinely different framing.
 - Option 1 must make a natural tie in to AlignedNews.com. The other options should do that too when it fits.
 - Pull from named proof points, product mechanics, launch details, and exact source language when useful.
+- Do not paste scheduling metadata like launch date, go live time, posting window, or approval notes into the draft copy.
 - Do not invent metrics or facts.
 - If a tag or link is required, include it in a natural close, not as a wall of text.
 
@@ -1244,6 +1245,11 @@ def first_nonempty(*values: str) -> str:
 def clean_draft_text(value: str) -> str:
     text = str(value or "").strip()
     text = re.sub(r"\bReply tweet:\s*\.*\s*$", "", text, flags=re.I).strip()
+    text = re.sub(
+        r"(?im)^(?:launch date\/time|launch date|go[- ]live|go live|posting date|post date|publish date)\s*:\s*.+$",
+        "",
+        text,
+    )
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
@@ -1392,20 +1398,20 @@ def infer_alignednews_line(company: str, joined_lines: str, deliverable_type: st
     lowered = str(joined_lines or "").lower()
     company_name = line(company) or "this"
     if any(term in lowered for term in ("user-generated agents", "user generated agents", "(uga)", "survival benchmark", "juno", "reality permeability", "multi-agent reinforcement", "rlhf")):
-        return "This is exactly the kind of frontier AI shift I track at AlignedNews.com"
+        return "This is exactly the kind of frontier AI shift I like unpacking at AlignedNews.com"
     if any(term in lowered for term in ("infrastructure", "compute", "inference", "benchmark", "developer", "api", "model", "agents")):
-        return f"This is the kind of infrastructure story I like tying back to the bigger AI stack at AlignedNews.com"
+        return "This is the kind of infrastructure shift that matters because it changes what AI teams can actually build, and that is the kind of story I like covering at AlignedNews.com"
     if any(term in lowered for term in ("enterprise", "workflow", "teams", "operator", "productivity", "sales", "support", "copilot")):
-        return f"This is the kind of enterprise AI rollout I like framing through real operating change at AlignedNews.com"
+        return "This is the kind of enterprise AI shift I like covering at AlignedNews.com because it shows how work is actually changing"
     if any(term in lowered for term in ("interview", "podcast", "event", "summit", "fireside", "conversation", "meeting")):
-        return f"This fits the kinds of conversations and signal I like bringing into AlignedNews.com"
+        return "This fits the kind of conversation I like bringing into AlignedNews.com"
     if any(term in lowered for term in ("launch", "series a", "series b", "funding", "announcement", "now live", "public app")):
-        return f"This is the kind of launch I like using to show where the market is moving on AlignedNews.com"
+        return "This is the kind of launch I like using to show where the market is moving at AlignedNews.com"
     if "thread" in str(deliverable_type or "").lower():
-        return f"This is the kind of AI shift I like unpacking in public on AlignedNews.com"
+        return "This is the kind of AI shift I like unpacking in public at AlignedNews.com"
     if line(announcement_text):
-        return f"This fits the broader AI story I cover at AlignedNews.com"
-    return f"This is the kind of shift I track at AlignedNews.com"
+        return "This fits the broader AI story I cover at AlignedNews.com"
+    return "This is the kind of shift I track at AlignedNews.com"
 
 
 def joined_clean_lines(values: list[str], company: str = "", limit: int = 3) -> str:
