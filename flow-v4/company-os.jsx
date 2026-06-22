@@ -1414,6 +1414,25 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
   const [calendarResult, setCalendarResult] = React.useState(null);
   const briefConfig = React.useMemo(() => V4BriefMakerConfig(briefForm), [briefForm]);
   const briefJson = React.useMemo(() => JSON.stringify(briefConfig, null, 2), [briefConfig]);
+  const briefLoadingActive = (notionStatus === 'importing' || docStatus === 'creating') && notionStatus !== 'error' && docStatus !== 'error';
+  const briefWorkflowSteps = React.useMemo(() => [
+    { key: 'reading_source', label: 'Source' },
+    { key: 'extracting_facts', label: 'Facts' },
+    { key: 'writing_drafts', label: 'Drafts' },
+    { key: 'creating_doc', label: 'Doc' },
+    { key: 'creating_calendar', label: 'Calendar' },
+  ], []);
+  const briefWorkflowIndex = React.useMemo(() => {
+    if (briefJobStatus === 'queued') return 0;
+    if (briefJobStage === 'reading_source') return 0;
+    if (briefJobStage === 'extracting_facts') return 1;
+    if (briefJobStage === 'writing_drafts') return 2;
+    if (briefJobStage === 'creating_doc' || briefJobStage === 'writing_doc' || briefJobStage === 'building_doc') return 3;
+    if (briefJobStage === 'inferring_calendar' || briefJobStage === 'creating_calendar') return 4;
+    if (briefJobStage === 'done') return briefWorkflowSteps.length - 1;
+    return 0;
+  }, [briefJobStage, briefJobStatus, briefWorkflowSteps.length]);
+  const briefSnakeProgress = briefWorkflowSteps.length <= 1 ? 0 : briefWorkflowIndex / (briefWorkflowSteps.length - 1);
   const briefProgressNote = React.useMemo(() => {
     if (briefJobStatus === 'queued') return 'Saved to your brief machine. Build is queued now.';
     if (briefJobStageDetail) return briefJobStageDetail;
@@ -2085,8 +2104,31 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                   {notionStatus === 'error' && (
                     <span className="brief-maker-server-error">{notionError}</span>
                   )}
-                  {(notionStatus === 'importing' || docStatus === 'creating') && notionStatus !== 'error' && docStatus !== 'error' && (
-                    <span className="brief-maker-server-note">{briefProgressNote}</span>
+                  {briefLoadingActive && (
+                    <div className="brief-maker-loading-card">
+                      <div className="brief-maker-loading-top">
+                        <strong>Brief machine</strong>
+                        <span>{briefJobStatus === 'queued' ? 'Queued' : 'Running'}</span>
+                      </div>
+                      <div className="brief-maker-snake-rail" style={{ '--snake-progress': briefSnakeProgress }}>
+                        <div className="brief-maker-snake-line" />
+                        <div className="brief-maker-snake-head" />
+                        {briefWorkflowSteps.map((step, idx) => (
+                          <div
+                            key={step.key}
+                            className={
+                              'brief-maker-snake-stop'
+                              + (idx < briefWorkflowIndex ? ' is-done' : '')
+                              + (idx === briefWorkflowIndex ? ' is-live' : '')
+                            }
+                          >
+                            <span className="brief-maker-snake-dot" />
+                            <span className="brief-maker-snake-label">{step.label}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <span className="brief-maker-server-note">{briefProgressNote}</span>
+                    </div>
                   )}
                   {docStatus === 'error' && (
                     <span className="brief-maker-server-error">{docError}</span>
