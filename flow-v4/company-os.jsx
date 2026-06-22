@@ -1432,7 +1432,9 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     if (briefJobStage === 'done') return briefWorkflowSteps.length - 1;
     return 0;
   }, [briefJobStage, briefJobStatus, briefWorkflowSteps.length]);
-  const briefSnakeProgress = briefWorkflowSteps.length <= 1 ? 0 : briefWorkflowIndex / (briefWorkflowSteps.length - 1);
+  const briefSnakeProgress = briefWorkflowSteps.length
+    ? (briefWorkflowIndex + 0.5) / briefWorkflowSteps.length
+    : 0;
   const briefProgressNote = React.useMemo(() => {
     if (briefJobStatus === 'queued') return 'Saved to your brief machine. Build is queued now.';
     if (briefJobStageDetail) return briefJobStageDetail;
