@@ -1505,6 +1505,12 @@ def standardized_brief_title(company: str, *platform_hints: str) -> str:
     return f"{company_name} x UNALIGNED x {platform}"
 
 
+def standardized_calendar_title(company: str, *platform_hints: str) -> str:
+    company_name = line(company) or "Collab"
+    platform = brief_platform_label(*platform_hints)
+    return f"{company_name} - {platform}"
+
+
 def build_structured_brief_payload(
     *,
     title: str,
@@ -1944,6 +1950,16 @@ def build_structured_brief_payload(
 
     payload = {
         "title": payload_title,
+        "calendar_title": standardized_calendar_title(
+            company,
+            deliverable_type,
+            campaign_platform,
+            campaign_line,
+            title,
+            go_live_line,
+            guardrails_line,
+            joined_lines[:1200],
+        ),
         "subtitle": subtitle,
         "filename": slug_filename(f"{company}_{brief_platform_label(deliverable_type, campaign_platform, campaign_line, title)}"),
         "company_name": company,
@@ -1991,6 +2007,16 @@ def build_structured_brief_payload(
     draft_payload = query_local_brief_drafts(source_payload, merged)
     merged = merge_draft_payload(merged, draft_payload)
     merged["title"] = standardized_brief_title(
+        line(merged.get("company_name")) or company,
+        line(merged.get("deliverable_type")) or deliverable_type,
+        campaign_platform,
+        campaign_line,
+        title,
+        go_live_line,
+        guardrails_line,
+        joined_lines[:1200],
+    )
+    merged["calendar_title"] = standardized_calendar_title(
         line(merged.get("company_name")) or company,
         line(merged.get("deliverable_type")) or deliverable_type,
         campaign_platform,
