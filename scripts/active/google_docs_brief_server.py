@@ -93,6 +93,7 @@ from robert_handoff_operator import (  # type: ignore
 BRIEF_JOBS_LOCK = threading.Lock()
 BRIEF_JOBS: dict[str, dict] = {}
 BRIEF_JOB_HISTORY_LIMIT = 40
+BRIEF_JOB_CONTEXT = threading.local()
 
 
 def get_api_token() -> str:
@@ -184,12 +185,23 @@ def update_brief_job(job_id: str, **changes) -> None:
     save_brief_jobs()
 
 
+def set_brief_job_stage(stage: str, detail: str = "") -> None:
+    job_id = line(getattr(BRIEF_JOB_CONTEXT, "job_id", ""))
+    if not job_id:
+        return
+    changes = {"updated_at": utc_now_iso(), "stage": line(stage)}
+    if detail:
+        changes["stage_detail"] = line(detail)
+    update_brief_job(job_id, **changes)
+
+
 def build_brief_job(payload: dict) -> dict:
     job_id = uuid.uuid4().hex[:12]
     source_url = line(payload.get("source_url") or payload.get("notion_url"))
     job = {
         "id": job_id,
         "status": "queued",
+        "stage": "queued",
         "created_at": utc_now_iso(),
         "updated_at": utc_now_iso(),
         "source_url": source_url,
@@ -224,16 +236,19 @@ def run_brief_job(job_id: str) -> None:
         job = BRIEF_JOBS.get(job_id)
     if not job:
         return
+    BRIEF_JOB_CONTEXT.job_id = job_id
     payload = dict(job.get("request_payload") or {})
-    update_brief_job(job_id, status="running", updated_at=utc_now_iso(), started_at=utc_now_iso(), error="")
+    update_brief_job(job_id, status="running", stage="starting", updated_at=utc_now_iso(), started_at=utc_now_iso(), error="")
     brief_log(f"[job {job_id}] started")
     try:
+        set_brief_job_stage("building_doc", "Creating brief doc")
         brief_log(f"[job {job_id}] creating brief doc")
         result = create_brief_doc(payload)
         final_result = dict(result)
         merged_payload = dict(payload)
         if isinstance(final_result.get("payload"), dict):
             merged_payload.update(final_result.get("payload") or {})
+        set_brief_job_stage("inferring_calendar", "Reading posting date")
         brief_log(f"[job {job_id}] inferring calendar fields")
         inferred_calendar = infer_calendar_fields_from_payload(merged_payload)
         if inferred_calendar:
@@ -242,6 +257,7 @@ def run_brief_job(job_id: str) -> None:
                 final_result["payload"] = dict(final_result.get("payload") or {})
                 final_result["payload"].update(inferred_calendar)
             brief_log(f"[job {job_id}] calendar fields inferred {inferred_calendar.get('calendar_date')} {inferred_calendar.get('calendar_start', '')}".rstrip())
+        set_brief_job_stage("creating_calendar", "Creating calendar item" if inferred_calendar or line(merged_payload.get("calendar_date")) else "Finalizing brief")
         brief_log(f"[job {job_id}] creating calendar item" if inferred_calendar or line(merged_payload.get("calendar_date")) else f"[job {job_id}] no calendar item requested")
         calendar_result = maybe_create_calendar_for_job(merged_payload, line(result.get("url")))
         if calendar_result:
@@ -250,6 +266,7 @@ def run_brief_job(job_id: str) -> None:
         update_brief_job(
             job_id,
             status="done",
+            stage="done",
             updated_at=utc_now_iso(),
             finished_at=utc_now_iso(),
             result=final_result,
@@ -262,11 +279,14 @@ def run_brief_job(job_id: str) -> None:
         update_brief_job(
             job_id,
             status="error",
+            stage="error",
             updated_at=utc_now_iso(),
             finished_at=utc_now_iso(),
             error=str(exc),
             error_trace=traceback.format_exc(limit=8),
         )
+    finally:
+        BRIEF_JOB_CONTEXT.job_id = ""
 
 
 def start_brief_job(payload: dict) -> dict:
@@ -482,24 +502,17 @@ def parse_human_schedule_text(raw_value: str) -> dict | None:
         ("%b %d %Y %I:%M %p %z", True),
         ("%B %d %Y %H:%M %z", True),
         ("%b %d %Y %H:%M %z", True),
-        ("%B %d %I:%M %p %z", True),
-        ("%b %d %I:%M %p %z", True),
-        ("%B %d %H:%M %z", True),
-        ("%b %d %H:%M %z", True),
         ("%B %d %Y %I:%M %p", True),
         ("%b %d %Y %I:%M %p", True),
         ("%B %d %Y %H:%M", True),
         ("%b %d %Y %H:%M", True),
-        ("%B %d %I:%M %p", True),
-        ("%b %d %I:%M %p", True),
         ("%B %d %Y", False),
         ("%b %d %Y", False),
-        ("%B %d", False),
-        ("%b %d", False),
     ]
     candidates = [text]
     if not re.search(r"\b20\d{2}\b", text):
-        candidates.insert(0, re.sub(r"^([A-Za-z]+ \d+)", rf"\1 {current_year}", text))
+        with_year = re.sub(r"^([A-Za-z]+ \d+)", rf"\1 {current_year}", text)
+        candidates = [with_year]
     for candidate in candidates:
         for fmt, has_time in formats:
             try:
@@ -902,6 +915,7 @@ def query_local_brief_json(
     prompt: str,
     system_prompt: str,
     max_tokens: int,
+    stage_label: str = "local-model",
 ) -> dict | None:
     targets = load_local_llm_targets()
     errors: list[str] = []
@@ -912,6 +926,7 @@ def query_local_brief_json(
             continue
         try:
             request_timeout = 75 if "127.0.0.1:8642" in base_url else 45
+            brief_log(f"{stage_label}: calling {target.get('label') or model}")
             payload = {
                 "model": model,
                 "messages": [
@@ -925,31 +940,37 @@ def query_local_brief_json(
             content = (((data.get("choices") or [{}])[0]).get("message") or {}).get("content", "")
             parsed = extract_json_block(content)
             if isinstance(parsed, dict):
+                brief_log(f"{stage_label}: success from {target.get('label') or model}")
                 parsed["_local_model"] = {"base_url": base_url, "model": model, "label": target.get("label")}
                 return parsed
         except Exception as exc:
+            brief_log(f"{stage_label}: failed on {target.get('label') or model}: {exc}")
             errors.append(f"{target.get('label') or model}: {exc}")
             continue
     if errors:
-        print("Local brief extraction fallback:", " | ".join(errors))
+        brief_log(f"{stage_label}: fallback {' | '.join(errors)}")
     return None
 
 
 def query_local_brief_model(source: dict) -> dict | None:
+    set_brief_job_stage("extracting_facts", "Extracting campaign facts")
     prompt = llm_prompt_for_brief(source)
     return query_local_brief_json(
         prompt=prompt,
         system_prompt="You are a precise JSON extraction engine.",
         max_tokens=1100,
+        stage_label="brief-facts",
     )
 
 
 def query_local_brief_drafts(source: dict, base_payload: dict) -> dict | None:
+    set_brief_job_stage("writing_drafts", "Writing draft options")
     prompt = llm_prompt_for_drafts(source, base_payload)
     return query_local_brief_json(
         prompt=prompt,
         system_prompt="You write premium campaign copy and return strict JSON only.",
         max_tokens=1200,
+        stage_label="brief-drafts",
     )
 
 
@@ -1978,6 +1999,7 @@ def import_notion_brief(notion_url: str, email_context: str = "") -> dict:
         raise ValueError("Notion URL is required.")
     if "notion.so" not in notion_url and "notion.site" not in notion_url:
         raise ValueError("Paste a public Notion link.")
+    set_brief_job_stage("reading_source", "Reading source brief")
     brief_log(f"Importing Notion source {notion_url}")
     result = subprocess.run(
         ["node", str(NOTION_EXTRACTOR), notion_url],
@@ -2002,6 +2024,7 @@ def import_source_brief(source_url: str, email_context: str = "") -> dict:
     source_url = line(source_url)
     if not source_url:
         raise ValueError("Source URL is required.")
+    set_brief_job_stage("reading_source", "Reading source brief")
     brief_log(f"Importing source {source_url}")
 
     if "notion.so" in source_url or "notion.site" in source_url:
@@ -2477,12 +2500,14 @@ def create_brief_doc(payload: dict) -> dict:
     title = line(payload.get("title"))
     if not title:
         raise ValueError("Brief title is required.")
+    set_brief_job_stage("creating_doc", "Creating Google Doc")
     brief_log(f"Creating Google Doc: {title}")
     service = load_docs_service(interactive=True)
     doc = service.documents().create(body={"title": title}).execute()
     document_id = doc["documentId"]
     text, blocks = build_doc_blocks(payload)
     requests = build_requests(text, blocks)
+    set_brief_job_stage("writing_doc", "Writing Google Doc content")
     brief_log("Writing Google Doc content")
     service.documents().batchUpdate(documentId=document_id, body={"requests": requests}).execute()
     response = {

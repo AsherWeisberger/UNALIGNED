@@ -1402,6 +1402,8 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
   const [briefResult, setBriefResult] = React.useState(null);
   const [briefJobId, setBriefJobId] = React.useState('');
   const [briefJobStatus, setBriefJobStatus] = React.useState('idle');
+  const [briefJobStage, setBriefJobStage] = React.useState('');
+  const [briefJobStageDetail, setBriefJobStageDetail] = React.useState('');
   const [docStatus, setDocStatus] = React.useState('idle');
   const [docError, setDocError] = React.useState('');
   const [docResult, setDocResult] = React.useState(null);
@@ -1412,6 +1414,19 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
   const [calendarResult, setCalendarResult] = React.useState(null);
   const briefConfig = React.useMemo(() => V4BriefMakerConfig(briefForm), [briefForm]);
   const briefJson = React.useMemo(() => JSON.stringify(briefConfig, null, 2), [briefConfig]);
+  const briefProgressNote = React.useMemo(() => {
+    if (briefJobStatus === 'queued') return 'Saved to your brief machine. Build is queued now.';
+    if (briefJobStageDetail) return briefJobStageDetail;
+    if (briefJobStage === 'reading_source') return 'Reading source brief';
+    if (briefJobStage === 'extracting_facts') return 'Extracting campaign facts';
+    if (briefJobStage === 'writing_drafts') return 'Writing draft options';
+    if (briefJobStage === 'creating_doc') return "Creating Robert's Google Doc";
+    if (briefJobStage === 'writing_doc') return 'Writing Google Doc content';
+    if (briefJobStage === 'inferring_calendar') return 'Reading posting date';
+    if (briefJobStage === 'creating_calendar') return 'Creating calendar item';
+    if (briefJobStatus === 'running') return 'Job running on your Mac. You can leave this screen and come back.';
+    return "Reading the link and building Robert's Google Doc in the background...";
+  }, [briefJobStage, briefJobStageDetail, briefJobStatus]);
 
   React.useEffect(() => {
     try {
@@ -1465,6 +1480,8 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     if (briefJobId || briefJobStatus !== 'idle') {
       setBriefJobId('');
       setBriefJobStatus('idle');
+      setBriefJobStage('');
+      setBriefJobStageDetail('');
     }
     if (!isCalendarField && docStatus !== 'idle') {
       setDocStatus('idle');
@@ -1551,6 +1568,8 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     setBriefResult(null);
     setBriefJobId('');
     setBriefJobStatus('idle');
+    setBriefJobStage('');
+    setBriefJobStageDetail('');
     setDocStatus('idle');
     setDocError('');
     setDocResult(null);
@@ -1580,6 +1599,8 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
         const job = await loadBriefJobStatus(briefJobId);
         if (!active || !job) return;
         setBriefJobStatus(job.status || 'idle');
+        setBriefJobStage(job.stage || '');
+        setBriefJobStageDetail(job.stage_detail || '');
         if (job.status === 'done') {
           const result = job.result || {};
           const payload = result.payload || {};
@@ -1596,6 +1617,8 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
           }
           setBriefJobId('');
           setBriefJobStatus('done');
+          setBriefJobStage('done');
+          setBriefJobStageDetail('Done');
           return;
         }
         if (job.status === 'error') {
@@ -1606,6 +1629,8 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
           setDocError(message);
           setBriefJobId('');
           setBriefJobStatus('error');
+          setBriefJobStage('error');
+          setBriefJobStageDetail(message);
           return;
         }
         timer = window.setTimeout(poll, 2500);
@@ -1763,6 +1788,8 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     try {
       setDocStatus('creating');
       setBriefJobStatus('queued');
+      setBriefJobStage('queued');
+      setBriefJobStageDetail('Saved to your brief machine. Build is queued now.');
       const blankCalendar = V4InferCalendarFieldsFromGoLive('');
       const requestConfig = {
         source_url: sourceUrl,
@@ -2059,23 +2086,13 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                     <span className="brief-maker-server-error">{notionError}</span>
                   )}
                   {notionStatus === 'importing' && (
-                    <span className="brief-maker-server-note">
-                      {briefJobStatus === 'queued'
-                        ? 'Saved to your brief machine. Build is queued now.'
-                        : "Reading the link and building Robert's Google Doc in the background..."}
-                    </span>
+                    <span className="brief-maker-server-note">{briefProgressNote}</span>
                   )}
                   {docStatus === 'error' && (
                     <span className="brief-maker-server-error">{docError}</span>
                   )}
                   {docStatus === 'creating' && (
-                    <span className="brief-maker-server-note">
-                      {briefJobStatus === 'queued'
-                        ? 'Job queued. Your Mac is picking up the brief now.'
-                        : briefJobStatus === 'running'
-                          ? 'Job running on your Mac. You can leave this screen and come back.'
-                          : "Creating the Google Doc on Robert's account..."}
-                    </span>
+                    <span className="brief-maker-server-note">{briefProgressNote}</span>
                   )}
                   {docStatus === 'done' && docResult && (
                     <div className="brief-maker-result-card">
