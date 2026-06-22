@@ -2085,14 +2085,11 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                   {notionStatus === 'error' && (
                     <span className="brief-maker-server-error">{notionError}</span>
                   )}
-                  {notionStatus === 'importing' && (
+                  {(notionStatus === 'importing' || docStatus === 'creating') && notionStatus !== 'error' && docStatus !== 'error' && (
                     <span className="brief-maker-server-note">{briefProgressNote}</span>
                   )}
                   {docStatus === 'error' && (
                     <span className="brief-maker-server-error">{docError}</span>
-                  )}
-                  {docStatus === 'creating' && (
-                    <span className="brief-maker-server-note">{briefProgressNote}</span>
                   )}
                   {docStatus === 'done' && docResult && (
                     <div className="brief-maker-result-card">
