@@ -717,26 +717,28 @@ def load_local_llm_targets() -> list[dict]:
         except Exception:
             continue
 
+    hermes_models = available_by_base.get(hermes_base) or set()
+    hermes_available = "qwen3.6:35b-a3b" in hermes_models
+
+    if hermes_available:
+        add_target(hermes_base, "qwen3.6:35b-a3b", "Hermes API Qwen 3.6 35B")
+        return targets
+
     for base_url, model_id in PREFERRED_LOCAL_MODELS:
         normalized_base = base_url.rstrip("/")
         available_models = available_by_base.get(normalized_base)
-        if normalized_base == hermes_base:
-            add_target(normalized_base, model_id, "Hermes API Qwen 3.6 35B")
+        if not available_models or model_id not in available_models:
             continue
-        if available_models and model_id in available_models:
-            if "8642" in normalized_base:
-                label = "Hermes Qwen Blank Slate"
-            elif "11434" in normalized_base:
-                label = f"Ollama {model_id}"
-            else:
-                label = model_id
-            add_target(normalized_base, model_id, label)
+        if "8642" in normalized_base:
+            label = "Hermes Qwen Blank Slate"
+        elif "11434" in normalized_base:
+            label = f"Ollama {model_id}"
+        else:
+            label = model_id
+        add_target(normalized_base, model_id, label)
 
     for default in DEFAULT_LLM_TARGETS:
         normalized_base = default["base_url"].rstrip("/")
-        if normalized_base == hermes_base:
-            add_target(default["base_url"], default["model"], default["label"])
-            continue
         available_models = available_by_base.get(normalized_base)
         if available_models and default["model"] in available_models:
             add_target(default["base_url"], default["model"], default["label"])
@@ -949,7 +951,7 @@ def query_local_brief_json(
             errors.append(f"{target.get('label') or model}: {exc}")
             continue
     if errors:
-        brief_log(f"{stage_label}: fallback {' | '.join(errors)}")
+        brief_log(f"{stage_label}: no model result {' | '.join(errors)}")
     return None
 
 
@@ -1962,6 +1964,9 @@ def build_structured_brief_payload(
     }
     llm_payload = query_local_brief_model(source_payload)
     merged = merge_brief_payload(payload, llm_payload)
+    if not llm_payload:
+        set_brief_job_stage("extracting_facts", "Using source directly")
+        brief_log("brief-facts: using source directly")
     draft_payload = query_local_brief_drafts(source_payload, merged)
     merged = merge_draft_payload(merged, draft_payload)
     merged["title"] = standardized_brief_title(
