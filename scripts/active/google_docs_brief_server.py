@@ -20,6 +20,7 @@ import sys
 import threading
 import traceback
 import uuid
+import errno
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
@@ -581,6 +582,7 @@ def load_local_llm_targets() -> list[dict]:
 def llm_prompt_for_brief(source: dict) -> str:
     title = line(source.get("title")) or "Robert Brief"
     source_url = line(source.get("source_url"))
+    email_context = line(source.get("email_context"))
     links = source.get("links") or []
     source_text = line(source.get("source_text"))
     link_lines = "\n".join(
@@ -637,6 +639,9 @@ Source title:
 Source URL:
 {source_url}
 
+Last sender email context:
+{email_context or "(none provided)"}
+
 Linked references:
 {link_lines or "(none)"}
 
@@ -662,6 +667,7 @@ def llm_prompt_for_drafts(source: dict, base_payload: dict) -> str:
     angles = "\n".join(f"- {line(item)}" for item in (base_payload.get("angles_or_accuracy_requirements") or [])[:8] if line(item))
     status_lines = "\n".join(f"- {line(item)}" for item in (base_payload.get("status_note") or [])[:8] if line(item))
     source_text = line(source.get("source_text"))[:5500]
+    email_context = line(source.get("email_context"))
     return f"""You are writing Robert Scoble campaign copy.
 
 Return valid JSON only. No markdown fence. No explanation.
@@ -671,6 +677,7 @@ Each draft must feel source specific, not templated.
 Do not repeat the same CTA line in every option.
 Do not fill space with links. Use links only where they help the close.
 Use AlignedNews.com naturally where it genuinely fits.
+Use the last sender email context when present to understand what the sponsor emphasized, how they framed the ask, and any delivery constraints.
 
 Return exactly this JSON:
 {{
@@ -730,6 +737,9 @@ Angles and accuracy requirements:
 
 Status notes:
 {status_lines or "- (none provided)"}
+
+Last sender email context:
+{email_context or "(none provided)"}
 
 Source text:
 {source_text}
@@ -1231,15 +1241,35 @@ def infer_deliverable_type(lines: list[str]) -> str:
 
 def infer_campaign_platform(text: str) -> str:
     current = line(text).lower()
+    if "youtube" in current or "youtu.be" in current:
+        return "YouTube"
+    if "tiktok" in current or "tik tok" in current:
+        return "TikTok"
+    if "instagram" in current or re.search(r"\big\b", current):
+        return "Instagram"
+    if "podcast" in current:
+        return "Podcast"
     if "teams" in current:
         return "Teams"
     if "slack" in current:
         return "Slack"
     if "linkedin" in current:
         return "LinkedIn"
-    if "x" in current or "twitter" in current:
-        return "X"
+    if "x.com" in current or "twitter" in current or re.search(r"\bquote repost\b|\bquote post\b|\bx thread\b|\bdedicated thread\b|\bx post\b", current):
+        return "X.com"
     return ""
+
+
+def brief_platform_label(*values: str) -> str:
+    combined = " ".join(line(value) for value in values if line(value))
+    platform = infer_campaign_platform(combined)
+    return platform or "X.com"
+
+
+def standardized_brief_title(company: str, *platform_hints: str) -> str:
+    company_name = line(company) or "Campaign"
+    platform = brief_platform_label(*platform_hints)
+    return f"{company_name} x UNALIGNED x {platform}"
 
 
 def build_structured_brief_payload(
@@ -1657,10 +1687,21 @@ def build_structured_brief_payload(
 
     where_it_lives = compact_where_it_lives()
 
+    payload_title = standardized_brief_title(
+        company,
+        deliverable_type,
+        campaign_platform,
+        campaign_line,
+        title,
+        go_live_line,
+        guardrails_line,
+        joined_lines[:1200],
+    )
+
     payload = {
-        "title": f"{company} x UNALIGNED x ROBERT SCOBLE",
+        "title": payload_title,
         "subtitle": subtitle,
-        "filename": slug_filename(company or title),
+        "filename": slug_filename(f"{company}_{brief_platform_label(deliverable_type, campaign_platform, campaign_line, title)}"),
         "company_name": company,
         "about_company": about_company,
         "core_idea": core_idea_text,
@@ -1696,17 +1737,29 @@ def build_structured_brief_payload(
         "source_url": source_url,
         "source_text": payload.get("source_text"),
         "links": links,
+        "email_context": payload.get("email_context"),
     }
     llm_payload = query_local_brief_model(source_payload)
     merged = merge_brief_payload(payload, llm_payload)
     draft_payload = query_local_brief_drafts(source_payload, merged)
-    return merge_draft_payload(merged, draft_payload)
+    merged = merge_draft_payload(merged, draft_payload)
+    merged["title"] = standardized_brief_title(
+        line(merged.get("company_name")) or company,
+        line(merged.get("deliverable_type")) or deliverable_type,
+        campaign_platform,
+        campaign_line,
+        title,
+        go_live_line,
+        guardrails_line,
+        joined_lines[:1200],
+    )
+    return merged
 
 
-def notion_to_brief_payload(notion: dict, notion_url: str) -> dict:
+def notion_to_brief_payload(notion: dict, notion_url: str, email_context: str = "") -> dict:
     lines = [item for item in (notion.get("lines") or []) if item not in ("Skip to content", "Get Notion free")]
     title = line(notion.get("title")) or "Robert Brief"
-    return build_structured_brief_payload(
+    payload = build_structured_brief_payload(
         title=title,
         subtitle="For Robert. Built from the Notion campaign brief.",
         source_url=notion_url,
@@ -1714,6 +1767,9 @@ def notion_to_brief_payload(notion: dict, notion_url: str) -> dict:
         links=notion.get("links") or [],
         source_label="Notion",
     )
+    if line(email_context):
+        payload["email_context"] = line(email_context)
+    return payload
 
 
 def google_doc_to_source(document_id: str) -> dict:
@@ -1749,10 +1805,10 @@ def google_doc_to_source(document_id: str) -> dict:
     }
 
 
-def source_to_brief_payload(source: dict, source_url: str) -> dict:
+def source_to_brief_payload(source: dict, source_url: str, email_context: str = "") -> dict:
     lines = source.get("lines") or []
     title = line(source.get("title")) or "Robert Brief"
-    return build_structured_brief_payload(
+    payload = build_structured_brief_payload(
         title=title,
         subtitle="For Robert. Built from the source brief.",
         source_url=source_url,
@@ -1760,9 +1816,12 @@ def source_to_brief_payload(source: dict, source_url: str) -> dict:
         links=source.get("links") or [],
         source_label="Source",
     )
+    if line(email_context):
+        payload["email_context"] = line(email_context)
+    return payload
 
 
-def import_notion_brief(notion_url: str) -> dict:
+def import_notion_brief(notion_url: str, email_context: str = "") -> dict:
     notion_url = line(notion_url)
     if not notion_url:
         raise ValueError("Notion URL is required.")
@@ -1776,7 +1835,7 @@ def import_notion_brief(notion_url: str) -> dict:
         timeout=120,
     )
     notion = json.loads(result.stdout or "{}")
-    payload = notion_to_brief_payload(notion, notion_url)
+    payload = notion_to_brief_payload(notion, notion_url, email_context=email_context)
     return {
         "ok": True,
         "payload": payload,
@@ -1787,20 +1846,20 @@ def import_notion_brief(notion_url: str) -> dict:
     }
 
 
-def import_source_brief(source_url: str) -> dict:
+def import_source_brief(source_url: str, email_context: str = "") -> dict:
     source_url = line(source_url)
     if not source_url:
         raise ValueError("Source URL is required.")
 
     if "notion.so" in source_url or "notion.site" in source_url:
-        return import_notion_brief(source_url)
+        return import_notion_brief(source_url, email_context=email_context)
 
     if "docs.google.com/document" in source_url:
         document_id = extract_google_doc_id(source_url)
         if not document_id:
             raise ValueError("Could not read the Google Doc link.")
         source = google_doc_to_source(document_id)
-        payload = source_to_brief_payload(source, source_url)
+        payload = source_to_brief_payload(source, source_url, email_context=email_context)
         return {
             "ok": True,
             "payload": payload,
@@ -1822,6 +1881,22 @@ def split_doc_paragraphs(value: str) -> list[str]:
     normalized = str(value or "").replace("\u000b", "\n")
     parts = [line(item) for item in normalized.splitlines()]
     return [item for item in parts if item]
+
+
+def split_draft_paragraphs(value: str) -> list[str]:
+    normalized = str(value or "").replace("\u000b", "\n").replace("\r\n", "\n")
+    groups = [item.strip() for item in re.split(r"\n\s*\n+", normalized) if item.strip()]
+    cleaned: list[str] = []
+    for group in groups:
+        lines = [line(item) for item in group.splitlines()]
+        if not any(lines):
+            continue
+        if len(lines) >= 2 and re.match(r"^(Main post|Reply \d+):$", lines[0], re.I):
+            body = " ".join(item for item in lines[1:] if item)
+            cleaned.append(f"{lines[0]}\n{body}".strip())
+            continue
+        cleaned.append("\n".join(item for item in lines if item).strip())
+    return cleaned
 
 
 def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
@@ -1930,8 +2005,11 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
             text_value = str(draft.get("text") or "").strip()
             if label:
                 push("draft_label", label, bold=True, shaded=True)
-            for paragraph in split_doc_paragraphs(text_value):
+            draft_paragraphs = split_draft_paragraphs(text_value)
+            for paragraph_index, paragraph in enumerate(draft_paragraphs):
                 push("body", paragraph, shaded=True)
+                if paragraph_index != len(draft_paragraphs) - 1:
+                    push("blank")
             if idx != len(valid_drafts) - 1:
                 push("blank")
 
@@ -2237,9 +2315,10 @@ def send_robert_handoff_for_lead(lead: dict, draft_payload: dict | None = None) 
 
 def create_brief_doc(payload: dict) -> dict:
     source_url = line(payload.get("source_url")) or line(payload.get("notion_url"))
+    email_context = line(payload.get("email_context"))
     imported = None
     if source_url and not line(payload.get("title")):
-        imported = import_source_brief(source_url)
+        imported = import_source_brief(source_url, email_context=email_context)
         payload = imported["payload"]
     title = line(payload.get("title"))
     if not title:
@@ -2421,13 +2500,13 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
             elif self.path == "/start-brief-job":
                 result = start_brief_job(payload)
             elif self.path == "/import-notion-brief":
-                result = import_notion_brief(payload.get("notion_url"))
+                result = import_notion_brief(payload.get("notion_url"), payload.get("email_context"))
             elif self.path == "/draft-robert-handoff":
                 result = build_robert_handoff_for_lead(payload.get("lead") or {})
             elif self.path == "/send-robert-handoff":
                 result = send_robert_handoff_for_lead(payload.get("lead") or {}, payload.get("draft"))
             elif self.path == "/import-source-brief":
-                result = import_source_brief(payload.get("source_url") or payload.get("notion_url"))
+                result = import_source_brief(payload.get("source_url") or payload.get("notion_url"), payload.get("email_context"))
             else:
                 result = create_calendar_hold(payload)
             send_json(self, 200, result)
@@ -2461,7 +2540,13 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
 
 def main() -> None:
     load_brief_jobs()
-    server = ThreadingHTTPServer((HOST, PORT), DocsBriefHandler)
+    try:
+        server = ThreadingHTTPServer((HOST, PORT), DocsBriefHandler)
+    except OSError as exc:
+        if exc.errno == errno.EADDRINUSE:
+            print(f"Google Docs brief server already running at http://{HOST}:{PORT}")
+            return
+        raise
     print(f"Google Docs brief server listening at http://{HOST}:{PORT}")
     server.serve_forever()
 

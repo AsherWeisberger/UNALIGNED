@@ -750,6 +750,7 @@ function V4BriefMakerDefaultState() {
     submit_url: '',
     source_url: '',
     notion_url: '',
+    email_context: '',
     calendar_title: '',
     calendar_mode: 'all_day',
     calendar_date: '',
@@ -803,6 +804,7 @@ function V4BriefMakerConfig(form) {
   if (form.submit_url) payload.submit_url = String(form.submit_url).trim();
   if (form.source_url) payload.source_url = String(form.source_url).trim();
   if (form.notion_url) payload.notion_url = String(form.notion_url).trim();
+  if (form.email_context) payload.email_context = String(form.email_context).trim();
   if (form.calendar_title) payload.calendar_title = String(form.calendar_title).trim();
   if (form.calendar_mode) payload.calendar_mode = String(form.calendar_mode).trim();
   if (form.calendar_date) payload.calendar_date = String(form.calendar_date).trim();
@@ -1649,6 +1651,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
       submit_url: payload.submit_url || curr.submit_url,
       source_url: sourceUrl || curr.source_url,
       notion_url: sourceUrl || curr.notion_url,
+      email_context: payload.email_context || curr.email_context,
       calendar_title: payload.calendar_title || curr.calendar_title || payload.title || curr.title,
       calendar_mode: payload.calendar_mode || curr.calendar_mode || inferredMode,
       calendar_date: payload.calendar_date || curr.calendar_date || inferredCalendar?.calendar_date || '',
@@ -1704,7 +1707,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     try {
       const res = await V4BriefServiceFetch('/import-source-brief', {
         method: 'POST',
-        body: JSON.stringify({ source_url: sourceUrl }),
+        body: JSON.stringify({ source_url: sourceUrl, email_context: briefForm.email_context || '' }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || 'Notion import failed.');
@@ -1764,6 +1767,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
       const requestConfig = {
         source_url: sourceUrl,
         notion_url: sourceUrl,
+        email_context: briefForm.email_context || '',
         calendar_title: briefForm.calendar_title || '',
         calendar_mode: briefForm.calendar_mode || 'all_day',
         calendar_date: briefForm.calendar_date || blankCalendar?.calendar_date || '',
@@ -2023,8 +2027,18 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                       placeholder="Paste a public Notion page or Google Doc link"
                     />
                   </label>
+                  <label className="brief-maker-field brief-maker-field-wide">
+                    <span>Last sender email context (optional)</span>
+                    <textarea
+                      className="brief-maker-input"
+                      value={briefForm.email_context || ''}
+                      onChange={e => updateBriefField('email_context', e.target.value)}
+                      placeholder="Paste the last email from the person sending the brief so Brief Maker can pick up tone, asks, timing, and constraints"
+                      rows={6}
+                    />
+                  </label>
                   <div className="brief-maker-source-note">
-                    Paste one link. Brief Maker will read it and build the Google Doc on Robert&apos;s account.
+                    Paste one link. Add the last sender email if you want extra context. Brief Maker will read it and build the Google Doc on Robert&apos;s account.
                   </div>
                   <div className="brief-maker-source-actions">
                     <button type="button" className="cos-toolkit-btn is-primary" onClick={buildBriefFromSource}>
