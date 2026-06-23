@@ -110,6 +110,7 @@ function V4App() {
     leads: '',
     calendar: '',
     'company-os': '',
+    'machine-room': '',
   });
   const [toast, setToast] = React.useState(null);
   const toastTimer = React.useRef(null);
@@ -188,6 +189,7 @@ function V4App() {
     if (view === 'leads') return 'Search network…';
     if (view === 'board') return 'Search pipeline…';
     if (view === 'company-os') return 'Search Company OS…';
+    if (view === 'machine-room') return 'Search Machine Room…';
     return 'Search calendar…';
   }, [view]);
 
@@ -281,6 +283,7 @@ function V4App() {
 
   const paletteCommands = [
     { label: 'Go to Company OS', hint: 'workspace', run: () => { setView('company-os'); setOpenId(null); } },
+    { label: 'Go to Machine Room', hint: 'workers', run: () => { setView('machine-room'); setOpenId(null); } },
     { label: 'Go to Today', run: () => { setView('today'); setOpenId(null); } },
     { label: 'Go to Calendar', run: () => { setView('calendar'); setOpenId(null); } },
     { label: 'Go to ' + inboxLabel, run: () => { setView('inbox'); } },
@@ -322,6 +325,7 @@ function V4App() {
           </button>
           <button className="hd-nav-btn" aria-current={view === 'leads' ? 'page' : undefined} onClick={() => { setView('leads'); }}>Network</button>
           <button className="hd-nav-btn" aria-current={view === 'company-os' ? 'page' : undefined} onClick={() => { setView('company-os'); setOpenId(null); }}>Company OS</button>
+          <button className="hd-nav-btn" aria-current={view === 'machine-room' ? 'page' : undefined} onClick={() => { setView('machine-room'); setOpenId(null); }}>Machine Room</button>
         </div>
 
         <div className="hd-search">
@@ -448,6 +452,18 @@ function V4App() {
             }}
           />
         )}
+        {view === 'machine-room' && (
+          <div className="body body-machine-room">
+            <V4AgentsView
+              leads={mergedLeads}
+              query={search}
+              onOpenLead={(id) => {
+                setView('company-os');
+                setOpenId(id);
+              }}
+            />
+          </div>
+        )}
       </main>
 
       {/* ─── Footer ─── */}
@@ -492,6 +508,11 @@ function V4App() {
           <V3Icon name="diamond" w={18} />
           OS
         </button>
+        <button className="ft-tab" aria-current={view === 'machine-room' ? 'page' : undefined}
+                onClick={() => { setView('machine-room'); setOpenId(null); }}>
+          <V3Icon name="network" w={18} />
+          Machine
+        </button>
       </footer>
 
       {/* Detail drawer — suppressed in Inbox; the inbox's right pane is its own reader */}
@@ -526,7 +547,7 @@ function V4App() {
                     onChange={v => setTweak('viewAs', v)} />
         <TweakSection label="View" />
         <TweakSelect label="Page" value={view}
-                    options={['today','board','new-leads','company-os','leads','inbox','invoices','calendar']}
+                    options={['today','board','new-leads','company-os','machine-room','leads','inbox','invoices','calendar']}
                     onChange={v => { setView(v); setOpenId(null); }} />
         <TweakSection label="Appearance" />
         <TweakRadio label="Theme" value={t.theme}

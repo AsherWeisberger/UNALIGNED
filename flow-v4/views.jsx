@@ -374,6 +374,342 @@ function V4RobertBriefView({ leads = [], query = '' }) {
   );
 }
 
+function V4AgentTone(active, blocked) {
+  if (blocked) return 'blocked';
+  if (active > 0) return 'active';
+  return 'clear';
+}
+
+function V4AgentViewItems(leads, fn, limit = 4) {
+  return leads.filter(fn).slice(0, limit);
+}
+
+function V4AgentsView({ leads = [], query = '', onOpenLead }) {
+  const q = String(query || '').trim().toLowerCase();
+  const liveLeads = (Array.isArray(leads) ? leads : []).filter(l => l && !l.isRobertBrief && !['trash', 'dead-leads'].includes(String(l.stage || '').toLowerCase()));
+
+  const newLeads = V4AgentViewItems(liveLeads, l =>
+    (window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(l)) ||
+    ['new', 'first-touch', 'engaged'].includes(String(l.stage || '').toLowerCase())
+  );
+  const replyLeads = V4AgentViewItems(liveLeads, l => Boolean(l.unread || l.needsReply));
+  const pricingLeads = V4AgentViewItems(liveLeads, l => ['rates-sent', 'negotiating'].includes(String(l.stage || '').toLowerCase()));
+  const briefLeads = V4AgentViewItems(liveLeads, l => String(l.stage || '').toLowerCase() === 'done');
+  const financeLeads = V4AgentViewItems(liveLeads, l => String(l.stage || '').toLowerCase() === 'invoice-sent');
+  const followUps = V4AgentViewItems(liveLeads, l => Boolean(l.followUpDue));
+  const xLeads = V4AgentViewItems(liveLeads, l => String(l.source || '').toLowerCase().includes('x') || String(l.source || '').toLowerCase().includes('twitter'));
+  const calendarLeads = V4AgentViewItems(liveLeads, l => Boolean(l.goLiveDate || l.calendarDate || l.postingDate || l.dueDate));
+  const networkLeads = V4AgentViewItems(liveLeads, l => ['follow-up', 'waiting-on-them', 'waiting', 'pitched'].includes(String(l.stage || '').toLowerCase()));
+  const handoffLeads = V4AgentViewItems(liveLeads, l => Boolean(l.nextMove?.who) && /robert|sam/i.test(String(l.nextMove.who || '')));
+
+  const workers = [
+    {
+      id: 'intake',
+      name: 'Lead Intake',
+      glyph: 'IN',
+      accent: 'blue',
+      habitat: 'north-west',
+      subtitle: 'Cleans and routes new opportunities',
+      owner: 'Asher',
+      tone: V4AgentTone(newLeads.length, 0),
+      active: newLeads.length,
+      waiting: 0,
+      blocked: 0,
+      note: newLeads.length ? 'Fresh leads are waiting to be judged and routed.' : 'No new lead pile right now.',
+      items: newLeads,
+    },
+    {
+      id: 'reply',
+      name: 'Reply Operator',
+      glyph: 'RP',
+      accent: 'violet',
+      habitat: 'north-mid',
+      subtitle: 'Keeps hot threads moving',
+      owner: 'Asher',
+      tone: V4AgentTone(replyLeads.length, 0),
+      active: replyLeads.length,
+      waiting: 0,
+      blocked: 0,
+      note: replyLeads.length ? 'Unread or reply-now threads need fast action.' : 'No urgent reply lane right now.',
+      items: replyLeads,
+    },
+    {
+      id: 'pricing',
+      name: 'Pricing Desk',
+      glyph: 'PR',
+      accent: 'gold',
+      habitat: 'north-east',
+      subtitle: 'Handles packages, rates, and negotiation',
+      owner: 'Asher + Sam',
+      tone: V4AgentTone(pricingLeads.length, 0),
+      active: pricingLeads.length,
+      waiting: 0,
+      blocked: 0,
+      note: pricingLeads.length ? 'Pricing conversations are active and need clean package control.' : 'No live pricing back-and-forth at the moment.',
+      items: pricingLeads,
+    },
+    {
+      id: 'calendar',
+      name: 'Calendar Runner',
+      glyph: 'CL',
+      accent: 'mint',
+      habitat: 'east-high',
+      subtitle: 'Turns timing into tasks, events, and go-live holds',
+      owner: 'Asher',
+      tone: V4AgentTone(calendarLeads.length, 0),
+      active: calendarLeads.length,
+      waiting: 0,
+      blocked: 0,
+      note: calendarLeads.length ? 'These deals have real dates attached and should stay visible on Robert’s calendar.' : 'No scheduled drops or meetings need calendar work right now.',
+      items: calendarLeads,
+    },
+    {
+      id: 'brief',
+      name: 'Brief Maker',
+      glyph: 'BF',
+      accent: 'coral',
+      habitat: 'east-low',
+      subtitle: 'Turns sold deals into execution docs',
+      owner: 'Asher',
+      tone: V4AgentTone(briefLeads.length, 0),
+      active: briefLeads.length,
+      waiting: 0,
+      blocked: 0,
+      note: briefLeads.length ? 'These deals are sold and need clean Robert execution prep.' : 'No brief queue right now.',
+      items: briefLeads,
+    },
+    {
+      id: 'finance',
+      name: 'Finance Loop',
+      glyph: 'FN',
+      accent: 'red',
+      habitat: 'south-east',
+      subtitle: 'Locks payment proof before live posting',
+      owner: 'Asher',
+      tone: V4AgentTone(financeLeads.length, financeLeads.length),
+      active: financeLeads.length,
+      waiting: financeLeads.length,
+      blocked: financeLeads.length,
+      note: financeLeads.length ? 'Money is still unresolved on these threads. No post should outrun proof.' : 'No payment blockers live right now.',
+      items: financeLeads,
+    },
+    {
+      id: 'followup',
+      name: 'Follow Up Loop',
+      glyph: 'FU',
+      accent: 'amber',
+      habitat: 'south-mid',
+      subtitle: 'Revives threads after 2 days of silence',
+      owner: 'Asher',
+      tone: V4AgentTone(followUps.length, 0),
+      active: followUps.length,
+      waiting: followUps.length,
+      blocked: 0,
+      note: followUps.length ? 'These threads need nudges before they go stale.' : 'Silence queue is clear.',
+      items: followUps,
+    },
+    {
+      id: 'xwatch',
+      name: 'X Watcher',
+      glyph: 'XW',
+      accent: 'sky',
+      habitat: 'south-west',
+      subtitle: 'Monitors X leads and routes real opportunities',
+      owner: 'Robert source → Asher desk',
+      tone: V4AgentTone(xLeads.length, 0),
+      active: xLeads.length,
+      waiting: 0,
+      blocked: 0,
+      note: xLeads.length ? 'X leads are in motion and should be turned into clean email threads.' : 'No live X intake pressure right now.',
+      items: xLeads,
+    },
+    {
+      id: 'network',
+      name: 'Network Keeper',
+      glyph: 'NW',
+      accent: 'plum',
+      habitat: 'west-low',
+      subtitle: 'Keeps warm relationships from disappearing into clutter',
+      owner: 'Asher',
+      tone: V4AgentTone(networkLeads.length, 0),
+      active: networkLeads.length,
+      waiting: networkLeads.length,
+      blocked: 0,
+      note: networkLeads.length ? 'Warm contacts need context and gentle upkeep so they can be reactivated fast.' : 'The relationship layer is quiet right now.',
+      items: networkLeads,
+    },
+    {
+      id: 'handoff',
+      name: 'Robert Handoff',
+      glyph: 'RH',
+      accent: 'slate',
+      habitat: 'west-high',
+      subtitle: 'Flags what needs Robert or Sam to step in',
+      owner: 'Robert + Sam',
+      tone: V4AgentTone(handoffLeads.length, 0),
+      active: handoffLeads.length,
+      waiting: handoffLeads.length,
+      blocked: 0,
+      note: handoffLeads.length ? 'These threads need founder voice, approval, or a direct handoff to close the loop.' : 'No executive handoff pressure at the moment.',
+      items: handoffLeads,
+    },
+  ];
+
+  const filteredWorkers = workers.filter(worker => {
+    if (!q) return true;
+    return [
+      worker.name,
+      worker.subtitle,
+      worker.owner,
+      worker.note,
+      ...worker.items.map(item => `${item.brand} ${item.contactName} ${item.nextMove?.text || ''}`),
+    ].join(' ').toLowerCase().includes(q);
+  });
+
+  const totalActive = workers.reduce((sum, worker) => sum + worker.active, 0);
+  const totalBlocked = workers.reduce((sum, worker) => sum + worker.blocked, 0);
+  const totalWaiting = workers.reduce((sum, worker) => sum + worker.waiting, 0);
+  const liveWorkers = workers.filter(worker => worker.active > 0).length;
+  const zooTicker = workers
+    .filter(worker => worker.items.length)
+    .slice(0, 8)
+    .map(worker => `${worker.name} → ${worker.items[0]?.brand || worker.items[0]?.contactName || 'Clear'}`);
+
+  return (
+    <div className="page workers-page">
+      <div className="page-hd">
+        <div>
+          <div className="page-eyebrow">Autonomy</div>
+          <h1 className="page-title">Agents</h1>
+          <div className="page-sub">Watch the machine work across intake, replies, pricing, briefs, finance, and follow-up.</div>
+        </div>
+        <div className="invoice-stats">
+          <span className="invoice-stat total">{liveWorkers} workers live</span>
+          <span className="invoice-stat good">{totalActive} active items</span>
+          <span className="invoice-stat warn">{totalWaiting} waiting</span>
+          <span className="invoice-stat bad">{totalBlocked} blocked</span>
+        </div>
+      </div>
+
+      <section className="workers-habitat">
+        <div className="workers-habitat-copy">
+          <div className="workers-hero-eyebrow">Machine habitat</div>
+          <h2>The workers should feel alive, not filed away.</h2>
+          <p>This is the part you can watch. Each worker lives in its own little zone, pulls from a real queue, and lights up when that lane gets busy.</p>
+        </div>
+        <div className="workers-zoo">
+          <div className="workers-zoo-rings" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+          <div className="workers-core">
+            <div className="workers-core-eyebrow">UNALIGNED brain</div>
+            <div className="workers-core-title">Asher&apos;s machine</div>
+            <div className="workers-core-stats">
+              <span>{liveWorkers} live</span>
+              <span>{totalActive} active</span>
+              <span>{totalWaiting} waiting</span>
+            </div>
+            <div className="workers-core-note">Routing leads, replies, briefs, follow-up, and money into one operating system.</div>
+          </div>
+          {filteredWorkers.map((worker, index) => (
+            <button
+              key={worker.id}
+              type="button"
+              className={`worker-pod is-${worker.tone} accent-${worker.accent} habitat-${worker.habitat}`}
+              style={{ '--worker-delay': `${index * 110}ms` }}
+              onClick={() => worker.items[0] && onOpenLead?.(worker.items[0].id)}
+            >
+              <div className="worker-pod-sprite" aria-hidden="true">
+                <span className="worker-pod-eyes"></span>
+                <span className="worker-pod-mouth"></span>
+                <span className="worker-pod-glyph">{worker.glyph}</span>
+              </div>
+              <div className="worker-pod-meta">
+                <div className="worker-pod-row">
+                  <strong>{worker.name}</strong>
+                  <span className={`worker-pod-badge is-${worker.tone}`}>
+                    {worker.tone === 'blocked' ? 'stuck' : worker.tone === 'active' ? 'moving' : 'calm'}
+                  </span>
+                </div>
+                <div className="worker-pod-sub">{worker.subtitle}</div>
+                <div className="worker-pod-foot">
+                  <span>{worker.active} active</span>
+                  <span>{worker.items[0]?.brand || 'clear lane'}</span>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+        <div className="workers-ticker" aria-hidden="true">
+          <div className="workers-ticker-track">
+            {[...zooTicker, ...zooTicker].map((line, index) => (
+              <span key={line + index}>{line}</span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="workers-lanes">
+        {filteredWorkers.map((worker, index) => (
+          <article
+            key={worker.id}
+            className={'worker-lane is-' + worker.tone + ' accent-' + worker.accent}
+            style={{ '--worker-delay': `${index * 90}ms` }}
+          >
+            <div className="worker-lane-glow" aria-hidden="true"></div>
+            <div className="worker-lane-top">
+              <div className={'worker-lane-avatar is-' + worker.tone}>
+                <span className="worker-lane-avatar-pulse" aria-hidden="true"></span>
+                <span>{worker.glyph}</span>
+              </div>
+              <div className="worker-lane-head">
+                <div className="worker-lane-name-row">
+                  <h3>{worker.name}</h3>
+                  <span className={'worker-status is-' + worker.tone}>
+                    {worker.tone === 'blocked' ? 'Blocked' : worker.tone === 'active' ? 'Working' : 'Clear'}
+                  </span>
+                </div>
+                <div className="worker-lane-sub">{worker.subtitle}</div>
+                <div className="worker-lane-owner">Owner · {worker.owner}</div>
+              </div>
+            </div>
+
+            <div className="worker-lane-stats">
+              <div><span>Active</span><strong>{worker.active}</strong></div>
+              <div><span>Waiting</span><strong>{worker.waiting}</strong></div>
+              <div><span>Blocked</span><strong>{worker.blocked}</strong></div>
+            </div>
+
+            <div className="worker-lane-note">{worker.note}</div>
+
+            <div className="worker-lane-track" aria-hidden="true">
+              <span className={'worker-lane-track-fill is-' + worker.tone} style={{ width: `${Math.max(14, Math.min(100, worker.active * 18 || 14))}%` }}></span>
+            </div>
+
+            <div className="worker-lane-queue">
+              <div className="worker-lane-queue-label">Live queue</div>
+              {worker.items.length ? (
+                <div className="worker-lane-queue-list">
+                  {worker.items.map(item => (
+                    <button key={item.id} type="button" className="worker-queue-chip" onClick={() => onOpenLead?.(item.id)}>
+                      <span className="worker-queue-chip-brand">{item.brand}</span>
+                      <span className="worker-queue-chip-meta">{item.contactName} · {item.nextMove?.text || item.deliverables || item.notes || 'Open thread'}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="worker-lane-empty">Nothing in this lane right now.</div>
+              )}
+            </div>
+          </article>
+        ))}
+      </section>
+    </div>
+  );
+}
+
 const V4_INVOICE_GROUPS = [
   {
     id: 'outstanding',
@@ -402,8 +738,8 @@ const V4_INVOICE_GROUPS = [
             stripeAmountPaid: 0.0,
             stripeCurrency: 'USD',
             stripeDashboardUrl: 'https://dashboard.stripe.com/invoices/in_1TjsxfK0WeauAYMJJQ6boSxf',
-            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VakxmcEt4UUNhbENUN1FBNnZsd0xZQzNOdVdPSm9jLDE3MjQ5NzcxOA0200K8PCMPP8?s=ap',
-            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VakxmcEt4UUNhbENUN1FBNnZsd0xZQzNOdVdPSm9jLDE3MjQ5NzcxOA0200K8PCMPP8/pdf?s=ap',
+            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VakxmcEt4UUNhbENUN1FBNnZsd0xZQzNOdVdPSm9jLDE3MjY3MDUwMA0200qLXKJDZ5?s=ap',
+            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VakxmcEt4UUNhbENUN1FBNnZsd0xZQzNOdVdPSm9jLDE3MjY3MDUwMA0200qLXKJDZ5/pdf?s=ap',
           },
           {
             id: 'stripe-in1tic8ek0weauaymjz0v1f90g',
@@ -421,8 +757,8 @@ const V4_INVOICE_GROUPS = [
             stripeAmountPaid: 0.0,
             stripeCurrency: 'USD',
             stripeDashboardUrl: 'https://dashboard.stripe.com/invoices/in_1Tic8eK0WeauAYMJZ0v1f90G',
-            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaTJEbTlWd3NYV3JMVGZzQ2s4OUFMM3dHM2RuVDR0LDE3MjQ5NzcxOA02006iP8AsoU?s=ap',
-            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaTJEbTlWd3NYV3JMVGZzQ2s4OUFMM3dHM2RuVDR0LDE3MjQ5NzcxOA02006iP8AsoU/pdf?s=ap',
+            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaTJEbTlWd3NYV3JMVGZzQ2s4OUFMM3dHM2RuVDR0LDE3MjY3MDUwMA02004UOUuiGW?s=ap',
+            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaTJEbTlWd3NYV3JMVGZzQ2s4OUFMM3dHM2RuVDR0LDE3MjY3MDUwMA02004UOUuiGW/pdf?s=ap',
           },
         ],
       },
@@ -564,6 +900,25 @@ const V4_INVOICE_GROUPS = [
             stripeInvoicePdf: null,
           },
           {
+            id: 'invoice-omane-viktor-payment2-062226',
+            title: 'Omane',
+            company: 'Viktor Payment2',
+            folder: 'OUTSTANDING / OPEN OUTSTANDING',
+            source: 'Manual',
+            sourceDir: 'OUTSTANDING',
+            file: 'invoice_Omane_Viktor_Payment2_062226.pdf',
+            href: 'flow-v4/assets/invoices/outstanding/invoice_Omane_Viktor_Payment2_062226.pdf',
+            kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeDashboardUrl: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
+          },
+          {
             id: 'invoice-r3ach-061926',
             title: 'R3ach',
             company: 'R3ach',
@@ -638,8 +993,8 @@ const V4_INVOICE_GROUPS = [
             stripeAmountPaid: 0.0,
             stripeCurrency: 'USD',
             stripeDashboardUrl: 'https://dashboard.stripe.com/invoices/in_1TimqCK0WeauAYMJABpOrweH',
-            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaURHYmRwNmJuODJLem9yTUVWd3FOYnZHRGgwTzhmLDE3MjQ5NzcxOA0200A9Dabk0L?s=ap',
-            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaURHYmRwNmJuODJLem9yTUVWd3FOYnZHRGgwTzhmLDE3MjQ5NzcxOA0200A9Dabk0L/pdf?s=ap',
+            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaURHYmRwNmJuODJLem9yTUVWd3FOYnZHRGgwTzhmLDE3MjY3MDUwMA0200mS2smhL7?s=ap',
+            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaURHYmRwNmJuODJLem9yTUVWd3FOYnZHRGgwTzhmLDE3MjY3MDUwMA0200mS2smhL7/pdf?s=ap',
           },
           {
             id: 'stripe-in1thwn2k0weauaymjfm1x0dpg',
@@ -657,8 +1012,8 @@ const V4_INVOICE_GROUPS = [
             stripeAmountPaid: 0.0,
             stripeCurrency: 'USD',
             stripeDashboardUrl: 'https://dashboard.stripe.com/invoices/in_1ThwN2K0WeauAYMJFm1x0dPG',
-            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MjQ5NzcxOA0200BAZsiUgV?s=ap',
-            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MjQ5NzcxOA0200BAZsiUgV/pdf?s=ap',
+            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MjY3MDUwMA0200xFpxPORk?s=ap',
+            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MjY3MDUwMA0200xFpxPORk/pdf?s=ap',
           },
         ],
       },

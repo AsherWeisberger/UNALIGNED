@@ -566,8 +566,6 @@ Object.assign(window, {
   TweakSlider, TweakToggle, TweakRadio, TweakSelect,
   TweakText, TweakNumber, TweakColor, TweakButton,
 });
-
-
 // FLOW v3 — atoms
 
 const V3_ICONS = {
@@ -715,8 +713,6 @@ Object.assign(window, {
     asherweisberger: 'flow-v4/assets/avatars/asher.jpeg',
   },
 });
-
-
 // FLOW v4 — live Supabase/email helpers
 
 const V3_SUPABASE_URL = "https://hbnpwphxjurvtydezwgh.supabase.co";
@@ -773,19 +769,13 @@ async function V3LoadSupabaseLeads() {
     if (!prev || scoreRow(row) > scoreRow(prev)) canonical.set(key, row);
   }
 
+  const leads = V3FilterVisibleLeads([...canonical.values()].map(V3NormalizeSupabaseLead));
   const xRows = await V3LoadXDmIntakeRows();
-  const leads = V3FilterVisibleLeads([...canonical.values()].map(V3NormalizeSupabaseLead))
-    .map(lead => {
-      if (V3NewLeadSourceKind(lead) !== 'x') return lead;
-      const intakeMatch = V3FindXdMIntakeMatch(lead, xRows);
-      return intakeMatch ? V3MergeXdMIntakeIntoLead(lead, intakeMatch) : lead;
-    });
-  const dedupedLeads = V3CollapseDuplicateXLeads(leads);
-  dedupedLeads.push(...V3FilterVisibleLeads(V3NormalizeXDmLeads(xRows, dedupedLeads)));
-  if (!dedupedLeads.some(lead => String(lead.email || '').trim().toLowerCase() === 'jocelyn.cruz@hockeystick.io')) {
-    dedupedLeads.push(V3HockeystickFallbackLead());
+  leads.push(...V3FilterVisibleLeads(V3NormalizeXDmLeads(xRows, leads)));
+  if (!leads.some(lead => String(lead.email || '').trim().toLowerCase() === 'jocelyn.cruz@hockeystick.io')) {
+    leads.push(V3HockeystickFallbackLead());
   }
-  return V3FilterVisibleLeads(dedupedLeads);
+  return V3FilterVisibleLeads(leads);
 }
 
 function V3NormalizeEmailLeadStage(email, rawStage) {
@@ -924,10 +914,6 @@ function V3NormalizeSupabaseLead(row) {
   const operatorMemory = V3ParseOperatorMemory(row.description);
   const isRobertBrief = V3IsRobertBriefRow(row) || briefPayload.kind === 'official-posting' || briefPayload.type === 'official-posting';
   const leadSource = row.lead_source || (row.gmail_thread_id ? 'Gmail' : 'Manual');
-  const xWebsite = String(row.website || row.url || '').trim();
-  const xOpenDm = /https?:\/\/(?:www\.)?(?:x|twitter)\.com\/messages\//i.test(xWebsite) ? xWebsite : '';
-  const xHandleMatch = xWebsite.match(/https?:\/\/(?:www\.)?(?:x|twitter)\.com\/([A-Za-z0-9_]{2,30})\/?$/i);
-  const xHandle = xHandleMatch ? ('@' + xHandleMatch[1]) : '';
   return {
     id: String(row.id),
     contactName: name,
@@ -985,9 +971,6 @@ function V3NormalizeSupabaseLead(row) {
     thread,
     progress: Math.max(0, V3_ACTIVE_STAGE_IDS.indexOf(stage)),
     unread: Boolean(row.new_reply_at),
-    xHandle,
-    xOpenDm,
-    xContactInfo: String(row.contact_info || row.contactInfo || ''),
   };
 }
 
@@ -1277,81 +1260,6 @@ function V3NormalizeXDmLeadRow(row) {
     xEmailDraft: String(row.emailDraft || ''),
     xQuickNote: quickNote,
   };
-}
-
-function V3FindXdMIntakeMatch(lead, rows) {
-  if (!lead || !Array.isArray(rows) || !rows.length) return null;
-  const leadDm = String(lead.xOpenDm || '').trim();
-  const leadNameKey = V3LeadIdentityKey(lead.contactName || lead.brand || '');
-  return rows.find(row => {
-    const rowDm = String(row?.openDm || '').trim();
-    if (leadDm && rowDm && leadDm === rowDm) return true;
-    const rowNameKey = V3LeadIdentityKey(row?.xName || row?.contactName || '');
-    return Boolean(leadNameKey && rowNameKey && leadNameKey === rowNameKey);
-  }) || null;
-}
-
-function V3MergeXdMIntakeIntoLead(lead, row) {
-  if (!lead || !row) return lead;
-  const intakeLead = V3NormalizeXDmLeadRow(row);
-  const mergedThread = Array.isArray(lead.thread) && lead.thread.length && String(lead.thread[0]?.body || '').trim()
-    ? lead.thread
-    : intakeLead.thread;
-  const mergedNotes = String(lead.notes || '').trim() || intakeLead.notes;
-  const mergedEvidence = String(lead.evidence || '').trim() || intakeLead.evidence;
-  const mergedNextMoveText = String(lead.nextMove?.text || '').trim() || intakeLead.nextMove?.text || 'Open X thread and move to email.';
-  const mergedXHandle = String(lead.xHandle || '').trim() || intakeLead.xHandle;
-  const mergedContactInfo = String(lead.xContactInfo || '').trim() || intakeLead.xContactInfo;
-  const mergedReceivedAt = lead.receivedAt || intakeLead.receivedAt || null;
-  const mergedLastTouchAt = lead.lastTouchAt || intakeLead.lastTouchAt || mergedReceivedAt;
-  return {
-    ...lead,
-    contactRole: lead.contactRole || intakeLead.contactRole,
-    deliverables: lead.deliverables || intakeLead.deliverables,
-    category: lead.category || intakeLead.category,
-    notes: mergedNotes,
-    evidence: mergedEvidence,
-    rawDescription: String(lead.rawDescription || '').trim() || intakeLead.rawDescription,
-    thread: mergedThread,
-    lastTouchAt: mergedLastTouchAt,
-    receivedAt: mergedReceivedAt,
-    lastTouch: lead.lastTouch || intakeLead.lastTouch,
-    nextMove: {
-      who: lead.nextMove?.who || intakeLead.nextMove?.who || 'asher',
-      text: mergedNextMoveText,
-      action: lead.nextMove?.action || intakeLead.nextMove?.action || 'Reply',
-    },
-    xHandle: mergedXHandle,
-    xOpenDm: String(lead.xOpenDm || '').trim() || intakeLead.xOpenDm,
-    xContactInfo: mergedContactInfo,
-    xLeadScore: Number(lead.xLeadScore || intakeLead.xLeadScore || 0),
-    xBestNextStep: String(lead.xBestNextStep || '').trim() || intakeLead.xBestNextStep,
-    xMessageCount: Number(lead.xMessageCount || intakeLead.xMessageCount || 0),
-    xCurrentStatus: String(lead.xCurrentStatus || '').trim() || intakeLead.xCurrentStatus,
-    xEmailDraft: String(lead.xEmailDraft || '').trim() || intakeLead.xEmailDraft,
-    xQuickNote: String(lead.xQuickNote || '').trim() || intakeLead.xQuickNote,
-  };
-}
-
-function V3CollapseDuplicateXLeads(leads) {
-  const passthrough = [];
-  const xLeads = new Map();
-  for (const lead of Array.isArray(leads) ? leads : []) {
-    if (V3NewLeadSourceKind(lead) !== 'x') {
-      passthrough.push(lead);
-      continue;
-    }
-    const key = String(lead.xOpenDm || '').trim() || `x:${V3LeadIdentityKey(lead.contactName || lead.brand || lead.id)}`;
-    const prev = xLeads.get(key);
-    if (!prev) {
-      xLeads.set(key, lead);
-      continue;
-    }
-    const prevScore = (Date.parse(prev.lastTouchAt || prev.receivedAt || '') || 0) + Number(prev.rowId || prev.id || 0);
-    const nextScore = (Date.parse(lead.lastTouchAt || lead.receivedAt || '') || 0) + Number(lead.rowId || lead.id || 0);
-    if (nextScore >= prevScore) xLeads.set(key, lead);
-  }
-  return [...passthrough, ...xLeads.values()].filter(Boolean);
 }
 
 function V3TimestampForUi(value) {
@@ -3003,8 +2911,6 @@ V3LoadSupabaseLeads().then(leads => {
   window.V3.LEADS = leads;
   window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads } }));
 }).catch(err => console.error('Supabase load failed:', err));
-
-
 // FLOW v3 — Board view
 
 function V3BoardView({ leads, openId, onOpen, user, ownerFilter, setOwnerFilter }) {
@@ -3196,8 +3102,6 @@ function V3BoardCard({ lead, isActive, user, onOpen, onMoveStage }) {
 }
 
 Object.assign(window, { V3BoardView });
-
-
 // FLOW v3 — Brief panel (Asher) + Brief viewer modal (Robert)
 //
 // Briefs are attached to closed deals (stage = 'done' or 'invoice-sent').
@@ -3775,8 +3679,6 @@ function V3BriefDelivCard({ deliv, idx, brand, canShip, onShip, onUnship }) {
 }
 
 Object.assign(window, { V3BriefPanel, V3BriefViewer, V3BriefStatusPill });
-
-
 // FLOW v3 — Detail drawer (right slide-in)
 
 function V3DrawerQueue({ queue, currentId, onNavigate }) {
@@ -4010,11 +3912,7 @@ function V3Drawer({ lead, user, queue = [], onNavigate, onClose }) {
 }
 
 function V3InlineReply({ lead, user, onCollapse }) {
-  const defaultSender = React.useMemo(() => {
-    if (V4LeadSupportsRobertHandoff(lead) && String(lead?.draftReplyStatus || '').toLowerCase() === 'pending') return 'robert';
-    return V3SenderForUser(user);
-  }, [lead?.id, lead?.draftReplyStatus, user]);
-  const [sender, setSender] = React.useState(() => defaultSender);
+  const [sender, setSender] = React.useState(() => V3SenderForUser(user));
   const [internalOnly, setInternalOnly] = React.useState(false);
   const draft = React.useMemo(() => V3ComposeReplyDraft(lead, sender), [lead.id, lead.draftReply?.body, lead.draftReply?.subject, lead.thread.length, lead.lastTouchAt, sender]);
   const initialRecipients = React.useMemo(() => V3ReplyRecipients(lead, sender, internalOnly), [lead.id, sender, internalOnly]);
@@ -4051,9 +3949,7 @@ function V3InlineReply({ lead, user, onCollapse }) {
   };
 
   React.useEffect(() => {
-    const nextSender = V4LeadSupportsRobertHandoff(lead) && String(lead?.draftReplyStatus || '').toLowerCase() === 'pending'
-      ? 'robert'
-      : V3SenderForUser(user);
+    const nextSender = V3SenderForUser(user);
     const next = V3ReplyRecipients(lead, nextSender, false);
     const nextDraft = V3ComposeReplyDraft(lead, nextSender);
     setSender(nextSender);
@@ -4146,11 +4042,7 @@ function V3InlineReply({ lead, user, onCollapse }) {
     setStatus('sending');
     setError('');
     try {
-      if (sender === 'robert' && V4LeadSupportsRobertHandoff(lead) && String(lead?.draftReplyStatus || '').toLowerCase() === 'pending') {
-        await V4SendRobertHandoffDraft(lead, { subject, body: msg, to_emails: to, cc_emails: cc });
-      } else {
-        await V3SendLeadEmail({ lead, sender, to: recipient, cc: ccLine, subject, body: msg, attachPdf });
-      }
+      await V3SendLeadEmail({ lead, sender, to: recipient, cc: ccLine, subject, body: msg, attachPdf });
       fetch(V3_SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(lead.id), {
         method: 'PATCH',
         headers: {
@@ -4223,7 +4115,7 @@ function V3InlineReply({ lead, user, onCollapse }) {
           disabled={status === 'sending'}
           aria-live="polite"
         >
-          <V3Icon name={status === 'sent' ? 'check' : 'send'} w={12} /> {status === 'sending' ? 'Sending…' : status === 'sent' ? 'Sent' : (sender === 'robert' && V4LeadSupportsRobertHandoff(lead) && String(lead?.draftReplyStatus || '').toLowerCase() === 'pending' ? 'Approve & send' : 'Send')}
+          <V3Icon name={status === 'sent' ? 'check' : 'send'} w={12} /> {status === 'sending' ? 'Sending…' : status === 'sent' ? 'Sent' : 'Send'}
         </button>
       </div>
     </div>
@@ -4313,8 +4205,6 @@ function V3Thread({ lead }) {
 }
 
 Object.assign(window, { V3Drawer });
-
-
 // FLOW v4 — Today / Inbox / Leads views
 // Today rebuilt as a tabbed work surface: NOW · NEXT · LATER · DONE.
 // NOW = big action cards. NEXT/LATER = compact rows.
@@ -4691,6 +4581,342 @@ function V4RobertBriefView({ leads = [], query = '' }) {
   );
 }
 
+function V4AgentTone(active, blocked) {
+  if (blocked) return 'blocked';
+  if (active > 0) return 'active';
+  return 'clear';
+}
+
+function V4AgentViewItems(leads, fn, limit = 4) {
+  return leads.filter(fn).slice(0, limit);
+}
+
+function V4AgentsView({ leads = [], query = '', onOpenLead }) {
+  const q = String(query || '').trim().toLowerCase();
+  const liveLeads = (Array.isArray(leads) ? leads : []).filter(l => l && !l.isRobertBrief && !['trash', 'dead-leads'].includes(String(l.stage || '').toLowerCase()));
+
+  const newLeads = V4AgentViewItems(liveLeads, l =>
+    (window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(l)) ||
+    ['new', 'first-touch', 'engaged'].includes(String(l.stage || '').toLowerCase())
+  );
+  const replyLeads = V4AgentViewItems(liveLeads, l => Boolean(l.unread || l.needsReply));
+  const pricingLeads = V4AgentViewItems(liveLeads, l => ['rates-sent', 'negotiating'].includes(String(l.stage || '').toLowerCase()));
+  const briefLeads = V4AgentViewItems(liveLeads, l => String(l.stage || '').toLowerCase() === 'done');
+  const financeLeads = V4AgentViewItems(liveLeads, l => String(l.stage || '').toLowerCase() === 'invoice-sent');
+  const followUps = V4AgentViewItems(liveLeads, l => Boolean(l.followUpDue));
+  const xLeads = V4AgentViewItems(liveLeads, l => String(l.source || '').toLowerCase().includes('x') || String(l.source || '').toLowerCase().includes('twitter'));
+  const calendarLeads = V4AgentViewItems(liveLeads, l => Boolean(l.goLiveDate || l.calendarDate || l.postingDate || l.dueDate));
+  const networkLeads = V4AgentViewItems(liveLeads, l => ['follow-up', 'waiting-on-them', 'waiting', 'pitched'].includes(String(l.stage || '').toLowerCase()));
+  const handoffLeads = V4AgentViewItems(liveLeads, l => Boolean(l.nextMove?.who) && /robert|sam/i.test(String(l.nextMove.who || '')));
+
+  const workers = [
+    {
+      id: 'intake',
+      name: 'Lead Intake',
+      glyph: 'IN',
+      accent: 'blue',
+      habitat: 'north-west',
+      subtitle: 'Cleans and routes new opportunities',
+      owner: 'Asher',
+      tone: V4AgentTone(newLeads.length, 0),
+      active: newLeads.length,
+      waiting: 0,
+      blocked: 0,
+      note: newLeads.length ? 'Fresh leads are waiting to be judged and routed.' : 'No new lead pile right now.',
+      items: newLeads,
+    },
+    {
+      id: 'reply',
+      name: 'Reply Operator',
+      glyph: 'RP',
+      accent: 'violet',
+      habitat: 'north-mid',
+      subtitle: 'Keeps hot threads moving',
+      owner: 'Asher',
+      tone: V4AgentTone(replyLeads.length, 0),
+      active: replyLeads.length,
+      waiting: 0,
+      blocked: 0,
+      note: replyLeads.length ? 'Unread or reply-now threads need fast action.' : 'No urgent reply lane right now.',
+      items: replyLeads,
+    },
+    {
+      id: 'pricing',
+      name: 'Pricing Desk',
+      glyph: 'PR',
+      accent: 'gold',
+      habitat: 'north-east',
+      subtitle: 'Handles packages, rates, and negotiation',
+      owner: 'Asher + Sam',
+      tone: V4AgentTone(pricingLeads.length, 0),
+      active: pricingLeads.length,
+      waiting: 0,
+      blocked: 0,
+      note: pricingLeads.length ? 'Pricing conversations are active and need clean package control.' : 'No live pricing back-and-forth at the moment.',
+      items: pricingLeads,
+    },
+    {
+      id: 'calendar',
+      name: 'Calendar Runner',
+      glyph: 'CL',
+      accent: 'mint',
+      habitat: 'east-high',
+      subtitle: 'Turns timing into tasks, events, and go-live holds',
+      owner: 'Asher',
+      tone: V4AgentTone(calendarLeads.length, 0),
+      active: calendarLeads.length,
+      waiting: 0,
+      blocked: 0,
+      note: calendarLeads.length ? 'These deals have real dates attached and should stay visible on Robert’s calendar.' : 'No scheduled drops or meetings need calendar work right now.',
+      items: calendarLeads,
+    },
+    {
+      id: 'brief',
+      name: 'Brief Maker',
+      glyph: 'BF',
+      accent: 'coral',
+      habitat: 'east-low',
+      subtitle: 'Turns sold deals into execution docs',
+      owner: 'Asher',
+      tone: V4AgentTone(briefLeads.length, 0),
+      active: briefLeads.length,
+      waiting: 0,
+      blocked: 0,
+      note: briefLeads.length ? 'These deals are sold and need clean Robert execution prep.' : 'No brief queue right now.',
+      items: briefLeads,
+    },
+    {
+      id: 'finance',
+      name: 'Finance Loop',
+      glyph: 'FN',
+      accent: 'red',
+      habitat: 'south-east',
+      subtitle: 'Locks payment proof before live posting',
+      owner: 'Asher',
+      tone: V4AgentTone(financeLeads.length, financeLeads.length),
+      active: financeLeads.length,
+      waiting: financeLeads.length,
+      blocked: financeLeads.length,
+      note: financeLeads.length ? 'Money is still unresolved on these threads. No post should outrun proof.' : 'No payment blockers live right now.',
+      items: financeLeads,
+    },
+    {
+      id: 'followup',
+      name: 'Follow Up Loop',
+      glyph: 'FU',
+      accent: 'amber',
+      habitat: 'south-mid',
+      subtitle: 'Revives threads after 2 days of silence',
+      owner: 'Asher',
+      tone: V4AgentTone(followUps.length, 0),
+      active: followUps.length,
+      waiting: followUps.length,
+      blocked: 0,
+      note: followUps.length ? 'These threads need nudges before they go stale.' : 'Silence queue is clear.',
+      items: followUps,
+    },
+    {
+      id: 'xwatch',
+      name: 'X Watcher',
+      glyph: 'XW',
+      accent: 'sky',
+      habitat: 'south-west',
+      subtitle: 'Monitors X leads and routes real opportunities',
+      owner: 'Robert source → Asher desk',
+      tone: V4AgentTone(xLeads.length, 0),
+      active: xLeads.length,
+      waiting: 0,
+      blocked: 0,
+      note: xLeads.length ? 'X leads are in motion and should be turned into clean email threads.' : 'No live X intake pressure right now.',
+      items: xLeads,
+    },
+    {
+      id: 'network',
+      name: 'Network Keeper',
+      glyph: 'NW',
+      accent: 'plum',
+      habitat: 'west-low',
+      subtitle: 'Keeps warm relationships from disappearing into clutter',
+      owner: 'Asher',
+      tone: V4AgentTone(networkLeads.length, 0),
+      active: networkLeads.length,
+      waiting: networkLeads.length,
+      blocked: 0,
+      note: networkLeads.length ? 'Warm contacts need context and gentle upkeep so they can be reactivated fast.' : 'The relationship layer is quiet right now.',
+      items: networkLeads,
+    },
+    {
+      id: 'handoff',
+      name: 'Robert Handoff',
+      glyph: 'RH',
+      accent: 'slate',
+      habitat: 'west-high',
+      subtitle: 'Flags what needs Robert or Sam to step in',
+      owner: 'Robert + Sam',
+      tone: V4AgentTone(handoffLeads.length, 0),
+      active: handoffLeads.length,
+      waiting: handoffLeads.length,
+      blocked: 0,
+      note: handoffLeads.length ? 'These threads need founder voice, approval, or a direct handoff to close the loop.' : 'No executive handoff pressure at the moment.',
+      items: handoffLeads,
+    },
+  ];
+
+  const filteredWorkers = workers.filter(worker => {
+    if (!q) return true;
+    return [
+      worker.name,
+      worker.subtitle,
+      worker.owner,
+      worker.note,
+      ...worker.items.map(item => `${item.brand} ${item.contactName} ${item.nextMove?.text || ''}`),
+    ].join(' ').toLowerCase().includes(q);
+  });
+
+  const totalActive = workers.reduce((sum, worker) => sum + worker.active, 0);
+  const totalBlocked = workers.reduce((sum, worker) => sum + worker.blocked, 0);
+  const totalWaiting = workers.reduce((sum, worker) => sum + worker.waiting, 0);
+  const liveWorkers = workers.filter(worker => worker.active > 0).length;
+  const zooTicker = workers
+    .filter(worker => worker.items.length)
+    .slice(0, 8)
+    .map(worker => `${worker.name} → ${worker.items[0]?.brand || worker.items[0]?.contactName || 'Clear'}`);
+
+  return (
+    <div className="page workers-page">
+      <div className="page-hd">
+        <div>
+          <div className="page-eyebrow">Autonomy</div>
+          <h1 className="page-title">Agents</h1>
+          <div className="page-sub">Watch the machine work across intake, replies, pricing, briefs, finance, and follow-up.</div>
+        </div>
+        <div className="invoice-stats">
+          <span className="invoice-stat total">{liveWorkers} workers live</span>
+          <span className="invoice-stat good">{totalActive} active items</span>
+          <span className="invoice-stat warn">{totalWaiting} waiting</span>
+          <span className="invoice-stat bad">{totalBlocked} blocked</span>
+        </div>
+      </div>
+
+      <section className="workers-habitat">
+        <div className="workers-habitat-copy">
+          <div className="workers-hero-eyebrow">Machine habitat</div>
+          <h2>The workers should feel alive, not filed away.</h2>
+          <p>This is the part you can watch. Each worker lives in its own little zone, pulls from a real queue, and lights up when that lane gets busy.</p>
+        </div>
+        <div className="workers-zoo">
+          <div className="workers-zoo-rings" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+          <div className="workers-core">
+            <div className="workers-core-eyebrow">UNALIGNED brain</div>
+            <div className="workers-core-title">Asher&apos;s machine</div>
+            <div className="workers-core-stats">
+              <span>{liveWorkers} live</span>
+              <span>{totalActive} active</span>
+              <span>{totalWaiting} waiting</span>
+            </div>
+            <div className="workers-core-note">Routing leads, replies, briefs, follow-up, and money into one operating system.</div>
+          </div>
+          {filteredWorkers.map((worker, index) => (
+            <button
+              key={worker.id}
+              type="button"
+              className={`worker-pod is-${worker.tone} accent-${worker.accent} habitat-${worker.habitat}`}
+              style={{ '--worker-delay': `${index * 110}ms` }}
+              onClick={() => worker.items[0] && onOpenLead?.(worker.items[0].id)}
+            >
+              <div className="worker-pod-sprite" aria-hidden="true">
+                <span className="worker-pod-eyes"></span>
+                <span className="worker-pod-mouth"></span>
+                <span className="worker-pod-glyph">{worker.glyph}</span>
+              </div>
+              <div className="worker-pod-meta">
+                <div className="worker-pod-row">
+                  <strong>{worker.name}</strong>
+                  <span className={`worker-pod-badge is-${worker.tone}`}>
+                    {worker.tone === 'blocked' ? 'stuck' : worker.tone === 'active' ? 'moving' : 'calm'}
+                  </span>
+                </div>
+                <div className="worker-pod-sub">{worker.subtitle}</div>
+                <div className="worker-pod-foot">
+                  <span>{worker.active} active</span>
+                  <span>{worker.items[0]?.brand || 'clear lane'}</span>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+        <div className="workers-ticker" aria-hidden="true">
+          <div className="workers-ticker-track">
+            {[...zooTicker, ...zooTicker].map((line, index) => (
+              <span key={line + index}>{line}</span>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="workers-lanes">
+        {filteredWorkers.map((worker, index) => (
+          <article
+            key={worker.id}
+            className={'worker-lane is-' + worker.tone + ' accent-' + worker.accent}
+            style={{ '--worker-delay': `${index * 90}ms` }}
+          >
+            <div className="worker-lane-glow" aria-hidden="true"></div>
+            <div className="worker-lane-top">
+              <div className={'worker-lane-avatar is-' + worker.tone}>
+                <span className="worker-lane-avatar-pulse" aria-hidden="true"></span>
+                <span>{worker.glyph}</span>
+              </div>
+              <div className="worker-lane-head">
+                <div className="worker-lane-name-row">
+                  <h3>{worker.name}</h3>
+                  <span className={'worker-status is-' + worker.tone}>
+                    {worker.tone === 'blocked' ? 'Blocked' : worker.tone === 'active' ? 'Working' : 'Clear'}
+                  </span>
+                </div>
+                <div className="worker-lane-sub">{worker.subtitle}</div>
+                <div className="worker-lane-owner">Owner · {worker.owner}</div>
+              </div>
+            </div>
+
+            <div className="worker-lane-stats">
+              <div><span>Active</span><strong>{worker.active}</strong></div>
+              <div><span>Waiting</span><strong>{worker.waiting}</strong></div>
+              <div><span>Blocked</span><strong>{worker.blocked}</strong></div>
+            </div>
+
+            <div className="worker-lane-note">{worker.note}</div>
+
+            <div className="worker-lane-track" aria-hidden="true">
+              <span className={'worker-lane-track-fill is-' + worker.tone} style={{ width: `${Math.max(14, Math.min(100, worker.active * 18 || 14))}%` }}></span>
+            </div>
+
+            <div className="worker-lane-queue">
+              <div className="worker-lane-queue-label">Live queue</div>
+              {worker.items.length ? (
+                <div className="worker-lane-queue-list">
+                  {worker.items.map(item => (
+                    <button key={item.id} type="button" className="worker-queue-chip" onClick={() => onOpenLead?.(item.id)}>
+                      <span className="worker-queue-chip-brand">{item.brand}</span>
+                      <span className="worker-queue-chip-meta">{item.contactName} · {item.nextMove?.text || item.deliverables || item.notes || 'Open thread'}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="worker-lane-empty">Nothing in this lane right now.</div>
+              )}
+            </div>
+          </article>
+        ))}
+      </section>
+    </div>
+  );
+}
+
 const V4_INVOICE_GROUPS = [
   {
     id: 'outstanding',
@@ -4719,8 +4945,8 @@ const V4_INVOICE_GROUPS = [
             stripeAmountPaid: 0.0,
             stripeCurrency: 'USD',
             stripeDashboardUrl: 'https://dashboard.stripe.com/invoices/in_1TjsxfK0WeauAYMJJQ6boSxf',
-            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VakxmcEt4UUNhbENUN1FBNnZsd0xZQzNOdVdPSm9jLDE3MjQ5NzcxOA0200K8PCMPP8?s=ap',
-            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VakxmcEt4UUNhbENUN1FBNnZsd0xZQzNOdVdPSm9jLDE3MjQ5NzcxOA0200K8PCMPP8/pdf?s=ap',
+            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VakxmcEt4UUNhbENUN1FBNnZsd0xZQzNOdVdPSm9jLDE3MjY3MDUwMA0200qLXKJDZ5?s=ap',
+            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VakxmcEt4UUNhbENUN1FBNnZsd0xZQzNOdVdPSm9jLDE3MjY3MDUwMA0200qLXKJDZ5/pdf?s=ap',
           },
           {
             id: 'stripe-in1tic8ek0weauaymjz0v1f90g',
@@ -4738,8 +4964,8 @@ const V4_INVOICE_GROUPS = [
             stripeAmountPaid: 0.0,
             stripeCurrency: 'USD',
             stripeDashboardUrl: 'https://dashboard.stripe.com/invoices/in_1Tic8eK0WeauAYMJZ0v1f90G',
-            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaTJEbTlWd3NYV3JMVGZzQ2s4OUFMM3dHM2RuVDR0LDE3MjQ5NzcxOA02006iP8AsoU?s=ap',
-            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaTJEbTlWd3NYV3JMVGZzQ2s4OUFMM3dHM2RuVDR0LDE3MjQ5NzcxOA02006iP8AsoU/pdf?s=ap',
+            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaTJEbTlWd3NYV3JMVGZzQ2s4OUFMM3dHM2RuVDR0LDE3MjY3MDUwMA02004UOUuiGW?s=ap',
+            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaTJEbTlWd3NYV3JMVGZzQ2s4OUFMM3dHM2RuVDR0LDE3MjY3MDUwMA02004UOUuiGW/pdf?s=ap',
           },
         ],
       },
@@ -4881,6 +5107,25 @@ const V4_INVOICE_GROUPS = [
             stripeInvoicePdf: null,
           },
           {
+            id: 'invoice-omane-viktor-payment2-062226',
+            title: 'Omane',
+            company: 'Viktor Payment2',
+            folder: 'OUTSTANDING / OPEN OUTSTANDING',
+            source: 'Manual',
+            sourceDir: 'OUTSTANDING',
+            file: 'invoice_Omane_Viktor_Payment2_062226.pdf',
+            href: 'flow-v4/assets/invoices/outstanding/invoice_Omane_Viktor_Payment2_062226.pdf',
+            kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeDashboardUrl: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
+          },
+          {
             id: 'invoice-r3ach-061926',
             title: 'R3ach',
             company: 'R3ach',
@@ -4955,8 +5200,8 @@ const V4_INVOICE_GROUPS = [
             stripeAmountPaid: 0.0,
             stripeCurrency: 'USD',
             stripeDashboardUrl: 'https://dashboard.stripe.com/invoices/in_1TimqCK0WeauAYMJABpOrweH',
-            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaURHYmRwNmJuODJLem9yTUVWd3FOYnZHRGgwTzhmLDE3MjQ5NzcxOA0200A9Dabk0L?s=ap',
-            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaURHYmRwNmJuODJLem9yTUVWd3FOYnZHRGgwTzhmLDE3MjQ5NzcxOA0200A9Dabk0L/pdf?s=ap',
+            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaURHYmRwNmJuODJLem9yTUVWd3FOYnZHRGgwTzhmLDE3MjY3MDUwMA0200mS2smhL7?s=ap',
+            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaURHYmRwNmJuODJLem9yTUVWd3FOYnZHRGgwTzhmLDE3MjY3MDUwMA0200mS2smhL7/pdf?s=ap',
           },
           {
             id: 'stripe-in1thwn2k0weauaymjfm1x0dpg',
@@ -4974,8 +5219,8 @@ const V4_INVOICE_GROUPS = [
             stripeAmountPaid: 0.0,
             stripeCurrency: 'USD',
             stripeDashboardUrl: 'https://dashboard.stripe.com/invoices/in_1ThwN2K0WeauAYMJFm1x0dPG',
-            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MjQ5NzcxOA0200BAZsiUgV?s=ap',
-            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MjQ5NzcxOA0200BAZsiUgV/pdf?s=ap',
+            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MjY3MDUwMA0200xFpxPORk?s=ap',
+            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MjY3MDUwMA0200xFpxPORk/pdf?s=ap',
           },
         ],
       },
@@ -6907,8 +7152,6 @@ function V4CalendarView({ query = '' }) {
 }
 
 Object.assign(window, { V4TodayView, V4RobertBriefView, V4InboxView, V4LeadsView, V4NewLeadsView, V4CalendarView });
-
-
 // Company OS Beta — full port of the localhost Hermes Workspace UI.
 // Built on the gh-pages flow-v4 stack (inline Babel JSX + vanilla CSS).
 
@@ -7140,12 +7383,12 @@ const V4_COMPANY_OS_RULES = [
 ];
 
 const V4_COMPANY_OS_STAGES = [
-  { key: 'new', label: 'Lead in' },
-  { key: 'scope', label: 'Scope' },
+  { key: 'qualified', label: 'Qualified' },
   { key: 'pricing', label: 'Pricing' },
-  { key: 'terms', label: 'Terms / pay' },
-  { key: 'brief', label: 'Brief / calendar' },
-  { key: 'done', label: 'Closed' },
+  { key: 'waiting', label: 'Waiting' },
+  { key: 'booked', label: 'Booked' },
+  { key: 'briefing', label: 'Briefing' },
+  { key: 'closed', label: 'Closed' },
 ];
 
 const V4_BRIEF_TAILSCALE_BASE_URL = 'https://mac-studio.tail50d3a2.ts.net';
@@ -7324,41 +7567,6 @@ async function V4LoadRobertHandoffPreviewData() {
   }
 }
 
-function V4LeadSupportsRobertHandoff(lead) {
-  if (!lead || lead.isRobertBrief) return false;
-  const mailboxOrigin = V4CompanyOsMailboxOrigin(lead);
-  if (mailboxOrigin !== 'x' && mailboxOrigin !== 'robert') return false;
-  const emails = [
-    lead.email,
-    lead.xContactInfo,
-    lead.replyTo,
-    ...(Array.isArray(lead.thread) ? lead.thread.flatMap(msg => [msg?.from, msg?.to, msg?.cc, msg?.replyTo]) : []),
-  ].flat().join(' ');
-  return /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(String(emails || ''));
-}
-
-async function V4GenerateRobertHandoffDraft(lead) {
-  const res = await V4BriefServiceFetch('/draft-robert-handoff', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ lead }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.ok || !data.draft) throw new Error(data.error || 'Could not generate the Robert handoff draft.');
-  return data.draft;
-}
-
-async function V4SendRobertHandoffDraft(lead, draft) {
-  const res = await V4BriefServiceFetch('/send-robert-handoff', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ lead, draft }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.ok) throw new Error(data.error || 'Could not send the Robert handoff draft.');
-  return data;
-}
-
 const V4_BRIEF_ACTION_URL = 'http://127.0.0.1:8766/generate-brief';
 
 const V4_COMPANY_OS_TOOLKIT = [
@@ -7443,14 +7651,27 @@ function V4CompanyOsMoney(value) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
 }
 
+function V4CompanyOsWorkflowKey(lead) {
+  const stage = String(lead?.stage || 'new').toLowerCase();
+  if (stage === 'paid-out') return 'closed';
+  if (stage === 'done') return 'briefing';
+  if (stage === 'invoice-sent') return 'booked';
+  if (!lead?.nextMove?.who && ['first-touch', 'engaged', 'rates-sent', 'negotiating'].includes(stage)) return 'waiting';
+  if (stage === 'rates-sent' || stage === 'negotiating') return 'pricing';
+  if (stage === 'first-touch' || stage === 'engaged') return 'qualified';
+  return 'qualified';
+}
+
+function V4CompanyOsWorkflowLabel(lead) {
+  const key = V4CompanyOsWorkflowKey(lead);
+  const found = V4_COMPANY_OS_STAGES.find(item => item.key === key);
+  return found ? found.label : 'Qualified';
+}
+
 function V4CompanyOsStageIndex(lead) {
-  const stage = lead?.stage || 'new';
-  if (stage === 'paid-out') return 5;
-  if (stage === 'done') return 4;
-  if (stage === 'invoice-sent') return 3;
-  if (stage === 'negotiating' || stage === 'rates-sent') return 2;
-  if (stage === 'first-touch' || stage === 'engaged') return 1;
-  return 0;
+  const workflowKey = V4CompanyOsWorkflowKey(lead);
+  const index = V4_COMPANY_OS_STAGES.findIndex(stage => stage.key === workflowKey);
+  return index === -1 ? 0 : index;
 }
 
 function V4CompanyOsWhy(lead) {
@@ -7556,21 +7777,30 @@ function V4CompanyOsType(lead) {
 }
 
 function V4CompanyOsPhase(lead) {
-  const stage = lead?.stage || 'new';
-  if (stage === 'invoice-sent') return 'Terms / Payment';
-  if (stage === 'negotiating') return 'Negotiation';
-  if (stage === 'rates-sent') return 'Pricing';
-  if (stage === 'first-touch' || stage === 'engaged') return 'Scope';
-  if (stage === 'done') return 'Brief / Calendar';
-  if (stage === 'paid-out') return 'Closed';
-  return 'Intake';
+  const workflowKey = V4CompanyOsWorkflowKey(lead);
+  const map = {
+    qualified: 'Qualified',
+    pricing: 'Pricing',
+    waiting: 'Waiting on them',
+    booked: 'Booked',
+    briefing: 'Brief / calendar',
+    closed: 'Closed',
+  };
+  return map[workflowKey] || 'Qualified';
 }
 
 function V4CompanyOsPhaseTag(lead) {
-  if (lead?.stage === 'invoice-sent') return 'verify first';
-  if (lead?.stage === 'done') return 'robert ready';
-  if (lead?.needsReply) return 'needs reply';
-  return 'next move';
+  if (lead?.unread || lead?.needsReply) return 'needs reply';
+  if (lead?.followUpDue) return '2d follow up';
+  if (lead?.stage === 'invoice-sent') return 'lock payment';
+  if (lead?.stage === 'done') return 'brief ready';
+  return 'in motion';
+}
+
+function V4CompanyOsIsActiveDeal(lead) {
+  if (!lead || lead.isRobertBrief) return false;
+  if (window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(lead)) return false;
+  return !['new', 'trash', 'dead-leads'].includes(String(lead.stage || '').toLowerCase());
 }
 
 function V4XLeadContextRows(lead) {
@@ -7609,6 +7839,203 @@ function V4OperatorReplyTypeLabel(value) {
   return String(value || '')
     .replace(/-/g, ' ')
     .replace(/\b\w/g, ch => ch.toUpperCase());
+}
+
+function V4CompanyOsHasPricingSignal(lead) {
+  const text = [
+    lead?.notes,
+    lead?.evidence,
+    lead?.deliverables,
+    lead?.nextMove?.text,
+    lead?.operatorSummary?.quoted_rate,
+    ...(Array.isArray(lead?.thread) ? lead.thread.map(m => `${m.subject || ''} ${m.body || ''}`) : []),
+  ].filter(Boolean).join(' ');
+  return /\b(rate|pricing|budget|quote|quoted|paid|payment|invoice|sponsor|sponsorship|deliverable|package|repost|wire)\b/i.test(text);
+}
+
+function V4CompanyOsNeedsBillingDetails(lead) {
+  const text = [
+    lead?.notes,
+    lead?.evidence,
+    lead?.nextMove?.text,
+    ...(Array.isArray(lead?.thread) ? lead.thread.map(m => `${m.subject || ''} ${m.body || ''}`) : []),
+  ].filter(Boolean).join(' ');
+  return /\b(company name|billing address|billing details|po number|reference number|invoice details|contact name and telephone number)\b/i.test(text);
+}
+
+function V4CompanyOsReplyGuide(lead) {
+  if (!lead) {
+    return {
+      ownerId: 'asher',
+      ownerLabel: 'Asher',
+      engine: 'Pick a lead first',
+      draftLabel: 'No draft target yet',
+      nextAction: 'Open a live thread to see the recommended move.',
+      why: 'Hermes needs an active lead before it can map the reply engine cleanly.',
+      checklist: [],
+    };
+  }
+
+  const mailboxOrigin = V4CompanyOsMailboxOrigin(lead);
+  const type = V4CompanyOsType(lead);
+  const workflowKey = V4CompanyOsWorkflowKey(lead);
+  const hasPricingSignal = V4CompanyOsHasPricingSignal(lead);
+  const needsBillingDetails = V4CompanyOsNeedsBillingDetails(lead);
+  const firstName = String(lead.contactName || 'them').split(' ')[0];
+  const hasEmail = Boolean(String(lead.email || '').trim());
+  const isXLead = mailboxOrigin === 'x';
+  const unread = Boolean(lead.unread || lead.needsReply);
+  const followUp = Boolean(lead.followUpDue);
+  const value = Number(lead.value || 0);
+  const threadText = [
+    lead?.notes,
+    lead?.evidence,
+    lead?.deliverables,
+    ...(Array.isArray(lead?.thread) ? lead.thread.map(m => `${m.subject || ''} ${m.body || ''}`) : []),
+  ].filter(Boolean).join(' ');
+  const paymentAfterLive = /\b(within\s+\d+\s+days after publishing|after publishing|post-live payment|payment after publishing|net \d+)\b/i.test(threadText);
+
+  if (isXLead && !hasEmail) {
+    return {
+      ownerId: 'robert',
+      ownerLabel: 'Robert',
+      engine: 'X lead with email handoff',
+      draftLabel: `Open with Robert, then pull ${firstName} into email`,
+      nextAction: 'Use Robert as the trust opener, then route the real work into Asher/Sam email flow.',
+      why: 'This lead is still living in X. The cleanest move is to get contact details and shift it into a proper working thread.',
+      checklist: ['ask for email', 'ask for opportunity details', 'move out of DM chaos'],
+    };
+  }
+
+  if (type === 'interview') {
+    return {
+      ownerId: 'asher',
+      ownerLabel: 'Asher',
+      engine: 'Interview / meeting opportunity',
+      draftLabel: `Clarify format, timing, and why Robert should care`,
+      nextAction: 'Get the guest, format, timing, and target angle into one short answer before anyone commits time.',
+      why: 'Interview threads go bad when the format is fuzzy. Ash should tighten the scope before Robert touches the calendar.',
+      checklist: ['guest or company', 'format', 'timing', 'target focus'],
+    };
+  }
+
+  if (followUp) {
+    return {
+      ownerId: 'asher',
+      ownerLabel: 'Asher',
+      engine: 'Follow-up after silence',
+      draftLabel: `Send a short nudge to ${firstName}`,
+      nextAction: 'Re-open the thread with one clear question and force a yes/no answer on whether the deal is still alive.',
+      why: 'This is not new business anymore. It is stalled business, so the move is pressure-tested follow-up, not a fresh pitch.',
+      checklist: ['reference what is pending', 'name the blocker', 'ask for direct confirmation'],
+    };
+  }
+
+  if (workflowKey === 'booked') {
+    return {
+      ownerId: 'asher',
+      ownerLabel: 'Asher',
+      engine: needsBillingDetails ? 'Billing details request' : 'Payment-before-live reminder',
+      draftLabel: needsBillingDetails ? 'Lock invoice details' : `Lock payment before anything goes live`,
+      nextAction: needsBillingDetails
+        ? 'Get the invoice fields in one pass so the money path is clean.'
+        : 'Hold the posting lane until receipt or payment confirmation is in-thread.',
+      why: 'Booked does not mean safe. This lane is still commercial until the invoice path and payment proof are nailed down.',
+      checklist: needsBillingDetails
+        ? ['company name', 'billing address', 'contact name', 'PO or reference']
+        : ['payment confirmation', 'receipt in thread', 'exact posting window'],
+    };
+  }
+
+  if (workflowKey === 'briefing') {
+    return {
+      ownerId: 'asher',
+      ownerLabel: 'Asher',
+      engine: type === 'interview' ? 'Calendar / timing confirmation' : 'Need the brief / assets / links',
+      draftLabel: type === 'interview' ? 'Confirm schedule and materials' : 'Collect final content inputs for Robert',
+      nextAction: type === 'interview'
+        ? 'Lock the exact date, duration, and prep materials.'
+        : 'Get the brief, links, tags, approval path, and source post fully clean before Robert is asked to execute.',
+      why: 'This deal is sold. The blocker is no longer commercial. It is execution readiness.',
+      checklist: type === 'interview'
+        ? ['date and time', 'invite', 'prep notes']
+        : ['brief', 'links', 'tags', 'approval flow', 'live instructions'],
+    };
+  }
+
+  if (paymentAfterLive) {
+    return {
+      ownerId: 'asher',
+      ownerLabel: 'Asher',
+      engine: 'Payment-before-live reminder',
+      draftLabel: 'Reset the terms before the thread drifts further',
+      nextAction: 'Calmly restate prepay for new collaborations and stop the thread from assuming post-live terms.',
+      why: 'The thread is trying to normalize payment after posting. That needs to get corrected before anything else moves.',
+      checklist: ['restate prepay rule', 'confirm if they accept', 'pause execution until yes'],
+    };
+  }
+
+  if (value > 0 && value < 1195) {
+    return {
+      ownerId: 'asher',
+      ownerLabel: 'Asher',
+      engine: 'Hard boundary on low pricing',
+      draftLabel: 'Reset the rate floor clearly',
+      nextAction: 'Name the real package rate and let the client decide whether the thread continues.',
+      why: 'This is below the normal floor. The move is not to negotiate against yourself.',
+      checklist: ['state actual rate', 'tie it to deliverable', 'leave a clean yes/no'],
+    };
+  }
+
+  if (workflowKey === 'pricing' || hasPricingSignal) {
+    return {
+      ownerId: 'asher',
+      ownerLabel: 'Asher',
+      engine: 'Pricing reply',
+      draftLabel: 'Answer with the package, rate, and what it covers',
+      nextAction: 'Tie the number to the deliverable, then ask for the missing scope or green light.',
+      why: 'The money conversation is active here. A clean price anchor matters more than more back-and-forth.',
+      checklist: ['package', 'rate', 'what it covers', 'next step'],
+    };
+  }
+
+  if (unread && mailboxOrigin === 'robert') {
+    return {
+      ownerId: 'robert',
+      ownerLabel: 'Robert',
+      engine: 'Robert loop-in handoff',
+      draftLabel: `Use Robert to open the door, then hand it to Asher and Sam`,
+      nextAction: 'Let Robert validate the relationship fast, then pull the thread into management mode.',
+      why: 'This came through Robert first. His name buys trust, but the work should leave his inbox immediately after the intro.',
+      checklist: ['warm intro', 'loop in Asher', 'loop in Sam', 'ask for scope and timing'],
+    };
+  }
+
+  if (unread) {
+    return {
+      ownerId: 'asher',
+      ownerLabel: 'Asher',
+      engine: hasPricingSignal ? 'Pricing reply' : 'First response to a strong new sponsor lead',
+      draftLabel: hasPricingSignal ? 'Reply with the right package and guardrails' : 'Turn the inbound into a clean working thread',
+      nextAction: hasPricingSignal
+        ? 'Answer the rate question directly, then ask for the rest.'
+        : 'Confirm fit fast and ask for scope, timing, brief, and billing inputs.',
+      why: 'There is fresh thread activity, so the move is a clean first response, not internal analysis paralysis.',
+      checklist: hasPricingSignal
+        ? ['state rate', 'tie to deliverable', 'ask for timing']
+        : ['confirm fit', 'get scope', 'get timing', 'get billing details'],
+    };
+  }
+
+  return {
+    ownerId: lead.ownerId || 'asher',
+    ownerLabel: lead.ownerId === 'sammy' ? 'Sammy' : (lead.ownerId === 'robert' ? 'Robert' : 'Asher'),
+    engine: 'Scope clarification',
+    draftLabel: 'Tighten the ask before doing anything else',
+    nextAction: 'Reduce the thread to exact deliverable, platform, timing, and approval path.',
+    why: 'The deal has context, but not enough clean context to move confidently.',
+    checklist: ['deliverable', 'platform', 'timing', 'approval path'],
+  };
 }
 
 function V4CompanyOsExecutionMeta(lead) {
@@ -7660,12 +8087,12 @@ function V4CompanyOsExecutionMeta(lead) {
 function V4QuickStageActions(lead) {
   if (!lead) return [];
   const actions = [
-    { stage: 'first-touch', label: 'Scope' },
+    { stage: 'first-touch', label: 'Qualified' },
     { stage: 'rates-sent', label: 'Pricing' },
-    { stage: 'negotiating', label: 'Negotiate' },
-    { stage: 'invoice-sent', label: 'Terms' },
-    { stage: 'done', label: 'Brief' },
-    { stage: 'paid-out', label: 'Close' },
+    { stage: 'negotiating', label: 'Waiting' },
+    { stage: 'invoice-sent', label: 'Booked' },
+    { stage: 'done', label: 'Briefing' },
+    { stage: 'paid-out', label: 'Closed' },
   ];
   return actions.filter(action => action.stage !== lead.stage);
 }
@@ -8443,6 +8870,12 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     }
   }, [briefDebugStage]);
 
+  React.useEffect(() => {
+    const openBriefMaker = () => setBriefMakerOpen(true);
+    window.addEventListener('v4:company-os-open-toolkit', openBriefMaker);
+    return () => window.removeEventListener('v4:company-os-open-toolkit', openBriefMaker);
+  }, []);
+
   const loadRobertHandoffPreview = async () => {
     setHandoffPreviewStatus('loading');
     setHandoffPreviewError('');
@@ -8573,7 +9006,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     setCalendarResult(null);
   };
 
-  const loadBriefJobStatus = async jobId => {
+  const loadBriefJobStatus = async (jobId) => {
     const res = await V4BriefServiceFetch('/brief-job-status?job_id=' + encodeURIComponent(jobId), {
       method: 'GET',
     });
@@ -8598,7 +9031,9 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
           const result = job.result || {};
           const payload = result.payload || {};
           const sourceUrl = payload.source_url || briefForm.source_url || briefForm.notion_url || job.source_url || '';
-          if (payload && Object.keys(payload).length) applyImportedBriefPayload(payload, sourceUrl);
+          if (payload && Object.keys(payload).length) {
+            applyImportedBriefPayload(payload, sourceUrl);
+          }
           setNotionStatus('done');
           setDocResult(result);
           setDocStatus('done');
@@ -9288,12 +9723,9 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
 function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
   const { STAGE_BY_ID, USERS } = window.V3;
   const [tab, setTab] = React.useState('thread');
-  const [handoffDraftLoading, setHandoffDraftLoading] = React.useState(false);
-  const [handoffDraftError, setHandoffDraftError] = React.useState('');
-  React.useEffect(() => { setTab('thread'); }, [lead?.id]);
   React.useEffect(() => {
-    setHandoffDraftLoading(false);
-    setHandoffDraftError('');
+    const origin = V4CompanyOsMailboxOrigin(lead);
+    setTab(origin === 'x' ? 'stands' : 'thread');
   }, [lead?.id]);
   if (!lead) {
     return <div className="cos2-reader"><div className="cos2-reader-empty">Select a thread from the list.</div></div>;
@@ -9309,6 +9741,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
   const operatorAnalysis = lead.operatorAnalysis || {};
   const operatorEscalation = Array.isArray(lead.operatorEscalation) ? lead.operatorEscalation : [];
   const execution = V4CompanyOsExecutionMeta(lead);
+  const replyGuide = V4CompanyOsReplyGuide(lead);
   const quickStages = V4QuickStageActions(lead);
   const mailboxOrigin = V4CompanyOsMailboxOrigin(lead);
   const isXLead = mailboxOrigin === 'x';
@@ -9316,43 +9749,85 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
   const listSnippet = V4CompanyOsListSnippet(lead);
   const operatorBadgeVisible = operatorStatus.label !== 'Monitoring';
   const xContextRows = V4XLeadContextRows(lead);
-  const supportsRobertHandoff = V4LeadSupportsRobertHandoff(lead);
-  const hasPendingRobertDraft = supportsRobertHandoff && Boolean(lead.draftReply) && String(lead.draftReplyStatus || '').toLowerCase() === 'pending';
-  const primaryLabel = supportsRobertHandoff
-    ? (hasPendingRobertDraft ? 'Approve draft' : 'Load Robert draft')
-    : (isXLead && !lead.email ? 'Prep email handoff' : (lead.draftReply ? 'Approve draft' : (replyAction ? lead.nextMove.action : 'Reply')));
   const moveLead = (nextStage) => window.V3.MoveLeadStage(lead, nextStage);
-  const clearUnread = () => V4CosPatchLead(lead, { new_reply_at: null }, { unread: false });
-  const loadRobertDraft = async () => {
-    setHandoffDraftLoading(true);
-    setHandoffDraftError('');
+  const openBriefMaker = () => {
     try {
-      const draft = await V4GenerateRobertHandoffDraft(lead);
-      const patch = { draft_reply: draft, draft_reply_status: 'pending', new_reply_at: null };
-      V4CosPatchLead(lead, patch, { draftReply: draft, draftReplyStatus: 'pending', unread: false });
-      setComposeOpen(true);
-    } catch (err) {
-      setHandoffDraftError(err.message || 'Could not build the Robert draft.');
-    } finally {
-      setHandoffDraftLoading(false);
-    }
+      const url = new URL(String(window.location?.href || ''));
+      url.searchParams.set('open', 'brief-maker');
+      window.history.replaceState({}, '', url.toString());
+    } catch (err) {}
+    window.dispatchEvent(new CustomEvent('v4:company-os-open-toolkit'));
   };
-  const handlePrimaryAction = () => {
-    if (supportsRobertHandoff && !hasPendingRobertDraft) {
-      loadRobertDraft();
+  const jumpToCalendar = () => {
+    if (execution.calendarLink) {
+      window.open(execution.calendarLink, '_blank', 'noopener');
       return;
     }
-    setComposeOpen(true);
+    window.dispatchEvent(new CustomEvent('v4:company-os-open-calendar'));
   };
+  const markWaitingTwoDays = () => {
+    setComposeOpen(false);
+    moveLead('negotiating');
+  };
+  const clearUnread = () => V4CosPatchLead(lead, { new_reply_at: null }, { unread: false });
   const readerOps = (
     <>
+      <section className="cos-guide-strip">
+        <div className="cos-guide-strip-head">
+          <div>
+            <div className="cos-operator-strip-eyebrow">Operator guide</div>
+            <h3>What Hermes thinks the move is</h3>
+          </div>
+          <span className="cos-guide-owner">Owner · {replyGuide.ownerLabel}</span>
+        </div>
+        <div className="cos-guide-grid">
+          <div className="cos-guide-card">
+            <div className="cos-guide-label">Reply engine</div>
+            <div className="cos-guide-value">{replyGuide.engine}</div>
+          </div>
+          <div className="cos-guide-card">
+            <div className="cos-guide-label">Draft move</div>
+            <div className="cos-guide-value">{replyGuide.draftLabel}</div>
+          </div>
+          <div className="cos-guide-card is-wide">
+            <div className="cos-guide-label">Next action</div>
+            <div className="cos-guide-value">{replyGuide.nextAction}</div>
+          </div>
+          <div className="cos-guide-card is-wide">
+            <div className="cos-guide-label">Why this</div>
+            <div className="cos-guide-value">{replyGuide.why}</div>
+          </div>
+        </div>
+        {replyGuide.checklist?.length ? (
+          <div className="cos-guide-checklist">
+            {replyGuide.checklist.map(item => (
+              <span key={item} className="cos-chip cos-chip-soft">{item}</span>
+            ))}
+          </div>
+        ) : null}
+      </section>
       <div className="cos-quick-actions">
         <div className="cos-quick-actions-group">
           <span className="cos-quick-actions-label">Quick actions</span>
-          <button className="cos-quick-btn is-primary" type="button" onClick={handlePrimaryAction} disabled={handoffDraftLoading}>
-            {handoffDraftLoading ? 'Loading draft...' : primaryLabel}
+          <button className="cos-quick-btn is-primary" type="button" onClick={() => setComposeOpen(true)}>
+            {isXLead && !lead.email ? 'Draft Robert intro' : (lead.draftReply ? 'Approve draft' : 'Draft Asher follow up')}
           </button>
-          {isXLead && lead.xOpenDm && (
+          <button className="cos-quick-btn" type="button" onClick={() => moveLead('rates-sent')}>
+            Send pricing
+          </button>
+          <button className="cos-quick-btn" type="button" onClick={() => moveLead('first-touch')}>
+            Request scope
+          </button>
+          <button className="cos-quick-btn" type="button" onClick={openBriefMaker}>
+            Make brief
+          </button>
+          <button className="cos-quick-btn" type="button" onClick={jumpToCalendar}>
+            Add to calendar
+          </button>
+          <button className="cos-quick-btn" type="button" onClick={markWaitingTwoDays}>
+            Mark waiting 2d
+          </button>
+          {(isXLead && lead.xOpenDm) && (
             <button className="cos-quick-btn" type="button" onClick={() => window.open(lead.xOpenDm, '_blank', 'noopener')}>
               Open DM
             </button>
@@ -9380,12 +9855,6 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
           ))}
         </div>
       </div>
-      {handoffDraftError && (
-        <div className="brief-maker-empty-state" style={{ marginTop: 12 }}>
-          <strong>Could not prepare the Robert draft</strong>
-          <span className="brief-maker-server-error">{handoffDraftError}</span>
-        </div>
-      )}
       {(lead.operatorMemory || lead.draftReply) && (
         <section className="cos-operator-strip">
           <div className="cos-operator-strip-head">
@@ -9451,7 +9920,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
         <span className="drawer-hd-brand">{lead.brand}</span>
         <span className="drawer-hd-stage" style={{ color: stage.color }}>
           <span className="drawer-hd-stage-dot" style={{ background: stage.color }}></span>
-          {stage.name}
+          {V4CompanyOsWorkflowLabel(lead)}
         </span>
       </div>
       <div className="cos-reader-hero">
@@ -9476,7 +9945,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
         <div className="drawer-facts">
           {lead.value ? <span className="drawer-fact mono">{v3Money(lead.value)}</span> : null}
           <span className="drawer-fact mono">{lead.daysInStage}d in stage</span>
-          <span className="drawer-fact">{stage.name}</span>
+          <span className="drawer-fact">{V4CompanyOsWorkflowLabel(lead)}</span>
           {isXLead && lead.xMessageCount ? <span className="drawer-fact">{lead.xMessageCount} DM{lead.xMessageCount === 1 ? '' : 's'}</span> : null}
           {lead.deliverables ? <span className="drawer-fact drawer-fact-wide" title={lead.deliverables}>{lead.deliverables}</span> : null}
           {operatorBadgeVisible ? <span className="drawer-fact">{operatorStatus.label}</span> : null}
@@ -9497,18 +9966,24 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
                 <V3Icon name="arrow_r" w={13} />
                 {lead.nextMove.action}
               </button>
+              {isXLead && lead.xOpenDm && (
+                <button className="btn btn-sm btn-ghost" onClick={() => window.open(lead.xOpenDm, '_blank', 'noopener')}>
+                  <V3Icon name="network" w={13} />
+                  Open DM
+                </button>
+              )}
             </div>
           )}
         </div>
       </div>
       <div className="drawer-tabs">
-        <button className="dr-tab" aria-selected={tab === 'thread'} onClick={() => setTab('thread')}>
-          {isXLead ? 'Lead context' : 'Email thread'} <span className="cnt">{lead.thread.length}</span>
-        </button>
-        <button className="dr-tab" aria-selected={tab === 'stands'} onClick={() => setTab('stands')}>
-          Where this stands
-        </button>
-      </div>
+          <button className="dr-tab" aria-selected={tab === 'thread'} onClick={() => setTab('thread')}>
+            {isXLead ? 'Lead context' : 'Email thread'} <span className="cnt">{lead.thread.length}</span>
+          </button>
+          <button className="dr-tab" aria-selected={tab === 'stands'} onClick={() => setTab('stands')}>
+          Next move
+          </button>
+        </div>
       <div className="drawer-body">
         {tab === 'thread' && (
           isXLead ? (
@@ -9567,9 +10042,9 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
         {composeOpen ? (
           <V3InlineReply lead={lead} user={user} onCollapse={() => setComposeOpen(false)} />
         ) : (
-          <button className="drawer-reply-bar" onClick={handlePrimaryAction}>
+          <button className="drawer-reply-bar" onClick={() => setComposeOpen(true)}>
             <V3Icon name="reply" w={14} />
-            <span>{supportsRobertHandoff ? `${hasPendingRobertDraft ? 'Approve Robert draft' : 'Load Robert draft'} for ${lead.contactName.split(' ')[0]}` : (isXLead && !lead.email ? `Prep handoff for ${lead.contactName.split(' ')[0]}` : `Reply to ${lead.contactName.split(' ')[0]}${lead.draftReply ? ' — draft ready' : ''}`)}</span>
+            <span>{isXLead && !lead.email ? `Prep handoff for ${lead.contactName.split(' ')[0]}` : `Reply to ${lead.contactName.split(' ')[0]}${lead.draftReply ? ' — draft ready' : ''}`}</span>
             <V3Icon name="chev_d" w={12} style={{ transform: 'rotate(180deg)' }} />
           </button>
         )}
@@ -9583,10 +10058,11 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
     V4MaybeRedirectToMachineHostedApp();
   }, []);
 
-  const base = React.useMemo(() => leads
+  const companyOsRows = React.useMemo(() => leads
     .filter(l => !l.isRobertBrief)
     .filter(l => !(window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(l)))
     .filter(l => V4CompanyOsFilterLead(l, query)), [leads, query]);
+  const base = React.useMemo(() => companyOsRows.filter(V4CompanyOsIsActiveDeal), [companyOsRows]);
   const live = base.filter(l => !['trash', 'dead-leads'].includes(l.stage));
   const byStale = (a, b) => (b.daysInStage || 0) - (a.daysInStage || 0);
   const byRecent = (a, b) => V3TimestampForUi(b.lastTouchAt) - V3TimestampForUi(a.lastTouchAt);
@@ -9603,31 +10079,31 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   const isSnoozed = (l) => snoozes[l.id] && Date.parse(snoozes[l.id]) > nowTs;
   const awake = live.filter(l => !isSnoozed(l));
   const followUpItems = awake.filter(l => l.followUpDue && !l.unread).sort(byStale);
-  const activeItems = awake.filter(l => !['done', 'paid-out', 'trash', 'dead-leads'].includes(l.stage));
-  const replyItems = activeItems.filter(l => l.unread && l.nextMove?.who).sort(byStale);
-  const pricingItems = activeItems.filter(l => l.stage === 'rates-sent').sort(byStale);
-  const negoItems = activeItems.filter(l => l.stage === 'negotiating').sort(byStale);
-  const paymentItems = activeItems.filter(l => l.stage === 'invoice-sent').sort(byStale);
-  const briefingItems = awake.filter(l => l.stage === 'done').sort(byRecent);
-  const waitingItems = activeItems.filter(l => !l.unread && !l.nextMove?.who).sort(byRecent);
-  const closedItems = awake.filter(l => ['done', 'paid-out'].includes(l.stage)).sort(byRecent);
+  const activeItems = awake.filter(l => !['paid-out', 'trash', 'dead-leads'].includes(l.stage));
+  const replyItems = activeItems.filter(l => l.unread || l.needsReply).sort(byStale);
+  const qualifiedItems = activeItems.filter(l => ['first-touch', 'engaged'].includes(l.stage)).sort(byStale);
+  const pricingItems = activeItems.filter(l => ['rates-sent', 'negotiating'].includes(l.stage)).sort(byStale);
+  const waitingItems = activeItems.filter(l => !l.unread && !l.needsReply && !l.nextMove?.who && ['first-touch', 'engaged', 'rates-sent', 'negotiating'].includes(l.stage)).sort(byRecent);
+  const bookedItems = activeItems.filter(l => l.stage === 'invoice-sent').sort(byStale);
+  const briefingItems = activeItems.filter(l => l.stage === 'done').sort(byRecent);
+  const closedItems = awake.filter(l => l.stage === 'paid-out').sort(byRecent);
 
   const splits = [
-    { id: 'reply',    label: 'New activity',     section: 'Workflow', hot: true, items: replyItems },
+    { id: 'activity', label: 'Activity',         section: 'Workflow', hot: replyItems.length > 0, items: activeItems.sort(byRecent) },
+    { id: 'reply',    label: 'Needs reply',      section: 'Workflow', hot: replyItems.length > 0, items: replyItems },
     { id: 'followups',label: 'Follow ups',       section: 'Workflow', hot: followUpItems.length > 0, items: followUpItems },
-    { id: 'pricing',  label: 'Pricing sent',     section: 'Workflow', items: pricingItems },
-    { id: 'nego',     label: 'Negotiating',      section: 'Workflow', items: negoItems },
-    { id: 'payment',  label: 'Payment / terms',  section: 'Workflow', items: paymentItems },
-    { id: 'briefing', label: 'Brief / calendar', section: 'Workflow', items: briefingItems },
-    { id: 'waiting',  label: 'Waiting on them',  section: 'Workflow', items: waitingItems },
+    { id: 'qualified',label: 'Qualified',        section: 'Stages', items: qualifiedItems },
+    { id: 'pricing',  label: 'Pricing',          section: 'Stages', items: pricingItems },
+    { id: 'waiting',  label: 'Waiting on them',  section: 'Stages', items: waitingItems },
+    { id: 'booked',   label: 'Booked',           section: 'Stages', items: bookedItems },
+    { id: 'briefing', label: 'Brief / scheduled',section: 'Stages', items: briefingItems },
     { id: 'snoozed', label: 'Snoozed',         section: 'System', items: live.filter(isSnoozed).sort((a, b) => Date.parse(snoozes[a.id]) - Date.parse(snoozes[b.id])) },
-    { id: 'closed',  label: 'Done and paid',   section: 'System', items: closedItems },
-    { id: 'trash',   label: 'Trash',           section: 'System', trash: true, items: base.filter(l => ['trash', 'dead-leads'].includes(l.stage)).sort(byRecent) },
-    { id: 'brief',   label: 'Overview',        section: 'System', brief: true },
+    { id: 'closed',  label: 'Closed',          section: 'System', items: closedItems },
+    { id: 'trash',   label: 'Trash',           section: 'System', trash: true, items: companyOsRows.filter(l => ['trash', 'dead-leads'].includes(l.stage)).sort(byRecent) },
     { id: 'toolkit', label: 'Toolkit',         section: 'System', toolkit: true, items: V4_COMPANY_OS_TOOLKIT },
   ];
 
-  const [splitId, setSplitId] = React.useState('reply');
+  const [splitId, setSplitId] = React.useState('activity');
   const [selId, setSelId] = React.useState(null);
   const [composeOpen, setComposeOpen] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
@@ -9643,6 +10119,18 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
       }
     } catch (err) {}
   }, []);
+
+  React.useEffect(() => {
+    const openToolkit = () => setSplitId('toolkit');
+    window.addEventListener('v4:company-os-open-toolkit', openToolkit);
+    return () => window.removeEventListener('v4:company-os-open-toolkit', openToolkit);
+  }, []);
+
+  React.useEffect(() => {
+    const openCalendar = () => onNavigateView?.('calendar');
+    window.addEventListener('v4:company-os-open-calendar', openCalendar);
+    return () => window.removeEventListener('v4:company-os-open-calendar', openCalendar);
+  }, [onNavigateView]);
 
   React.useEffect(() => { setSelId(null); setMobileOpen(false); setComposeOpen(false); }, [splitId]);
   React.useEffect(() => { setComposeOpen(false); }, [selected?.id]);
@@ -9697,7 +10185,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
       const t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (split.brief || split.toolkit) return;
+      if (split.toolkit) return;
       if (e.key === 'j' || e.key === 'J' || e.key === 'ArrowDown') { e.preventDefault(); moveSel(1); }
       if (e.key === 'k' || e.key === 'K' || e.key === 'ArrowUp')   { e.preventDefault(); moveSel(-1); }
       if (e.key === 'r' || e.key === 'R') { e.preventDefault(); if (selected) setComposeOpen(true); }
@@ -9711,7 +10199,8 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
 
   const replyCount = splits.find(s => s.id === 'reply')?.items.length || 0;
   const followUpCount = splits.find(s => s.id === 'followups')?.items.length || 0;
-  const p0Count = live.filter(l => l.unread || l.stage === 'invoice-sent').length;
+  const bookedCount = splits.find(s => s.id === 'booked')?.items.length || 0;
+  const p0Count = live.filter(l => l.unread || l.needsReply || l.followUpDue || l.stage === 'invoice-sent').length;
   const invoicedOutstanding = live.filter(l => l.stage === 'invoice-sent').reduce((s, l) => s + (l.value || 0), 0);
   const openPipeline = live.filter(l => !['done', 'paid-out'].includes(l.stage)).reduce((s, l) => s + (l.value || 0), 0);
 
@@ -9722,10 +10211,11 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
           <V4CompanyOsBuildingIcon size={18} />
           <strong>UnalignedOS</strong>
         </span>
-        <span className="cos-kpi cos-kpi-tight"><strong>{p0Count}</strong> P0</span>
+        <span className="cos-kpi cos-kpi-tight"><strong>{p0Count}</strong> hot</span>
         <span className="cos-kpi cos-kpi-tight cos-kpi-accent"><strong>{replyCount}</strong> reply now</span>
         <span className="cos-kpi cos-kpi-tight"><strong>{followUpCount}</strong> 2d follow ups</span>
-        <span className="cos-kpi cos-kpi-tight"><strong>{V4CompanyOsMoney(invoicedOutstanding) || '$0'}</strong> Terms / pay</span>
+        <span className="cos-kpi cos-kpi-tight"><strong>{bookedCount}</strong> booked</span>
+        <span className="cos-kpi cos-kpi-tight"><strong>{V4CompanyOsMoney(invoicedOutstanding) || '$0'}</strong> waiting on pay</span>
         <span className="cos-kpi cos-kpi-tight"><strong>{V4CompanyOsMoney(openPipeline) || '$0'}</strong> In play</span>
         <button type="button" className="cos-refresh-btn cos2-refresh" onClick={() => window.location.reload()}>↻ Refresh</button>
       </header>
@@ -9754,9 +10244,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
             <span><kbd>?</kbd> help</span>
           </div>
         </nav>
-        {split.brief ? (
-          <div className="cos2-main-scroll"><V4CosOverview leads={live} replyCount={replyCount} /></div>
-        ) : split.toolkit ? (
+        {split.toolkit ? (
           <div className="cos2-main-scroll"><V4CosToolkit onNavigateView={onNavigateView} onActivateSplit={setSplitId} /></div>
         ) : (
           <>
@@ -9767,6 +10255,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
                     const rowOperator = V4OperatorStatus(l);
                     const showRowOperator = rowOperator.label !== 'Monitoring';
                     const rowSnippet = V4CompanyOsListSnippet(l);
+                    const workflow = V4CompanyOsWorkflowLabel(l);
                     return (
                   <button type="button"
                           className={'cos2-row' + (String(l.id) === String(selected?.id) ? ' is-current' : '')}
@@ -9776,6 +10265,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
                         {l.unread && <span className="dq-dot" />}
                         <span className="cos2-row-brand">{l.brand}</span>
                         <span className={'cos2-row-source is-' + String(l.source || '').toLowerCase()}>{l.source || 'lead'}</span>
+                        <span className="cos2-row-workflow">{workflow}</span>
                       </span>
                       {showRowOperator && (l.draftReply || l.operatorMemory) && (
                         <span className={'cos2-row-operator is-' + rowOperator.tone}>{rowOperator.label}</span>
@@ -9799,8 +10289,8 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
               {items.length === 0 && (
                 <div className="cos2-zero">
                   <span className="cos2-zero-mark">✓</span>
-                  <strong>Inbox zero</strong>
-                  <span>Nothing in {split.label.toLowerCase()}. Breathe.</span>
+                  <strong>Clear</strong>
+                  <span>Nothing in {split.label.toLowerCase()} right now.</span>
                 </div>
               )}
             </div>
@@ -9815,8 +10305,6 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
 }
 
 window.V4CompanyOsView = V4CompanyOsView;
-
-
 // FLOW v4 — main app shell (refined top bar + view wiring)
 
 const V4_TWEAKS = /*EDITMODE-BEGIN*/{
@@ -9929,6 +10417,7 @@ function V4App() {
     leads: '',
     calendar: '',
     'company-os': '',
+    'machine-room': '',
   });
   const [toast, setToast] = React.useState(null);
   const toastTimer = React.useRef(null);
@@ -10007,6 +10496,7 @@ function V4App() {
     if (view === 'leads') return 'Search network…';
     if (view === 'board') return 'Search pipeline…';
     if (view === 'company-os') return 'Search Company OS…';
+    if (view === 'machine-room') return 'Search Machine Room…';
     return 'Search calendar…';
   }, [view]);
 
@@ -10100,6 +10590,7 @@ function V4App() {
 
   const paletteCommands = [
     { label: 'Go to Company OS', hint: 'workspace', run: () => { setView('company-os'); setOpenId(null); } },
+    { label: 'Go to Machine Room', hint: 'workers', run: () => { setView('machine-room'); setOpenId(null); } },
     { label: 'Go to Today', run: () => { setView('today'); setOpenId(null); } },
     { label: 'Go to Calendar', run: () => { setView('calendar'); setOpenId(null); } },
     { label: 'Go to ' + inboxLabel, run: () => { setView('inbox'); } },
@@ -10141,6 +10632,7 @@ function V4App() {
           </button>
           <button className="hd-nav-btn" aria-current={view === 'leads' ? 'page' : undefined} onClick={() => { setView('leads'); }}>Network</button>
           <button className="hd-nav-btn" aria-current={view === 'company-os' ? 'page' : undefined} onClick={() => { setView('company-os'); setOpenId(null); }}>Company OS</button>
+          <button className="hd-nav-btn" aria-current={view === 'machine-room' ? 'page' : undefined} onClick={() => { setView('machine-room'); setOpenId(null); }}>Machine Room</button>
         </div>
 
         <div className="hd-search">
@@ -10267,6 +10759,18 @@ function V4App() {
             }}
           />
         )}
+        {view === 'machine-room' && (
+          <div className="body body-machine-room">
+            <V4AgentsView
+              leads={mergedLeads}
+              query={search}
+              onOpenLead={(id) => {
+                setView('company-os');
+                setOpenId(id);
+              }}
+            />
+          </div>
+        )}
       </main>
 
       {/* ─── Footer ─── */}
@@ -10311,6 +10815,11 @@ function V4App() {
           <V3Icon name="diamond" w={18} />
           OS
         </button>
+        <button className="ft-tab" aria-current={view === 'machine-room' ? 'page' : undefined}
+                onClick={() => { setView('machine-room'); setOpenId(null); }}>
+          <V3Icon name="network" w={18} />
+          Machine
+        </button>
       </footer>
 
       {/* Detail drawer — suppressed in Inbox; the inbox's right pane is its own reader */}
@@ -10345,7 +10854,7 @@ function V4App() {
                     onChange={v => setTweak('viewAs', v)} />
         <TweakSection label="View" />
         <TweakSelect label="Page" value={view}
-                    options={['today','board','new-leads','company-os','leads','inbox','invoices','calendar']}
+                    options={['today','board','new-leads','company-os','machine-room','leads','inbox','invoices','calendar']}
                     onChange={v => { setView(v); setOpenId(null); }} />
         <TweakSection label="Appearance" />
         <TweakRadio label="Theme" value={t.theme}
