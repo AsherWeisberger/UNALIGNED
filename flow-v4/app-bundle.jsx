@@ -1,3 +1,5 @@
+// Auto-generated local bundle for index.html
+
 
 // tweaks-panel.jsx
 // Reusable Tweaks shell + form-control helpers.
@@ -566,6 +568,8 @@ Object.assign(window, {
   TweakSlider, TweakToggle, TweakRadio, TweakSelect,
   TweakText, TweakNumber, TweakColor, TweakButton,
 });
+
+
 // FLOW v3 — atoms
 
 const V3_ICONS = {
@@ -713,6 +717,8 @@ Object.assign(window, {
     asherweisberger: 'flow-v4/assets/avatars/asher.jpeg',
   },
 });
+
+
 // FLOW v4 — live Supabase/email helpers
 
 const V3_SUPABASE_URL = "https://hbnpwphxjurvtydezwgh.supabase.co";
@@ -721,7 +727,7 @@ const V3_MIN_VISIBLE_TS = Date.parse('2026-01-01T00:00:00Z');
 
 async function V3LoadXDmIntakeRows() {
   try {
-    const res = await fetch('flow-v4/assets/x_dm_daily_intake.json?v=20260622-live-x-inbox-dates-1');
+    const res = await fetch('flow-v4/assets/x_dm_daily_intake.json?v=20260621-live-x-inbox-3');
     if (!res.ok) throw new Error('X intake ' + res.status);
     const rows = await res.json();
     return Array.isArray(rows) ? rows : [];
@@ -2911,6 +2917,8 @@ V3LoadSupabaseLeads().then(leads => {
   window.V3.LEADS = leads;
   window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads } }));
 }).catch(err => console.error('Supabase load failed:', err));
+
+
 // FLOW v3 — Board view
 
 function V3BoardView({ leads, openId, onOpen, user, ownerFilter, setOwnerFilter }) {
@@ -3102,6 +3110,8 @@ function V3BoardCard({ lead, isActive, user, onOpen, onMoveStage }) {
 }
 
 Object.assign(window, { V3BoardView });
+
+
 // FLOW v3 — Brief panel (Asher) + Brief viewer modal (Robert)
 //
 // Briefs are attached to closed deals (stage = 'done' or 'invoice-sent').
@@ -3679,6 +3689,8 @@ function V3BriefDelivCard({ deliv, idx, brand, canShip, onShip, onUnship }) {
 }
 
 Object.assign(window, { V3BriefPanel, V3BriefViewer, V3BriefStatusPill });
+
+
 // FLOW v3 — Detail drawer (right slide-in)
 
 function V3DrawerQueue({ queue, currentId, onNavigate }) {
@@ -4205,6 +4217,8 @@ function V3Thread({ lead }) {
 }
 
 Object.assign(window, { V3Drawer });
+
+
 // FLOW v4 — Today / Inbox / Leads views
 // Today rebuilt as a tabbed work surface: NOW · NEXT · LATER · DONE.
 // NOW = big action cards. NEXT/LATER = compact rows.
@@ -7152,6 +7166,8 @@ function V4CalendarView({ query = '' }) {
 }
 
 Object.assign(window, { V4TodayView, V4RobertBriefView, V4InboxView, V4LeadsView, V4NewLeadsView, V4CalendarView });
+
+
 // Company OS Beta — full port of the localhost Hermes Workspace UI.
 // Built on the gh-pages flow-v4 stack (inline Babel JSX + vanilla CSS).
 
@@ -7161,126 +7177,96 @@ Object.assign(window, { V4TodayView, V4RobertBriefView, V4InboxView, V4LeadsView
 
 const V4_COMPANY_OS_PREP = [
   {
-    title: 'iLands / Flot monthly package',
-    tags: ['P0', 'copy overdue', 'June 26 target'],
+    title: 'iMerch / 3-placement bundle',
+    tags: ['P0', 'invoice now', 'first draft urgent'],
     points: [
-      'Zoe pushed again on June 22, 2026 because the draft deadline already passed and the sponsor still needs Robert copy before they can finish the video production.',
-      'This is still package-fulfillment work, not a fresh invoice lane: Robert only owes copy, while the sponsor handles the video and images.',
-      'The June 26 release target still stands, but the official source quote-post URL is still missing and Asher has not yet returned a clear delivery timing for the copy.',
-      'Asher owns the reply, the shortest useful 60-second Robert brief, and the final go/no-go timing. Do not call this ready while the copy is still missing.',
+      'Peter Zheng said on June 23, 2026 that iMerch wants to move forward on the $4,595 three-placement bundle and is fine with paying upfront.',
+      'They want the first urgent draft aimed at an Elon-reply-style placement, using the AQ_AIhealth source post plus the attached campaign infographic.',
+      'Invoice/payment instructions are now concrete: send the invoice to zyxnnk.us@gmail.com and keep the three-placement scope explicit before Robert starts drafting.',
+      'Asher owns the invoice link, proof chase, and the shortest useful Robert brief. Do not let the thread drift into creative work before the upfront payment path is live.',
     ],
   },
   {
-    title: 'Riverside / launch-copy approval',
-    tags: ['P0', 'draft owed', 'after June 24'],
+    title: 'Acti / June 30 quote post',
+    tags: ['P0', 'launch held', 'payment not shown'],
     points: [
-      'The interview is done, but Savion changed the next step on June 21, 2026: Riverside now wants draft X copy plus the Facebook cross-post for review before anything goes live.',
-      'Savion said the post can run any time after June 24, 2026 once the messaging, tags, and launch framing are signed off, so the old "hold for launch" note is obsolete.',
-      'Robert already asked for the official press-release language so he can align wording with the launch. That means the live blocker is no longer scheduling the interview; it is copy prep and approval.',
-      'Asher owns one clean handoff: exact tags, approval path, draft copy, and final go-live window. Treat this as execution prep, not passive waiting.',
-    ],
-  },
-  {
-    title: 'Acti / June 30 QRT',
-    tags: ['P0', 'paid', 'slot to hold'],
-    points: [
-      'AK wrote on June 22, 2026 with the exact launch timing: the official announcement tweet goes live on June 30 at 7:30 AM PT, and they want Robert queued right behind it.',
-      'Payment is already confirmed on this thread, so the active work is no longer billing. The active work is draft prep, launch alignment, and protecting the time slot.',
-      'AK also asked for draft quote copy in the next couple of days using the confidential launch video and the existing agentic-keyboard brief.',
-      'Asher owns the Robert brief, the draft-review loop, and the final source-tweet handoff on launch morning. Do not reopen payment terms on a thread that is already paid.',
-    ],
-  },
-  {
-    title: 'Eastworlds / paid by wire',
-    tags: ['P0', 'wire receipt', 'schedule pending'],
-    points: [
-      'Ong Xie sent the Eastworlds wire receipt on June 19, 2026, Asher turned the updated draft around the same day, and Sean replied on June 20, 2026 that next week works for posting.',
-      'That moved Eastworlds forward, but it did not close it. There is still no bank settlement confirmation and no exact posting date.',
-      'Asher owns the remaining cleanup: settled-payment confirmation, sponsor notes on the revised draft, and one real calendar day for launch.',
-      'A wire receipt plus "next week" is enough to keep preparing, not enough to mark the item paid and ready.',
+      'AK locked the official announcement for June 30, 2026 at 7:30 AM PT and wants Robert queued for a quote post immediately after the main tweet goes live.',
+      'The thread now has the confidential launch video, product brief, and official draft language, but the final source tweet only arrives at launch and there is still no payment proof in-thread.',
+      'Asher owns the invoice or payment confirmation path, the Robert prep note, and the launch-morning handoff for the final source link.',
+      'This is not ready just because the timing is fixed. Lock the money path and the quote-copy prep before June 30.',
     ],
   },
   {
     title: 'ACL / Hockey Stick',
-    tags: ['P0', 'past due', 'payment first'],
+    tags: ['P0', 'overdue invoice', 'script pressure'],
     points: [
-      'Chang acknowledged the updated ACL invoice thread on June 19, 2026, but the June 20 due date is now past and no payment proof landed in-thread.',
-      'The ticket reimbursement issue is still unresolved beyond Annika\'s note that Alibaba will not reimburse the purchased pass, which means the commercial mess is not cleaned up yet.',
-      'Asher already has a follow-up draft asking whether the updated invoice and Stripe link came through. That is still draft-state, which means the payment chase is not actually finished.',
-      'Keep Robert execution out of this until money, reimbursement exposure, and client timing are clean. A final brief is not clearance when the invoice is still unpaid.',
+      'Annika came back on June 23, 2026 asking for progress on the eight ACL scripts and attached another Alibaba paper they now want folded into the dissemination plan.',
+      'The commercial side is still dirty: Stripe shows the first $10,000 ACL invoice open after the June 20, 2026 due date, and no payment proof landed in the client thread.',
+      'Asher already sent the invoice and Stripe link earlier, so the next move is not re-explaining scope. It is chasing payment proof and then answering on realistic script timing.',
+      'Keep Robert execution fenced off until payment, reimbursement exposure, and timing are written down cleanly in-thread.',
     ],
   },
   {
-    title: 'Viture / July 1 retainer start',
-    tags: ['P1', 'option A accepted', 'scope draft unsent'],
+    title: 'AhaCreator / ArcGrowth',
+    tags: ['P1', 'W-9 owed', 'live link sent'],
     points: [
-      'Emily said on June 21, 2026 that Viture wants to move forward with Option A and start on July 1, carrying the first phase through CES.',
-      'Asher already drafted the reply confirming the $5,995/month kickoff, but that message is still sitting in Drafts rather than closing the commercial scope in-thread.',
-      'The remaining Asher work is straightforward: send the short scope, lock the approval workflow and payment timing, and schedule the first strategy sync.',
-      'Treat this as commercial prep, not a Robert execution brief. First get the retainer scope over the line.',
+      'Lumina wrote on June 23, 2026 that payment has already been completed and asked Asher to send the W-9 for their records.',
+      'The live Robert post link was already delivered on June 15, 2026, so the content lane is done and this is now pure admin follow-through.',
+      'Asher owns the W-9 send plus any payment-proof capture that should be logged against the closed campaign.',
+      'Do not reopen copy, edits, or scheduling on a thread that only needs tax paperwork and proof hygiene.',
     ],
   },
   {
-    title: 'OMANE / Nitro proof + Viktor data',
-    tags: ['P1', 'proof missing', 'data follow-up'],
+    title: 'QORDEN AI / fit check',
+    tags: ['P1', 'lead reply', 'metrics asked'],
     points: [
-      'Ori\'s June 19, 2026 screenshot only proved the Nitrosend transfer was scheduled for Monday, June 22, 2026. It did not prove the money actually settled against invoice_Omane_NitroSend_061726.pdf.',
-      'Separately, Ori asked on June 21, 2026 for the Viktor post views/data form so he could report back Monday morning Europe time.',
-      'Asher still owns both cleanup tasks: capture real payment proof once the transfer lands and make sure the Robert-side Viktor metrics request is not dropped.',
-      'Do not close OMANE just because the post went live. Proof trails and post-live data requests still count as active work.',
+      'Alvina replied on June 23, 2026 asking for Robert audience demographics and engagement detail before they decide between a dedicated post or thread.',
+      'They framed the budget as startup-sensitive and asked whether a custom package exists, but they still have not provided launch timing or a concrete deliverable to invoice against.',
+      'Asher owns the fit-check reply and should keep the thread in paid-collab territory rather than sliding into an informal free advisory call.',
+      'Keep this in email until the company, format, budget, and timing are concrete enough to describe in one sentence.',
     ],
   },
 ];
 
 const V4_COMPANY_OS_WAITING = [
   {
-    title: 'Marketing Guys / RunLayer',
-    tags: ['watch', 'brief promised Monday', 'not locked'],
+    title: 'Riverside / press-release hold',
+    tags: ['watch', 'after June 24', 'PMM pending'],
     points: [
-      'Phillip pitched the next QRT on June 19, 2026 for Wednesday at 7:30 AM PT and said the rest of the materials would likely arrive on Monday, June 22, 2026.',
-      'Asher already answered with the correct guardrails: full brief, final target post, timing, billing/payment details, and quote guidance first.',
-      'Until those materials actually land, this is still waiting rather than an execution brief.',
-      'Do not build Robert prep from a company homepage and a launch teaser alone.',
+      'Savion said on June 23, 2026 to hold publishing until the PMM team sends the official press release so the wording matches their launch.',
+      'The caption link and promo code are already set, and once Riverside signs off on X copy plus the Facebook cross-post the post can run any time after June 24, 2026.',
+      'This is waiting on client launch language, not on interview scheduling anymore.',
+      'Do not send Robert live until the press release and approval pass are both in-thread.',
     ],
   },
   {
-    title: 'ZooClaw / EezyCollab intro',
-    tags: ['watch', 'new lead', 'terms mismatch'],
+    title: 'iLands / Flot monthly package',
+    tags: ['watch', 'sponsor review', 'June 26 target'],
     points: [
-      'Robert forwarded ZooClaw into the management lane on June 21, 2026 with a $2,495 ask for one thread plus one quote repost in the June 30 to July 4 window.',
-      'The thread says payment would happen within seven days after publishing via PayPal or bank transfer, which does not match the normal prepay rule for a fresh sponsor.',
-      'This stays in waiting until Asher resets terms, confirms real availability, and gets a proper brief rather than just a cold rate ask.',
-      'Do not quietly accept post-live payment on a brand-new deal.',
+      'Asher sent the cleaned-up single-copy direction on June 23, 2026 after Zoe rejected the earlier multi-option draft structure.',
+      'Zoe\'s latest response was just "please wait a moment," which means the package is sitting in sponsor review and still lacks the final quote-post URL.',
+      'This is fulfillment work under an older package, not a fresh invoice lane.',
+      'Do not call it Robert-ready until the sponsor explicitly approves the copy and sends the source post path.',
     ],
   },
   {
-    title: 'iMerch / Peter three-campaign ask',
-    tags: ['watch', 'no discount', 'real briefs needed'],
+    title: 'Eastworlds / wire settle + date',
+    tags: ['watch', 'receipt not settlement', 'launch day missing'],
     points: [
-      'Peter asked on June 20, 2026 for a cheaper X-only bundle across three campaigns, and Sam already gave the only decision that matters: no discounts.',
-      'Asher has a draft response ready, but Peter still has not sent clean briefs and timing for each campaign, so the thread is not execution-ready.',
-      'Keep this parked until the ask is concrete enough to answer from the standard rate card without improvising scope.',
-      'Do not invent a volume concession because three campaigns sound attractive.',
+      'The Eastworlds lane still has only a wire receipt and a loose "next week works" style timing signal rather than settled payment proof and one exact posting date.',
+      'That is enough context to keep the thread warm, but not enough to mark the invoice clean or hand Robert a finished brief.',
+      'Keep this in watch until the bank side settles and one real launch day lands.',
+      'A scheduled transfer is context, not closure.',
     ],
   },
   {
-    title: 'Golden Egg / creator roster',
-    tags: ['watch', 'onboarded', 'future only'],
+    title: 'RunLayer / Wednesday QRT',
+    tags: ['watch', 'brief landed', 'link still matters'],
     points: [
-      'Wesley confirmed on June 19, 2026 that Golden Egg received the documents and that Robert is fully onboarded in their creator roster.',
-      'There is still no live campaign on this thread, so there is nothing for Robert or Asher to prep today.',
-      'This is admin-complete and waiting for a real booked campaign.',
-      'Do not confuse roster setup with revenue.',
-    ],
-  },
-  {
-    title: 'Base and Partner / exploratory AI tool',
-    tags: ['watch', 'bumped June 19', 'scope missing'],
-    points: [
-      'Asher already sent the sponsorship package, asked for company, product, deliverable mix, and timing, and bumped Sahil again on June 19, 2026.',
-      'There is still no reply naming the client, the exact scope, the budget, or the launch date.',
-      'Keep it in waiting until the ask can be described in one sentence with company, deliverable, timing, and owner.',
-      'Do not create a Robert brief from generic interest in AI tools.',
+      'Phillip sent the RunLayer brief on June 22, 2026 and Asher already answered that Robert can QRT on Wednesday in the format that performs best for his account.',
+      'That means the lane is no longer waiting on a brief, but it still needs the final target post context tight enough for a clean execution handoff.',
+      'Treat this as launch watch, not a sales thread.',
+      'Do not lose the final source-link check just because the brief already arrived.',
     ],
   },
 ];
@@ -7345,50 +7331,27 @@ const V4_COMPANY_OS_SENDERS = [
 ];
 
 const V4_COMPANY_OS_RULES = [
-  'Asher owns replies, invoice links, payment-proof capture, final post links, reimbursement follow-up, scheduling cleanup, and Robert brief prep. Sammy escalates. Robert only handles testing, interviews, intros, and final execution.',
-  'No paid post, travel spend, hotel, or extra pass cost happens before payment proof, written reimbursement, written budget approval, or clearly prepaid package coverage is visible in-thread.',
-  'A live post is not a closed deal. If the receipt or bank proof is missing, the item stays in action until proof lands.',
-  'A screenshot saying payment is scheduled is useful context, not closure. The deal stays open until the receipt, settled transfer, or bank proof is in-thread.',
-  'A wire receipt from the sponsor proves intent to pay, not bank settlement. Keep the item open until the money or bank confirmation actually lands.',
-  'If a campaign is already prepaid, stop re-litigating payment and focus only on the source post, draft approval, and exact launch timing.',
-  'If payment proof lands outside the client thread, log it against the invoice before calling the deal done.',
-  'If a sponsor switches from Stripe to bank transfer after the invoice is already live, settle the payment rail first and freeze drafting until that choice is explicit.',
-  'If a sponsor changes story angle or technical framing after a slot is penciled in, freeze drafting until payment proof is in and the new framing is written down cleanly.',
+  'Asher owns replies, invoice links, payment-proof capture, final post links, scheduling cleanup, tax-doc follow-through, and every 60-second Robert brief. Sam escalates. Robert executes only after the lane is clean.',
+  'No paid post, travel spend, or launch hold is truly booked until payment proof, written reimbursement, or clearly prepaid package coverage is visible in-thread.',
+  'A live post is not a closed deal. If the receipt, bank proof, W-9 follow-through, or final post link is missing, the lane stays open.',
+  'A wire receipt or "payment completed" note is useful context, not closure. Log actual settlement proof before calling the money side done.',
   'Once an invoice link is already in-thread, stop re-explaining the package and chase only payment proof, live asset, and posting window.',
-  'If an older package still has unused posts left, treat the remaining inventory as fulfillment work, not a chance to send a fresh invoice unless the thread itself says the old package is over.',
-  'If a legacy package is still active, the chase is source post URL, timing, approval path, and the shortest useful Robert brief, not fresh pricing.',
-  'If a sponsor asks for draft copy before a launch goes live, keep the work on Asher\'s side until tags, cross-post requirements, and sign-off are all explicit in-thread.',
-  'If Sam already says no discount, answer from the standard rate card or pause the thread. Do not negotiate against yourself.',
-  'If an agency cites an old bundle benchmark to force a cheaper single-post rate, treat it as a negotiation, not a precedent reset.',
-  'If a brand passes on a slot for budget but asks for future pricing benchmarks, answer the future-rate question once without reopening the dead campaign.',
-  'If an onboarding thread asks for tax or bank documents with no live campaign attached, send the packet once, confirm receipt, then move it to waiting.',
-  'Banking sample PDFs and onboarding paperwork are admin artifacts, not revenue, until a real campaign is attached.',
-  'If a client wants split payment, post-live payment, net terms, stealth posting, or no paid-promotion disclosure, the answer is no until the thread proves otherwise.',
-  'If a fresh sponsor proposes payment after posting, treat it as a terms mismatch until prepay or an explicit exception is approved in writing.',
-  'Pinned posts are separate inventory. If a client wants the top slot held, price the pin separately instead of quietly bundling it into the repost.',
-  'If a client has paid but the launch URL or Robert repost URL is missing, chase the links before opening any next-campaign discussion.',
-  'An interview is not scheduled when someone says a time might work. It is scheduled only when both sides say yes and the invite reflects the final duration.',
-  'A note like "next week works" is not a calendar lock. Robert only gets a brief after there is one exact date or time window.',
-  'Venice is on the new interview price of $2,495 plus Stripe. Riverside keeps the old $1,800 commitment unless the thread changes in writing.',
-  'If a meeting duration changes after a slot is picked, update the invite itself. An email promise to adjust is not enough.',
-  'A quote repost is not executable until the official source post, assigned posting window, talking points, and approval boundaries are in the thread.',
-  'If a product requires testing, a login alone does not count. No execution brief exists until Robert can actually use the right environment and report something real back.',
-  'Every Robert brief must fit inside 60 seconds and include scope, timing, deliverable, approval path, payment path, owner, and why Robert is the right fit now.',
-  'Do not create a Robert brief for exploratory calls, vague intros, or proposal-only threads. Scope, budget, platform, timing, and owner must already be concrete.',
-  'Keep new lead threads in email until company, product, deliverable, budget, timing, and payment path are real. Generic interest, onboarding asks, and story pitches are not Robert briefs.',
-  'Robert will not promote crypto. AI and blockchain infrastructure may be acceptable, but token or coin promotion is out.',
-  'If Sam calls it a hard pass or Robert drafts a decline, treat the thread as closed unless one of them explicitly reopens it.',
-  'If the thread is about billing details, invoices, payment links, or scheduling cleanup, it stays on Asher\'s side until the commercial path is settled.',
-  'Unread is not the same as actionable. Confirm the latest thread state before creating work.',
+  'If a sponsor sends confidential launch assets before go-live, prep from them but do not publish, forward, or treat them as public until the sponsor announces.',
+  'If the client says hold for a press release, approval pass, or launch wording, that hold beats the calendar. Waiting on client language is not Robert-ready.',
+  'If a campaign still belongs to an older package, treat the remaining inventory as fulfillment work unless the thread explicitly says the package is exhausted.',
+  'Startup-friendly, bundle, or quota asks can change structure, but they do not remove paid-collab rules, disclosure, or the upfront default for new sponsors.',
+  'Tax and banking document requests are admin work, not throwaway notes. Send the packet once, confirm receipt, and log it against the campaign.',
+  'A quote repost is not executable until the official source post, posting window, talking points, approval boundary, and payment state are all explicit.',
+  'Every Robert brief must fit inside 60 seconds and include company, deliverable, timing, source link, approval path, payment state, owner, and why Robert is the right fit now.',
 ];
 
 const V4_COMPANY_OS_STAGES = [
-  { key: 'qualified', label: 'Qualified' },
+  { key: 'new', label: 'Lead in' },
+  { key: 'scope', label: 'Scope' },
   { key: 'pricing', label: 'Pricing' },
-  { key: 'waiting', label: 'Waiting' },
-  { key: 'booked', label: 'Booked' },
-  { key: 'briefing', label: 'Briefing' },
-  { key: 'closed', label: 'Closed' },
+  { key: 'terms', label: 'Terms / pay' },
+  { key: 'brief', label: 'Brief / calendar' },
+  { key: 'done', label: 'Closed' },
 ];
 
 const V4_BRIEF_TAILSCALE_BASE_URL = 'https://mac-studio.tail50d3a2.ts.net';
@@ -7651,27 +7614,14 @@ function V4CompanyOsMoney(value) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
 }
 
-function V4CompanyOsWorkflowKey(lead) {
-  const stage = String(lead?.stage || 'new').toLowerCase();
-  if (stage === 'paid-out') return 'closed';
-  if (stage === 'done') return 'briefing';
-  if (stage === 'invoice-sent') return 'booked';
-  if (!lead?.nextMove?.who && ['first-touch', 'engaged', 'rates-sent', 'negotiating'].includes(stage)) return 'waiting';
-  if (stage === 'rates-sent' || stage === 'negotiating') return 'pricing';
-  if (stage === 'first-touch' || stage === 'engaged') return 'qualified';
-  return 'qualified';
-}
-
-function V4CompanyOsWorkflowLabel(lead) {
-  const key = V4CompanyOsWorkflowKey(lead);
-  const found = V4_COMPANY_OS_STAGES.find(item => item.key === key);
-  return found ? found.label : 'Qualified';
-}
-
 function V4CompanyOsStageIndex(lead) {
-  const workflowKey = V4CompanyOsWorkflowKey(lead);
-  const index = V4_COMPANY_OS_STAGES.findIndex(stage => stage.key === workflowKey);
-  return index === -1 ? 0 : index;
+  const stage = lead?.stage || 'new';
+  if (stage === 'paid-out') return 5;
+  if (stage === 'done') return 4;
+  if (stage === 'invoice-sent') return 3;
+  if (stage === 'negotiating' || stage === 'rates-sent') return 2;
+  if (stage === 'first-touch' || stage === 'engaged') return 1;
+  return 0;
 }
 
 function V4CompanyOsWhy(lead) {
@@ -7777,30 +7727,21 @@ function V4CompanyOsType(lead) {
 }
 
 function V4CompanyOsPhase(lead) {
-  const workflowKey = V4CompanyOsWorkflowKey(lead);
-  const map = {
-    qualified: 'Qualified',
-    pricing: 'Pricing',
-    waiting: 'Waiting on them',
-    booked: 'Booked',
-    briefing: 'Brief / calendar',
-    closed: 'Closed',
-  };
-  return map[workflowKey] || 'Qualified';
+  const stage = lead?.stage || 'new';
+  if (stage === 'invoice-sent') return 'Terms / Payment';
+  if (stage === 'negotiating') return 'Negotiation';
+  if (stage === 'rates-sent') return 'Pricing';
+  if (stage === 'first-touch' || stage === 'engaged') return 'Scope';
+  if (stage === 'done') return 'Brief / Calendar';
+  if (stage === 'paid-out') return 'Closed';
+  return 'Intake';
 }
 
 function V4CompanyOsPhaseTag(lead) {
-  if (lead?.unread || lead?.needsReply) return 'needs reply';
-  if (lead?.followUpDue) return '2d follow up';
-  if (lead?.stage === 'invoice-sent') return 'lock payment';
-  if (lead?.stage === 'done') return 'brief ready';
-  return 'in motion';
-}
-
-function V4CompanyOsIsActiveDeal(lead) {
-  if (!lead || lead.isRobertBrief) return false;
-  if (window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(lead)) return false;
-  return !['new', 'trash', 'dead-leads'].includes(String(lead.stage || '').toLowerCase());
+  if (lead?.stage === 'invoice-sent') return 'verify first';
+  if (lead?.stage === 'done') return 'robert ready';
+  if (lead?.needsReply) return 'needs reply';
+  return 'next move';
 }
 
 function V4XLeadContextRows(lead) {
@@ -7839,203 +7780,6 @@ function V4OperatorReplyTypeLabel(value) {
   return String(value || '')
     .replace(/-/g, ' ')
     .replace(/\b\w/g, ch => ch.toUpperCase());
-}
-
-function V4CompanyOsHasPricingSignal(lead) {
-  const text = [
-    lead?.notes,
-    lead?.evidence,
-    lead?.deliverables,
-    lead?.nextMove?.text,
-    lead?.operatorSummary?.quoted_rate,
-    ...(Array.isArray(lead?.thread) ? lead.thread.map(m => `${m.subject || ''} ${m.body || ''}`) : []),
-  ].filter(Boolean).join(' ');
-  return /\b(rate|pricing|budget|quote|quoted|paid|payment|invoice|sponsor|sponsorship|deliverable|package|repost|wire)\b/i.test(text);
-}
-
-function V4CompanyOsNeedsBillingDetails(lead) {
-  const text = [
-    lead?.notes,
-    lead?.evidence,
-    lead?.nextMove?.text,
-    ...(Array.isArray(lead?.thread) ? lead.thread.map(m => `${m.subject || ''} ${m.body || ''}`) : []),
-  ].filter(Boolean).join(' ');
-  return /\b(company name|billing address|billing details|po number|reference number|invoice details|contact name and telephone number)\b/i.test(text);
-}
-
-function V4CompanyOsReplyGuide(lead) {
-  if (!lead) {
-    return {
-      ownerId: 'asher',
-      ownerLabel: 'Asher',
-      engine: 'Pick a lead first',
-      draftLabel: 'No draft target yet',
-      nextAction: 'Open a live thread to see the recommended move.',
-      why: 'Hermes needs an active lead before it can map the reply engine cleanly.',
-      checklist: [],
-    };
-  }
-
-  const mailboxOrigin = V4CompanyOsMailboxOrigin(lead);
-  const type = V4CompanyOsType(lead);
-  const workflowKey = V4CompanyOsWorkflowKey(lead);
-  const hasPricingSignal = V4CompanyOsHasPricingSignal(lead);
-  const needsBillingDetails = V4CompanyOsNeedsBillingDetails(lead);
-  const firstName = String(lead.contactName || 'them').split(' ')[0];
-  const hasEmail = Boolean(String(lead.email || '').trim());
-  const isXLead = mailboxOrigin === 'x';
-  const unread = Boolean(lead.unread || lead.needsReply);
-  const followUp = Boolean(lead.followUpDue);
-  const value = Number(lead.value || 0);
-  const threadText = [
-    lead?.notes,
-    lead?.evidence,
-    lead?.deliverables,
-    ...(Array.isArray(lead?.thread) ? lead.thread.map(m => `${m.subject || ''} ${m.body || ''}`) : []),
-  ].filter(Boolean).join(' ');
-  const paymentAfterLive = /\b(within\s+\d+\s+days after publishing|after publishing|post-live payment|payment after publishing|net \d+)\b/i.test(threadText);
-
-  if (isXLead && !hasEmail) {
-    return {
-      ownerId: 'robert',
-      ownerLabel: 'Robert',
-      engine: 'X lead with email handoff',
-      draftLabel: `Open with Robert, then pull ${firstName} into email`,
-      nextAction: 'Use Robert as the trust opener, then route the real work into Asher/Sam email flow.',
-      why: 'This lead is still living in X. The cleanest move is to get contact details and shift it into a proper working thread.',
-      checklist: ['ask for email', 'ask for opportunity details', 'move out of DM chaos'],
-    };
-  }
-
-  if (type === 'interview') {
-    return {
-      ownerId: 'asher',
-      ownerLabel: 'Asher',
-      engine: 'Interview / meeting opportunity',
-      draftLabel: `Clarify format, timing, and why Robert should care`,
-      nextAction: 'Get the guest, format, timing, and target angle into one short answer before anyone commits time.',
-      why: 'Interview threads go bad when the format is fuzzy. Ash should tighten the scope before Robert touches the calendar.',
-      checklist: ['guest or company', 'format', 'timing', 'target focus'],
-    };
-  }
-
-  if (followUp) {
-    return {
-      ownerId: 'asher',
-      ownerLabel: 'Asher',
-      engine: 'Follow-up after silence',
-      draftLabel: `Send a short nudge to ${firstName}`,
-      nextAction: 'Re-open the thread with one clear question and force a yes/no answer on whether the deal is still alive.',
-      why: 'This is not new business anymore. It is stalled business, so the move is pressure-tested follow-up, not a fresh pitch.',
-      checklist: ['reference what is pending', 'name the blocker', 'ask for direct confirmation'],
-    };
-  }
-
-  if (workflowKey === 'booked') {
-    return {
-      ownerId: 'asher',
-      ownerLabel: 'Asher',
-      engine: needsBillingDetails ? 'Billing details request' : 'Payment-before-live reminder',
-      draftLabel: needsBillingDetails ? 'Lock invoice details' : `Lock payment before anything goes live`,
-      nextAction: needsBillingDetails
-        ? 'Get the invoice fields in one pass so the money path is clean.'
-        : 'Hold the posting lane until receipt or payment confirmation is in-thread.',
-      why: 'Booked does not mean safe. This lane is still commercial until the invoice path and payment proof are nailed down.',
-      checklist: needsBillingDetails
-        ? ['company name', 'billing address', 'contact name', 'PO or reference']
-        : ['payment confirmation', 'receipt in thread', 'exact posting window'],
-    };
-  }
-
-  if (workflowKey === 'briefing') {
-    return {
-      ownerId: 'asher',
-      ownerLabel: 'Asher',
-      engine: type === 'interview' ? 'Calendar / timing confirmation' : 'Need the brief / assets / links',
-      draftLabel: type === 'interview' ? 'Confirm schedule and materials' : 'Collect final content inputs for Robert',
-      nextAction: type === 'interview'
-        ? 'Lock the exact date, duration, and prep materials.'
-        : 'Get the brief, links, tags, approval path, and source post fully clean before Robert is asked to execute.',
-      why: 'This deal is sold. The blocker is no longer commercial. It is execution readiness.',
-      checklist: type === 'interview'
-        ? ['date and time', 'invite', 'prep notes']
-        : ['brief', 'links', 'tags', 'approval flow', 'live instructions'],
-    };
-  }
-
-  if (paymentAfterLive) {
-    return {
-      ownerId: 'asher',
-      ownerLabel: 'Asher',
-      engine: 'Payment-before-live reminder',
-      draftLabel: 'Reset the terms before the thread drifts further',
-      nextAction: 'Calmly restate prepay for new collaborations and stop the thread from assuming post-live terms.',
-      why: 'The thread is trying to normalize payment after posting. That needs to get corrected before anything else moves.',
-      checklist: ['restate prepay rule', 'confirm if they accept', 'pause execution until yes'],
-    };
-  }
-
-  if (value > 0 && value < 1195) {
-    return {
-      ownerId: 'asher',
-      ownerLabel: 'Asher',
-      engine: 'Hard boundary on low pricing',
-      draftLabel: 'Reset the rate floor clearly',
-      nextAction: 'Name the real package rate and let the client decide whether the thread continues.',
-      why: 'This is below the normal floor. The move is not to negotiate against yourself.',
-      checklist: ['state actual rate', 'tie it to deliverable', 'leave a clean yes/no'],
-    };
-  }
-
-  if (workflowKey === 'pricing' || hasPricingSignal) {
-    return {
-      ownerId: 'asher',
-      ownerLabel: 'Asher',
-      engine: 'Pricing reply',
-      draftLabel: 'Answer with the package, rate, and what it covers',
-      nextAction: 'Tie the number to the deliverable, then ask for the missing scope or green light.',
-      why: 'The money conversation is active here. A clean price anchor matters more than more back-and-forth.',
-      checklist: ['package', 'rate', 'what it covers', 'next step'],
-    };
-  }
-
-  if (unread && mailboxOrigin === 'robert') {
-    return {
-      ownerId: 'robert',
-      ownerLabel: 'Robert',
-      engine: 'Robert loop-in handoff',
-      draftLabel: `Use Robert to open the door, then hand it to Asher and Sam`,
-      nextAction: 'Let Robert validate the relationship fast, then pull the thread into management mode.',
-      why: 'This came through Robert first. His name buys trust, but the work should leave his inbox immediately after the intro.',
-      checklist: ['warm intro', 'loop in Asher', 'loop in Sam', 'ask for scope and timing'],
-    };
-  }
-
-  if (unread) {
-    return {
-      ownerId: 'asher',
-      ownerLabel: 'Asher',
-      engine: hasPricingSignal ? 'Pricing reply' : 'First response to a strong new sponsor lead',
-      draftLabel: hasPricingSignal ? 'Reply with the right package and guardrails' : 'Turn the inbound into a clean working thread',
-      nextAction: hasPricingSignal
-        ? 'Answer the rate question directly, then ask for the rest.'
-        : 'Confirm fit fast and ask for scope, timing, brief, and billing inputs.',
-      why: 'There is fresh thread activity, so the move is a clean first response, not internal analysis paralysis.',
-      checklist: hasPricingSignal
-        ? ['state rate', 'tie to deliverable', 'ask for timing']
-        : ['confirm fit', 'get scope', 'get timing', 'get billing details'],
-    };
-  }
-
-  return {
-    ownerId: lead.ownerId || 'asher',
-    ownerLabel: lead.ownerId === 'sammy' ? 'Sammy' : (lead.ownerId === 'robert' ? 'Robert' : 'Asher'),
-    engine: 'Scope clarification',
-    draftLabel: 'Tighten the ask before doing anything else',
-    nextAction: 'Reduce the thread to exact deliverable, platform, timing, and approval path.',
-    why: 'The deal has context, but not enough clean context to move confidently.',
-    checklist: ['deliverable', 'platform', 'timing', 'approval path'],
-  };
 }
 
 function V4CompanyOsExecutionMeta(lead) {
@@ -8087,12 +7831,12 @@ function V4CompanyOsExecutionMeta(lead) {
 function V4QuickStageActions(lead) {
   if (!lead) return [];
   const actions = [
-    { stage: 'first-touch', label: 'Qualified' },
+    { stage: 'first-touch', label: 'Scope' },
     { stage: 'rates-sent', label: 'Pricing' },
-    { stage: 'negotiating', label: 'Waiting' },
-    { stage: 'invoice-sent', label: 'Booked' },
-    { stage: 'done', label: 'Briefing' },
-    { stage: 'paid-out', label: 'Closed' },
+    { stage: 'negotiating', label: 'Negotiate' },
+    { stage: 'invoice-sent', label: 'Terms' },
+    { stage: 'done', label: 'Brief' },
+    { stage: 'paid-out', label: 'Close' },
   ];
   return actions.filter(action => action.stage !== lead.stage);
 }
@@ -8869,12 +8613,6 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
       setBriefMakerOpen(true);
     }
   }, [briefDebugStage]);
-
-  React.useEffect(() => {
-    const openBriefMaker = () => setBriefMakerOpen(true);
-    window.addEventListener('v4:company-os-open-toolkit', openBriefMaker);
-    return () => window.removeEventListener('v4:company-os-open-toolkit', openBriefMaker);
-  }, []);
 
   const loadRobertHandoffPreview = async () => {
     setHandoffPreviewStatus('loading');
@@ -9723,10 +9461,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
 function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
   const { STAGE_BY_ID, USERS } = window.V3;
   const [tab, setTab] = React.useState('thread');
-  React.useEffect(() => {
-    const origin = V4CompanyOsMailboxOrigin(lead);
-    setTab(origin === 'x' ? 'stands' : 'thread');
-  }, [lead?.id]);
+  React.useEffect(() => { setTab('thread'); }, [lead?.id]);
   if (!lead) {
     return <div className="cos2-reader"><div className="cos2-reader-empty">Select a thread from the list.</div></div>;
   }
@@ -9741,7 +9476,6 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
   const operatorAnalysis = lead.operatorAnalysis || {};
   const operatorEscalation = Array.isArray(lead.operatorEscalation) ? lead.operatorEscalation : [];
   const execution = V4CompanyOsExecutionMeta(lead);
-  const replyGuide = V4CompanyOsReplyGuide(lead);
   const quickStages = V4QuickStageActions(lead);
   const mailboxOrigin = V4CompanyOsMailboxOrigin(lead);
   const isXLead = mailboxOrigin === 'x';
@@ -9750,84 +9484,16 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
   const operatorBadgeVisible = operatorStatus.label !== 'Monitoring';
   const xContextRows = V4XLeadContextRows(lead);
   const moveLead = (nextStage) => window.V3.MoveLeadStage(lead, nextStage);
-  const openBriefMaker = () => {
-    try {
-      const url = new URL(String(window.location?.href || ''));
-      url.searchParams.set('open', 'brief-maker');
-      window.history.replaceState({}, '', url.toString());
-    } catch (err) {}
-    window.dispatchEvent(new CustomEvent('v4:company-os-open-toolkit'));
-  };
-  const jumpToCalendar = () => {
-    if (execution.calendarLink) {
-      window.open(execution.calendarLink, '_blank', 'noopener');
-      return;
-    }
-    window.dispatchEvent(new CustomEvent('v4:company-os-open-calendar'));
-  };
-  const markWaitingTwoDays = () => {
-    setComposeOpen(false);
-    moveLead('negotiating');
-  };
   const clearUnread = () => V4CosPatchLead(lead, { new_reply_at: null }, { unread: false });
   const readerOps = (
     <>
-      <section className="cos-guide-strip">
-        <div className="cos-guide-strip-head">
-          <div>
-            <div className="cos-operator-strip-eyebrow">Operator guide</div>
-            <h3>What Hermes thinks the move is</h3>
-          </div>
-          <span className="cos-guide-owner">Owner · {replyGuide.ownerLabel}</span>
-        </div>
-        <div className="cos-guide-grid">
-          <div className="cos-guide-card">
-            <div className="cos-guide-label">Reply engine</div>
-            <div className="cos-guide-value">{replyGuide.engine}</div>
-          </div>
-          <div className="cos-guide-card">
-            <div className="cos-guide-label">Draft move</div>
-            <div className="cos-guide-value">{replyGuide.draftLabel}</div>
-          </div>
-          <div className="cos-guide-card is-wide">
-            <div className="cos-guide-label">Next action</div>
-            <div className="cos-guide-value">{replyGuide.nextAction}</div>
-          </div>
-          <div className="cos-guide-card is-wide">
-            <div className="cos-guide-label">Why this</div>
-            <div className="cos-guide-value">{replyGuide.why}</div>
-          </div>
-        </div>
-        {replyGuide.checklist?.length ? (
-          <div className="cos-guide-checklist">
-            {replyGuide.checklist.map(item => (
-              <span key={item} className="cos-chip cos-chip-soft">{item}</span>
-            ))}
-          </div>
-        ) : null}
-      </section>
       <div className="cos-quick-actions">
         <div className="cos-quick-actions-group">
           <span className="cos-quick-actions-label">Quick actions</span>
           <button className="cos-quick-btn is-primary" type="button" onClick={() => setComposeOpen(true)}>
-            {isXLead && !lead.email ? 'Draft Robert intro' : (lead.draftReply ? 'Approve draft' : 'Draft Asher follow up')}
+            {isXLead && !lead.email ? 'Prep email handoff' : (lead.draftReply ? 'Approve draft' : (replyAction ? lead.nextMove.action : 'Reply'))}
           </button>
-          <button className="cos-quick-btn" type="button" onClick={() => moveLead('rates-sent')}>
-            Send pricing
-          </button>
-          <button className="cos-quick-btn" type="button" onClick={() => moveLead('first-touch')}>
-            Request scope
-          </button>
-          <button className="cos-quick-btn" type="button" onClick={openBriefMaker}>
-            Make brief
-          </button>
-          <button className="cos-quick-btn" type="button" onClick={jumpToCalendar}>
-            Add to calendar
-          </button>
-          <button className="cos-quick-btn" type="button" onClick={markWaitingTwoDays}>
-            Mark waiting 2d
-          </button>
-          {(isXLead && lead.xOpenDm) && (
+          {isXLead && lead.xOpenDm && (
             <button className="cos-quick-btn" type="button" onClick={() => window.open(lead.xOpenDm, '_blank', 'noopener')}>
               Open DM
             </button>
@@ -9920,7 +9586,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
         <span className="drawer-hd-brand">{lead.brand}</span>
         <span className="drawer-hd-stage" style={{ color: stage.color }}>
           <span className="drawer-hd-stage-dot" style={{ background: stage.color }}></span>
-          {V4CompanyOsWorkflowLabel(lead)}
+          {stage.name}
         </span>
       </div>
       <div className="cos-reader-hero">
@@ -9945,7 +9611,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
         <div className="drawer-facts">
           {lead.value ? <span className="drawer-fact mono">{v3Money(lead.value)}</span> : null}
           <span className="drawer-fact mono">{lead.daysInStage}d in stage</span>
-          <span className="drawer-fact">{V4CompanyOsWorkflowLabel(lead)}</span>
+          <span className="drawer-fact">{stage.name}</span>
           {isXLead && lead.xMessageCount ? <span className="drawer-fact">{lead.xMessageCount} DM{lead.xMessageCount === 1 ? '' : 's'}</span> : null}
           {lead.deliverables ? <span className="drawer-fact drawer-fact-wide" title={lead.deliverables}>{lead.deliverables}</span> : null}
           {operatorBadgeVisible ? <span className="drawer-fact">{operatorStatus.label}</span> : null}
@@ -9977,13 +9643,13 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
         </div>
       </div>
       <div className="drawer-tabs">
-          <button className="dr-tab" aria-selected={tab === 'thread'} onClick={() => setTab('thread')}>
-            {isXLead ? 'Lead context' : 'Email thread'} <span className="cnt">{lead.thread.length}</span>
-          </button>
-          <button className="dr-tab" aria-selected={tab === 'stands'} onClick={() => setTab('stands')}>
-          Next move
-          </button>
-        </div>
+        <button className="dr-tab" aria-selected={tab === 'thread'} onClick={() => setTab('thread')}>
+          {isXLead ? 'Lead context' : 'Email thread'} <span className="cnt">{lead.thread.length}</span>
+        </button>
+        <button className="dr-tab" aria-selected={tab === 'stands'} onClick={() => setTab('stands')}>
+          Where this stands
+        </button>
+      </div>
       <div className="drawer-body">
         {tab === 'thread' && (
           isXLead ? (
@@ -10058,11 +9724,10 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
     V4MaybeRedirectToMachineHostedApp();
   }, []);
 
-  const companyOsRows = React.useMemo(() => leads
+  const base = React.useMemo(() => leads
     .filter(l => !l.isRobertBrief)
     .filter(l => !(window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(l)))
     .filter(l => V4CompanyOsFilterLead(l, query)), [leads, query]);
-  const base = React.useMemo(() => companyOsRows.filter(V4CompanyOsIsActiveDeal), [companyOsRows]);
   const live = base.filter(l => !['trash', 'dead-leads'].includes(l.stage));
   const byStale = (a, b) => (b.daysInStage || 0) - (a.daysInStage || 0);
   const byRecent = (a, b) => V3TimestampForUi(b.lastTouchAt) - V3TimestampForUi(a.lastTouchAt);
@@ -10079,31 +9744,31 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   const isSnoozed = (l) => snoozes[l.id] && Date.parse(snoozes[l.id]) > nowTs;
   const awake = live.filter(l => !isSnoozed(l));
   const followUpItems = awake.filter(l => l.followUpDue && !l.unread).sort(byStale);
-  const activeItems = awake.filter(l => !['paid-out', 'trash', 'dead-leads'].includes(l.stage));
-  const replyItems = activeItems.filter(l => l.unread || l.needsReply).sort(byStale);
-  const qualifiedItems = activeItems.filter(l => ['first-touch', 'engaged'].includes(l.stage)).sort(byStale);
-  const pricingItems = activeItems.filter(l => ['rates-sent', 'negotiating'].includes(l.stage)).sort(byStale);
-  const waitingItems = activeItems.filter(l => !l.unread && !l.needsReply && !l.nextMove?.who && ['first-touch', 'engaged', 'rates-sent', 'negotiating'].includes(l.stage)).sort(byRecent);
-  const bookedItems = activeItems.filter(l => l.stage === 'invoice-sent').sort(byStale);
-  const briefingItems = activeItems.filter(l => l.stage === 'done').sort(byRecent);
-  const closedItems = awake.filter(l => l.stage === 'paid-out').sort(byRecent);
+  const activeItems = awake.filter(l => !['done', 'paid-out', 'trash', 'dead-leads'].includes(l.stage));
+  const replyItems = activeItems.filter(l => l.unread && l.nextMove?.who).sort(byStale);
+  const pricingItems = activeItems.filter(l => l.stage === 'rates-sent').sort(byStale);
+  const negoItems = activeItems.filter(l => l.stage === 'negotiating').sort(byStale);
+  const paymentItems = activeItems.filter(l => l.stage === 'invoice-sent').sort(byStale);
+  const briefingItems = awake.filter(l => l.stage === 'done').sort(byRecent);
+  const waitingItems = activeItems.filter(l => !l.unread && !l.nextMove?.who).sort(byRecent);
+  const closedItems = awake.filter(l => ['done', 'paid-out'].includes(l.stage)).sort(byRecent);
 
   const splits = [
-    { id: 'activity', label: 'Activity',         section: 'Workflow', hot: replyItems.length > 0, items: activeItems.sort(byRecent) },
-    { id: 'reply',    label: 'Needs reply',      section: 'Workflow', hot: replyItems.length > 0, items: replyItems },
+    { id: 'reply',    label: 'New activity',     section: 'Workflow', hot: true, items: replyItems },
     { id: 'followups',label: 'Follow ups',       section: 'Workflow', hot: followUpItems.length > 0, items: followUpItems },
-    { id: 'qualified',label: 'Qualified',        section: 'Stages', items: qualifiedItems },
-    { id: 'pricing',  label: 'Pricing',          section: 'Stages', items: pricingItems },
-    { id: 'waiting',  label: 'Waiting on them',  section: 'Stages', items: waitingItems },
-    { id: 'booked',   label: 'Booked',           section: 'Stages', items: bookedItems },
-    { id: 'briefing', label: 'Brief / scheduled',section: 'Stages', items: briefingItems },
+    { id: 'pricing',  label: 'Pricing sent',     section: 'Workflow', items: pricingItems },
+    { id: 'nego',     label: 'Negotiating',      section: 'Workflow', items: negoItems },
+    { id: 'payment',  label: 'Payment / terms',  section: 'Workflow', items: paymentItems },
+    { id: 'briefing', label: 'Brief / calendar', section: 'Workflow', items: briefingItems },
+    { id: 'waiting',  label: 'Waiting on them',  section: 'Workflow', items: waitingItems },
     { id: 'snoozed', label: 'Snoozed',         section: 'System', items: live.filter(isSnoozed).sort((a, b) => Date.parse(snoozes[a.id]) - Date.parse(snoozes[b.id])) },
-    { id: 'closed',  label: 'Closed',          section: 'System', items: closedItems },
-    { id: 'trash',   label: 'Trash',           section: 'System', trash: true, items: companyOsRows.filter(l => ['trash', 'dead-leads'].includes(l.stage)).sort(byRecent) },
+    { id: 'closed',  label: 'Done and paid',   section: 'System', items: closedItems },
+    { id: 'trash',   label: 'Trash',           section: 'System', trash: true, items: base.filter(l => ['trash', 'dead-leads'].includes(l.stage)).sort(byRecent) },
+    { id: 'brief',   label: 'Overview',        section: 'System', brief: true },
     { id: 'toolkit', label: 'Toolkit',         section: 'System', toolkit: true, items: V4_COMPANY_OS_TOOLKIT },
   ];
 
-  const [splitId, setSplitId] = React.useState('activity');
+  const [splitId, setSplitId] = React.useState('reply');
   const [selId, setSelId] = React.useState(null);
   const [composeOpen, setComposeOpen] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
@@ -10119,18 +9784,6 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
       }
     } catch (err) {}
   }, []);
-
-  React.useEffect(() => {
-    const openToolkit = () => setSplitId('toolkit');
-    window.addEventListener('v4:company-os-open-toolkit', openToolkit);
-    return () => window.removeEventListener('v4:company-os-open-toolkit', openToolkit);
-  }, []);
-
-  React.useEffect(() => {
-    const openCalendar = () => onNavigateView?.('calendar');
-    window.addEventListener('v4:company-os-open-calendar', openCalendar);
-    return () => window.removeEventListener('v4:company-os-open-calendar', openCalendar);
-  }, [onNavigateView]);
 
   React.useEffect(() => { setSelId(null); setMobileOpen(false); setComposeOpen(false); }, [splitId]);
   React.useEffect(() => { setComposeOpen(false); }, [selected?.id]);
@@ -10185,7 +9838,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
       const t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (split.toolkit) return;
+      if (split.brief || split.toolkit) return;
       if (e.key === 'j' || e.key === 'J' || e.key === 'ArrowDown') { e.preventDefault(); moveSel(1); }
       if (e.key === 'k' || e.key === 'K' || e.key === 'ArrowUp')   { e.preventDefault(); moveSel(-1); }
       if (e.key === 'r' || e.key === 'R') { e.preventDefault(); if (selected) setComposeOpen(true); }
@@ -10199,8 +9852,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
 
   const replyCount = splits.find(s => s.id === 'reply')?.items.length || 0;
   const followUpCount = splits.find(s => s.id === 'followups')?.items.length || 0;
-  const bookedCount = splits.find(s => s.id === 'booked')?.items.length || 0;
-  const p0Count = live.filter(l => l.unread || l.needsReply || l.followUpDue || l.stage === 'invoice-sent').length;
+  const p0Count = live.filter(l => l.unread || l.stage === 'invoice-sent').length;
   const invoicedOutstanding = live.filter(l => l.stage === 'invoice-sent').reduce((s, l) => s + (l.value || 0), 0);
   const openPipeline = live.filter(l => !['done', 'paid-out'].includes(l.stage)).reduce((s, l) => s + (l.value || 0), 0);
 
@@ -10211,11 +9863,10 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
           <V4CompanyOsBuildingIcon size={18} />
           <strong>UnalignedOS</strong>
         </span>
-        <span className="cos-kpi cos-kpi-tight"><strong>{p0Count}</strong> hot</span>
+        <span className="cos-kpi cos-kpi-tight"><strong>{p0Count}</strong> P0</span>
         <span className="cos-kpi cos-kpi-tight cos-kpi-accent"><strong>{replyCount}</strong> reply now</span>
         <span className="cos-kpi cos-kpi-tight"><strong>{followUpCount}</strong> 2d follow ups</span>
-        <span className="cos-kpi cos-kpi-tight"><strong>{bookedCount}</strong> booked</span>
-        <span className="cos-kpi cos-kpi-tight"><strong>{V4CompanyOsMoney(invoicedOutstanding) || '$0'}</strong> waiting on pay</span>
+        <span className="cos-kpi cos-kpi-tight"><strong>{V4CompanyOsMoney(invoicedOutstanding) || '$0'}</strong> Terms / pay</span>
         <span className="cos-kpi cos-kpi-tight"><strong>{V4CompanyOsMoney(openPipeline) || '$0'}</strong> In play</span>
         <button type="button" className="cos-refresh-btn cos2-refresh" onClick={() => window.location.reload()}>↻ Refresh</button>
       </header>
@@ -10244,7 +9895,9 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
             <span><kbd>?</kbd> help</span>
           </div>
         </nav>
-        {split.toolkit ? (
+        {split.brief ? (
+          <div className="cos2-main-scroll"><V4CosOverview leads={live} replyCount={replyCount} /></div>
+        ) : split.toolkit ? (
           <div className="cos2-main-scroll"><V4CosToolkit onNavigateView={onNavigateView} onActivateSplit={setSplitId} /></div>
         ) : (
           <>
@@ -10255,7 +9908,6 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
                     const rowOperator = V4OperatorStatus(l);
                     const showRowOperator = rowOperator.label !== 'Monitoring';
                     const rowSnippet = V4CompanyOsListSnippet(l);
-                    const workflow = V4CompanyOsWorkflowLabel(l);
                     return (
                   <button type="button"
                           className={'cos2-row' + (String(l.id) === String(selected?.id) ? ' is-current' : '')}
@@ -10265,7 +9917,6 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
                         {l.unread && <span className="dq-dot" />}
                         <span className="cos2-row-brand">{l.brand}</span>
                         <span className={'cos2-row-source is-' + String(l.source || '').toLowerCase()}>{l.source || 'lead'}</span>
-                        <span className="cos2-row-workflow">{workflow}</span>
                       </span>
                       {showRowOperator && (l.draftReply || l.operatorMemory) && (
                         <span className={'cos2-row-operator is-' + rowOperator.tone}>{rowOperator.label}</span>
@@ -10289,8 +9940,8 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
               {items.length === 0 && (
                 <div className="cos2-zero">
                   <span className="cos2-zero-mark">✓</span>
-                  <strong>Clear</strong>
-                  <span>Nothing in {split.label.toLowerCase()} right now.</span>
+                  <strong>Inbox zero</strong>
+                  <span>Nothing in {split.label.toLowerCase()}. Breathe.</span>
                 </div>
               )}
             </div>
@@ -10305,6 +9956,8 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
 }
 
 window.V4CompanyOsView = V4CompanyOsView;
+
+
 // FLOW v4 — main app shell (refined top bar + view wiring)
 
 const V4_TWEAKS = /*EDITMODE-BEGIN*/{
@@ -10875,3 +10528,4 @@ function V4App() {
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<V4App />);
 if (window.__alignedBootMarkReady) window.__alignedBootMarkReady();
+
