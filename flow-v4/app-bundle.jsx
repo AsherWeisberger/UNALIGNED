@@ -1,5 +1,3 @@
-// Auto-generated local bundle for index.html
-
 
 // tweaks-panel.jsx
 // Reusable Tweaks shell + form-control helpers.
@@ -568,8 +566,6 @@ Object.assign(window, {
   TweakSlider, TweakToggle, TweakRadio, TweakSelect,
   TweakText, TweakNumber, TweakColor, TweakButton,
 });
-
-
 // FLOW v3 — atoms
 
 const V3_ICONS = {
@@ -717,8 +713,6 @@ Object.assign(window, {
     asherweisberger: 'flow-v4/assets/avatars/asher.jpeg',
   },
 });
-
-
 // FLOW v4 — live Supabase/email helpers
 
 const V3_SUPABASE_URL = "https://hbnpwphxjurvtydezwgh.supabase.co";
@@ -727,7 +721,7 @@ const V3_MIN_VISIBLE_TS = Date.parse('2026-01-01T00:00:00Z');
 
 async function V3LoadXDmIntakeRows() {
   try {
-    const res = await fetch('flow-v4/assets/x_dm_daily_intake.json?v=20260621-live-x-inbox-3');
+    const res = await fetch('flow-v4/assets/x_dm_daily_intake.json?v=20260622-live-x-inbox-dates-1');
     if (!res.ok) throw new Error('X intake ' + res.status);
     const rows = await res.json();
     return Array.isArray(rows) ? rows : [];
@@ -2917,8 +2911,6 @@ V3LoadSupabaseLeads().then(leads => {
   window.V3.LEADS = leads;
   window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads } }));
 }).catch(err => console.error('Supabase load failed:', err));
-
-
 // FLOW v3 — Board view
 
 function V3BoardView({ leads, openId, onOpen, user, ownerFilter, setOwnerFilter }) {
@@ -3110,8 +3102,6 @@ function V3BoardCard({ lead, isActive, user, onOpen, onMoveStage }) {
 }
 
 Object.assign(window, { V3BoardView });
-
-
 // FLOW v3 — Brief panel (Asher) + Brief viewer modal (Robert)
 //
 // Briefs are attached to closed deals (stage = 'done' or 'invoice-sent').
@@ -3689,8 +3679,6 @@ function V3BriefDelivCard({ deliv, idx, brand, canShip, onShip, onUnship }) {
 }
 
 Object.assign(window, { V3BriefPanel, V3BriefViewer, V3BriefStatusPill });
-
-
 // FLOW v3 — Detail drawer (right slide-in)
 
 function V3DrawerQueue({ queue, currentId, onNavigate }) {
@@ -4217,8 +4205,6 @@ function V3Thread({ lead }) {
 }
 
 Object.assign(window, { V3Drawer });
-
-
 // FLOW v4 — Today / Inbox / Leads views
 // Today rebuilt as a tabbed work surface: NOW · NEXT · LATER · DONE.
 // NOW = big action cards. NEXT/LATER = compact rows.
@@ -4605,6 +4591,39 @@ function V4AgentViewItems(leads, fn, limit = 4) {
   return leads.filter(fn).slice(0, limit);
 }
 
+function V4WorkerPortrait({ worker, compact = false }) {
+  const size = compact ? 52 : 74;
+  const eyeY = compact ? 21 : 29;
+  const bodyY = compact ? 28 : 38;
+  const mouthY = compact ? 32 : 43;
+  const variant = worker.id;
+  return (
+    <svg viewBox="0 0 100 100" width={size} height={size} className="worker-portrait" aria-hidden="true">
+      <defs>
+        <radialGradient id={`glow-${variant}`} cx="28%" cy="22%" r="76%">
+          <stop offset="0%" stopColor="rgba(255,255,255,0.9)" />
+          <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+        </radialGradient>
+      </defs>
+      <rect x="10" y="12" width="80" height="76" rx="24" className="worker-portrait-body" />
+      <ellipse cx="39" cy={eyeY} rx="4.5" ry="6.5" className="worker-portrait-eye" />
+      <ellipse cx="61" cy={eyeY} rx="4.5" ry="6.5" className="worker-portrait-eye" />
+      <path d={`M39 ${mouthY} C45 ${mouthY + 5}, 55 ${mouthY + 5}, 61 ${mouthY}`} className="worker-portrait-mouth" />
+      <rect x="22" y={bodyY} width="56" height="18" rx="9" className="worker-portrait-belly" />
+      {worker.id === 'pricing' && <path d="M24 17 L50 8 L76 17 L68 26 L32 26 Z" className="worker-portrait-crown" />}
+      {worker.id === 'brief' && <path d="M26 18 C34 8, 66 8, 74 18 L74 26 L26 26 Z" className="worker-portrait-hair" />}
+      {worker.id === 'xwatch' && <path d="M22 24 C30 10, 70 10, 78 24" className="worker-portrait-wave" />}
+      {worker.id === 'finance' && <path d="M26 16 L74 16 L64 28 L36 28 Z" className="worker-portrait-alert" />}
+      {worker.id === 'calendar' && <rect x="30" y="10" width="40" height="14" rx="7" className="worker-portrait-cap" />}
+      {worker.id === 'handoff' && <path d="M24 18 C38 12, 62 12, 76 18" className="worker-portrait-brow" />}
+      <circle cx="34" cy="66" r="4" className="worker-portrait-dot" />
+      <circle cx="50" cy="66" r="4" className="worker-portrait-dot" />
+      <circle cx="66" cy="66" r="4" className="worker-portrait-dot" />
+      <circle cx="32" cy="24" r="30" fill={`url(#glow-${variant})`} opacity="0.55" />
+    </svg>
+  );
+}
+
 function V4AgentsView({ leads = [], query = '', onOpenLead }) {
   const q = String(query || '').trim().toLowerCase();
   const liveLeads = (Array.isArray(leads) ? leads : []).filter(l => l && !l.isRobertBrief && !['trash', 'dead-leads'].includes(String(l.stage || '').toLowerCase()));
@@ -4630,6 +4649,7 @@ function V4AgentsView({ leads = [], query = '', onOpenLead }) {
       glyph: 'IN',
       accent: 'blue',
       habitat: 'north-west',
+      zone: 'intake',
       subtitle: 'Cleans and routes new opportunities',
       owner: 'Asher',
       tone: V4AgentTone(newLeads.length, 0),
@@ -4645,6 +4665,7 @@ function V4AgentsView({ leads = [], query = '', onOpenLead }) {
       glyph: 'RP',
       accent: 'violet',
       habitat: 'north-mid',
+      zone: 'conversion',
       subtitle: 'Keeps hot threads moving',
       owner: 'Asher',
       tone: V4AgentTone(replyLeads.length, 0),
@@ -4660,6 +4681,7 @@ function V4AgentsView({ leads = [], query = '', onOpenLead }) {
       glyph: 'PR',
       accent: 'gold',
       habitat: 'north-east',
+      zone: 'conversion',
       subtitle: 'Handles packages, rates, and negotiation',
       owner: 'Asher + Sam',
       tone: V4AgentTone(pricingLeads.length, 0),
@@ -4675,6 +4697,7 @@ function V4AgentsView({ leads = [], query = '', onOpenLead }) {
       glyph: 'CL',
       accent: 'mint',
       habitat: 'east-high',
+      zone: 'execution',
       subtitle: 'Turns timing into tasks, events, and go-live holds',
       owner: 'Asher',
       tone: V4AgentTone(calendarLeads.length, 0),
@@ -4690,6 +4713,7 @@ function V4AgentsView({ leads = [], query = '', onOpenLead }) {
       glyph: 'BF',
       accent: 'coral',
       habitat: 'east-low',
+      zone: 'execution',
       subtitle: 'Turns sold deals into execution docs',
       owner: 'Asher',
       tone: V4AgentTone(briefLeads.length, 0),
@@ -4705,6 +4729,7 @@ function V4AgentsView({ leads = [], query = '', onOpenLead }) {
       glyph: 'FN',
       accent: 'red',
       habitat: 'south-east',
+      zone: 'retention',
       subtitle: 'Locks payment proof before live posting',
       owner: 'Asher',
       tone: V4AgentTone(financeLeads.length, financeLeads.length),
@@ -4720,6 +4745,7 @@ function V4AgentsView({ leads = [], query = '', onOpenLead }) {
       glyph: 'FU',
       accent: 'amber',
       habitat: 'south-mid',
+      zone: 'retention',
       subtitle: 'Revives threads after 2 days of silence',
       owner: 'Asher',
       tone: V4AgentTone(followUps.length, 0),
@@ -4735,6 +4761,7 @@ function V4AgentsView({ leads = [], query = '', onOpenLead }) {
       glyph: 'XW',
       accent: 'sky',
       habitat: 'south-west',
+      zone: 'intake',
       subtitle: 'Monitors X leads and routes real opportunities',
       owner: 'Robert source → Asher desk',
       tone: V4AgentTone(xLeads.length, 0),
@@ -4750,6 +4777,7 @@ function V4AgentsView({ leads = [], query = '', onOpenLead }) {
       glyph: 'NW',
       accent: 'plum',
       habitat: 'west-low',
+      zone: 'intake',
       subtitle: 'Keeps warm relationships from disappearing into clutter',
       owner: 'Asher',
       tone: V4AgentTone(networkLeads.length, 0),
@@ -4765,6 +4793,7 @@ function V4AgentsView({ leads = [], query = '', onOpenLead }) {
       glyph: 'RH',
       accent: 'slate',
       habitat: 'west-high',
+      zone: 'conversion',
       subtitle: 'Flags what needs Robert or Sam to step in',
       owner: 'Robert + Sam',
       tone: V4AgentTone(handoffLeads.length, 0),
@@ -4791,10 +4820,30 @@ function V4AgentsView({ leads = [], query = '', onOpenLead }) {
   const totalBlocked = workers.reduce((sum, worker) => sum + worker.blocked, 0);
   const totalWaiting = workers.reduce((sum, worker) => sum + worker.waiting, 0);
   const liveWorkers = workers.filter(worker => worker.active > 0).length;
-  const zooTicker = workers
-    .filter(worker => worker.items.length)
-    .slice(0, 8)
-    .map(worker => `${worker.name} → ${worker.items[0]?.brand || worker.items[0]?.contactName || 'Clear'}`);
+  const zoneMeta = {
+    intake: { label: 'Intake', note: 'Find signal and clean it.', pos: 'north-west' },
+    conversion: { label: 'Conversion', note: 'Turn interest into a scoped thread.', pos: 'north-east' },
+    execution: { label: 'Execution', note: 'Ship docs, dates, and live posts.', pos: 'south-east' },
+    retention: { label: 'Retention', note: 'Protect follow-up and money.', pos: 'south-west' },
+  };
+  const zoneOrder = ['intake', 'conversion', 'execution', 'retention'];
+  const workerMap = Object.fromEntries(filteredWorkers.map(worker => [worker.id, worker]));
+  const groupedWorkers = zoneOrder.map(zone => ({
+    zone,
+    ...zoneMeta[zone],
+    workers: filteredWorkers.filter(worker => worker.zone === zone),
+  }));
+  const liveCapsules = filteredWorkers
+    .flatMap(worker => worker.items.slice(0, 2).map(item => ({
+      key: `${worker.id}-${item.id}`,
+      zone: worker.zone,
+      worker: worker.name,
+      brand: item.brand,
+      contact: item.contactName,
+      tone: worker.tone,
+      accent: worker.accent,
+    })))
+    .slice(0, 10);
 
   return (
     <div className="page workers-page">
@@ -4818,13 +4867,26 @@ function V4AgentsView({ leads = [], query = '', onOpenLead }) {
           <h2>The workers should feel alive, not filed away.</h2>
           <p>This is the part you can watch. Each worker lives in its own little zone, pulls from a real queue, and lights up when that lane gets busy.</p>
         </div>
-        <div className="workers-zoo">
-          <div className="workers-zoo-rings" aria-hidden="true">
-            <span></span>
-            <span></span>
-            <span></span>
-          </div>
-          <div className="workers-core">
+        <div className="workers-habitat-legend">
+          <span className="workers-legend-pill">Intake</span>
+          <span className="workers-legend-pill">Conversion</span>
+          <span className="workers-legend-pill">Execution</span>
+          <span className="workers-legend-pill">Retention</span>
+        </div>
+        <div className="workers-theater">
+          <svg className="workers-orbit" viewBox="0 0 1200 760" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+            <ellipse cx="600" cy="380" rx="350" ry="210" className="workers-orbit-ring outer" />
+            <ellipse cx="600" cy="380" rx="260" ry="150" className="workers-orbit-ring inner" />
+            <path d="M260 380 C360 240, 840 240, 940 380" className="workers-orbit-arc top" />
+            <path d="M940 380 C840 520, 360 520, 260 380" className="workers-orbit-arc bottom" />
+            {[0,1,2,3,4,5].map(i => (
+              <circle key={i} r="7" className="workers-orbit-signal">
+                <animateMotion dur="14s" repeatCount="indefinite" begin={`${i * 1.9}s`} path="M260 380 C360 240, 840 240, 940 380 C840 520, 360 520, 260 380" />
+              </circle>
+            ))}
+          </svg>
+
+          <div className="workers-core workers-core-theater">
             <div className="workers-core-eyebrow">UNALIGNED brain</div>
             <div className="workers-core-title">Asher&apos;s machine</div>
             <div className="workers-core-stats">
@@ -4832,42 +4894,55 @@ function V4AgentsView({ leads = [], query = '', onOpenLead }) {
               <span>{totalActive} active</span>
               <span>{totalWaiting} waiting</span>
             </div>
-            <div className="workers-core-note">Routing leads, replies, briefs, follow-up, and money into one operating system.</div>
+            <div className="workers-core-note">The system should show state changes, handoffs, and pressure. Not just decorate the page.</div>
           </div>
-          {filteredWorkers.map((worker, index) => (
-            <button
-              key={worker.id}
-              type="button"
-              className={`worker-pod is-${worker.tone} accent-${worker.accent} habitat-${worker.habitat}`}
-              style={{ '--worker-delay': `${index * 110}ms` }}
-              onClick={() => worker.items[0] && onOpenLead?.(worker.items[0].id)}
-            >
-              <div className="worker-pod-sprite" aria-hidden="true">
-                <span className="worker-pod-eyes"></span>
-                <span className="worker-pod-mouth"></span>
-                <span className="worker-pod-glyph">{worker.glyph}</span>
+
+          {groupedWorkers.map(group => (
+            <section key={group.zone} className={`workers-zone-cluster zone-${group.pos}`}>
+              <div className="workers-zone-head">
+                <span className="workers-zone-kicker">{group.label}</span>
+                <p>{group.note}</p>
               </div>
-              <div className="worker-pod-meta">
-                <div className="worker-pod-row">
-                  <strong>{worker.name}</strong>
-                  <span className={`worker-pod-badge is-${worker.tone}`}>
-                    {worker.tone === 'blocked' ? 'stuck' : worker.tone === 'active' ? 'moving' : 'calm'}
-                  </span>
-                </div>
-                <div className="worker-pod-sub">{worker.subtitle}</div>
-                <div className="worker-pod-foot">
-                  <span>{worker.active} active</span>
-                  <span>{worker.items[0]?.brand || 'clear lane'}</span>
-                </div>
+              <div className="workers-station-list">
+                {group.workers.map(worker => (
+                  <button
+                    key={worker.id}
+                    type="button"
+                    className={`workers-station accent-${worker.accent} is-${worker.tone}`}
+                    onClick={() => worker.items[0] && onOpenLead?.(worker.items[0].id)}
+                    title={worker.note}
+                  >
+                    <div className="workers-station-portrait">
+                      <V4WorkerPortrait worker={worker} compact />
+                    </div>
+                    <div className="workers-station-copy">
+                      <div className="workers-station-title-row">
+                        <strong>{worker.name}</strong>
+                        <span className={`workers-station-status is-${worker.tone}`}>{worker.active}</span>
+                      </div>
+                      <div className="workers-station-meta">{worker.subtitle}</div>
+                      <div className="workers-station-foot">{worker.items[0]?.brand || 'Clear lane'}</div>
+                    </div>
+                  </button>
+                ))}
               </div>
-            </button>
+            </section>
           ))}
-        </div>
-        <div className="workers-ticker" aria-hidden="true">
-          <div className="workers-ticker-track">
-            {[...zooTicker, ...zooTicker].map((line, index) => (
-              <span key={line + index}>{line}</span>
-            ))}
+
+          <div className="workers-activity-ribbon">
+            <div className="workers-activity-head">
+              <span>Live work moving</span>
+              <span>{liveCapsules.length} visible capsules</span>
+            </div>
+            <div className="workers-capsule-stream">
+              {[...liveCapsules, ...liveCapsules].map((capsule, index) => (
+                <div key={capsule.key + index} className={`workers-capsule accent-${capsule.accent} is-${capsule.tone}`}>
+                  <span className="workers-capsule-worker">{capsule.worker}</span>
+                  <strong>{capsule.brand}</strong>
+                  <span>{capsule.contact}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -4883,7 +4958,7 @@ function V4AgentsView({ leads = [], query = '', onOpenLead }) {
             <div className="worker-lane-top">
               <div className={'worker-lane-avatar is-' + worker.tone}>
                 <span className="worker-lane-avatar-pulse" aria-hidden="true"></span>
-                <span>{worker.glyph}</span>
+                <V4WorkerPortrait worker={worker} compact />
               </div>
               <div className="worker-lane-head">
                 <div className="worker-lane-name-row">
@@ -4959,8 +5034,8 @@ const V4_INVOICE_GROUPS = [
             stripeAmountPaid: 0.0,
             stripeCurrency: 'USD',
             stripeDashboardUrl: 'https://dashboard.stripe.com/invoices/in_1TjsxfK0WeauAYMJJQ6boSxf',
-            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VakxmcEt4UUNhbENUN1FBNnZsd0xZQzNOdVdPSm9jLDE3MjY3MDUwMA0200qLXKJDZ5?s=ap',
-            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VakxmcEt4UUNhbENUN1FBNnZsd0xZQzNOdVdPSm9jLDE3MjY3MDUwMA0200qLXKJDZ5/pdf?s=ap',
+            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VakxmcEt4UUNhbENUN1FBNnZsd0xZQzNOdVdPSm9jLDE3Mjc1Njk0OQ0200FWZisGQ4?s=ap',
+            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VakxmcEt4UUNhbENUN1FBNnZsd0xZQzNOdVdPSm9jLDE3Mjc1Njk0OQ0200FWZisGQ4/pdf?s=ap',
           },
           {
             id: 'stripe-in1tic8ek0weauaymjz0v1f90g',
@@ -4978,8 +5053,8 @@ const V4_INVOICE_GROUPS = [
             stripeAmountPaid: 0.0,
             stripeCurrency: 'USD',
             stripeDashboardUrl: 'https://dashboard.stripe.com/invoices/in_1Tic8eK0WeauAYMJZ0v1f90G',
-            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaTJEbTlWd3NYV3JMVGZzQ2s4OUFMM3dHM2RuVDR0LDE3MjY3MDUwMA02004UOUuiGW?s=ap',
-            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaTJEbTlWd3NYV3JMVGZzQ2s4OUFMM3dHM2RuVDR0LDE3MjY3MDUwMA02004UOUuiGW/pdf?s=ap',
+            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaTJEbTlWd3NYV3JMVGZzQ2s4OUFMM3dHM2RuVDR0LDE3Mjc1Njk0OQ0200AcWHBkNc?s=ap',
+            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaTJEbTlWd3NYV3JMVGZzQ2s4OUFMM3dHM2RuVDR0LDE3Mjc1Njk0OQ0200AcWHBkNc/pdf?s=ap',
           },
         ],
       },
@@ -4987,6 +5062,25 @@ const V4_INVOICE_GROUPS = [
         label: 'Open outstanding',
         note: 'Active invoices still waiting on payment.',
         items: [
+          {
+            id: 'invoice-ad-og-062226',
+            title: 'AD-OG',
+            company: 'AD-OG',
+            folder: 'OUTSTANDING / OPEN OUTSTANDING',
+            source: 'Manual',
+            sourceDir: 'OUTSTANDING',
+            file: 'invoice_AD-OG_062226.pdf',
+            href: 'flow-v4/assets/invoices/outstanding/invoice_AD-OG_062226.pdf',
+            kind: 'PDF',
+            stripeStatus: null,
+            stripePaid: false,
+            stripeAmountDue: null,
+            stripeAmountPaid: null,
+            stripeCurrency: null,
+            stripeDashboardUrl: null,
+            stripeHostedInvoiceUrl: null,
+            stripeInvoicePdf: null,
+          },
           {
             id: 'invoice-eastworlds-061926',
             title: 'Eastworlds',
@@ -5214,8 +5308,8 @@ const V4_INVOICE_GROUPS = [
             stripeAmountPaid: 0.0,
             stripeCurrency: 'USD',
             stripeDashboardUrl: 'https://dashboard.stripe.com/invoices/in_1TimqCK0WeauAYMJABpOrweH',
-            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaURHYmRwNmJuODJLem9yTUVWd3FOYnZHRGgwTzhmLDE3MjY3MDUwMA0200mS2smhL7?s=ap',
-            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaURHYmRwNmJuODJLem9yTUVWd3FOYnZHRGgwTzhmLDE3MjY3MDUwMA0200mS2smhL7/pdf?s=ap',
+            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaURHYmRwNmJuODJLem9yTUVWd3FOYnZHRGgwTzhmLDE3Mjc1Njk0OQ0200jedlxGIB?s=ap',
+            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaURHYmRwNmJuODJLem9yTUVWd3FOYnZHRGgwTzhmLDE3Mjc1Njk0OQ0200jedlxGIB/pdf?s=ap',
           },
           {
             id: 'stripe-in1thwn2k0weauaymjfm1x0dpg',
@@ -5233,8 +5327,8 @@ const V4_INVOICE_GROUPS = [
             stripeAmountPaid: 0.0,
             stripeCurrency: 'USD',
             stripeDashboardUrl: 'https://dashboard.stripe.com/invoices/in_1ThwN2K0WeauAYMJFm1x0dPG',
-            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MjY3MDUwMA0200xFpxPORk?s=ap',
-            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MjY3MDUwMA0200xFpxPORk/pdf?s=ap',
+            stripeHostedInvoiceUrl: 'https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3Mjc1Njk0OA0200tdE5Aj8o?s=ap',
+            stripeInvoicePdf: 'https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3Mjc1Njk0OA0200tdE5Aj8o/pdf?s=ap',
           },
         ],
       },
@@ -7166,8 +7260,6 @@ function V4CalendarView({ query = '' }) {
 }
 
 Object.assign(window, { V4TodayView, V4RobertBriefView, V4InboxView, V4LeadsView, V4NewLeadsView, V4CalendarView });
-
-
 // Company OS Beta — full port of the localhost Hermes Workspace UI.
 // Built on the gh-pages flow-v4 stack (inline Babel JSX + vanilla CSS).
 
@@ -9956,8 +10048,6 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
 }
 
 window.V4CompanyOsView = V4CompanyOsView;
-
-
 // FLOW v4 — main app shell (refined top bar + view wiring)
 
 const V4_TWEAKS = /*EDITMODE-BEGIN*/{
@@ -10528,4 +10618,3 @@ function V4App() {
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<V4App />);
 if (window.__alignedBootMarkReady) window.__alignedBootMarkReady();
-
