@@ -626,17 +626,24 @@ function V4AgentsView({ leads = [], query = '', onOpenLead }) {
     ...zoneMeta[zone],
     workers: filteredWorkers.filter(worker => worker.zone === zone),
   }));
-  const liveCapsules = filteredWorkers
-    .flatMap(worker => worker.items.slice(0, 2).map(item => ({
-      key: `${worker.id}-${item.id}`,
-      zone: worker.zone,
-      worker: worker.name,
-      brand: item.brand,
-      contact: item.contactName,
-      tone: worker.tone,
-      accent: worker.accent,
-    })))
-    .slice(0, 10);
+  const capsuleMap = new Map();
+  filteredWorkers.forEach(worker => {
+    worker.items.slice(0, 2).forEach(item => {
+      const capsuleKey = item.id || `${item.brand}-${item.contactName || 'unknown'}`;
+      if (capsuleMap.has(capsuleKey)) return;
+      capsuleMap.set(capsuleKey, {
+        key: capsuleKey,
+        zone: worker.zone,
+        worker: worker.name,
+        brand: item.brand,
+        contact: item.contactName,
+        tone: worker.tone,
+        accent: worker.accent,
+      });
+    });
+  });
+  const liveCapsules = Array.from(capsuleMap.values()).slice(0, 10);
+  const animatedCapsules = liveCapsules.length > 5 ? [...liveCapsules, ...liveCapsules] : liveCapsules;
 
   return (
     <div className="page workers-page">
@@ -728,7 +735,7 @@ function V4AgentsView({ leads = [], query = '', onOpenLead }) {
               <span>{liveCapsules.length} visible capsules</span>
             </div>
             <div className="workers-capsule-stream">
-              {[...liveCapsules, ...liveCapsules].map((capsule, index) => (
+              {animatedCapsules.map((capsule, index) => (
                 <div key={capsule.key + index} className={`workers-capsule accent-${capsule.accent} is-${capsule.tone}`}>
                   <span className="workers-capsule-worker">{capsule.worker}</span>
                   <strong>{capsule.brand}</strong>
