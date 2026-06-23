@@ -384,6 +384,35 @@ function V4AgentViewItems(leads, fn, limit = 4) {
   return leads.filter(fn).slice(0, limit);
 }
 
+function V4AgentCapsuleSummary(lead) {
+  if (!lead) return 'Review thread';
+  const primary = String(
+    lead.nextMove?.text ||
+    lead.deliverables ||
+    lead.operatorSummary?.next_action ||
+    lead.operatorSummary?.lead_summary ||
+    lead.notes ||
+    lead.evidence ||
+    lead.summary ||
+    ''
+  ).replace(/\s+/g, ' ').trim();
+  if (!primary) return 'Review thread';
+  if (primary.length <= 88) return primary;
+  return primary.slice(0, 85).trim() + '...';
+}
+
+function V4AgentCapsuleMeta(lead) {
+  const stage = String(lead?.stage || '').toLowerCase();
+  if (lead?.unread || lead?.needsReply) return 'Needs reply';
+  if (lead?.followUpDue) return 'Follow up due';
+  if (stage === 'invoice-sent') return 'Payment check';
+  if (stage === 'done') return 'Brief ready';
+  if (stage === 'negotiating') return 'Negotiation';
+  if (stage === 'rates-sent') return 'Pricing';
+  if (String(lead?.source || '').toLowerCase().includes('x')) return 'X lead';
+  return 'Live thread';
+}
+
 function V4WorkerPortrait({ worker, compact = false }) {
   const size = compact ? 52 : 74;
   const eyeY = compact ? 21 : 29;
@@ -620,7 +649,6 @@ function V4AgentsView({ leads = [], query = '', onOpenLead }) {
     retention: { label: 'Retention', note: 'Protect follow-up and money.', pos: 'south-west' },
   };
   const zoneOrder = ['intake', 'conversion', 'execution', 'retention'];
-  const workerMap = Object.fromEntries(filteredWorkers.map(worker => [worker.id, worker]));
   const groupedWorkers = zoneOrder.map(zone => ({
     zone,
     ...zoneMeta[zone],
@@ -630,19 +658,41 @@ function V4AgentsView({ leads = [], query = '', onOpenLead }) {
   filteredWorkers.forEach(worker => {
     worker.items.slice(0, 2).forEach(item => {
       const capsuleKey = item.id || `${item.brand}-${item.contactName || 'unknown'}`;
-      if (capsuleMap.has(capsuleKey)) return;
+      const existing = capsuleMap.get(capsuleKey);
+      if (existing) {
+        existing.routes.add(worker.name);
+        if ((item.unread || item.needsReply) && !(existing.item.unread || existing.item.needsReply)) {
+          existing.item = item;
+          existing.tone = worker.tone;
+          existing.accent = worker.accent;
+        }
+        return;
+      }
       capsuleMap.set(capsuleKey, {
         key: capsuleKey,
-        zone: worker.zone,
-        worker: worker.name,
-        brand: item.brand,
-        contact: item.contactName,
+        item,
+        brand: item.brand || item.contactName || 'Unknown lead',
+        contact: item.contactName || item.email || 'Unknown contact',
         tone: worker.tone,
         accent: worker.accent,
+        routes: new Set([worker.name]),
       });
     });
   });
-  const liveCapsules = Array.from(capsuleMap.values()).slice(0, 10);
+  const liveCapsules = Array.from(capsuleMap.values())
+    .map(capsule => ({
+      ...capsule,
+      routeLabel: Array.from(capsule.routes).slice(0, 2).join(' + '),
+      meta: V4AgentCapsuleMeta(capsule.item),
+      summary: V4AgentCapsuleSummary(capsule.item),
+      priority: capsule.item.unread || capsule.item.needsReply ? 3
+        : capsule.item.followUpDue ? 2
+        : String(capsule.item.stage || '').toLowerCase() === 'invoice-sent' ? 2
+        : String(capsule.item.stage || '').toLowerCase() === 'done' ? 1
+        : 0,
+    }))
+    .sort((a, b) => b.priority - a.priority)
+    .slice(0, 8);
   const animatedCapsules = liveCapsules.length > 5 ? [...liveCapsules, ...liveCapsules] : liveCapsules;
 
   return (
@@ -737,9 +787,10 @@ function V4AgentsView({ leads = [], query = '', onOpenLead }) {
             <div className="workers-capsule-stream">
               {animatedCapsules.map((capsule, index) => (
                 <div key={capsule.key + index} className={`workers-capsule accent-${capsule.accent} is-${capsule.tone}`}>
-                  <span className="workers-capsule-worker">{capsule.worker}</span>
+                  <span className="workers-capsule-worker">{capsule.routeLabel}</span>
                   <strong>{capsule.brand}</strong>
-                  <span>{capsule.contact}</span>
+                  <span className="workers-capsule-meta">{capsule.meta} · {capsule.contact}</span>
+                  <span className="workers-capsule-summary">{capsule.summary}</span>
                 </div>
               ))}
             </div>

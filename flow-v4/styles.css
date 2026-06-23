@@ -2096,6 +2096,17 @@ a { color: inherit; }
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
+.workers-capsule-meta {
+  color: var(--text-3);
+  font: 600 10px/1.2 var(--font-mono);
+  letter-spacing: 0.04em;
+}
+.workers-capsule-summary {
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.35;
+  max-width: 34ch;
+}
 .workers-lanes {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
