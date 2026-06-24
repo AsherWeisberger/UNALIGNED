@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>ALIGNED v4 — Lead workspace</title>
+<title>UNALIGNED — Operating System</title>
 
 <link rel="icon" href="favicon.ico" sizes="any" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 
-<link rel="stylesheet" href="flow-v4/styles.css?v=20260623-machine-room-grid-fix-1" />
+<link rel="stylesheet" href="flow-v4/styles.css?v=20260624-design-system-live-1" />
 
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
@@ -22,8 +22,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
   <rect width="200" height="200" fill="#faf9f5"></rect>
   <rect x="20" y="20" width="160" height="160" rx="20" fill="#15171c"></rect>
-  <text x="100" y="114" text-anchor="middle" fill="#faf9f5" font-family="Inter Tight, system-ui, sans-serif" font-size="28" font-weight="700" letter-spacing="2">ALIGNED</text>
-  <text x="100" y="138" text-anchor="middle" fill="#1f8a5b" font-family="JetBrains Mono, monospace" font-size="12" letter-spacing="3">V4</text>
+  <text x="100" y="114" text-anchor="middle" fill="#faf9f5" font-family="Inter Tight, system-ui, sans-serif" font-size="28" font-weight="700" letter-spacing="2">UNALIGNED</text>
+  <text x="100" y="138" text-anchor="middle" fill="#1f8a5b" font-family="JetBrains Mono, monospace" font-size="12" letter-spacing="3">OPS</text>
 </svg>
 </template>
 
@@ -51,7 +51,7 @@
     const src = event?.filename ? '\n' + event.filename : '';
     const line = event?.lineno ? ':' + event.lineno : '';
     bootState.errors.push(msg + src + line);
-    showBootMessage('Company OS hit a startup error.\n\n' + bootState.errors.join('\n\n'));
+    showBootMessage('UNALIGNED dashboard hit a startup error.\n\n' + bootState.errors.join('\n\n'));
   });
 
   window.addEventListener('unhandledrejection', (event) => {
@@ -60,18 +60,18 @@
       ? reason
       : (reason && reason.message) || 'Unhandled promise rejection';
     bootState.errors.push(msg);
-    showBootMessage('Company OS hit a startup error.\n\n' + bootState.errors.join('\n\n'));
+    showBootMessage('UNALIGNED dashboard hit a startup error.\n\n' + bootState.errors.join('\n\n'));
   });
 
   window.setTimeout(() => {
     if (!window.__alignedBootOk && !(bootState.errors || []).length) {
-      showBootMessage('Company OS did not finish loading. Safari is reaching the page, but one of the app scripts is not completing startup.');
+      showBootMessage('UNALIGNED dashboard did not finish loading. One of the scripts is not completing startup.\n\n(This can happen on first load because Babel is transpiling ~10k lines of JSX in the browser. Try hard refresh or wait a bit longer.)');
     }
-  }, 5000);
+  }, 15000);
 })();
 </script>
 
-<script type="text/babel" src="flow-v4/app-bundle.jsx?v=20260623-machine-room-grid-fix-1"></script>
+<script type="text/babel" src="flow-v4/app-bundle.jsx?v=20260624-live-brief-fix-2"></script>
 
 </body>
 </html>

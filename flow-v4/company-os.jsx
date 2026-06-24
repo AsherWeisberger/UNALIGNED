@@ -1,8 +1,10 @@
-// Company OS Beta — full port of the localhost Hermes Workspace UI.
-// Built on the gh-pages flow-v4 stack (inline Babel JSX + vanilla CSS).
+// UnalignedOS — Company Operating System
+// Daily brief, pipeline, and execution surface for the UNALIGNED team.
+// Live data from Supabase + X intake. Fast local editing supported.
 
 // ─────────────────────────────────────────────────────────────
-// Static brief content — Daily Operating Brief lives here
+// LEGACY static content (kept for reference / fallback ideas).
+// The live Daily Operating Brief now uses V4ComputeDailyBrief(leads).
 // ─────────────────────────────────────────────────────────────
 
 const V4_COMPANY_OS_PREP = [
@@ -507,7 +509,20 @@ function V4CompanyOsListSnippet(lead) {
         lead.nextMove?.text ||
         ''
       );
-  return summary.replace(/\s+/g, ' ').trim() || lead.email || 'Open thread';
+  return V4CleanDisplayText(summary) || lead.email || 'Open thread';
+}
+
+function V4CleanDisplayText(t) {
+  if (!t) return '';
+  return String(t)
+    .replace(/&gt;/gi, '>')
+    .replace(/&lt;/gi, '<')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function V4CompanyOsPriority(lead) {
@@ -655,6 +670,80 @@ function V4CompanyOsExecutionMeta(lead) {
     pdfLink: 'docs/SINGLE_TIER.pdf',
     postingWindow: postingWindow || 'No publish window locked yet',
     executionOwner,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Live Daily Brief computation (the main anti-beta change)
+// Replaces most hardcoded V4_COMPANY_OS_* narrative with live lead data.
+// ─────────────────────────────────────────────────────────────
+
+function V4BuildBriefPoints(lead) {
+  const points = [];
+  const phase = V4CompanyOsPhase(lead);
+  const why = V4CompanyOsWhy(lead);
+
+  if (lead.nextMove && lead.nextMove.text) {
+    points.push(lead.nextMove.text);
+  }
+  if (lead.operatorSummary && lead.operatorSummary.lead_summary) {
+    points.push(lead.operatorSummary.lead_summary);
+  }
+  if (lead.unread || lead.needsReply) {
+    points.push('New reply in thread — handle before anything else.');
+  }
+  if (lead.stage === 'invoice-sent') {
+    points.push('Invoice out. Get payment proof + timing locked before Robert executes.');
+  }
+  if ((lead.daysInStage || 0) >= 8) {
+    points.push(`${lead.daysInStage}d with no movement — decide or archive.`);
+  }
+  if (lead.value) {
+    points.push(`${V4CompanyOsMoney(lead.value)} at ${phase.toLowerCase()}.`);
+  }
+  if (lead.briefTitle || lead.briefBody) {
+    points.push('Brief material exists.');
+  }
+  if (points.length === 0) {
+    points.push(why);
+  }
+  return points.slice(0, 4);
+}
+
+function V4ComputeDailyBrief(leads = []) {
+  const active = leads.filter(l => !['trash', 'dead-leads', 'paid-out', 'done'].includes(l.stage));
+
+  const actionLeads = active
+    .filter(l => l.needsReply || l.stage === 'invoice-sent' || (l.daysInStage >= 6 && (l.value || 0) > 1500))
+    .sort((a, b) => (b.daysInStage || 0) - (a.daysInStage || 0) || (b.value || 0) - (a.value || 0))
+    .slice(0, 5);
+
+  const ts = (d) => (d ? Date.parse(d) : 0);
+  const watchLeads = active
+    .filter(l => !l.needsReply && ['rates-sent', 'negotiating', 'first-touch', 'engaged'].includes(l.stage))
+    .sort((a, b) => ts(b.lastTouchAt) - ts(a.lastTouchAt))
+    .slice(0, 5);
+
+  const closedLeads = leads
+    .filter(l => ['done', 'paid-out'].includes(l.stage))
+    .sort((a, b) => ts(b.lastTouchAt) - ts(a.lastTouchAt))
+    .slice(0, 4);
+
+  const toItem = (lead, isClosed = false) => ({
+    id: lead.id,
+    title: `${lead.brand} — ${V4CompanyOsPhase(lead)}`,
+    tags: [
+      V4CompanyOsPriority(lead),
+      V4CompanyOsPhaseTag(lead),
+      (lead.stage === 'done' || isClosed) ? 'closed' : null,
+    ].filter(Boolean),
+    points: V4BuildBriefPoints(lead),
+  });
+
+  return {
+    action: actionLeads.map(l => toItem(l)),
+    watch: watchLeads.map(l => toItem(l)),
+    closed: closedLeads.map(l => toItem(l, true)),
   };
 }
 
@@ -1169,7 +1258,7 @@ function V4CosPatchLead(lead, fields, localPatch) {
       Prefer: 'return=minimal',
     },
     body: JSON.stringify(fields),
-  }).catch(err => console.warn('[ALIGNED v4] lead patch failed:', err));
+  }).catch(err => console.warn('[UNALIGNED] lead patch failed:', err));
   const updated = (window.V3.LEADS || []).map(item =>
     String(item.id) === String(lead.id) ? { ...item, ...localPatch } : item);
   window.V3.LEADS = updated;
@@ -1177,7 +1266,7 @@ function V4CosPatchLead(lead, fields, localPatch) {
 }
 
 // Overview — glanceable metrics, live activity, team status, priorities
-function V4CosOverview({ leads, replyCount }) {
+function V4CosOverview({ leads, replyCount, onOpenLead }) {
   const { USERS } = window.V3;
   const now = Date.now();
   const todayKey = new Date().toDateString();
@@ -1186,6 +1275,8 @@ function V4CosOverview({ leads, replyCount }) {
     ['done', 'paid-out'].includes(l.stage) &&
     l.lastTouchAt && (now - Date.parse(l.lastTouchAt)) < 7 * 86400000).length;
   const pipeline = leads.filter(l => !['done', 'paid-out'].includes(l.stage)).reduce((s, l) => s + (l.value || 0), 0);
+
+  const brief = React.useMemo(() => V4ComputeDailyBrief(leads || []), [leads]);
 
   const events = [];
   for (const l of leads) {
@@ -1253,80 +1344,207 @@ function V4CosOverview({ leads, replyCount }) {
           </section>
 
           <section className="cos-panel cosov-panel">
-            <div className="cos-panel-head"><h3>Current priorities</h3><span className="cos-panel-count">{V4_COMPANY_OS_PREP.length}</span></div>
+            <div className="cos-panel-head"><h3>Action now</h3><span className="cos-panel-count">{(brief.action || []).length}</span></div>
             <div className="cosov-priorities">
-              {V4_COMPANY_OS_PREP.map(item => (
-                <div key={item.title} className="cosov-priority">
+              {(brief.action || []).slice(0, 3).map(item => (
+                <div 
+                  key={item.id || item.title} 
+                  className="cosov-priority"
+                  onClick={() => onOpenLead && onOpenLead(item.id)}
+                  style={{cursor: onOpenLead ? 'pointer' : 'default'}}
+                >
                   <strong>{item.title}</strong>
                   <span className="cos-chips">
-                    {item.tags.slice(0, 3).map(t => <span key={t} className="cos-chip cos-chip-tight">{t}</span>)}
+                    {item.tags.slice(0, 2).map(t => <span key={t} className="cos-chip cos-chip-tight">{t}</span>)}
                   </span>
                 </div>
               ))}
+              {(brief.action || []).length === 0 && <div className="dq-empty">Nothing urgent right now.</div>}
             </div>
           </section>
         </div>
       </div>
 
-      <V4CosBriefBoard />
+      <V4CosBriefBoard leads={leads} onOpenLead={onOpenLead} />
     </div>
   );
 }
 
-function V4CosBriefBoard() {
+function V4CosBriefBoard({ leads = [], onOpenLead }) {
   const todayLabel = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  return (
-    <section className="cos-section cos-brief" style={{ padding: '18px 22px 40px' }}>
-      <div className="cos-brief-head">
-        <div>
-          <div className="cos-section-eyebrow-row">
-            <span className="cos-eyebrow">Daily Operating Brief</span>
-            <span className="cos-section-date">{todayLabel}</span>
+  const brief = React.useMemo(() => V4ComputeDailyBrief(leads || []), [leads]);
+
+  const [selectedId, setSelectedId] = React.useState(null);
+
+  const allBriefItems = [...brief.action, ...brief.watch];
+  const selectedItem = allBriefItems.find(i => i.id === selectedId) || null;
+
+  const lastTouch = leads.reduce((max, l) => {
+    const t = l.lastTouchAt ? Date.parse(l.lastTouchAt) : 0;
+    return t > max ? t : max;
+  }, 0);
+  const refreshed = lastTouch
+    ? (typeof V3RelativeTime === 'function' ? V3RelativeTime(new Date(lastTouch).toISOString()) : 'just now')
+    : '—';
+
+  // Superhuman-style keyboard navigation inside the brief list
+  React.useEffect(() => {
+    const onKey = (e) => {
+      if (!allBriefItems.length) return;
+      const currentIdx = selectedId ? allBriefItems.findIndex(i => i.id === selectedId) : -1;
+
+      if (e.key.toLowerCase() === 'j' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        const next = allBriefItems[Math.min(allBriefItems.length - 1, currentIdx + 1)];
+        if (next) setSelectedId(next.id);
+      }
+      if (e.key.toLowerCase() === 'k' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        const prev = allBriefItems[Math.max(0, currentIdx - 1)];
+        if (prev) setSelectedId(prev.id);
+      }
+      if ((e.key.toLowerCase() === 'o' || e.key === 'Enter') && selectedItem) {
+        e.preventDefault();
+        if (onOpenLead && selectedItem.id) onOpenLead(selectedItem.id);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [allBriefItems, selectedId, selectedItem, onOpenLead]);
+
+  const renderBriefRow = (item, isHot) => {
+    const isSelected = selectedId === item.id;
+    return (
+      <button
+        key={item.id}
+        type="button"
+        className={'brief-row' + (isSelected ? ' is-selected' : '') + (isHot ? ' is-hot' : '')}
+        onClick={() => setSelectedId(item.id)}
+      >
+        <div className="brief-row-main">
+          <div className="brief-row-title">
+            {isHot && <span className="brief-p0-dot" />}
+            <span>{item.title}</span>
           </div>
-          <h2 className="cos-section-title">What needs action, what is waiting, and what must not be touched</h2>
+          <div className="brief-row-snippet">
+            {item.points && item.points[0]}
+          </div>
         </div>
-        <p className="cos-section-sub">
-          Built from the latest Asher/Robert outreach cleanup so old threads do not get answered like first-touch leads.
-        </p>
+
+        <div className="brief-row-meta">
+          {item.tags && item.tags.slice(0, 2).map(t => (
+            <span key={t} className="brief-tag">{t}</span>
+          ))}
+        </div>
+
+        <div className="brief-row-actions">
+          <button
+            type="button"
+            className="brief-quick-btn"
+            onClick={(e) => { e.stopPropagation(); if (onOpenLead) onOpenLead(item.id); }}
+          >
+            Open
+          </button>
+        </div>
+      </button>
+    );
+  };
+
+  return (
+    <section className="cos-section cos-brief superhuman-brief">
+      <div className="brief-header">
+        <div className="brief-header-left">
+          <span className="brief-eyebrow">Daily Operating Brief</span>
+          <span className="brief-date">{todayLabel}</span>
+        </div>
+        <div className="brief-header-right">
+          <span className="brief-live">live · {refreshed}</span>
+          <span className="brief-count">{brief.action.length} to act on</span>
+        </div>
       </div>
-      <div className="cos-brief-grid">
-        <section className="cos-panel cos-panel-prep">
-          <div className="cos-panel-head">
-            <h3>Needs Prep / Action</h3>
-            <span className="cos-panel-count">{V4_COMPANY_OS_PREP.length}</span>
-          </div>
-          <div className="cos-panel-body">
-            {V4_COMPANY_OS_PREP.map(item => <V4CompanyOsActionItem key={item.title} item={item} />)}
-          </div>
-        </section>
-        <section className="cos-panel cos-panel-watch">
-          <div className="cos-panel-head">
-            <h3>Watch / Waiting</h3>
-            <span className="cos-panel-count">{V4_COMPANY_OS_WAITING.length}</span>
-          </div>
-          <div className="cos-panel-body">
-            {V4_COMPANY_OS_WAITING.map(item => <V4CompanyOsWatchItem key={item.title} item={item} />)}
-          </div>
-        </section>
-        <section className="cos-panel cos-rules">
-          <div className="cos-panel-head">
-            <h3>Operating Rules</h3>
-            <span className="cos-panel-count">{V4_COMPANY_OS_RULES.length}</span>
-          </div>
+
+      <div className="brief-body">
+        {/* Main prioritized list - Superhuman style */}
+        <div className="brief-list">
+          {brief.action.length > 0 && (
+            <div className="brief-section">
+              <div className="brief-section-head">
+                <span>Action now</span>
+                <span className="brief-count-badge hot">{brief.action.length}</span>
+              </div>
+              {brief.action.map(item => renderBriefRow(item, true))}
+            </div>
+          )}
+
+          {brief.watch.length > 0 && (
+            <div className="brief-section">
+              <div className="brief-section-head">
+                <span>Watch / Waiting on them</span>
+                <span className="brief-count-badge">{brief.watch.length}</span>
+              </div>
+              {brief.watch.map(item => renderBriefRow(item, false))}
+            </div>
+          )}
+
+          {brief.action.length === 0 && brief.watch.length === 0 && (
+            <div className="brief-empty">Nothing urgent. Clean slate.</div>
+          )}
+        </div>
+
+        {/* Right detail / action pane - clean and ready for automation */}
+        <div className="brief-detail">
+          {selectedItem ? (
+            <>
+              <div className="brief-detail-head">
+                <h3>{selectedItem.title}</h3>
+                <div className="brief-detail-tags">
+                  {selectedItem.tags && selectedItem.tags.map(t => (
+                    <span key={t} className="brief-tag">{t}</span>
+                  ))}
+                </div>
+              </div>
+
+              <ul className="brief-detail-points">
+                {selectedItem.points.map((p, i) => <li key={i}>{p}</li>)}
+              </ul>
+
+              <div className="brief-actions">
+                <button 
+                  className="brief-action-btn primary"
+                  onClick={() => onOpenLead && onOpenLead(selectedItem.id)}
+                >
+                  Open full thread
+                </button>
+                <button className="brief-action-btn">
+                  Prep Robert brief
+                </button>
+                <button className="brief-action-btn">
+                  Snooze
+                </button>
+              </div>
+
+              <div className="brief-automation-hint">
+                Automation-ready: clear next action surfaced
+              </div>
+            </>
+          ) : (
+            <div className="brief-detail-empty">
+              <div>Select an item</div>
+              <div className="hint">j/k to navigate · enter to open</div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Keep rules subtle */}
+      {V4_COMPANY_OS_RULES.length > 0 && (
+        <details className="brief-rules">
+          <summary>Operating Rules ({V4_COMPANY_OS_RULES.length})</summary>
           <ul>
-            {V4_COMPANY_OS_RULES.map(rule => <li key={rule}>{rule}</li>)}
+            {V4_COMPANY_OS_RULES.map((rule, i) => <li key={i}>{rule}</li>)}
           </ul>
-        </section>
-        <section className="cos-panel cos-panel-done">
-          <div className="cos-panel-head">
-            <h3>Completed Campaigns</h3>
-            <span className="cos-panel-count">{V4_COMPANY_OS_DONE.length}</span>
-          </div>
-          <div className="cos-done-grid">
-            {V4_COMPANY_OS_DONE.map(item => <V4CompanyOsDoneItem key={item.title} item={item} />)}
-          </div>
-        </section>
-      </div>
+        </details>
+      )}
     </section>
   );
 }
@@ -2288,13 +2506,15 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
   );
 }
 
-function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
+function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief, briefItem }) {
   const { STAGE_BY_ID, USERS } = window.V3;
   const [tab, setTab] = React.useState('thread');
   React.useEffect(() => { setTab('thread'); }, [lead?.id]);
   if (!lead) {
     return <div className="cos2-reader"><div className="cos2-reader-empty">Select a thread from the list.</div></div>;
   }
+
+  const isBriefSelected = isBrief && briefItem;
   const stage = STAGE_BY_ID[lead.stage];
   const nextOwner = lead.nextMove?.who ? USERS[lead.nextMove.who] : null;
   const isMine = window.V3.MoveIsMineForProfile(lead, user);
@@ -2315,6 +2535,16 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
   const xContextRows = V4XLeadContextRows(lead);
   const moveLead = (nextStage) => window.V3.MoveLeadStage(lead, nextStage);
   const clearUnread = () => V4CosPatchLead(lead, { new_reply_at: null }, { unread: false });
+
+  const briefSummary = isBriefSelected ? (
+    <div className="brief-detail-summary">
+      <h4>Brief Summary</h4>
+      <ul className="brief-points">
+        {briefItem.points.map((p, i) => <li key={i}>{V4CleanDisplayText(p)}</li>)}
+      </ul>
+    </div>
+  ) : null;
+
   const readerOps = (
     <>
       <div className="cos-quick-actions">
@@ -2419,6 +2649,14 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
           {stage.name}
         </span>
       </div>
+      {isBriefSelected && briefItem && (
+        <div className="brief-detail-summary">
+          <h4>Brief Summary</h4>
+          <ul className="brief-points">
+            {briefItem.points.map((p, i) => <li key={i}>{V4CleanDisplayText(p)}</li>)}
+          </ul>
+        </div>
+      )}
       <div className="cos-reader-hero">
         <div className="drawer-top">
           <V3Avatar name={lead.contactName} color={lead.color} size="lg" />
@@ -2549,6 +2787,39 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
   );
 }
 
+// Small premium animated counter for "alive" metrics
+function AnimatedCounter({ value, className = '', format }) {
+  const [display, setDisplay] = React.useState(value);
+  const prevRef = React.useRef(value);
+
+  React.useEffect(() => {
+    if (prevRef.current === value) return;
+    const start = prevRef.current;
+    const end = value;
+    const duration = 420;
+    const startTime = performance.now();
+
+    const animate = (now) => {
+      const progress = Math.min((now - startTime) / duration, 1);
+      // ease out
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = Math.round(start + (end - start) * eased);
+      setDisplay(current);
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        setDisplay(end);
+        prevRef.current = end;
+      }
+    };
+
+    requestAnimationFrame(animate);
+  }, [value]);
+
+  return <span className={className} data-changing={prevRef.current !== value}>{format ? format(display) : display}</span>;
+}
+
 function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, onNavigateView }) {
   React.useEffect(() => {
     V4MaybeRedirectToMachineHostedApp();
@@ -2583,28 +2854,95 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   const waitingItems = activeItems.filter(l => !l.unread && !l.nextMove?.who).sort(byRecent);
   const closedItems = awake.filter(l => ['done', 'paid-out'].includes(l.stage)).sort(byRecent);
 
+  // Helper to compute total value for a list of items
+  const totalValue = (items) => items.reduce((sum, l) => sum + (l.value || 0), 0);
+
+  // Brief mode: Action now leads first, then Watch (Superhuman "Today" / prioritized inbox)
+  const briefActionLeads = activeItems
+    .filter(l => l.needsReply || l.stage === 'invoice-sent' || (l.daysInStage >= 6 && (l.value || 0) > 1500))
+    .sort((a, b) => (b.daysInStage || 0) - (a.daysInStage || 0) || (b.value || 0) - (a.value || 0))
+    .slice(0, 5);
+
+  const briefWatchLeads = activeItems
+    .filter(l => !l.needsReply && ['rates-sent', 'negotiating', 'first-touch', 'engaged'].includes(l.stage))
+    .sort(byRecent)
+    .slice(0, 5);
+
+  const briefItems = [...briefActionLeads, ...briefWatchLeads];
+
+  // Use the computed summaries for clean, short display in the brief list (like original brief cards)
+  const briefSummaries = React.useMemo(() => V4ComputeDailyBrief(live), [live]);
+
   const splits = [
-    { id: 'reply',    label: 'New activity',     section: 'Workflow', hot: true, items: replyItems },
-    { id: 'followups',label: 'Follow ups',       section: 'Workflow', hot: followUpItems.length > 0, items: followUpItems },
-    { id: 'pricing',  label: 'Pricing sent',     section: 'Workflow', items: pricingItems },
-    { id: 'nego',     label: 'Negotiating',      section: 'Workflow', items: negoItems },
-    { id: 'payment',  label: 'Payment / terms',  section: 'Workflow', items: paymentItems },
-    { id: 'briefing', label: 'Brief / calendar', section: 'Workflow', items: briefingItems },
-    { id: 'waiting',  label: 'Waiting on them',  section: 'Workflow', items: waitingItems },
+    { 
+      id: 'reply',    
+      label: 'Reply now', 
+      hint: 'Unread messages where you need to respond',
+      section: 'Workflow', 
+      hot: true, 
+      items: replyItems 
+    },
+    { 
+      id: 'followups',
+      label: 'Follow-ups', 
+      hint: 'Scheduled check-ins due',
+      section: 'Workflow', 
+      hot: followUpItems.length > 0, 
+      items: followUpItems 
+    },
+    { 
+      id: 'pricing',  
+      label: 'Pricing sent', 
+      hint: 'Rates proposed, awaiting reply',
+      section: 'Workflow', 
+      items: pricingItems 
+    },
+    { 
+      id: 'nego',     
+      label: 'Negotiating', 
+      hint: 'Active back-and-forth on scope or price',
+      section: 'Workflow', 
+      items: negoItems 
+    },
+    { 
+      id: 'payment',  
+      label: 'Payment chase', 
+      hint: 'Invoice sent, chasing proof or terms',
+      section: 'Workflow', 
+      items: paymentItems 
+    },
+    { 
+      id: 'briefing', 
+      label: 'Brief ready', 
+      hint: 'Deal closed, prep Robert execution',
+      section: 'Workflow', 
+      items: briefingItems 
+    },
+    { 
+      id: 'waiting',  
+      label: 'Waiting', 
+      hint: 'No outstanding move from our side',
+      section: 'Workflow', 
+      items: waitingItems 
+    },
     { id: 'snoozed', label: 'Snoozed',         section: 'System', items: live.filter(isSnoozed).sort((a, b) => Date.parse(snoozes[a.id]) - Date.parse(snoozes[b.id])) },
     { id: 'closed',  label: 'Done and paid',   section: 'System', items: closedItems },
     { id: 'trash',   label: 'Trash',           section: 'System', trash: true, items: base.filter(l => ['trash', 'dead-leads'].includes(l.stage)).sort(byRecent) },
-    { id: 'brief',   label: 'Overview',        section: 'System', brief: true },
+    { id: 'brief',   label: 'Overview',        section: 'System', items: briefItems, isBrief: true },
     { id: 'toolkit', label: 'Toolkit',         section: 'System', toolkit: true, items: V4_COMPANY_OS_TOOLKIT },
   ];
 
-  const [splitId, setSplitId] = React.useState('reply');
+  const [splitId, setSplitId] = React.useState('brief');
   const [selId, setSelId] = React.useState(null);
   const [composeOpen, setComposeOpen] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const split = splits.find(s => s.id === splitId) || splits[0];
   const items = split.items || [];
-  const selected = items.find(l => String(l.id) === String(selId)) || items[0] || null;
+  let selected = items.find(l => String(l.id) === String(selId)) || items[0] || null;
+  // Fallback to live for cases where brief summaries have items not in the sliced briefItems (e.g. data timing)
+  if (split.isBrief && selId && (!selected || String(selected.id) !== String(selId))) {
+    selected = live.find(l => String(l.id) === String(selId)) || selected;
+  }
 
   React.useEffect(() => {
     try {
@@ -2691,13 +3029,14 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
       <header className="cos2-top">
         <span className="cos2-brand">
           <V4CompanyOsBuildingIcon size={18} />
-          <strong>UnalignedOS</strong>
+          <strong>UNALIGNED</strong>
+          <span className="cos2-brand-sub">Operating System</span>
         </span>
-        <span className="cos-kpi cos-kpi-tight"><strong>{p0Count}</strong> P0</span>
-        <span className="cos-kpi cos-kpi-tight cos-kpi-accent"><strong>{replyCount}</strong> reply now</span>
-        <span className="cos-kpi cos-kpi-tight"><strong>{followUpCount}</strong> 2d follow ups</span>
-        <span className="cos-kpi cos-kpi-tight"><strong>{V4CompanyOsMoney(invoicedOutstanding) || '$0'}</strong> Terms / pay</span>
-        <span className="cos-kpi cos-kpi-tight"><strong>{V4CompanyOsMoney(openPipeline) || '$0'}</strong> In play</span>
+        <span className="cos-kpi cos-kpi-tight"><AnimatedCounter value={p0Count} /> P0</span>
+        <span className="cos-kpi cos-kpi-tight cos-kpi-accent"><AnimatedCounter value={replyCount} /> reply now</span>
+        <span className="cos-kpi cos-kpi-tight"><AnimatedCounter value={followUpCount} /> 2d follow ups</span>
+        <span className="cos-kpi cos-kpi-tight"><AnimatedCounter value={invoicedOutstanding} format={v => '$' + v.toLocaleString()} /> Terms / pay</span>
+        <span className="cos-kpi cos-kpi-tight"><AnimatedCounter value={openPipeline} format={v => '$' + v.toLocaleString()} /> In play</span>
         <button type="button" className="cos-refresh-btn cos2-refresh" onClick={() => window.location.reload()}>↻ Refresh</button>
       </header>
       <div className={'cos2-body' + (mobileOpen ? ' is-mobile-open' : '')}>
@@ -2709,9 +3048,25 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
               )}
               <button type="button"
                       className={'cos2-split' + (s.id === split.id ? ' is-active' : '') + (s.hot ? ' is-hot' : '')}
-                      onClick={() => setSplitId(s.id)}>
-                <span className="cos2-split-label">{s.label}</span>
-                {!s.brief && !s.toolkit && <span className="cos2-split-cnt">{s.items.length}</span>}
+                      onClick={() => setSplitId(s.id)}
+                      title={s.hint || ''}>
+                <span className="cos2-split-label">
+                  {s.label}
+                </span>
+                {!s.toolkit && !s.brief && (
+                  <span className="cos2-split-cnt">
+                    {(['payment', 'pricing', 'nego'].includes(s.id) && totalValue(s.items) > 0)
+                      ? V4CompanyOsMoney(totalValue(s.items))
+                      : (() => {
+                          const count = s.items.length;
+                          const stale = s.items.filter(l => (l.daysInStage || 0) >= 5).length;
+                          return stale > 0 ? `${count} (${stale} old)` : count;
+                        })()}
+                  </span>
+                )}
+                {s.brief && (
+                  <span className="cos2-split-cnt"><AnimatedCounter value={briefSummaries.action.length + briefSummaries.watch.length} /></span>
+                )}
               </button>
             </React.Fragment>
           ))}
@@ -2725,48 +3080,151 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
             <span><kbd>?</kbd> help</span>
           </div>
         </nav>
-        {split.brief ? (
-          <div className="cos2-main-scroll"><V4CosOverview leads={live} replyCount={replyCount} /></div>
-        ) : split.toolkit ? (
+        {split.toolkit ? (
           <div className="cos2-main-scroll"><V4CosToolkit onNavigateView={onNavigateView} onActivateSplit={setSplitId} /></div>
         ) : (
           <>
             <div className="cos2-list">
-              {items.map(l => (
-                <div key={l.id} className={'cos2-row-wrap' + (String(l.id) === String(selected?.id) ? ' is-current' : '')}>
-                  {(() => {
-                    const rowOperator = V4OperatorStatus(l);
-                    const showRowOperator = rowOperator.label !== 'Monitoring';
-                    const rowSnippet = V4CompanyOsListSnippet(l);
-                    return (
-                  <button type="button"
-                          className={'cos2-row' + (String(l.id) === String(selected?.id) ? ' is-current' : '')}
-                          onClick={() => { setSelId(l.id); setMobileOpen(true); }}>
-                    <span className="cos2-row-top">
-                      <span className="cos2-row-brandline">
-                        {l.unread && <span className="dq-dot" />}
-                        <span className="cos2-row-brand">{l.brand}</span>
-                        <span className={'cos2-row-source is-' + String(l.source || '').toLowerCase()}>{l.source || 'lead'}</span>
-                      </span>
-                      {showRowOperator && (l.draftReply || l.operatorMemory) && (
-                        <span className={'cos2-row-operator is-' + rowOperator.tone}>{rowOperator.label}</span>
-                      )}
-                      <span className="cos2-row-when">{l.lastTouch}</span>
-                    </span>
-                    <span className="cos2-row-name">{l.contactName}</span>
-                    <span className="cos2-row-snip">{rowSnippet}</span>
-                  </button>
-                    );
-                  })()}
-                  <button type="button"
-                          className="cos2-row-act"
-                          title={split.trash ? 'Restore to board' : 'Move to trash'}
-                          aria-label={split.trash ? 'Restore lead' : 'Trash lead'}
-                          onClick={(e) => { e.stopPropagation(); window.V3.MoveLeadStage(l, split.trash ? 'new' : 'trash'); }}>
-                    <V3Icon name={split.trash ? 'reply' : 'trash'} w={13} />
-                  </button>
+              {split.isBrief && (
+                <div className="brief-mode-header">
+                  <div className="brief-mode-title">
+                    <span className="brief-eyebrow">DAILY BRIEF</span>
+                    <span className="brief-date">{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                  </div>
+                  <div className="brief-mode-stats">
+                    <span className="stat stat-hot"><AnimatedCounter value={briefActionLeads.length} /> to act</span>
+                    <span className="stat"><AnimatedCounter value={briefWatchLeads.length} /> watching</span>
+                  </div>
                 </div>
-              ))}
+              )}
+
+              {split.isBrief ? (
+                <>
+                  {briefSummaries.action.length > 0 && (
+                    <div className="brief-section-header">
+                      <span>Action now</span>
+                      <span className="brief-count-badge hot">{briefSummaries.action.length}</span>
+                    </div>
+                  )}
+                  {briefSummaries.action.map(item => {
+                    const lead = live.find(ll => String(ll.id) === String(item.id)) || {};
+                    const isCurrent = String(item.id) === String(selId);
+                    let raw = (lead.nextMove && lead.nextMove.text) || (item.points && item.points[0]) || V4CompanyOsListSnippet(lead) || '';
+                    let cleaned = V4CleanDisplayText(raw);
+                    // Make it more useful and less repetitive "review drafted..."
+                    if (cleaned.toLowerCase().includes('review drafted reply') || cleaned.length < 8) {
+                      const phase = V4CompanyOsPhase(lead);
+                      const val = lead.value ? V4CompanyOsMoney(lead.value) + ' ' : '';
+                      cleaned = `${phase} • ${val}${lead.daysInStage || 0}d`.trim();
+                    }
+                    let shortSnippet = cleaned.slice(0, 68);
+                    if (cleaned.length > 68) shortSnippet += '…';
+                    return (
+                      <div key={item.id} className={'tesla-row-wrap' + (isCurrent ? ' is-current' : '')}>
+                        <button
+                          type="button"
+                          className={'tesla-row' + (isCurrent ? ' is-current' : '')}
+                          onClick={() => { setSelId(item.id); setMobileOpen(true); }}
+                        >
+                          <div className="tesla-row-main">
+                            {lead.unread && <span className="tesla-unread-dot" />}
+                            <span className="tesla-row-brand">{V4CleanDisplayText(item.title)}</span>
+                            <span className={'tesla-row-source is-' + String(lead.source || '').toLowerCase()}>{lead.source || 'lead'}</span>
+                            <span className="tesla-row-fact">{shortSnippet}</span>
+                          </div>
+                          <div className="tesla-row-meta">{lead.lastTouch}</div>
+                        </button>
+                        <button type="button"
+                                className="tesla-row-act"
+                                title="Move to trash"
+                                onClick={(e) => { e.stopPropagation(); window.V3.MoveLeadStage(lead, 'trash'); }}>
+                          <V3Icon name="trash" w={13} />
+                        </button>
+                      </div>
+                    );
+                  })}
+
+                  {briefSummaries.watch.length > 0 && (
+                    <div className="brief-section-header">
+                      <span>Watch / Waiting</span>
+                      <span className="brief-count-badge">{briefSummaries.watch.length}</span>
+                    </div>
+                  )}
+                  {briefSummaries.watch.map(item => {
+                    const lead = live.find(ll => String(ll.id) === String(item.id)) || {};
+                    const isCurrent = String(item.id) === String(selId);
+                    let raw = (lead.nextMove && lead.nextMove.text) || (item.points && item.points[0]) || V4CompanyOsListSnippet(lead) || '';
+                    let cleaned = V4CleanDisplayText(raw);
+                    // Make it more useful and less repetitive "review drafted..."
+                    if (cleaned.toLowerCase().includes('review drafted reply') || cleaned.length < 8) {
+                      const phase = V4CompanyOsPhase(lead);
+                      const val = lead.value ? V4CompanyOsMoney(lead.value) + ' ' : '';
+                      cleaned = `${phase} • ${val}${lead.daysInStage || 0}d`.trim();
+                    }
+                    let shortSnippet = cleaned.slice(0, 68);
+                    if (cleaned.length > 68) shortSnippet += '…';
+                    return (
+                      <div key={item.id} className={'tesla-row-wrap' + (isCurrent ? ' is-current' : '')}>
+                        <button
+                          type="button"
+                          className={'tesla-row' + (isCurrent ? ' is-current' : '')}
+                          onClick={() => { setSelId(item.id); setMobileOpen(true); }}
+                        >
+                          <div className="tesla-row-main">
+                            {lead.unread && <span className="tesla-unread-dot" />}
+                            <span className="tesla-row-brand">{V4CleanDisplayText(item.title)}</span>
+                            <span className={'tesla-row-source is-' + String(lead.source || '').toLowerCase()}>{lead.source || 'lead'}</span>
+                            <span className="tesla-row-fact">{shortSnippet}</span>
+                          </div>
+                          <div className="tesla-row-meta">{lead.lastTouch}</div>
+                        </button>
+                        <button type="button"
+                                className="tesla-row-act"
+                                title="Move to trash"
+                                onClick={(e) => { e.stopPropagation(); window.V3.MoveLeadStage(lead, 'trash'); }}>
+                          <V3Icon name="trash" w={13} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </>
+              ) : (
+                items.map(l => (
+                  <div key={l.id} className={'cos2-row-wrap' + (String(l.id) === String(selected?.id) ? ' is-current' : '')}>
+                    {(() => {
+                      const rowOperator = V4OperatorStatus(l);
+                      const showRowOperator = rowOperator.label !== 'Monitoring';
+                      const rowSnippet = V4CompanyOsListSnippet(l);
+                      return (
+                    <button type="button"
+                            className={'cos2-row' + (String(l.id) === String(selected?.id) ? ' is-current' : '')}
+                            onClick={() => { setSelId(l.id); setMobileOpen(true); }}>
+                      <span className="cos2-row-top">
+                        <span className="cos2-row-brandline">
+                          {l.unread && <span className="dq-dot" />}
+                          <span className="cos2-row-brand">{V4CleanDisplayText(l.brand)}</span>
+                          <span className={'cos2-row-source is-' + String(l.source || '').toLowerCase()}>{l.source || 'lead'}</span>
+                        </span>
+                        {showRowOperator && (l.draftReply || l.operatorMemory) && (
+                          <span className={'cos2-row-operator is-' + rowOperator.tone}>{rowOperator.label}</span>
+                        )}
+                        <span className="cos2-row-when">{l.lastTouch}</span>
+                      </span>
+                      <span className="cos2-row-name">{l.contactName}</span>
+                      <span className="cos2-row-snip">{V4CleanDisplayText(rowSnippet)}</span>
+                    </button>
+                      );
+                    })()}
+                    <button type="button"
+                            className="cos2-row-act"
+                            title={split.trash ? 'Restore to board' : 'Move to trash'}
+                            aria-label={split.trash ? 'Restore lead' : 'Trash lead'}
+                            onClick={(e) => { e.stopPropagation(); window.V3.MoveLeadStage(l, split.trash ? 'new' : 'trash'); }}>
+                      <V3Icon name={split.trash ? 'reply' : 'trash'} w={13} />
+                    </button>
+                  </div>
+                ))
+              )}
               {items.length === 0 && (
                 <div className="cos2-zero">
                   <span className="cos2-zero-mark">✓</span>
@@ -2775,9 +3233,16 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
                 </div>
               )}
             </div>
-            <V4CosReader lead={selected} user={user}
-                         composeOpen={composeOpen} setComposeOpen={setComposeOpen}
-                         onBack={() => setMobileOpen(false)} />
+            <V4CosReader 
+              key={selected ? selected.id : 'no-lead'} 
+              lead={selected} 
+              user={user} 
+              isBrief={split.isBrief} 
+              briefItem={split.isBrief && selected ? (briefSummaries.action.find(i => String(i.id) === String(selected.id)) || briefSummaries.watch.find(i => String(i.id) === String(selected.id))) : null}
+              composeOpen={composeOpen} 
+              setComposeOpen={setComposeOpen}
+              onBack={() => setMobileOpen(false)} 
+            />
           </>
         )}
       </div>

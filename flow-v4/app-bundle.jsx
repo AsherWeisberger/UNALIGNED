@@ -8507,6 +8507,39 @@ function V4CosOverview({ leads, replyCount }) {
     l.lastTouchAt && (now - Date.parse(l.lastTouchAt)) < 7 * 86400000).length;
   const pipeline = leads.filter(l => !['done', 'paid-out'].includes(l.stage)).reduce((s, l) => s + (l.value || 0), 0);
 
+  // Live daily brief computation (ported for the working bundle)
+  function buildBriefPoints(lead) {
+    const points = [];
+    const phase = (typeof V4CompanyOsPhase === 'function' && V4CompanyOsPhase(lead)) || lead.stage || 'intake';
+    if (lead.nextMove && lead.nextMove.text) points.push(lead.nextMove.text);
+    if (lead.operatorSummary && lead.operatorSummary.lead_summary) points.push(lead.operatorSummary.lead_summary);
+    if (lead.unread || lead.needsReply) points.push('New reply in thread — handle before anything else.');
+    if (lead.stage === 'invoice-sent') points.push('Invoice out. Get payment proof + timing locked.');
+    if ((lead.daysInStage || 0) >= 8) points.push(`${lead.daysInStage}d with no movement.`);
+    if (lead.value) points.push(`${(typeof V4CompanyOsMoney === 'function' ? V4CompanyOsMoney(lead.value) : '$' + lead.value)} at ${String(phase).toLowerCase()}.`);
+    if (lead.briefTitle || lead.briefBody) points.push('Brief material exists.');
+    if (points.length === 0) points.push('Review thread and advance the lane.');
+    return points.slice(0, 4);
+  }
+
+  const brief = React.useMemo(() => {
+    const active = (leads || []).filter(l => !['trash', 'dead-leads', 'paid-out'].includes(l.stage));
+    const actionLeads = active.filter(l => l.needsReply || l.stage === 'invoice-sent' || (l.daysInStage >= 6 && (l.value || 0) > 1500))
+      .sort((a, b) => (b.daysInStage || 0) - (a.daysInStage || 0) || (b.value || 0) - (a.value || 0)).slice(0, 5);
+    const watchLeads = active.filter(l => !l.needsReply && ['rates-sent', 'negotiating', 'first-touch', 'engaged'].includes(l.stage))
+      .sort((a, b) => (b.lastTouchAt ? Date.parse(b.lastTouchAt) : 0) - (a.lastTouchAt ? Date.parse(a.lastTouchAt) : 0)).slice(0, 5);
+    const closedLeads = (leads || []).filter(l => ['done', 'paid-out'].includes(l.stage))
+      .sort((a, b) => (b.lastTouchAt ? Date.parse(b.lastTouchAt) : 0) - (a.lastTouchAt ? Date.parse(a.lastTouchAt) : 0)).slice(0, 4);
+
+    const toItem = (lead) => ({
+      id: lead.id,
+      title: `${lead.brand} — ${ (typeof V4CompanyOsPhase === 'function' ? V4CompanyOsPhase(lead) : lead.stage) }`,
+      tags: [ (typeof V4CompanyOsPriority === 'function' ? V4CompanyOsPriority(lead) : 'P1'), lead.stage ].filter(Boolean),
+      points: buildBriefPoints(lead)
+    });
+    return { action: actionLeads.map(toItem), watch: watchLeads.map(toItem), closed: closedLeads.map(toItem) };
+  }, [leads]);
+
   const events = [];
   for (const l of leads) {
     if (l.unread && l.lastTouchAt) events.push({ t: Date.parse(l.lastTouchAt) || 0, type: 'reply', label: `${l.brand} — new message from ${l.contactName.split(' ')[0]}` });
@@ -8573,28 +8606,53 @@ function V4CosOverview({ leads, replyCount }) {
           </section>
 
           <section className="cos-panel cosov-panel">
-            <div className="cos-panel-head"><h3>Current priorities</h3><span className="cos-panel-count">{V4_COMPANY_OS_PREP.length}</span></div>
+            <div className="cos-panel-head"><h3>Current priorities</h3><span className="cos-panel-count">{(brief.action || []).length}</span></div>
             <div className="cosov-priorities">
-              {V4_COMPANY_OS_PREP.map(item => (
-                <div key={item.title} className="cosov-priority">
+              {(brief.action || []).slice(0, 4).map(item => (
+                <div key={item.id || item.title} className="cosov-priority">
                   <strong>{item.title}</strong>
                   <span className="cos-chips">
                     {item.tags.slice(0, 3).map(t => <span key={t} className="cos-chip cos-chip-tight">{t}</span>)}
                   </span>
                 </div>
               ))}
+              {(brief.action || []).length === 0 && <div className="dq-empty">Nothing urgent right now.</div>}
             </div>
           </section>
         </div>
       </div>
 
-      <V4CosBriefBoard />
+      <V4CosBriefBoard leads={leads} />
     </div>
   );
 }
 
-function V4CosBriefBoard() {
+function V4CosBriefBoard({ leads = [] }) {
   const todayLabel = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const briefData = React.useMemo(() => {
+    // Reuse the brief computed in parent scope if possible, else recompute
+    if (typeof brief !== 'undefined' && brief) return brief;
+    const active = (leads || []).filter(l => !['trash', 'dead-leads', 'paid-out'].includes(l.stage));
+    const actionLeads = active.filter(l => l.needsReply || l.stage === 'invoice-sent' || (l.daysInStage >= 6 && (l.value || 0) > 1500))
+      .sort((a,b)=>(b.daysInStage||0)-(a.daysInStage||0)).slice(0,5);
+    const watchLeads = active.filter(l => !l.needsReply && ['rates-sent','negotiating','first-touch','engaged'].includes(l.stage))
+      .sort((a,b)=>(b.lastTouchAt?Date.parse(b.lastTouchAt):0)-(a.lastTouchAt?Date.parse(a.lastTouchAt):0)).slice(0,5);
+    const closedLeads = (leads||[]).filter(l=>['done','paid-out'].includes(l.stage))
+      .sort((a,b)=>(b.lastTouchAt?Date.parse(b.lastTouchAt):0)-(a.lastTouchAt?Date.parse(a.lastTouchAt):0)).slice(0,4);
+    const toItem = (lead) => ({
+      id: lead.id,
+      title: `${lead.brand} — ${ (typeof V4CompanyOsPhase==='function'?V4CompanyOsPhase(lead):lead.stage) }`,
+      tags: [(typeof V4CompanyOsPriority==='function'?V4CompanyOsPriority(lead):'P1'), lead.stage].filter(Boolean),
+      points: (typeof buildBriefPoints === 'function' ? buildBriefPoints(lead) : ['Review thread'])
+    });
+    return { action: actionLeads.map(toItem), watch: watchLeads.map(toItem), closed: closedLeads.map(toItem) };
+  }, [leads]);
+
+  const lastTs = (leads || []).reduce((max, l) => {
+    const t = l.lastTouchAt ? Date.parse(l.lastTouchAt) : 0; return t > max ? t : max;
+  }, 0);
+  const refreshed = lastTs ? (typeof V3RelativeTime === 'function' ? V3RelativeTime(new Date(lastTs).toISOString()) : 'recently') : '—';
+
   return (
     <section className="cos-section cos-brief" style={{ padding: '18px 22px 40px' }}>
       <div className="cos-brief-head">
@@ -8602,48 +8660,55 @@ function V4CosBriefBoard() {
           <div className="cos-section-eyebrow-row">
             <span className="cos-eyebrow">Daily Operating Brief</span>
             <span className="cos-section-date">{todayLabel}</span>
+            <span className="cos-live-badge">live · {refreshed}</span>
           </div>
-          <h2 className="cos-section-title">What needs action, what is waiting, and what must not be touched</h2>
+          <h2 className="cos-section-title">Action needed, what we are waiting on, and recent wins</h2>
         </div>
         <p className="cos-section-sub">
-          Built from the latest Asher/Robert outreach cleanup so old threads do not get answered like first-touch leads.
+          Computed live from Supabase + activity data.
         </p>
       </div>
       <div className="cos-brief-grid">
         <section className="cos-panel cos-panel-prep">
           <div className="cos-panel-head">
-            <h3>Needs Prep / Action</h3>
-            <span className="cos-panel-count">{V4_COMPANY_OS_PREP.length}</span>
+            <h3>Action now</h3>
+            <span className="cos-panel-count">{(briefData.action || []).length}</span>
           </div>
           <div className="cos-panel-body">
-            {V4_COMPANY_OS_PREP.map(item => <V4CompanyOsActionItem key={item.title} item={item} />)}
+            {(briefData.action || []).length > 0
+              ? (briefData.action || []).map(item => <V4CompanyOsActionItem key={item.id} item={item} />)
+              : <div className="cos-empty">No urgent action items.</div>}
           </div>
         </section>
         <section className="cos-panel cos-panel-watch">
           <div className="cos-panel-head">
-            <h3>Watch / Waiting</h3>
-            <span className="cos-panel-count">{V4_COMPANY_OS_WAITING.length}</span>
+            <h3>Watch / Waiting on them</h3>
+            <span className="cos-panel-count">{(briefData.watch || []).length}</span>
           </div>
           <div className="cos-panel-body">
-            {V4_COMPANY_OS_WAITING.map(item => <V4CompanyOsWatchItem key={item.title} item={item} />)}
+            {(briefData.watch || []).length > 0
+              ? (briefData.watch || []).map(item => <V4CompanyOsWatchItem key={item.id} item={item} />)
+              : <div className="cos-empty">Nothing in watch right now.</div>}
           </div>
         </section>
         <section className="cos-panel cos-rules">
           <div className="cos-panel-head">
             <h3>Operating Rules</h3>
-            <span className="cos-panel-count">{V4_COMPANY_OS_RULES.length}</span>
+            <span className="cos-panel-count">{(typeof V4_COMPANY_OS_RULES !== 'undefined' ? V4_COMPANY_OS_RULES.length : 0)}</span>
           </div>
           <ul>
-            {V4_COMPANY_OS_RULES.map(rule => <li key={rule}>{rule}</li>)}
+            {(typeof V4_COMPANY_OS_RULES !== 'undefined' ? V4_COMPANY_OS_RULES : []).map(rule => <li key={rule}>{rule}</li>)}
           </ul>
         </section>
         <section className="cos-panel cos-panel-done">
           <div className="cos-panel-head">
-            <h3>Completed Campaigns</h3>
-            <span className="cos-panel-count">{V4_COMPANY_OS_DONE.length}</span>
+            <h3>Recently closed</h3>
+            <span className="cos-panel-count">{(briefData.closed || []).length}</span>
           </div>
           <div className="cos-done-grid">
-            {V4_COMPANY_OS_DONE.map(item => <V4CompanyOsDoneItem key={item.title} item={item} />)}
+            {(briefData.closed || []).length > 0
+              ? (briefData.closed || []).map(item => <V4CompanyOsDoneItem key={item.id} item={item} />)
+              : <div className="cos-empty">No recent closes.</div>}
           </div>
         </section>
       </div>
@@ -10578,7 +10643,7 @@ function V4App() {
       <footer className="ft">
         <span className="dot"></span>
         <span>Synced · {operationalLeads.length} cards · {operationalLeads.filter(l => !['paid-out'].includes(l.stage)).length} active · {newLeadCount} new leads</span>
-        <span className="right">v4.0 · {me.name} ({me.role}) · ALIGNED</span>
+        <span className="right">{me.name} ({me.role}) · UNALIGNED Ops</span>
         <button className="ft-tab" aria-current={view === 'today' ? 'page' : undefined}
                 onClick={() => { setView('today'); setOpenId(null); }}>
           <V3Icon name="diamond" w={18} />
@@ -10673,6 +10738,18 @@ function V4App() {
   );
 }
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<V4App />);
-if (window.__alignedBootMarkReady) window.__alignedBootMarkReady();
+try {
+  const root = ReactDOM.createRoot(document.getElementById('root'));
+  root.render(<V4App />);
+  if (window.__alignedBootMarkReady) window.__alignedBootMarkReady();
+} catch (e) {
+  console.error('[UNALIGNED] initial render error', e);
+  if (window.__alignedBootMarkReady) window.__alignedBootMarkReady();
+  // Still show something
+  const bootEl = document.getElementById('boot-status');
+  if (bootEl) {
+    bootEl.style.display = 'block';
+    bootEl.textContent = 'Render error: ' + (e && e.message || e);
+  }
+  throw e;
+}
