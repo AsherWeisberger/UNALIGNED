@@ -614,6 +614,7 @@ function V4CompanyOsMailboxOrigin(lead) {
 
 function V4OperatorStatus(lead) {
   const status = String(lead?.draftReplyStatus || '').toLowerCase();
+  if (status === 'review') return { label: 'Needs review', tone: 'warn' };
   if (status === 'escalated') return { label: 'Needs approval', tone: 'warn' };
   if (status === 'pending') return { label: 'Draft ready', tone: 'good' };
   if (status === 'sent') return { label: 'Auto-sent', tone: 'neutral' };
@@ -2853,6 +2854,8 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   const briefingItems = awake.filter(l => l.stage === 'done').sort(byRecent);
   const waitingItems = activeItems.filter(l => !l.unread && !l.nextMove?.who).sort(byRecent);
   const closedItems = awake.filter(l => ['done', 'paid-out'].includes(l.stage)).sort(byRecent);
+  // Scam-gate flagged leads — the machine paused these for a human decision (approve & send, or dismiss)
+  const reviewItems = awake.filter(l => String(l.draftReplyStatus || '').toLowerCase() === 'review').sort(byStale);
 
   // Helper to compute total value for a list of items
   const totalValue = (items) => items.reduce((sum, l) => sum + (l.value || 0), 0);
@@ -2874,9 +2877,17 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   const briefSummaries = React.useMemo(() => V4ComputeDailyBrief(live), [live]);
 
   const splits = [
-    { 
-      id: 'reply',    
-      label: 'Reply now', 
+    {
+      id: 'review',
+      label: 'Needs review',
+      hint: 'Scam gate flagged these. Approve and send, or dismiss.',
+      section: 'Workflow',
+      hot: reviewItems.length > 0,
+      items: reviewItems
+    },
+    {
+      id: 'reply',
+      label: 'Reply now',
       hint: 'Unread messages where you need to respond',
       section: 'Workflow', 
       hot: true, 
@@ -3019,6 +3030,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   });
 
   const replyCount = splits.find(s => s.id === 'reply')?.items.length || 0;
+  const reviewCount = reviewItems.length;
   const followUpCount = splits.find(s => s.id === 'followups')?.items.length || 0;
   const p0Count = live.filter(l => l.unread || l.stage === 'invoice-sent').length;
   const invoicedOutstanding = live.filter(l => l.stage === 'invoice-sent').reduce((s, l) => s + (l.value || 0), 0);
@@ -3032,6 +3044,11 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
           <strong>UNALIGNED</strong>
           <span className="cos2-brand-sub">Operating System</span>
         </span>
+        {reviewCount > 0 && (
+          <span className="cos-kpi cos-kpi-tight cos-kpi-review" onClick={() => setSplitId('review')} style={{ cursor: 'pointer' }} title="Scam gate flagged these for you">
+            <AnimatedCounter value={reviewCount} /> to review
+          </span>
+        )}
         <span className="cos-kpi cos-kpi-tight"><AnimatedCounter value={p0Count} /> P0</span>
         <span className="cos-kpi cos-kpi-tight cos-kpi-accent"><AnimatedCounter value={replyCount} /> reply now</span>
         <span className="cos-kpi cos-kpi-tight"><AnimatedCounter value={followUpCount} /> 2d follow ups</span>

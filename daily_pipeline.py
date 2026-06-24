@@ -52,6 +52,9 @@ HAIKU_INPUT_PER_M  = 0.80
 HAIKU_OUTPUT_PER_M = 4.00
 
 PIPELINE_MAX_COST_USD = float(os.environ.get("PIPELINE_MAX_COST_USD", "0") or "0")
+USE_LOCAL_CLASSIFIER = os.environ.get("USE_LOCAL_CLASSIFIER", "").strip().lower() in {
+    "1", "true", "yes", "on",
+}
 
 _run_haiku_input_tokens = 0
 _run_haiku_output_tokens = 0
@@ -112,7 +115,7 @@ def fetch_active_cards():
     while True:
         r = httpx.get(
             f"{SUPABASE_URL}/rest/v1/cards"
-            f"?select=id,title,contact_name,business_name,list_id,priority,"
+            f"?select=id,title,contact_name,business_name,email,list_id,priority,"
             f"estimated_value,intent,description,email_thread,draft_reply,"
             f"draft_reply_status,labels,activity,email_id,created_at,moved_at,new_reply_at"
             f"&list_id=not.in.({terminal_filter})"
@@ -374,7 +377,7 @@ promoting. Please send over your website, your X/LinkedIn handle, the content as
 posted (video, caption, hashtags, posting dates), and a short brief on the campaign.
 
 New clients pay in full before content goes live. Once you've completed your first campaign with \
-us, future campaigns are invoiced on the day the post goes live — that's the benefit of becoming \
+us, future campaigns are invoiced on the day the post goes live. That's the benefit of becoming \
 an ongoing partner.
 
 Wire transfer only.
@@ -413,10 +416,124 @@ Write a brief, professional follow-up that:
 - Is polite and not aggressive
 Under 80 words. Sign off with Sam's signature.
 """,
+    "qualify-suspicious": """\
+You are drafting a CAUTIOUS reply on behalf of Sam Levin at UNALIGNED (Robert Scoble's tech \
+podcast/media company). Something in this thread is unverified, so DO NOT commit, DO NOT quote \
+rates or packages, and DO NOT agree to anything yet. Keep the door open but qualify them. Write a \
+short, polite reply that:
+- Says we're open to exploring it
+- Asks them to confirm who they are and the company they represent, from an official company \
+email/domain, plus the company website and the brand's verified X handle
+- Asks them to spell out exactly what they're proposing
+Friendly but careful, never accusatory. Under 90 words. Sign off with Sam's signature.
+""",
 }
 
 
-def draft_reply(card, reply_type, client):
+# ── Operator framework: Asher's tone + scam gate, applied to every draft ──────
+# Source of truth: ~/.hermes/memories/unaligned_email_triage_and_briefs.md
+OPERATOR_FRAMEWORK = """\
+OPERATOR FRAMEWORK (apply before writing — this is Asher's own voice and judgment):
+
+VOICE RULES:
+- Never use hyphens or em dashes (-, the long dash, or the short dash). Use periods, commas, or
+  sentence breaks instead. Rewrite compound phrases to avoid hyphenation (e.g. "long term partner"
+  not the hyphenated form). Dashes read as AI and are off brand.
+- Sound like a real person, not a corporate template. No filler, no AI tells, no overpolished fluff.
+
+TONE — write in the tone given on the TONE line below:
+- direct: new or unknown, pure business. Brief, clear, set terms (rate, payment before posting).
+  Do not over-warm a stranger.
+- friendship: warm rapport or repeat contact. Personable but firm on value.
+- long_standing: proven history (e.g. OMANE, EchonLab). Appreciative, fast, trust based, less
+  re-explaining. Skip the cold intro and talk like you already know them.
+"""
+
+# Brands with a proven, repeat relationship -> long_standing tone (extend as needed)
+LONG_STANDING_PARTNERS = {
+    "omane", "echonlab", "echon lab", "polyai", "poly ai",
+    "ahacreator", "aha creator", "eezycollab", "arcgrowth", "arc growth",
+}
+
+
+def resolve_tone(card):
+    """Decide reply tone from relationship depth. Code decides depth; the model applies the voice."""
+    name = " ".join(
+        str(card.get(k, "") or "") for k in ("business_name", "contact_name", "title")
+    ).lower()
+    for p in LONG_STANDING_PARTNERS:
+        if p in name:
+            return "long_standing"
+    thread = card.get("email_thread") or []
+    if isinstance(thread, str):
+        try:
+            thread = json.loads(thread)
+        except Exception:
+            thread = []
+    ours = ("unalignedx@", "samlevin@", "scobleizer@", "asherweisberger@", "robert scoble", "sam levin")
+    our_msgs = sum(
+        1 for m in thread
+        if isinstance(m, dict) and any(s in str(m.get("from", "")).lower() for s in ours)
+    )
+    if our_msgs >= 1 and len(thread) >= 3:
+        return "friendship"
+    return "direct"
+
+
+# STRONG signals = clearly a scam -> AVOID (disengage, no draft, even if heavily involved).
+SCAM_LOOKALIKE_DOMAINS = ("oauth-signin.com", "mail.skillshare", "tradeifytoken")
+SCAM_STRONG_FLAGS = (
+    "verify your account", "confirm your wallet", "connect your wallet",
+    "send your password", "your login credentials", "banking details", "routing number",
+    "without disclosure", "no disclosure", "do not disclose", "don't disclose",
+    "change your account settings", "update your payment method",
+)
+# SOFT signals = suspicious -> keep qualifying lightly (cautious reply, do not commit).
+SCAM_SOFT_FLAGS = (
+    "commission structure", "referral bonus", "downline", "mlm",
+    "act now", "urgent action", "within 24 hours", "limited spots",
+    "guaranteed returns", "double your", "investment opportunity",
+)
+
+
+def scam_gate(card):
+    """Asher's two-tier scam gate, runs BEFORE drafting.
+
+    Returns (level, reasons) where level is:
+      'scam'        — strong signal, AVOID: disengage, no draft (even if heavily involved)
+      'suspicious'  — soft signal, keep qualifying lightly: cautious reply, do not commit
+      None          — clear, proceed normally
+    """
+    thread_text = (get_thread_text(card) or "").lower()
+    sender = (card.get("email") or "").lower()
+    strong, soft = [], []
+    for d in SCAM_LOOKALIKE_DOMAINS:
+        if d in thread_text or d in sender:
+            strong.append(f"lookalike domain: {d}")
+    for flag in SCAM_STRONG_FLAGS:
+        if flag in thread_text:
+            strong.append(f"red-flag ask: '{flag}'")
+    for flag in SCAM_SOFT_FLAGS:
+        if flag in thread_text:
+            soft.append(f"soft signal: '{flag}'")
+    if strong:
+        return ("scam", strong + soft)
+    if soft:
+        return ("suspicious", soft)
+    return (None, [])
+
+
+def _no_dashes(text):
+    """Safety net for the no-hyphens voice rule: kill dashes used as punctuation, keep phone/URL hyphens."""
+    import re as _re
+    if not text:
+        return text
+    text = text.replace("—", ". ").replace("–", ". ")  # em / en dash
+    text = _re.sub(r"\s+-\s+", ". ", text)                        # spaced hyphen used as a dash
+    return text
+
+
+def draft_reply(card, reply_type, client, tone="direct"):
     """Draft a stage-appropriate reply for a card."""
     prompt_template = REPLY_PROMPTS.get(reply_type)
     if not prompt_template:
@@ -434,8 +551,10 @@ def draft_reply(card, reply_type, client):
         desc = raw[:400]
 
     context = (
+        f"{OPERATOR_FRAMEWORK}\n"
+        f"TONE: {tone}\n\n"
         f"{prompt_template}\n\n"
-        f"Deal context: {card.get('title','?')} — {card.get('business_name','?')}\n"
+        f"Deal context: {card.get('title','?')}, {card.get('business_name','?')}\n"
         f"Contact: {card.get('contact_name','?')}\n"
         f"Summary: {desc}\n\n"
         f"RECENT THREAD (most relevant):\n{thread_text[-3000:]}"
@@ -448,7 +567,7 @@ def draft_reply(card, reply_type, client):
             messages=[{"role": "user", "content": context}],
         )
         _track(resp, "opus")
-        body = resp.content[0].text.strip()
+        body = _no_dashes(resp.content[0].text.strip())
 
         # Ensure correct signature is present
         if reply_type == "initial-outreach":
@@ -660,6 +779,8 @@ def main():
     print(f"\n{'='*62}")
     print(f"  UNALIGNED Daily Pipeline — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print(f"  Mode: {'DRY RUN' if DRY_RUN else 'LIVE'}")
+    if USE_LOCAL_CLASSIFIER:
+        print(f"  Local classifier: ON (qwen3.6:35b-a3b via Ollama)")
     print(f"{'='*62}\n")
 
     if not SERVICE_ROLE_KEY or not ANTHROPIC_KEY:
@@ -680,6 +801,7 @@ def main():
     moved       = []
     drafted     = []
     errors      = []
+    flagged     = []
     budget_hit  = False
     analyzed_count = 0
 
@@ -702,6 +824,16 @@ def main():
             errors.append(f"ID={cid} — stage analysis failed")
             continue
 
+        if USE_LOCAL_CLASSIFIER:
+            try:
+                from local_classifiers import enrich_analysis
+                analysis = enrich_analysis(card, analysis)
+                lc = analysis.get("local_classifier")
+                if lc:
+                    print(f"  🤖 Local {lc}: {analysis.get('local_verdict', {}).get('recommended_action', 'ok')}")
+            except Exception as exc:
+                print(f"  ⚠ Local classifier skipped: {exc}")
+
         new_stage  = analysis.get("stage", "").replace("dead", "dead-leads")
         reason     = analysis.get("reason", "")
         needs_reply = analysis.get("needs_reply", False)
@@ -710,17 +842,17 @@ def main():
         print(f"  → {new_stage} | {reason}")
 
         patch = {}
-        activity_entry = None
+        activity_entries = []
 
         # Stage movement
         if new_stage and new_stage != stage and should_advance(stage, new_stage):
             patch["list_id"] = new_stage
             patch["moved_at"] = datetime.now(timezone.utc).isoformat()
-            activity_entry = {
+            activity_entries.append({
                 "time":   datetime.now(timezone.utc).isoformat(),
                 "user":   "Daily Pipeline",
                 "action": f"Auto-moved {stage} → {new_stage}: {reason}",
-            }
+            })
             moved.append(f"{name} @ {biz}: {stage} → {new_stage}")
             print(f"  ✓ Moving to {new_stage}")
 
@@ -730,19 +862,50 @@ def main():
 
         if needs_reply and reply_type and not already_has_draft:
             final_stage = new_stage if new_stage else stage
-            if final_stage in REPLY_STAGES:
-                print(f"  ✍ Drafting reply ({reply_type})...")
-                reply = draft_reply(card, reply_type, client)
-                if reply:
-                    patch["draft_reply"] = reply
-                    patch["draft_reply_status"] = "pending"
-                    drafted.append(f"{name} @ {biz} ({reply_type})")
-                    print(f"  ✓ Reply drafted")
+            if final_stage in REPLY_STAGES or reply_type == "fulfillment-fix":
+                scam_level, scam_reasons = scam_gate(card)
+                why = scam_reasons[0] if scam_reasons else ""
+                if scam_level == "scam":
+                    # Clearly a scam -> AVOID: disengage, no draft, flag for human review
+                    print(f"  ⛔ Scam gate AVOID ({why}) — flagged for review, no draft")
+                    patch["draft_reply_status"] = "review"
+                    flagged.append(("scam", f"{name} @ {biz}", why))
+                    activity_entries.append({
+                        "time": datetime.now(timezone.utc).isoformat(),
+                        "user": "Scam gate",
+                        "action": f"AVOID. Looks like a scam ({why}). Disengage, do not commit.",
+                    })
+                elif scam_level == "suspicious":
+                    # Suspicious -> keep qualifying lightly: cautious reply, do not commit
+                    print(f"  ⚠ Scam gate qualify ({why}) — drafting cautious qualify reply")
+                    reply = draft_reply(card, "qualify-suspicious", client, tone="direct")
+                    if reply:
+                        patch["draft_reply"] = reply
+                    patch["draft_reply_status"] = "review"
+                    flagged.append(("suspicious", f"{name} @ {biz}", why))
+                    activity_entries.append({
+                        "time": datetime.now(timezone.utc).isoformat(),
+                        "user": "Scam gate",
+                        "action": f"Suspicious ({why}). Cautious qualify reply drafted. Verify before committing.",
+                    })
+                else:
+                    if analysis.get("local_holding_reply"):
+                        reply = analysis["local_holding_reply"]
+                        print(f"  ✍ Using local holding reply (fulfillment-fix)...")
+                    else:
+                        tone = resolve_tone(card)
+                        print(f"  ✍ Drafting reply ({reply_type}, tone={tone})...")
+                        reply = draft_reply(card, reply_type, client, tone=tone)
+                    if reply:
+                        patch["draft_reply"] = reply
+                        patch["draft_reply_status"] = "pending"
+                        drafted.append(f"{name} @ {biz} ({reply_type})")
+                        print(f"  ✓ Reply drafted")
 
-        # Append activity if we moved
-        if activity_entry:
+        # Append activity (stage move and/or scam-gate review note)
+        if activity_entries:
             existing_activity = card.get("activity") or []
-            patch["activity"] = existing_activity + [activity_entry]
+            patch["activity"] = existing_activity + activity_entries
 
         # Apply patch
         if patch and not DRY_RUN:
@@ -761,7 +924,12 @@ def main():
     print(f"  Cards analyzed:    {analyzed_count}")
     print(f"  Stage moves:       {len(moved)}")
     print(f"  Replies drafted:   {len(drafted)}")
+    print(f"  Needs review:      {len(flagged)}")
     print(f"  Auto-trashed:      {len(auto_trashed)}")
+    if flagged:
+        for level, who, why in flagged:
+            icon = "⛔" if level == "scam" else "⚠"
+            print(f"     {icon} {who} — {why}")
     print(f"  Dupes merged:      {dedup_merged}")
     print(f"  Errors:            {len(errors)}")
     run_cost = run_cost_usd(extra_haiku_in=h_in, extra_haiku_out=h_out)
@@ -820,6 +988,14 @@ def main():
         tg_lines.append(f"\n<b>Replies queued for approval ({len(drafted)}):</b>")
         for d in drafted[:8]:
             tg_lines.append(f"  ✉ {d}")
+    if flagged:
+        scam_n = sum(1 for f in flagged if f[0] == "scam")
+        susp_n = sum(1 for f in flagged if f[0] == "suspicious")
+        tg_lines.append(f"\n<b>🚩 Needs review ({len(flagged)}):</b> {scam_n} scam, {susp_n} suspicious")
+        for level, who, why in flagged[:8]:
+            icon = "⛔" if level == "scam" else "⚠"
+            tg_lines.append(f"  {icon} {who} — {why}")
+        tg_lines.append("Open Company OS → Needs review to approve or dismiss.")
     if auto_trashed:
         tg_lines.append(f"\n🗑 {len(auto_trashed)} stale lead(s) moved to trash")
     if dedup_merged:

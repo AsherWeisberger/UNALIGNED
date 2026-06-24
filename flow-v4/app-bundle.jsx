@@ -4861,54 +4861,52 @@ function V4AgentsView({ leads = [], query = '', onOpenLead }) {
     ...zoneMeta[zone],
     workers: filteredWorkers.filter(worker => worker.zone === zone),
   }));
-  const capsuleMap = new Map();
-  filteredWorkers.forEach(worker => {
-    worker.items.slice(0, 2).forEach(item => {
-      const capsuleKey = item.id || `${item.brand}-${item.contactName || 'unknown'}`;
-      const existing = capsuleMap.get(capsuleKey);
-      if (existing) {
-        existing.routes.add(worker.name);
-        if ((item.unread || item.needsReply) && !(existing.item.unread || existing.item.needsReply)) {
-          existing.item = item;
-          existing.tone = worker.tone;
-          existing.accent = worker.accent;
-        }
-        return;
-      }
-      capsuleMap.set(capsuleKey, {
-        key: capsuleKey,
-        item,
-        brand: item.brand || item.contactName || 'Unknown lead',
-        contact: item.contactName || item.email || 'Unknown contact',
-        tone: worker.tone,
-        accent: worker.accent,
-        routes: new Set([worker.name]),
-      });
+  const flowData = {
+    intake: Math.max(1, Math.floor((newLeads.length + xLeads.length + networkLeads.length) / 2)),
+    conversion: Math.max(1, Math.floor((replyLeads.length + pricingLeads.length + handoffLeads.length) / 2)),
+    execution: Math.max(1, Math.floor((briefLeads.length + calendarLeads.length) / 2)),
+    retention: Math.max(1, Math.floor((financeLeads.length + followUps.length) / 2)),
+  };
+
+  function SpringCounter({ value }) {
+    const [display, setDisplay] = React.useState(value);
+    const prev = React.useRef(value);
+    React.useEffect(() => {
+      if (prev.current === value) return;
+      const startVal = prev.current;
+      const endVal = value;
+      const dur = 380;
+      const t0 = performance.now();
+      const tick = (now) => {
+        const p = Math.min((now - t0) / dur, 1);
+        const e = 1 - Math.pow(1 - p, 3);
+        setDisplay(Math.round(startVal + (endVal - startVal) * e));
+        if (p < 1) requestAnimationFrame(tick);
+        else { setDisplay(endVal); prev.current = endVal; }
+      };
+      requestAnimationFrame(tick);
+    }, [value]);
+    return <span>{display}</span>;
+  }
+
+  const canvasRef = React.useRef(null);
+  React.useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !window.FlowWorldPixel) return undefined;
+    return window.FlowWorldPixel.attach(canvas, {
+      flowData,
+      workers: filteredWorkers,
+      totalActive,
     });
-  });
-  const liveCapsules = Array.from(capsuleMap.values())
-    .map(capsule => ({
-      ...capsule,
-      routeLabel: Array.from(capsule.routes).slice(0, 2).join(' + '),
-      meta: V4AgentCapsuleMeta(capsule.item),
-      summary: V4AgentCapsuleSummary(capsule.item),
-      priority: capsule.item.unread || capsule.item.needsReply ? 3
-        : capsule.item.followUpDue ? 2
-        : String(capsule.item.stage || '').toLowerCase() === 'invoice-sent' ? 2
-        : String(capsule.item.stage || '').toLowerCase() === 'done' ? 1
-        : 0,
-    }))
-    .sort((a, b) => b.priority - a.priority)
-    .slice(0, 8);
-  const animatedCapsules = liveCapsules.length > 5 ? [...liveCapsules, ...liveCapsules] : liveCapsules;
+  }, [flowData, filteredWorkers, totalActive]);
 
   return (
     <div className="page workers-page">
       <div className="page-hd">
         <div>
           <div className="page-eyebrow">Autonomy</div>
-          <h1 className="page-title">Agents</h1>
-          <div className="page-sub">Watch the machine work across intake, replies, pricing, briefs, finance, and follow-up.</div>
+          <h1 className="page-title">Machine Room</h1>
+          <div className="page-sub">Flow World — tiny workers patrol intake, conversion, execution, and retention in real time.</div>
         </div>
         <div className="invoice-stats">
           <span className="invoice-stat total">{liveWorkers} workers live</span>
@@ -4918,92 +4916,47 @@ function V4AgentsView({ leads = [], query = '', onOpenLead }) {
         </div>
       </div>
 
-      <section className="workers-habitat">
-        <div className="workers-habitat-copy">
-          <div className="workers-hero-eyebrow">Machine habitat</div>
-          <h2>The workers should feel alive, not filed away.</h2>
-          <p>This is the part you can watch. Each worker lives in its own little zone, pulls from a real queue, and lights up when that lane gets busy.</p>
-        </div>
-        <div className="workers-habitat-legend">
-          <span className="workers-legend-pill">Intake</span>
-          <span className="workers-legend-pill">Conversion</span>
-          <span className="workers-legend-pill">Execution</span>
-          <span className="workers-legend-pill">Retention</span>
-        </div>
-        <div className="workers-theater">
-          <svg className="workers-orbit" viewBox="0 0 1200 760" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-            <ellipse cx="600" cy="380" rx="350" ry="210" className="workers-orbit-ring outer" />
-            <ellipse cx="600" cy="380" rx="260" ry="150" className="workers-orbit-ring inner" />
-            <path d="M260 380 C360 240, 840 240, 940 380" className="workers-orbit-arc top" />
-            <path d="M940 380 C840 520, 360 520, 260 380" className="workers-orbit-arc bottom" />
-            {[0,1,2,3,4,5].map(i => (
-              <circle key={i} r="7" className="workers-orbit-signal">
-                <animateMotion dur="14s" repeatCount="indefinite" begin={`${i * 1.9}s`} path="M260 380 C360 240, 840 240, 940 380 C840 520, 360 520, 260 380" />
-              </circle>
-            ))}
-          </svg>
-
-          <div className="workers-core workers-core-theater">
-            <div className="workers-core-eyebrow">UNALIGNED brain</div>
-            <div className="workers-core-title">Asher&apos;s machine</div>
-            <div className="workers-core-stats">
-              <span>{liveWorkers} live</span>
-              <span>{totalActive} active</span>
-              <span>{totalWaiting} waiting</span>
-            </div>
-            <div className="workers-core-note">The system should show state changes, handoffs, and pressure. Not just decorate the page.</div>
+      <div className="machine-theater machine-theater--gameboy">
+        <div className="theater-header">
+          <div>
+            <div className="theater-eyebrow">◆ LIVE LINK</div>
+            <div className="theater-title">Flow World</div>
+            <div className="theater-tagline">UNALIGNED ops habitat · workers on patrol</div>
           </div>
+          <div className="theater-legend theater-legend--pixel">
+            <div><span className="pixel-sprite pixel-sprite--walk"></span> Workers</div>
+            <div><span className="pixel-sprite pixel-sprite--mail"></span> Live signals</div>
+          </div>
+        </div>
 
+        <div className="gameboy-shell">
+          <div className="gameboy-shell-label">ASH-OPS</div>
+          <div className="theater-canvas-wrapper theater-canvas-wrapper--pixel">
+            <canvas ref={canvasRef} className="theater-canvas theater-canvas--pixel" />
+            <div className="theater-scanlines" aria-hidden="true"></div>
+            <div className="theater-overlay theater-overlay--pixel">
+              <div className="theater-core theater-core--pixel">
+                <div className="core-label">ASH MACHINE</div>
+                <div className="core-big"><SpringCounter value={totalActive} /></div>
+                <div className="core-sub">packets routing</div>
+              </div>
+            </div>
+          </div>
+          <div className="gameboy-dpad" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </div>
+        </div>
+
+        <div className="theater-zones theater-zones--pixel">
           {groupedWorkers.map(group => (
-            <section key={group.zone} className={`workers-zone-cluster zone-${group.pos}`}>
-              <div className="workers-zone-head">
-                <span className="workers-zone-kicker">{group.label}</span>
-                <p>{group.note}</p>
-              </div>
-              <div className="workers-station-list">
-                {group.workers.map(worker => (
-                  <button
-                    key={worker.id}
-                    type="button"
-                    className={`workers-station accent-${worker.accent} is-${worker.tone}`}
-                    onClick={() => worker.items[0] && onOpenLead?.(worker.items[0].id)}
-                    title={worker.note}
-                  >
-                    <div className="workers-station-portrait">
-                      <V4WorkerPortrait worker={worker} compact />
-                    </div>
-                    <div className="workers-station-copy">
-                      <div className="workers-station-title-row">
-                        <strong>{worker.name}</strong>
-                        <span className={`workers-station-status is-${worker.tone}`}>{worker.active}</span>
-                      </div>
-                      <div className="workers-station-meta">{worker.subtitle}</div>
-                      <div className="workers-station-foot">{worker.items[0]?.brand || 'Clear lane'}</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </section>
+            <div key={group.zone} className={`theater-zone accent-${group.workers[0]?.accent || 'blue'}`}>
+              <div className="zone-name">{group.label}</div>
+              <div className="zone-count">{group.workers.reduce((s, w) => s + w.active, 0)}</div>
+              <div className="zone-workers">{group.workers.filter(w => w.active > 0).length} on duty</div>
+            </div>
           ))}
-
-          <div className="workers-activity-ribbon">
-            <div className="workers-activity-head">
-              <span>Live work moving</span>
-              <span>{liveCapsules.length} visible capsules</span>
-            </div>
-            <div className="workers-capsule-stream">
-              {animatedCapsules.map((capsule, index) => (
-                <div key={capsule.key + index} className={`workers-capsule accent-${capsule.accent} is-${capsule.tone}`}>
-                  <span className="workers-capsule-worker">{capsule.routeLabel}</span>
-                  <strong>{capsule.brand}</strong>
-                  <span className="workers-capsule-meta">{capsule.meta} · {capsule.contact}</span>
-                  <span className="workers-capsule-summary">{capsule.summary}</span>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
-      </section>
+      </div>
 
       <section className="workers-lanes">
         {filteredWorkers.map((worker, index) => (
@@ -7919,6 +7872,7 @@ function V4CompanyOsMailboxOrigin(lead) {
 
 function V4OperatorStatus(lead) {
   const status = String(lead?.draftReplyStatus || '').toLowerCase();
+  if (status === 'review') return { label: 'Needs review', tone: 'warn' };
   if (status === 'escalated') return { label: 'Needs approval', tone: 'warn' };
   if (status === 'pending') return { label: 'Draft ready', tone: 'good' };
   if (status === 'sent') return { label: 'Auto-sent', tone: 'neutral' };
@@ -9991,8 +9945,10 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   const briefingItems = awake.filter(l => l.stage === 'done').sort(byRecent);
   const waitingItems = activeItems.filter(l => !l.unread && !l.nextMove?.who).sort(byRecent);
   const closedItems = awake.filter(l => ['done', 'paid-out'].includes(l.stage)).sort(byRecent);
+  const reviewItems = awake.filter(l => String(l.draftReplyStatus || '').toLowerCase() === 'review').sort(byStale);
 
   const splits = [
+    { id: 'review',   label: 'Needs review',     section: 'Workflow', hot: reviewItems.length > 0, hint: 'Scam gate flagged these. Approve and send, or dismiss.', items: reviewItems },
     { id: 'reply',    label: 'New activity',     section: 'Workflow', hot: true, items: replyItems },
     { id: 'followups',label: 'Follow ups',       section: 'Workflow', hot: followUpItems.length > 0, items: followUpItems },
     { id: 'pricing',  label: 'Pricing sent',     section: 'Workflow', items: pricingItems },
@@ -10090,6 +10046,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   });
 
   const replyCount = splits.find(s => s.id === 'reply')?.items.length || 0;
+  const reviewCount = reviewItems.length;
   const followUpCount = splits.find(s => s.id === 'followups')?.items.length || 0;
   const p0Count = live.filter(l => l.unread || l.stage === 'invoice-sent').length;
   const invoicedOutstanding = live.filter(l => l.stage === 'invoice-sent').reduce((s, l) => s + (l.value || 0), 0);
@@ -10102,6 +10059,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
           <V4CompanyOsBuildingIcon size={18} />
           <strong>UnalignedOS</strong>
         </span>
+        {reviewCount > 0 && <span className="cos-kpi cos-kpi-tight cos-kpi-review" onClick={() => setSplitId('review')} style={{ cursor: 'pointer' }} title="Scam gate flagged these for you"><strong><AnimatedCounter value={reviewCount} /></strong> to review</span>}
         <span className="cos-kpi cos-kpi-tight"><strong><AnimatedCounter value={p0Count} /></strong> P0</span>
         <span className="cos-kpi cos-kpi-tight cos-kpi-accent"><strong><AnimatedCounter value={replyCount} /></strong> reply now</span>
         <span className="cos-kpi cos-kpi-tight"><strong><AnimatedCounter value={followUpCount} /></strong> 2d follow ups</span>
