@@ -9934,6 +9934,30 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
   );
 }
 
+// Premium animated counter — counts up on load and on value change ("alive" metrics)
+function AnimatedCounter({ value, className = '', format }) {
+  const [display, setDisplay] = React.useState(0);
+  const prevRef = React.useRef(0);
+  React.useEffect(() => {
+    const start = prevRef.current;
+    const end = value;
+    if (start === end) { setDisplay(end); return; }
+    const duration = 600;
+    const startTime = performance.now();
+    let raf;
+    const animate = (now) => {
+      const progress = Math.min((now - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplay(Math.round(start + (end - start) * eased));
+      if (progress < 1) { raf = requestAnimationFrame(animate); }
+      else { setDisplay(end); prevRef.current = end; }
+    };
+    raf = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+  return <span className={className} data-changing={prevRef.current !== value}>{format ? format(display) : display}</span>;
+}
+
 function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, onNavigateView }) {
   React.useEffect(() => {
     V4MaybeRedirectToMachineHostedApp();
@@ -10078,11 +10102,11 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
           <V4CompanyOsBuildingIcon size={18} />
           <strong>UnalignedOS</strong>
         </span>
-        <span className="cos-kpi cos-kpi-tight"><strong>{p0Count}</strong> P0</span>
-        <span className="cos-kpi cos-kpi-tight cos-kpi-accent"><strong>{replyCount}</strong> reply now</span>
-        <span className="cos-kpi cos-kpi-tight"><strong>{followUpCount}</strong> 2d follow ups</span>
-        <span className="cos-kpi cos-kpi-tight"><strong>{V4CompanyOsMoney(invoicedOutstanding) || '$0'}</strong> Terms / pay</span>
-        <span className="cos-kpi cos-kpi-tight"><strong>{V4CompanyOsMoney(openPipeline) || '$0'}</strong> In play</span>
+        <span className="cos-kpi cos-kpi-tight"><strong><AnimatedCounter value={p0Count} /></strong> P0</span>
+        <span className="cos-kpi cos-kpi-tight cos-kpi-accent"><strong><AnimatedCounter value={replyCount} /></strong> reply now</span>
+        <span className="cos-kpi cos-kpi-tight"><strong><AnimatedCounter value={followUpCount} /></strong> 2d follow ups</span>
+        <span className="cos-kpi cos-kpi-tight"><strong><AnimatedCounter value={invoicedOutstanding} format={v => V4CompanyOsMoney(v) || '$0'} /></strong> Terms / pay</span>
+        <span className="cos-kpi cos-kpi-tight"><strong><AnimatedCounter value={openPipeline} format={v => V4CompanyOsMoney(v) || '$0'} /></strong> In play</span>
         <button type="button" className="cos-refresh-btn cos2-refresh" onClick={() => window.location.reload()}>↻ Refresh</button>
       </header>
       <div className={'cos2-body' + (mobileOpen ? ' is-mobile-open' : '')}>
