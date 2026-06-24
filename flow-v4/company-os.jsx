@@ -2523,6 +2523,10 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
   const replyAction = ['Reply', 'Send', 'Nudge'].includes(lead.nextMove?.action);
   const owner = lead.ownerId ? USERS[lead.ownerId] : null;
   const operatorStatus = V4OperatorStatus(lead);
+  const isReview = String(lead.draftReplyStatus || '').toLowerCase() === 'review';
+  const reviewReason = (Array.isArray(lead.activity)
+    ? (lead.activity.filter(a => String(a.user || '') === 'Scam gate').slice(-1)[0] || {}).action
+    : '') || 'Verify the sender and what they are proposing before committing.';
   const operatorSummary = lead.operatorSummary || {};
   const operatorAnalysis = lead.operatorAnalysis || {};
   const operatorEscalation = Array.isArray(lead.operatorEscalation) ? lead.operatorEscalation : [];
@@ -2656,6 +2660,18 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
           <ul className="brief-points">
             {briefItem.points.map((p, i) => <li key={i}>{V4CleanDisplayText(p)}</li>)}
           </ul>
+        </div>
+      )}
+      {isReview && (
+        <div className="cos2-review-banner">
+          <div className="cos2-review-banner-msg">
+            <strong>Scam gate flagged this for review</strong>
+            <span>{reviewReason}</span>
+          </div>
+          <div className="cos2-review-banner-btns">
+            {lead.draftReply && <button type="button" className="cos2-review-approve" onClick={() => setComposeOpen(true)}>Approve &amp; send</button>}
+            <button type="button" className="cos2-review-dismiss" onClick={() => { if (window.confirm('Dismiss as scam and move to Trash?')) window.V3.MoveLeadStage(lead, 'trash'); }}>Dismiss (scam)</button>
+          </div>
         </div>
       )}
       <div className="cos-reader-hero">

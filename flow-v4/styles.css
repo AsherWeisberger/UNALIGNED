@@ -8191,6 +8191,23 @@ body[data-theme="dark"] .twk-panel {
 .cos-kpi-tight {
   padding: 5px 9px; font-size: 11px;
 }
+.cos2-review-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  margin: 12px 16px 0; padding: 12px 16px;
+  background: #fef3f2; border: 1px solid #fecdca; border-radius: var(--radius-md);
+}
+.cos2-review-banner-msg { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cos2-review-banner-msg strong { color: #b42318; font-size: 13px; font-weight: 600; }
+.cos2-review-banner-msg span { color: #912018; font-size: 12px; line-height: 1.4; }
+.cos2-review-banner-btns { display: flex; gap: 8px; flex-shrink: 0; }
+.cos2-review-approve, .cos2-review-dismiss {
+  font: 500 12px/1 var(--font-body); padding: 8px 12px; border-radius: var(--radius-sm);
+  cursor: pointer; border: 1px solid transparent; white-space: nowrap;
+}
+.cos2-review-approve { background: var(--accent); color: #fff; }
+.cos2-review-approve:hover { background: var(--accent-hover); }
+.cos2-review-dismiss { background: #fff; color: #b42318; border-color: #fecdca; }
+.cos2-review-dismiss:hover { background: #fee4e2; }
 .cos-refresh-btn {
   display: inline-flex; align-items: center; gap: 6px;
   font: 500 12px/1 var(--font-body);
