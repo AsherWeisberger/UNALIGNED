@@ -846,15 +846,27 @@ def llm_prompt_for_drafts(source: dict, base_payload: dict) -> str:
     status_lines = "\n".join(f"- {line(item)}" for item in (base_payload.get("status_note") or [])[:8] if line(item))
     source_text = line(source.get("source_text"))[:5500]
     email_context = line(source.get("email_context"))
-    return f"""You are writing Robert Scoble campaign copy.
+    return f"""You are writing posts in the voice of Robert Scoble. Match his voice exactly. This is the most important instruction.
+
+Who Robert is: a veteran tech analyst and futurist. He writes a weekly newsletter on where the industry is heading. He is calm, credible, and writes in plain first person. He is not a hype man and never sounds like marketing.
+
+How Robert writes (follow this cadence):
+- Open with a point of view or a contrarian observation, never a hype line or a product name. State a thesis in the first sentence. Openers feel like: "I have said for a while that..." / "Here is what actually changed..." / "Everyone is doing X and treating it as normal. It is not."
+- Then plain, declarative sentences. Short paragraphs. He explains why something matters for the larger shift, not just what the product does.
+- He often contrasts what matters against what does not. For example: "Safety will matter more than impressive demos."
+- He earns the claim with one or two concrete proof points pulled straight from the source: a real number, a named mechanic, a specific launch detail. Never vague.
+- He closes with his own read in his own words. AlignedNews.com is his lens on the bigger shift, mentioned once and naturally, like "that is the shift I track at AlignedNews.com" or "this is the move from hobby to infrastructure, which is the whole reason I write AlignedNews.com." Never a tacked on slogan.
+- Banned, because they are not his voice: marketing-intern hype, exclamation-heavy lines, slogans, "nails what nobody wants to admit", "this matters because", "see behaviors", and feature bullet lists that read like a product sheet.
+
+Two examples of the OPENING cadence only. Match the rhythm, never reuse the content:
+1. "I have said for a while that an agent which only runs when your laptop is awake is not an agent. It is a demo."
+2. "Most teams still do this by hand and act like that is fine. The interesting part is what happens when the work starts running on its own."
 
 Return valid JSON only. No markdown fence. No explanation.
 No hyphens or em dashes anywhere.
-Write like a sharp operator, not a marketing intern.
 Each draft must feel source specific, not templated.
 Do not repeat the same CTA line in every option.
 Do not fill space with links. Use links only where they help the close.
-Use AlignedNews.com naturally where it genuinely fits.
 Use the last sender email context when present to understand what the sponsor emphasized, how they framed the ask, and any delivery constraints.
 
 Return exactly this JSON:
@@ -992,7 +1004,13 @@ def query_local_brief_drafts(source: dict, base_payload: dict) -> dict | None:
     prompt = llm_prompt_for_drafts(source, base_payload)
     return query_local_brief_json(
         prompt=prompt,
-        system_prompt="You write premium campaign copy and return strict JSON only.",
+        system_prompt=(
+            "You write social posts in the voice of Robert Scoble: a calm, credible tech "
+            "analyst and futurist. Thesis first, plain declarative first person, a contrarian "
+            "opening, concrete proof points from the source, and a natural close in his own "
+            "words. Never marketing hype, slogans, or feature bullet lists. No hyphens. "
+            "Return strict JSON only."
+        ),
         max_tokens=2200,
         stage_label="brief-drafts",
     )
@@ -2215,6 +2233,35 @@ def source_to_brief_payload(source: dict, source_url: str, email_context: str = 
     return payload
 
 
+def sync_asher_gmail_now() -> dict:
+    """Pull Asher Gmail into Supabase so Company OS mirrors the live inbox."""
+    script = ACTIVE_SCRIPTS_DIR / "sync_asher_gmail_now.py"
+    brief_log("Starting on-demand Asher Gmail sync")
+    result = subprocess.run(
+        [sys.executable, str(script)],
+        cwd=str(WEB_ROOT),
+        capture_output=True,
+        text=True,
+        timeout=int(os.environ.get("ASHER_SYNC_TIMEOUT_SEC", "180")),
+    )
+    payload: dict = {}
+    if result.stdout.strip():
+        try:
+            payload = json.loads(result.stdout)
+        except Exception:
+            payload = {"ok": False, "error": (result.stdout or result.stderr or "sync failed")[:500]}
+    if result.returncode != 0 and payload.get("ok") is not False:
+        payload = {
+            "ok": False,
+            "error": (result.stderr or result.stdout or "Asher Gmail sync failed")[:500],
+        }
+    brief_log(
+        "Asher Gmail sync finished "
+        f"ok={payload.get('ok')} patched={payload.get('threads_patched')} new={payload.get('new_cards_written')}"
+    )
+    return payload
+
+
 def import_notion_brief(notion_url: str, email_context: str = "") -> dict:
     notion_url = line(notion_url)
     if not notion_url:
@@ -2915,7 +2962,7 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
         if path not in (
             "/generate-brief-doc", "/start-brief-job", "/create-calendar-hold",
             "/import-notion-brief", "/import-source-brief", "/draft-robert-handoff",
-            "/send-robert-handoff", "/complete",
+            "/send-robert-handoff", "/complete", "/sync-asher-gmail",
         ):
             send_json(self, 404, {"ok": False, "error": "Unknown endpoint."})
             return
@@ -2927,6 +2974,9 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
             if path == "/complete":
                 send_json(self, 200, complete_local_llm(payload))
+                return
+            if path == "/sync-asher-gmail":
+                send_json(self, 200, sync_asher_gmail_now())
                 return
             if path == "/generate-brief-doc":
                 result = create_brief_doc(payload)
