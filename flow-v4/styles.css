@@ -12712,13 +12712,14 @@ body[data-theme="light"] .cos-reader-brief .brief-panel {
   box-shadow: none;
 }
 
-/* Gmail reading column — narrow content, thread + reply share one lane */
+/* Gmail reading pane — full width of reader, comfortable side gutters */
 body[data-theme="light"] .cos2-gmail-shell {
   flex: 1;
   min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  width: 100%;
 }
 
 body[data-theme="light"] .cos2-gmail-column {
@@ -12727,24 +12728,26 @@ body[data-theme="light"] .cos2-gmail-column {
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-width: 600px;
-  padding: 0 16px 0 32px;
+  max-width: none;
+  padding: 0 clamp(20px, 3vw, 40px) 0 clamp(28px, 4vw, 56px);
 }
 
 body[data-theme="light"] .cos2-gmail-subject-hd {
   flex-shrink: 0;
-  padding: 14px 0 10px;
+  width: 100%;
+  padding: 16px 0 12px;
   border-bottom: 1px solid var(--line);
 }
 
 body[data-theme="light"] .cos2-gmail-subject {
   font-family: var(--font-display);
-  font-size: 20px;
+  font-size: clamp(18px, 2.2vw, 22px);
   font-weight: 400;
   line-height: 1.35;
-  margin: 0 0 5px;
+  margin: 0 0 6px;
   color: var(--text);
   letter-spacing: -0.01em;
+  max-width: none;
 }
 
 body[data-theme="light"] .cos2-gmail-submeta {
@@ -12809,47 +12812,62 @@ body[data-theme="light"] .cos2-reader--thread-tab .cos2-gmail-column .act-thread
 
 body[data-theme="light"] .cos2-reader--thread-tab .cos2-gmail-column .act {
   gap: 0;
+  width: 100%;
 }
 
 body[data-theme="light"] .cos2-reader--thread-tab .cos2-gmail-column .act-item {
+  width: 100%;
+  margin: 0 0 2px;
+  padding: 18px clamp(16px, 2.5vw, 28px) 22px;
   border: none;
   border-radius: 0;
-  background: transparent;
+  background: var(--surface);
   box-shadow: none;
-  border-bottom: none;
-  padding: 12px 0 4px;
+  border-bottom: 1px solid var(--line-soft);
 }
 
 body[data-theme="light"] .cos2-reader--thread-tab .cos2-gmail-column .act-item:last-of-type {
-  padding-bottom: 0;
+  border-bottom: none;
+  padding-bottom: 16px;
 }
 
 body[data-theme="light"] .cos2-reader--thread-tab .cos2-gmail-column .act-item-hd {
   margin: 0;
-  padding: 0 0 6px;
+  padding: 0 0 14px;
   border: none;
+  border-bottom: 1px solid var(--line-soft);
 }
 
 body[data-theme="light"] .cos2-reader--thread-tab .cos2-gmail-column .act-item-body {
-  padding: 0 0 2px 40px;
+  padding: 16px 0 0;
   max-width: none;
-  font-size: 13.5px;
-  line-height: 1.58;
+  width: 100%;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text);
 }
 
 body[data-theme="light"] .cos2-reader--thread-tab .cos2-gmail-column .act-item-subject {
   display: none;
 }
 
-body[data-theme="light"] .cos2-gmail-column .mail-compose--gmail {
-  border-radius: 12px;
-  box-shadow: 0 1px 2px rgba(17, 32, 51, 0.06), 0 0 0 1px var(--line);
+body[data-theme="light"] .cos2-gmail-column .mail-compose--gmail,
+body[data-theme="light"] .cos2-gmail-column .mail-compose--inline {
+  width: 100%;
+  border-radius: 0;
+  box-shadow: none;
+  border: 1px solid var(--line-soft);
+  border-left: 3px solid var(--accent-line);
+  background: var(--surface);
+}
+
+body[data-theme="light"] .cos2-gmail-column .cos2-compose-dock--inline {
+  width: 100%;
+  padding: 8px 0 24px;
 }
 
 /* Inline reply — spacious editor like Gmail, directly under last message */
 body[data-theme="light"] .mail-compose--inline {
-  border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(17, 32, 51, 0.07), 0 0 0 1px var(--line);
   overflow: visible;
 }
 
