@@ -9729,13 +9729,58 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
   );
 }
 
-function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
+function V6SourceClass(source) {
+  const s = String(source || '').toLowerCase();
+  if (s.includes('gmail') || s === 'email') return 'gmail';
+  if (s.includes('x') || s.includes('twitter')) return 'x';
+  return 'lead';
+}
+
+function V6RowFact(lead, item) {
+  let raw = (lead?.nextMove && lead.nextMove.text)
+    || (item?.points && item.points[0])
+    || V4CompanyOsListSnippet(lead)
+    || '';
+  let cleaned = V4CleanDisplayText(raw);
+  if (cleaned.toLowerCase().includes('review drafted reply') || cleaned.length < 8) {
+    const phase = V4CompanyOsPhase(lead);
+    const val = lead?.value ? `${V4CompanyOsMoney(lead.value)} ` : '';
+    cleaned = `${phase} • ${val}${lead?.daysInStage || 0}d`.trim();
+  }
+  if (cleaned.length <= 88) return cleaned;
+  return cleaned.slice(0, 85).trim() + '…';
+}
+
+function V6ListRow({ lead, title, isCurrent, onClick, style }) {
+  const brand = V4CleanDisplayText(title || lead?.brand || 'Lead');
+  const source = lead?.source || 'lead';
+  const age = lead?.daysInStage ? `${lead.daysInStage}d` : (lead?.lastTouch || '');
+  const fact = V6RowFact(lead);
+  return (
+    <button
+      type="button"
+      className={`v6-row${isCurrent ? ' cur' : ''}`}
+      style={style}
+      onClick={onClick}
+    >
+      <span className={`v6-dot${lead?.unread ? '' : ' off'}`} />
+      <span className="v6-brand-t">{brand}</span>
+      <span className={`v6-src ${V6SourceClass(source)}`}>{source}</span>
+      <span className="v6-age">{age}</span>
+      <span className="v6-fact">{fact}</span>
+    </button>
+  );
+}
+
+function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief, briefItem }) {
   const { STAGE_BY_ID, USERS } = window.V3;
   const [tab, setTab] = React.useState('thread');
   React.useEffect(() => { setTab('thread'); }, [lead?.id]);
   if (!lead) {
     return <div className="cos2-reader"><div className="cos2-reader-empty">Select a thread from the list.</div></div>;
   }
+
+  const isBriefSelected = isBrief && briefItem;
   const stage = STAGE_BY_ID[lead.stage];
   const nextOwner = lead.nextMove?.who ? USERS[lead.nextMove.who] : null;
   const isMine = window.V3.MoveIsMineForProfile(lead, user);
@@ -9760,6 +9805,16 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
   const xContextRows = V4XLeadContextRows(lead);
   const moveLead = (nextStage) => window.V3.MoveLeadStage(lead, nextStage);
   const clearUnread = () => V4CosPatchLead(lead, { new_reply_at: null }, { unread: false });
+
+  const briefSummary = isBriefSelected ? (
+    <div className="brief-detail-summary">
+      <h4>Brief Summary</h4>
+      <ul className="brief-points">
+        {briefItem.points.map((p, i) => <li key={i}>{V4CleanDisplayText(p)}</li>)}
+      </ul>
+    </div>
+  ) : null;
+
   const readerOps = (
     <>
       <div className="cos-quick-actions">
@@ -9852,8 +9907,15 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
       <V4CompanyOsExecutionPanel lead={lead} execution={execution} />
     </>
   );
+  const moveEyebrow = isMine ? "ASHER'S MOVE" : isThem ? `WAITING ON ${String(lead.contactName || '').split(' ')[0].toUpperCase()}` : nextOwner ? `${nextOwner.name.toUpperCase()}'S MOVE` : 'NEXT MOVE';
+  const threadId = lead.gmailThreadId || lead.id || '';
+  const threadIdShort = String(threadId).slice(-8).toUpperCase();
+
   return (
-    <div className="cos2-reader">
+    <div className="cos2-reader v6-reader">
+      <button className="hd-icon-btn cos2-back v6-back-mobile" onClick={onBack} aria-label="Back to list" type="button">
+        <V3Icon name="chev_d" w={14} style={{ transform: 'rotate(90deg)' }} />
+      </button>
       <div className="drawer-hd">
         <button className="hd-icon-btn cos2-back" onClick={onBack} aria-label="Back to list">
           <V3Icon name="chev_d" w={14} style={{ transform: 'rotate(90deg)' }} />
@@ -9864,6 +9926,29 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
           {stage.name}
         </span>
       </div>
+      <div className="v6-rhead fadein">
+        <div className="v6-tags">
+          {(lead.unread || lead.needsReply) && <span className="v6-tag hot">Action now</span>}
+          <span className="v6-tag">{lead.source || 'Lead'}</span>
+          {lead.category && <span className="v6-tag">{lead.category}</span>}
+          {owner && <span className="v6-tag">Owner · {owner.name}</span>}
+          <span className="v6-tag">{lead.daysInStage || 0}d in stage</span>
+        </div>
+        <h1>{V4CleanDisplayText(lead.brand)}</h1>
+        <div className="v6-sub">
+          {lead.contactName}
+          {lead.email ? ` · ${lead.email}` : ''}
+          {threadIdShort ? ` · thread ${threadIdShort}` : ''}
+        </div>
+      </div>
+      {isBriefSelected && briefItem && (
+        <div className="brief-detail-summary">
+          <h4>Brief Summary</h4>
+          <ul className="brief-points">
+            {briefItem.points.map((p, i) => <li key={i}>{V4CleanDisplayText(p)}</li>)}
+          </ul>
+        </div>
+      )}
       {isReview && (
         <div className="cos2-review-banner">
           <div className="cos2-review-banner-msg">
@@ -9876,7 +9961,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
           </div>
         </div>
       )}
-      <div className="cos-reader-hero">
+      <div className="cos-reader-hero fadein" style={{ animationDelay: '.06s' }}>
         <div className="drawer-top">
           <V3Avatar name={lead.contactName} color={lead.color} size="lg" />
           <div className="drawer-top-text">
@@ -9903,14 +9988,10 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
           {lead.deliverables ? <span className="drawer-fact drawer-fact-wide" title={lead.deliverables}>{lead.deliverables}</span> : null}
           {operatorBadgeVisible ? <span className="drawer-fact">{operatorStatus.label}</span> : null}
         </div>
-        <div className={'next-move next-move-compact ' + (isMine ? '' : 'them')}>
-          <div className="next-move-icon">
-            <V3Icon name={isMine ? 'reply' : 'clock'} w={16} />
-          </div>
+        <div className={'next-move next-move-compact v6-move ' + (isMine ? '' : 'them')}>
+          <div className="next-move-icon" aria-hidden="true">→</div>
           <div className="next-move-text">
-            <div className="next-move-eyebrow">
-              {isMine ? 'Your move' : isThem ? `Waiting on ${lead.contactName.split(' ')[0]}` : nextOwner ? `${nextOwner.name}'s move` : 'Next move'}
-            </div>
+            <div className="next-move-eyebrow">{moveEyebrow}</div>
             <div className="next-move-title">{lead.nextMove?.text || listSnippet}</div>
           </div>
           {isMine && replyAction && (
@@ -9927,6 +10008,20 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
               )}
             </div>
           )}
+        </div>
+      </div>
+      <div className="v6-metrics fadein" style={{ animationDelay: '.12s' }}>
+        <div className="v6-metric">
+          <div className="l">Deal value</div>
+          <div className={'v' + (lead.value ? ' pos' : '')}>{lead.value ? v3Money(lead.value) : '—'}</div>
+        </div>
+        <div className="v6-metric">
+          <div className="l">Days in stage</div>
+          <div className="v">{lead.daysInStage || 0}</div>
+        </div>
+        <div className="v6-metric">
+          <div className="l">Emails</div>
+          <div className="v">{Array.isArray(lead.thread) ? lead.thread.length : 0}</div>
         </div>
       </div>
       <div className="drawer-tabs">
@@ -10006,27 +10101,36 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack }) {
   );
 }
 
-// Premium animated counter — counts up on load and on value change ("alive" metrics)
+// Small premium animated counter for "alive" metrics
 function AnimatedCounter({ value, className = '', format }) {
-  const [display, setDisplay] = React.useState(0);
-  const prevRef = React.useRef(0);
+  const [display, setDisplay] = React.useState(value);
+  const prevRef = React.useRef(value);
+
   React.useEffect(() => {
+    if (prevRef.current === value) return;
     const start = prevRef.current;
     const end = value;
-    if (start === end) { setDisplay(end); return; }
-    const duration = 600;
+    const duration = 420;
     const startTime = performance.now();
-    let raf;
+
     const animate = (now) => {
       const progress = Math.min((now - startTime) / duration, 1);
+      // ease out
       const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplay(Math.round(start + (end - start) * eased));
-      if (progress < 1) { raf = requestAnimationFrame(animate); }
-      else { setDisplay(end); prevRef.current = end; }
+      const current = Math.round(start + (end - start) * eased);
+      setDisplay(current);
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        setDisplay(end);
+        prevRef.current = end;
+      }
     };
-    raf = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(raf);
+
+    requestAnimationFrame(animate);
   }, [value]);
+
   return <span className={className} data-changing={prevRef.current !== value}>{format ? format(display) : display}</span>;
 }
 
@@ -10063,31 +10167,106 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   const briefingItems = awake.filter(l => l.stage === 'done').sort(byRecent);
   const waitingItems = activeItems.filter(l => !l.unread && !l.nextMove?.who).sort(byRecent);
   const closedItems = awake.filter(l => ['done', 'paid-out'].includes(l.stage)).sort(byRecent);
+  // Scam-gate flagged leads — the machine paused these for a human decision (approve & send, or dismiss)
   const reviewItems = awake.filter(l => String(l.draftReplyStatus || '').toLowerCase() === 'review').sort(byStale);
 
+  // Helper to compute total value for a list of items
+  const totalValue = (items) => items.reduce((sum, l) => sum + (l.value || 0), 0);
+
+  // Brief mode: Action now leads first, then Watch (Superhuman "Today" / prioritized inbox)
+  const briefActionLeads = activeItems
+    .filter(l => l.needsReply || l.stage === 'invoice-sent' || (l.daysInStage >= 6 && (l.value || 0) > 1500))
+    .sort((a, b) => (b.daysInStage || 0) - (a.daysInStage || 0) || (b.value || 0) - (a.value || 0))
+    .slice(0, 5);
+
+  const briefWatchLeads = activeItems
+    .filter(l => !l.needsReply && ['rates-sent', 'negotiating', 'first-touch', 'engaged'].includes(l.stage))
+    .sort(byRecent)
+    .slice(0, 5);
+
+  const briefItems = [...briefActionLeads, ...briefWatchLeads];
+
+  // Use the computed summaries for clean, short display in the brief list (like original brief cards)
+  const briefSummaries = React.useMemo(() => V4ComputeDailyBrief(live), [live]);
+
   const splits = [
-    { id: 'review',   label: 'Needs review',     section: 'Workflow', hot: reviewItems.length > 0, hint: 'Scam gate flagged these. Approve and send, or dismiss.', items: reviewItems },
-    { id: 'reply',    label: 'New activity',     section: 'Workflow', hot: true, items: replyItems },
-    { id: 'followups',label: 'Follow ups',       section: 'Workflow', hot: followUpItems.length > 0, items: followUpItems },
-    { id: 'pricing',  label: 'Pricing sent',     section: 'Workflow', items: pricingItems },
-    { id: 'nego',     label: 'Negotiating',      section: 'Workflow', items: negoItems },
-    { id: 'payment',  label: 'Payment / terms',  section: 'Workflow', items: paymentItems },
-    { id: 'briefing', label: 'Brief / calendar', section: 'Workflow', items: briefingItems },
-    { id: 'waiting',  label: 'Waiting on them',  section: 'Workflow', items: waitingItems },
+    {
+      id: 'review',
+      label: 'Needs review',
+      hint: 'Scam gate flagged these. Approve and send, or dismiss.',
+      section: 'Workflow',
+      hot: reviewItems.length > 0,
+      items: reviewItems
+    },
+    {
+      id: 'reply',
+      label: 'Reply now',
+      hint: 'Unread messages where you need to respond',
+      section: 'Workflow', 
+      hot: true, 
+      items: replyItems 
+    },
+    { 
+      id: 'followups',
+      label: 'Follow-ups', 
+      hint: 'Scheduled check-ins due',
+      section: 'Workflow', 
+      hot: followUpItems.length > 0, 
+      items: followUpItems 
+    },
+    { 
+      id: 'pricing',  
+      label: 'Pricing sent', 
+      hint: 'Rates proposed, awaiting reply',
+      section: 'Workflow', 
+      items: pricingItems 
+    },
+    { 
+      id: 'nego',     
+      label: 'Negotiating', 
+      hint: 'Active back-and-forth on scope or price',
+      section: 'Workflow', 
+      items: negoItems 
+    },
+    { 
+      id: 'payment',  
+      label: 'Payment chase', 
+      hint: 'Invoice sent, chasing proof or terms',
+      section: 'Workflow', 
+      items: paymentItems 
+    },
+    { 
+      id: 'briefing', 
+      label: 'Brief ready', 
+      hint: 'Deal closed, prep Robert execution',
+      section: 'Workflow', 
+      items: briefingItems 
+    },
+    { 
+      id: 'waiting',  
+      label: 'Waiting', 
+      hint: 'No outstanding move from our side',
+      section: 'Workflow', 
+      items: waitingItems 
+    },
     { id: 'snoozed', label: 'Snoozed',         section: 'System', items: live.filter(isSnoozed).sort((a, b) => Date.parse(snoozes[a.id]) - Date.parse(snoozes[b.id])) },
     { id: 'closed',  label: 'Done and paid',   section: 'System', items: closedItems },
     { id: 'trash',   label: 'Trash',           section: 'System', trash: true, items: base.filter(l => ['trash', 'dead-leads'].includes(l.stage)).sort(byRecent) },
-    { id: 'brief',   label: 'Overview',        section: 'System', brief: true },
+    { id: 'brief',   label: 'Overview',        section: 'System', items: briefItems, isBrief: true },
     { id: 'toolkit', label: 'Toolkit',         section: 'System', toolkit: true, items: V4_COMPANY_OS_TOOLKIT },
   ];
 
-  const [splitId, setSplitId] = React.useState('reply');
+  const [splitId, setSplitId] = React.useState('brief');
   const [selId, setSelId] = React.useState(null);
   const [composeOpen, setComposeOpen] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const split = splits.find(s => s.id === splitId) || splits[0];
   const items = split.items || [];
-  const selected = items.find(l => String(l.id) === String(selId)) || items[0] || null;
+  let selected = items.find(l => String(l.id) === String(selId)) || items[0] || null;
+  // Fallback to live for cases where brief summaries have items not in the sliced briefItems (e.g. data timing)
+  if (split.isBrief && selId && (!selected || String(selected.id) !== String(selId))) {
+    selected = live.find(l => String(l.id) === String(selId)) || selected;
+  }
 
   React.useEffect(() => {
     try {
@@ -10170,9 +10349,16 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   const invoicedOutstanding = live.filter(l => l.stage === 'invoice-sent').reduce((s, l) => s + (l.value || 0), 0);
   const openPipeline = live.filter(l => !['done', 'paid-out'].includes(l.stage)).reduce((s, l) => s + (l.value || 0), 0);
 
+  const { USERS } = window.V3;
+  const briefDateLabel = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase();
+
   return (
     <section className="page cos2-page">
-      <header className="cos2-top">
+      <header className="cos2-top v6-topbar">
+        <div className="v6-brand">
+          <div className="v6-mark" aria-hidden="true">U</div>
+          <div className="v6-wm">UNALIGNED<small>ACTIVE WORKSPACE</small></div>
+        </div>
         <span className="cos2-brand">
           <V4CompanyOsBuildingIcon size={18} />
           <strong>UNALIGNED</strong>
@@ -10187,9 +10373,20 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
           )}
           <div className="cos2-stat"><span className="cos2-stat-lbl">P0 open</span><span className="cos2-stat-num"><AnimatedCounter value={p0Count} /></span></div>
           <div className="cos2-stat cos2-stat-accent"><span className="cos2-stat-lbl">Reply now</span><span className="cos2-stat-num"><AnimatedCounter value={replyCount} /></span></div>
-          <div className="cos2-stat"><span className="cos2-stat-lbl">2d follow ups</span><span className="cos2-stat-num"><AnimatedCounter value={followUpCount} /></span></div>
-          <div className="cos2-stat"><span className="cos2-stat-lbl">Terms / pay</span><span className="cos2-stat-num cos2-stat-money"><AnimatedCounter value={invoicedOutstanding} format={v => V4CompanyOsMoney(v) || '$0'} /></span></div>
-          <div className="cos2-stat"><span className="cos2-stat-lbl">In play</span><span className="cos2-stat-num cos2-stat-money"><AnimatedCounter value={openPipeline} format={v => V4CompanyOsMoney(v) || '$0'} /></span></div>
+          <div className="cos2-stat"><span className="cos2-stat-lbl">Terms / pay</span><span className="cos2-stat-num cos2-stat-money"><AnimatedCounter value={invoicedOutstanding} format={v => '$' + v.toLocaleString()} /></span></div>
+          <div className="cos2-stat"><span className="cos2-stat-lbl">In play</span><span className="cos2-stat-num cos2-stat-money"><AnimatedCounter value={openPipeline} format={v => '$' + v.toLocaleString()} /></span></div>
+        </div>
+        <div className="v6-spacer" />
+        <div className="v6-avatars" aria-label="Team">
+          {['robert', 'sammy', 'asher'].map((id) => {
+            const u = USERS[id];
+            if (!u) return null;
+            return (
+              <div key={id} title={u.name}>
+                <V3Avatar name={u.name} color={u.color} size="xs" />
+              </div>
+            );
+          })}
         </div>
         <button type="button" className="cos-refresh-btn cos2-refresh" onClick={() => window.location.reload()}>↻ Refresh</button>
       </header>
@@ -10202,9 +10399,25 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
               )}
               <button type="button"
                       className={'cos2-split' + (s.id === split.id ? ' is-active' : '') + (s.hot ? ' is-hot' : '')}
-                      onClick={() => setSplitId(s.id)}>
-                <span className="cos2-split-label">{s.label}</span>
-                {!s.brief && !s.toolkit && <span className="cos2-split-cnt">{s.items.length}</span>}
+                      onClick={() => setSplitId(s.id)}
+                      title={s.hint || ''}>
+                <span className="cos2-split-label">
+                  {s.label}
+                </span>
+                {!s.toolkit && !s.brief && (
+                  <span className="cos2-split-cnt">
+                    {(['payment', 'pricing', 'nego'].includes(s.id) && totalValue(s.items) > 0)
+                      ? V4CompanyOsMoney(totalValue(s.items))
+                      : (() => {
+                          const count = s.items.length;
+                          const stale = s.items.filter(l => (l.daysInStage || 0) >= 5).length;
+                          return stale > 0 ? `${count} (${stale} old)` : count;
+                        })()}
+                  </span>
+                )}
+                {s.brief && (
+                  <span className="cos2-split-cnt"><AnimatedCounter value={briefSummaries.action.length + briefSummaries.watch.length} /></span>
+                )}
               </button>
             </React.Fragment>
           ))}
@@ -10218,59 +10431,119 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
             <span><kbd>?</kbd> help</span>
           </div>
         </nav>
-        {split.brief ? (
-          <div className="cos2-main-scroll"><V4CosOverview leads={live} replyCount={replyCount} /></div>
-        ) : split.toolkit ? (
+        {split.toolkit ? (
           <div className="cos2-main-scroll"><V4CosToolkit onNavigateView={onNavigateView} onActivateSplit={setSplitId} /></div>
         ) : (
           <>
             <div className="cos2-list">
-              {items.map(l => (
-                <div key={l.id} className={'cos2-row-wrap' + (String(l.id) === String(selected?.id) ? ' is-current' : '')}>
-                  {(() => {
-                    const rowOperator = V4OperatorStatus(l);
-                    const showRowOperator = rowOperator.label !== 'Monitoring';
-                    const rowSnippet = V4CompanyOsListSnippet(l);
-                    return (
-                  <button type="button"
-                          className={'cos2-row' + (String(l.id) === String(selected?.id) ? ' is-current' : '')}
-                          onClick={() => { setSelId(l.id); setMobileOpen(true); }}>
-                    <span className="cos2-row-top">
-                      <span className="cos2-row-brandline">
-                        {l.unread && <span className="dq-dot" />}
-                        <span className="cos2-row-brand">{l.brand}</span>
-                        <span className={'cos2-row-source is-' + String(l.source || '').toLowerCase()}>{l.source || 'lead'}</span>
-                      </span>
-                      {showRowOperator && (l.draftReply || l.operatorMemory) && (
-                        <span className={'cos2-row-operator is-' + rowOperator.tone}>{rowOperator.label}</span>
-                      )}
-                      <span className="cos2-row-when">{l.lastTouch}</span>
-                    </span>
-                    <span className="cos2-row-name">{l.contactName}</span>
-                    <span className="cos2-row-snip">{rowSnippet}</span>
-                  </button>
-                    );
-                  })()}
-                  <button type="button"
-                          className="cos2-row-act"
-                          title={split.trash ? 'Restore to board' : 'Move to trash'}
-                          aria-label={split.trash ? 'Restore lead' : 'Trash lead'}
-                          onClick={(e) => { e.stopPropagation(); window.V3.MoveLeadStage(l, split.trash ? 'new' : 'trash'); }}>
-                    <V3Icon name={split.trash ? 'reply' : 'trash'} w={13} />
-                  </button>
+              {split.isBrief && (
+                <div className="v6-list-head brief-mode-header">
+                  <div className="v6-list-title brief-mode-title">
+                    <small>DAILY BRIEF · {briefDateLabel}</small>
+                    Today&apos;s moves
+                  </div>
+                  <div className="v6-pills brief-mode-stats">
+                    <span className="act"><AnimatedCounter value={briefActionLeads.length} /> to act</span>
+                    <span><AnimatedCounter value={briefWatchLeads.length} /> watching</span>
+                  </div>
                 </div>
-              ))}
-              {items.length === 0 && (
+              )}
+
+              <div className="cos2-list-scroll v6-list-scroll">
+              {split.isBrief ? (
+                <>
+                  {briefSummaries.action.length > 0 && (
+                    <div className="v6-sec brief-section-header">
+                      ACTION NOW <b>{briefSummaries.action.length}</b>
+                    </div>
+                  )}
+                  {briefSummaries.action.map((item, index) => {
+                    const lead = live.find(ll => String(ll.id) === String(item.id)) || {};
+                    const isCurrent = String(item.id) === String(selId);
+                    return (
+                      <div key={item.id} className={'tesla-row-wrap' + (isCurrent ? ' is-current' : '')}>
+                        <V6ListRow
+                          lead={lead}
+                          title={item.title}
+                          isCurrent={isCurrent}
+                          style={{ animationDelay: `${0.05 + index * 0.05}s` }}
+                          onClick={() => { setSelId(item.id); setMobileOpen(true); }}
+                        />
+                        <button type="button"
+                                className="tesla-row-act"
+                                title="Move to trash"
+                                onClick={(e) => { e.stopPropagation(); window.V3.MoveLeadStage(lead, 'trash'); }}>
+                          <V3Icon name="trash" w={13} />
+                        </button>
+                      </div>
+                    );
+                  })}
+
+                  {briefSummaries.watch.length > 0 && (
+                    <div className="v6-sec brief-section-header">
+                      WATCH / WAITING <b>{briefSummaries.watch.length}</b>
+                    </div>
+                  )}
+                  {briefSummaries.watch.map((item, index) => {
+                    const lead = live.find(ll => String(ll.id) === String(item.id)) || {};
+                    const isCurrent = String(item.id) === String(selId);
+                    return (
+                      <div key={item.id} className={'tesla-row-wrap' + (isCurrent ? ' is-current' : '')}>
+                        <V6ListRow
+                          lead={lead}
+                          title={item.title}
+                          isCurrent={isCurrent}
+                          style={{ animationDelay: `${0.3 + index * 0.05}s` }}
+                          onClick={() => { setSelId(item.id); setMobileOpen(true); }}
+                        />
+                        <button type="button"
+                                className="tesla-row-act"
+                                title="Move to trash"
+                                onClick={(e) => { e.stopPropagation(); window.V3.MoveLeadStage(lead, 'trash'); }}>
+                          <V3Icon name="trash" w={13} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </>
+              ) : (
+                items.map((l, index) => (
+                  <div key={l.id} className={'cos2-row-wrap' + (String(l.id) === String(selected?.id) ? ' is-current' : '')}>
+                    <V6ListRow
+                      lead={l}
+                      isCurrent={String(l.id) === String(selected?.id)}
+                      style={{ animationDelay: `${0.05 + index * 0.03}s` }}
+                      onClick={() => { setSelId(l.id); setMobileOpen(true); }}
+                    />
+                    <button type="button"
+                            className="cos2-row-act"
+                            title={split.trash ? 'Restore to board' : 'Move to trash'}
+                            aria-label={split.trash ? 'Restore lead' : 'Trash lead'}
+                            onClick={(e) => { e.stopPropagation(); window.V3.MoveLeadStage(l, split.trash ? 'new' : 'trash'); }}>
+                      <V3Icon name={split.trash ? 'reply' : 'trash'} w={13} />
+                    </button>
+                  </div>
+                ))
+              )}
+              {items.length === 0 && !split.isBrief && (
                 <div className="cos2-zero">
                   <span className="cos2-zero-mark">✓</span>
                   <strong>Inbox zero</strong>
                   <span>Nothing in {split.label.toLowerCase()}. Breathe.</span>
                 </div>
               )}
+              </div>
             </div>
-            <V4CosReader lead={selected} user={user}
-                         composeOpen={composeOpen} setComposeOpen={setComposeOpen}
-                         onBack={() => setMobileOpen(false)} />
+            <V4CosReader 
+              key={selected ? selected.id : 'no-lead'} 
+              lead={selected} 
+              user={user} 
+              isBrief={split.isBrief} 
+              briefItem={split.isBrief && selected ? (briefSummaries.action.find(i => String(i.id) === String(selected.id)) || briefSummaries.watch.find(i => String(i.id) === String(selected.id))) : null}
+              composeOpen={composeOpen} 
+              setComposeOpen={setComposeOpen}
+              onBack={() => setMobileOpen(false)} 
+            />
           </>
         )}
       </div>
@@ -10582,9 +10855,11 @@ function V4App() {
   return (
     <div className="app" data-screen-label={`ALIGNED v4 — ${view}`}>
       {/* ─── Top bar ─── */}
-      <header className="hd">
-        <div className="hd-brand">
-          <span className="hd-brand-name">ALIGNED</span>
+      <header className="hd v6-gnav">
+        <div className="hd-brand v6-gbrand">
+          <span className="v6-gmark" aria-hidden="true">C</span>
+          <span className="v6-gword">COMPANY OS<em>V6</em></span>
+          <span className="hd-brand-name">UNALIGNED</span>
           <span className="hd-brand-tag">v4</span>
         </div>
 
@@ -10616,10 +10891,10 @@ function V4App() {
         </div>
 
         {/* The transparency signal */}
-        <div className="hd-context" title={`Viewing as ${me.name} — ${me.role}`}>
+        <div className="hd-context v6-glane" title={`Viewing as ${me.name} — ${me.role}`}>
           <V3Avatar name={me.name} color={me.color} size="xs" className="hd-context-pip" />
           <span>{me.name}</span>
-          <span className="hd-context-scope">· {SCOPE_TAG[user]}</span>
+          <span className="hd-context-scope">{SCOPE_TAG[user]}</span>
         </div>
 
         <div className="hd-sync" title="Real-time Gmail sync">

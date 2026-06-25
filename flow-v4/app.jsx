@@ -1,4 +1,4 @@
-// FLOW v4 — main app shell (refined top bar + view wiring)
+// UNALIGNED Ops — main app shell (top bar, views, command palette)
 
 const V4_TWEAKS = /*EDITMODE-BEGIN*/{
   "viewAs": "robert",
@@ -299,11 +299,13 @@ function V4App() {
   ];
 
   return (
-    <div className="app" data-screen-label={`ALIGNED v4 — ${view}`}>
+    <div className="app" data-screen-label={`UNALIGNED — ${view}`}>
       {/* ─── Top bar ─── */}
-      <header className="hd">
-        <div className="hd-brand">
-          <span className="hd-brand-name">ALIGNED</span>
+      <header className="hd v6-gnav">
+        <div className="hd-brand v6-gbrand">
+          <span className="v6-gmark" aria-hidden="true">C</span>
+          <span className="v6-gword">COMPANY OS<em>V6</em></span>
+          <span className="hd-brand-name">UNALIGNED</span>
           <span className="hd-brand-tag">v4</span>
         </div>
 
@@ -335,10 +337,10 @@ function V4App() {
         </div>
 
         {/* The transparency signal */}
-        <div className="hd-context" title={`Viewing as ${me.name} — ${me.role}`}>
+        <div className="hd-context v6-glane" title={`Viewing as ${me.name} — ${me.role}`}>
           <V3Avatar name={me.name} color={me.color} size="xs" className="hd-context-pip" />
           <span>{me.name}</span>
-          <span className="hd-context-scope">· {SCOPE_TAG[user]}</span>
+          <span className="hd-context-scope">{SCOPE_TAG[user]}</span>
         </div>
 
         <div className="hd-sync" title="Real-time Gmail sync">
@@ -470,7 +472,7 @@ function V4App() {
       <footer className="ft">
         <span className="dot"></span>
         <span>Synced · {operationalLeads.length} cards · {operationalLeads.filter(l => !['paid-out'].includes(l.stage)).length} active · {newLeadCount} new leads</span>
-        <span className="right">v4.0 · {me.name} ({me.role}) · ALIGNED</span>
+        <span className="right">{me.name} ({me.role}) · UNALIGNED Ops</span>
         <button className="ft-tab" aria-current={view === 'today' ? 'page' : undefined}
                 onClick={() => { setView('today'); setOpenId(null); }}>
           <V3Icon name="diamond" w={18} />
@@ -565,6 +567,17 @@ function V4App() {
   );
 }
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<V4App />);
-if (window.__alignedBootMarkReady) window.__alignedBootMarkReady();
+try {
+  const root = ReactDOM.createRoot(document.getElementById('root'));
+  root.render(<V4App />);
+  if (window.__alignedBootMarkReady) window.__alignedBootMarkReady();
+} catch (e) {
+  console.error('[UNALIGNED] render failed', e);
+  if (window.__alignedBootMarkReady) window.__alignedBootMarkReady();
+  const el = document.getElementById('boot-status');
+  if (el) {
+    el.style.display = 'block';
+    el.textContent = 'Render error:\n' + (e && (e.stack || e.message) || e);
+  }
+}
+window.V4App = V4App;
