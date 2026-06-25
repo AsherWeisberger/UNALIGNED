@@ -615,20 +615,10 @@ function V6CompanyOsBoot({ onDone }) {
 }
 
 function V4AppRoot() {
-  const skipBoot = React.useMemo(() => {
-    try {
-      if (/[?&]nosplash(?:=1)?(?:&|$)/.test(window.location.search)) return true;
-      return sessionStorage.getItem('company-os-boot-v1') === '1';
-    } catch (err) {
-      return false;
-    }
-  }, []);
+  const skipBoot = React.useMemo(() => /[?&]nosplash(?:=1)?(?:&|$)/.test(window.location.search), []);
   const [ready, setReady] = React.useState(skipBoot);
 
-  const finishBoot = React.useCallback(() => {
-    try { sessionStorage.setItem('company-os-boot-v1', '1'); } catch (err) { /* ignore */ }
-    setReady(true);
-  }, []);
+  const finishBoot = React.useCallback(() => setReady(true), []);
 
   return (
     <>
