@@ -712,30 +712,34 @@ function V6UnalignedMark({ size = 30, className = '' }) {
   );
 }
 
-function V6CompanyOsLogo({ height = 64, compact = false, className = '' }) {
-  const viewBox = compact ? '0 0 180 200' : '0 0 760 200';
+function V6CompanyOsLogo({ compact = false, className = '' }) {
+  if (compact) {
+    const src = React.useMemo(() => {
+      const file = 'flow-v4/assets/company-os-icon.svg?v=20260625-cos-logo-9';
+      try { return new URL(file, window.location.href).href; }
+      catch (err) { return file; }
+    }, []);
+    return (
+      <img
+        className={'v6-company-os-logo v6-company-os-logo--icon ' + className}
+        src={src}
+        alt="Company OS"
+        draggable={false}
+        decoding="async"
+      />
+    );
+  }
   return (
-    <svg
-      className={'v6-company-os-logo ' + className}
-      height={height}
-      viewBox={viewBox}
-      xmlns="http://www.w3.org/2000/svg"
-      role="img"
-      aria-label="Company OS"
-    >
+    <svg className={'v6-company-os-logo ' + className} viewBox="0 0 760 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Company OS">
       <rect x="40" y="40" width="120" height="120" rx="28" fill="#4f63e6" />
       <path d="M72 82 L96 104 L72 126" fill="none" stroke="#ffffff" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
       <rect x="104" y="94" width="28" height="17" rx="4" fill="#ffffff" />
-      {!compact && (
-        <>
-          <text x="196" y="98" fontFamily="var(--font-display), Inter, system-ui, sans-serif" fontWeight="600" fontSize="44" fill="#16202e">
-            Company<tspan fill="#4f63e6"> OS</tspan>
-          </text>
-          <text x="198" y="130" fontFamily="var(--font-mono), ui-monospace, monospace" fontWeight="500" fontSize="14" fill="#6b7686">
-            run the company from one place
-          </text>
-        </>
-      )}
+      <text x="196" y="98" fontFamily="'Inter Tight', system-ui, sans-serif" fontWeight="600" fontSize="44" fill="#16202e">
+        Company<tspan fill="#4f63e6"> OS</tspan>
+      </text>
+      <text x="198" y="130" fontFamily="'JetBrains Mono', ui-monospace, monospace" fontWeight="500" fontSize="14" fill="#6b7686">
+        run the company from one place
+      </text>
     </svg>
   );
 }
@@ -10940,16 +10944,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
 
   return (
     <section className="page cos2-page">
-      <header className="cos2-top v6-topbar">
-        <div className="v6-brand">
-          <V6UnalignedMark size={30} />
-          <div className="v6-wm">UNALIGNED<small>ACTIVE WORKSPACE</small></div>
-        </div>
-        <span className="cos2-brand">
-          <V4CompanyOsBuildingIcon size={18} />
-          <strong>UNALIGNED</strong>
-          <span className="cos2-brand-sub">Active workspace</span>
-        </span>
+      <header className="cos2-top cos2-top--stats">
         <div className="cos2-stats">
           {reviewCount > 0 && (
             <button type="button" className="cos2-stat cos2-stat-review" onClick={() => setSplitId('review')} title="Scam gate flagged these for you">
@@ -11443,8 +11438,8 @@ function V4App() {
       {/* ─── Top bar ─── */}
       <header className="hd v6-gnav">
         <div className="hd-brand v6-gbrand">
-          <V6CompanyOsLogo height={64} className="v6-company-os-logo--hd v6-logo-full" />
-          <V6CompanyOsLogo height={44} compact className="v6-company-os-logo--hd v6-logo-compact" />
+          <V6CompanyOsLogo className="v6-company-os-logo--hd v6-logo-full" />
+          <V6CompanyOsLogo compact className="v6-company-os-logo--hd v6-logo-compact" />
           <span className="hd-brand-name">UNALIGNED</span>
           <span className="hd-brand-tag">v4</span>
         </div>

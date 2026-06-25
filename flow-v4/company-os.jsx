@@ -3165,16 +3165,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
 
   return (
     <section className="page cos2-page">
-      <header className="cos2-top v6-topbar">
-        <div className="v6-brand">
-          <V6UnalignedMark size={30} />
-          <div className="v6-wm">UNALIGNED<small>ACTIVE WORKSPACE</small></div>
-        </div>
-        <span className="cos2-brand">
-          <V4CompanyOsBuildingIcon size={18} />
-          <strong>UNALIGNED</strong>
-          <span className="cos2-brand-sub">Active workspace</span>
-        </span>
+      <header className="cos2-top cos2-top--stats">
         <div className="cos2-stats">
           {reviewCount > 0 && (
             <button type="button" className="cos2-stat cos2-stat-review" onClick={() => setSplitId('review')} title="Scam gate flagged these for you">
