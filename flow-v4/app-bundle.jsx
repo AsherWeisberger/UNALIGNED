@@ -10212,9 +10212,11 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
   const threadIdShort = String(threadId).slice(-8).toUpperCase();
 
   const showCompose = composeOpen || Boolean(lead.draftReply || lead.unread || lead.needsReply);
+  const isThreadTab = tab === 'thread';
+  const gmailSubject = window.V3?.V3SubjectForLead ? window.V3.V3SubjectForLead(lead) : (lead.thread?.[0]?.subject || lead.brand);
 
   return (
-    <div className={'cos2-reader v6-reader cos2-reader--split' + (showCompose ? ' cos2-reader--compose-open' : '')}>
+    <div className={'cos2-reader v6-reader cos2-reader--split cos2-reader--gmail' + (showCompose ? ' cos2-reader--compose-open' : '') + (isThreadTab ? ' cos2-reader--thread-tab' : '')}>
       <button className="hd-icon-btn cos2-back v6-back-mobile" onClick={onBack} aria-label="Back to list" type="button">
         <V3Icon name="chev_d" w={14} style={{ transform: 'rotate(90deg)' }} />
       </button>
@@ -10228,97 +10230,77 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
           {stage.name}
         </span>
       </div>
-      <div className="v6-rhead fadein">
-        <div className="v6-tags">
-          {(lead.unread || lead.needsReply) && <span className="v6-tag hot">Action now</span>}
-          <span className="v6-tag">{lead.source || 'Lead'}</span>
-          {lead.category && <span className="v6-tag">{lead.category}</span>}
-          {owner && <span className="v6-tag">Owner · {owner.name}</span>}
-          <span className="v6-tag">{lead.daysInStage || 0}d in stage</span>
-        </div>
-        <h1>{V4CleanDisplayText(lead.brand)}</h1>
-        <div className="v6-sub">
-          {lead.contactName}
-          {lead.email ? ` · ${lead.email}` : ''}
-          {threadIdShort ? ` · thread ${threadIdShort}` : ''}
-        </div>
-      </div>
-      {isBriefSelected && briefItem && (
-        <div className="brief-detail-summary">
-          <h4>Brief Summary</h4>
-          <ul className="brief-points">
-            {briefItem.points.map((p, i) => <li key={i}>{V4CleanDisplayText(p)}</li>)}
-          </ul>
-        </div>
-      )}
-      {isReview && (
-        <div className="cos2-review-banner">
-          <div className="cos2-review-banner-msg">
-            <strong>Scam gate flagged this for review</strong>
-            <span>{reviewReason}</span>
-          </div>
-          <div className="cos2-review-banner-btns">
-            {lead.draftReply && <button type="button" className="cos2-review-approve" onClick={() => setComposeOpen(true)}>Approve &amp; send</button>}
-            <button type="button" className="cos2-review-dismiss" onClick={() => { if (window.confirm('Dismiss as scam and move to Trash?')) window.V3.MoveLeadStage(lead, 'trash'); }}>Dismiss (scam)</button>
-          </div>
-        </div>
-      )}
-      <div className="cos-reader-hero fadein" style={{ animationDelay: '.06s' }}>
-        <div className="drawer-top">
-          <V3Avatar name={lead.contactName} color={lead.color} size="lg" />
-          <div className="drawer-top-text">
-            <div className="drawer-top-meta">
-              <span className="drawer-top-chip">{lead.source}</span>
-              {mailboxOrigin === 'asher' && <span className="drawer-top-chip">Asher</span>}
-              {mailboxOrigin === 'robert' && <span className="drawer-top-chip">Robert</span>}
-              {mailboxOrigin === 'x' && <span className="drawer-top-chip">X</span>}
-              {owner && <span className="drawer-top-chip">Owner · {owner.name}</span>}
-              {lead.category && <span className={'cat-tab cat-' + lead.category}>{lead.category}</span>}
-            </div>
-            <h2 className="drawer-top-name">{lead.contactName}</h2>
-            <div className="drawer-top-co">
-              <strong>{lead.brand}</strong>
-              {compactMeta ? <span> · {compactMeta}</span> : null}
-            </div>
-          </div>
-        </div>
-        <div className="drawer-facts">
-          {lead.value ? <span className="drawer-fact mono">{v3Money(lead.value)}</span> : null}
-          <span className="drawer-fact mono">{lead.daysInStage}d in stage</span>
-          <span className="drawer-fact">{stage.name}</span>
-          {isXLead && lead.xMessageCount ? <span className="drawer-fact">{lead.xMessageCount} DM{lead.xMessageCount === 1 ? '' : 's'}</span> : null}
-          {lead.deliverables ? <span className="drawer-fact drawer-fact-wide" title={lead.deliverables}>{lead.deliverables}</span> : null}
-          {operatorBadgeVisible ? <span className="drawer-fact">{operatorStatus.label}</span> : null}
-        </div>
-        <div className={'next-move next-move-compact v6-move ' + (isMine ? '' : 'them')}>
-          <div className="next-move-icon" aria-hidden="true">→</div>
-          <div className="next-move-text">
-            <div className="next-move-eyebrow">{moveEyebrow}</div>
-            <div className="next-move-title">{lead.nextMove?.text || listSnippet}</div>
-          </div>
-          {isMine && replyAction && (
-            <div className="next-move-actions">
-              <button className="btn btn-sm btn-accent" onClick={() => setComposeOpen(true)}>
-                <V3Icon name="arrow_r" w={13} />
-                {lead.nextMove.action}
-              </button>
-              {isXLead && lead.xOpenDm && (
-                <button className="btn btn-sm btn-ghost" onClick={() => window.open(lead.xOpenDm, '_blank', 'noopener')}>
-                  <V3Icon name="network" w={13} />
-                  Open DM
-                </button>
+      <div className="cos2-gmail-shell">
+        <div className="cos2-gmail-column">
+          {isThreadTab ? (
+            <header className="cos2-gmail-subject-hd">
+              <h1 className="cos2-gmail-subject">{V4CleanDisplayText(gmailSubject)}</h1>
+              <div className="cos2-gmail-submeta">
+                <span>{lead.contactName}{lead.email ? ` · ${lead.email}` : ''}</span>
+                <span className="cos2-gmail-dot">·</span>
+                <span>{stage.name}</span>
+                <span className="cos2-gmail-dot">·</span>
+                <span>{Array.isArray(lead.thread) ? lead.thread.length : 0} messages</span>
+                {(lead.unread || lead.needsReply) && <span className="cos2-gmail-badge">Action</span>}
+              </div>
+              {isMine && (lead.nextMove?.text || listSnippet) && (
+                <div className="cos2-gmail-action-hint">{lead.nextMove?.text || listSnippet}</div>
               )}
+            </header>
+          ) : (
+            <>
+              <div className="v6-rhead fadein">
+                <div className="v6-tags">
+                  {(lead.unread || lead.needsReply) && <span className="v6-tag hot">Action now</span>}
+                  <span className="v6-tag">{lead.source || 'Lead'}</span>
+                  {lead.category && <span className="v6-tag">{lead.category}</span>}
+                  {owner && <span className="v6-tag">Owner · {owner.name}</span>}
+                  <span className="v6-tag">{lead.daysInStage || 0}d in stage</span>
+                </div>
+                <h1>{V4CleanDisplayText(lead.brand)}</h1>
+                <div className="v6-sub">
+                  {lead.contactName}
+                  {lead.email ? ` · ${lead.email}` : ''}
+                  {threadIdShort ? ` · thread ${threadIdShort}` : ''}
+                </div>
+              </div>
+              {isBriefSelected && briefItem && (
+                <div className="brief-detail-summary">
+                  <h4>Brief Summary</h4>
+                  <ul className="brief-points">
+                    {briefItem.points.map((p, i) => <li key={i}>{V4CleanDisplayText(p)}</li>)}
+                  </ul>
+                </div>
+              )}
+              <div className="cos-reader-hero fadein" style={{ animationDelay: '.06s' }}>
+                <div className={'next-move next-move-compact v6-move ' + (isMine ? '' : 'them')}>
+                  <div className="next-move-icon" aria-hidden="true">→</div>
+                  <div className="next-move-text">
+                    <div className="next-move-eyebrow">{moveEyebrow}</div>
+                    <div className="next-move-title">{lead.nextMove?.text || listSnippet}</div>
+                  </div>
+                </div>
+              </div>
+              <div className="v6-metrics v6-metrics-compact fadein" style={{ animationDelay: '.12s' }}>
+                <span><b>{lead.value ? v3Money(lead.value) : '—'}</b> deal</span>
+                <span><b>{lead.daysInStage || 0}</b> days in stage</span>
+                <span><b>{Array.isArray(lead.thread) ? lead.thread.length : 0}</b> emails</span>
+              </div>
+            </>
+          )}
+          {isReview && (
+            <div className="cos2-review-banner">
+              <div className="cos2-review-banner-msg">
+                <strong>Scam gate flagged this for review</strong>
+                <span>{reviewReason}</span>
+              </div>
+              <div className="cos2-review-banner-btns">
+                {lead.draftReply && <button type="button" className="cos2-review-approve" onClick={() => setComposeOpen(true)}>Approve &amp; send</button>}
+                <button type="button" className="cos2-review-dismiss" onClick={() => { if (window.confirm('Dismiss as scam and move to Trash?')) window.V3.MoveLeadStage(lead, 'trash'); }}>Dismiss (scam)</button>
+              </div>
             </div>
           )}
-        </div>
-      </div>
-      <div className="v6-metrics v6-metrics-compact fadein" style={{ animationDelay: '.12s' }}>
-        <span><b>{lead.value ? v3Money(lead.value) : '—'}</b> deal</span>
-        <span><b>{lead.daysInStage || 0}</b> days in stage</span>
-        <span><b>{Array.isArray(lead.thread) ? lead.thread.length : 0}</b> emails</span>
-      </div>
-
-      <div className={'cos2-reader-workspace cos2-reader-workspace--gmail' + (showCompose ? ' is-compose-open' : '')}>
+          <div className={'cos2-reader-workspace cos2-reader-workspace--gmail' + (showCompose ? ' is-compose-open' : '')}>
         <div className="cos2-reader-pane cos2-reader-pane--thread">
           <div className="drawer-tabs">
             <button className="dr-tab" aria-selected={tab === 'thread'} onClick={() => setTab('thread')}>
@@ -10403,6 +10385,8 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
                 <span>{isXLead && !lead.email ? `Prep handoff for ${lead.contactName.split(' ')[0]}` : `Reply to ${lead.contactName.split(' ')[0]}${lead.draftReply ? ' — draft ready' : ''}`}</span>
               </button>
             )}
+          </div>
+        </div>
           </div>
         </div>
       </div>
