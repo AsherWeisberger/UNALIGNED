@@ -3167,7 +3167,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
     <section className="page cos2-page">
       <header className="cos2-top v6-topbar">
         <div className="v6-brand">
-          <div className="v6-mark" aria-hidden="true">U</div>
+          <V6UnalignedMark size={30} />
           <div className="v6-wm">UNALIGNED<small>ACTIVE WORKSPACE</small></div>
         </div>
         <span className="cos2-brand">

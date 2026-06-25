@@ -11897,18 +11897,17 @@ body[data-theme="light"] .v6-brand {
   flex-shrink: 0;
 }
 
+.v6-mark {
+  flex-shrink: 0;
+  display: block;
+  overflow: visible;
+}
+
 body[data-theme="light"] .v6-mark {
   width: 30px;
   height: 30px;
-  border-radius: 8px;
-  background: var(--accent);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 15px;
+  border-radius: 0;
+  background: transparent;
 }
 
 body[data-theme="light"] .v6-wm {
