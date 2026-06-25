@@ -11698,19 +11698,22 @@ body[data-theme="light"] .hd-brand {
   border-right: 1px solid var(--line);
 }
 
-body[data-theme="light"] .v6-gmark {
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  background: var(--accent);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 13px;
+.v6-gmark {
   flex-shrink: 0;
+  display: block;
+  filter: drop-shadow(0 2px 10px rgba(29, 78, 216, 0.38));
+  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), filter 0.22s ease;
+}
+
+.v6-gbrand:hover .v6-gmark,
+.hd-brand:hover .v6-gmark {
+  transform: scale(1.06) rotate(-2deg);
+  filter: drop-shadow(0 4px 16px rgba(56, 189, 248, 0.52));
+}
+
+body[data-theme="light"] .v6-gmark {
+  width: 28px;
+  height: 28px;
 }
 
 body[data-theme="light"] .v6-gword {

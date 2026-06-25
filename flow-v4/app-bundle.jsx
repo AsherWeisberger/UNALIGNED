@@ -690,11 +690,82 @@ function V3Empty({ icon = 'check', title, sub }) {
   );
 }
 
+function V6CompanyOsMark({ size = 28, className = '' }) {
+  const uid = React.useId().replace(/:/g, '');
+  const bg = `v6cos-bg-${uid}`;
+  const stroke = `v6cos-stroke-${uid}`;
+  const sheen = `v6cos-sheen-${uid}`;
+  return (
+    <svg
+      className={'v6-gmark ' + className}
+      width={size}
+      height={size}
+      viewBox="0 0 32 32"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      role="img"
+    >
+      <defs>
+        <linearGradient id={bg} x1="6" y1="2" x2="28" y2="30" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#070d1a" />
+          <stop offset="0.38" stopColor="#152a5c" />
+          <stop offset="0.72" stopColor="#1d4ed8" />
+          <stop offset="1" stopColor="#38bdf8" />
+        </linearGradient>
+        <linearGradient id={stroke} x1="9" y1="7" x2="25" y2="25" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#f8fafc" />
+          <stop offset="0.45" stopColor="#bae6fd" />
+          <stop offset="1" stopColor="#a5b4fc" />
+        </linearGradient>
+        <linearGradient id={sheen} x1="4" y1="4" x2="18" y2="14" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#ffffff" stopOpacity="0.34" />
+          <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
+        </linearGradient>
+        <filter id={`v6cos-glow-${uid}`} x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="0.65" result="b" />
+          <feMerge>
+            <feMergeNode in="b" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+      <rect x="1" y="1" width="30" height="30" rx="9.5" fill={`url(#${bg})`} />
+      <rect x="1.5" y="1.5" width="29" height="29" rx="9" fill={`url(#${sheen})`} />
+      <rect x="1" y="1" width="30" height="30" rx="9.5" stroke="rgba(186, 230, 253, 0.22)" strokeWidth="0.75" />
+      <path
+        d="M22.2 9.4a10.2 10.2 0 1 0 0 13.2"
+        stroke="#38bdf8"
+        strokeOpacity="0.22"
+        strokeWidth="3.6"
+        strokeLinecap="round"
+        transform="translate(1.35 1.05)"
+      />
+      <path
+        d="M21.6 9a10.4 10.4 0 1 0 0 14"
+        stroke={`url(#${stroke})`}
+        strokeWidth="3.75"
+        strokeLinecap="round"
+        filter={`url(#v6cos-glow-${uid})`}
+      />
+      <path
+        d="M10.8 23.6L22.4 8.6"
+        stroke="#67e8f9"
+        strokeWidth="2.15"
+        strokeLinecap="round"
+      />
+      <circle cx="22.7" cy="8.4" r="1.55" fill="#ecfeff" />
+      <circle cx="22.7" cy="8.4" r="0.55" fill="#0ea5e9" />
+    </svg>
+  );
+}
+
 Object.assign(window, {
   V3Icon,
   V3Avatar,
   V3StageProg,
   V3Empty,
+  V6CompanyOsMark,
   v3Money,
   AVATARS: {
     robert: 'flow-v4/assets/avatars/robert.png',
@@ -11386,7 +11457,7 @@ function V4App() {
       {/* ─── Top bar ─── */}
       <header className="hd v6-gnav">
         <div className="hd-brand v6-gbrand">
-          <span className="v6-gmark" aria-hidden="true">C</span>
+          <V6CompanyOsMark size={28} />
           <span className="v6-gword">COMPANY OS<em>V6</em></span>
           <span className="hd-brand-name">UNALIGNED</span>
           <span className="hd-brand-tag">v4</span>
