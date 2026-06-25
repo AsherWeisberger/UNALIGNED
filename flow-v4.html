@@ -120,30 +120,50 @@
   const TAILSCALE_BASE = 'https://mac-studio.tail50d3a2.ts.net';
   const LOCAL_BRIDGE = 'http://127.0.0.1:8787';
   const LOCAL_BRIEF = 'http://127.0.0.1:8767';
+  const LLM_TIMEOUT_MS = 120000;
   function isLocalPage() {
     const host = String(window.location.hostname || '');
     return window.location.protocol === 'file:' || host === 'localhost' || host === '127.0.0.1';
   }
+  function isMachineHosted() {
+    return String(window.location.hostname || '').includes('mac-studio.tail');
+  }
   function bridgeCandidates() {
     if (window.__LOCAL_LLM_BRIDGE__) return [window.__LOCAL_LLM_BRIDGE__];
+    if (isMachineHosted()) return [window.location.origin];
     if (!isLocalPage()) return [TAILSCALE_BASE];
     return [LOCAL_BRIDGE, LOCAL_BRIEF, TAILSCALE_BASE];
+  }
+  async function fetchWithTimeout(url, options) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), LLM_TIMEOUT_MS);
+    try {
+      return await fetch(url, { ...options, signal: ctrl.signal });
+    } catch (err) {
+      if (err && err.name === 'AbortError') throw new Error('Timed out after ' + Math.round(LLM_TIMEOUT_MS / 1000) + 's.');
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
   }
   async function bridgeFetch(path, options) {
     const candidates = bridgeCandidates();
     let lastErr = null;
     for (const base of candidates) {
+      const url = base + path;
       try {
-        const resp = await fetch(base + path, { ...options, mode: 'cors', credentials: 'omit' });
+        const sameOrigin = isMachineHosted() && base === window.location.origin;
+        const resp = await fetchWithTimeout(url, { ...options, mode: sameOrigin ? 'same-origin' : 'cors', credentials: 'omit' });
         window.claude.activeBase = base;
         return { resp, base };
       } catch (err) { lastErr = err; }
     }
-    throw new Error(`Could not reach Mac Studio at ${candidates[0]}${lastErr ? ' (' + lastErr.message + ')' : ''}`);
+    throw new Error('Could not reach Mac Studio at ' + candidates[0] + path + (lastErr ? ' (' + lastErr.message + ')' : ''));
   }
   window.claude = {
     activeBase: null,
     label() {
+      if (isMachineHosted()) return 'Mac Studio';
       const base = window.claude.activeBase || bridgeCandidates()[0] || '';
       return base.includes('mac-studio') ? 'Mac Studio' : 'Local LLM';
     },

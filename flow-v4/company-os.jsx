@@ -224,7 +224,15 @@ function V4OpenMachineHostedBriefMaker() {
 }
 
 function V4MaybeRedirectToMachineHostedApp() {
-  return false;
+  try {
+    if (!V4IsGithubHostedPage()) return false;
+    if (/[?&]stay=github(?:&|$)/.test(String(window.location.search || ''))) return false;
+    const path = String(window.location.pathname || '/').replace(/^\/UNALIGNED\/?/, '/') || '/';
+    window.location.replace(V4_BRIEF_TAILSCALE_BASE_URL + path + window.location.search + window.location.hash);
+    return true;
+  } catch (err) {
+    return false;
+  }
 }
 
 function V4IsLocalBriefPage() {

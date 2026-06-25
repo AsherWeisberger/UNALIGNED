@@ -1,6 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script>
+// GitHub Pages cannot reliably call the Mac LLM (Safari CORS / "Load failed"). Use the Mac-hosted copy.
+(function () {
+  var host = String(location.hostname || '');
+  if (host === 'asherweisberger.github.io' && !/[?&]stay=github(?:&|$)/.test(location.search)) {
+    var path = location.pathname.replace(/^\/UNALIGNED\/?/, '/') || '/';
+    location.replace('https://mac-studio.tail50d3a2.ts.net' + path + location.search + location.hash);
+  }
+})();
+</script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>UNALIGNED — Operating System</title>
@@ -10,7 +20,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600&family=Inter+Tight:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Press+Start+2P&display=swap" rel="stylesheet" />
 
-<link rel="stylesheet" href="flow-v4/styles.css?v=20260625-llm-tailscale-2" />
+<link rel="stylesheet" href="flow-v4/styles.css?v=20260625-llm-same-origin-1" />
 
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
@@ -74,42 +84,70 @@
 </script>
 
 <script>
-// Local Qwen on Mac Studio — GitHub Pages uses Tailscale; localhost uses direct bridge.
+// Local Qwen on Mac Studio — same-origin on mac-studio.tail; localhost uses direct bridge.
 (function () {
   const TAILSCALE_BASE = 'https://mac-studio.tail50d3a2.ts.net';
   const LOCAL_BRIDGE = 'http://127.0.0.1:8787';
   const LOCAL_BRIEF = 'http://127.0.0.1:8767';
+  const LLM_TIMEOUT_MS = 120000;
 
   function isLocalPage() {
     const host = String(window.location.hostname || '');
     return window.location.protocol === 'file:' || host === 'localhost' || host === '127.0.0.1';
   }
 
+  function isMachineHosted() {
+    return String(window.location.hostname || '').includes('mac-studio.tail');
+  }
+
   function bridgeCandidates() {
     if (window.__LOCAL_LLM_BRIDGE__) return [window.__LOCAL_LLM_BRIDGE__];
-    // GitHub Pages cannot call localhost — Tailscale only (no silent fallback to 127.0.0.1).
+    if (isMachineHosted()) return [window.location.origin];
     if (!isLocalPage()) return [TAILSCALE_BASE];
     return [LOCAL_BRIDGE, LOCAL_BRIEF, TAILSCALE_BASE];
+  }
+
+  async function fetchWithTimeout(url, options) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), LLM_TIMEOUT_MS);
+    try {
+      return await fetch(url, { ...options, signal: ctrl.signal });
+    } catch (err) {
+      if (err && err.name === 'AbortError') {
+        throw new Error('Timed out after ' + Math.round(LLM_TIMEOUT_MS / 1000) + 's. Qwen may still be running — try again.');
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   async function bridgeFetch(path, options) {
     const candidates = bridgeCandidates();
     let lastErr = null;
     for (const base of candidates) {
+      const url = base + path;
       try {
-        const resp = await fetch(base + path, { ...options, mode: 'cors', credentials: 'omit' });
+        const sameOrigin = isMachineHosted() && base === window.location.origin;
+        const resp = await fetchWithTimeout(url, {
+          ...options,
+          mode: sameOrigin ? 'same-origin' : 'cors',
+          credentials: 'omit',
+        });
         window.claude.activeBase = base;
         return { resp, base };
       } catch (err) {
         lastErr = err;
-        console.warn('[local-llm] fetch failed for', base + path, err);
+        console.warn('[local-llm] fetch failed for', url, err && err.message ? err.message : err);
       }
     }
     const target = candidates[0] || TAILSCALE_BASE;
-    const hint = isLocalPage()
-      ? 'Start scripts/active/local_llm_bridge.py or the brief server on this Mac.'
-      : `Could not reach Mac Studio at ${target}. Keep the Mac awake, Ollama running, and Tailscale Funnel on.`;
-    const detail = lastErr && lastErr.message ? ` (${lastErr.message})` : '';
+    const hint = isMachineHosted()
+      ? 'Mac Studio LLM unreachable at ' + target + path + '. Keep Ollama running and the brief server on port 8767.'
+      : isLocalPage()
+        ? 'Start scripts/active/local_llm_bridge.py or the brief server on this Mac.'
+        : 'Open https://mac-studio.tail50d3a2.ts.net/ (not GitHub Pages) for Draft with AI. Add ?stay=github to keep GitHub.';
+    const detail = lastErr && lastErr.message ? ' (' + lastErr.message + ')' : '';
     throw new Error(hint + detail);
   }
 
@@ -117,6 +155,7 @@
     activeBase: null,
     bridgeCandidates,
     label() {
+      if (isMachineHosted()) return 'Mac Studio';
       const base = window.claude.activeBase || bridgeCandidates()[0] || '';
       if (base.includes('mac-studio')) return 'Mac Studio';
       if (base.includes('127.0.0.1') || base.includes('localhost')) return 'This Mac';
@@ -151,7 +190,7 @@
 })();
 </script>
 
-<script type="text/babel" src="flow-v4/app-bundle.jsx?v=20260625-llm-tailscale-2"></script>
+<script type="text/babel" src="flow-v4/app-bundle.jsx?v=20260625-llm-same-origin-1"></script>
 
 </body>
 </html>
