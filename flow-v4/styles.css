@@ -12512,6 +12512,55 @@ body[data-theme="light"] .cos2-compose-dock {
   border-top: 1px solid var(--line);
 }
 
+body[data-theme="light"] .cos2-compose-dock--inline {
+  margin-top: 4px;
+  padding: 0 0 24px;
+  background: none;
+  border-top: none;
+}
+
+body[data-theme="light"] .drawer-reply-bar--inline {
+  width: 100%;
+  margin: 8px 0 0;
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 13px;
+  color: var(--text-2);
+  box-shadow: none;
+}
+
+body[data-theme="light"] .cos2-gmail-tablinks {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0 8px;
+  font-size: 12px;
+}
+
+body[data-theme="light"] .cos2-gmail-tablinks-active {
+  font-weight: 600;
+  color: var(--text);
+}
+
+body[data-theme="light"] .cos2-gmail-tablink {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--text-3);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+body[data-theme="light"] .cos2-gmail-tablink:hover {
+  color: var(--accent-2);
+}
+
 body[data-theme="light"] .drawer-reply-bar--dock,
 body[data-theme="light"] .drawer-reply-bar--gmail {
   width: 100%;
@@ -12678,8 +12727,8 @@ body[data-theme="light"] .cos2-gmail-column {
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-width: 700px;
-  padding: 0 20px 0 40px;
+  max-width: 600px;
+  padding: 0 16px 0 32px;
 }
 
 body[data-theme="light"] .cos2-gmail-subject-hd {
@@ -12750,10 +12799,8 @@ body[data-theme="light"] .cos2-gmail-column .cos2-thread-scroll .drawer-body--th
   padding: 4px 0 10px;
 }
 
-body[data-theme="light"] .cos2-gmail-column .cos2-compose-dock {
-  padding: 6px 0 10px;
-  background: transparent;
-  border-top: none;
+body[data-theme="light"] .cos2-gmail-column .cos2-compose-dock--inline {
+  padding: 0 0 20px;
 }
 
 body[data-theme="light"] .cos2-reader--thread-tab .cos2-gmail-column .act-thread-meta {
@@ -12769,8 +12816,12 @@ body[data-theme="light"] .cos2-reader--thread-tab .cos2-gmail-column .act-item {
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-  border-bottom: 1px solid var(--line-soft);
-  padding: 14px 0;
+  border-bottom: none;
+  padding: 12px 0 4px;
+}
+
+body[data-theme="light"] .cos2-reader--thread-tab .cos2-gmail-column .act-item:last-of-type {
+  padding-bottom: 0;
 }
 
 body[data-theme="light"] .cos2-reader--thread-tab .cos2-gmail-column .act-item-hd {
@@ -12798,6 +12849,59 @@ body[data-theme="light"] .cos2-gmail-column .mail-compose--gmail {
 body[data-theme="light"] .cos2-gmail-column .mail-compose--gmail .mail-compose-editor textarea {
   min-height: 72px;
   max-height: 140px;
+}
+
+/* Inline reply — sits directly under last message like Gmail */
+body[data-theme="light"] .mail-compose--inline {
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(17, 32, 51, 0.05), 0 0 0 1px var(--line);
+}
+
+body[data-theme="light"] .mail-compose--inline .mail-compose-topbar {
+  min-height: 30px;
+  padding: 3px 8px;
+  background: transparent;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+body[data-theme="light"] .mail-compose--inline .mail-compose-sender {
+  min-width: 100px;
+  font-size: 11.5px;
+}
+
+body[data-theme="light"] .mail-compose--inline .mail-compose-ai,
+body[data-theme="light"] .mail-compose--inline .mail-compose-mode {
+  font-size: 10px;
+  padding: 3px 7px;
+}
+
+body[data-theme="light"] .mail-compose--inline .mail-compose-fields .mail-compose-recips:nth-child(2) {
+  display: none;
+}
+
+body[data-theme="light"] .mail-compose--inline .mail-compose-recips,
+body[data-theme="light"] .mail-compose--inline .mail-compose-subject-row {
+  min-height: 26px;
+  padding: 2px 8px;
+}
+
+body[data-theme="light"] .mail-compose--inline .mail-compose-subject-row {
+  display: none;
+}
+
+body[data-theme="light"] .mail-compose--inline .mail-compose-editor {
+  padding: 6px 10px 2px;
+}
+
+body[data-theme="light"] .mail-compose--inline .mail-compose-editor textarea {
+  min-height: 64px;
+  max-height: 200px;
+  font-size: 13px;
+}
+
+body[data-theme="light"] .mail-compose--inline .mail-compose-toolbar {
+  min-height: 36px;
+  padding: 4px 8px;
 }
 
 body[data-theme="light"] .cos2-gmail-column .drawer-reply-bar--gmail {
