@@ -33,6 +33,16 @@ import httpx
 import anthropic
 from datetime import datetime, timezone
 
+from local_llm import (
+    LLM_BACKEND,
+    LOCAL_MODEL,
+    OPERATOR_FRAMEWORK,
+    backend_label,
+    llm_text as _shared_llm_text,
+    no_dashes,
+    resolve_tone,
+)
+
 SUPABASE_URL     = os.environ.get("SUPABASE_URL", "https://hbnpwphxjurvtydezwgh.supabase.co")
 PARTNERSHIP_PDF  = "/Users/asherweisberger/Desktop/UNALIGNED/MASTER FILES/Unaligned_Partnership_Packages.pdf"
 SUPABASE_ANON    = os.environ.get("SUPABASE_ANON_KEY", "")
@@ -52,15 +62,10 @@ HAIKU_INPUT_PER_M  = 0.80
 HAIKU_OUTPUT_PER_M = 4.00
 
 PIPELINE_MAX_COST_USD = float(os.environ.get("PIPELINE_MAX_COST_USD", "0") or "0")
-USE_LOCAL_CLASSIFIER = os.environ.get("USE_LOCAL_CLASSIFIER", "").strip().lower() in {
-    "1", "true", "yes", "on",
-}
-
-# LLM backend — default to the local Qwen model via Ollama (no API key, no cost, offline).
-# Set LLM_BACKEND=anthropic to fall back to the Claude API.
-LLM_BACKEND = os.environ.get("LLM_BACKEND", "local").strip().lower()
-OLLAMA_URL  = os.environ.get("OLLAMA_URL", "http://localhost:11434/api/chat")
-LOCAL_MODEL = os.environ.get("LOCAL_MODEL", "qwen3.6:35b-a3b")
+_use_local_classifier_env = os.environ.get("USE_LOCAL_CLASSIFIER", "").strip().lower()
+USE_LOCAL_CLASSIFIER = _use_local_classifier_env in {"1", "true", "yes", "on"} or (
+    _use_local_classifier_env not in {"0", "false", "no", "off"} and LLM_BACKEND == "local"
+)
 
 _run_haiku_input_tokens = 0
 _run_haiku_output_tokens = 0
@@ -91,26 +96,10 @@ def run_cost_usd(extra_haiku_in=0, extra_haiku_out=0, extra_opus_in=0, extra_opu
         ((_run_opus_output_tokens + extra_opus_out) / 1_000_000 * OPUS_OUTPUT_PER_M)
     )
 
-def _ollama_chat(content, json_mode=False, max_tokens=512, num_ctx=8192):
-    """Call the local Qwen model via Ollama. Returns the message text."""
-    payload = {
-        "model": LOCAL_MODEL,
-        "messages": [{"role": "user", "content": content}],
-        "stream": False,
-        "think": False,
-        "options": {"temperature": 0.3, "num_ctx": num_ctx, "num_predict": max_tokens},
-    }
-    if json_mode:
-        payload["format"] = "json"
-    r = httpx.post(OLLAMA_URL, json=payload, timeout=300)
-    r.raise_for_status()
-    return (r.json().get("message", {}) or {}).get("content", "").strip()
-
-
 def llm_text(client, content, json_mode=False, max_tokens=512, label="opus"):
     """Unified text completion. Local Qwen by default; Claude API if LLM_BACKEND=anthropic."""
     if LLM_BACKEND == "local":
-        return _ollama_chat(content, json_mode=json_mode, max_tokens=max_tokens)
+        return _shared_llm_text(content, json_mode=json_mode, max_tokens=max_tokens, label=label)
     model = "claude-haiku-4-5-20251001" if label == "haiku" else "claude-opus-4-6"
     resp = client.messages.create(
         model=model, max_tokens=max_tokens,
@@ -461,54 +450,6 @@ Friendly but careful, never accusatory. Under 90 words. Sign off with Sam's sign
 
 # ── Operator framework: Asher's tone + scam gate, applied to every draft ──────
 # Source of truth: ~/.hermes/memories/unaligned_email_triage_and_briefs.md
-OPERATOR_FRAMEWORK = """\
-OPERATOR FRAMEWORK (apply before writing — this is Asher's own voice and judgment):
-
-VOICE RULES:
-- Never use hyphens or em dashes (-, the long dash, or the short dash). Use periods, commas, or
-  sentence breaks instead. Rewrite compound phrases to avoid hyphenation (e.g. "long term partner"
-  not the hyphenated form). Dashes read as AI and are off brand.
-- Sound like a real person, not a corporate template. No filler, no AI tells, no overpolished fluff.
-
-TONE — write in the tone given on the TONE line below:
-- direct: new or unknown, pure business. Brief, clear, set terms (rate, payment before posting).
-  Do not over-warm a stranger.
-- friendship: warm rapport or repeat contact. Personable but firm on value.
-- long_standing: proven history (e.g. OMANE, EchonLab). Appreciative, fast, trust based, less
-  re-explaining. Skip the cold intro and talk like you already know them.
-"""
-
-# Brands with a proven, repeat relationship -> long_standing tone (extend as needed)
-LONG_STANDING_PARTNERS = {
-    "omane", "echonlab", "echon lab", "polyai", "poly ai",
-    "ahacreator", "aha creator", "eezycollab", "arcgrowth", "arc growth",
-}
-
-
-def resolve_tone(card):
-    """Decide reply tone from relationship depth. Code decides depth; the model applies the voice."""
-    name = " ".join(
-        str(card.get(k, "") or "") for k in ("business_name", "contact_name", "title")
-    ).lower()
-    for p in LONG_STANDING_PARTNERS:
-        if p in name:
-            return "long_standing"
-    thread = card.get("email_thread") or []
-    if isinstance(thread, str):
-        try:
-            thread = json.loads(thread)
-        except Exception:
-            thread = []
-    ours = ("unalignedx@", "samlevin@", "scobleizer@", "asherweisberger@", "robert scoble", "sam levin")
-    our_msgs = sum(
-        1 for m in thread
-        if isinstance(m, dict) and any(s in str(m.get("from", "")).lower() for s in ours)
-    )
-    if our_msgs >= 1 and len(thread) >= 3:
-        return "friendship"
-    return "direct"
-
-
 # STRONG signals = clearly a scam -> AVOID (disengage, no draft, even if heavily involved).
 SCAM_LOOKALIKE_DOMAINS = ("oauth-signin.com", "mail.skillshare", "tradeifytoken")
 SCAM_STRONG_FLAGS = (
@@ -552,16 +493,6 @@ def scam_gate(card):
     return (None, [])
 
 
-def _no_dashes(text):
-    """Safety net for the no-hyphens voice rule: kill dashes used as punctuation, keep phone/URL hyphens."""
-    import re as _re
-    if not text:
-        return text
-    text = text.replace("—", ". ").replace("–", ". ")  # em / en dash
-    text = _re.sub(r"\s+-\s+", ". ", text)                        # spaced hyphen used as a dash
-    return text
-
-
 def draft_reply(card, reply_type, client, tone="direct"):
     """Draft a stage-appropriate reply for a card."""
     prompt_template = REPLY_PROMPTS.get(reply_type)
@@ -590,7 +521,7 @@ def draft_reply(card, reply_type, client, tone="direct"):
     )
 
     try:
-        body = _no_dashes(llm_text(client, context, max_tokens=512, label="opus"))
+        body = no_dashes(llm_text(client, context, max_tokens=512, label="opus"))
 
         # Ensure correct signature is present
         if reply_type == "initial-outreach":
@@ -798,8 +729,11 @@ def main():
         print(f"  Local classifier: ON (qwen3.6:35b-a3b via Ollama)")
     print(f"{'='*62}\n")
 
-    if not SERVICE_ROLE_KEY or not ANTHROPIC_KEY:
-        print("ERROR: Missing env vars")
+    if not SERVICE_ROLE_KEY:
+        print("ERROR: Missing SUPABASE_SERVICE_ROLE_KEY")
+        sys.exit(1)
+    if LLM_BACKEND == "anthropic" and not ANTHROPIC_KEY:
+        print("ERROR: LLM_BACKEND=anthropic requires ANTHROPIC_API_KEY")
         sys.exit(1)
 
     print("Fetching active deal cards...")
@@ -808,7 +742,7 @@ def main():
 
     # Local backend (default) needs no Anthropic client; only build one for the API fallback.
     client = anthropic.Anthropic(api_key=ANTHROPIC_KEY) if LLM_BACKEND == "anthropic" else None
-    print(f"LLM backend: {LLM_BACKEND}" + (f" ({LOCAL_MODEL} via Ollama)" if LLM_BACKEND == "local" else ""))
+    print(f"LLM backend: {backend_label()}")
 
     cards, auto_trashed = auto_trash_stale_cards(cards)
     if auto_trashed:

@@ -1,5 +1,5 @@
 """
-scraper_v4.py — Gmail → Claude Opus 4.6 → Supabase (UNALIGNED Lead Pipeline)
+scraper_v4.py — Gmail → Local Qwen → Supabase (UNALIGNED Lead Pipeline)
 ─────────────────────────────────────────────────────────────────────────────
 KEY CHANGES FROM v3:
   [1] Pipeline reordered — threads fetched for ALL filtered emails BEFORE
@@ -38,13 +38,13 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 import httpx
-import anthropic
+
+from local_llm import LLM_BACKEND, backend_label, llm_text_async, parse_json_response
 
 # ─────────────────────────────────────────────────────────────
 # CONFIG
 # ─────────────────────────────────────────────────────────────
 
-ANTHROPIC_KEY    = os.environ.get("ANTHROPIC_API_KEY", "")
 SUPABASE_URL     = os.environ.get("SUPABASE_URL",   "https://hbnpwphxjurvtydezwgh.supabase.co")
 SUPABASE_ANON    = os.environ.get("SUPABASE_ANON_KEY",    "")
 SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
@@ -960,7 +960,7 @@ def write_codex_handoff(
     return path
 
 
-AI_CONCURRENCY   = 3    # max parallel Claude calls at once
+AI_CONCURRENCY   = 2    # max parallel local LLM calls at once
 CHUNK_DELAY      = 2.0  # seconds between chunk starts to spread token usage
 MAX_429_RETRIES  = 6    # retry budget for rate-limit errors per chunk
 
@@ -968,7 +968,6 @@ MAX_429_RETRIES  = 6    # retry budget for rate-limit errors per chunk
 async def extract_all(
     emails: list[dict],
     conversations: dict[str, list[dict]],
-    client: anthropic.AsyncAnthropic,
     existing_ids: set[str],
     id_map: dict[str, dict],
     existing_thread_map: dict[str, dict] | None = None,
@@ -995,17 +994,16 @@ async def extract_all(
             for rate_attempt in range(MAX_429_RETRIES + 1):
                 try:
                     prompt = _build_extract_prompt(chunk, conversations)
-                    resp = await client.messages.create(
-                        model="claude-opus-4-6",
-                        messages=[{"role": "user", "content": EXTRACT_SYSTEM + "\n\n" + prompt}],
-                        temperature=0.1,
+                    text = await llm_text_async(
+                        EXTRACT_SYSTEM + "\n\n" + prompt,
+                        json_mode=True,
                         max_tokens=4096,
-                        timeout=120.0,
+                        num_ctx=16384,
+                        temperature=0.1,
                     )
-                    text = resp.content[0].text.strip()
                     text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.MULTILINE).strip()
 
-                    parsed = _parse_json_flexible(text)
+                    parsed = _parse_json_flexible(text) or parse_json_response(text)
                     if parsed is None:
                         raise json.JSONDecodeError("flexible parse failed", text, 0)
                     if isinstance(parsed, dict) and "leads" in parsed:
@@ -1482,7 +1480,7 @@ Rules:
 """
 
 
-async def draft_replies(cards: list[dict], client: anthropic.AsyncAnthropic) -> list[dict]:
+async def draft_replies(cards: list[dict]) -> list[dict]:
     if not cards:
         return []
 
@@ -1506,16 +1504,15 @@ async def draft_replies(cards: list[dict], client: anthropic.AsyncAnthropic) -> 
 
     prompt = "\n\n".join(parts)
     try:
-        resp = await client.messages.create(
-            model="claude-opus-4-6",
-            messages=[{"role": "user", "content": REPLY_SYSTEM + "\n\n" + prompt}],
-            temperature=0.3,
+        text = await llm_text_async(
+            REPLY_SYSTEM + "\n\n" + prompt,
+            json_mode=True,
             max_tokens=3000,
-            timeout=90.0,
+            num_ctx=16384,
+            temperature=0.3,
         )
-        text = resp.content[0].text.strip()
         text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.MULTILINE).strip()
-        drafts = _parse_json_flexible(text)
+        drafts = _parse_json_flexible(text) or parse_json_response(text)
         if drafts is None:
             log.warning("Reply drafting JSON parse failed.")
             return []
@@ -1642,7 +1639,11 @@ async def run_pipeline(
     log.info("═" * 64)
 
     token  = get_gmail_token()
-    client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_KEY) if not (dry_run or handoff_only) else None
+    if not (dry_run or handoff_only):
+        log.info(f"LLM backend: {backend_label()}")
+        if LLM_BACKEND != "local":
+            log.error("scraper_v4 requires LLM_BACKEND=local")
+            return 0
 
     # Validate Supabase auth before doing any work — fail fast, alert immediately
     if not dry_run and not handoff_only:
@@ -1705,7 +1706,7 @@ async def run_pipeline(
     id_map = {e["id"]: e for e in filtered}
 
     # Step 5 — AI extraction + incremental Supabase write (per chunk, not batch)
-    total_extracted, written = await extract_all(filtered, conversations, client, existing_ids, id_map, existing_thread_map)
+    total_extracted, written = await extract_all(filtered, conversations, existing_ids, id_map, existing_thread_map)
     if total_extracted == 0:
         log.info("No leads extracted. Done.")
         set_last_run_date(datetime.utcnow().strftime("%Y/%m/%d"))
@@ -1726,7 +1727,7 @@ async def run_pipeline(
         log.warning(f"Could not fetch unreplied cards for reply drafting: {e}")
     if unreplied_cards:
         log.info(f"Drafting replies for {len(unreplied_cards)} unreplied leads …")
-        drafts = await draft_replies(unreplied_cards, client)
+        drafts = await draft_replies(unreplied_cards)
         if drafts:
             update_reply_drafts(drafts)
 

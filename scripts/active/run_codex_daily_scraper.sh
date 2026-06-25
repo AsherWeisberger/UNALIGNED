@@ -24,7 +24,14 @@ if [ -f "$ENV_FILE" ]; then
   set +a
 fi
 
+# All drafting/classification runs on local Qwen via Ollama (Mac Studio).
+export LLM_BACKEND="${LLM_BACKEND:-local}"
+export LOCAL_MODEL="${LOCAL_MODEL:-qwen3.6:35b-a3b}"
+export OLLAMA_URL="${OLLAMA_URL:-http://localhost:11434/api/chat}"
+export USE_LOCAL_CLASSIFIER="${USE_LOCAL_CLASSIFIER:-1}"
+
 cd "$ROOT"
+echo "LLM backend: ${LLM_BACKEND} (${LOCAL_MODEL})"
 
 if [ -f "$ROBERT_TOKEN" ]; then
   echo "Using Robert Gmail token: $ROBERT_TOKEN"
@@ -69,6 +76,12 @@ if [ "${ASHER_OPERATOR_ENABLED:-1}" = "1" ]; then
   fi
 fi
 
+if [ "${DAILY_PIPELINE_ENABLED:-1}" = "1" ]; then
+  echo "Starting daily pipeline (stage moves + reply drafts)."
+  /opt/homebrew/bin/python3 daily_pipeline.py || true
+  echo "Daily pipeline complete."
+fi
+
 # Mirror workspace Trash to Gmail Trash. Cron-safe: it skips silently until
 # someone authorizes gmail.modify once by running it manually in a terminal.
 # Guarded with || true so a trash hiccup never aborts the scrape.
@@ -84,6 +97,17 @@ if [ "${LIVE_X_ENABLED:-1}" = "1" ]; then
     --known-stop-streak="${LIVE_X_KNOWN_STOP_STREAK:-3}" \
     >> "$LIVE_X_LOG" 2>&1 || true
   echo "Live X inbox pass complete."
+fi
+
+if [ "${ROBERT_HANDOFF_ENABLED:-0}" = "1" ]; then
+  echo "Starting Robert handoff operator."
+  /opt/homebrew/bin/python3 scripts/active/robert_handoff_operator.py \
+    --gmail-limit="${ROBERT_HANDOFF_GMAIL_LIMIT:-10}" \
+    --x-limit="${ROBERT_HANDOFF_X_LIMIT:-15}" \
+    --x-max-age-days="${ROBERT_HANDOFF_X_MAX_AGE_DAYS:-3}" \
+    ${ROBERT_HANDOFF_DRY_RUN:+--dry-run} \
+    || true
+  echo "Robert handoff operator complete."
 fi
 
 date +"%Y/%m/%d" > "$HOME/.config/google-credentials/scraper_v4_last_run.txt"
