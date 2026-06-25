@@ -8221,7 +8221,6 @@ body[data-theme="dark"] .twk-panel {
    so the shell fits without scrolling while the three/two-pane layout shows. */
 @media (min-width: 901px) and (max-width: 1340px) {
   .hd { gap: 8px; }
-  .hd-context { display: none; }
   .hd-search { max-width: 200px; }
   .hd-nav-btn { padding: 6px 8px; }
 }
@@ -8259,7 +8258,6 @@ body[data-theme="dark"] .twk-panel {
     gap: 4px;
   }
   .hd-nav-btn { flex-shrink: 0; }
-  .hd-context { display: none; }
   .hd-right { margin-left: auto; }
   .page-hd {
     padding: 14px 12px 0;
@@ -8342,17 +8340,18 @@ body[data-theme="dark"] .twk-panel {
   }
 
   .hd {
-    padding: var(--safe-top) calc(12px + var(--safe-right)) 0 calc(12px + var(--safe-left));
+    padding: var(--safe-top) calc(12px + var(--safe-right)) 8px calc(12px + var(--safe-left));
     min-height: calc(44px + var(--safe-top));
     gap: 8px;
-    overflow: hidden;
+    overflow: visible;
+    position: relative;
+    z-index: 200;
   }
   .hd-brand { padding-right: 0; border-right: 0; gap: 6px; margin-right: 0; }
   .hd-brand-name { font-size: 13px; letter-spacing: 0.05em; }
   .hd-brand-tag { font-size: 9px; }
   .hd-nav,
   .hd-search,
-  .hd-context,
   .hd-sync { display: none; }
   .hd-right { gap: 4px; margin-left: auto; }
   .hd-user-switch { padding: 1px; gap: 2px; }
@@ -14293,14 +14292,32 @@ body[data-theme="light"] .gmail-reply-status.is-success {
     display: none !important;
   }
 
+  .hd {
+    overflow: visible !important;
+    position: relative;
+    z-index: 200;
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
   .hd-context-wrap {
+    display: flex !important;
     margin-left: auto;
     order: 2;
+    position: relative;
+    z-index: 210;
   }
 
   .hd-context,
-  body[data-theme="light"] .hd-context {
+  .hd-context-btn,
+  body[data-theme="light"] .hd-context,
+  body[data-theme="light"] .hd-context-btn {
     display: inline-flex !important;
+    min-height: 44px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .hd-sync {
@@ -14310,6 +14327,22 @@ body[data-theme="light"] .gmail-reply-status.is-success {
   .hd-right {
     order: 3;
     margin-left: 0;
+  }
+
+  .hd-user-menu {
+    position: fixed;
+    top: calc(52px + env(safe-area-inset-top, 0px));
+    right: max(12px, env(safe-area-inset-right, 0px));
+    left: auto;
+    bottom: auto;
+    min-width: min(260px, calc(100vw - 24px));
+    max-width: calc(100vw - 24px);
+    z-index: 2000;
+    box-shadow: 0 16px 40px rgba(15, 18, 28, 0.18);
+  }
+
+  .hd-user-menu-item {
+    min-height: 48px;
   }
 
   /* Company OS workflow drawer (desktop left rail on phone) */

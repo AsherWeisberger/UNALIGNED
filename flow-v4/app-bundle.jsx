@@ -11488,10 +11488,13 @@ function V4App() {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target)) setUserMenuOpen(false);
     };
     const onKey = (e) => { if (e.key === 'Escape') setUserMenuOpen(false); };
-    document.addEventListener('mousedown', onDoc);
-    document.addEventListener('keydown', onKey);
+    const timer = window.setTimeout(() => {
+      document.addEventListener('pointerdown', onDoc, true);
+      document.addEventListener('keydown', onKey);
+    }, 0);
     return () => {
-      document.removeEventListener('mousedown', onDoc);
+      window.clearTimeout(timer);
+      document.removeEventListener('pointerdown', onDoc, true);
       document.removeEventListener('keydown', onKey);
     };
   }, [userMenuOpen]);
