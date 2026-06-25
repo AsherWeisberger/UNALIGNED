@@ -10917,6 +10917,9 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   const [selId, setSelId] = React.useState(null);
   const [composeOpen, setComposeOpen] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
+  const [isMobile, setIsMobile] = React.useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches
+  );
   const split = splits.find(s => s.id === splitId) || splits[0];
   const items = split.items || [];
   let selected = items.find(l => String(l.id) === String(selId)) || items[0] || null;
@@ -10935,6 +10938,25 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   }, []);
 
   React.useEffect(() => { setSelId(null); setMobileOpen(false); setComposeOpen(false); }, [splitId]);
+
+  React.useEffect(() => {
+    const mq = window.matchMedia('(max-width: 900px)');
+    const onChange = () => setIsMobile(mq.matches);
+    onChange();
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  React.useEffect(() => {
+    if (!isMobile || split.toolkit || mobileOpen || selId) return;
+    const firstId = split.isBrief
+      ? (briefSummaries.action[0]?.id || briefSummaries.watch[0]?.id)
+      : items[0]?.id;
+    if (!firstId) return;
+    setSelId(firstId);
+    setMobileOpen(true);
+  }, [isMobile, split.toolkit, split.isBrief, mobileOpen, selId, splitId, items, briefSummaries]);
+
   React.useEffect(() => { setComposeOpen(false); }, [selected?.id]);
 
   const moveSel = (delta) => {
@@ -11010,7 +11032,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   const briefDateLabel = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase();
 
   return (
-    <section className="page cos2-page">
+    <section className={'page cos2-page' + (mobileOpen ? ' is-mobile-reader-open' : '')}>
       <header className="cos2-top cos2-top--stats">
         <div className="v6-client-brand" aria-label="UNALIGNED active workspace">
           <V6UnalignedMark size={28} />
