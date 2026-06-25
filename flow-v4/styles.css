@@ -11680,10 +11680,10 @@ body[data-theme="light"] .ft {
 }
 
 body[data-theme="light"] .hd {
-  height: 52px;
-  min-height: 52px;
-  padding: 0 20px;
-  gap: 6px;
+  height: auto;
+  min-height: 76px;
+  padding: 10px 20px;
+  gap: 8px;
   background: var(--surface-0);
   border-bottom: 1px solid var(--line);
   backdrop-filter: none;
@@ -11701,13 +11701,20 @@ body[data-theme="light"] .hd-brand {
 .v6-company-os-logo {
   flex-shrink: 0;
   display: block;
-  height: 36px;
   width: auto;
-  max-width: min(320px, 46vw);
+}
+
+.v6-company-os-logo--hd.v6-logo-full {
+  height: 64px;
+  max-width: min(520px, 62vw);
+}
+
+.v6-company-os-logo--hd.v6-logo-compact {
+  height: 44px;
 }
 
 .v6-company-os-logo--hd {
-  margin-right: 2px;
+  margin-right: 4px;
 }
 
 .v6-gbrand:hover .v6-company-os-logo,

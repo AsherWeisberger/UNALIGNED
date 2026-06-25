@@ -712,13 +712,11 @@ function V6UnalignedMark({ size = 30, className = '' }) {
   );
 }
 
-function V6CompanyOsLogo({ height = 36, compact = false, className = '' }) {
-  const width = height * (compact ? 0.9 : 3.8);
+function V6CompanyOsLogo({ height = 64, compact = false, className = '' }) {
   const viewBox = compact ? '0 0 180 200' : '0 0 760 200';
   return (
     <svg
       className={'v6-company-os-logo ' + className}
-      width={width}
       height={height}
       viewBox={viewBox}
       xmlns="http://www.w3.org/2000/svg"
@@ -11445,8 +11443,8 @@ function V4App() {
       {/* ─── Top bar ─── */}
       <header className="hd v6-gnav">
         <div className="hd-brand v6-gbrand">
-          <V6CompanyOsLogo height={36} className="v6-company-os-logo--hd v6-logo-full" />
-          <V6CompanyOsLogo height={32} compact className="v6-company-os-logo--hd v6-logo-compact" />
+          <V6CompanyOsLogo height={64} className="v6-company-os-logo--hd v6-logo-full" />
+          <V6CompanyOsLogo height={44} compact className="v6-company-os-logo--hd v6-logo-compact" />
           <span className="hd-brand-name">UNALIGNED</span>
           <span className="hd-brand-tag">v4</span>
         </div>

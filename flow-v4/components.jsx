@@ -146,13 +146,11 @@ function V6UnalignedMark({ size = 30, className = '' }) {
 }
 
 /** Company OS logo — Claude design (icon + wordmark + tagline) */
-function V6CompanyOsLogo({ height = 36, compact = false, className = '' }) {
-  const width = height * (compact ? 0.9 : 3.8);
+function V6CompanyOsLogo({ height = 64, compact = false, className = '' }) {
   const viewBox = compact ? '0 0 180 200' : '0 0 760 200';
   return (
     <svg
       className={'v6-company-os-logo ' + className}
-      width={width}
       height={height}
       viewBox={viewBox}
       xmlns="http://www.w3.org/2000/svg"
