@@ -56,6 +56,12 @@ USE_LOCAL_CLASSIFIER = os.environ.get("USE_LOCAL_CLASSIFIER", "").strip().lower(
     "1", "true", "yes", "on",
 }
 
+# LLM backend — default to the local Qwen model via Ollama (no API key, no cost, offline).
+# Set LLM_BACKEND=anthropic to fall back to the Claude API.
+LLM_BACKEND = os.environ.get("LLM_BACKEND", "local").strip().lower()
+OLLAMA_URL  = os.environ.get("OLLAMA_URL", "http://localhost:11434/api/chat")
+LOCAL_MODEL = os.environ.get("LOCAL_MODEL", "qwen3.6:35b-a3b")
+
 _run_haiku_input_tokens = 0
 _run_haiku_output_tokens = 0
 _run_opus_input_tokens = 0
@@ -84,6 +90,35 @@ def run_cost_usd(extra_haiku_in=0, extra_haiku_out=0, extra_opus_in=0, extra_opu
         ((_run_opus_input_tokens + extra_opus_in) / 1_000_000 * OPUS_INPUT_PER_M) +
         ((_run_opus_output_tokens + extra_opus_out) / 1_000_000 * OPUS_OUTPUT_PER_M)
     )
+
+def _ollama_chat(content, json_mode=False, max_tokens=512, num_ctx=8192):
+    """Call the local Qwen model via Ollama. Returns the message text."""
+    payload = {
+        "model": LOCAL_MODEL,
+        "messages": [{"role": "user", "content": content}],
+        "stream": False,
+        "think": False,
+        "options": {"temperature": 0.3, "num_ctx": num_ctx, "num_predict": max_tokens},
+    }
+    if json_mode:
+        payload["format"] = "json"
+    r = httpx.post(OLLAMA_URL, json=payload, timeout=300)
+    r.raise_for_status()
+    return (r.json().get("message", {}) or {}).get("content", "").strip()
+
+
+def llm_text(client, content, json_mode=False, max_tokens=512, label="opus"):
+    """Unified text completion. Local Qwen by default; Claude API if LLM_BACKEND=anthropic."""
+    if LLM_BACKEND == "local":
+        return _ollama_chat(content, json_mode=json_mode, max_tokens=max_tokens)
+    model = "claude-haiku-4-5-20251001" if label == "haiku" else "claude-opus-4-6"
+    resp = client.messages.create(
+        model=model, max_tokens=max_tokens,
+        messages=[{"role": "user", "content": content}],
+    )
+    _track(resp, label)
+    return resp.content[0].text.strip()
+
 
 # Stages that are "terminal" — don't analyze or move these
 TERMINAL_STAGES = {"done", "paid-out", "dead-leads"}
@@ -304,13 +339,7 @@ def analyze_stage(card, client):
     )
 
     try:
-        resp = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=256,
-            messages=[{"role": "user", "content": STAGE_PROMPT + context}],
-        )
-        _track(resp, "haiku")
-        text = resp.content[0].text.strip()
+        text = llm_text(client, STAGE_PROMPT + context, json_mode=True, max_tokens=256, label="haiku")
         if "```" in text:
             for part in text.split("```"):
                 part = part.strip()
@@ -561,13 +590,7 @@ def draft_reply(card, reply_type, client, tone="direct"):
     )
 
     try:
-        resp = client.messages.create(
-            model="claude-opus-4-6",
-            max_tokens=512,
-            messages=[{"role": "user", "content": context}],
-        )
-        _track(resp, "opus")
-        body = _no_dashes(resp.content[0].text.strip())
+        body = _no_dashes(llm_text(client, context, max_tokens=512, label="opus"))
 
         # Ensure correct signature is present
         if reply_type == "initial-outreach":
@@ -658,15 +681,7 @@ def dedup_recent_cards(client):
                 "Same deal / campaign / collaboration? "
                 'JSON only: {"same_deal": true} or {"same_deal": false}'
             )
-            resp = client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                messages=[{"role":"user","content":prompt}],
-                max_tokens=20, temperature=0.0,
-            )
-            if hasattr(resp, "usage"):
-                h_in  += getattr(resp.usage, "input_tokens",  0)
-                h_out += getattr(resp.usage, "output_tokens", 0)
-            text = resp.content[0].text.strip()
+            text = llm_text(client, prompt, json_mode=True, max_tokens=20, label="haiku")
             text = _re.sub(r"^```(?:json)?|```$","",text,flags=_re.MULTILINE).strip()
             return json.loads(text).get("same_deal", False)
         except Exception as e:
@@ -791,7 +806,9 @@ def main():
     cards = fetch_active_cards()
     print(f"Found {len(cards)} active deal cards before stale cleanup.\n")
 
-    client = anthropic.Anthropic(api_key=ANTHROPIC_KEY)
+    # Local backend (default) needs no Anthropic client; only build one for the API fallback.
+    client = anthropic.Anthropic(api_key=ANTHROPIC_KEY) if LLM_BACKEND == "anthropic" else None
+    print(f"LLM backend: {LLM_BACKEND}" + (f" ({LOCAL_MODEL} via Ollama)" if LLM_BACKEND == "local" else ""))
 
     cards, auto_trashed = auto_trash_stale_cards(cards)
     if auto_trashed:
