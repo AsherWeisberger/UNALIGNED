@@ -246,6 +246,7 @@ function V3InlineReply({ lead, user, onCollapse }) {
   const [success, setSuccess] = React.useState('');
   const [aiDrafting, setAiDrafting] = React.useState(false);
   const [aiDraftError, setAiDraftError] = React.useState('');
+  const [aiBridgeLabel, setAiBridgeLabel] = React.useState(() => (window.claude?.label ? window.claude.label() : 'Mac Studio'));
   const successTimer = React.useRef(null);
   const subject = V3SubjectForLead(lead);
   const draftTone = draft.tone || (window.V3ResolveReplyTone ? window.V3ResolveReplyTone(lead) : 'direct');
@@ -303,6 +304,13 @@ function V3InlineReply({ lead, user, onCollapse }) {
 
   React.useEffect(() => () => clearSuccessTimer(), []);
 
+  React.useEffect(() => {
+    if (!window.claude?.health) return;
+    window.claude.health().then((data) => {
+      if (data && window.claude?.label) setAiBridgeLabel(window.claude.label());
+    }).catch(() => {});
+  }, [lead.id]);
+
   const addRecipients = (field, value) => {
     const emails = V3SplitEmails(value);
     if (!emails.length) return;
@@ -359,6 +367,7 @@ function V3InlineReply({ lead, user, onCollapse }) {
     setAiDrafting(true);
     setAiDraftError('');
     setError('');
+    if (window.claude?.label) setAiBridgeLabel(window.claude.label());
     try {
       const tone = draftTone || (window.V3?.ResolveReplyTone ? window.V3.ResolveReplyTone(lead) : 'direct');
       const first = String(lead.contactName || 'there').split(/\s+/)[0] || 'there';
@@ -387,6 +396,7 @@ ${thread.slice(0, 4200)}
 Write ONLY the email body. Start with "Hi ${first},". Keep it concise. End with "Best," on its own line. Do not add a signature block.`;
       const out = await window.claude.complete(prompt, { max_tokens: 700 });
       setBody(V3EnsureSenderSignature(String(out || '').trim(), sender));
+      if (window.claude?.label) setAiBridgeLabel(window.claude.label());
     } catch (err) {
       setAiDraftError(err.message || 'AI draft failed');
     } finally {
@@ -440,8 +450,8 @@ Write ONLY the email body. Start with "Hi ${first},". Keep it concise. End with 
           <option value="asher">Asher</option>
         </select>
         <span className="mail-compose-tone" title="Operator tone for this thread">{draftToneLabel}</span>
-        <button className="mail-compose-ai" type="button" disabled={status === 'sending' || aiDrafting} onClick={aiRedraft} title="Regenerate reply with local Qwen">
-          <V3Icon name="spark" w={12} /> {aiDrafting ? 'Drafting…' : 'Draft with AI'}
+        <button className="mail-compose-ai" type="button" disabled={status === 'sending' || aiDrafting} onClick={aiRedraft} title={'Regenerate via ' + aiBridgeLabel + ' (Qwen, ~15s)'}>
+          <V3Icon name="spark" w={12} /> {aiDrafting ? ('Drafting on ' + aiBridgeLabel + '…') : ('Draft with AI · ' + aiBridgeLabel)}
         </button>
         <button className={'mail-compose-mode ' + (internalOnly ? 'is-active' : '')} type="button" disabled={status === 'sending'} onClick={() => setInternalOnly(value => !value)} title="Send only to Robert, Sam, and Asher">
           <V3Icon name="mail" w={12} /> {internalOnly ? 'Internal email chain' : 'Talk internally'}

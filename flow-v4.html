@@ -126,16 +126,27 @@
   }
   function bridgeCandidates() {
     if (window.__LOCAL_LLM_BRIDGE__) return [window.__LOCAL_LLM_BRIDGE__];
-    return isLocalPage() ? [LOCAL_BRIDGE, LOCAL_BRIEF, TAILSCALE_BASE] : [TAILSCALE_BASE, LOCAL_BRIEF, LOCAL_BRIDGE];
+    if (!isLocalPage()) return [TAILSCALE_BASE];
+    return [LOCAL_BRIDGE, LOCAL_BRIEF, TAILSCALE_BASE];
   }
   async function bridgeFetch(path, options) {
+    const candidates = bridgeCandidates();
     let lastErr = null;
-    for (const base of bridgeCandidates()) {
-      try { return { resp: await fetch(base + path, options), base }; } catch (err) { lastErr = err; }
+    for (const base of candidates) {
+      try {
+        const resp = await fetch(base + path, { ...options, mode: 'cors', credentials: 'omit' });
+        window.claude.activeBase = base;
+        return { resp, base };
+      } catch (err) { lastErr = err; }
     }
-    throw new Error((lastErr && lastErr.message) || 'Could not reach local LLM on Mac Studio.');
+    throw new Error(`Could not reach Mac Studio at ${candidates[0]}${lastErr ? ' (' + lastErr.message + ')' : ''}`);
   }
   window.claude = {
+    activeBase: null,
+    label() {
+      const base = window.claude.activeBase || bridgeCandidates()[0] || '';
+      return base.includes('mac-studio') ? 'Mac Studio' : 'Local LLM';
+    },
     async complete(prompt, options) {
       const { resp } = await bridgeFetch('/complete', {
         method: 'POST',
