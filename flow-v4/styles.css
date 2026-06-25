@@ -11930,9 +11930,27 @@ body[data-theme="light"] .cos2-top {
   background: var(--surface-0);
 }
 
-body[data-theme="light"] .cos2-top--stats .v6-brand,
 body[data-theme="light"] .cos2-top--stats .cos2-brand {
   display: none;
+}
+
+.v6-client-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  padding-right: 16px;
+  margin-right: 4px;
+  border-right: 1px solid var(--line, var(--border));
+}
+
+body[data-theme="dark"] .v6-client-brand {
+  border-right-color: #202637;
+}
+
+body[data-theme="light"] .v6-client-brand .v6-mark {
+  width: 28px;
+  height: 28px;
 }
 
 body[data-theme="light"] .v6-brand {

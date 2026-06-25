@@ -3166,6 +3166,10 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   return (
     <section className="page cos2-page">
       <header className="cos2-top cos2-top--stats">
+        <div className="v6-client-brand" aria-label="UNALIGNED active workspace">
+          <V6UnalignedMark size={28} />
+          <div className="v6-wm">UNALIGNED<small>ACTIVE WORKSPACE</small></div>
+        </div>
         <div className="cos2-stats">
           {reviewCount > 0 && (
             <button type="button" className="cos2-stat cos2-stat-review" onClick={() => setSplitId('review')} title="Scam gate flagged these for you">
