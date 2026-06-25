@@ -9729,6 +9729,88 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
   );
 }
 
+function V4CleanDisplayText(t) {
+  if (!t) return '';
+  return String(t)
+    .replace(/&gt;/gi, '>')
+    .replace(/&lt;/gi, '<')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function V4BuildBriefPoints(lead) {
+  const points = [];
+  const phase = V4CompanyOsPhase(lead);
+  const why = V4CompanyOsWhy(lead);
+
+  if (lead.nextMove && lead.nextMove.text) {
+    points.push(lead.nextMove.text);
+  }
+  if (lead.operatorSummary && lead.operatorSummary.lead_summary) {
+    points.push(lead.operatorSummary.lead_summary);
+  }
+  if (lead.unread || lead.needsReply) {
+    points.push('New reply in thread — handle before anything else.');
+  }
+  if (lead.stage === 'invoice-sent') {
+    points.push('Invoice out. Get payment proof + timing locked before Robert executes.');
+  }
+  if ((lead.daysInStage || 0) >= 8) {
+    points.push(`${lead.daysInStage}d with no movement — decide or archive.`);
+  }
+  if (lead.value) {
+    points.push(`${V4CompanyOsMoney(lead.value)} at ${phase.toLowerCase()}.`);
+  }
+  if (lead.briefTitle || lead.briefBody) {
+    points.push('Brief material exists.');
+  }
+  if (points.length === 0) {
+    points.push(why);
+  }
+  return points.slice(0, 4);
+}
+
+function V4ComputeDailyBrief(leads = []) {
+  const active = leads.filter(l => !['trash', 'dead-leads', 'paid-out', 'done'].includes(l.stage));
+
+  const actionLeads = active
+    .filter(l => l.needsReply || l.stage === 'invoice-sent' || (l.daysInStage >= 6 && (l.value || 0) > 1500))
+    .sort((a, b) => (b.daysInStage || 0) - (a.daysInStage || 0) || (b.value || 0) - (a.value || 0))
+    .slice(0, 5);
+
+  const ts = (d) => (d ? Date.parse(d) : 0);
+  const watchLeads = active
+    .filter(l => !l.needsReply && ['rates-sent', 'negotiating', 'first-touch', 'engaged'].includes(l.stage))
+    .sort((a, b) => ts(b.lastTouchAt) - ts(a.lastTouchAt))
+    .slice(0, 5);
+
+  const closedLeads = leads
+    .filter(l => ['done', 'paid-out'].includes(l.stage))
+    .sort((a, b) => ts(b.lastTouchAt) - ts(a.lastTouchAt))
+    .slice(0, 4);
+
+  const toItem = (lead, isClosed = false) => ({
+    id: lead.id,
+    title: `${lead.brand} — ${V4CompanyOsPhase(lead)}`,
+    tags: [
+      V4CompanyOsPriority(lead),
+      V4CompanyOsPhaseTag(lead),
+      (lead.stage === 'done' || isClosed) ? 'closed' : null,
+    ].filter(Boolean),
+    points: V4BuildBriefPoints(lead),
+  });
+
+  return {
+    action: actionLeads.map(l => toItem(l)),
+    watch: watchLeads.map(l => toItem(l)),
+    closed: closedLeads.map(l => toItem(l, true)),
+  };
+}
+
 function V6SourceClass(source) {
   const s = String(source || '').toLowerCase();
   if (s.includes('gmail') || s === 'email') return 'gmail';
