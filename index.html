@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600&family=Inter+Tight:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Press+Start+2P&display=swap" rel="stylesheet" />
 
-<link rel="stylesheet" href="flow-v4/styles.css?v=20260625-ai-draft-btn-1" />
+<link rel="stylesheet" href="flow-v4/styles.css?v=20260625-llm-tailscale-1" />
 
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
@@ -74,13 +74,44 @@
 </script>
 
 <script>
-// Local Qwen bridge on Mac Studio — powers brief AI draft + any window.claude callers.
+// Local Qwen on Mac Studio — GitHub Pages uses Tailscale; localhost uses direct bridge.
 (function () {
-  const bridgeBase = window.__LOCAL_LLM_BRIDGE__ || 'http://127.0.0.1:8787';
+  const TAILSCALE_BASE = 'https://mac-studio.tail50d3a2.ts.net';
+  const LOCAL_BRIDGE = 'http://127.0.0.1:8787';
+  const LOCAL_BRIEF = 'http://127.0.0.1:8767';
+
+  function isLocalPage() {
+    const host = String(window.location.hostname || '');
+    return window.location.protocol === 'file:' || host === 'localhost' || host === '127.0.0.1';
+  }
+
+  function bridgeCandidates() {
+    if (window.__LOCAL_LLM_BRIDGE__) return [window.__LOCAL_LLM_BRIDGE__];
+    return isLocalPage()
+      ? [LOCAL_BRIDGE, LOCAL_BRIEF, TAILSCALE_BASE]
+      : [TAILSCALE_BASE, LOCAL_BRIEF, LOCAL_BRIDGE];
+  }
+
+  async function bridgeFetch(path, options) {
+    let lastErr = null;
+    for (const base of bridgeCandidates()) {
+      try {
+        const resp = await fetch(base + path, options);
+        return { resp, base };
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+    const hint = isLocalPage()
+      ? 'Start scripts/active/local_llm_bridge.py or the brief server on this Mac.'
+      : 'Open the dashboard on your Mac, or make sure Tailscale Funnel + brief server (8767) are running.';
+    throw new Error((lastErr && lastErr.message) || hint);
+  }
+
   window.claude = {
-    bridgeBase,
+    bridgeCandidates,
     async complete(prompt, options) {
-      const resp = await fetch(bridgeBase + '/complete', {
+      const { resp } = await bridgeFetch('/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -90,19 +121,25 @@
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) {
-        throw new Error(data.error || ('Local LLM bridge failed (' + resp.status + ')'));
+        throw new Error(data.error || data.message || ('Local LLM failed (' + resp.status + ')'));
       }
       return String(data.text || '').trim();
     },
     async health() {
-      const resp = await fetch(bridgeBase + '/health');
-      return resp.ok ? resp.json() : null;
+      try {
+        const { resp } = await bridgeFetch('/llm-health', { method: 'GET' });
+        if (resp.ok) return resp.json();
+        const fallback = await bridgeFetch('/health', { method: 'GET' });
+        return fallback.resp.ok ? fallback.resp.json() : null;
+      } catch (err) {
+        return null;
+      }
     },
   };
 })();
 </script>
 
-<script type="text/babel" src="flow-v4/app-bundle.jsx?v=20260625-ai-draft-btn-1"></script>
+<script type="text/babel" src="flow-v4/app-bundle.jsx?v=20260625-llm-tailscale-1"></script>
 
 </body>
 </html>

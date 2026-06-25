@@ -27,9 +27,13 @@ class BridgeHandler(BaseHTTPRequestHandler):
         print(f"[local-llm-bridge] {self.address_string()} {fmt % args}")
 
     def _cors(self) -> None:
-        self.send_header("Access-Control-Allow-Origin", "*")
+        origin = self.headers.get("Origin") or "*"
+        self.send_header("Access-Control-Allow-Origin", origin if origin else "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Vary", "Origin, Access-Control-Request-Private-Network")
+        if str(self.headers.get("Access-Control-Request-Private-Network") or "").lower() == "true":
+            self.send_header("Access-Control-Allow-Private-Network", "true")
 
     def _json(self, status: int, payload: dict) -> None:
         body = json.dumps(payload).encode("utf-8")

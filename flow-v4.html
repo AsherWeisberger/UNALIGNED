@@ -117,27 +117,40 @@
 
 <script>
 (function () {
-  const bridgeBase = window.__LOCAL_LLM_BRIDGE__ || 'http://127.0.0.1:8787';
+  const TAILSCALE_BASE = 'https://mac-studio.tail50d3a2.ts.net';
+  const LOCAL_BRIDGE = 'http://127.0.0.1:8787';
+  const LOCAL_BRIEF = 'http://127.0.0.1:8767';
+  function isLocalPage() {
+    const host = String(window.location.hostname || '');
+    return window.location.protocol === 'file:' || host === 'localhost' || host === '127.0.0.1';
+  }
+  function bridgeCandidates() {
+    if (window.__LOCAL_LLM_BRIDGE__) return [window.__LOCAL_LLM_BRIDGE__];
+    return isLocalPage() ? [LOCAL_BRIDGE, LOCAL_BRIEF, TAILSCALE_BASE] : [TAILSCALE_BASE, LOCAL_BRIEF, LOCAL_BRIDGE];
+  }
+  async function bridgeFetch(path, options) {
+    let lastErr = null;
+    for (const base of bridgeCandidates()) {
+      try { return { resp: await fetch(base + path, options), base }; } catch (err) { lastErr = err; }
+    }
+    throw new Error((lastErr && lastErr.message) || 'Could not reach local LLM on Mac Studio.');
+  }
   window.claude = {
-    bridgeBase,
     async complete(prompt, options) {
-      const resp = await fetch(bridgeBase + '/complete', {
+      const { resp } = await bridgeFetch('/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: String(prompt || ''),
-          max_tokens: (options && options.max_tokens) || 800,
-        }),
+        body: JSON.stringify({ prompt: String(prompt || ''), max_tokens: (options && options.max_tokens) || 800 }),
       });
       const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) {
-        throw new Error(data.error || ('Local LLM bridge failed (' + resp.status + ')'));
-      }
+      if (!resp.ok) throw new Error(data.error || ('Local LLM failed (' + resp.status + ')'));
       return String(data.text || '').trim();
     },
     async health() {
-      const resp = await fetch(bridgeBase + '/health');
-      return resp.ok ? resp.json() : null;
+      try {
+        const { resp } = await bridgeFetch('/llm-health', { method: 'GET' });
+        return resp.ok ? resp.json() : null;
+      } catch (e) { return null; }
     },
   };
 })();

@@ -45,6 +45,8 @@ ROBERT_HANDOFF_PREVIEW_FILE = STATE_DIR / "robert_handoff_operator_preview.json"
 BRIEF_JOBS_FILE = STATE_DIR / "brief_builder_jobs.json"
 NOTION_EXTRACTOR = Path("/Users/asherweisberger/Desktop/UNALIGNED/MASTER FILES/scripts/active/extract_notion_brief.mjs")
 WEB_ROOT = Path("/Users/asherweisberger/Desktop/UNALIGNED/MASTER FILES")
+if str(WEB_ROOT) not in sys.path:
+    sys.path.insert(0, str(WEB_ROOT))
 SCOPES = [
     "https://www.googleapis.com/auth/documents",
     "https://www.googleapis.com/auth/drive.file",
@@ -860,8 +862,8 @@ Return exactly this JSON:
   "why_alignednews": "",
   "drafts": [
     {{"label": "Option 1. Recommended", "text": ""}},
-    {{"label": "Option 2. Different angle", "text": ""}},
-    {{"label": "Option 3. Different angle", "text": ""}}
+    {{"label": "Option 2. Technical angle", "text": ""}},
+    {{"label": "Option 3. Market angle", "text": ""}}
   ]
 }}
 
@@ -873,9 +875,16 @@ Rules:
 - Option 1 should be the strongest and most post ready.
 - Each option must use a genuinely different framing.
 - Option 1 must make a natural tie in to AlignedNews.com. The other options should do that too when it fits.
+- Write like the post is ready to publish right now. No brief notes. No explainer copy. No internal commentary.
+- Keep the copy punchy and readable. Short paragraphs. Strong first line. Concrete proof points.
+- Avoid generic product-sheet phrasing like "see behaviors" or "this matters because".
+- If you reference AlignedNews.com, do it once, naturally, in Robert's voice. It should feel like a real closing thought, not a slogan.
+- Prefer lines like "What I like here is..." or "What stands out to me is..." over stiff framing like "This is the kind of shift I cover".
 - Pull from named proof points, product mechanics, launch details, and exact source language when useful.
 - Do not paste scheduling metadata like launch date, go live time, posting window, or approval notes into the draft copy.
+- Do not paste sections like Essential Information, Important Logistics, Status Note, company website, CTA URL, or posting instructions into the draft copy.
 - Do not write compliance placeholders like "Paid partnership disclosure here for compliance" in the draft body.
+- Do not write notes to yourself like "tone: provocative" or "the thesis is" inside the post copy.
 - Do not invent metrics or facts.
 - If a tag or link is required, include it in a natural close, not as a wall of text.
 
@@ -1056,7 +1065,7 @@ def merge_draft_payload(base: dict, llm_payload: dict | None) -> dict:
         valid_drafts.append({"label": label_value or "Option", "text": text_value})
     if valid_drafts:
         merged["drafts"] = valid_drafts
-    why_alignednews = clean_sentence(llm_payload.get("why_alignednews"))
+    why_alignednews = polish_alignednews_sentence(llm_payload.get("why_alignednews"))
     if why_alignednews and not draft_text_is_lazy(why_alignednews, joined_lines):
         merged["why_alignednews"] = why_alignednews
     merged["drafts"] = ensure_drafts_reference_alignednews(
@@ -1076,6 +1085,21 @@ def clean_sentence(value: str | None) -> str:
         return ""
     text = re.sub(r"\s+", " ", text).strip(" .")
     return f"{text}." if text else ""
+
+
+def polish_alignednews_sentence(value: str | None) -> str:
+    text = clean_sentence(value)
+    if not text:
+        return ""
+    replacements = (
+        (r"^This is the kind of shift I (?:like )?(?:track|cover|unpack) at AlignedNews\.com\.?$", "What stands out to me is the bigger shift underneath this. That is what I like unpacking at AlignedNews.com."),
+        (r"^This fits the broader AI story I cover at AlignedNews\.com\.?$", "What I like here is the bigger AI story behind the launch. That fits what I cover at AlignedNews.com."),
+        (r"^This fits the kind of conversation I like bringing into AlignedNews\.com\.?$", "What I like here is that it opens up a bigger conversation than a standard promo. That is a natural fit for AlignedNews.com."),
+    )
+    for pattern, replacement in replacements:
+        if re.match(pattern, text, re.I):
+            return replacement
+    return text
 
 
 def text_mentions_alignednews(value: str) -> bool:
@@ -1257,7 +1281,32 @@ def clean_draft_text(value: str) -> str:
     text = str(value or "").strip()
     text = re.sub(r"\bReply tweet:\s*\.*\s*$", "", text, flags=re.I).strip()
     text = re.sub(
+        r"(?is)\bEssential Information\b\s*:?\s*(.*?)(?=(?:\n\s*\n)|(?:\bOption\s+\d\b)|$)",
+        "",
+        text,
+    )
+    text = re.sub(
+        r"(?im)^(?:company website|website|referral / cta url|cta url|url to include in your publication|posting window|approval note|important logistics|status note)\s*:\s*.+$",
+        "",
+        text,
+    )
+    text = re.sub(
         r"(?im)^(?:launch date\/time|launch date|go[- ]live|go live|posting date|post date|publish date)\s*:\s*.+$",
+        "",
+        text,
+    )
+    text = re.sub(
+        r"(?i)\bLaunch date\/time\s*:\s*[^.\n]+\.?",
+        "",
+        text,
+    )
+    text = re.sub(
+        r"(?is)\bCreators who pick a fight with the category\..*?(?=(?:\n\s*\n)|(?:\bEssential Information\b)|(?:\bOption\s+\d\b)|$)",
+        "",
+        text,
+    )
+    text = re.sub(
+        r"(?im)^(?:tone|the thesis)\s*:\s*.+$",
         "",
         text,
     )
@@ -1286,6 +1335,27 @@ def clean_draft_text(value: str) -> str:
         "",
         text,
     )
+    text = re.sub(
+        r"(?im)^\s*paid partnership\s*$",
+        "",
+        text,
+    )
+    text = re.sub(
+        r"(?i)\s*\[\s*add your tracking code\s*\]",
+        "",
+        text,
+    )
+    text = re.sub(
+        r"(?i)\s*\[\s*insert tracking code\s*\]",
+        "",
+        text,
+    )
+    text = re.sub(
+        r"(?i)\s*\[\s*tracking link\s*\]",
+        "",
+        text,
+    )
+    text = re.sub(r"[ \t]+\n", "\n", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
@@ -1307,6 +1377,14 @@ def draft_text_is_lazy(value: str, joined_lines: str) -> bool:
         "the line i keep watching is the one between assistant and employee",
         "operator angle",
         "ai employee angle",
+        "essential information",
+        "creators who pick a fight with the category",
+        "tone: provocative",
+        "the thesis:",
+        "add your tracking code",
+        "insert tracking code",
+        "[tracking link]",
+        "paid partnership",
     )
     if any(item in lowered for item in banned) and not source_mentions(joined_lines, "ai employee", "assistant and employee"):
         return True
@@ -1438,20 +1516,20 @@ def infer_alignednews_line(company: str, joined_lines: str, deliverable_type: st
     lowered = str(joined_lines or "").lower()
     company_name = line(company) or "this"
     if any(term in lowered for term in ("user-generated agents", "user generated agents", "(uga)", "survival benchmark", "juno", "reality permeability", "multi-agent reinforcement", "rlhf")):
-        return "This is exactly the kind of frontier AI shift I like unpacking at AlignedNews.com"
+        return f"What stands out to me is that {company_name} pushes the frontier AI conversation forward. That is exactly the kind of shift I like unpacking at AlignedNews.com"
     if any(term in lowered for term in ("infrastructure", "compute", "inference", "benchmark", "developer", "api", "model", "agents")):
-        return "This is the kind of infrastructure shift that matters because it changes what AI teams can actually build, and that is the kind of story I like covering at AlignedNews.com"
+        return f"What I like here is that {company_name} gets into the real infrastructure layer, not the demo layer. That is the kind of story I like unpacking at AlignedNews.com"
     if any(term in lowered for term in ("enterprise", "workflow", "teams", "operator", "productivity", "sales", "support", "copilot")):
-        return "This is the kind of enterprise AI shift I like covering at AlignedNews.com because it shows how work is actually changing"
+        return f"What stands out to me is that {company_name} shows how AI is actually changing day to day work. That fits the bigger story I cover at AlignedNews.com"
     if any(term in lowered for term in ("interview", "podcast", "event", "summit", "fireside", "conversation", "meeting")):
-        return "This fits the kind of conversation I like bringing into AlignedNews.com"
+        return f"What I like here is that it opens up a bigger conversation than a standard promo. That is a natural fit for AlignedNews.com"
     if any(term in lowered for term in ("launch", "series a", "series b", "funding", "announcement", "now live", "public app")):
-        return "This is the kind of launch I like using to show where the market is moving at AlignedNews.com"
+        return f"What stands out to me is where this launch fits in the market. That is the lens I like bringing to AlignedNews.com"
     if "thread" in str(deliverable_type or "").lower():
-        return "This is the kind of AI shift I like unpacking in public at AlignedNews.com"
+        return f"What I like here is the bigger AI shift behind it. That is the kind of thing I like unpacking at AlignedNews.com"
     if line(announcement_text):
-        return "This fits the broader AI story I cover at AlignedNews.com"
-    return "This is the kind of shift I track at AlignedNews.com"
+        return f"What I like here is the bigger AI story behind the launch. That fits what I cover at AlignedNews.com"
+    return f"What stands out to me is the bigger shift underneath this. That is what I like unpacking at AlignedNews.com"
 
 
 def joined_clean_lines(values: list[str], company: str = "", limit: int = 3) -> str:
@@ -1711,11 +1789,10 @@ def build_structured_brief_payload(
     announcement_text = clean_sentence(" ".join(sentence_parts(announcement_seed)[:2]) or announcement_seed)
     why_alignednews = clean_sentence(
         (
-            f"The idea of an AI employee that works inside a team's real workflow is exactly the kind of platform shift AlignedNews should cover. "
-            f"It gives Robert a way to frame {company} as part of where work is going, not just as another product launch."
+            f"I would frame {company} as part of the bigger shift in how AI works inside real teams, which fits the way I cover the space at AlignedNews.com"
         )
         if re.search(r"\bai employee\b", joined_lines, re.I)
-        else f"This fits AlignedNews because Robert can frame {company} through the broader AI shift, not just the product launch"
+        else f"I would use {company} to tell the bigger AI story, not just the product launch, which is exactly what I do at AlignedNews.com"
     )
 
     def unique_clean(items: list[str], *, drop_prefixes: tuple[str, ...] = ()) -> list[str]:
@@ -2018,8 +2095,8 @@ def build_structured_brief_payload(
         "why_alignednews": why_alignednews,
         "drafts": [
             {"label": "Option 1 (recommended)", "text": draft_one},
-            {"label": "Option 2 (operator angle)", "text": draft_two},
-            {"label": "Option 3 (AI employee angle)", "text": draft_three},
+            {"label": "Option 2 (technical angle)", "text": draft_two},
+            {"label": "Option 3 (market angle)", "text": draft_three},
         ],
         "must_include": {
             "tag": company_handle,
@@ -2738,6 +2815,19 @@ def create_calendar_hold(payload: dict) -> dict:
     }
 
 
+def complete_local_llm(payload: dict) -> dict:
+    prompt = str(payload.get("prompt") or "").strip()
+    if not prompt:
+        raise ValueError("missing prompt")
+    if not LOCAL_BRIEF_LLM_ENABLED:
+        raise RuntimeError("Local LLM is disabled on the brief server.")
+    from local_llm import backend_label, ollama_chat, LOCAL_MODEL
+
+    max_tokens = int(payload.get("max_tokens") or 800)
+    text = ollama_chat(prompt, max_tokens=max_tokens, temperature=0.35)
+    return {"text": text, "model": LOCAL_MODEL, "backend": backend_label()}
+
+
 class DocsBriefHandler(BaseHTTPRequestHandler):
     def do_HEAD(self) -> None:
         parsed = urlparse(self.path or "/")
@@ -2768,13 +2858,21 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path or "/")
-        if parsed.path == "/health":
+        if parsed.path in {"/health", "/llm-health"}:
+            llm_meta = {"llm_enabled": LOCAL_BRIEF_LLM_ENABLED}
+            if LOCAL_BRIEF_LLM_ENABLED:
+                try:
+                    from local_llm import LOCAL_MODEL, backend_label
+                    llm_meta.update({"model": LOCAL_MODEL, "backend": backend_label()})
+                except Exception as exc:
+                    llm_meta["llm_error"] = str(exc)
             send_json(self, 200, {
                 "ok": True,
                 "service": "google-docs-brief-server",
                 "host": HOST,
                 "port": PORT,
                 "time": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                **llm_meta,
             })
             return
         if parsed.path == "/robert-handoff-preview":
@@ -2812,7 +2910,13 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
             pass
 
     def do_POST(self) -> None:
-        if self.path not in ("/generate-brief-doc", "/start-brief-job", "/create-calendar-hold", "/import-notion-brief", "/import-source-brief", "/draft-robert-handoff", "/send-robert-handoff"):
+        parsed = urlparse(self.path or "/")
+        path = parsed.path
+        if path not in (
+            "/generate-brief-doc", "/start-brief-job", "/create-calendar-hold",
+            "/import-notion-brief", "/import-source-brief", "/draft-robert-handoff",
+            "/send-robert-handoff", "/complete",
+        ):
             send_json(self, 404, {"ok": False, "error": "Unknown endpoint."})
             return
         if not require_api_token(self):
@@ -2821,17 +2925,20 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
         try:
             length = int(self.headers.get("Content-Length", "0"))
             payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
-            if self.path == "/generate-brief-doc":
+            if path == "/complete":
+                send_json(self, 200, complete_local_llm(payload))
+                return
+            if path == "/generate-brief-doc":
                 result = create_brief_doc(payload)
-            elif self.path == "/start-brief-job":
+            elif path == "/start-brief-job":
                 result = start_brief_job(payload)
-            elif self.path == "/import-notion-brief":
+            elif path == "/import-notion-brief":
                 result = import_notion_brief(payload.get("notion_url"), payload.get("email_context"))
-            elif self.path == "/draft-robert-handoff":
+            elif path == "/draft-robert-handoff":
                 result = build_robert_handoff_for_lead(payload.get("lead") or {})
-            elif self.path == "/send-robert-handoff":
+            elif path == "/send-robert-handoff":
                 result = send_robert_handoff_for_lead(payload.get("lead") or {}, payload.get("draft"))
-            elif self.path == "/import-source-brief":
+            elif path == "/import-source-brief":
                 result = import_source_brief(payload.get("source_url") or payload.get("notion_url"), payload.get("email_context"))
             else:
                 result = create_calendar_hold(payload)
