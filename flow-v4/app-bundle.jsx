@@ -11471,6 +11471,30 @@ function V4App() {
 
   const [paletteOpen, setPaletteOpen] = React.useState(false);
   const [helpOpen, setHelpOpen] = React.useState(false);
+  const [userMenuOpen, setUserMenuOpen] = React.useState(false);
+  const userMenuRef = React.useRef(null);
+
+  const switchUser = React.useCallback((id) => {
+    setTweak('viewAs', id);
+    setView(V4DefaultViewForUser(id));
+    setOpenId(null);
+    setBriefId(null);
+    setUserMenuOpen(false);
+  }, []);
+
+  React.useEffect(() => {
+    if (!userMenuOpen) return undefined;
+    const onDoc = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) setUserMenuOpen(false);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') setUserMenuOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [userMenuOpen]);
 
   React.useEffect(() => {
     const onKey = (e) => {
@@ -11603,11 +11627,41 @@ function V4App() {
           <kbd>⌘K</kbd>
         </div>
 
-        {/* The transparency signal */}
-        <div className="hd-context v6-glane" title={`Viewing as ${me.name} — ${me.role}`}>
-          <V3Avatar name={me.name} color={me.color} size="xs" className="hd-context-pip" />
-          <span>{me.name}</span>
-          <span className="hd-context-scope">{SCOPE_TAG[user]}</span>
+        <div className="hd-context-wrap" ref={userMenuRef}>
+          <button
+            type="button"
+            className="hd-context v6-glane hd-context-btn"
+            aria-expanded={userMenuOpen}
+            aria-haspopup="listbox"
+            title={`Viewing as ${me.name} — tap to switch`}
+            onClick={() => setUserMenuOpen((open) => !open)}
+          >
+            <V3Avatar name={me.name} color={me.color} size="xs" className="hd-context-pip" />
+            <span>{me.name}</span>
+            <span className="hd-context-scope">{SCOPE_TAG[user]}</span>
+            <V3Icon name="chev_d" w={12} className="hd-context-chev" />
+          </button>
+          {userMenuOpen && (
+            <div className="hd-user-menu" role="listbox" aria-label="Switch viewer">
+              {Object.values(USERS).map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  role="option"
+                  aria-selected={user === u.id}
+                  className={'hd-user-menu-item' + (user === u.id ? ' is-active' : '')}
+                  onClick={() => switchUser(u.id)}
+                >
+                  <V3Avatar name={u.name} color={u.color} size="xs" />
+                  <span className="hd-user-menu-label">
+                    <strong>{u.name}</strong>
+                    <em>{SCOPE_TAG[u.id]}</em>
+                  </span>
+                  {user === u.id && <V3Icon name="check" w={14} />}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="hd-sync" title="Real-time Gmail sync">
@@ -11616,21 +11670,6 @@ function V4App() {
         </div>
 
         <div className="hd-right">
-          <div className="hd-user-switch" title="Switch viewer">
-            {Object.values(USERS).map(u => (
-              <button key={u.id} className="hd-user-pip"
-                      aria-pressed={user === u.id}
-                      onClick={() => {
-                        setTweak('viewAs', u.id);
-                        setView(V4DefaultViewForUser(u.id));
-                        setOpenId(null);
-                        setBriefId(null);
-                      }}
-                      title={`${u.name} · ${u.role}`}>
-                <V3Avatar name={u.name} color={u.color} size="xs" />
-              </button>
-            ))}
-          </div>
           <button className="hd-icon-btn" title="Notifications"><V3Icon name="bell" /></button>
         </div>
       </header>
