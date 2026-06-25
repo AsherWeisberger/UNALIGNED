@@ -230,7 +230,8 @@ function V3Drawer({ lead, user, queue = [], onNavigate, onClose }) {
   );
 }
 
-function V3InlineReply({ lead, user, onCollapse }) {
+function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
+  const isDock = layout === 'dock';
   const [sender, setSender] = React.useState(() => V3SenderForUser(user));
   const [internalOnly, setInternalOnly] = React.useState(false);
   const draft = React.useMemo(() => V3ComposeReplyDraft(lead, sender), [lead.id, lead.draftReply?.body, lead.draftReply?.subject, lead.thread.length, lead.lastTouchAt, sender]);
@@ -441,8 +442,13 @@ Write ONLY the email body. Start with "Hi ${first},". Keep it concise. End with 
     }
   };
 
+  const statusText = success || error || aiDraftError || (isSelfRecipient
+    ? `${V3SenderName(sender)} is also a recipient. Remove them before sending.`
+    : status === 'sent' ? 'Sent.'
+      : (isDock ? '' : `Lead chain · sending as ${V3SenderName(sender)}${lead.gmailThreadId && sender === 'robert' ? ' in the Gmail thread' : ''}`));
+
   return (
-    <div className="mail-compose">
+    <div className={'mail-compose' + (isDock ? ' mail-compose--gmail' : '')}>
       <div className="mail-compose-topbar">
         <select className="mail-compose-sender" value={sender} disabled={status === 'sending'} onChange={e => setSender(e.target.value)} title="Sender">
           <option value="robert">Robert Scoble</option>
@@ -451,10 +457,10 @@ Write ONLY the email body. Start with "Hi ${first},". Keep it concise. End with 
         </select>
         <span className="mail-compose-tone" title="Operator tone for this thread">{draftToneLabel}</span>
         <button className="mail-compose-ai" type="button" disabled={status === 'sending' || aiDrafting} onClick={aiRedraft} title={'Regenerate via ' + aiBridgeLabel + ' (Qwen, ~15s)'}>
-          <V3Icon name="spark" w={12} /> {aiDrafting ? ('Drafting on ' + aiBridgeLabel + '…') : ('Draft with AI · ' + aiBridgeLabel)}
+          <V3Icon name="spark" w={12} /> {aiDrafting ? ('Drafting…') : (isDock ? 'Draft with AI' : ('Draft with AI · ' + aiBridgeLabel))}
         </button>
         <button className={'mail-compose-mode ' + (internalOnly ? 'is-active' : '')} type="button" disabled={status === 'sending'} onClick={() => setInternalOnly(value => !value)} title="Send only to Robert, Sam, and Asher">
-          <V3Icon name="mail" w={12} /> {internalOnly ? 'Internal email chain' : 'Talk internally'}
+          <V3Icon name="mail" w={12} /> {isDock ? 'Internal' : (internalOnly ? 'Internal email chain' : 'Talk internally')}
         </button>
         {onCollapse && (
           <button className="mail-compose-collapse" type="button" onClick={onCollapse} title="Hide composer" aria-label="Hide composer">
@@ -462,11 +468,13 @@ Write ONLY the email body. Start with "Hi ${first},". Keep it concise. End with 
           </button>
         )}
       </div>
-      <RecipientChips label="To" list={to} field="to" draft={toDraft} setDraft={setToDraft} />
-      {!internalOnly && <RecipientChips label="Cc" list={cc} field="cc" draft={ccDraft} setDraft={setCcDraft} />}
-      <div className="mail-compose-subject-row">
-        <span>Subject</span>
-        <input value={subject} readOnly disabled title="Subject" />
+      <div className="mail-compose-fields">
+        <RecipientChips label="To" list={to} field="to" draft={toDraft} setDraft={setToDraft} />
+        {!internalOnly && <RecipientChips label="Cc" list={cc} field="cc" draft={ccDraft} setDraft={setCcDraft} />}
+        <div className="mail-compose-subject-row">
+          <span>Subject</span>
+          <input value={subject} readOnly disabled title="Subject" />
+        </div>
       </div>
       <div className="mail-compose-editor">
         <textarea
@@ -476,19 +484,7 @@ Write ONLY the email body. Start with "Hi ${first},". Keep it concise. End with 
           placeholder={`Reply to ${lead.contactName.split(' ')[0]}...`}
         />
       </div>
-      <label className="mail-compose-attach">
-        <input
-          type="checkbox"
-          checked={attachPdf}
-          disabled={status === 'sending'}
-          onChange={e => setAttachPdf(e.target.checked)}
-        />
-        Attach SINGLE TIER.pdf
-      </label>
-      <div className="mail-compose-footer">
-        <div className={'mail-compose-status ' + (success ? 'is-success' : error || aiDraftError || isSelfRecipient ? 'is-error' : '')}>
-          {success || error || aiDraftError || (isSelfRecipient ? `${V3SenderName(sender)} is also a recipient. Remove them before sending.` : status === 'sent' ? 'Sent.' : `Lead chain · sending as ${V3SenderName(sender)}${lead.gmailThreadId && sender === 'robert' ? ' in the Gmail thread' : ''}`)}
-        </div>
+      <div className="mail-compose-footer mail-compose-toolbar">
         <button
           className={'mail-compose-send ' + (status === 'sent' ? 'is-sent' : '')}
           onClick={send}
@@ -497,6 +493,20 @@ Write ONLY the email body. Start with "Hi ${first},". Keep it concise. End with 
         >
           <V3Icon name={status === 'sent' ? 'check' : 'send'} w={12} /> {status === 'sending' ? 'Sending…' : status === 'sent' ? 'Sent' : 'Send'}
         </button>
+        <label className="mail-compose-attach">
+          <input
+            type="checkbox"
+            checked={attachPdf}
+            disabled={status === 'sending'}
+            onChange={e => setAttachPdf(e.target.checked)}
+          />
+          {isDock ? 'Attach PDF' : 'Attach SINGLE TIER.pdf'}
+        </label>
+        {statusText ? (
+          <div className={'mail-compose-status ' + (success ? 'is-success' : error || aiDraftError || isSelfRecipient ? 'is-error' : '')}>
+            {statusText}
+          </div>
+        ) : null}
       </div>
     </div>
   );

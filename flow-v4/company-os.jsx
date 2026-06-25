@@ -2700,7 +2700,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
   const showCompose = composeOpen || Boolean(lead.draftReply || lead.unread || lead.needsReply);
 
   return (
-    <div className="cos2-reader v6-reader cos2-reader--split">
+    <div className={'cos2-reader v6-reader cos2-reader--split' + (showCompose ? ' cos2-reader--compose-open' : '')}>
       <button className="hd-icon-btn cos2-back v6-back-mobile" onClick={onBack} aria-label="Back to list" type="button">
         <V3Icon name="chev_d" w={14} style={{ transform: 'rotate(90deg)' }} />
       </button>
@@ -2804,7 +2804,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
         <span><b>{Array.isArray(lead.thread) ? lead.thread.length : 0}</b> emails</span>
       </div>
 
-      <div className="cos2-reader-workspace">
+      <div className={'cos2-reader-workspace cos2-reader-workspace--gmail' + (showCompose ? ' is-compose-open' : '')}>
         <div className="cos2-reader-pane cos2-reader-pane--thread">
           <div className="drawer-tabs">
             <button className="dr-tab" aria-selected={tab === 'thread'} onClick={() => setTab('thread')}>
@@ -2819,77 +2819,77 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
               </button>
             )}
           </div>
-          <div className="drawer-body drawer-body--thread">
-            {tab === 'thread' && (
-              isXLead ? (
-                <div className="cos-reader-stands">
-                  <div className="cos-operator-strip">
-                    <div className="cos-operator-strip-head">
-                      <div>
-                        <div className="cos-operator-strip-eyebrow">X intake</div>
-                        <h3>What came in from the DM scrape</h3>
-                      </div>
-                      {lead.xOpenDm ? (
-                        <button className="cos-quick-btn" type="button" onClick={() => window.open(lead.xOpenDm, '_blank', 'noopener')}>
-                          Open DM
-                        </button>
-                      ) : null}
-                    </div>
-                    <div className="cos-operator-grid">
-                      <div className="cos-operator-card">
-                        <div className="cos-operator-card-label">Source</div>
-                        <div className="cos-operator-card-value">{lead.xHandle || lead.contactName}</div>
-                      </div>
-                      <div className="cos-operator-card">
-                        <div className="cos-operator-card-label">Type</div>
-                        <div className="cos-operator-card-value">{lead.deliverables || 'X DM lead'}</div>
-                      </div>
-                      <div className="cos-operator-card">
-                        <div className="cos-operator-card-label">Message count</div>
-                        <div className="cos-operator-card-value">{lead.xMessageCount || 1} DM{lead.xMessageCount === 1 ? '' : 's'}</div>
-                      </div>
-                      <div className="cos-operator-card">
-                        <div className="cos-operator-card-label">Email captured</div>
-                        <div className="cos-operator-card-value">{lead.email || 'No email captured yet'}</div>
-                      </div>
-                    </div>
-                    <div className="cos-operator-summary">
-                      {xContextRows.map(row => (
-                        <div key={row.label} className="handoff-preview-row">
-                          <div className="handoff-preview-label">{row.label}</div>
-                          <div className="handoff-preview-context">{row.value}</div>
+          <div className="cos2-thread-scroll">
+            <div className="drawer-body drawer-body--thread">
+              {tab === 'thread' && (
+                isXLead ? (
+                  <div className="cos-reader-stands">
+                    <div className="cos-operator-strip">
+                      <div className="cos-operator-strip-head">
+                        <div>
+                          <div className="cos-operator-strip-eyebrow">X intake</div>
+                          <h3>What came in from the DM scrape</h3>
                         </div>
-                      ))}
-                      {!xContextRows.length && <p>No X intake context was saved for this lead yet.</p>}
+                        {lead.xOpenDm ? (
+                          <button className="cos-quick-btn" type="button" onClick={() => window.open(lead.xOpenDm, '_blank', 'noopener')}>
+                            Open DM
+                          </button>
+                        ) : null}
+                      </div>
+                      <div className="cos-operator-grid">
+                        <div className="cos-operator-card">
+                          <div className="cos-operator-card-label">Source</div>
+                          <div className="cos-operator-card-value">{lead.xHandle || lead.contactName}</div>
+                        </div>
+                        <div className="cos-operator-card">
+                          <div className="cos-operator-card-label">Type</div>
+                          <div className="cos-operator-card-value">{lead.deliverables || 'X DM lead'}</div>
+                        </div>
+                        <div className="cos-operator-card">
+                          <div className="cos-operator-card-label">Message count</div>
+                          <div className="cos-operator-card-value">{lead.xMessageCount || 1} DM{lead.xMessageCount === 1 ? '' : 's'}</div>
+                        </div>
+                        <div className="cos-operator-card">
+                          <div className="cos-operator-card-label">Email captured</div>
+                          <div className="cos-operator-card-value">{lead.email || 'No email captured yet'}</div>
+                        </div>
+                      </div>
+                      <div className="cos-operator-summary">
+                        {xContextRows.map(row => (
+                          <div key={row.label} className="handoff-preview-row">
+                            <div className="handoff-preview-label">{row.label}</div>
+                            <div className="handoff-preview-context">{row.value}</div>
+                          </div>
+                        ))}
+                        {!xContextRows.length && <p>No X intake context was saved for this lead yet.</p>}
+                      </div>
                     </div>
                   </div>
+                ) : <V3Thread lead={lead} />
+              )}
+              {tab === 'stands' && (
+                <div className="cos-reader-stands">
+                  {readerOps}
+                  <V3Stands lead={lead} />
                 </div>
-              ) : <V3Thread lead={lead} />
-            )}
-            {tab === 'stands' && (
-              <div className="cos-reader-stands">
-                {readerOps}
-                <V3Stands lead={lead} />
-              </div>
-            )}
-            {tab === 'brief' && lead.brief && window.V3BriefPanel && (
-              <div className="cos-reader-stands cos-reader-brief">
-                {React.createElement(window.V3BriefPanel, { lead, user })}
-              </div>
+              )}
+              {tab === 'brief' && lead.brief && window.V3BriefPanel && (
+                <div className="cos-reader-stands cos-reader-brief">
+                  {React.createElement(window.V3BriefPanel, { lead, user })}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="cos2-compose-dock">
+            {showCompose ? (
+              <V3InlineReply lead={lead} user={user} layout="dock" onCollapse={() => setComposeOpen(false)} />
+            ) : (
+              <button type="button" className="drawer-reply-bar drawer-reply-bar--dock drawer-reply-bar--gmail" onClick={() => setComposeOpen(true)}>
+                <V3Icon name="reply" w={14} />
+                <span>{isXLead && !lead.email ? `Prep handoff for ${lead.contactName.split(' ')[0]}` : `Reply to ${lead.contactName.split(' ')[0]}${lead.draftReply ? ' — draft ready' : ''}`}</span>
+              </button>
             )}
           </div>
-        </div>
-
-        <div className="cos2-reader-pane cos2-reader-pane--compose">
-          {showCompose ? (
-            <V3InlineReply lead={lead} user={user} onCollapse={() => setComposeOpen(false)} />
-          ) : (
-            <button type="button" className="drawer-reply-bar drawer-reply-bar--dock" onClick={() => setComposeOpen(true)}>
-              <V3Icon name="reply" w={14} />
-              <span>{isXLead && !lead.email ? `Prep handoff for ${lead.contactName.split(' ')[0]}` : `Reply to ${lead.contactName.split(' ')[0]}${lead.draftReply ? ' — draft ready' : ''}`}</span>
-              <V3Icon name="chev_d" w={12} style={{ transform: 'rotate(180deg)' }} />
-            </button>
-          )}
         </div>
       </div>
     </div>
