@@ -10427,13 +10427,116 @@ body[data-theme="light"] .cmdk-row.is-active {
 }
 
 @media (max-width: 900px) {
+  body[data-theme="light"] .app,
+  body[data-theme="light"] .main {
+    overflow-x: hidden;
+  }
+
+  body[data-theme="light"] .cos2-top {
+    display: none;
+  }
+
+  body[data-theme="light"] .cos2-page {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
   body[data-theme="light"] .cos2-body {
-    grid-template-columns: minmax(0, 1fr);
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    height: auto;
   }
 
   body[data-theme="light"] .cos2-rail {
+    width: 100%;
+    flex-shrink: 0;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 6px 10px;
     border-right: 0;
     border-bottom: 1px solid var(--line);
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+
+  body[data-theme="light"] .cos2-rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  body[data-theme="light"] .cos2-split-section,
+  body[data-theme="light"] .cos2-hints {
+    display: none;
+  }
+
+  body[data-theme="light"] .cos2-split {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 0;
+    padding: 7px 11px;
+  }
+
+  body[data-theme="light"] .cos2-list {
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    border-right: 0;
+    overflow: hidden;
+  }
+
+  body[data-theme="light"] .cos2-list-scroll,
+  body[data-theme="light"] .cos2-list > .v6-list-scroll {
+    padding: 0;
+  }
+
+  body[data-theme="light"] .v6-list-head,
+  body[data-theme="light"] .brief-mode-header {
+    padding: 12px 14px;
+  }
+
+  body[data-theme="light"] .tesla-row-wrap,
+  body[data-theme="light"] .cos2-row-wrap {
+    width: 100%;
+  }
+
+  body[data-theme="light"] .tesla-row,
+  body[data-theme="light"] .cos2-row {
+    width: 100%;
+    min-height: 52px;
+    border-radius: 0;
+  }
+
+  /* Reader must not sit beside the list — light theme was forcing display:flex */
+  body[data-theme="light"] .cos2-reader {
+    display: none !important;
+    flex: none;
+    width: 0;
+    min-width: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  body[data-theme="light"] .cos2-body.is-mobile-open .cos2-rail,
+  body[data-theme="light"] .cos2-body.is-mobile-open .cos2-list {
+    display: none;
+  }
+
+  body[data-theme="light"] .cos2-body.is-mobile-open .cos2-reader {
+    display: flex !important;
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    pointer-events: auto;
+    background: #fff;
   }
 
   body[data-theme="light"] .new-lead-card {
@@ -13439,7 +13542,7 @@ body[data-theme="light"] .gmail-reply-status.is-success {
 }
 
 @media (max-width: 900px) {
-  body[data-theme="light"] .cos2-reader--gmail-native {
+  body[data-theme="light"] .cos2-body.is-mobile-open .cos2-reader--gmail-native {
     min-height: 100dvh;
     min-height: -webkit-fill-available;
   }
