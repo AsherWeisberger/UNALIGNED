@@ -885,7 +885,9 @@ Rules:
   Reply 1:
   Reply 2:
 - Option 1 should be the strongest and most post ready.
-- Each option must use a genuinely different framing.
+- Each option must use a genuinely different framing AND different proof points. The three must not blur together.
+- Do not lean on a single recurring image or prop across the options. Never reuse the same physical hook (for example a laptop sleeping, closing the lid, the screen, or wifi) in more than one option, and prefer not to use that tired laptop framing at all. Reach for the real distinction instead: session bound vs persistent, babysat vs unattended, one machine vs dedicated per agent, forgets vs remembers, runs only when watched vs runs on its own.
+- Default to tight copy: a few short lines per option, not several long paragraphs, unless the deliverable is explicitly a long thread.
 - Option 1 must make a natural tie in to AlignedNews.com. The other options should do that too when it fits.
 - Write like the post is ready to publish right now. No brief notes. No explainer copy. No internal commentary.
 - Keep the copy punchy and readable. Short paragraphs. Strong first line. Concrete proof points.
