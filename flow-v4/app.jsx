@@ -303,8 +303,8 @@ function V4App() {
       {/* ─── Top bar ─── */}
       <header className="hd v6-gnav">
         <div className="hd-brand v6-gbrand">
-          <V6CompanyOsMark size={28} />
-          <span className="v6-gword">COMPANY OS<em>V6</em></span>
+          <V6CompanyOsLogo height={36} className="v6-company-os-logo--hd v6-logo-full" />
+          <V6CompanyOsLogo height={32} compact className="v6-company-os-logo--hd v6-logo-compact" />
           <span className="hd-brand-name">UNALIGNED</span>
           <span className="hd-brand-tag">v4</span>
         </div>

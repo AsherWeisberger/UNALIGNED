@@ -145,75 +145,39 @@ function V6UnalignedMark({ size = 30, className = '' }) {
   );
 }
 
-/** Company OS mark — offset C + slash (UNALIGNED), Perplexity-style depth */
-function V6CompanyOsMark({ size = 28, className = '' }) {
-  const uid = React.useId().replace(/:/g, '');
-  const bg = `v6cos-bg-${uid}`;
-  const stroke = `v6cos-stroke-${uid}`;
-  const sheen = `v6cos-sheen-${uid}`;
+/** Company OS logo — Claude design (icon + wordmark + tagline) */
+function V6CompanyOsLogo({ height = 36, compact = false, className = '' }) {
+  const width = height * (compact ? 0.9 : 3.8);
+  const viewBox = compact ? '0 0 180 200' : '0 0 760 200';
   return (
     <svg
-      className={'v6-gmark ' + className}
-      width={size}
-      height={size}
-      viewBox="0 0 32 32"
-      fill="none"
+      className={'v6-company-os-logo ' + className}
+      width={width}
+      height={height}
+      viewBox={viewBox}
       xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
       role="img"
+      aria-label="Company OS"
     >
-      <defs>
-        <linearGradient id={bg} x1="6" y1="2" x2="28" y2="30" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#070d1a" />
-          <stop offset="0.38" stopColor="#152a5c" />
-          <stop offset="0.72" stopColor="#1d4ed8" />
-          <stop offset="1" stopColor="#38bdf8" />
-        </linearGradient>
-        <linearGradient id={stroke} x1="9" y1="7" x2="25" y2="25" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#f8fafc" />
-          <stop offset="0.45" stopColor="#bae6fd" />
-          <stop offset="1" stopColor="#a5b4fc" />
-        </linearGradient>
-        <linearGradient id={sheen} x1="4" y1="4" x2="18" y2="14" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#ffffff" stopOpacity="0.34" />
-          <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
-        </linearGradient>
-        <filter id={`v6cos-glow-${uid}`} x="-30%" y="-30%" width="160%" height="160%">
-          <feGaussianBlur stdDeviation="0.65" result="b" />
-          <feMerge>
-            <feMergeNode in="b" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-      </defs>
-      <rect x="1" y="1" width="30" height="30" rx="9.5" fill={`url(#${bg})`} />
-      <rect x="1.5" y="1.5" width="29" height="29" rx="9" fill={`url(#${sheen})`} />
-      <rect x="1" y="1" width="30" height="30" rx="9.5" stroke="rgba(186, 230, 253, 0.22)" strokeWidth="0.75" />
-      <path
-        d="M22.2 9.4a10.2 10.2 0 1 0 0 13.2"
-        stroke="#38bdf8"
-        strokeOpacity="0.22"
-        strokeWidth="3.6"
-        strokeLinecap="round"
-        transform="translate(1.35 1.05)"
-      />
-      <path
-        d="M21.6 9a10.4 10.4 0 1 0 0 14"
-        stroke={`url(#${stroke})`}
-        strokeWidth="3.75"
-        strokeLinecap="round"
-        filter={`url(#v6cos-glow-${uid})`}
-      />
-      <path
-        d="M10.8 23.6L22.4 8.6"
-        stroke="#67e8f9"
-        strokeWidth="2.15"
-        strokeLinecap="round"
-      />
-      <circle cx="22.7" cy="8.4" r="1.55" fill="#ecfeff" />
-      <circle cx="22.7" cy="8.4" r="0.55" fill="#0ea5e9" />
+      <rect x="40" y="40" width="120" height="120" rx="28" fill="#4f63e6" />
+      <path d="M72 82 L96 104 L72 126" fill="none" stroke="#ffffff" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="104" y="94" width="28" height="17" rx="4" fill="#ffffff" />
+      {!compact && (
+        <>
+          <text x="196" y="98" fontFamily="var(--font-display), Inter, system-ui, sans-serif" fontWeight="600" fontSize="44" fill="#16202e">
+            Company<tspan fill="#4f63e6"> OS</tspan>
+          </text>
+          <text x="198" y="130" fontFamily="var(--font-mono), ui-monospace, monospace" fontWeight="500" fontSize="14" fill="#6b7686">
+            run the company from one place
+          </text>
+        </>
+      )}
     </svg>
   );
+}
+
+function V6CompanyOsMark(props) {
+  return <V6CompanyOsLogo {...props} />;
 }
 
 Object.assign(window, {
@@ -221,6 +185,7 @@ Object.assign(window, {
   V3Avatar,
   V3StageProg,
   V3Empty,
+  V6CompanyOsLogo,
   V6CompanyOsMark,
   V6UnalignedMark,
   v3Money,

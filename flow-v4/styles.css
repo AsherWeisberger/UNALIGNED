@@ -11698,22 +11698,36 @@ body[data-theme="light"] .hd-brand {
   border-right: 1px solid var(--line);
 }
 
-.v6-gmark {
+.v6-company-os-logo {
   flex-shrink: 0;
   display: block;
-  filter: drop-shadow(0 2px 10px rgba(29, 78, 216, 0.38));
-  transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), filter 0.22s ease;
+  height: 36px;
+  width: auto;
+  max-width: min(320px, 46vw);
 }
 
-.v6-gbrand:hover .v6-gmark,
-.hd-brand:hover .v6-gmark {
-  transform: scale(1.06) rotate(-2deg);
-  filter: drop-shadow(0 4px 16px rgba(56, 189, 248, 0.52));
+.v6-company-os-logo--hd {
+  margin-right: 2px;
 }
 
-body[data-theme="light"] .v6-gmark {
-  width: 28px;
-  height: 28px;
+.v6-gbrand:hover .v6-company-os-logo,
+.hd-brand:hover .v6-company-os-logo {
+  filter: drop-shadow(0 2px 10px rgba(79, 99, 230, 0.18));
+}
+
+.v6-logo-compact {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .v6-logo-full {
+    display: none;
+  }
+
+  .v6-logo-compact {
+    display: block;
+    max-width: none;
+  }
 }
 
 body[data-theme="light"] .v6-gword {
