@@ -14192,6 +14192,15 @@ body[data-theme="light"] .gmail-reply-status.is-success {
     display: none !important;
   }
 
+  body[data-theme="light"] .hd-right .hd-user-switch {
+    display: flex !important;
+  }
+
+  body[data-theme="light"] .hd-right .hd-user-pip {
+    width: 28px;
+    height: 28px;
+  }
+
   /* Company OS workflow drawer (desktop left rail on phone) */
   .cos2-splits-toggle {
     display: inline-flex;
