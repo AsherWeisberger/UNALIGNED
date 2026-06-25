@@ -12846,62 +12846,131 @@ body[data-theme="light"] .cos2-gmail-column .mail-compose--gmail {
   box-shadow: 0 1px 2px rgba(17, 32, 51, 0.06), 0 0 0 1px var(--line);
 }
 
-body[data-theme="light"] .cos2-gmail-column .mail-compose--gmail .mail-compose-editor textarea {
-  min-height: 72px;
-  max-height: 140px;
-}
-
-/* Inline reply — sits directly under last message like Gmail */
+/* Inline reply — spacious editor like Gmail, directly under last message */
 body[data-theme="light"] .mail-compose--inline {
-  border-radius: 10px;
-  box-shadow: 0 1px 2px rgba(17, 32, 51, 0.05), 0 0 0 1px var(--line);
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(17, 32, 51, 0.07), 0 0 0 1px var(--line);
+  overflow: visible;
 }
 
-body[data-theme="light"] .mail-compose--inline .mail-compose-topbar {
-  min-height: 30px;
-  padding: 3px 8px;
-  background: transparent;
+body[data-theme="light"] .mail-compose-inline-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--line-soft);
+  font-size: 12px;
 }
 
-body[data-theme="light"] .mail-compose--inline .mail-compose-sender {
-  min-width: 100px;
-  font-size: 11.5px;
+body[data-theme="light"] .mail-compose-inline-meta .mail-compose-sender {
+  flex-shrink: 0;
+  min-width: 0;
+  max-width: 130px;
+  font-size: 12px;
+  font-weight: 600;
 }
 
-body[data-theme="light"] .mail-compose--inline .mail-compose-ai,
-body[data-theme="light"] .mail-compose--inline .mail-compose-mode {
-  font-size: 10px;
-  padding: 3px 7px;
+body[data-theme="light"] .mail-compose-inline-to {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  overflow: hidden;
 }
 
-body[data-theme="light"] .mail-compose--inline .mail-compose-fields .mail-compose-recips:nth-child(2) {
-  display: none;
+body[data-theme="light"] .mail-compose-inline-label {
+  flex-shrink: 0;
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 600;
 }
 
-body[data-theme="light"] .mail-compose--inline .mail-compose-recips,
-body[data-theme="light"] .mail-compose--inline .mail-compose-subject-row {
-  min-height: 26px;
-  padding: 2px 8px;
+body[data-theme="light"] .mail-compose-inline-value {
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-body[data-theme="light"] .mail-compose--inline .mail-compose-subject-row {
-  display: none;
+body[data-theme="light"] .mail-compose-inline-meta .mail-compose-collapse {
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
-body[data-theme="light"] .mail-compose--inline .mail-compose-editor {
-  padding: 6px 10px 2px;
+body[data-theme="light"] .mail-compose--inline .mail-compose-editor--grow {
+  padding: 12px 14px 8px;
 }
 
-body[data-theme="light"] .mail-compose--inline .mail-compose-editor textarea {
-  min-height: 64px;
-  max-height: 200px;
-  font-size: 13px;
+body[data-theme="light"] .mail-compose--inline .mail-compose-editor--grow textarea {
+  display: block;
+  width: 100%;
+  min-height: 240px;
+  max-height: none;
+  resize: vertical;
+  overflow-y: hidden;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 14px;
+  line-height: 1.58;
+  color: var(--text);
 }
 
-body[data-theme="light"] .mail-compose--inline .mail-compose-toolbar {
-  min-height: 36px;
+body[data-theme="light"] .mail-compose-toolbar--gmail {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--surface-2);
+}
+
+body[data-theme="light"] .mail-compose-toolbar--gmail .mail-compose-send {
+  order: -1;
+  flex-shrink: 0;
+}
+
+body[data-theme="light"] .mail-compose-toolbar-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+body[data-theme="light"] .mail-compose-toolbar--gmail .mail-compose-ai,
+body[data-theme="light"] .mail-compose-toolbar--gmail .mail-compose-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-3);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+body[data-theme="light"] .mail-compose-toolbar--gmail .mail-compose-ai:hover,
+body[data-theme="light"] .mail-compose-toolbar--gmail .mail-compose-mode:hover,
+body[data-theme="light"] .mail-compose-toolbar--gmail .mail-compose-mode.is-active {
+  background: var(--hover);
+  color: var(--text);
+}
+
+body[data-theme="light"] .mail-compose-toolbar--gmail .mail-compose-attach {
+  margin: 0;
+  font-size: 11px;
+}
+
+body[data-theme="light"] .mail-compose-toolbar--gmail .mail-compose-status {
+  width: 100%;
+  flex-basis: 100%;
+  font-size: 11px;
+  white-space: normal;
 }
 
 body[data-theme="light"] .cos2-gmail-column .drawer-reply-bar--gmail {
