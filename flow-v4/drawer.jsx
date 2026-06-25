@@ -244,6 +244,8 @@ function V3InlineReply({ lead, user, onCollapse }) {
   const [status, setStatus] = React.useState('draft');
   const [error, setError] = React.useState('');
   const [success, setSuccess] = React.useState('');
+  const [aiDrafting, setAiDrafting] = React.useState(false);
+  const [aiDraftError, setAiDraftError] = React.useState('');
   const successTimer = React.useRef(null);
   const subject = V3SubjectForLead(lead);
   const draftTone = draft.tone || (window.V3ResolveReplyTone ? window.V3ResolveReplyTone(lead) : 'direct');
@@ -349,6 +351,49 @@ function V3InlineReply({ lead, user, onCollapse }) {
     </div>
   );
 
+  const aiRedraft = async () => {
+    if (!window.claude?.complete) {
+      setAiDraftError('Local LLM bridge offline. Start scripts/active/local_llm_bridge.py on this Mac.');
+      return;
+    }
+    setAiDrafting(true);
+    setAiDraftError('');
+    setError('');
+    try {
+      const tone = draftTone || (window.V3?.ResolveReplyTone ? window.V3.ResolveReplyTone(lead) : 'direct');
+      const first = String(lead.contactName || 'there').split(/\s+/)[0] || 'there';
+      const brand = lead.brand || 'the company';
+      const nextAction = String(lead.operatorSummary?.next_action || lead.nextMove?.text || '').trim();
+      const thread = (lead.thread || []).slice(-6).map(m => (
+        `[${m.from || '?'}] ${m.subject || ''}\n${String(m.body || '').slice(0, 900)}`
+      )).join('\n\n---\n\n');
+      const senderName = V3SenderName(sender);
+      const prompt = `Write an email reply for UNALIGNED sponsorship partnerships.
+
+VOICE RULES:
+- Never use hyphens or em dashes as punctuation. Use periods or commas instead.
+- Sound like a real person. No AI filler, no corporate template voice.
+- TONE: ${tone} (direct = brief business; friendship = warm rapport; long_standing = trust-based, skip cold intro)
+
+Sender: ${senderName}
+Contact first name: ${first}
+Company: ${brand}
+Subject: ${subject}
+${nextAction ? `Operator next action: ${nextAction}` : ''}
+
+Recent thread:
+${thread.slice(0, 4200)}
+
+Write ONLY the email body. Start with "Hi ${first},". Keep it concise. End with "Best," on its own line. Do not add a signature block.`;
+      const out = await window.claude.complete(prompt, { max_tokens: 700 });
+      setBody(V3EnsureSenderSignature(String(out || '').trim(), sender));
+    } catch (err) {
+      setAiDraftError(err.message || 'AI draft failed');
+    } finally {
+      setAiDrafting(false);
+    }
+  };
+
   const send = async () => {
     const msg = V3EnsureSenderSignature(body.trim(), sender);
     const recipient = toLine.trim();
@@ -395,6 +440,9 @@ function V3InlineReply({ lead, user, onCollapse }) {
           <option value="asher">Asher</option>
         </select>
         <span className="mail-compose-tone" title="Operator tone for this thread">{draftToneLabel}</span>
+        <button className="mail-compose-ai" type="button" disabled={status === 'sending' || aiDrafting} onClick={aiRedraft} title="Regenerate reply with local Qwen">
+          <V3Icon name="spark" w={12} /> {aiDrafting ? 'Drafting…' : 'Draft with AI'}
+        </button>
         <button className={'mail-compose-mode ' + (internalOnly ? 'is-active' : '')} type="button" disabled={status === 'sending'} onClick={() => setInternalOnly(value => !value)} title="Send only to Robert, Sam, and Asher">
           <V3Icon name="mail" w={12} /> {internalOnly ? 'Internal email chain' : 'Talk internally'}
         </button>
@@ -428,8 +476,8 @@ function V3InlineReply({ lead, user, onCollapse }) {
         Attach SINGLE TIER.pdf
       </label>
       <div className="mail-compose-footer">
-        <div className={'mail-compose-status ' + (success ? 'is-success' : error || isSelfRecipient ? 'is-error' : '')}>
-          {success || error || (isSelfRecipient ? `${V3SenderName(sender)} is also a recipient. Remove them before sending.` : status === 'sent' ? 'Sent.' : `Lead chain · sending as ${V3SenderName(sender)}${lead.gmailThreadId && sender === 'robert' ? ' in the Gmail thread' : ''}`)}
+        <div className={'mail-compose-status ' + (success ? 'is-success' : error || aiDraftError || isSelfRecipient ? 'is-error' : '')}>
+          {success || error || aiDraftError || (isSelfRecipient ? `${V3SenderName(sender)} is also a recipient. Remove them before sending.` : status === 'sent' ? 'Sent.' : `Lead chain · sending as ${V3SenderName(sender)}${lead.gmailThreadId && sender === 'robert' ? ' in the Gmail thread' : ''}`)}
         </div>
         <button
           className={'mail-compose-send ' + (status === 'sent' ? 'is-sent' : '')}

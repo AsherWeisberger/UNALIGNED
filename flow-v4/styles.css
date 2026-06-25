@@ -12514,3 +12514,32 @@ body[data-theme="light"] .mail-compose-tone {
   padding: 5px 9px;
   white-space: nowrap;
 }
+
+body[data-theme="light"] .mail-compose-ai {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: 600 11px/1 var(--font-sans);
+  color: var(--accent-2);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  border-radius: 999px;
+  padding: 6px 10px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+body[data-theme="light"] .mail-compose-ai:hover:not(:disabled) {
+  background: var(--accent-line);
+}
+
+body[data-theme="light"] .mail-compose-ai:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+body[data-theme="light"] .cos-reader-brief .brief-panel {
+  margin: 0;
+  border: none;
+  box-shadow: none;
+}

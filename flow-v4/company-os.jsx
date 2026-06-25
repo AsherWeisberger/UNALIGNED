@@ -2805,6 +2805,11 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
             <button className="dr-tab" aria-selected={tab === 'stands'} onClick={() => setTab('stands')}>
               Where this stands
             </button>
+            {lead.brief && (
+              <button className="dr-tab" aria-selected={tab === 'brief'} onClick={() => setTab('brief')}>
+                Content brief
+              </button>
+            )}
           </div>
           <div className="drawer-body drawer-body--thread">
             {tab === 'thread' && (
@@ -2857,6 +2862,11 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
               <div className="cos-reader-stands">
                 {readerOps}
                 <V3Stands lead={lead} />
+              </div>
+            )}
+            {tab === 'brief' && lead.brief && window.V3BriefPanel && (
+              <div className="cos-reader-stands cos-reader-brief">
+                {React.createElement(window.V3BriefPanel, { lead, user })}
               </div>
             )}
           </div>
