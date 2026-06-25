@@ -11900,14 +11900,16 @@ body[data-theme="light"] .v6-brand {
 .v6-mark {
   flex-shrink: 0;
   display: block;
-  overflow: visible;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: transparent;
+  object-fit: contain;
 }
 
 body[data-theme="light"] .v6-mark {
   width: 30px;
   height: 30px;
-  border-radius: 0;
-  background: transparent;
 }
 
 body[data-theme="light"] .v6-wm {

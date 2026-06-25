@@ -122,32 +122,26 @@ function V3Empty({ icon = 'check', title, sub }) {
   );
 }
 
-/** UNALIGNED mark — black circle, torn U, transparent outside (seamless) */
+/** UNALIGNED mark — official torn-U circle asset, transparent outside */
 function V6UnalignedMark({ size = 30, className = '' }) {
-  const uid = React.useId().replace(/:/g, '');
+  const src = React.useMemo(() => {
+    try {
+      return new URL('flow-v4/assets/unaligned-mark.png?v=20260625-u-ref-1', window.location.href).href;
+    } catch (err) {
+      return 'flow-v4/assets/unaligned-mark.png?v=20260625-u-ref-1';
+    }
+  }, []);
   return (
-    <svg
+    <img
       className={'v6-mark ' + className}
+      src={src}
       width={size}
       height={size}
-      viewBox="0 0 32 32"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
+      alt=""
       aria-hidden="true"
-      role="img"
-    >
-      <defs>
-        <filter id={`v6u-shadow-${uid}`} x="-8%" y="-8%" width="116%" height="116%">
-          <feDropShadow dx="0.35" dy="0.55" stdDeviation="0.45" floodColor="#000000" floodOpacity="0.42" />
-        </filter>
-      </defs>
-      <circle cx="16" cy="16" r="16" fill="#000000" />
-      <g fill="#FFFFFF" filter={`url(#v6u-shadow-${uid})`}>
-        <path d="M7.5 8h3.35v2.35l-.6.45.75.38-.8.52.65.55H7.5V8z" />
-        <path d="M21.15 8h3.35v2.35l.6.45-.75.38.8.52-.65.55H21.15V8z" />
-        <path d="M7.5 12.15l.65-.6.8.6-.85.48.75.8h1.75v7.6q4.75 2.7 9.5 0v-7.6h1.75l.75-.8-.85-.48.8-.6.65-.6h-2.65l.55-.5-.75-.38.8-.52-.65-.45v-.55h-3.35v.55l-.65.45.8.52-.75.38.55.5H7.5z" />
-      </g>
-    </svg>
+      draggable={false}
+      decoding="async"
+    />
   );
 }
 
