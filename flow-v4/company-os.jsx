@@ -2689,8 +2689,10 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
   const threadId = lead.gmailThreadId || lead.id || '';
   const threadIdShort = String(threadId).slice(-8).toUpperCase();
 
+  const showCompose = composeOpen || Boolean(lead.draftReply || lead.unread || lead.needsReply);
+
   return (
-    <div className="cos2-reader v6-reader">
+    <div className="cos2-reader v6-reader cos2-reader--split">
       <button className="hd-icon-btn cos2-back v6-back-mobile" onClick={onBack} aria-label="Back to list" type="button">
         <V3Icon name="chev_d" w={14} style={{ transform: 'rotate(90deg)' }} />
       </button>
@@ -2788,92 +2790,89 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
           )}
         </div>
       </div>
-      <div className="v6-metrics fadein" style={{ animationDelay: '.12s' }}>
-        <div className="v6-metric">
-          <div className="l">Deal value</div>
-          <div className={'v' + (lead.value ? ' pos' : '')}>{lead.value ? v3Money(lead.value) : '—'}</div>
-        </div>
-        <div className="v6-metric">
-          <div className="l">Days in stage</div>
-          <div className="v">{lead.daysInStage || 0}</div>
-        </div>
-        <div className="v6-metric">
-          <div className="l">Emails</div>
-          <div className="v">{Array.isArray(lead.thread) ? lead.thread.length : 0}</div>
-        </div>
+      <div className="v6-metrics v6-metrics-compact fadein" style={{ animationDelay: '.12s' }}>
+        <span><b>{lead.value ? v3Money(lead.value) : '—'}</b> deal</span>
+        <span><b>{lead.daysInStage || 0}</b> days in stage</span>
+        <span><b>{Array.isArray(lead.thread) ? lead.thread.length : 0}</b> emails</span>
       </div>
-      <div className="drawer-tabs">
-        <button className="dr-tab" aria-selected={tab === 'thread'} onClick={() => setTab('thread')}>
-          {isXLead ? 'Lead context' : 'Email thread'} <span className="cnt">{lead.thread.length}</span>
-        </button>
-        <button className="dr-tab" aria-selected={tab === 'stands'} onClick={() => setTab('stands')}>
-          Where this stands
-        </button>
-      </div>
-      <div className="drawer-body">
-        {tab === 'thread' && (
-          isXLead ? (
-            <div className="cos-reader-stands">
-              <div className="cos-operator-strip">
-                <div className="cos-operator-strip-head">
-                  <div>
-                    <div className="cos-operator-strip-eyebrow">X intake</div>
-                    <h3>What came in from the DM scrape</h3>
-                  </div>
-                  {lead.xOpenDm ? (
-                    <button className="cos-quick-btn" type="button" onClick={() => window.open(lead.xOpenDm, '_blank', 'noopener')}>
-                      Open DM
-                    </button>
-                  ) : null}
-                </div>
-                <div className="cos-operator-grid">
-                  <div className="cos-operator-card">
-                    <div className="cos-operator-card-label">Source</div>
-                    <div className="cos-operator-card-value">{lead.xHandle || lead.contactName}</div>
-                  </div>
-                  <div className="cos-operator-card">
-                    <div className="cos-operator-card-label">Type</div>
-                    <div className="cos-operator-card-value">{lead.deliverables || 'X DM lead'}</div>
-                  </div>
-                  <div className="cos-operator-card">
-                    <div className="cos-operator-card-label">Message count</div>
-                    <div className="cos-operator-card-value">{lead.xMessageCount || 1} DM{lead.xMessageCount === 1 ? '' : 's'}</div>
-                  </div>
-                  <div className="cos-operator-card">
-                    <div className="cos-operator-card-label">Email captured</div>
-                    <div className="cos-operator-card-value">{lead.email || 'No email captured yet'}</div>
-                  </div>
-                </div>
-                <div className="cos-operator-summary">
-                  {xContextRows.map(row => (
-                    <div key={row.label} className="handoff-preview-row">
-                      <div className="handoff-preview-label">{row.label}</div>
-                      <div className="handoff-preview-context">{row.value}</div>
-                    </div>
-                  ))}
-                  {!xContextRows.length && <p>No X intake context was saved for this lead yet.</p>}
-                </div>
-              </div>
-            </div>
-          ) : <V3Thread lead={lead} />
-        )}
-        {tab === 'stands' && (
-          <div className="cos-reader-stands">
-            {readerOps}
-            <V3Stands lead={lead} />
+
+      <div className="cos2-reader-workspace">
+        <div className="cos2-reader-pane cos2-reader-pane--thread">
+          <div className="drawer-tabs">
+            <button className="dr-tab" aria-selected={tab === 'thread'} onClick={() => setTab('thread')}>
+              {isXLead ? 'Lead context' : 'Email thread'} <span className="cnt">{lead.thread.length}</span>
+            </button>
+            <button className="dr-tab" aria-selected={tab === 'stands'} onClick={() => setTab('stands')}>
+              Where this stands
+            </button>
           </div>
-        )}
-      </div>
-      <div className="drawer-foot">
-        {composeOpen ? (
-          <V3InlineReply lead={lead} user={user} onCollapse={() => setComposeOpen(false)} />
-        ) : (
-          <button className="drawer-reply-bar" onClick={() => setComposeOpen(true)}>
-            <V3Icon name="reply" w={14} />
-            <span>{isXLead && !lead.email ? `Prep handoff for ${lead.contactName.split(' ')[0]}` : `Reply to ${lead.contactName.split(' ')[0]}${lead.draftReply ? ' — draft ready' : ''}`}</span>
-            <V3Icon name="chev_d" w={12} style={{ transform: 'rotate(180deg)' }} />
-          </button>
-        )}
+          <div className="drawer-body drawer-body--thread">
+            {tab === 'thread' && (
+              isXLead ? (
+                <div className="cos-reader-stands">
+                  <div className="cos-operator-strip">
+                    <div className="cos-operator-strip-head">
+                      <div>
+                        <div className="cos-operator-strip-eyebrow">X intake</div>
+                        <h3>What came in from the DM scrape</h3>
+                      </div>
+                      {lead.xOpenDm ? (
+                        <button className="cos-quick-btn" type="button" onClick={() => window.open(lead.xOpenDm, '_blank', 'noopener')}>
+                          Open DM
+                        </button>
+                      ) : null}
+                    </div>
+                    <div className="cos-operator-grid">
+                      <div className="cos-operator-card">
+                        <div className="cos-operator-card-label">Source</div>
+                        <div className="cos-operator-card-value">{lead.xHandle || lead.contactName}</div>
+                      </div>
+                      <div className="cos-operator-card">
+                        <div className="cos-operator-card-label">Type</div>
+                        <div className="cos-operator-card-value">{lead.deliverables || 'X DM lead'}</div>
+                      </div>
+                      <div className="cos-operator-card">
+                        <div className="cos-operator-card-label">Message count</div>
+                        <div className="cos-operator-card-value">{lead.xMessageCount || 1} DM{lead.xMessageCount === 1 ? '' : 's'}</div>
+                      </div>
+                      <div className="cos-operator-card">
+                        <div className="cos-operator-card-label">Email captured</div>
+                        <div className="cos-operator-card-value">{lead.email || 'No email captured yet'}</div>
+                      </div>
+                    </div>
+                    <div className="cos-operator-summary">
+                      {xContextRows.map(row => (
+                        <div key={row.label} className="handoff-preview-row">
+                          <div className="handoff-preview-label">{row.label}</div>
+                          <div className="handoff-preview-context">{row.value}</div>
+                        </div>
+                      ))}
+                      {!xContextRows.length && <p>No X intake context was saved for this lead yet.</p>}
+                    </div>
+                  </div>
+                </div>
+              ) : <V3Thread lead={lead} />
+            )}
+            {tab === 'stands' && (
+              <div className="cos-reader-stands">
+                {readerOps}
+                <V3Stands lead={lead} />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="cos2-reader-pane cos2-reader-pane--compose">
+          {showCompose ? (
+            <V3InlineReply lead={lead} user={user} onCollapse={() => setComposeOpen(false)} />
+          ) : (
+            <button type="button" className="drawer-reply-bar drawer-reply-bar--dock" onClick={() => setComposeOpen(true)}>
+              <V3Icon name="reply" w={14} />
+              <span>{isXLead && !lead.email ? `Prep handoff for ${lead.contactName.split(' ')[0]}` : `Reply to ${lead.contactName.split(' ')[0]}${lead.draftReply ? ' — draft ready' : ''}`}</span>
+              <V3Icon name="chev_d" w={12} style={{ transform: 'rotate(180deg)' }} />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -3056,7 +3055,13 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   }, []);
 
   React.useEffect(() => { setSelId(null); setMobileOpen(false); setComposeOpen(false); }, [splitId]);
-  React.useEffect(() => { setComposeOpen(false); }, [selected?.id]);
+  React.useEffect(() => {
+    if (!selected) {
+      setComposeOpen(false);
+      return;
+    }
+    setComposeOpen(Boolean(selected.draftReply || selected.unread || selected.needsReply));
+  }, [selected?.id, selected?.draftReply, selected?.unread, selected?.needsReply]);
 
   const moveSel = (delta) => {
     if (!items.length) return;

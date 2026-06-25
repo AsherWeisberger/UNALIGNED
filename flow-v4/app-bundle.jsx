@@ -1424,58 +1424,194 @@ function V3EnsureSenderSignature(body, sender) {
   return text + '\n\n' + signature;
 }
 
+const V3_LONG_STANDING_PARTNERS = [
+  'omane', 'echonlab', 'echon lab', 'polyai', 'poly ai',
+  'ahacreator', 'aha creator', 'eezycollab', 'arcgrowth', 'arc growth',
+];
+
+function V3NoDashes(text) {
+  if (!text) return text;
+  return String(text)
+    .replace(/—/g, '. ')
+    .replace(/–/g, '. ')
+    .replace(/\s+-\s+/g, '. ');
+}
+
+function V3ResolveReplyTone(lead) {
+  const fromAnalysis = String(lead?.operatorAnalysis?.tone || lead?.operatorMemory?.analysis?.tone || '')
+    .toLowerCase()
+    .replace(/_/g, '-');
+  if (['direct', 'friendship', 'long-standing'].includes(fromAnalysis)) return fromAnalysis;
+  const name = [lead?.brand, lead?.contactName, lead?.email].filter(Boolean).join(' ').toLowerCase();
+  for (const partner of V3_LONG_STANDING_PARTNERS) {
+    if (name.includes(partner)) return 'long-standing';
+  }
+  const thread = Array.isArray(lead?.thread) ? lead.thread : [];
+  const ours = ['unalignedx@', 'samlevin@', 'scobleizer@', 'asherweisberger@', 'robert scoble', 'sam levin'];
+  const ourMsgs = thread.filter(m => m && ours.some(s => String(m.from || '').toLowerCase().includes(s))).length;
+  if (ourMsgs >= 1 && thread.length >= 3) return 'friendship';
+  return 'direct';
+}
+
+function V3ReplyToneLabel(tone) {
+  if (tone === 'long-standing') return 'Long standing partner';
+  if (tone === 'friendship') return 'Warm rapport';
+  return 'Direct / new contact';
+}
+
+function V3ExternalThreadFirstName(lead) {
+  const contactFirst = String(lead?.contactName || '').trim().split(/\s+/)[0];
+  if (contactFirst) return contactFirst;
+  const thread = Array.isArray(lead?.thread) ? lead.thread : [];
+  for (let i = thread.length - 1; i >= 0; i -= 1) {
+    const from = String(thread[i]?.from || '');
+    if (V3IsTeamParticipant(from)) continue;
+    const match = from.match(/^([^<,@]+)/);
+    if (match) {
+      const first = match[1].trim().split(/\s+/)[0];
+      if (first) return first;
+    }
+  }
+  return 'there';
+}
+
+function V3StripExistingSignatures(body) {
+  let text = String(body || '').trim();
+  const markers = [
+    'Robert Scoble', 'Sam Levin', 'Asher Weisberger', 'Partnerships, UNALIGNED',
+    'Client Services Manager', 'Founder, Unaligned', 'Mobile: +1-425',
+  ];
+  for (const marker of markers) {
+    const idx = text.toLowerCase().lastIndexOf(marker.toLowerCase());
+    if (idx > 40) text = text.slice(0, idx).trim();
+  }
+  return text;
+}
+
+function V3FixDraftGreeting(body, firstName) {
+  const lines = String(body || '').split('\n');
+  const first = firstName || 'there';
+  if (lines.length && /^hi\s+/i.test(lines[0].trim())) {
+    lines[0] = `Hi ${first},`;
+    return lines.join('\n');
+  }
+  return body;
+}
+
+function V3AdaptDraftSubject(storedSubject, lead) {
+  const expected = V3SubjectForLead(lead);
+  const stored = String(storedSubject || '').trim();
+  if (!stored) return expected;
+  const first = V3ExternalThreadFirstName(lead).toLowerCase();
+  const brand = String(lead?.brand || '').toLowerCase();
+  const subj = stored.toLowerCase();
+  const mentionsLead = (first !== 'there' && subj.includes(first))
+    || (brand.length > 2 && subj.includes(brand));
+  const last = lead?.thread?.[lead.thread.length - 1] || {};
+  if (last.subject && !mentionsLead) return expected;
+  return stored;
+}
+
+function V3AdaptDraftBodyForLead(body, lead, sender) {
+  const first = V3ExternalThreadFirstName(lead);
+  const brand = String(lead?.brand || '').toLowerCase();
+  const raw = String(body || '').trim();
+  const greetingLine = raw.split('\n')[0]?.trim() || '';
+  const greetingWrong = /^hi\s+/i.test(greetingLine)
+    && !greetingLine.toLowerCase().includes(first.toLowerCase())
+    && first !== 'there';
+  const head = raw.slice(0, 280).toLowerCase();
+  const seemsOffThread = greetingWrong || (brand.length > 2 && raw.length > 40 && !head.includes(brand));
+  const nextAction = String(lead?.operatorSummary?.next_action || lead?.nextMove?.text || '').trim();
+  if (seemsOffThread && nextAction.length > 20) {
+    body = V3FallbackDraftBody(lead, sender);
+  }
+  let text = V3StripExistingSignatures(String(body || '').trim());
+  text = V3FixDraftGreeting(text, first);
+  text = V3NoDashes(text);
+  const tone = V3ResolveReplyTone(lead);
+  const summary = String(lead?.operatorSummary?.next_action || lead?.nextMove?.text || '').trim();
+  if (summary && text.length < 48 && !/^hi\s+/i.test(text)) {
+    text = [`Hi ${first},`, '', summary, '', 'Best,'].join('\n');
+  }
+  if (tone === 'direct' && sender !== 'robert') {
+    text = text
+      .replace(/\bI'm looking forward to\b/gi, 'Happy to')
+      .replace(/\blooking forward to\b/gi, 'happy to');
+  }
+  if (sender === 'robert' && !/robert/i.test(text.slice(0, 120)) && tone === 'direct') {
+    text = text.replace(/\bThanks for confirming\b/gi, 'Thanks for the note');
+  }
+  return text.trim();
+}
+
 function V3FallbackDraftBody(lead, sender) {
-  const first = String(lead?.contactName || 'there').split(' ')[0] || 'there';
+  const first = V3ExternalThreadFirstName(lead);
   const brand = String(lead?.brand || 'your company');
-  const last = Array.isArray(lead?.thread) ? lead.thread[lead.thread.length - 1] : null;
-  const lastSnippet = String(last?.body || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  const tone = V3ResolveReplyTone(lead);
+  const nextAction = String(lead?.operatorSummary?.next_action || lead?.nextMove?.text || '').trim();
   const stage = String(lead?.stage || '');
-  if (sender === 'robert') {
-    return [
+
+  if (nextAction && nextAction.length > 12) {
+    return V3NoDashes([
       `Hi ${first},`,
       '',
-      `Thanks for reaching out about ${brand}.`,
-      lastSnippet ? `I saw the latest note in the thread and want to keep the conversation moving cleanly.` : `I want to keep the conversation moving cleanly and make sure we answer the latest notes.`,
+      nextAction,
       '',
       'Best,',
-    ].join('\n');
+    ].join('\n'));
+  }
+
+  if (sender === 'robert') {
+    return V3NoDashes([
+      `Hi ${first},`,
+      '',
+      tone === 'long-standing'
+        ? `Thanks for keeping ${brand} moving. I saw the latest note and want to answer it cleanly.`
+        : `Thanks for reaching out about ${brand}. I saw the latest note and want to keep this moving cleanly.`,
+      '',
+      'Best,',
+    ].join('\n'));
   }
   if (sender === 'sam') {
     const opener = stage === 'rates-sent' || stage === 'negotiating' || stage === 'invoice-sent'
-      ? 'I saw the latest note and I’m keeping this moving on the partnership side.'
-      : 'I’m jumping in to keep the thread moving on the partnership side.';
-    return [
+      ? 'I saw the latest note and I am keeping this moving on the partnership side.'
+      : tone === 'friendship' || tone === 'long-standing'
+        ? 'Jumping back in on the partnership side.'
+        : 'I am jumping in to keep the thread moving on the partnership side.';
+    return V3NoDashes([
       `Hi ${first},`,
       '',
       opener,
-      lastSnippet ? `We’re tracking the latest detail from the thread and will reply accordingly.` : `We’ll keep the thread aligned with the latest details before sending anything else.`,
+      'We will keep the thread aligned with the latest details before sending anything else.',
       '',
       'Best,',
-    ].join('\n');
+    ].join('\n'));
   }
-  return [
+  return V3NoDashes([
     `Hi ${first},`,
     '',
-    'I’m jumping in to keep the chain organized and make sure we reply to the latest information in the thread.',
-    lastSnippet ? `I’ve got the newest note in view and will respond from there.` : `I’ve got the newest note in view and will respond from there.`,
+    'I am jumping in to keep the chain organized and reply to the latest information in the thread.',
     '',
     'Best,',
-  ].join('\n');
+  ].join('\n'));
 }
 
 function V3ComposeReplyDraft(lead, sender) {
   const draft = lead?.draftReply && typeof lead.draftReply === 'object' ? lead.draftReply : null;
-  const subject = draft?.subject || V3SubjectForLead(lead);
-  const sourceBody = draft?.body ? String(draft.body) : V3FallbackDraftBody(lead, sender);
+  const subject = V3AdaptDraftSubject(draft?.subject, lead);
+  const rawBody = draft?.body ? String(draft.body) : V3FallbackDraftBody(lead, sender);
+  const adapted = V3AdaptDraftBodyForLead(rawBody, lead, sender);
   return {
     subject,
-    body: V3EnsureSenderSignature(sourceBody, sender),
+    body: V3EnsureSenderSignature(adapted, sender),
+    tone: V3ResolveReplyTone(lead),
   };
 }
 
 function V3SubjectForLead(lead) {
   const last = lead?.thread?.[lead.thread.length - 1] || {};
-  const base = lead?.draftReply?.subject || last.subject || ((lead?.brand || 'Lead') + ' conversation');
+  const base = last.subject || ((lead?.brand || 'Lead') + ' conversation');
   return /^re:/i.test(base) ? base : 'Re: ' + base;
 }
 
@@ -1967,7 +2103,7 @@ async function V3SendLeadEmail({ lead, sender, to, cc, subject, body, attachPdf 
   return data;
 }
 
-Object.assign(window, { V3SenderForUser, V3SenderName, V3SenderSignature, V3EnsureSenderSignature, V3ComposeReplyDraft, V3SubjectForLead, V3DefaultCc, V3InternalEmails, V3SenderEmails, V3IsSelfRecipient, V3SplitEmails, V3EmailsFromValue, V3ExtractEmail, V3LeadReplyToEmail, V3ThreadParticipants, V3LeadMatchesQuery, V3UniqueEmails, V3ReplyRecipients, V3ThreadMessageKey, V3PendingReplyKey, V3PendingReplyMatchesLead, V3PrunePendingReplies, V3MergePendingReplies, V3SendLeadEmail, V3LeadActivityTimestamp, V3LeadReceivedTimestamp, V3SortLeadsByActivity, V3NewLeadReason });
+Object.assign(window, { V3SenderForUser, V3SenderName, V3SenderSignature, V3EnsureSenderSignature, V3ComposeReplyDraft, V3ResolveReplyTone, V3ReplyToneLabel, V3SubjectForLead, V3DefaultCc, V3InternalEmails, V3SenderEmails, V3IsSelfRecipient, V3SplitEmails, V3EmailsFromValue, V3ExtractEmail, V3LeadReplyToEmail, V3ThreadParticipants, V3LeadMatchesQuery, V3UniqueEmails, V3ReplyRecipients, V3ThreadMessageKey, V3PendingReplyKey, V3PendingReplyMatchesLead, V3PrunePendingReplies, V3MergePendingReplies, V3SendLeadEmail, V3LeadActivityTimestamp, V3LeadReceivedTimestamp, V3SortLeadsByActivity, V3NewLeadReason });
 
 
 // FLOW v3 — data with category labels matching UNALIGNED's INTERVIEW / COLLABORATION / PARTNERSHIP / INTRO tabs
@@ -2902,7 +3038,7 @@ function V3MoveLeadStage(lead, nextStage, leads = window.V3?.LEADS || V3_LEADS) 
   }).catch(err => console.warn('[ALIGNED v4] stage update failed:', err));
 }
 
-window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_VISIBLE_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_VISIBLE_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, CompanyOsQualifiedLead: V3CompanyOsQualifiedLead, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, NewLeadReason: V3NewLeadReason, NewLeadSourceKind: V3NewLeadSourceKind, NewLeadSourceLabel: V3NewLeadSourceLabel, NewLeadHandle: V3NewLeadHandle, NewLeadSummary: V3NewLeadSummary, NewLeadPrimaryIdentity: V3NewLeadPrimaryIdentity, LeadMatchesQuery: V3LeadMatchesQuery, PrunePendingReplies: V3PrunePendingReplies, MergePendingReplies: V3MergePendingReplies };
+window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_VISIBLE_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_VISIBLE_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, CompanyOsQualifiedLead: V3CompanyOsQualifiedLead, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, NewLeadReason: V3NewLeadReason, ResolveReplyTone: V3ResolveReplyTone, ReplyToneLabel: V3ReplyToneLabel, NewLeadSourceKind: V3NewLeadSourceKind, NewLeadSourceLabel: V3NewLeadSourceLabel, NewLeadHandle: V3NewLeadHandle, NewLeadSummary: V3NewLeadSummary, NewLeadPrimaryIdentity: V3NewLeadPrimaryIdentity, LeadMatchesQuery: V3LeadMatchesQuery, PrunePendingReplies: V3PrunePendingReplies, MergePendingReplies: V3MergePendingReplies };
 
 V3LoadPricingTiers();
 V3LoadTeamUsers();
@@ -3927,6 +4063,8 @@ function V3InlineReply({ lead, user, onCollapse }) {
   const [success, setSuccess] = React.useState('');
   const successTimer = React.useRef(null);
   const subject = V3SubjectForLead(lead);
+  const draftTone = draft.tone || (window.V3ResolveReplyTone ? window.V3ResolveReplyTone(lead) : 'direct');
+  const draftToneLabel = window.V3ReplyToneLabel ? window.V3ReplyToneLabel(draftTone) : draftTone;
   const toLine = to.join(',');
   const ccLine = cc.join(',');
   const isSelfRecipient = V3IsSelfRecipient(sender, toLine);
@@ -4073,6 +4211,7 @@ function V3InlineReply({ lead, user, onCollapse }) {
           <option value="sam">Sam Levin / UnalignedX</option>
           <option value="asher">Asher</option>
         </select>
+        <span className="mail-compose-tone" title="Operator tone for this thread">{draftToneLabel}</span>
         <button className={'mail-compose-mode ' + (internalOnly ? 'is-active' : '')} type="button" disabled={status === 'sending'} onClick={() => setInternalOnly(value => !value)} title="Send only to Robert, Sam, and Asher">
           <V3Icon name="mail" w={12} /> {internalOnly ? 'Internal email chain' : 'Talk internally'}
         </button>
@@ -9993,8 +10132,10 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
   const threadId = lead.gmailThreadId || lead.id || '';
   const threadIdShort = String(threadId).slice(-8).toUpperCase();
 
+  const showCompose = composeOpen || Boolean(lead.draftReply || lead.unread || lead.needsReply);
+
   return (
-    <div className="cos2-reader v6-reader">
+    <div className="cos2-reader v6-reader cos2-reader--split">
       <button className="hd-icon-btn cos2-back v6-back-mobile" onClick={onBack} aria-label="Back to list" type="button">
         <V3Icon name="chev_d" w={14} style={{ transform: 'rotate(90deg)' }} />
       </button>
@@ -10092,92 +10233,89 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
           )}
         </div>
       </div>
-      <div className="v6-metrics fadein" style={{ animationDelay: '.12s' }}>
-        <div className="v6-metric">
-          <div className="l">Deal value</div>
-          <div className={'v' + (lead.value ? ' pos' : '')}>{lead.value ? v3Money(lead.value) : '—'}</div>
-        </div>
-        <div className="v6-metric">
-          <div className="l">Days in stage</div>
-          <div className="v">{lead.daysInStage || 0}</div>
-        </div>
-        <div className="v6-metric">
-          <div className="l">Emails</div>
-          <div className="v">{Array.isArray(lead.thread) ? lead.thread.length : 0}</div>
-        </div>
+      <div className="v6-metrics v6-metrics-compact fadein" style={{ animationDelay: '.12s' }}>
+        <span><b>{lead.value ? v3Money(lead.value) : '—'}</b> deal</span>
+        <span><b>{lead.daysInStage || 0}</b> days in stage</span>
+        <span><b>{Array.isArray(lead.thread) ? lead.thread.length : 0}</b> emails</span>
       </div>
-      <div className="drawer-tabs">
-        <button className="dr-tab" aria-selected={tab === 'thread'} onClick={() => setTab('thread')}>
-          {isXLead ? 'Lead context' : 'Email thread'} <span className="cnt">{lead.thread.length}</span>
-        </button>
-        <button className="dr-tab" aria-selected={tab === 'stands'} onClick={() => setTab('stands')}>
-          Where this stands
-        </button>
-      </div>
-      <div className="drawer-body">
-        {tab === 'thread' && (
-          isXLead ? (
-            <div className="cos-reader-stands">
-              <div className="cos-operator-strip">
-                <div className="cos-operator-strip-head">
-                  <div>
-                    <div className="cos-operator-strip-eyebrow">X intake</div>
-                    <h3>What came in from the DM scrape</h3>
-                  </div>
-                  {lead.xOpenDm ? (
-                    <button className="cos-quick-btn" type="button" onClick={() => window.open(lead.xOpenDm, '_blank', 'noopener')}>
-                      Open DM
-                    </button>
-                  ) : null}
-                </div>
-                <div className="cos-operator-grid">
-                  <div className="cos-operator-card">
-                    <div className="cos-operator-card-label">Source</div>
-                    <div className="cos-operator-card-value">{lead.xHandle || lead.contactName}</div>
-                  </div>
-                  <div className="cos-operator-card">
-                    <div className="cos-operator-card-label">Type</div>
-                    <div className="cos-operator-card-value">{lead.deliverables || 'X DM lead'}</div>
-                  </div>
-                  <div className="cos-operator-card">
-                    <div className="cos-operator-card-label">Message count</div>
-                    <div className="cos-operator-card-value">{lead.xMessageCount || 1} DM{lead.xMessageCount === 1 ? '' : 's'}</div>
-                  </div>
-                  <div className="cos-operator-card">
-                    <div className="cos-operator-card-label">Email captured</div>
-                    <div className="cos-operator-card-value">{lead.email || 'No email captured yet'}</div>
-                  </div>
-                </div>
-                <div className="cos-operator-summary">
-                  {xContextRows.map(row => (
-                    <div key={row.label} className="handoff-preview-row">
-                      <div className="handoff-preview-label">{row.label}</div>
-                      <div className="handoff-preview-context">{row.value}</div>
-                    </div>
-                  ))}
-                  {!xContextRows.length && <p>No X intake context was saved for this lead yet.</p>}
-                </div>
-              </div>
-            </div>
-          ) : <V3Thread lead={lead} />
-        )}
-        {tab === 'stands' && (
-          <div className="cos-reader-stands">
-            {readerOps}
-            <V3Stands lead={lead} />
+
+      <div className="cos2-reader-workspace">
+        <div className="cos2-reader-pane cos2-reader-pane--thread">
+          <div className="drawer-tabs">
+            <button className="dr-tab" aria-selected={tab === 'thread'} onClick={() => setTab('thread')}>
+              {isXLead ? 'Lead context' : 'Email thread'} <span className="cnt">{lead.thread.length}</span>
+            </button>
+            <button className="dr-tab" aria-selected={tab === 'stands'} onClick={() => setTab('stands')}>
+              Where this stands
+            </button>
           </div>
-        )}
-      </div>
-      <div className="drawer-foot">
-        {composeOpen ? (
-          <V3InlineReply lead={lead} user={user} onCollapse={() => setComposeOpen(false)} />
-        ) : (
-          <button className="drawer-reply-bar" onClick={() => setComposeOpen(true)}>
-            <V3Icon name="reply" w={14} />
-            <span>{isXLead && !lead.email ? `Prep handoff for ${lead.contactName.split(' ')[0]}` : `Reply to ${lead.contactName.split(' ')[0]}${lead.draftReply ? ' — draft ready' : ''}`}</span>
-            <V3Icon name="chev_d" w={12} style={{ transform: 'rotate(180deg)' }} />
-          </button>
-        )}
+          <div className="drawer-body drawer-body--thread">
+            {tab === 'thread' && (
+              isXLead ? (
+                <div className="cos-reader-stands">
+                  <div className="cos-operator-strip">
+                    <div className="cos-operator-strip-head">
+                      <div>
+                        <div className="cos-operator-strip-eyebrow">X intake</div>
+                        <h3>What came in from the DM scrape</h3>
+                      </div>
+                      {lead.xOpenDm ? (
+                        <button className="cos-quick-btn" type="button" onClick={() => window.open(lead.xOpenDm, '_blank', 'noopener')}>
+                          Open DM
+                        </button>
+                      ) : null}
+                    </div>
+                    <div className="cos-operator-grid">
+                      <div className="cos-operator-card">
+                        <div className="cos-operator-card-label">Source</div>
+                        <div className="cos-operator-card-value">{lead.xHandle || lead.contactName}</div>
+                      </div>
+                      <div className="cos-operator-card">
+                        <div className="cos-operator-card-label">Type</div>
+                        <div className="cos-operator-card-value">{lead.deliverables || 'X DM lead'}</div>
+                      </div>
+                      <div className="cos-operator-card">
+                        <div className="cos-operator-card-label">Message count</div>
+                        <div className="cos-operator-card-value">{lead.xMessageCount || 1} DM{lead.xMessageCount === 1 ? '' : 's'}</div>
+                      </div>
+                      <div className="cos-operator-card">
+                        <div className="cos-operator-card-label">Email captured</div>
+                        <div className="cos-operator-card-value">{lead.email || 'No email captured yet'}</div>
+                      </div>
+                    </div>
+                    <div className="cos-operator-summary">
+                      {xContextRows.map(row => (
+                        <div key={row.label} className="handoff-preview-row">
+                          <div className="handoff-preview-label">{row.label}</div>
+                          <div className="handoff-preview-context">{row.value}</div>
+                        </div>
+                      ))}
+                      {!xContextRows.length && <p>No X intake context was saved for this lead yet.</p>}
+                    </div>
+                  </div>
+                </div>
+              ) : <V3Thread lead={lead} />
+            )}
+            {tab === 'stands' && (
+              <div className="cos-reader-stands">
+                {readerOps}
+                <V3Stands lead={lead} />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="cos2-reader-pane cos2-reader-pane--compose">
+          {showCompose ? (
+            <V3InlineReply lead={lead} user={user} onCollapse={() => setComposeOpen(false)} />
+          ) : (
+            <button type="button" className="drawer-reply-bar drawer-reply-bar--dock" onClick={() => setComposeOpen(true)}>
+              <V3Icon name="reply" w={14} />
+              <span>{isXLead && !lead.email ? `Prep handoff for ${lead.contactName.split(' ')[0]}` : `Reply to ${lead.contactName.split(' ')[0]}${lead.draftReply ? ' — draft ready' : ''}`}</span>
+              <V3Icon name="chev_d" w={12} style={{ transform: 'rotate(180deg)' }} />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

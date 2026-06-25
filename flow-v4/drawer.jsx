@@ -246,6 +246,8 @@ function V3InlineReply({ lead, user, onCollapse }) {
   const [success, setSuccess] = React.useState('');
   const successTimer = React.useRef(null);
   const subject = V3SubjectForLead(lead);
+  const draftTone = draft.tone || (window.V3ResolveReplyTone ? window.V3ResolveReplyTone(lead) : 'direct');
+  const draftToneLabel = window.V3ReplyToneLabel ? window.V3ReplyToneLabel(draftTone) : draftTone;
   const toLine = to.join(',');
   const ccLine = cc.join(',');
   const isSelfRecipient = V3IsSelfRecipient(sender, toLine);
@@ -392,6 +394,7 @@ function V3InlineReply({ lead, user, onCollapse }) {
           <option value="sam">Sam Levin / UnalignedX</option>
           <option value="asher">Asher</option>
         </select>
+        <span className="mail-compose-tone" title="Operator tone for this thread">{draftToneLabel}</span>
         <button className={'mail-compose-mode ' + (internalOnly ? 'is-active' : '')} type="button" disabled={status === 'sending'} onClick={() => setInternalOnly(value => !value)} title="Send only to Robert, Sam, and Asher">
           <V3Icon name="mail" w={12} /> {internalOnly ? 'Internal email chain' : 'Talk internally'}
         </button>
