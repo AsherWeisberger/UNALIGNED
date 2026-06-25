@@ -565,9 +565,84 @@ function V4App() {
   );
 }
 
+/** Cinematic startup — Model Y-style fade into dashboard */
+function V6CompanyOsBoot({ onDone }) {
+  const [phase, setPhase] = React.useState('intro');
+  const iconSrc = React.useMemo(() => {
+    const file = 'flow-v4/assets/company-os-icon.svg?v=20260625-boot-1';
+    try { return new URL(file, window.location.href).href; }
+    catch (err) { return file; }
+  }, []);
+
+  React.useEffect(() => {
+    document.body.classList.add('v6-booting');
+    const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) {
+      document.body.classList.remove('v6-booting');
+      onDone();
+      return undefined;
+    }
+    const tReveal = setTimeout(() => setPhase('reveal'), 80);
+    const tHold = setTimeout(() => setPhase('hold'), 900);
+    const tExit = setTimeout(() => setPhase('exit'), 2400);
+    const tDone = setTimeout(() => {
+      document.body.classList.remove('v6-booting');
+      onDone();
+    }, 3200);
+    return () => {
+      clearTimeout(tReveal);
+      clearTimeout(tHold);
+      clearTimeout(tExit);
+      clearTimeout(tDone);
+      document.body.classList.remove('v6-booting');
+    };
+  }, [onDone]);
+
+  if (phase === 'done') return null;
+
+  return (
+    <div className={'v6-boot' + (phase !== 'intro' ? ' is-active' : '') + (phase === 'exit' ? ' is-exit' : '')} aria-hidden="true">
+      <div className="v6-boot-vignette" />
+      <div className="v6-boot-glow" />
+      <div className="v6-boot-core">
+        <img className="v6-boot-icon" src={iconSrc} alt="" draggable={false} decoding="async" />
+        <div className="v6-boot-wordmark">Company <em>OS</em></div>
+        <div className="v6-boot-tagline">run the company from one place</div>
+      </div>
+      <div className="v6-boot-progress" aria-hidden="true"><span /></div>
+    </div>
+  );
+}
+
+function V4AppRoot() {
+  const skipBoot = React.useMemo(() => {
+    try {
+      if (/[?&]nosplash(?:=1)?(?:&|$)/.test(window.location.search)) return true;
+      return sessionStorage.getItem('company-os-boot-v1') === '1';
+    } catch (err) {
+      return false;
+    }
+  }, []);
+  const [ready, setReady] = React.useState(skipBoot);
+
+  const finishBoot = React.useCallback(() => {
+    try { sessionStorage.setItem('company-os-boot-v1', '1'); } catch (err) { /* ignore */ }
+    setReady(true);
+  }, []);
+
+  return (
+    <>
+      {!ready && <V6CompanyOsBoot onDone={finishBoot} />}
+      <div className={'v6-app-shell' + (ready ? ' is-ready' : '')}>
+        <V4App />
+      </div>
+    </>
+  );
+}
+
 try {
   const root = ReactDOM.createRoot(document.getElementById('root'));
-  root.render(<V4App />);
+  root.render(<V4AppRoot />);
   if (window.__alignedBootMarkReady) window.__alignedBootMarkReady();
 } catch (e) {
   console.error('[UNALIGNED] render failed', e);
