@@ -10410,7 +10410,7 @@ function V6ListRow({ lead, title, isCurrent, onClick, style }) {
   );
 }
 
-function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief, briefItem }) {
+function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief, briefItem, onOpenSplits }) {
   const { STAGE_BY_ID, USERS } = window.V3;
   const [tab, setTab] = React.useState('thread');
   React.useEffect(() => { setTab('thread'); }, [lead?.id]);
@@ -10563,6 +10563,11 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
             <button className="gmail-read-back hd-icon-btn" onClick={onBack} aria-label="Back to list" type="button">
               <V3Icon name="chev_d" w={16} style={{ transform: 'rotate(90deg)' }} />
             </button>
+            {onOpenSplits && (
+              <button type="button" className="gmail-read-splits hd-icon-btn" onClick={onOpenSplits} aria-label="Open workflows">
+                <V3Icon name="compact" w={18} />
+              </button>
+            )}
             <div className="gmail-read-hd-main">
               <h1 className="gmail-read-subject">{V4CleanDisplayText(gmailSubject)}</h1>
               <div className="gmail-read-submeta">
@@ -10917,6 +10922,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   const [selId, setSelId] = React.useState(null);
   const [composeOpen, setComposeOpen] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
+  const [splitsOpen, setSplitsOpen] = React.useState(false);
   const [isMobile, setIsMobile] = React.useState(() =>
     typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches
   );
@@ -11031,9 +11037,51 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   const { USERS } = window.V3;
   const briefDateLabel = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase();
 
+  const splitCountLabel = (s) => {
+    if (s.toolkit) return null;
+    if (s.brief) return briefSummaries.action.length + briefSummaries.watch.length;
+    if (['payment', 'pricing', 'nego'].includes(s.id) && totalValue(s.items) > 0) {
+      return V4CompanyOsMoney(totalValue(s.items));
+    }
+    const count = s.items.length;
+    const stale = s.items.filter(l => (l.daysInStage || 0) >= 5).length;
+    return stale > 0 ? `${count} (${stale} old)` : count;
+  };
+
+  const pickSplit = (id) => {
+    setSplitId(id);
+    setSplitsOpen(false);
+    setMobileOpen(false);
+  };
+
+  const renderSplitButtons = (onPick) => splits.map((s, idx) => (
+    <React.Fragment key={s.id}>
+      {(idx === 0 || splits[idx - 1].section !== s.section) && (
+        <div className="cos2-split-section">{s.section}</div>
+      )}
+      <button type="button"
+              className={'cos2-split' + (s.id === split.id ? ' is-active' : '') + (s.hot ? ' is-hot' : '')}
+              onClick={() => onPick(s.id)}
+              title={s.hint || ''}>
+        <span className="cos2-split-label">{s.label}</span>
+        {splitCountLabel(s) != null && (
+          <span className="cos2-split-cnt">
+            {s.brief
+              ? <AnimatedCounter value={splitCountLabel(s)} />
+              : splitCountLabel(s)}
+          </span>
+        )}
+      </button>
+    </React.Fragment>
+  ));
+
   return (
-    <section className={'page cos2-page' + (mobileOpen ? ' is-mobile-reader-open' : '')}>
+    <section className={'page cos2-page' + (mobileOpen ? ' is-mobile-reader-open' : '') + (splitsOpen ? ' is-splits-open' : '')}>
       <header className="cos2-top cos2-top--stats">
+        <button type="button" className="cos2-splits-toggle" onClick={() => setSplitsOpen(true)} aria-label="Open workflow menu">
+          <V3Icon name="compact" w={16} />
+          <span>Workflows</span>
+        </button>
         <div className="v6-client-brand" aria-label="UNALIGNED active workspace">
           <V6UnalignedMark size={28} />
           <div className="v6-wm">UNALIGNED<small>ACTIVE WORKSPACE</small></div>
@@ -11066,35 +11114,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
       </header>
       <div className={'cos2-body' + (mobileOpen ? ' is-mobile-open' : '')}>
         <nav className="cos2-rail" aria-label="Splits">
-          {splits.map((s, idx) => (
-            <React.Fragment key={s.id}>
-              {(idx === 0 || splits[idx - 1].section !== s.section) && (
-                <div className="cos2-split-section">{s.section}</div>
-              )}
-              <button type="button"
-                      className={'cos2-split' + (s.id === split.id ? ' is-active' : '') + (s.hot ? ' is-hot' : '')}
-                      onClick={() => setSplitId(s.id)}
-                      title={s.hint || ''}>
-                <span className="cos2-split-label">
-                  {s.label}
-                </span>
-                {!s.toolkit && !s.brief && (
-                  <span className="cos2-split-cnt">
-                    {(['payment', 'pricing', 'nego'].includes(s.id) && totalValue(s.items) > 0)
-                      ? V4CompanyOsMoney(totalValue(s.items))
-                      : (() => {
-                          const count = s.items.length;
-                          const stale = s.items.filter(l => (l.daysInStage || 0) >= 5).length;
-                          return stale > 0 ? `${count} (${stale} old)` : count;
-                        })()}
-                  </span>
-                )}
-                {s.brief && (
-                  <span className="cos2-split-cnt"><AnimatedCounter value={briefSummaries.action.length + briefSummaries.watch.length} /></span>
-                )}
-              </button>
-            </React.Fragment>
-          ))}
+          {renderSplitButtons(pickSplit)}
           <div className="dq-hints cos2-hints">
             <span><kbd>J</kbd><kbd>K</kbd> move</span>
             <span><kbd>R</kbd> reply</span>
@@ -11222,11 +11242,32 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
               briefItem={split.isBrief && selected ? (briefSummaries.action.find(i => String(i.id) === String(selected.id)) || briefSummaries.watch.find(i => String(i.id) === String(selected.id))) : null}
               composeOpen={composeOpen} 
               setComposeOpen={setComposeOpen}
-              onBack={() => setMobileOpen(false)} 
+              onBack={() => setMobileOpen(false)}
+              onOpenSplits={isMobile ? () => setSplitsOpen(true) : null}
             />
           </>
         )}
       </div>
+
+      {splitsOpen && (
+        <div className="cos2-splits-portal" role="presentation">
+          <button type="button" className="cos2-splits-scrim" aria-label="Close workflows" onClick={() => setSplitsOpen(false)} />
+          <aside className="cos2-splits-drawer" aria-label="Workflow menu">
+            <header className="cos2-splits-drawer-hd">
+              <div>
+                <div className="cos2-splits-drawer-eyebrow">Company OS</div>
+                <h2>Workflows</h2>
+              </div>
+              <button type="button" className="hd-icon-btn" aria-label="Close" onClick={() => setSplitsOpen(false)}>
+                <V3Icon name="x" w={16} />
+              </button>
+            </header>
+            <nav className="cos2-splits-drawer-nav">
+              {renderSplitButtons(pickSplit)}
+            </nav>
+          </aside>
+        </div>
+      )}
     </section>
   );
 }
