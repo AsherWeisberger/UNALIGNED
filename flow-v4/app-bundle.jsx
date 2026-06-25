@@ -713,16 +713,16 @@ function V6UnalignedMark({ size = 30, className = '' }) {
 }
 
 function V6CompanyOsLogo({ compact = false, className = '' }) {
+  const iconSrc = React.useMemo(() => {
+    const file = 'flow-v4/assets/company-os-icon.svg?v=20260625-cos-logo-10';
+    try { return new URL(file, window.location.href).href; }
+    catch (err) { return file; }
+  }, []);
   if (compact) {
-    const src = React.useMemo(() => {
-      const file = 'flow-v4/assets/company-os-icon.svg?v=20260625-cos-logo-9';
-      try { return new URL(file, window.location.href).href; }
-      catch (err) { return file; }
-    }, []);
     return (
       <img
         className={'v6-company-os-logo v6-company-os-logo--icon ' + className}
-        src={src}
+        src={iconSrc}
         alt="Company OS"
         draggable={false}
         decoding="async"
@@ -730,17 +730,19 @@ function V6CompanyOsLogo({ compact = false, className = '' }) {
     );
   }
   return (
-    <svg className={'v6-company-os-logo ' + className} viewBox="0 0 760 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Company OS">
-      <rect x="40" y="40" width="120" height="120" rx="28" fill="#4f63e6" />
-      <path d="M72 82 L96 104 L72 126" fill="none" stroke="#ffffff" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
-      <rect x="104" y="94" width="28" height="17" rx="4" fill="#ffffff" />
-      <text x="196" y="98" fontFamily="'Inter Tight', system-ui, sans-serif" fontWeight="600" fontSize="44" fill="#16202e">
-        Company<tspan fill="#4f63e6"> OS</tspan>
-      </text>
-      <text x="198" y="130" fontFamily="'JetBrains Mono', ui-monospace, monospace" fontWeight="500" fontSize="14" fill="#6b7686">
-        run the company from one place
-      </text>
-    </svg>
+    <span className={'v6-company-os-brand ' + className} role="img" aria-label="Company OS">
+      <img
+        className="v6-company-os-logo v6-company-os-logo--icon"
+        src={iconSrc}
+        alt=""
+        aria-hidden="true"
+        draggable={false}
+        decoding="async"
+      />
+      <span className="v6-company-os-wordmark" aria-hidden="true">
+        Company <em>OS</em>
+      </span>
+    </span>
   );
 }
 
@@ -11434,14 +11436,12 @@ function V4App() {
   ];
 
   return (
-    <div className="app" data-screen-label={`ALIGNED v4 — ${view}`}>
+    <div className="app" data-screen-label={`UNALIGNED — ${view}`}>
       {/* ─── Top bar ─── */}
       <header className="hd v6-gnav">
         <div className="hd-brand v6-gbrand">
-          <V6CompanyOsLogo className="v6-company-os-logo--hd v6-logo-full" />
-          <V6CompanyOsLogo compact className="v6-company-os-logo--hd v6-logo-compact" />
-          <span className="hd-brand-name">UNALIGNED</span>
-          <span className="hd-brand-tag">v4</span>
+          <V6CompanyOsLogo className="v6-logo-full" />
+          <V6CompanyOsLogo compact className="v6-logo-compact" />
         </div>
 
         <div className="hd-nav">

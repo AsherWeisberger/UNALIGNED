@@ -11677,7 +11677,7 @@ body[data-theme="light"] .ft {
 
 body[data-theme="light"] .hd {
   height: auto;
-  min-height: 64px;
+  min-height: 56px;
   padding: 8px 20px;
   gap: 10px;
   background: var(--surface-0);
@@ -11694,21 +11694,37 @@ body[data-theme="light"] .hd-brand {
   border-right: 1px solid var(--line);
 }
 
+.v6-company-os-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
 .v6-company-os-logo {
   flex-shrink: 0;
   display: block;
   width: auto;
-  height: 48px;
-  max-width: min(400px, 58vw);
 }
 
 .v6-company-os-logo--icon {
-  height: 40px;
-  width: 40px;
+  height: 32px;
+  width: 32px;
 }
 
-.v6-company-os-logo--hd {
-  margin-right: 6px;
+.v6-company-os-wordmark {
+  font-family: 'Inter Tight', var(--font-display), system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 17px;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--text-primary, var(--text));
+  white-space: nowrap;
+}
+
+.v6-company-os-wordmark em {
+  font-style: normal;
+  color: #4f63e6;
 }
 
 .hd-brand.v6-gbrand {
@@ -11718,7 +11734,9 @@ body[data-theme="light"] .hd-brand {
   border-right: 1px solid var(--line);
 }
 
+.v6-gbrand:hover .v6-company-os-brand,
 .v6-gbrand:hover .v6-company-os-logo,
+.hd-brand:hover .v6-company-os-brand,
 .hd-brand:hover .v6-company-os-logo {
   filter: drop-shadow(0 2px 10px rgba(79, 99, 230, 0.18));
 }
@@ -11734,7 +11752,11 @@ body[data-theme="light"] .hd-brand {
 
   .v6-logo-compact {
     display: block;
-    max-width: none;
+  }
+
+  .v6-logo-compact.v6-company-os-logo--icon {
+    height: 36px;
+    width: 36px;
   }
 }
 
