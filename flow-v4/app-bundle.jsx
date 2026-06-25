@@ -3278,9 +3278,12 @@ function V3BriefPanel({ lead, user, onChange, onApprove }) {
     updateBrief({ deliverables: next });
   };
 
-  // AI drafting via window.claude — pre-fills draft text from email thread + tier
+  // AI drafting via local Qwen bridge (window.claude.complete)
   const aiDraft = async () => {
-    if (!window.claude?.complete) return;
+    if (!window.claude?.complete) {
+      setDraftError('Local LLM bridge not loaded. Start scripts/active/local_llm_bridge.py on this Mac.');
+      return;
+    }
     setDrafting(true); setDraftError(null);
     try {
       const ctx = (lead.thread || []).map(m => `[${m.from}] ${m.subject}\n${m.body}`).join('\n\n---\n\n');
