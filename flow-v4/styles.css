@@ -41,8 +41,8 @@
 
 :root {
   /* Typography — brand foundation */
-  --font-display: "Inter Tight", system-ui, -apple-system, "SF Pro Display", sans-serif;
-  --font-body: "Inter Tight", system-ui, -apple-system, "SF Pro Text", sans-serif;
+  --font-display: "Space Grotesk", "Inter Tight", system-ui, -apple-system, "SF Pro Display", sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "SF Pro Text", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
   /* Type Scale — confident, generous */
@@ -127,28 +127,29 @@
   --transition-slow: all var(--duration-slow) var(--ease-spring);
 }
 
-/* Light mode — still premium but inverted */
+/* Light mode — tuned to the design-direction mockup (warm off-white + refined indigo) */
 [data-theme="light"] {
-  --bg: #f8f8fa;
+  --bg: #f6f6f4;
   --surface-1: #ffffff;
-  --surface-2: #f4f4f6;
-  --surface-3: #eeeeee;
+  --surface-2: #f1f1ef;
+  --surface-3: #e9e9e6;
   --surface-elevated: #ffffff;
 
-  --text-primary: #111113;
-  --text-secondary: #3c3c43;
-  --text-tertiary: #6e6e73;
-  --text-inverse: #f8f8fa;
+  --text-primary: #15171c;
+  --text-secondary: #5b616b;
+  --text-tertiary: #969ba6;
+  --text-inverse: #f6f6f4;
 
-  --border: #d1d1d6;
-  --border-subtle: #e5e5ea;
-  --border-strong: #b0b0b5;
+  --border: rgba(20, 22, 28, 0.10);
+  --border-subtle: rgba(20, 22, 28, 0.06);
+  --border-strong: rgba(20, 22, 28, 0.16);
 
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
-  --accent-soft: rgba(37, 99, 235, 0.08);
-  --accent-tint: rgba(37, 99, 235, 0.05);
-  --accent-glow: rgba(37, 99, 235, 0.2);
+  --accent: #4f6bf0;
+  --accent-hover: #3a55d8;
+  --accent-deep: #3a55d8;
+  --accent-soft: rgba(79, 107, 240, 0.08);
+  --accent-tint: rgba(79, 107, 240, 0.05);
+  --accent-glow: rgba(79, 107, 240, 0.18);
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
   --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
@@ -9620,10 +9621,10 @@ body[data-theme="light"] {
   --text-2:      #44506a;
   --text-3:      #77839a;
   --text-4:      #a0aabd;
-  --accent:      #3d73d9;
-  --accent-soft: #eaf1ff;
-  --accent-deep: #285bb5;
-  --accent-tint: rgba(61, 115, 217, 0.14);
+  --accent:      #4f6bf0;
+  --accent-soft: #ecefff;
+  --accent-deep: #3a55d8;
+  --accent-tint: rgba(79, 107, 240, 0.14);
   --good:        #23855d;
   --warn:        #9a6a16;
   --bad:         #bd3f32;
