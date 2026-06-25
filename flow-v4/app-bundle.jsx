@@ -4653,6 +4653,167 @@ function V4WorkerPortrait({ worker, compact = false }) {
   );
 }
 
+function V4WorkerActionLabel(worker) {
+  const map = {
+    intake: 'Routing new lead',
+    reply: 'Drafting reply',
+    pricing: 'Pricing thread',
+    brief: 'Building Robert brief',
+    calendar: 'Locking go-live date',
+    finance: 'Chasing payment proof',
+    followup: 'Follow-up nudge',
+    xwatch: 'X intake watch',
+    network: 'Relationship upkeep',
+    handoff: 'Robert/Sam handoff',
+  };
+  return map[worker.id] || worker.subtitle || 'Working queue';
+}
+
+function V4LiveTaskFloor({ groupedWorkers, totalActive, liveWorkers, onOpenLead }) {
+  const liveTasks = React.useMemo(() => {
+    const rows = [];
+    groupedWorkers.forEach((group) => {
+      group.workers.forEach((worker) => {
+        worker.items.forEach((item) => {
+          rows.push({
+            id: `${worker.id}-${item.id}`,
+            leadId: item.id,
+            workerId: worker.id,
+            workerName: worker.name,
+            workerGlyph: worker.glyph,
+            zone: group.zone,
+            zoneLabel: group.label,
+            accent: worker.accent,
+            tone: worker.tone,
+            brand: item.brand || item.contactName || 'Unknown lead',
+            contact: item.contactName || item.email || '',
+            action: V4AgentCapsuleSummary(item),
+            meta: V4AgentCapsuleMeta(item),
+            blocked: worker.blocked > 0,
+          });
+        });
+      });
+    });
+    return rows;
+  }, [groupedWorkers]);
+
+  const [focusIdx, setFocusIdx] = React.useState(0);
+  React.useEffect(() => {
+    if (!liveTasks.length) {
+      setFocusIdx(0);
+      return undefined;
+    }
+    const timer = setInterval(() => {
+      setFocusIdx((i) => (i + 1) % liveTasks.length);
+    }, 3200);
+    return () => clearInterval(timer);
+  }, [liveTasks.length]);
+
+  const focusTask = liveTasks[focusIdx] || null;
+
+  return (
+    <div className="live-task-floor">
+      <div className="live-task-floor-head">
+        <div>
+          <div className="live-task-floor-eyebrow">Live queue</div>
+          <div className="live-task-floor-title">
+            {liveTasks.length
+              ? `${liveTasks.length} real tasks assigned across ${liveWorkers} workers`
+              : 'All lanes clear — no live queue pressure'}
+          </div>
+        </div>
+        <div className="live-task-floor-stats">
+          <span className="live-task-stat">{totalActive} in motion</span>
+          <span className="live-task-stat is-live">{liveWorkers} workers on duty</span>
+        </div>
+      </div>
+
+      {focusTask && (
+        <button
+          type="button"
+          className={`live-task-spotlight accent-${focusTask.accent} is-${focusTask.tone}`}
+          onClick={() => onOpenLead?.(focusTask.leadId)}
+        >
+          <span className="live-task-spotlight-kicker">Now handling</span>
+          <strong>{focusTask.workerName}</strong>
+          <span className="live-task-spotlight-arrow">→</span>
+          <strong>{focusTask.brand}</strong>
+          <span className="live-task-spotlight-action">{focusTask.action}</span>
+          <span className="live-task-spotlight-meta">{focusTask.meta} · {focusTask.zoneLabel}</span>
+        </button>
+      )}
+
+      <div className="live-task-zones">
+        {groupedWorkers.map((group) => (
+          <section key={group.zone} className={`live-task-zone zone-${group.zone}`}>
+            <header className="live-task-zone-head">
+              <span>{group.label}</span>
+              <b>{group.workers.reduce((sum, w) => sum + w.active, 0)}</b>
+            </header>
+            <div className="live-task-zone-body">
+              {group.workers.map((worker) => (
+                <article
+                  key={worker.id}
+                  className={`live-task-station accent-${worker.accent} is-${worker.tone} ${worker.active > 0 ? 'has-work' : ''}`}
+                >
+                  <div className="live-task-station-head">
+                    <span className="live-task-station-glyph">{worker.glyph}</span>
+                    <div>
+                      <div className="live-task-station-name">{worker.name}</div>
+                      <div className="live-task-station-verb">{V4WorkerActionLabel(worker)}</div>
+                    </div>
+                    <span className={`live-task-station-badge is-${worker.tone}`}>
+                      {worker.blocked > 0 ? 'blocked' : worker.active > 0 ? 'working' : 'idle'}
+                    </span>
+                  </div>
+                  {worker.items.length ? (
+                    <div className="live-task-station-queue">
+                      {worker.items.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className="live-task-chip"
+                          onClick={() => onOpenLead?.(item.id)}
+                        >
+                          <span className="live-task-chip-brand">{item.brand || item.contactName}</span>
+                          <span className="live-task-chip-action">{V4AgentCapsuleSummary(item)}</span>
+                          <span className="live-task-chip-meta">{V4AgentCapsuleMeta(item)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="live-task-station-empty">{worker.note}</div>
+                  )}
+                </article>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+
+      {liveTasks.length > 0 && (
+        <div className="live-task-feed" aria-live="polite">
+          <div className="live-task-feed-label">Task rotation</div>
+          <div className="live-task-feed-track">
+            {liveTasks.map((task, index) => (
+              <button
+                key={task.id}
+                type="button"
+                className={`live-task-feed-item accent-${task.accent} ${index === focusIdx ? 'is-focus' : ''}`}
+                onClick={() => { setFocusIdx(index); onOpenLead?.(task.leadId); }}
+              >
+                <span className="live-task-feed-worker">{task.workerName}</span>
+                <span className="live-task-feed-brand">{task.brand}</span>
+                <span className="live-task-feed-action">{task.action}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function V4AgentsView({ leads = [], query = '', onOpenLead }) {
   const q = String(query || '').trim().toLowerCase();
   const liveLeads = (Array.isArray(leads) ? leads : []).filter(l => l && !l.isRobertBrief && !['trash', 'dead-leads'].includes(String(l.stage || '').toLowerCase()));
@@ -4850,10 +5011,10 @@ function V4AgentsView({ leads = [], query = '', onOpenLead }) {
   const totalWaiting = workers.reduce((sum, worker) => sum + worker.waiting, 0);
   const liveWorkers = workers.filter(worker => worker.active > 0).length;
   const zoneMeta = {
-    intake: { label: 'Intake', note: 'Find signal and clean it.', pos: 'north-west' },
-    conversion: { label: 'Conversion', note: 'Turn interest into a scoped thread.', pos: 'north-east' },
-    execution: { label: 'Execution', note: 'Ship docs, dates, and live posts.', pos: 'south-east' },
-    retention: { label: 'Retention', note: 'Protect follow-up and money.', pos: 'south-west' },
+    intake: { label: 'Intake', color: '#3b82f6' },
+    conversion: { label: 'Conversion', color: '#8b5cf6' },
+    execution: { label: 'Execution', color: '#14b8a6' },
+    retention: { label: 'Retention', color: '#f59e0b' },
   };
   const zoneOrder = ['intake', 'conversion', 'execution', 'retention'];
   const groupedWorkers = zoneOrder.map(zone => ({
@@ -4861,44 +5022,12 @@ function V4AgentsView({ leads = [], query = '', onOpenLead }) {
     ...zoneMeta[zone],
     workers: filteredWorkers.filter(worker => worker.zone === zone),
   }));
-  const flowData = {
-    intake: Math.max(1, Math.floor((newLeads.length + xLeads.length + networkLeads.length) / 2)),
-    conversion: Math.max(1, Math.floor((replyLeads.length + pricingLeads.length + handoffLeads.length) / 2)),
-    execution: Math.max(1, Math.floor((briefLeads.length + calendarLeads.length) / 2)),
-    retention: Math.max(1, Math.floor((financeLeads.length + followUps.length) / 2)),
+
+  const [selectedWorkerId, setSelectedWorkerId] = React.useState(null);
+
+  const handleWorkerClick = (worker) => {
+    setSelectedWorkerId(worker.id === selectedWorkerId ? null : worker.id);
   };
-
-  function SpringCounter({ value }) {
-    const [display, setDisplay] = React.useState(value);
-    const prev = React.useRef(value);
-    React.useEffect(() => {
-      if (prev.current === value) return;
-      const startVal = prev.current;
-      const endVal = value;
-      const dur = 380;
-      const t0 = performance.now();
-      const tick = (now) => {
-        const p = Math.min((now - t0) / dur, 1);
-        const e = 1 - Math.pow(1 - p, 3);
-        setDisplay(Math.round(startVal + (endVal - startVal) * e));
-        if (p < 1) requestAnimationFrame(tick);
-        else { setDisplay(endVal); prev.current = endVal; }
-      };
-      requestAnimationFrame(tick);
-    }, [value]);
-    return <span>{display}</span>;
-  }
-
-  const canvasRef = React.useRef(null);
-  React.useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !window.FlowWorldPixel) return undefined;
-    return window.FlowWorldPixel.attach(canvas, {
-      flowData,
-      workers: filteredWorkers,
-      totalActive,
-    });
-  }, [flowData, filteredWorkers, totalActive]);
 
   return (
     <div className="page workers-page">
@@ -4906,113 +5035,86 @@ function V4AgentsView({ leads = [], query = '', onOpenLead }) {
         <div>
           <div className="page-eyebrow">Autonomy</div>
           <h1 className="page-title">Machine Room</h1>
-          <div className="page-sub">Flow World — tiny workers patrol intake, conversion, execution, and retention in real time.</div>
+          <div className="page-sub">Every worker lane below is wired to live board data — brands, next moves, and queue pressure.</div>
         </div>
         <div className="invoice-stats">
           <span className="invoice-stat total">{liveWorkers} workers live</span>
-          <span className="invoice-stat good">{totalActive} active items</span>
+          <span className="invoice-stat good">{totalActive} active</span>
           <span className="invoice-stat warn">{totalWaiting} waiting</span>
           <span className="invoice-stat bad">{totalBlocked} blocked</span>
         </div>
       </div>
 
-      <div className="machine-theater machine-theater--gameboy">
+      <div className="machine-theater machine-theater--live">
         <div className="theater-header">
           <div>
-            <div className="theater-eyebrow">◆ LIVE LINK</div>
-            <div className="theater-title">Flow World</div>
-            <div className="theater-tagline">UNALIGNED ops habitat · workers on patrol</div>
+            <div className="theater-eyebrow">Live system</div>
+            <div className="theater-title">Task Floor</div>
+            <div className="theater-tagline">Real queue items, real worker lanes, real next moves from your board.</div>
           </div>
-          <div className="theater-legend theater-legend--pixel">
-            <div><span className="pixel-sprite pixel-sprite--walk"></span> Workers</div>
-            <div><span className="pixel-sprite pixel-sprite--mail"></span> Live signals</div>
-          </div>
-        </div>
-
-        <div className="gameboy-shell">
-          <div className="gameboy-shell-label">ASH-OPS</div>
-          <div className="theater-canvas-wrapper theater-canvas-wrapper--pixel">
-            <canvas ref={canvasRef} className="theater-canvas theater-canvas--pixel" />
-            <div className="theater-scanlines" aria-hidden="true"></div>
-            <div className="theater-overlay theater-overlay--pixel">
-              <div className="theater-core theater-core--pixel">
-                <div className="core-label">ASH MACHINE</div>
-                <div className="core-big"><SpringCounter value={totalActive} /></div>
-                <div className="core-sub">packets routing</div>
-              </div>
-            </div>
-          </div>
-          <div className="gameboy-dpad" aria-hidden="true">
-            <span></span><span></span><span></span>
+          <div className="theater-legend">
+            <div><span className="dot"></span> Working lane</div>
+            <div><span className="dot" style={{ background: '#f59e0b' }}></span> Waiting / blocked</div>
           </div>
         </div>
 
-        <div className="theater-zones theater-zones--pixel">
-          {groupedWorkers.map(group => (
-            <div key={group.zone} className={`theater-zone accent-${group.workers[0]?.accent || 'blue'}`}>
-              <div className="zone-name">{group.label}</div>
-              <div className="zone-count">{group.workers.reduce((s, w) => s + w.active, 0)}</div>
-              <div className="zone-workers">{group.workers.filter(w => w.active > 0).length} on duty</div>
-            </div>
-          ))}
-        </div>
+        <V4LiveTaskFloor
+          groupedWorkers={groupedWorkers}
+          totalActive={totalActive}
+          liveWorkers={liveWorkers}
+          onOpenLead={onOpenLead}
+        />
       </div>
 
-      <section className="workers-lanes">
-        {filteredWorkers.map((worker, index) => (
-          <article
+      <div className="machine-panels">
+        {filteredWorkers.map((worker) => (
+          <div
             key={worker.id}
-            className={'worker-lane is-' + worker.tone + ' accent-' + worker.accent}
-            style={{ '--worker-delay': `${index * 90}ms` }}
+            className={`machine-panel accent-${worker.accent} ${selectedWorkerId === worker.id ? 'is-selected' : ''} ${worker.active > 0 ? 'has-pressure' : ''}`}
+            onClick={() => handleWorkerClick(worker)}
           >
-            <div className="worker-lane-glow" aria-hidden="true"></div>
-            <div className="worker-lane-top">
-              <div className={'worker-lane-avatar is-' + worker.tone}>
-                <span className="worker-lane-avatar-pulse" aria-hidden="true"></span>
-                <V4WorkerPortrait worker={worker} compact />
+            <div className="panel-head">
+              <V4WorkerPortrait worker={worker} compact isActive={worker.tone === 'active'} />
+              <div>
+                <div className="panel-name">{worker.name}</div>
+                <div className="panel-sub">{worker.subtitle}</div>
               </div>
-              <div className="worker-lane-head">
-                <div className="worker-lane-name-row">
-                  <h3>{worker.name}</h3>
-                  <span className={'worker-status is-' + worker.tone}>
-                    {worker.tone === 'blocked' ? 'Blocked' : worker.tone === 'active' ? 'Working' : 'Clear'}
-                  </span>
-                </div>
-                <div className="worker-lane-sub">{worker.subtitle}</div>
-                <div className="worker-lane-owner">Owner · {worker.owner}</div>
+              <div className={`panel-status is-${worker.tone}`}>
+                {worker.active}
               </div>
             </div>
 
-            <div className="worker-lane-stats">
+            <div className="panel-metrics">
               <div><span>Active</span><strong>{worker.active}</strong></div>
               <div><span>Waiting</span><strong>{worker.waiting}</strong></div>
               <div><span>Blocked</span><strong>{worker.blocked}</strong></div>
             </div>
 
-            <div className="worker-lane-note">{worker.note}</div>
+            <div className="panel-note">{worker.note}</div>
 
-            <div className="worker-lane-track" aria-hidden="true">
-              <span className={'worker-lane-track-fill is-' + worker.tone} style={{ width: `${Math.max(14, Math.min(100, worker.active * 18 || 14))}%` }}></span>
-            </div>
-
-            <div className="worker-lane-queue">
-              <div className="worker-lane-queue-label">Live queue</div>
-              {worker.items.length ? (
-                <div className="worker-lane-queue-list">
-                  {worker.items.map(item => (
-                    <button key={item.id} type="button" className="worker-queue-chip" onClick={() => onOpenLead?.(item.id)}>
-                      <span className="worker-queue-chip-brand">{item.brand}</span>
-                      <span className="worker-queue-chip-meta">{item.contactName} · {item.nextMove?.text || item.deliverables || item.notes || 'Open thread'}</span>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="worker-lane-empty">Nothing in this lane right now.</div>
-              )}
-            </div>
-          </article>
+            {worker.items.length > 0 && (
+              <div className="panel-queue">
+                <div className="queue-label">Live items</div>
+                {worker.items.slice(0, 3).map(item => (
+                  <div
+                    key={item.id}
+                    className="queue-item"
+                    onClick={(e) => { e.stopPropagation(); onOpenLead?.(item.id); }}
+                  >
+                    <strong>{item.brand}</strong>
+                    <span>{item.contactName} — {item.nextMove?.text?.slice(0, 60) || 'Open thread'}</span>
+                  </div>
+                ))}
+                {worker.items.length > 3 && <div className="queue-more">+{worker.items.length - 3} more</div>}
+              </div>
+            )}
+          </div>
         ))}
-      </section>
+      </div>
+
+      <div className="machine-footer-note">
+        Every chip above is a live card from your board. Click a task to open the thread.
+      </div>
     </div>
   );
 }
@@ -10073,14 +10175,22 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
       <header className="cos2-top">
         <span className="cos2-brand">
           <V4CompanyOsBuildingIcon size={18} />
-          <strong>UnalignedOS</strong>
+          <strong>UNALIGNED</strong>
+          <span className="cos2-brand-sub">Active workspace</span>
         </span>
-        {reviewCount > 0 && <span className="cos-kpi cos-kpi-tight cos-kpi-review" onClick={() => setSplitId('review')} style={{ cursor: 'pointer' }} title="Scam gate flagged these for you"><strong><AnimatedCounter value={reviewCount} /></strong> to review</span>}
-        <span className="cos-kpi cos-kpi-tight"><strong><AnimatedCounter value={p0Count} /></strong> P0</span>
-        <span className="cos-kpi cos-kpi-tight cos-kpi-accent"><strong><AnimatedCounter value={replyCount} /></strong> reply now</span>
-        <span className="cos-kpi cos-kpi-tight"><strong><AnimatedCounter value={followUpCount} /></strong> 2d follow ups</span>
-        <span className="cos-kpi cos-kpi-tight"><strong><AnimatedCounter value={invoicedOutstanding} format={v => V4CompanyOsMoney(v) || '$0'} /></strong> Terms / pay</span>
-        <span className="cos-kpi cos-kpi-tight"><strong><AnimatedCounter value={openPipeline} format={v => V4CompanyOsMoney(v) || '$0'} /></strong> In play</span>
+        <div className="cos2-stats">
+          {reviewCount > 0 && (
+            <button type="button" className="cos2-stat cos2-stat-review" onClick={() => setSplitId('review')} title="Scam gate flagged these for you">
+              <span className="cos2-stat-lbl">To review</span>
+              <span className="cos2-stat-num"><AnimatedCounter value={reviewCount} /></span>
+            </button>
+          )}
+          <div className="cos2-stat"><span className="cos2-stat-lbl">P0 open</span><span className="cos2-stat-num"><AnimatedCounter value={p0Count} /></span></div>
+          <div className="cos2-stat cos2-stat-accent"><span className="cos2-stat-lbl">Reply now</span><span className="cos2-stat-num"><AnimatedCounter value={replyCount} /></span></div>
+          <div className="cos2-stat"><span className="cos2-stat-lbl">2d follow ups</span><span className="cos2-stat-num"><AnimatedCounter value={followUpCount} /></span></div>
+          <div className="cos2-stat"><span className="cos2-stat-lbl">Terms / pay</span><span className="cos2-stat-num cos2-stat-money"><AnimatedCounter value={invoicedOutstanding} format={v => V4CompanyOsMoney(v) || '$0'} /></span></div>
+          <div className="cos2-stat"><span className="cos2-stat-lbl">In play</span><span className="cos2-stat-num cos2-stat-money"><AnimatedCounter value={openPipeline} format={v => V4CompanyOsMoney(v) || '$0'} /></span></div>
+        </div>
         <button type="button" className="cos-refresh-btn cos2-refresh" onClick={() => window.location.reload()}>↻ Refresh</button>
       </header>
       <div className={'cos2-body' + (mobileOpen ? ' is-mobile-open' : '')}>

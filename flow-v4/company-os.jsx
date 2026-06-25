@@ -3058,18 +3058,21 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
         <span className="cos2-brand">
           <V4CompanyOsBuildingIcon size={18} />
           <strong>UNALIGNED</strong>
-          <span className="cos2-brand-sub">Operating System</span>
+          <span className="cos2-brand-sub">Active workspace</span>
         </span>
-        {reviewCount > 0 && (
-          <span className="cos-kpi cos-kpi-tight cos-kpi-review" onClick={() => setSplitId('review')} style={{ cursor: 'pointer' }} title="Scam gate flagged these for you">
-            <AnimatedCounter value={reviewCount} /> to review
-          </span>
-        )}
-        <span className="cos-kpi cos-kpi-tight"><AnimatedCounter value={p0Count} /> P0</span>
-        <span className="cos-kpi cos-kpi-tight cos-kpi-accent"><AnimatedCounter value={replyCount} /> reply now</span>
-        <span className="cos-kpi cos-kpi-tight"><AnimatedCounter value={followUpCount} /> 2d follow ups</span>
-        <span className="cos-kpi cos-kpi-tight"><AnimatedCounter value={invoicedOutstanding} format={v => '$' + v.toLocaleString()} /> Terms / pay</span>
-        <span className="cos-kpi cos-kpi-tight"><AnimatedCounter value={openPipeline} format={v => '$' + v.toLocaleString()} /> In play</span>
+        <div className="cos2-stats">
+          {reviewCount > 0 && (
+            <button type="button" className="cos2-stat cos2-stat-review" onClick={() => setSplitId('review')} title="Scam gate flagged these for you">
+              <span className="cos2-stat-lbl">To review</span>
+              <span className="cos2-stat-num"><AnimatedCounter value={reviewCount} /></span>
+            </button>
+          )}
+          <div className="cos2-stat"><span className="cos2-stat-lbl">P0 open</span><span className="cos2-stat-num"><AnimatedCounter value={p0Count} /></span></div>
+          <div className="cos2-stat cos2-stat-accent"><span className="cos2-stat-lbl">Reply now</span><span className="cos2-stat-num"><AnimatedCounter value={replyCount} /></span></div>
+          <div className="cos2-stat"><span className="cos2-stat-lbl">2d follow ups</span><span className="cos2-stat-num"><AnimatedCounter value={followUpCount} /></span></div>
+          <div className="cos2-stat"><span className="cos2-stat-lbl">Terms / pay</span><span className="cos2-stat-num cos2-stat-money"><AnimatedCounter value={invoicedOutstanding} format={v => '$' + v.toLocaleString()} /></span></div>
+          <div className="cos2-stat"><span className="cos2-stat-lbl">In play</span><span className="cos2-stat-num cos2-stat-money"><AnimatedCounter value={openPipeline} format={v => '$' + v.toLocaleString()} /></span></div>
+        </div>
         <button type="button" className="cos-refresh-btn cos2-refresh" onClick={() => window.location.reload()}>↻ Refresh</button>
       </header>
       <div className={'cos2-body' + (mobileOpen ? ' is-mobile-open' : '')}>
