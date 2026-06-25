@@ -231,7 +231,8 @@ function V3Drawer({ lead, user, queue = [], onNavigate, onClose }) {
 }
 
 function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
-  const isInline = layout === 'inline' || layout === 'dock';
+  const isGmail = layout === 'gmail';
+  const isInline = isGmail || layout === 'inline' || layout === 'dock';
   const [sender, setSender] = React.useState(() => V3SenderForUser(user));
   const [internalOnly, setInternalOnly] = React.useState(false);
   const draft = React.useMemo(() => V3ComposeReplyDraft(lead, sender), [lead.id, lead.draftReply?.body, lead.draftReply?.subject, lead.thread.length, lead.lastTouchAt, sender]);
@@ -459,6 +460,71 @@ Write ONLY the email body. Start with "Hi ${first},". Keep it concise. End with 
     : status === 'sent' ? 'Sent.'
       : (isInline ? '' : `Lead chain · sending as ${V3SenderName(sender)}${lead.gmailThreadId && sender === 'robert' ? ' in the Gmail thread' : ''}`));
 
+  if (isGmail) {
+    return (
+      <div className="gmail-reply-box">
+        <div className="gmail-reply-head">
+          <span className="gmail-reply-icon" aria-hidden="true">
+            <V3Icon name="reply" w={18} />
+          </span>
+          <div className="gmail-reply-meta">
+            <div className="gmail-reply-to-line">
+              <span className="gmail-reply-label">To</span>
+              <span className="gmail-reply-value" title={toLine}>{toLine || 'Add recipient'}</span>
+            </div>
+            <select className="gmail-reply-from" value={sender} disabled={status === 'sending'} onChange={e => setSender(e.target.value)} title="Send as">
+              <option value="robert">Robert Scoble</option>
+              <option value="sam">Sam Levin</option>
+              <option value="asher">Asher</option>
+            </select>
+          </div>
+          {onCollapse && (
+            <button className="gmail-reply-close" type="button" onClick={onCollapse} title="Discard reply" aria-label="Discard reply">
+              <V3Icon name="x" w={14} />
+            </button>
+          )}
+        </div>
+        <textarea
+          ref={bodyRef}
+          className="gmail-reply-body"
+          value={body}
+          disabled={status === 'sending'}
+          onChange={e => { setBody(e.target.value); fitInlineBody(); }}
+          placeholder=""
+          rows={8}
+        />
+        <div className="gmail-reply-bar">
+          <button
+            className={'gmail-reply-send ' + (status === 'sent' ? 'is-sent' : '')}
+            type="button"
+            onClick={send}
+            disabled={status === 'sending'}
+            aria-live="polite"
+          >
+            {status === 'sending' ? 'Sending…' : status === 'sent' ? 'Sent' : 'Send'}
+          </button>
+          <div className="gmail-reply-tools">
+            <button className="gmail-reply-tool" type="button" disabled={status === 'sending' || aiDrafting} onClick={aiRedraft} title={'Draft with AI via ' + aiBridgeLabel}>
+              <V3Icon name="spark" w={14} /> {aiDrafting ? 'Drafting…' : 'Draft with AI'}
+            </button>
+            <button className={'gmail-reply-tool ' + (internalOnly ? 'is-on' : '')} type="button" disabled={status === 'sending'} onClick={() => setInternalOnly(value => !value)} title="Talk internally only">
+              Internal
+            </button>
+            <label className="gmail-reply-tool gmail-reply-tool-check">
+              <input type="checkbox" checked={attachPdf} disabled={status === 'sending'} onChange={e => setAttachPdf(e.target.checked)} />
+              PDF
+            </label>
+          </div>
+          {statusText ? (
+            <div className={'gmail-reply-status ' + (success ? 'is-success' : error || aiDraftError || isSelfRecipient ? 'is-error' : '')}>
+              {statusText}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
   if (isInline) {
     return (
       <div className="mail-compose mail-compose--gmail mail-compose--inline">
@@ -608,6 +674,78 @@ function V3Stands({ lead }) {
         ))}
       </div>
     </>
+  );
+}
+
+function V3GmailThread({ lead }) {
+  const messages = React.useMemo(() => {
+    const source = Array.isArray(lead?.thread) ? lead.thread : [];
+    return [...source].sort((a, b) =>
+      V3TimestampForUi(a.date || a.dateIso || a.timestamp || a.when) -
+      V3TimestampForUi(b.date || b.dateIso || b.timestamp || b.when)
+    );
+  }, [lead?.id, lead?.thread]);
+  const lastIdx = Math.max(0, messages.length - 1);
+  const [expanded, setExpanded] = React.useState(() => new Set([lastIdx]));
+  React.useEffect(() => {
+    setExpanded(new Set([Math.max(0, messages.length - 1)]));
+  }, [lead?.id, messages.length]);
+
+  const toggle = (idx) => {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
+
+  if (!messages.length) {
+    return <div className="gmail-thread-empty">No messages in this thread yet.</div>;
+  }
+
+  return (
+    <div className="gmail-thread">
+      {messages.map((m, i) => {
+        const senderEmail = V3ExtractEmail(m.from) ||
+          (m.from === 'Asher' ? 'asherunaligned@gmail.com' :
+           m.from === 'Sammy' ? 'unalignedx@gmail.com' :
+           m.from === 'Robert' ? 'scobleizer@gmail.com' : '');
+        const dateValue = m.date || m.dateIso || m.timestamp || m.when;
+        const isOpen = expanded.has(i);
+        const preview = String(m.body || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+        return (
+          <article key={i} className={'gmail-msg' + (isOpen ? ' is-open' : ' is-collapsed')}>
+            <button type="button" className="gmail-msg-hd" onClick={() => toggle(i)} aria-expanded={isOpen}>
+              <V3Avatar name={m.from} color={m.from === 'Sammy' ? '#16894a' : m.from === 'Asher' ? '#2f5fd6' : lead.color} size="sm" />
+              <div className="gmail-msg-who">
+                <span className="gmail-msg-name">{m.from || 'Unknown'}</span>
+                {!isOpen && preview ? <span className="gmail-msg-snippet">{preview}</span> : null}
+                {isOpen && senderEmail ? <span className="gmail-msg-email">&lt;{senderEmail}&gt;</span> : null}
+              </div>
+              <div className="gmail-msg-when">
+                <span className="gmail-msg-date">{window.V3.GmailTime.full(dateValue) || m.when || ''}</span>
+                {window.V3.GmailTime.relative(dateValue) ? <span className="gmail-msg-rel">{window.V3.GmailTime.relative(dateValue)}</span> : null}
+              </div>
+              <span className="gmail-msg-chev" aria-hidden="true">
+                <V3Icon name="chev_d" w={14} style={{ transform: isOpen ? 'rotate(180deg)' : 'none' }} />
+              </span>
+            </button>
+            {isOpen ? (
+              <div className="gmail-msg-body">
+                {(m.to?.length || m.cc?.length) ? (
+                  <div className="gmail-msg-rcpts">
+                    {m.to?.length ? <span>to {m.to.join(', ')}</span> : null}
+                    {m.cc?.length ? <span>cc {m.cc.join(', ')}</span> : null}
+                  </div>
+                ) : null}
+                <div className="gmail-msg-text">{m.body}</div>
+              </div>
+            ) : null}
+          </article>
+        );
+      })}
+    </div>
   );
 }
 

@@ -4051,7 +4051,8 @@ function V3Drawer({ lead, user, queue = [], onNavigate, onClose }) {
 }
 
 function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
-  const isInline = layout === 'inline' || layout === 'dock';
+  const isGmail = layout === 'gmail';
+  const isInline = isGmail || layout === 'inline' || layout === 'dock';
   const [sender, setSender] = React.useState(() => V3SenderForUser(user));
   const [internalOnly, setInternalOnly] = React.useState(false);
   const draft = React.useMemo(() => V3ComposeReplyDraft(lead, sender), [lead.id, lead.draftReply?.body, lead.draftReply?.subject, lead.thread.length, lead.lastTouchAt, sender]);
@@ -4279,6 +4280,71 @@ Write ONLY the email body. Start with "Hi ${first},". Keep it concise. End with 
     : status === 'sent' ? 'Sent.'
       : (isInline ? '' : `Lead chain · sending as ${V3SenderName(sender)}${lead.gmailThreadId && sender === 'robert' ? ' in the Gmail thread' : ''}`));
 
+  if (isGmail) {
+    return (
+      <div className="gmail-reply-box">
+        <div className="gmail-reply-head">
+          <span className="gmail-reply-icon" aria-hidden="true">
+            <V3Icon name="reply" w={18} />
+          </span>
+          <div className="gmail-reply-meta">
+            <div className="gmail-reply-to-line">
+              <span className="gmail-reply-label">To</span>
+              <span className="gmail-reply-value" title={toLine}>{toLine || 'Add recipient'}</span>
+            </div>
+            <select className="gmail-reply-from" value={sender} disabled={status === 'sending'} onChange={e => setSender(e.target.value)} title="Send as">
+              <option value="robert">Robert Scoble</option>
+              <option value="sam">Sam Levin</option>
+              <option value="asher">Asher</option>
+            </select>
+          </div>
+          {onCollapse && (
+            <button className="gmail-reply-close" type="button" onClick={onCollapse} title="Discard reply" aria-label="Discard reply">
+              <V3Icon name="x" w={14} />
+            </button>
+          )}
+        </div>
+        <textarea
+          ref={bodyRef}
+          className="gmail-reply-body"
+          value={body}
+          disabled={status === 'sending'}
+          onChange={e => { setBody(e.target.value); fitInlineBody(); }}
+          placeholder=""
+          rows={8}
+        />
+        <div className="gmail-reply-bar">
+          <button
+            className={'gmail-reply-send ' + (status === 'sent' ? 'is-sent' : '')}
+            type="button"
+            onClick={send}
+            disabled={status === 'sending'}
+            aria-live="polite"
+          >
+            {status === 'sending' ? 'Sending…' : status === 'sent' ? 'Sent' : 'Send'}
+          </button>
+          <div className="gmail-reply-tools">
+            <button className="gmail-reply-tool" type="button" disabled={status === 'sending' || aiDrafting} onClick={aiRedraft} title={'Draft with AI via ' + aiBridgeLabel}>
+              <V3Icon name="spark" w={14} /> {aiDrafting ? 'Drafting…' : 'Draft with AI'}
+            </button>
+            <button className={'gmail-reply-tool ' + (internalOnly ? 'is-on' : '')} type="button" disabled={status === 'sending'} onClick={() => setInternalOnly(value => !value)} title="Talk internally only">
+              Internal
+            </button>
+            <label className="gmail-reply-tool gmail-reply-tool-check">
+              <input type="checkbox" checked={attachPdf} disabled={status === 'sending'} onChange={e => setAttachPdf(e.target.checked)} />
+              PDF
+            </label>
+          </div>
+          {statusText ? (
+            <div className={'gmail-reply-status ' + (success ? 'is-success' : error || aiDraftError || isSelfRecipient ? 'is-error' : '')}>
+              {statusText}
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
   if (isInline) {
     return (
       <div className="mail-compose mail-compose--gmail mail-compose--inline">
@@ -4428,6 +4494,78 @@ function V3Stands({ lead }) {
         ))}
       </div>
     </>
+  );
+}
+
+function V3GmailThread({ lead }) {
+  const messages = React.useMemo(() => {
+    const source = Array.isArray(lead?.thread) ? lead.thread : [];
+    return [...source].sort((a, b) =>
+      V3TimestampForUi(a.date || a.dateIso || a.timestamp || a.when) -
+      V3TimestampForUi(b.date || b.dateIso || b.timestamp || b.when)
+    );
+  }, [lead?.id, lead?.thread]);
+  const lastIdx = Math.max(0, messages.length - 1);
+  const [expanded, setExpanded] = React.useState(() => new Set([lastIdx]));
+  React.useEffect(() => {
+    setExpanded(new Set([Math.max(0, messages.length - 1)]));
+  }, [lead?.id, messages.length]);
+
+  const toggle = (idx) => {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
+
+  if (!messages.length) {
+    return <div className="gmail-thread-empty">No messages in this thread yet.</div>;
+  }
+
+  return (
+    <div className="gmail-thread">
+      {messages.map((m, i) => {
+        const senderEmail = V3ExtractEmail(m.from) ||
+          (m.from === 'Asher' ? 'asherunaligned@gmail.com' :
+           m.from === 'Sammy' ? 'unalignedx@gmail.com' :
+           m.from === 'Robert' ? 'scobleizer@gmail.com' : '');
+        const dateValue = m.date || m.dateIso || m.timestamp || m.when;
+        const isOpen = expanded.has(i);
+        const preview = String(m.body || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+        return (
+          <article key={i} className={'gmail-msg' + (isOpen ? ' is-open' : ' is-collapsed')}>
+            <button type="button" className="gmail-msg-hd" onClick={() => toggle(i)} aria-expanded={isOpen}>
+              <V3Avatar name={m.from} color={m.from === 'Sammy' ? '#16894a' : m.from === 'Asher' ? '#2f5fd6' : lead.color} size="sm" />
+              <div className="gmail-msg-who">
+                <span className="gmail-msg-name">{m.from || 'Unknown'}</span>
+                {!isOpen && preview ? <span className="gmail-msg-snippet">{preview}</span> : null}
+                {isOpen && senderEmail ? <span className="gmail-msg-email">&lt;{senderEmail}&gt;</span> : null}
+              </div>
+              <div className="gmail-msg-when">
+                <span className="gmail-msg-date">{window.V3.GmailTime.full(dateValue) || m.when || ''}</span>
+                {window.V3.GmailTime.relative(dateValue) ? <span className="gmail-msg-rel">{window.V3.GmailTime.relative(dateValue)}</span> : null}
+              </div>
+              <span className="gmail-msg-chev" aria-hidden="true">
+                <V3Icon name="chev_d" w={14} style={{ transform: isOpen ? 'rotate(180deg)' : 'none' }} />
+              </span>
+            </button>
+            {isOpen ? (
+              <div className="gmail-msg-body">
+                {(m.to?.length || m.cc?.length) ? (
+                  <div className="gmail-msg-rcpts">
+                    {m.to?.length ? <span>to {m.to.join(', ')}</span> : null}
+                    {m.cc?.length ? <span>cc {m.cc.join(', ')}</span> : null}
+                  </div>
+                ) : null}
+                <div className="gmail-msg-text">{m.body}</div>
+              </div>
+            ) : null}
+          </article>
+        );
+      })}
+    </div>
   );
 }
 
@@ -10287,8 +10425,105 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
   const isThreadTab = tab === 'thread';
   const gmailSubject = window.V3?.V3SubjectForLead ? window.V3.V3SubjectForLead(lead) : (lead.thread?.[0]?.subject || lead.brand);
 
+  const threadMessageCount = Array.isArray(lead.thread) ? lead.thread.length : 0;
+
   return (
-    <div className={'cos2-reader v6-reader cos2-reader--split cos2-reader--gmail' + (showCompose ? ' cos2-reader--compose-open' : '') + (isThreadTab ? ' cos2-reader--thread-tab' : '')}>
+    <div className={'cos2-reader v6-reader cos2-reader--split cos2-reader--gmail' + (showCompose ? ' cos2-reader--compose-open' : '') + (isThreadTab ? ' cos2-reader--gmail-native' : '')}>
+      {isThreadTab ? (
+        <div className="gmail-read-pane">
+          <header className="gmail-read-hd">
+            <button className="gmail-read-back hd-icon-btn" onClick={onBack} aria-label="Back to list" type="button">
+              <V3Icon name="chev_d" w={16} style={{ transform: 'rotate(90deg)' }} />
+            </button>
+            <div className="gmail-read-hd-main">
+              <h1 className="gmail-read-subject">{V4CleanDisplayText(gmailSubject)}</h1>
+              <div className="gmail-read-submeta">
+                <span className="gmail-read-contact">{lead.contactName}{lead.email ? ` · ${lead.email}` : ''}</span>
+                <span className="gmail-read-sep">·</span>
+                <span>{threadMessageCount} {threadMessageCount === 1 ? 'message' : 'messages'}</span>
+                <span className="gmail-read-sep">·</span>
+                <span className="gmail-read-stage" style={{ color: stage.color }}>{stage.name}</span>
+                {(lead.unread || lead.needsReply) && <span className="gmail-read-action">Needs reply</span>}
+                <span className="gmail-read-links">
+                  <button type="button" className="gmail-read-link" onClick={() => setTab('stands')}>Where this stands</button>
+                  {lead.brief && <button type="button" className="gmail-read-link" onClick={() => setTab('brief')}>Brief</button>}
+                </span>
+              </div>
+            </div>
+          </header>
+          {isReview && (
+            <div className="cos2-review-banner gmail-read-review">
+              <div className="cos2-review-banner-msg">
+                <strong>Scam gate flagged this for review</strong>
+                <span>{reviewReason}</span>
+              </div>
+              <div className="cos2-review-banner-btns">
+                {lead.draftReply && <button type="button" className="cos2-review-approve" onClick={() => setComposeOpen(true)}>Approve &amp; send</button>}
+                <button type="button" className="cos2-review-dismiss" onClick={() => { if (window.confirm('Dismiss as scam and move to Trash?')) window.V3.MoveLeadStage(lead, 'trash'); }}>Dismiss (scam)</button>
+              </div>
+            </div>
+          )}
+          <div className="gmail-read-scroll">
+            {isXLead ? (
+              <div className="cos-reader-stands gmail-read-x-context">
+                <div className="cos-operator-strip">
+                  <div className="cos-operator-strip-head">
+                    <div>
+                      <div className="cos-operator-strip-eyebrow">X intake</div>
+                      <h3>What came in from the DM scrape</h3>
+                    </div>
+                    {lead.xOpenDm ? (
+                      <button className="cos-quick-btn" type="button" onClick={() => window.open(lead.xOpenDm, '_blank', 'noopener')}>
+                        Open DM
+                      </button>
+                    ) : null}
+                  </div>
+                  <div className="cos-operator-grid">
+                    <div className="cos-operator-card">
+                      <div className="cos-operator-card-label">Source</div>
+                      <div className="cos-operator-card-value">{lead.xHandle || lead.contactName}</div>
+                    </div>
+                    <div className="cos-operator-card">
+                      <div className="cos-operator-card-label">Type</div>
+                      <div className="cos-operator-card-value">{lead.deliverables || 'X DM lead'}</div>
+                    </div>
+                    <div className="cos-operator-card">
+                      <div className="cos-operator-card-label">Message count</div>
+                      <div className="cos-operator-card-value">{lead.xMessageCount || 1} DM{lead.xMessageCount === 1 ? '' : 's'}</div>
+                    </div>
+                    <div className="cos-operator-card">
+                      <div className="cos-operator-card-label">Email captured</div>
+                      <div className="cos-operator-card-value">{lead.email || 'No email captured yet'}</div>
+                    </div>
+                  </div>
+                  <div className="cos-operator-summary">
+                    {xContextRows.map(row => (
+                      <div key={row.label} className="handoff-preview-row">
+                        <div className="handoff-preview-label">{row.label}</div>
+                        <div className="handoff-preview-context">{row.value}</div>
+                      </div>
+                    ))}
+                    {!xContextRows.length && <p>No X intake context was saved for this lead yet.</p>}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <V3GmailThread lead={lead} />
+            )}
+            <div className="gmail-reply-slot">
+              {showCompose ? (
+                <V3InlineReply lead={lead} user={user} layout="gmail" onCollapse={() => setComposeOpen(false)} />
+              ) : (
+                <button type="button" className="gmail-reply-trigger" onClick={() => setComposeOpen(true)}>
+                  <V3Icon name="reply" w={16} />
+                  <span>{isXLead && !lead.email ? `Prep handoff for ${lead.contactName.split(' ')[0]}` : `Reply${lead.draftReply ? ' — draft ready' : ''}`}</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
       <button className="hd-icon-btn cos2-back v6-back-mobile" onClick={onBack} aria-label="Back to list" type="button">
         <V3Icon name="chev_d" w={14} style={{ transform: 'rotate(90deg)' }} />
       </button>
@@ -10304,19 +10539,6 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
       </div>
       <div className="cos2-gmail-shell">
         <div className="cos2-gmail-column">
-          {isThreadTab ? (
-            <header className="cos2-gmail-subject-hd">
-              <h1 className="cos2-gmail-subject">{V4CleanDisplayText(gmailSubject)}</h1>
-              <div className="cos2-gmail-submeta">
-                <span>{lead.contactName}{lead.email ? ` · ${lead.email}` : ''}</span>
-                <span className="cos2-gmail-dot">·</span>
-                <span>{stage.name}</span>
-                <span className="cos2-gmail-dot">·</span>
-                <span>{Array.isArray(lead.thread) ? lead.thread.length : 0} messages</span>
-                {(lead.unread || lead.needsReply) && <span className="cos2-gmail-badge">Action</span>}
-              </div>
-            </header>
-          ) : (
             <>
               <div className="v6-rhead fadein">
                 <div className="v6-tags">
@@ -10356,7 +10578,6 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
                 <span><b>{Array.isArray(lead.thread) ? lead.thread.length : 0}</b> emails</span>
               </div>
             </>
-          )}
           {isReview && (
             <div className="cos2-review-banner">
               <div className="cos2-review-banner-msg">
@@ -10369,77 +10590,23 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
               </div>
             </div>
           )}
-          <div className={'cos2-reader-workspace cos2-reader-workspace--gmail' + (showCompose ? ' is-compose-open' : '')}>
+          <div className="cos2-reader-workspace cos2-reader-workspace--gmail">
             <div className="cos2-reader-pane cos2-reader-pane--thread">
-              {isThreadTab ? (
-                <div className="cos2-gmail-tablinks">
-                  <span className="cos2-gmail-tablinks-active">{isXLead ? 'Lead context' : 'Thread'}</span>
-                  <button type="button" className="cos2-gmail-tablink" onClick={() => setTab('stands')}>Where this stands</button>
-                  {lead.brief && <button type="button" className="cos2-gmail-tablink" onClick={() => setTab('brief')}>Brief</button>}
-                </div>
-              ) : (
-                <div className="drawer-tabs">
-                  <button className="dr-tab" aria-selected={tab === 'thread'} onClick={() => setTab('thread')}>
-                    {isXLead ? 'Lead context' : 'Email thread'} <span className="cnt">{lead.thread.length}</span>
+              <div className="drawer-tabs">
+                <button className="dr-tab" aria-selected={tab === 'thread'} onClick={() => setTab('thread')}>
+                  {isXLead ? 'Lead context' : 'Email thread'} <span className="cnt">{lead.thread.length}</span>
+                </button>
+                <button className="dr-tab" aria-selected={tab === 'stands'} onClick={() => setTab('stands')}>
+                  Where this stands
+                </button>
+                {lead.brief && (
+                  <button className="dr-tab" aria-selected={tab === 'brief'} onClick={() => setTab('brief')}>
+                    Content brief
                   </button>
-                  <button className="dr-tab" aria-selected={tab === 'stands'} onClick={() => setTab('stands')}>
-                    Where this stands
-                  </button>
-                  {lead.brief && (
-                    <button className="dr-tab" aria-selected={tab === 'brief'} onClick={() => setTab('brief')}>
-                      Content brief
-                    </button>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
               <div className="cos2-thread-scroll">
                 <div className="drawer-body drawer-body--thread">
-                  {tab === 'thread' && (
-                    isXLead ? (
-                      <div className="cos-reader-stands">
-                        <div className="cos-operator-strip">
-                          <div className="cos-operator-strip-head">
-                            <div>
-                              <div className="cos-operator-strip-eyebrow">X intake</div>
-                              <h3>What came in from the DM scrape</h3>
-                            </div>
-                            {lead.xOpenDm ? (
-                              <button className="cos-quick-btn" type="button" onClick={() => window.open(lead.xOpenDm, '_blank', 'noopener')}>
-                                Open DM
-                              </button>
-                            ) : null}
-                          </div>
-                          <div className="cos-operator-grid">
-                            <div className="cos-operator-card">
-                              <div className="cos-operator-card-label">Source</div>
-                              <div className="cos-operator-card-value">{lead.xHandle || lead.contactName}</div>
-                            </div>
-                            <div className="cos-operator-card">
-                              <div className="cos-operator-card-label">Type</div>
-                              <div className="cos-operator-card-value">{lead.deliverables || 'X DM lead'}</div>
-                            </div>
-                            <div className="cos-operator-card">
-                              <div className="cos-operator-card-label">Message count</div>
-                              <div className="cos-operator-card-value">{lead.xMessageCount || 1} DM{lead.xMessageCount === 1 ? '' : 's'}</div>
-                            </div>
-                            <div className="cos-operator-card">
-                              <div className="cos-operator-card-label">Email captured</div>
-                              <div className="cos-operator-card-value">{lead.email || 'No email captured yet'}</div>
-                            </div>
-                          </div>
-                          <div className="cos-operator-summary">
-                            {xContextRows.map(row => (
-                              <div key={row.label} className="handoff-preview-row">
-                                <div className="handoff-preview-label">{row.label}</div>
-                                <div className="handoff-preview-context">{row.value}</div>
-                              </div>
-                            ))}
-                            {!xContextRows.length && <p>No X intake context was saved for this lead yet.</p>}
-                          </div>
-                        </div>
-                      </div>
-                    ) : <V3Thread lead={lead} />
-                  )}
                   {tab === 'stands' && (
                     <div className="cos-reader-stands">
                       {readerOps}
@@ -10452,23 +10619,13 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
                     </div>
                   )}
                 </div>
-                {isThreadTab && (
-                  <div className="cos2-compose-dock cos2-compose-dock--inline">
-                    {showCompose ? (
-                      <V3InlineReply lead={lead} user={user} layout="inline" onCollapse={() => setComposeOpen(false)} />
-                    ) : (
-                      <button type="button" className="drawer-reply-bar drawer-reply-bar--inline" onClick={() => setComposeOpen(true)}>
-                        <V3Icon name="reply" w={14} />
-                        <span>{isXLead && !lead.email ? `Prep handoff for ${lead.contactName.split(' ')[0]}` : `Reply to ${lead.contactName.split(' ')[0]}${lead.draftReply ? ' — draft ready' : ''}`}</span>
-                      </button>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }
