@@ -5,6 +5,7 @@ const nodemailer = require('nodemailer');
 
 admin.initializeApp();
 const db = admin.firestore();
+const runtimeConfig = typeof functions.config === 'function' ? functions.config() : {};
 
 const SENDERS = {
   robert: {
@@ -372,6 +373,16 @@ exports.ingestLead = functions.https.onRequest(async (req, res) => {
 
     const subject = String(body.subject || '').trim();
     const displayName = senderName || senderHandle || senderEmail;
+    const blockedBlob = `${senderEmail} ${senderHandle} ${senderName} ${subject} ${preview}`.toLowerCase();
+    if (
+      senderEmail.toLowerCase() === 'boardy@boardy.ai' ||
+      senderEmail.toLowerCase().endsWith('@boardy.ai') ||
+      /^boardy$/i.test(senderHandle.replace(/^@/, '')) ||
+      /\bboardy\s*ai\b/i.test(blockedBlob) ||
+      /^boardy\b/i.test(senderName)
+    ) {
+      return res.status(200).json({ ok: true, skipped: true, reason: 'blocked_sender' });
+    }
     const record = {
       title: subject || `${displayName} via ${source.replace('_', ' ')}`,
       list_id: 'new',
@@ -438,6 +449,10 @@ exports.ingestLead = functions.https.onRequest(async (req, res) => {
 const BRIEF_FUNCTION_ORIGIN = 'https://us-central1-unaligned-fc556.cloudfunctions.net';
 const BRIEF_GOOGLE_SECRET_DOCS = ['brief_google_oauth', 'gmail_oauth'];
 const BRIEF_LLM_SECRET_DOCS = ['brief_llm'];
+const BRIEF_LOCAL_PROXY = {
+  baseUrl: line(runtimeConfig?.brief?.local_base_url || ''),
+  token: line(runtimeConfig?.brief?.local_token || ''),
+};
 
 function line(value) {
   return String(value || '').trim();
@@ -879,6 +894,31 @@ async function importBriefSourcePayload(sourceUrl) {
   };
 }
 
+async function proxyBriefLocal(path, body) {
+  if (!BRIEF_LOCAL_PROXY.baseUrl || !BRIEF_LOCAL_PROXY.token) return null;
+  const target = `${BRIEF_LOCAL_PROXY.baseUrl.replace(/\/$/, '')}${path}`;
+  const resp = await fetch(target, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${BRIEF_LOCAL_PROXY.token}`,
+    },
+    body: JSON.stringify(body || {}),
+  });
+  const text = await resp.text();
+  let parsed = {};
+  try {
+    parsed = text ? JSON.parse(text) : {};
+  } catch (err) {
+    parsed = { ok: false, error: text || `Local brief proxy returned ${resp.status}` };
+  }
+  return {
+    ok: resp.ok,
+    status: resp.status,
+    body: parsed,
+  };
+}
+
 function buildHostedBriefDocText(payload) {
   const sections = [];
   const companyName = line(payload.company_name);
@@ -1043,6 +1083,8 @@ exports.importBriefSource = functions.https.onRequest(async (req, res) => {
   if (req.method === 'OPTIONS') return briefSendJson(res, 204, {});
   if (req.method !== 'POST') return briefSendJson(res, 405, { ok: false, error: 'POST only' });
   try {
+    const proxied = await proxyBriefLocal('/import-source-brief', req.body || {});
+    if (proxied) return briefSendJson(res, proxied.ok ? 200 : proxied.status || 400, proxied.body);
     const sourceUrl = line(req.body?.source_url || req.body?.notion_url);
     if (!sourceUrl) throw new Error('Source URL is required.');
     const result = await importBriefSourcePayload(sourceUrl);
@@ -1057,6 +1099,8 @@ exports.generateBriefDoc = functions.https.onRequest(async (req, res) => {
   if (req.method === 'OPTIONS') return briefSendJson(res, 204, {});
   if (req.method !== 'POST') return briefSendJson(res, 405, { ok: false, error: 'POST only' });
   try {
+    const proxied = await proxyBriefLocal('/generate-brief-doc', req.body || {});
+    if (proxied) return briefSendJson(res, proxied.ok ? 200 : proxied.status || 400, proxied.body);
     const result = await createHostedBriefDoc(req.body || {});
     return briefSendJson(res, 200, result);
   } catch (err) {
@@ -1069,6 +1113,8 @@ exports.createBriefCalendarHold = functions.https.onRequest(async (req, res) => 
   if (req.method === 'OPTIONS') return briefSendJson(res, 204, {});
   if (req.method !== 'POST') return briefSendJson(res, 405, { ok: false, error: 'POST only' });
   try {
+    const proxied = await proxyBriefLocal('/create-calendar-hold', req.body || {});
+    if (proxied) return briefSendJson(res, proxied.ok ? 200 : proxied.status || 400, proxied.body);
     const result = await createHostedCalendarHold(req.body || {});
     return briefSendJson(res, 200, result);
   } catch (err) {

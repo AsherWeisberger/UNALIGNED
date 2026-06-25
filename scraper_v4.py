@@ -33,6 +33,8 @@ import sys
 import time
 import typing
 from email.utils import getaddresses
+
+from lead_blocklist import is_blocked_lead
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -353,10 +355,16 @@ def intent_filter(emails: list[dict]) -> list[dict]:
     Uses phrases not single words to minimize false positives.
     """
     relevant = []
+    blocked = 0
     for e in emails:
         blob = f"{e['subject']} {e['from']} {e['snippet']}".lower()
+        if is_blocked_lead(email=e.get("from", ""), title=e.get("subject", ""), thread_text=blob):
+            blocked += 1
+            continue
         if any(phrase in blob for phrase in INTENT_PHRASES):
             relevant.append(e)
+    if blocked:
+        log.info(f"Intent filter: blocked {blocked} denied senders.")
     log.info(f"Intent filter: {len(relevant)}/{len(emails)} passed.")
     return relevant
 
@@ -1078,6 +1086,19 @@ async def extract_all(
                             thread_updates.append((tid, new_stage, conversation))
                             log.info(f"  Thread {tid[:8]}… reply detected — moving {current_stage} → {new_stage}")
                     existing_ids.add(eid)  # don't create a dup card
+                    continue
+
+                if is_blocked_lead(
+                    email=lead.get("email_addr") or lead.get("email") or "",
+                    contact_name=lead.get("name") or lead.get("contact_name") or "",
+                    business_name=lead.get("business") or lead.get("business_name") or "",
+                    title=lead.get("title") or "",
+                    thread_text=" ".join(
+                        str(lead.get(k) or "")
+                        for k in ("notes", "intent", "title", "name", "business")
+                    ),
+                ):
+                    log.info(f"  Blocked lead skipped: {lead.get('name', '?')} ({lead.get('email_addr', '?')})")
                     continue
 
                 new_leads.append(lead)

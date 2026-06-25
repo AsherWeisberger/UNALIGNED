@@ -390,10 +390,38 @@ function V3PruneLeadForVisibleRange(lead) {
   return next;
 }
 
+const V3_BLOCKED_CONTACTS = new Set(['boardy@boardy.ai']);
+const V3_BLOCKED_DOMAINS = new Set(['boardy.ai']);
+const V3_BLOCKED_X_HANDLES = new Set(['boardy', 'boardyai', 'boardy_ai']);
+const V3_BLOCKED_IDENTITY_RE = /(^boardy\b|\bboardy\s*ai\b|\bboardy\s*boardman\b)/i;
+
+function V3IsBlockedLead(lead) {
+  if (!lead) return false;
+  const email = String(lead.email || '').trim().toLowerCase();
+  if (email && V3_BLOCKED_CONTACTS.has(email)) return true;
+  const domain = email.includes('@') ? email.split('@')[1] : '';
+  if (domain && V3_BLOCKED_DOMAINS.has(domain)) return true;
+  const handle = String(lead.xHandle || lead.xUsername || '').replace(/^@/, '').trim().toLowerCase();
+  if (handle && V3_BLOCKED_X_HANDLES.has(handle)) return true;
+  const blob = [
+    lead.brand,
+    lead.contactName,
+    lead.contactRole,
+    lead.email,
+    lead.xHandle,
+    lead.source,
+    ...(Array.isArray(lead.thread) ? lead.thread.flatMap(m => [m?.from, m?.subject, m?.body]) : []),
+  ].filter(Boolean).join(' ');
+  if (V3_BLOCKED_IDENTITY_RE.test(blob)) return true;
+  if (/@boardy\.ai\b/i.test(blob) || /\bboardy@boardy\.ai\b/i.test(blob)) return true;
+  return false;
+}
+
 function V3FilterVisibleLeads(leads) {
   return (Array.isArray(leads) ? leads : [])
     .map(V3PruneLeadForVisibleRange)
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter(lead => !V3IsBlockedLead(lead));
 }
 
 function V3FilterVisibleBriefs(briefs) {
@@ -430,6 +458,18 @@ function V3NormalizeXDmLeads(rows, existingLeads = []) {
   return list
     .filter(row => row && row.newLead !== false)
     .filter(row => !row.alreadyEmailedInRobertGmail)
+    .filter(row => {
+      const xUser = String(row.xUsername || '').replace(/^@/, '').trim().toLowerCase();
+      const xName = String(row.xName || '').trim();
+      if (xUser && V3_BLOCKED_X_HANDLES.has(xUser)) return false;
+      if (V3_BLOCKED_IDENTITY_RE.test(xName)) return false;
+      const emails = String(row.contactEmails || '')
+        .split(/[,\s|]+/)
+        .map(item => item.trim().toLowerCase())
+        .filter(item => /@/.test(item));
+      if (emails.some(email => V3_BLOCKED_CONTACTS.has(email) || V3_BLOCKED_DOMAINS.has(email.split('@')[1] || ''))) return false;
+      return true;
+    })
     .filter(row => {
       const emails = String(row.contactEmails || '')
         .split(/[,\s|]+/)

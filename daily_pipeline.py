@@ -33,6 +33,7 @@ import httpx
 import anthropic
 from datetime import datetime, timezone
 
+from lead_blocklist import is_blocked_card
 from local_llm import (
     LLM_BACKEND,
     LOCAL_MODEL,
@@ -216,6 +217,22 @@ def latest_thread_timestamp(card):
         except Exception:
             return None
     return None
+
+
+def auto_trash_blocked_cards(cards):
+    """Move denylisted senders (e.g. Boardy) out of active lists."""
+    keep = []
+    trashed = []
+    for card in cards:
+        if is_blocked_card(card):
+            if DRY_RUN or patch_card(card["id"], {
+                "list_id": "trash",
+                "moved_at": datetime.now(timezone.utc).isoformat(),
+            }):
+                trashed.append(card)
+            continue
+        keep.append(card)
+    return keep, trashed
 
 
 def auto_trash_stale_cards(cards):
@@ -501,14 +518,18 @@ def draft_reply(card, reply_type, client, tone="direct"):
 
     thread_text = get_thread_text(card)
     desc = ""
-    raw = card.get("description", "")
-    if isinstance(raw, str) and raw.strip().startswith("{"):
+    raw = card.get("description")
+    if raw is None:
+        desc = ""
+    elif isinstance(raw, dict):
+        desc = str(raw.get("rich_description") or "")[:400]
+    elif isinstance(raw, str) and raw.strip().startswith("{"):
         try:
-            desc = json.loads(raw).get("rich_description", "")[:400]
+            desc = str(json.loads(raw).get("rich_description") or "")[:400]
         except Exception:
             desc = raw[:400]
     else:
-        desc = raw[:400]
+        desc = str(raw)[:400]
 
     context = (
         f"{OPERATOR_FRAMEWORK}\n"
@@ -744,10 +765,14 @@ def main():
     client = anthropic.Anthropic(api_key=ANTHROPIC_KEY) if LLM_BACKEND == "anthropic" else None
     print(f"LLM backend: {backend_label()}")
 
+    cards, blocked_trashed = auto_trash_blocked_cards(cards)
+    if blocked_trashed:
+        print(f"Auto-trashed {len(blocked_trashed)} blocked sender card(s).")
+
     cards, auto_trashed = auto_trash_stale_cards(cards)
     if auto_trashed:
         print(f"Auto-trashed {len(auto_trashed)} stale card(s) older than 50 days.")
-    print(f"Analyzing {len(cards)} active deal cards after stale cleanup.\n")
+    print(f"Analyzing {len(cards)} active deal cards after cleanup.\n")
 
     moved       = []
     drafted     = []
