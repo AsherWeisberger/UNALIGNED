@@ -12520,16 +12520,22 @@ body[data-theme="light"] .cos2-compose-dock--inline {
 }
 
 body[data-theme="light"] .drawer-reply-bar--inline {
-  width: 100%;
+  width: auto;
   margin: 8px 0 0;
-  min-height: 36px;
-  padding: 8px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--line);
-  background: var(--surface);
+  min-height: 0;
+  padding: 8px 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
   font-size: 13px;
-  color: var(--text-2);
+  font-weight: 600;
+  color: var(--text-3);
   box-shadow: none;
+}
+
+body[data-theme="light"] .drawer-reply-bar--inline:hover {
+  color: var(--accent-2);
+  background: transparent;
 }
 
 body[data-theme="light"] .cos2-gmail-tablinks {
@@ -12815,69 +12821,77 @@ body[data-theme="light"] .cos2-reader--thread-tab .cos2-gmail-column .act {
   width: 100%;
 }
 
-body[data-theme="light"] .cos2-reader--thread-tab .cos2-gmail-column .act-item {
-  width: 100%;
-  margin: 0 0 2px;
-  padding: 18px clamp(16px, 2.5vw, 28px) 22px;
-  border: none;
-  border-radius: 0;
-  background: var(--surface);
-  box-shadow: none;
-  border-bottom: 1px solid var(--line-soft);
+/* Flat Gmail thread — no nested message cards */
+body[data-theme="light"] .cos2-reader--thread-tab .cos2-gmail-column .cos2-thread-scroll {
+  background: var(--bg);
 }
 
-body[data-theme="light"] .cos2-reader--thread-tab .cos2-gmail-column .act-item:last-of-type {
-  border-bottom: none;
-  padding-bottom: 16px;
+body[data-theme="light"] .cos2-reader--thread-tab .cos2-gmail-column .drawer-body--thread {
+  padding: 0;
+}
+
+body[data-theme="light"] .cos2-reader--thread-tab .cos2-gmail-column .act-item {
+  width: 100%;
+  margin: 0;
+  padding: 20px 0 8px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body[data-theme="light"] .cos2-reader--thread-tab .cos2-gmail-column .act-item + .act-item {
+  margin-top: 0;
+  padding-top: 24px;
+  border-top: 1px solid var(--line-soft);
 }
 
 body[data-theme="light"] .cos2-reader--thread-tab .cos2-gmail-column .act-item-hd {
-  margin: 0;
-  padding: 0 0 14px;
+  margin: 0 0 12px;
+  padding: 0;
   border: none;
-  border-bottom: 1px solid var(--line-soft);
+  background: transparent;
 }
 
 body[data-theme="light"] .cos2-reader--thread-tab .cos2-gmail-column .act-item-body {
-  padding: 16px 0 0;
+  padding: 0;
   max-width: none;
   width: 100%;
   font-size: 14px;
   line-height: 1.65;
   color: var(--text);
+  background: transparent;
 }
 
 body[data-theme="light"] .cos2-reader--thread-tab .cos2-gmail-column .act-item-subject {
   display: none;
 }
 
-body[data-theme="light"] .cos2-gmail-column .mail-compose--gmail,
-body[data-theme="light"] .cos2-gmail-column .mail-compose--inline {
-  width: 100%;
-  border-radius: 0;
-  box-shadow: none;
-  border: 1px solid var(--line-soft);
-  border-left: 3px solid var(--accent-line);
-  background: var(--surface);
-}
-
 body[data-theme="light"] .cos2-gmail-column .cos2-compose-dock--inline {
   width: 100%;
-  padding: 8px 0 24px;
+  padding: 12px 0 28px;
+  background: transparent;
 }
 
-/* Inline reply — spacious editor like Gmail, directly under last message */
-body[data-theme="light"] .mail-compose--inline {
+/* One reply box only — Gmail-style single compose card */
+body[data-theme="light"] .cos2-gmail-column .mail-compose--inline {
+  width: 100%;
+  margin: 0;
   overflow: visible;
+  border: 1px solid #d3d7dc;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: none;
 }
 
 body[data-theme="light"] .mail-compose-inline-meta {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--line-soft);
+  padding: 10px 16px;
+  border-bottom: none;
   font-size: 12px;
+  background: transparent;
 }
 
 body[data-theme="light"] .mail-compose-inline-meta .mail-compose-sender {
@@ -12917,7 +12931,7 @@ body[data-theme="light"] .mail-compose-inline-meta .mail-compose-collapse {
 }
 
 body[data-theme="light"] .mail-compose--inline .mail-compose-editor--grow {
-  padding: 12px 14px 8px;
+  padding: 4px 16px 8px;
 }
 
 body[data-theme="light"] .mail-compose--inline .mail-compose-editor--grow textarea {
@@ -12940,9 +12954,9 @@ body[data-theme="light"] .mail-compose-toolbar--gmail {
   align-items: center;
   gap: 8px 12px;
   min-height: 44px;
-  padding: 8px 12px;
-  border-top: 1px solid var(--line-soft);
-  background: var(--surface-2);
+  padding: 8px 16px 12px;
+  border-top: none;
+  background: transparent;
 }
 
 body[data-theme="light"] .mail-compose-toolbar--gmail .mail-compose-send {
