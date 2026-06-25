@@ -3244,13 +3244,19 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
             <div className="cos2-list">
               {split.isBrief && (
                 <div className="v6-list-head brief-mode-header">
-                  <div className="v6-list-title brief-mode-title">
-                    <small>DAILY BRIEF · {briefDateLabel}</small>
-                    Today&apos;s moves
-                  </div>
-                  <div className="v6-pills brief-mode-stats">
-                    <span className="act"><AnimatedCounter value={briefActionLeads.length} /> to act</span>
-                    <span><AnimatedCounter value={briefWatchLeads.length} /> watching</span>
+                  <div className="brief-mode-eyebrow">DAILY BRIEF · {briefDateLabel}</div>
+                  <div className="brief-mode-toolbar">
+                    <h2 className="v6-list-title brief-mode-title">Today&apos;s moves</h2>
+                    <div className="v6-pills brief-mode-stats">
+                      <span className="brief-stat-pill brief-stat-pill--act">
+                        <strong><AnimatedCounter value={briefActionLeads.length} /></strong>
+                        <em>to act</em>
+                      </span>
+                      <span className="brief-stat-pill">
+                        <strong><AnimatedCounter value={briefWatchLeads.length} /></strong>
+                        <em>watching</em>
+                      </span>
+                    </div>
                   </div>
                 </div>
               )}
