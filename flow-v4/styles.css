@@ -11697,7 +11697,7 @@ body[data-theme="light"] .hd-brand {
 .v6-company-os-brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   flex-shrink: 0;
 }
 
@@ -11708,14 +11708,14 @@ body[data-theme="light"] .hd-brand {
 }
 
 .v6-company-os-logo--icon {
-  height: 32px;
-  width: 32px;
+  height: 40px;
+  width: 40px;
 }
 
 .v6-company-os-wordmark {
   font-family: 'Inter Tight', var(--font-display), system-ui, sans-serif;
   font-weight: 600;
-  font-size: 17px;
+  font-size: 20px;
   letter-spacing: -0.02em;
   line-height: 1;
   color: var(--text-primary, var(--text));
@@ -11755,8 +11755,8 @@ body[data-theme="light"] .hd-brand {
   }
 
   .v6-logo-compact.v6-company-os-logo--icon {
-    height: 36px;
-    width: 36px;
+    height: 40px;
+    width: 40px;
   }
 }
 
