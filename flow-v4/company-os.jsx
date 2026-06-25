@@ -3076,10 +3076,15 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   );
   const split = splits.find(s => s.id === splitId) || splits[0];
   const items = split.items || [];
-  let selected = items.find(l => String(l.id) === String(selId)) || items[0] || null;
-  // Fallback to live for cases where brief summaries have items not in the sliced briefItems (e.g. data timing)
-  if (split.isBrief && selId && (!selected || String(selected.id) !== String(selId))) {
-    selected = live.find(l => String(l.id) === String(selId)) || selected;
+  let selected = null;
+  if (selId != null) {
+    selected = items.find(l => String(l.id) === String(selId)) || null;
+    // Fallback to live for cases where brief summaries have items not in the sliced briefItems (e.g. data timing)
+    if (split.isBrief && (!selected || String(selected.id) !== String(selId))) {
+      selected = live.find(l => String(l.id) === String(selId)) || selected;
+    }
+  } else if (!isMobile) {
+    selected = items[0] || null;
   }
 
   React.useEffect(() => {
@@ -3100,17 +3105,6 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
   }, []);
-
-  // Mobile: open first thread full-screen (like desktop always showing the reader pane)
-  React.useEffect(() => {
-    if (!isMobile || split.toolkit || mobileOpen || selId) return;
-    const firstId = split.isBrief
-      ? (briefSummaries.action[0]?.id || briefSummaries.watch[0]?.id)
-      : items[0]?.id;
-    if (!firstId) return;
-    setSelId(firstId);
-    setMobileOpen(true);
-  }, [isMobile, split.toolkit, split.isBrief, mobileOpen, selId, splitId, items, briefSummaries]);
 
   React.useEffect(() => {
     if (!selected) {
