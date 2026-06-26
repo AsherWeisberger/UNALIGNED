@@ -431,50 +431,99 @@ def load_drive_service(interactive: bool = True):
 
 
 def _docx_bytes_to_lines(data: bytes) -> list[str]:
-    """Extract paragraph text from a .docx (a zip of XML) without extra dependencies."""
+    """Extract readable text from a .docx (a zip of XML) without extra dependencies.
+
+    Handles tables and structured-document-tag fields cleanly by turning paragraph
+    and row boundaries into line breaks, then stripping every XML tag so only the
+    text nodes remain (no leaked markup).
+    """
     import io
     import zipfile
 
     with zipfile.ZipFile(io.BytesIO(data)) as zf:
         xml = zf.read("word/document.xml").decode("utf-8", "ignore")
+    # Preserve structure: paragraphs and table rows become line breaks, cells tab-separated.
+    xml = re.sub(r"</w:p>", "\n", xml)
+    xml = re.sub(r"</w:tr>", "\n", xml)
+    xml = re.sub(r"</w:tc>", "\t", xml)
+    # Remove every remaining tag; what's left is the actual text content.
+    text = re.sub(r"<[^>]+>", "", xml)
+    text = (
+        text.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+        .replace("&quot;", '"').replace("&#39;", "'").replace("&apos;", "'")
+    )
     lines: list[str] = []
-    for para in re.split(r"</w:p>", xml):
-        texts = re.findall(r"<w:t[^>]*>(.*?)</w:t>", para, re.S)
-        text = "".join(texts)
-        text = (
-            text.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
-            .replace("&quot;", '"').replace("&#39;", "'").replace("&apos;", "'")
-        ).strip()
-        if text:
-            lines.append(text)
+    for raw in text.split("\n"):
+        cleaned = re.sub(r"[ \t]+", " ", raw).strip()
+        if cleaned:
+            lines.append(cleaned)
     return lines
+
+
+def _public_drive_download(file_id: str) -> bytes:
+    """Download a link-shared Drive file with no auth, the same way a browser would."""
+    url = f"https://drive.google.com/uc?export=download&id={file_id}"
+    req = request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with request.urlopen(req, timeout=30) as resp:
+        data = resp.read()
+    # Large files return an HTML virus-scan interstitial with a confirm token.
+    if data[:1] == b"<" and b"confirm=" in data:
+        token = ""
+        m = re.search(rb"confirm=([0-9A-Za-z_\-]+)", data)
+        if m:
+            token = m.group(1).decode()
+        if token:
+            url2 = f"https://drive.google.com/uc?export=download&confirm={token}&id={file_id}"
+            req2 = request.Request(url2, headers={"User-Agent": "Mozilla/5.0"})
+            with request.urlopen(req2, timeout=30) as resp2:
+                data = resp2.read()
+    return data
+
+
+def _bytes_to_lines(data: bytes, name: str = "", mime: str = "") -> list[str]:
+    if data[:2] == b"PK" or "wordprocessingml" in mime or name.lower().endswith(".docx"):
+        return _docx_bytes_to_lines(data)
+    try:
+        return [line(item) for item in data.decode("utf-8", "ignore").splitlines() if line(item)]
+    except Exception:
+        return []
 
 
 def drive_file_to_source(file_id: str) -> dict:
     """Fallback reader for files the Docs API rejects: download from Drive and parse.
 
-    Currently handles uploaded Word files (.docx). Other binary types raise a clear
-    error so the caller can tell the user to convert/export.
+    Tries the authorized Drive API first (works for files shared to the account),
+    then a public link download (works for 'anyone with the link' files). Handles
+    uploaded Word files (.docx) without extra dependencies.
     """
-    service = load_drive_service(interactive=False)
-    meta = service.files().get(fileId=file_id, fields="name,mimeType").execute()
-    name = line(meta.get("name")) or "Robert Brief"
-    mime = str(meta.get("mimeType") or "")
-    data = service.files().get_media(fileId=file_id).execute()
-    if isinstance(data, str):
-        data = data.encode("utf-8", "ignore")
+    name = "Robert Brief"
+    mime = ""
+    data = b""
 
-    if "wordprocessingml" in mime or name.lower().endswith(".docx"):
-        lines = _docx_bytes_to_lines(data)
-    else:
+    # 1) Authorized Drive API (handles files explicitly shared to this account / shared drives)
+    try:
+        service = load_drive_service(interactive=False)
+        meta = service.files().get(fileId=file_id, fields="name,mimeType", supportsAllDrives=True).execute()
+        name = line(meta.get("name")) or name
+        mime = str(meta.get("mimeType") or "")
+        media = service.files().get_media(fileId=file_id).execute()
+        data = media.encode("utf-8", "ignore") if isinstance(media, str) else media
+    except Exception as exc:
+        brief_log(f"Drive API read failed for {file_id} ({exc}); trying public link download")
+        # 2) Public link download (handles 'anyone with the link' files)
         try:
-            lines = [line(item) for item in data.decode("utf-8", "ignore").splitlines() if line(item)]
-        except Exception:
-            lines = []
+            data = _public_drive_download(file_id)
+        except Exception as exc2:
+            raise ValueError(
+                "Could not read this file. The brief maker's Google account cannot see it and it is "
+                "not openable by link. Easiest fix: open it in Google Docs, choose File then "
+                "Save as Google Docs, and paste that new link."
+            ) from exc2
 
+    lines = _bytes_to_lines(data, name=name, mime=mime)
     if not lines:
         raise ValueError(
-            f"Could not read this file ({mime or 'unknown type'}). "
+            f"Could not extract text from this file ({mime or 'unknown type'}). "
             "Open it in Google Docs and use File then Save as Google Docs, then paste that link."
         )
     return {"title": name, "lines": lines[:1200], "links": []}
