@@ -12149,7 +12149,9 @@ function V4App() {
   }, []);
 
   React.useEffect(() => {
-    document.body.setAttribute('data-theme', t.theme);
+    var apply = function () { document.body.setAttribute('data-theme', t.theme); };
+    if (window.cubeThemeTransition) window.cubeThemeTransition(apply);
+    else apply();
   }, [t.theme]);
 
   const user = t.viewAs;
