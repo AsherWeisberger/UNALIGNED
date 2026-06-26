@@ -15888,3 +15888,24 @@ body[data-theme="dark"] .cos2-row-act:hover { color: var(--text); border-color: 
 .org-floor .org-bubble .ig b{font-weight:700;color:#c9bda9}
 .org-floor .org-bubble:after{content:"";position:absolute;left:-8px;top:30px;width:14px;height:14px;background:rgba(18,16,14,.94);border-left:1px solid rgba(250,60,30,.4);border-bottom:1px solid rgba(250,60,30,.4);transform:rotate(45deg)}
 
+/* ============================================================================
+   CUBE THEME TRANSITION SHELL — diagonal Rubik's-cube wipe between color modes.
+   Drives window.cubeThemeTransition (flow-v4/cube-theme-transition.js). The JS
+   builds .cube-tx as a fixed full-viewport grid of <i> cubes painted in the
+   outgoing theme color; adding .go flips them away in a diagonal cascade,
+   revealing the new theme underneath. Keep --cube-dur in sync with DUR in the JS.
+   ============================================================================ */
+.cube-tx{position:fixed;inset:0;z-index:99999;pointer-events:none;display:grid;perspective:1200px;contain:strict}
+.cube-tx i{
+  transform-origin:center top;
+  backface-visibility:hidden;
+  will-change:transform,opacity;
+  box-shadow:inset 0 0 0 .5px rgba(0,0,0,.06);
+  background-image:linear-gradient(135deg,rgba(255,255,255,.07),rgba(0,0,0,.12));
+  transition:transform var(--cube-dur,.56s) cubic-bezier(.66,0,.34,1),opacity var(--cube-dur,.56s) ease;
+}
+.cube-tx.go i{transform:rotateX(-90deg) translateZ(2px);opacity:0}
+@media(prefers-reduced-motion:reduce){
+  .cube-tx i{transition-duration:.001s}
+}
+
