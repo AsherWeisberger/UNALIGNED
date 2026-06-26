@@ -5431,13 +5431,15 @@ function V4AprNum(n) {
 }
 const V4_APR_AGENT = { replies: 'Deal Desk', payments: 'Finance', briefs: 'Brief Maker', posts: 'Calendar' };
 
-function V4MachineRoomConsole({ leads = [], query = '', onOpenLead }) {
+// ── Shared approval logic (used by BOTH the Machine Room console and the Organs view) ──
+// The four gates, computed from the live board. One source of truth; Organs and the
+// console both render from this, so the queues never drift.
+function V4AprComputeGates(leads, query) {
   const q = String(query || '').trim().toLowerCase();
   const live = (Array.isArray(leads) ? leads : []).filter(l =>
     l && !['trash', 'dead-leads'].includes(String(l.stage || '').toLowerCase()));
   const matchesQ = (l) => !q || [l.brand, l.contactName, l.deliverables, l.agentTier]
     .some(s => String(s || '').toLowerCase().includes(q));
-
   const replies = live.filter(l =>
     String(l.draftReplyStatus || '').toLowerCase() === 'pending' &&
     l.draftReply && String(l.draftReply.body || '').trim()).filter(matchesQ);
@@ -5445,22 +5447,37 @@ function V4MachineRoomConsole({ leads = [], query = '', onOpenLead }) {
   const briefs = live.filter(l =>
     String(l.briefStatus || '').toLowerCase().replace(/_/g, '-') === 'awaiting-robert').filter(matchesQ);
   const posts = live.filter(l => String(l.stage || '').toLowerCase() === 'done').filter(matchesQ);
-
-  const GATES = [
+  return [
     { id: 'replies', label: 'Replies', items: replies, tag: '' },
     { id: 'payments', label: 'Payments', items: payments, tag: 'pay' },
     { id: 'briefs', label: 'Briefs', items: briefs, tag: 'brief' },
     { id: 'posts', label: 'Posts', items: posts, tag: '' },
   ];
-  const flat = GATES.flatMap(g => g.items.map(l => ({ gate: g.id, lead: l })));
+}
 
-  const [selKey, setSelKey] = React.useState(null);
-  const [editing, setEditing] = React.useState(false);
-  const [editBody, setEditBody] = React.useState('');
-  const [editSubject, setEditSubject] = React.useState('');
+// The board write each gate's Approve/Deny performs. Approve marks ready; nothing sends.
+function V4AprGateAction(g) {
+  if (g === 'replies') return {
+    approve: { fields: { draft_reply_status: 'approved' }, local: { draftReplyStatus: 'approved' } },
+    deny: { fields: { draft_reply_status: '', draft_reply: null }, local: { draftReplyStatus: '', draftReply: null } },
+  };
+  if (g === 'payments') return {
+    approve: { fields: { list_id: 'paid-out' }, local: { stage: 'paid-out' } },
+    deny: { fields: {}, local: {} },
+  };
+  if (g === 'briefs') return {
+    approve: { fields: { brief_status: 'approved' }, local: { briefStatus: 'approved' } },
+    deny: { fields: { brief_status: 'edits_requested' }, local: { briefStatus: 'edits_requested' } },
+  };
+  return {
+    approve: { fields: { list_id: 'paid-out' }, local: { stage: 'paid-out' } },
+    deny: { fields: {}, local: {} },
+  };
+}
+
+// Shared ops_health binding: polls the singleton row, exposes resume() + halt().
+function V4UseOpsHealth() {
   const [health, setHealth] = React.useState(null);
-
-  // Poll ops_health for the status light, counters, and halt state.
   React.useEffect(() => {
     let alive = true;
     const load = () => {
@@ -5473,6 +5490,29 @@ function V4MachineRoomConsole({ leads = [], query = '', onOpenLead }) {
     const t = setInterval(load, 30000);
     return () => { alive = false; clearInterval(t); };
   }, []);
+  const write = (fields, optimistic) => {
+    fetch(V3_SUPABASE_URL + '/rest/v1/ops_health?id=eq.1', {
+      method: 'PATCH',
+      headers: { apikey: V3_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + V3_SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify(fields),
+    }).then(() => setHealth(h => ({ ...(h || {}), ...optimistic }))).catch(() => {});
+  };
+  const resume = () => write({ status: 'ok', halt_reason: '' }, { status: 'ok', halt_reason: '' });
+  const halt = () => write({ status: 'halted', halt_reason: 'Halted from the dashboard' },
+    { status: 'halted', halt_reason: 'Halted from the dashboard' });
+  return { health, setHealth, resume, halt };
+}
+
+function V4MachineRoomConsole({ leads = [], query = '', onOpenLead }) {
+  const GATES = V4AprComputeGates(leads, query);
+  const flat = GATES.flatMap(g => g.items.map(l => ({ gate: g.id, lead: l })));
+
+  const [selKey, setSelKey] = React.useState(null);
+  const [editing, setEditing] = React.useState(false);
+  const [editBody, setEditBody] = React.useState('');
+  const [editSubject, setEditSubject] = React.useState('');
+  const { health, resume } = V4UseOpsHealth();
 
   const current = flat.find(f => (f.gate + ':' + f.lead.id) === selKey) || flat[0] || null;
   const lead = current ? current.lead : null;
@@ -5488,27 +5528,8 @@ function V4MachineRoomConsole({ leads = [], query = '', onOpenLead }) {
     setSelKey(next ? next.gate + ':' + next.lead.id : null);
   };
 
-  function gateAction(g) {
-    if (g === 'replies') return {
-      approve: { fields: { draft_reply_status: 'approved' }, local: { draftReplyStatus: 'approved' } },
-      deny: { fields: { draft_reply_status: '', draft_reply: null }, local: { draftReplyStatus: '', draftReply: null } },
-    };
-    if (g === 'payments') return {
-      approve: { fields: { list_id: 'paid-out' }, local: { stage: 'paid-out' } },
-      deny: { fields: {}, local: {} },
-    };
-    if (g === 'briefs') return {
-      approve: { fields: { brief_status: 'approved' }, local: { briefStatus: 'approved' } },
-      deny: { fields: { brief_status: 'edits_requested' }, local: { briefStatus: 'edits_requested' } },
-    };
-    return {
-      approve: { fields: { list_id: 'paid-out' }, local: { stage: 'paid-out' } },
-      deny: { fields: {}, local: {} },
-    };
-  }
-
-  const onApprove = () => { const a = gateAction(gate); V4CosPatchLead(lead, a.approve.fields, a.approve.local); advance(); };
-  const onDeny = () => { const a = gateAction(gate); V4CosPatchLead(lead, a.deny.fields, a.deny.local); advance(); };
+  const onApprove = () => { const a = V4AprGateAction(gate); V4CosPatchLead(lead, a.approve.fields, a.approve.local); advance(); };
+  const onDeny = () => { const a = V4AprGateAction(gate); V4CosPatchLead(lead, a.deny.fields, a.deny.local); advance(); };
   const startEdit = () => {
     const dr = lead.draftReply || {};
     setEditSubject(dr.subject || ''); setEditBody(dr.body || ''); setEditing(true);
@@ -5518,14 +5539,6 @@ function V4MachineRoomConsole({ leads = [], query = '', onOpenLead }) {
     V4CosPatchLead(lead, { draft_reply: payload, draft_reply_status: 'approved' },
       { draftReply: { subject: editSubject, body: editBody }, draftReplyStatus: 'approved' });
     setEditing(false); advance();
-  };
-  const resume = () => {
-    fetch(V3_SUPABASE_URL + '/rest/v1/ops_health?id=eq.1', {
-      method: 'PATCH',
-      headers: { apikey: V3_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + V3_SUPABASE_ANON_KEY,
-        'Content-Type': 'application/json', Prefer: 'return=minimal' },
-      body: JSON.stringify({ status: 'ok', halt_reason: '' }),
-    }).then(() => setHealth(h => ({ ...(h || {}), status: 'ok', halt_reason: '' }))).catch(() => {});
   };
 
   const oneLine = (l) => l.recommendedAction ||
@@ -5675,6 +5688,139 @@ function V4MachineRoomConsole({ leads = [], query = '', onOpenLead }) {
               <div className="apr-why">Nothing is waiting on your approval right now.</div></div></div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Organs — the living pipeline. A second, prettier view over the SAME
+// approval data + ops_health row the console uses (shared helpers, no
+// duplicated logic). Built on the org-* shell in styles.css.
+// ─────────────────────────────────────────────────────────────
+const V4_ORG_ORDER = ['triage', 'deal_desk', 'tracker', 'brief_maker', 'qa'];
+const V4_ORG_DEF = {
+  triage: { name: 'Triage', glyph: '🔍', desc: 'Classify the lead, run the scam gate.', token: null },
+  deal_desk: { name: 'Deal Desk', glyph: '◆', desc: 'Draft the reply at the live rate.', token: 'Reply Engines' },
+  tracker: { name: 'Tracker', glyph: '📊', desc: 'Follow ups and payment chase.', token: null },
+  brief_maker: { name: 'Brief Maker', glyph: '📝', desc: "Build Robert's brief.", token: null },
+  qa: { name: 'QA', glyph: '✓', desc: 'Sold vs delivered, on go live.', token: null },
+};
+
+function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
+  const { health, resume, halt } = V4UseOpsHealth();
+  const gates = V4AprComputeGates(leads, query);
+  const gmap = {}; gates.forEach(g => { gmap[g.id] = g; });
+
+  const halted = !!(health && String(health.status || 'ok') !== 'ok');
+  const haltReason = (health && health.halt_reason) || 'Operator paused. Drafts are held until you resume.';
+  const connCls = halted ? ' cold' : '';
+
+  // Which organ is mid-flight: parse ops_health.now_handling ("deal_desk → Heygen").
+  // Fallback: if nothing is reported but replies are queued, light Deal Desk.
+  const reported = String((health && health.now_handling) || '').split(/[\s→>]+/)[0].trim().toLowerCase();
+  let activeKey = V4_ORG_ORDER.includes(reported) ? reported : '';
+  if (!activeKey && gmap.replies && gmap.replies.items.length) activeKey = 'deal_desk';
+  const activeIdx = V4_ORG_ORDER.indexOf(activeKey);
+  const organState = (key) => {
+    if (key === activeKey) return 'work';
+    const i = V4_ORG_ORDER.indexOf(key);
+    return (activeIdx >= 0 && i >= 0 && i < activeIdx) ? 'done' : '';
+  };
+
+  const totalWaiting = gates.reduce((s, g) => s + g.items.length, 0);
+  const medic = halted ? haltReason
+    : activeKey ? (V4_ORG_DEF[activeKey].name + ' is working a lead right now.')
+      : totalWaiting ? (totalWaiting + ' parked at the gates, waiting on you.')
+        : 'All clear. Nothing waiting, nothing in flight.';
+
+  const conn = (k) => <div className={'org-node org-conn' + connCls} key={'c-' + k}></div>;
+
+  const organ = (key) => {
+    const o = V4_ORG_DEF[key];
+    const st = organState(key);
+    const label = st === 'work' ? 'Working' : st === 'done' ? 'Done' : 'Idle';
+    return (
+      <div className={'org-node org-organ' + (st ? ' ' + st : '')} key={key}>
+        <div className="ic">{o.glyph}</div>
+        <div className="nm">{o.name}</div>
+        <div className="ds">{o.desc}</div>
+        <div className="stt"><span className="sd"></span>{label}</div>
+        {o.token && <span className="tk">{o.token}</span>}
+      </div>
+    );
+  };
+
+  const gate = (id, title, desc) => {
+    const items = (gmap[id] || { items: [] }).items;
+    const n = items.length;
+    const first = items[0];
+    const act = V4AprGateAction(id);
+    const doApprove = () => { if (first) V4CosPatchLead(first, act.approve.fields, act.approve.local); };
+    const doDeny = () => { if (first) V4CosPatchLead(first, act.deny.fields, act.deny.local); };
+    return (
+      <div className={'org-node org-gate' + (n > 0 ? ' pulse' : '')} key={'g-' + id}>
+        <div className="gh">🟥 Approve {n}</div>
+        <div className="gt">{title}</div>
+        <div className="gd">{desc}</div>
+        <div className="btns">
+          <span className="b ap" onClick={doApprove}>Approve</span>
+          <span className="b gh" onClick={() => onOpenConsole && onOpenConsole()}>Edit</span>
+          <span className="b gh" onClick={doDeny}>Deny</span>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className={'org-wrap' + (halted ? ' is-halted' : '')}
+      style={{ display: 'grid', gridTemplateRows: 'auto auto minmax(0,1fr)', flex: '1 1 0', minHeight: 0, height: '100%', overflow: 'hidden' }}>
+      <div className="org-top">
+        <div>
+          <div className="org-eye">Machine Room</div>
+          <h1 className="org-title">Organs <i>one lead, flowing through the body</i></h1>
+        </div>
+        <div className="org-gauges">
+          <div className="org-lt"><span className="d"></span>{halted ? 'Halted' : 'Running'}</div>
+          <div className="org-ctr"><span className="ck">Local · Qwen today</span>
+            <span className="cv">{health ? V4AprNum(health.local_tokens_today) : '—'}</span></div>
+          <div className="org-ctr"><span className="ck">Claude 10% today</span>
+            <span className="cv m">{health ? '$' + Number(health.claude_spend_today || 0).toFixed(2) : '—'}</span></div>
+        </div>
+      </div>
+
+      <div className="org-medic">
+        <span className="org-mi"><span className="pp"></span>◆ Medic</span>
+        <span className="org-mw">{medic}</span>
+        <button className="org-halt" onClick={halted ? resume : halt}>{halted ? '▶ Resume' : '⛔ Halt all'}</button>
+      </div>
+
+      <div className="org-flow">
+        <div className="org-node org-intake"><div className="big">✉</div><div className="tn">Intake</div><div className="ts">Gmail + X scrapers</div></div>
+        {conn('i')}
+        {organ('triage')}
+        {conn('t')}
+        {organ('deal_desk')}
+        {conn('d')}
+        {gate('replies', 'Reply gate', 'Drafts waiting on your approval.')}
+        {conn('r')}
+        {organ('tracker')}
+        {conn('tr')}
+        {gate('payments', 'Payment gate', 'Invoice out, confirm paid.')}
+        {conn('p')}
+        {organ('brief_maker')}
+        {conn('b')}
+        {gate('briefs', 'Brief gate', 'Awaiting Robert sign off.')}
+        {conn('br')}
+        <div className="org-node org-term cal"><div className="big">📅</div><div className="tn">Calendar</div><div className="ts">Brief loaded</div></div>
+        {conn('cal')}
+        {gate('posts', 'Post gate', 'Approved and paid, ready to post.')}
+        {conn('po')}
+        <div className="org-node org-term x"><div className="big">𝕏</div><div className="tn">Posted</div><div className="ts">Paid Partnership on</div></div>
+        {conn('x')}
+        {organ('qa')}
+        {conn('q')}
+        <div className="org-node org-term done"><div className="big">✓</div><div className="tn">Done</div><div className="ts">Paid-out</div></div>
       </div>
     </div>
   );
@@ -11799,6 +11945,7 @@ function V4App() {
     calendar: '',
     'company-os': '',
     'machine-room': '',
+    organs: '',
   });
   const [toast, setToast] = React.useState(null);
   const toastTimer = React.useRef(null);
@@ -12041,6 +12188,7 @@ function V4App() {
           <button className="hd-nav-btn" aria-current={view === 'leads' ? 'page' : undefined} onClick={() => { setView('leads'); }}>Network</button>
           <button className="hd-nav-btn" aria-current={view === 'company-os' ? 'page' : undefined} onClick={() => { setView('company-os'); setOpenId(null); }}>Company OS</button>
           <button className="hd-nav-btn" aria-current={view === 'machine-room' ? 'page' : undefined} onClick={() => { setView('machine-room'); setOpenId(null); }}>Machine Room</button>
+          <button className="hd-nav-btn" aria-current={view === 'organs' ? 'page' : undefined} onClick={() => { setView('organs'); setOpenId(null); }}>Organs</button>
         </div>
 
         <div className="hd-search">
@@ -12200,6 +12348,15 @@ function V4App() {
                 setView('company-os');
                 setOpenId(id);
               }}
+            />
+          </div>
+        )}
+        {view === 'organs' && (
+          <div className="body body-organs" style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+            <V4OrgansView
+              leads={mergedLeads}
+              query={search}
+              onOpenConsole={() => { setView('machine-room'); setOpenId(null); }}
             />
           </div>
         )}
