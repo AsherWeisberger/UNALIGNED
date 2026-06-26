@@ -11822,10 +11822,16 @@ function V4App() {
           Synced
         </div>
 
+        <button
+          className="hd-theme-toggle"
+          title={t.theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          aria-label="Toggle theme"
+          onClick={() => setTweak('theme', t.theme === 'dark' ? 'light' : 'dark')}
+        >
+          <V3Icon name={t.theme === 'dark' ? 'sun' : 'moon'} />
+        </button>
+
         <div className="hd-right">
-          <button className="hd-icon-btn" title={t.theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} aria-label="Toggle theme" onClick={() => setTweak('theme', t.theme === 'dark' ? 'light' : 'dark')}>
-            <V3Icon name={t.theme === 'dark' ? 'sun' : 'moon'} />
-          </button>
           <button className="hd-icon-btn" title="Notifications"><V3Icon name="bell" /></button>
         </div>
       </header>

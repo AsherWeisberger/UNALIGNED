@@ -14892,3 +14892,20 @@ body[data-theme="dark"] .v6-client-brand .v6-mark { width: 28px; height: 28px; }
 .cos-act-trash { position: absolute; top: 9px; right: 9px; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--text-3); cursor: pointer; opacity: 0; transition: opacity .12s ease; }
 .cos-act-wrap:hover .cos-act-trash { opacity: 1; }
 .cos-act-trash:hover { color: var(--text); border-color: var(--text-3); }
+
+/* ── Theme toggle (visible in BOTH light + dark; not suppressed by old .hd-right rule) ── */
+.hd-theme-toggle {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-1, var(--surface));
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background .12s ease, color .12s ease, border-color .12s ease;
+}
+.hd-theme-toggle:hover { color: var(--text); border-color: var(--border-strong, var(--text-3)); background: var(--surface-2); }
+.hd-theme-toggle .ic, .hd-theme-toggle svg { width: 15px; height: 15px; }
+body[data-theme="light"] .hd-theme-toggle,
+body[data-theme="dark"]  .hd-theme-toggle { display: inline-flex; }
