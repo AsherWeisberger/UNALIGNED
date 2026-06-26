@@ -11277,20 +11277,14 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
           <>
             <div className="cos2-list">
               {split.isBrief && (
-                <div className="v6-list-head brief-mode-header">
-                  <div className="brief-mode-eyebrow">DAILY BRIEF · {briefDateLabel}</div>
-                  <div className="brief-mode-toolbar">
-                    <h2 className="v6-list-title brief-mode-title">Today&apos;s moves</h2>
-                    <div className="v6-pills brief-mode-stats">
-                      <span className="brief-stat-pill brief-stat-pill--act">
-                        <strong><AnimatedCounter value={briefActionLeads.length} /></strong>
-                        <em>to act</em>
-                      </span>
-                      <span className="brief-stat-pill">
-                        <strong><AnimatedCounter value={briefWatchLeads.length} /></strong>
-                        <em>watching</em>
-                      </span>
-                    </div>
+                <div className="cos-daily-brief">
+                  <div className="cos-be-row">
+                    <span className="cos-eyebrow">Daily Brief</span>
+                    <span className="cos-section-date">{briefDateLabel}</span>
+                  </div>
+                  <div className="cos-brief-head">
+                    <h2 className="cos-section-title">Today&apos;s moves</h2>
+                    <div className="cos-section-sub">{briefActionLeads.length} {briefActionLeads.length === 1 ? 'lead' : 'leads'} to act on, {briefWatchLeads.length} to keep an eye on. drafts the agents prepared, waiting on your sign off.</div>
                   </div>
                 </div>
               )}
@@ -11299,25 +11293,26 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
               {split.isBrief ? (
                 <>
                   {briefSummaries.action.length > 0 && (
-                    <div className="v6-sec brief-section-header">
-                      ACTION NOW <b>{briefSummaries.action.length}</b>
-                    </div>
+                    <div className="cos-brief-sec">Action now &middot; {briefSummaries.action.length}</div>
                   )}
-                  {briefSummaries.action.map((item, index) => {
+                  {briefSummaries.action.map((item) => {
                     const lead = live.find(ll => String(ll.id) === String(item.id)) || {};
                     const isCurrent = String(item.id) === String(selId);
+                    const lt = V4CompanyOsType(lead);
+                    const tag = lt === 'interview' ? 'Interview' : (lt === 'intro' ? 'Intro' : 'Deal Desk');
+                    const subject = V4CleanDisplayText(V4CompanyOsListSnippet(lead) || (item.points && item.points[0]) || '').slice(0, 170);
+                    const toText = V4CleanDisplayText((lead.nextMove && lead.nextMove.text) || (item.points && item.points[1]) || '');
                     return (
-                      <div key={item.id} className={'tesla-row-wrap' + (isCurrent ? ' is-current' : '')}>
-                        <V6ListRow
-                          lead={lead}
-                          title={item.title}
-                          isCurrent={isCurrent}
-                          style={{ animationDelay: `${0.05 + index * 0.05}s` }}
-                          onClick={() => { setSelId(item.id); setMobileOpen(true); }}
-                        />
-                        <button type="button"
-                                className="tesla-row-act"
-                                title="Move to trash"
+                      <div key={item.id} className={'cos-act-wrap' + (isCurrent ? ' is-current' : '')}>
+                        <button type="button" className="cos-brief-act" onClick={() => { setSelId(item.id); setMobileOpen(true); }}>
+                          <div className="act-row-hd">
+                            <span className="act-row-from">{lead.brand || item.title}</span>
+                            <span className="act-row-tag">&#9670; {tag}</span>
+                          </div>
+                          {subject && <div className="act-row-subject">{subject}</div>}
+                          {toText && <div className="act-row-to">{toText}</div>}
+                        </button>
+                        <button type="button" className="cos-act-trash" title="Move to trash"
                                 onClick={(e) => { e.stopPropagation(); window.V3.MoveLeadStage(lead, 'trash'); }}>
                           <V3Icon name="trash" w={13} />
                         </button>
@@ -11326,25 +11321,26 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
                   })}
 
                   {briefSummaries.watch.length > 0 && (
-                    <div className="v6-sec brief-section-header">
-                      WATCH / WAITING <b>{briefSummaries.watch.length}</b>
-                    </div>
+                    <div className="cos-brief-sec">Watching &middot; {briefSummaries.watch.length}</div>
                   )}
-                  {briefSummaries.watch.map((item, index) => {
+                  {briefSummaries.watch.map((item) => {
                     const lead = live.find(ll => String(ll.id) === String(item.id)) || {};
                     const isCurrent = String(item.id) === String(selId);
+                    const lt = V4CompanyOsType(lead);
+                    const tag = lt === 'interview' ? 'Interview' : (lt === 'intro' ? 'Intro' : 'Deal Desk');
+                    const subject = V4CleanDisplayText(V4CompanyOsListSnippet(lead) || (item.points && item.points[0]) || '').slice(0, 170);
+                    const toText = V4CleanDisplayText((lead.nextMove && lead.nextMove.text) || (item.points && item.points[1]) || '');
                     return (
-                      <div key={item.id} className={'tesla-row-wrap' + (isCurrent ? ' is-current' : '')}>
-                        <V6ListRow
-                          lead={lead}
-                          title={item.title}
-                          isCurrent={isCurrent}
-                          style={{ animationDelay: `${0.3 + index * 0.05}s` }}
-                          onClick={() => { setSelId(item.id); setMobileOpen(true); }}
-                        />
-                        <button type="button"
-                                className="tesla-row-act"
-                                title="Move to trash"
+                      <div key={item.id} className={'cos-act-wrap' + (isCurrent ? ' is-current' : '')}>
+                        <button type="button" className="cos-brief-act" onClick={() => { setSelId(item.id); setMobileOpen(true); }}>
+                          <div className="act-row-hd">
+                            <span className="act-row-from">{lead.brand || item.title}</span>
+                            <span className="act-row-tag">&#9670; {tag}</span>
+                          </div>
+                          {subject && <div className="act-row-subject">{subject}</div>}
+                          {toText && <div className="act-row-to">{toText}</div>}
+                        </button>
+                        <button type="button" className="cos-act-trash" title="Move to trash"
                                 onClick={(e) => { e.stopPropagation(); window.V3.MoveLeadStage(lead, 'trash'); }}>
                           <V3Icon name="trash" w={13} />
                         </button>

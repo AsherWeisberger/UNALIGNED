@@ -14868,3 +14868,27 @@ body[data-theme="dark"] .v6-company-os-logo:not(.v6-company-os-logo--icon) { hei
    at its intrinsic 256px. Match the light sizing. */
 body[data-theme="dark"] .v6-mark { width: 30px; height: 30px; }
 body[data-theme="dark"] .v6-client-brand .v6-mark { width: 28px; height: 28px; }
+
+/* ============================================================
+   Company OS daily brief — rebuilt to companyos-design-light.html
+   (scoped so it never collides with the email-thread .act-item)
+   ============================================================ */
+.cos-daily-brief { padding: 22px 26px 4px; }
+.cos-daily-brief .cos-be-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.cos-daily-brief .cos-eyebrow { font: 500 10.5px/1 var(--font-mono); text-transform: uppercase; letter-spacing: .12em; color: var(--text-3); }
+.cos-daily-brief .cos-section-date { font: 500 11px/1 var(--font-mono); color: var(--text-3); padding: 4px 8px; border-radius: 4px; background: var(--surface-2); border: 1px solid var(--line); }
+.cos-daily-brief .cos-brief-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+.cos-daily-brief .cos-section-title { font-family: var(--font-display); font-size: 26px; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; color: var(--text); margin: 0; }
+.cos-daily-brief .cos-section-sub { font-family: var(--font-serif); font-style: italic; font-size: 14px; line-height: 1.35; color: var(--text-2); max-width: 42ch; text-align: right; }
+.cos-brief-sec { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--text-3); margin: 16px 26px 10px; }
+.cos-act-wrap { position: relative; margin: 0 26px 8px; }
+.cos-brief-act { display: block; width: 100%; text-align: left; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-1); cursor: pointer; transition: border-color .12s ease; }
+.cos-act-wrap.is-current .cos-brief-act, .cos-brief-act:hover { border-color: var(--border-strong); }
+.cos-brief-act .act-row-hd { display: flex; align-items: baseline; gap: 8px; margin-bottom: 5px; }
+.cos-brief-act .act-row-from { font-weight: 600; letter-spacing: -.005em; color: var(--text); font-size: 14px; }
+.cos-brief-act .act-row-tag { margin-left: auto; font-family: var(--font-mono); font-size: 9px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); border-radius: 3px; padding: 2px 7px; white-space: nowrap; }
+.cos-brief-act .act-row-subject { font-size: 13px; color: var(--text-2); line-height: 1.4; }
+.cos-brief-act .act-row-to { font: 400 12px/1.3 var(--font-body); color: var(--text-3); margin-top: 3px; }
+.cos-act-trash { position: absolute; top: 9px; right: 9px; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--text-3); cursor: pointer; opacity: 0; transition: opacity .12s ease; }
+.cos-act-wrap:hover .cos-act-trash { opacity: 1; }
+.cos-act-trash:hover { color: var(--text); border-color: var(--text-3); }
