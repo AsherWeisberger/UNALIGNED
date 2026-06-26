@@ -15902,9 +15902,10 @@ body[data-theme="dark"] .cos2-row-act:hover { color: var(--text); border-color: 
   will-change:transform,opacity;
   box-shadow:inset 0 0 0 .5px rgba(0,0,0,.06);
   background-image:linear-gradient(135deg,rgba(255,255,255,.07),rgba(0,0,0,.12));
-  transition:transform var(--cube-dur,.56s) cubic-bezier(.66,0,.34,1),opacity var(--cube-dur,.56s) ease;
+  transition:transform var(--cube-dur,.4s) cubic-bezier(.66,0,.34,1),opacity var(--cube-dur,.4s) ease;
 }
 .cube-tx.go i{transform:rotateX(-90deg) translateZ(2px);opacity:0}
+.cube-tx.fade.go i{transform:scale(.4);opacity:0}
 @media(prefers-reduced-motion:reduce){
   .cube-tx i{transition-duration:.001s}
 }
@@ -15949,5 +15950,18 @@ body[data-theme="dark"] .gmail-reply-status.is-success{color:var(--good)}
   .apr-console .apr-bar{padding:12px 16px;flex-wrap:wrap;gap:8px}
   .apr-console .apr-btn{flex:1 1 auto;justify-content:center;padding:11px 12px;font-size:13px}
   .apr-console .apr-sp{display:none}
+}
+
+/* ============================================================================
+   APR CONSOLE MOBILE — MASTER/DETAIL. On phones, show the queue OR the detail,
+   never both stacked. INERT until the component adds `has-sel` to .apr-console on
+   selection (+ an `.apr-back` button that clears it); without the hook the
+   earlier stacked mobile rules stay in effect, so detail is never blank.
+   ============================================================================ */
+.apr-back{display:none}
+@media (max-width:720px){
+  .apr-console.has-sel .apr-queue{display:none}
+  .apr-console.has-sel .apr-detail{display:flex}
+  .apr-console.has-sel .apr-back{display:inline-flex;align-items:center;gap:6px;margin:0 0 12px;padding:0;background:transparent;border:0;color:var(--accent);font:700 13px/1 var(--font-body);cursor:pointer}
 }
 
