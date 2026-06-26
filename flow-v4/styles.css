@@ -15952,3 +15952,18 @@ body[data-theme="dark"] .gmail-reply-status.is-success{color:var(--good)}
   .apr-console .apr-sp{display:none}
 }
 
+/* ============================================================================
+   APR CONSOLE MOBILE — MASTER/DETAIL. On phones, show the queue OR the detail,
+   never both stacked (the queue can be 100+ items). Needs the component to add
+   `has-sel` to .apr-console when a row is selected, and an `.apr-back` button in
+   the detail header that clears the selection. Desktop is untouched.
+   ============================================================================ */
+.apr-back{display:none}
+@media (max-width:720px){
+  .apr-console .apr-detail{display:none}
+  .apr-console .apr-queue{max-height:none;border-bottom:0}
+  .apr-console.has-sel .apr-queue{display:none}
+  .apr-console.has-sel .apr-detail{display:flex}
+  .apr-console.has-sel .apr-back{display:inline-flex;align-items:center;gap:6px;margin:0 0 12px;padding:0;background:transparent;border:0;color:var(--accent);font:700 13px/1 var(--font-body);cursor:pointer}
+}
+
