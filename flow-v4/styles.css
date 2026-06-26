@@ -15475,3 +15475,51 @@ body[data-theme="dark"] .cos-section-sub {
   flex-shrink: 1;
   min-width: 0;
 }
+
+/* ===== shadcn discipline, UNALIGNED palette =====================================
+   Focus-ring system + crisp controls + muted hierarchy, in the warm editorial colors.
+   No Tailwind, append-only, both themes. ============================================ */
+
+/* ring tokens (vermillion, not blue) */
+body[data-theme="light"] { --ring: var(--accent); --ring-soft: rgba(236, 47, 23, 0.30); }
+body[data-theme="dark"]  { --ring: var(--accent); --ring-soft: rgba(250, 60, 30, 0.34); }
+
+/* kill the default browser outline, then add a shadcn-style soft ring on real focus-visible */
+:focus { outline: none; }
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible,
+[role="button"]:focus-visible,
+[role="combobox"]:focus-visible,
+[role="option"]:focus-visible,
+[role="tab"]:focus-visible,
+[role="menuitem"]:focus-visible,
+[tabindex]:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring-soft);
+  border-color: var(--accent);
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+/* crisp inputs / textareas / selects: consistent radius, muted placeholder, accent focus */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+textarea,
+select {
+  border-radius: var(--radius-sm, 4px);
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+input::placeholder,
+textarea::placeholder { color: var(--text-3); opacity: 1; }
+
+/* form controls pick up the brand accent (checkboxes, radios, ranges, progress) */
+input[type="checkbox"],
+input[type="radio"],
+input[type="range"],
+progress { accent-color: var(--accent); }
+
+/* muted-foreground aliases so secondary text/surfaces read consistently */
+body[data-theme="light"] { --muted-foreground: var(--text-3); --muted: var(--surface-2); }
+body[data-theme="dark"]  { --muted-foreground: var(--text-3); --muted: var(--surface-2); }
