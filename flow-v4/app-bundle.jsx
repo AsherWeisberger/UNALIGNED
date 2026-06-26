@@ -906,6 +906,13 @@ async function V3LoadSupabaseLeads() {
   return V3FilterVisibleLeads(leads);
 }
 
+async function V3ReloadLeads() {
+  const leads = await V3LoadSupabaseLeads();
+  window.V3.LEADS = leads;
+  window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads } }));
+  return leads;
+}
+
 function V3NormalizeEmailLeadStage(email, rawStage) {
   const normalizedEmail = String(email || '').trim().toLowerCase();
   if (normalizedEmail === 'jocelyn.cruz@hockeystick.io') {
@@ -3206,7 +3213,7 @@ function V3MoveLeadStage(lead, nextStage, leads = window.V3?.LEADS || V3_LEADS) 
   }).catch(err => console.warn('[ALIGNED v4] stage update failed:', err));
 }
 
-window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_VISIBLE_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_VISIBLE_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, CompanyOsQualifiedLead: V3CompanyOsQualifiedLead, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, NewLeadReason: V3NewLeadReason, ResolveReplyTone: V3ResolveReplyTone, ReplyToneLabel: V3ReplyToneLabel, NewLeadSourceKind: V3NewLeadSourceKind, NewLeadSourceLabel: V3NewLeadSourceLabel, NewLeadHandle: V3NewLeadHandle, NewLeadSummary: V3NewLeadSummary, NewLeadPrimaryIdentity: V3NewLeadPrimaryIdentity, LeadMatchesQuery: V3LeadMatchesQuery, PrunePendingReplies: V3PrunePendingReplies, MergePendingReplies: V3MergePendingReplies };
+window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_VISIBLE_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_VISIBLE_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, CompanyOsQualifiedLead: V3CompanyOsQualifiedLead, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, NewLeadReason: V3NewLeadReason, ResolveReplyTone: V3ResolveReplyTone, ReplyToneLabel: V3ReplyToneLabel, NewLeadSourceKind: V3NewLeadSourceKind, NewLeadSourceLabel: V3NewLeadSourceLabel, NewLeadHandle: V3NewLeadHandle, NewLeadSummary: V3NewLeadSummary, NewLeadPrimaryIdentity: V3NewLeadPrimaryIdentity, LeadMatchesQuery: V3LeadMatchesQuery, PrunePendingReplies: V3PrunePendingReplies, MergePendingReplies: V3MergePendingReplies, ReloadLeads: V3ReloadLeads };
 
 V3LoadPricingTiers();
 V3LoadTeamUsers();
@@ -9176,8 +9183,8 @@ function V4CosOverview({ leads, replyCount }) {
 
   const brief = React.useMemo(() => {
     const active = (leads || []).filter(l => !['trash', 'dead-leads', 'paid-out'].includes(l.stage));
-    const actionLeads = active.filter(l => l.needsReply || l.stage === 'invoice-sent' || (l.daysInStage >= 6 && (l.value || 0) > 1500))
-      .sort((a, b) => (b.daysInStage || 0) - (a.daysInStage || 0) || (b.value || 0) - (a.value || 0)).slice(0, 5);
+    const actionLeads = active.filter(V4IsActionNowLead)
+      .sort(V4SortActionLeads).slice(0, 5);
     const watchLeads = active.filter(l => !l.needsReply && ['rates-sent', 'negotiating', 'first-touch', 'engaged'].includes(l.stage))
       .sort((a, b) => (b.lastTouchAt ? Date.parse(b.lastTouchAt) : 0) - (a.lastTouchAt ? Date.parse(a.lastTouchAt) : 0)).slice(0, 5);
     const closedLeads = (leads || []).filter(l => ['done', 'paid-out'].includes(l.stage))
@@ -9285,8 +9292,8 @@ function V4CosBriefBoard({ leads = [] }) {
     // Reuse the brief computed in parent scope if possible, else recompute
     if (typeof brief !== 'undefined' && brief) return brief;
     const active = (leads || []).filter(l => !['trash', 'dead-leads', 'paid-out'].includes(l.stage));
-    const actionLeads = active.filter(l => l.needsReply || l.stage === 'invoice-sent' || (l.daysInStage >= 6 && (l.value || 0) > 1500))
-      .sort((a,b)=>(b.daysInStage||0)-(a.daysInStage||0)).slice(0,5);
+    const actionLeads = active.filter(V4IsActionNowLead)
+      .sort(V4SortActionLeads).slice(0, 5);
     const watchLeads = active.filter(l => !l.needsReply && ['rates-sent','negotiating','first-touch','engaged'].includes(l.stage))
       .sort((a,b)=>(b.lastTouchAt?Date.parse(b.lastTouchAt):0)-(a.lastTouchAt?Date.parse(a.lastTouchAt):0)).slice(0,5);
     const closedLeads = (leads||[]).filter(l=>['done','paid-out'].includes(l.stage))
@@ -10338,6 +10345,30 @@ function V4CleanDisplayText(t) {
     .trim();
 }
 
+const V4_ACTION_RECENT_MS = 45 * 24 * 60 * 60 * 1000;
+
+function V4IsActionNowLead(lead) {
+  if (!lead) return false;
+  if (lead.stage === 'invoice-sent') return true;
+  if (lead.unread || lead.followUpDue) return true;
+  if (lead.needsReply) {
+    const touched = V3TimestampForUi(lead.lastTouchAt);
+    if (!touched || (Date.now() - touched) <= V4_ACTION_RECENT_MS) return true;
+  }
+  if ((lead.daysInStage || 0) >= 6 && (lead.value || 0) > 1500 && lead.followUpDue) return true;
+  return false;
+}
+
+function V4SortActionLeads(a, b) {
+  const hot = (lead) => (lead.unread || lead.needsReply || lead.followUpDue) ? 1 : 0;
+  const hotDelta = hot(b) - hot(a);
+  if (hotDelta) return hotDelta;
+  const ts = (lead) => V3TimestampForUi(lead.lastTouchAt);
+  const touchDelta = ts(b) - ts(a);
+  if (touchDelta) return touchDelta;
+  return (b.value || 0) - (a.value || 0);
+}
+
 function V4BuildBriefPoints(lead) {
   const points = [];
   const phase = V4CompanyOsPhase(lead);
@@ -10374,8 +10405,8 @@ function V4ComputeDailyBrief(leads = []) {
   const active = leads.filter(l => !['trash', 'dead-leads', 'paid-out', 'done'].includes(l.stage));
 
   const actionLeads = active
-    .filter(l => l.needsReply || l.stage === 'invoice-sent' || (l.daysInStage >= 6 && (l.value || 0) > 1500))
-    .sort((a, b) => (b.daysInStage || 0) - (a.daysInStage || 0) || (b.value || 0) - (a.value || 0))
+    .filter(V4IsActionNowLead)
+    .sort(V4SortActionLeads)
     .slice(0, 5);
 
   const ts = (d) => (d ? Date.parse(d) : 0);
@@ -10860,9 +10891,9 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   const nowTs = Date.now();
   const isSnoozed = (l) => snoozes[l.id] && Date.parse(snoozes[l.id]) > nowTs;
   const awake = live.filter(l => !isSnoozed(l));
-  const followUpItems = awake.filter(l => l.followUpDue && !l.unread).sort(byStale);
+  const followUpItems = awake.filter(l => l.followUpDue && !l.unread).sort(byRecent);
   const activeItems = awake.filter(l => !['done', 'paid-out', 'trash', 'dead-leads'].includes(l.stage));
-  const replyItems = activeItems.filter(l => l.unread && l.nextMove?.who).sort(byStale);
+  const replyItems = activeItems.filter(l => l.unread && l.nextMove?.who).sort(V4SortActionLeads);
   const pricingItems = activeItems.filter(l => l.stage === 'rates-sent').sort(byStale);
   const negoItems = activeItems.filter(l => l.stage === 'negotiating').sort(byStale);
   const paymentItems = activeItems.filter(l => l.stage === 'invoice-sent').sort(byStale);
@@ -10870,15 +10901,15 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   const waitingItems = activeItems.filter(l => !l.unread && !l.nextMove?.who).sort(byRecent);
   const closedItems = awake.filter(l => ['done', 'paid-out'].includes(l.stage)).sort(byRecent);
   // Scam-gate flagged leads — the machine paused these for a human decision (approve & send, or dismiss)
-  const reviewItems = awake.filter(l => String(l.draftReplyStatus || '').toLowerCase() === 'review').sort(byStale);
+  const reviewItems = awake.filter(l => String(l.draftReplyStatus || '').toLowerCase() === 'review').sort(byRecent);
 
   // Helper to compute total value for a list of items
   const totalValue = (items) => items.reduce((sum, l) => sum + (l.value || 0), 0);
 
   // Brief mode: Action now leads first, then Watch (Superhuman "Today" / prioritized inbox)
   const briefActionLeads = activeItems
-    .filter(l => l.needsReply || l.stage === 'invoice-sent' || (l.daysInStage >= 6 && (l.value || 0) > 1500))
-    .sort((a, b) => (b.daysInStage || 0) - (a.daysInStage || 0) || (b.value || 0) - (a.value || 0))
+    .filter(V4IsActionNowLead)
+    .sort(V4SortActionLeads)
     .slice(0, 5);
 
   const briefWatchLeads = activeItems
@@ -10963,9 +10994,51 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   const [composeOpen, setComposeOpen] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [splitsOpen, setSplitsOpen] = React.useState(false);
+  const [syncStatus, setSyncStatus] = React.useState('idle');
+  const [syncNote, setSyncNote] = React.useState('');
   const [isMobile, setIsMobile] = React.useState(() =>
     typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches
   );
+
+  const refreshFromGmail = React.useCallback(async () => {
+    if (syncStatus === 'syncing') return;
+    setSyncStatus('syncing');
+    setSyncNote('Pulling Asher Gmail…');
+    try {
+      const res = await V4BriefServiceFetch('/sync-asher-gmail', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.error || ('Sync failed (' + res.status + ')'));
+      }
+      if (window.V3?.ReloadLeads) await window.V3.ReloadLeads();
+      const patched = Number(data.threads_patched || 0);
+      const created = Number(data.new_cards_written || 0);
+      setSyncNote(
+        created
+          ? `Synced · ${patched} updated · ${created} new`
+          : (patched ? `Synced · ${patched} updated` : 'Synced · up to date')
+      );
+      setSyncStatus('ok');
+    } catch (err) {
+      try {
+        if (window.V3?.ReloadLeads) await window.V3.ReloadLeads();
+        setSyncNote('Reloaded board · Gmail sync unavailable');
+        setSyncStatus('ok');
+      } catch (reloadErr) {
+        setSyncNote(err?.message || 'Sync failed');
+        setSyncStatus('error');
+      }
+    } finally {
+      window.setTimeout(() => {
+        setSyncStatus('idle');
+        setSyncNote('');
+      }, 3500);
+    }
+  }, [syncStatus]);
+
   const split = splits.find(s => s.id === splitId) || splits[0];
   const items = split.items || [];
   let selected = null;
@@ -11144,7 +11217,16 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
             );
           })}
         </div>
-        <button type="button" className="cos-refresh-btn cos2-refresh" onClick={() => window.location.reload()}>↻ Refresh</button>
+        <button
+          type="button"
+          className={'cos-refresh-btn cos2-refresh' + (syncStatus === 'syncing' ? ' is-syncing' : '') + (syncStatus === 'error' ? ' is-error' : '')}
+          onClick={refreshFromGmail}
+          disabled={syncStatus === 'syncing'}
+          title="Pull latest Asher Gmail into Company OS"
+        >
+          {syncStatus === 'syncing' ? '… Syncing' : syncStatus === 'error' ? '⚠ Sync' : '↻ Sync Gmail'}
+        </button>
+        {syncNote ? <span className="cos2-sync-note">{syncNote}</span> : null}
       </header>
       <div className={'cos2-body' + (mobileOpen ? ' is-mobile-open' : '')}>
         <nav className="cos2-rail" aria-label="Splits">

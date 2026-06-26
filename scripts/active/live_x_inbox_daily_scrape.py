@@ -17,6 +17,7 @@ from urllib.parse import parse_qs, urlparse
 REPO_ROOT = Path("/Users/asherweisberger/Desktop/UNALIGNED/MASTER FILES")
 X_ROOT = Path("/Users/asherweisberger/Documents/Codex/2026-06-05/most-efficient-way-to-get-leads")
 X_OUT = X_ROOT / "outputs"
+GOOGLE_STATE_DIR = Path.home() / ".config" / "google-credentials"
 LIVE_CONTEXTS = X_OUT / "robert_x_dm_live_contexts.json"
 STATE_PATH = X_OUT / "robert_x_dm_live_inbox_state.json"
 RUN_LOG_PATH = X_OUT / "robert_x_dm_live_inbox_runs.json"
@@ -24,6 +25,7 @@ DAILY_NEW_THREADS_PATH = X_OUT / "robert_x_dm_live_inbox_new_threads.json"
 INTAKE_BUILDER = X_ROOT / "work" / "build_daily_x_lead_intake.py"
 NEW_LEADS_CSV = X_OUT / "x_dm_daily_new_leads.csv"
 COMPANY_OS_X_ASSET = REPO_ROOT / "flow-v4" / "assets" / "x_dm_daily_intake.json"
+ROBERT_HANDOFF_STATE = GOOGLE_STATE_DIR / "robert_handoff_operator_state.json"
 
 BUSINESS_SIGNALS = (
     "collab",
@@ -499,10 +501,24 @@ def parse_inbox_timestamp(value: str, today: datetime) -> str | None:
     if not text:
         return None
 
+    if text.lower() == "now":
+        return today.date().isoformat()
+
     relative = re.fullmatch(r"(\d+)\s*([smhdw])", text.lower())
+    if not relative:
+        compact_relatives = re.findall(r"(\d+)\s*([smhdw])", text, flags=re.I)
+        if compact_relatives:
+            count, unit = compact_relatives[-1]
+            relative = (count, unit)
+        else:
+            relative = None
     if relative:
-        count = int(relative.group(1))
-        unit = relative.group(2)
+        if hasattr(relative, "group"):
+            count = int(relative.group(1))
+            unit = relative.group(2).lower()
+        else:
+            count = int(relative[0])
+            unit = relative[1].lower()
         if unit == "s":
             dt = today - timedelta(seconds=count)
         elif unit == "m":
@@ -520,8 +536,15 @@ def parse_inbox_timestamp(value: str, today: datetime) -> str | None:
         day_idx = WEEKDAYS[weekday]
         delta = (today.weekday() - day_idx) % 7
         return (today - timedelta(days=delta)).date().isoformat()
+    weekday_search = re.search(r"\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b", text, flags=re.I)
+    if weekday_search:
+        day_idx = WEEKDAYS[weekday_search.group(1)[:3].lower()]
+        delta = (today.weekday() - day_idx) % 7
+        return (today - timedelta(days=delta)).date().isoformat()
 
     month_match = re.fullmatch(r"([A-Za-z]{3,9})\s+(\d{1,2})(?:,\s*(\d{4}))?", text)
+    if not month_match:
+        month_match = re.search(r"\b([A-Za-z]{3,9})\s+(\d{1,2})(?:,\s*(\d{4}))?\b", text)
     if month_match:
         month = MONTHS.get(month_match.group(1)[:3].lower())
         day = int(month_match.group(2))
@@ -533,6 +556,8 @@ def parse_inbox_timestamp(value: str, today: datetime) -> str | None:
                 return None
 
     if re.fullmatch(r"\d{1,2}:\d{2}\s*(AM|PM)", text, flags=re.I):
+        return today.date().isoformat()
+    if re.search(r"\b\d{1,2}:\d{2}\s*(AM|PM)\b", text, flags=re.I):
         return today.date().isoformat()
 
     iso_match = re.fullmatch(r"\d{4}-\d{2}-\d{2}", text)
@@ -616,6 +641,12 @@ def scrape_thread(worker_tab: int, candidate: dict, wait: float) -> dict:
     data["inbox_timestamp"] = candidate.get("timestamp") or ""
     data["inbox_title"] = candidate.get("title") or ""
     data["inbox_signature"] = inbox_signature(candidate)
+    data["newest_dm_date"] = (
+        candidate.get("parsedDate")
+        or parse_inbox_timestamp(candidate.get("timestamp") or "", datetime.now())
+        or data.get("newest_dm_date")
+        or ""
+    )
     return data
 
 
@@ -623,11 +654,16 @@ def sync_company_os_x_asset() -> None:
     queue_rows = read_json(X_OUT / "robert_x_dm_safe_manual_queue.json", [])
     rank_by_dm = {row.get("Open DM"): row.get("Rank") for row in queue_rows if row.get("Open DM")}
     lead_by_dm = {row.get("Open DM"): row.get("Lead") for row in queue_rows if row.get("Open DM")}
+    handoff_state = read_json(ROBERT_HANDOFF_STATE, {"x": {}})
+    sent_x = handoff_state.get("x") if isinstance(handoff_state, dict) else {}
+    if not isinstance(sent_x, dict):
+        sent_x = {}
 
     rows = []
     with NEW_LEADS_CSV.open(newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
             dm = row.get("Open DM", "")
+            sent_from_robert = dm in sent_x
             rows.append(
                 {
                     "rank": int(rank_by_dm.get(dm) or 0),
@@ -644,7 +680,7 @@ def sync_company_os_x_asset() -> None:
                     "contactPhones": row.get("Contact Phones", ""),
                     "leadType": row.get("Lead Type", ""),
                     "currentStatus": row.get("Current Status", ""),
-                    "alreadyEmailedInRobertGmail": str(row.get("Already Emailed In Robert Gmail") or "").upper() == "YES",
+                    "alreadyEmailedInRobertGmail": sent_from_robert or str(row.get("Already Emailed In Robert Gmail") or "").upper() == "YES",
                     "summaryForTeam": row.get("Summary For Team", ""),
                     "lastLeadMessage": row.get("Last Lead Message", ""),
                     "bestNextStep": row.get("Best Next Step", ""),

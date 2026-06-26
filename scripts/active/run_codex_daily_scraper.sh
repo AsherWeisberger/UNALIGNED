@@ -59,6 +59,8 @@ if [ -f "$ASHER_TOKEN" ]; then
     --candidates-out "$ASHER_CANDIDATES"
   /opt/homebrew/bin/python3 sync_existing_threads_from_dump.py \
     --dump "$ASHER_DUMP"
+  /opt/homebrew/bin/python3 write_asher_candidate_cards.py \
+    --candidates "$ASHER_CANDIDATES"
 else
   echo "Asher Gmail token not found; Company OS thread sync will stay on the default mailbox."
   /opt/homebrew/bin/python3 sync_existing_threads_from_dump.py \

@@ -42,3 +42,6 @@ docs/*.html
 !package-lock.json
 !functions/package.json
 !functions/package-lock.json
+
+# Local agent brain — confidential prompts/floors, runs locally, never published
+ops/

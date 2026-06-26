@@ -413,36 +413,254 @@ function V4AgentCapsuleMeta(lead) {
   return 'Live thread';
 }
 
-function V4WorkerPortrait({ worker, compact = false }) {
-  const size = compact ? 52 : 74;
-  const eyeY = compact ? 21 : 29;
-  const bodyY = compact ? 28 : 38;
-  const mouthY = compact ? 32 : 43;
+function V4WorkerPortrait({ worker, compact = false, isActive = false }) {
+  const size = compact ? 54 : 78;
+  const eyeY = compact ? 28 : 35;
   const variant = worker.id;
+  // Restrained: almost always the single electric accent. Per-worker hue only as tiny signal.
+  const accentColor = '#3b82f6';
+
   return (
-    <svg viewBox="0 0 100 100" width={size} height={size} className="worker-portrait" aria-hidden="true">
+    <svg 
+      viewBox="0 0 100 100" 
+      width={size} 
+      height={size} 
+      className={`worker-portrait ${isActive ? 'is-active' : ''}`} 
+      aria-hidden="true"
+    >
       <defs>
-        <radialGradient id={`glow-${variant}`} cx="28%" cy="22%" r="76%">
-          <stop offset="0%" stopColor="rgba(255,255,255,0.9)" />
-          <stop offset="100%" stopColor="rgba(255,255,255,0)" />
+        <radialGradient id={`glow-${variant}`} cx="32%" cy="26%" r="68%">
+          <stop offset="0%" stopColor="#fff" stopOpacity="0.9" />
+          <stop offset="100%" stopColor="transparent" />
         </radialGradient>
       </defs>
-      <rect x="10" y="12" width="80" height="76" rx="24" className="worker-portrait-body" />
-      <ellipse cx="39" cy={eyeY} rx="4.5" ry="6.5" className="worker-portrait-eye" />
-      <ellipse cx="61" cy={eyeY} rx="4.5" ry="6.5" className="worker-portrait-eye" />
-      <path d={`M39 ${mouthY} C45 ${mouthY + 5}, 55 ${mouthY + 5}, 61 ${mouthY}`} className="worker-portrait-mouth" />
-      <rect x="22" y={bodyY} width="56" height="18" rx="9" className="worker-portrait-belly" />
-      {worker.id === 'pricing' && <path d="M24 17 L50 8 L76 17 L68 26 L32 26 Z" className="worker-portrait-crown" />}
-      {worker.id === 'brief' && <path d="M26 18 C34 8, 66 8, 74 18 L74 26 L26 26 Z" className="worker-portrait-hair" />}
-      {worker.id === 'xwatch' && <path d="M22 24 C30 10, 70 10, 78 24" className="worker-portrait-wave" />}
-      {worker.id === 'finance' && <path d="M26 16 L74 16 L64 28 L36 28 Z" className="worker-portrait-alert" />}
-      {worker.id === 'calendar' && <rect x="30" y="10" width="40" height="14" rx="7" className="worker-portrait-cap" />}
-      {worker.id === 'handoff' && <path d="M24 18 C38 12, 62 12, 76 18" className="worker-portrait-brow" />}
-      <circle cx="34" cy="66" r="4" className="worker-portrait-dot" />
-      <circle cx="50" cy="66" r="4" className="worker-portrait-dot" />
-      <circle cx="66" cy="66" r="4" className="worker-portrait-dot" />
-      <circle cx="32" cy="24" r="30" fill={`url(#glow-${variant})`} opacity="0.55" />
+
+      {/* Clean precision body — minimal, instrument-like */}
+      <rect 
+        x="14" y="16" width="72" height="68" rx="22" 
+        fill="#0f1116" 
+        stroke={accentColor} 
+        strokeWidth="1.25" 
+        strokeOpacity={isActive ? "0.9" : "0.4"}
+      />
+
+      {/* Subtle top plane */}
+      <rect 
+        x="18" y="20" width="64" height="22" rx="12" 
+        fill="#1a1d24" 
+        opacity="0.55" 
+      />
+
+      {/* Refined eyes — data points, not faces */}
+      <g className="worker-portrait-eyes">
+        <circle cx="34" cy={eyeY} r="3.6" fill="#0b0d11" />
+        <circle cx="34" cy={eyeY} r="1.6" fill={accentColor} opacity={isActive ? "1" : "0.75"} />
+        <circle cx="66" cy={eyeY} r="3.6" fill="#0b0d11" />
+        <circle cx="66" cy={eyeY} r="1.6" fill={accentColor} opacity={isActive ? "1" : "0.75"} />
+      </g>
+
+      {/* Minimal abstract glyph / signal for worker type (no cute mouths) */}
+      {worker.id === 'pricing' && (
+        <g fill="none" stroke={accentColor} strokeWidth="1.6" opacity="0.7">
+          <path d="M30 50 L50 38 L70 50" />
+          <circle cx="50" cy="44" r="2" fill={accentColor} opacity="0.5" />
+        </g>
+      )}
+      {worker.id === 'brief' && (
+        <g stroke={accentColor} strokeWidth="1.4" fill="none" opacity="0.65">
+          <rect x="32" y="48" width="36" height="14" rx="2" />
+          <line x1="38" y1="52" x2="62" y2="52" strokeWidth="1" />
+        </g>
+      )}
+      {worker.id === 'calendar' && (
+        <g fill={accentColor} opacity="0.55">
+          <rect x="34" y="46" width="32" height="16" rx="2" />
+          <rect x="38" y="42" width="3" height="6" />
+          <rect x="59" y="42" width="3" height="6" />
+        </g>
+      )}
+      {worker.id === 'xwatch' && (
+        <g fill="none" stroke={accentColor} strokeWidth="1.6" opacity="0.6">
+          <path d="M 30 55 Q 50 42 70 55" />
+        </g>
+      )}
+      {worker.id === 'finance' && (
+        <text x="50" y="57" textAnchor="middle" fill={accentColor} fontSize="13" fontWeight="700" opacity="0.65">$</text>
+      )}
+
+      {/* Living status — refined, sparse */}
+      <g>
+        <circle cx="32" cy="70" r="2.2" fill={accentColor} opacity={worker.active > 0 ? (isActive ? "1" : "0.85") : "0.15"} />
+        <circle cx="50" cy="70" r="2.2" fill={accentColor} opacity={worker.waiting > 0 ? "0.9" : "0.12"} />
+        <circle cx="68" cy="70" r="2.2" fill={accentColor} opacity={worker.blocked > 0 ? "0.95" : "0.12"} />
+      </g>
+
+      {/* Very restrained top glow — only when alive */}
+      {isActive && (
+        <circle cx="34" cy="28" r="26" fill={`url(#glow-${variant})`} opacity="0.28" />
+      )}
     </svg>
+  );
+}
+
+function V4WorkerActionLabel(worker) {
+  const map = {
+    intake: 'Routing new lead',
+    reply: 'Drafting reply',
+    pricing: 'Pricing thread',
+    brief: 'Building Robert brief',
+    calendar: 'Locking go-live date',
+    finance: 'Chasing payment proof',
+    followup: 'Follow-up nudge',
+    xwatch: 'X intake watch',
+    network: 'Relationship upkeep',
+    handoff: 'Robert/Sam handoff',
+  };
+  return map[worker.id] || worker.subtitle || 'Working queue';
+}
+
+function V4LiveTaskFloor({ groupedWorkers, totalActive, liveWorkers, onOpenLead }) {
+  const liveTasks = React.useMemo(() => {
+    const rows = [];
+    groupedWorkers.forEach((group) => {
+      group.workers.forEach((worker) => {
+        worker.items.forEach((item) => {
+          rows.push({
+            id: `${worker.id}-${item.id}`,
+            leadId: item.id,
+            workerId: worker.id,
+            workerName: worker.name,
+            workerGlyph: worker.glyph,
+            zone: group.zone,
+            zoneLabel: group.label,
+            accent: worker.accent,
+            tone: worker.tone,
+            brand: item.brand || item.contactName || 'Unknown lead',
+            contact: item.contactName || item.email || '',
+            action: V4AgentCapsuleSummary(item),
+            meta: V4AgentCapsuleMeta(item),
+            blocked: worker.blocked > 0,
+          });
+        });
+      });
+    });
+    return rows;
+  }, [groupedWorkers]);
+
+  const [focusIdx, setFocusIdx] = React.useState(0);
+  React.useEffect(() => {
+    if (!liveTasks.length) {
+      setFocusIdx(0);
+      return undefined;
+    }
+    const timer = setInterval(() => {
+      setFocusIdx((i) => (i + 1) % liveTasks.length);
+    }, 3200);
+    return () => clearInterval(timer);
+  }, [liveTasks.length]);
+
+  const focusTask = liveTasks[focusIdx] || null;
+
+  return (
+    <div className="live-task-floor">
+      <div className="live-task-floor-head">
+        <div>
+          <div className="live-task-floor-eyebrow">Live queue</div>
+          <div className="live-task-floor-title">
+            {liveTasks.length
+              ? `${liveTasks.length} real tasks assigned across ${liveWorkers} workers`
+              : 'All lanes clear — no live queue pressure'}
+          </div>
+        </div>
+        <div className="live-task-floor-stats">
+          <span className="live-task-stat">{totalActive} in motion</span>
+          <span className="live-task-stat is-live">{liveWorkers} workers on duty</span>
+        </div>
+      </div>
+
+      {focusTask && (
+        <button
+          type="button"
+          className={`live-task-spotlight accent-${focusTask.accent} is-${focusTask.tone}`}
+          onClick={() => onOpenLead?.(focusTask.leadId)}
+        >
+          <span className="live-task-spotlight-kicker">Now handling</span>
+          <strong>{focusTask.workerName}</strong>
+          <span className="live-task-spotlight-arrow">→</span>
+          <strong>{focusTask.brand}</strong>
+          <span className="live-task-spotlight-action">{focusTask.action}</span>
+          <span className="live-task-spotlight-meta">{focusTask.meta} · {focusTask.zoneLabel}</span>
+        </button>
+      )}
+
+      <div className="live-task-zones">
+        {groupedWorkers.map((group) => (
+          <section key={group.zone} className={`live-task-zone zone-${group.zone}`}>
+            <header className="live-task-zone-head">
+              <span>{group.label}</span>
+              <b>{group.workers.reduce((sum, w) => sum + w.active, 0)}</b>
+            </header>
+            <div className="live-task-zone-body">
+              {group.workers.map((worker) => (
+                <article
+                  key={worker.id}
+                  className={`live-task-station accent-${worker.accent} is-${worker.tone} ${worker.active > 0 ? 'has-work' : ''}`}
+                >
+                  <div className="live-task-station-head">
+                    <span className="live-task-station-glyph">{worker.glyph}</span>
+                    <div>
+                      <div className="live-task-station-name">{worker.name}</div>
+                      <div className="live-task-station-verb">{V4WorkerActionLabel(worker)}</div>
+                    </div>
+                    <span className={`live-task-station-badge is-${worker.tone}`}>
+                      {worker.blocked > 0 ? 'blocked' : worker.active > 0 ? 'working' : 'idle'}
+                    </span>
+                  </div>
+                  {worker.items.length ? (
+                    <div className="live-task-station-queue">
+                      {worker.items.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className="live-task-chip"
+                          onClick={() => onOpenLead?.(item.id)}
+                        >
+                          <span className="live-task-chip-brand">{item.brand || item.contactName}</span>
+                          <span className="live-task-chip-action">{V4AgentCapsuleSummary(item)}</span>
+                          <span className="live-task-chip-meta">{V4AgentCapsuleMeta(item)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="live-task-station-empty">{worker.note}</div>
+                  )}
+                </article>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+
+      {liveTasks.length > 0 && (
+        <div className="live-task-feed" aria-live="polite">
+          <div className="live-task-feed-label">Task rotation</div>
+          <div className="live-task-feed-track">
+            {liveTasks.map((task, index) => (
+              <button
+                key={task.id}
+                type="button"
+                className={`live-task-feed-item accent-${task.accent} ${index === focusIdx ? 'is-focus' : ''}`}
+                onClick={() => { setFocusIdx(index); onOpenLead?.(task.leadId); }}
+              >
+                <span className="live-task-feed-worker">{task.workerName}</span>
+                <span className="live-task-feed-brand">{task.brand}</span>
+                <span className="live-task-feed-action">{task.action}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -642,11 +860,13 @@ function V4AgentsView({ leads = [], query = '', onOpenLead }) {
   const totalBlocked = workers.reduce((sum, worker) => sum + worker.blocked, 0);
   const totalWaiting = workers.reduce((sum, worker) => sum + worker.waiting, 0);
   const liveWorkers = workers.filter(worker => worker.active > 0).length;
+
+  // Group for the map
   const zoneMeta = {
-    intake: { label: 'Intake', note: 'Find signal and clean it.', pos: 'north-west' },
-    conversion: { label: 'Conversion', note: 'Turn interest into a scoped thread.', pos: 'north-east' },
-    execution: { label: 'Execution', note: 'Ship docs, dates, and live posts.', pos: 'south-east' },
-    retention: { label: 'Retention', note: 'Protect follow-up and money.', pos: 'south-west' },
+    intake: { label: 'Intake', color: '#3b82f6' },
+    conversion: { label: 'Conversion', color: '#8b5cf6' },
+    execution: { label: 'Execution', color: '#14b8a6' },
+    retention: { label: 'Retention', color: '#f59e0b' },
   };
   const zoneOrder = ['intake', 'conversion', 'execution', 'retention'];
   const groupedWorkers = zoneOrder.map(zone => ({
@@ -654,205 +874,104 @@ function V4AgentsView({ leads = [], query = '', onOpenLead }) {
     ...zoneMeta[zone],
     workers: filteredWorkers.filter(worker => worker.zone === zone),
   }));
-  const capsuleMap = new Map();
-  filteredWorkers.forEach(worker => {
-    worker.items.slice(0, 2).forEach(item => {
-      const capsuleKey = item.id || `${item.brand}-${item.contactName || 'unknown'}`;
-      const existing = capsuleMap.get(capsuleKey);
-      if (existing) {
-        existing.routes.add(worker.name);
-        if ((item.unread || item.needsReply) && !(existing.item.unread || existing.item.needsReply)) {
-          existing.item = item;
-          existing.tone = worker.tone;
-          existing.accent = worker.accent;
-        }
-        return;
-      }
-      capsuleMap.set(capsuleKey, {
-        key: capsuleKey,
-        item,
-        brand: item.brand || item.contactName || 'Unknown lead',
-        contact: item.contactName || item.email || 'Unknown contact',
-        tone: worker.tone,
-        accent: worker.accent,
-        routes: new Set([worker.name]),
-      });
-    });
-  });
-  const liveCapsules = Array.from(capsuleMap.values())
-    .map(capsule => ({
-      ...capsule,
-      routeLabel: Array.from(capsule.routes).slice(0, 2).join(' + '),
-      meta: V4AgentCapsuleMeta(capsule.item),
-      summary: V4AgentCapsuleSummary(capsule.item),
-      priority: capsule.item.unread || capsule.item.needsReply ? 3
-        : capsule.item.followUpDue ? 2
-        : String(capsule.item.stage || '').toLowerCase() === 'invoice-sent' ? 2
-        : String(capsule.item.stage || '').toLowerCase() === 'done' ? 1
-        : 0,
-    }))
-    .sort((a, b) => b.priority - a.priority)
-    .slice(0, 8);
-  const animatedCapsules = liveCapsules.length > 5 ? [...liveCapsules, ...liveCapsules] : liveCapsules;
+
+  const [selectedWorkerId, setSelectedWorkerId] = React.useState(null);
+
+  const handleWorkerClick = (worker) => {
+    setSelectedWorkerId(worker.id === selectedWorkerId ? null : worker.id);
+    if (worker.items[0]) {
+      // Optional: still allow opening lead
+      // onOpenLead?.(worker.items[0].id);
+    }
+  };
 
   return (
     <div className="page workers-page">
       <div className="page-hd">
         <div>
           <div className="page-eyebrow">Autonomy</div>
-          <h1 className="page-title">Agents</h1>
-          <div className="page-sub">Watch the machine work across intake, replies, pricing, briefs, finance, and follow-up.</div>
+          <h1 className="page-title">Machine Room</h1>
+          <div className="page-sub">Every worker lane below is wired to live board data — brands, next moves, and queue pressure.</div>
         </div>
         <div className="invoice-stats">
           <span className="invoice-stat total">{liveWorkers} workers live</span>
-          <span className="invoice-stat good">{totalActive} active items</span>
+          <span className="invoice-stat good">{totalActive} active</span>
           <span className="invoice-stat warn">{totalWaiting} waiting</span>
           <span className="invoice-stat bad">{totalBlocked} blocked</span>
         </div>
       </div>
 
-      <section className="workers-habitat">
-        <div className="workers-habitat-copy">
-          <div className="workers-hero-eyebrow">Machine habitat</div>
-          <h2>The workers should feel alive, not filed away.</h2>
-          <p>This is the part you can watch. Each worker lives in its own little zone, pulls from a real queue, and lights up when that lane gets busy.</p>
-        </div>
-        <div className="workers-habitat-legend">
-          <span className="workers-legend-pill">Intake</span>
-          <span className="workers-legend-pill">Conversion</span>
-          <span className="workers-legend-pill">Execution</span>
-          <span className="workers-legend-pill">Retention</span>
-        </div>
-        <div className="workers-theater">
-          <svg className="workers-orbit" viewBox="0 0 1200 760" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-            <ellipse cx="600" cy="380" rx="350" ry="210" className="workers-orbit-ring outer" />
-            <ellipse cx="600" cy="380" rx="260" ry="150" className="workers-orbit-ring inner" />
-            <path d="M260 380 C360 240, 840 240, 940 380" className="workers-orbit-arc top" />
-            <path d="M940 380 C840 520, 360 520, 260 380" className="workers-orbit-arc bottom" />
-            {[0,1,2,3,4,5].map(i => (
-              <circle key={i} r="7" className="workers-orbit-signal">
-                <animateMotion dur="14s" repeatCount="indefinite" begin={`${i * 1.9}s`} path="M260 380 C360 240, 840 240, 940 380 C840 520, 360 520, 260 380" />
-              </circle>
-            ))}
-          </svg>
-
-          <div className="workers-core workers-core-theater">
-            <div className="workers-core-eyebrow">UNALIGNED brain</div>
-            <div className="workers-core-title">Asher&apos;s machine</div>
-            <div className="workers-core-stats">
-              <span>{liveWorkers} live</span>
-              <span>{totalActive} active</span>
-              <span>{totalWaiting} waiting</span>
-            </div>
-            <div className="workers-core-note">The system should show state changes, handoffs, and pressure. Not just decorate the page.</div>
+      <div className="machine-theater machine-theater--live">
+        <div className="theater-header">
+          <div>
+            <div className="theater-eyebrow">Live system</div>
+            <div className="theater-title">Task Floor</div>
+            <div className="theater-tagline">Real queue items, real worker lanes, real next moves from your board.</div>
           </div>
-
-          {groupedWorkers.map(group => (
-            <section key={group.zone} className={`workers-zone-cluster zone-${group.pos}`}>
-              <div className="workers-zone-head">
-                <span className="workers-zone-kicker">{group.label}</span>
-                <p>{group.note}</p>
-              </div>
-              <div className="workers-station-list">
-                {group.workers.map(worker => (
-                  <button
-                    key={worker.id}
-                    type="button"
-                    className={`workers-station accent-${worker.accent} is-${worker.tone}`}
-                    onClick={() => worker.items[0] && onOpenLead?.(worker.items[0].id)}
-                    title={worker.note}
-                  >
-                    <div className="workers-station-portrait">
-                      <V4WorkerPortrait worker={worker} compact />
-                    </div>
-                    <div className="workers-station-copy">
-                      <div className="workers-station-title-row">
-                        <strong>{worker.name}</strong>
-                        <span className={`workers-station-status is-${worker.tone}`}>{worker.active}</span>
-                      </div>
-                      <div className="workers-station-meta">{worker.subtitle}</div>
-                      <div className="workers-station-foot">{worker.items[0]?.brand || 'Clear lane'}</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </section>
-          ))}
-
-          <div className="workers-activity-ribbon">
-            <div className="workers-activity-head">
-              <span>Live work moving</span>
-              <span>{liveCapsules.length} visible capsules</span>
-            </div>
-            <div className="workers-capsule-stream">
-              {animatedCapsules.map((capsule, index) => (
-                <div key={capsule.key + index} className={`workers-capsule accent-${capsule.accent} is-${capsule.tone}`}>
-                  <span className="workers-capsule-worker">{capsule.routeLabel}</span>
-                  <strong>{capsule.brand}</strong>
-                  <span className="workers-capsule-meta">{capsule.meta} · {capsule.contact}</span>
-                  <span className="workers-capsule-summary">{capsule.summary}</span>
-                </div>
-              ))}
-            </div>
+          <div className="theater-legend">
+            <div><span className="dot"></span> Working lane</div>
+            <div><span className="dot" style={{ background: '#f59e0b' }}></span> Waiting / blocked</div>
           </div>
         </div>
-      </section>
 
-      <section className="workers-lanes">
+        <V4LiveTaskFloor
+          groupedWorkers={groupedWorkers}
+          totalActive={totalActive}
+          liveWorkers={liveWorkers}
+          onOpenLead={onOpenLead}
+        />
+      </div>
+
+      {/* Worker Control Panels — Useful + Beautiful */}
+      <div className="machine-panels">
         {filteredWorkers.map((worker, index) => (
-          <article
+          <div 
             key={worker.id}
-            className={'worker-lane is-' + worker.tone + ' accent-' + worker.accent}
-            style={{ '--worker-delay': `${index * 90}ms` }}
+            className={`machine-panel accent-${worker.accent} ${selectedWorkerId === worker.id ? 'is-selected' : ''} ${worker.active > 0 ? 'has-pressure' : ''}`}
+            onClick={() => handleWorkerClick(worker)}
           >
-            <div className="worker-lane-glow" aria-hidden="true"></div>
-            <div className="worker-lane-top">
-              <div className={'worker-lane-avatar is-' + worker.tone}>
-                <span className="worker-lane-avatar-pulse" aria-hidden="true"></span>
-                <V4WorkerPortrait worker={worker} compact />
+            <div className="panel-head">
+              <V4WorkerPortrait worker={worker} compact isActive={worker.tone === 'active'} />
+              <div>
+                <div className="panel-name">{worker.name}</div>
+                <div className="panel-sub">{worker.subtitle}</div>
               </div>
-              <div className="worker-lane-head">
-                <div className="worker-lane-name-row">
-                  <h3>{worker.name}</h3>
-                  <span className={'worker-status is-' + worker.tone}>
-                    {worker.tone === 'blocked' ? 'Blocked' : worker.tone === 'active' ? 'Working' : 'Clear'}
-                  </span>
-                </div>
-                <div className="worker-lane-sub">{worker.subtitle}</div>
-                <div className="worker-lane-owner">Owner · {worker.owner}</div>
+              <div className={`panel-status is-${worker.tone}`}>
+                {worker.active}
               </div>
             </div>
 
-            <div className="worker-lane-stats">
+            <div className="panel-metrics">
               <div><span>Active</span><strong>{worker.active}</strong></div>
               <div><span>Waiting</span><strong>{worker.waiting}</strong></div>
               <div><span>Blocked</span><strong>{worker.blocked}</strong></div>
             </div>
 
-            <div className="worker-lane-note">{worker.note}</div>
+            <div className="panel-note">{worker.note}</div>
 
-            <div className="worker-lane-track" aria-hidden="true">
-              <span className={'worker-lane-track-fill is-' + worker.tone} style={{ width: `${Math.max(14, Math.min(100, worker.active * 18 || 14))}%` }}></span>
-            </div>
-
-            <div className="worker-lane-queue">
-              <div className="worker-lane-queue-label">Live queue</div>
-              {worker.items.length ? (
-                <div className="worker-lane-queue-list">
-                  {worker.items.map(item => (
-                    <button key={item.id} type="button" className="worker-queue-chip" onClick={() => onOpenLead?.(item.id)}>
-                      <span className="worker-queue-chip-brand">{item.brand}</span>
-                      <span className="worker-queue-chip-meta">{item.contactName} · {item.nextMove?.text || item.deliverables || item.notes || 'Open thread'}</span>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="worker-lane-empty">Nothing in this lane right now.</div>
-              )}
-            </div>
-          </article>
+            {worker.items.length > 0 && (
+              <div className="panel-queue">
+                <div className="queue-label">Live items</div>
+                {worker.items.slice(0, 3).map(item => (
+                  <div 
+                    key={item.id} 
+                    className="queue-item"
+                    onClick={(e) => { e.stopPropagation(); onOpenLead?.(item.id); }}
+                  >
+                    <strong>{item.brand}</strong>
+                    <span>{item.contactName} — {item.nextMove?.text?.slice(0, 60) || 'Open thread'}</span>
+                  </div>
+                ))}
+                {worker.items.length > 3 && <div className="queue-more">+{worker.items.length - 3} more</div>}
+              </div>
+            )}
+          </div>
         ))}
-      </section>
+      </div>
+
+      <div className="machine-footer-note">
+        Every chip above is a live card from your board. Click a task to open the thread.
+      </div>
     </div>
   );
 }
@@ -3110,4 +3229,4 @@ function V4CalendarView({ query = '' }) {
   );
 }
 
-Object.assign(window, { V4TodayView, V4RobertBriefView, V4InboxView, V4LeadsView, V4NewLeadsView, V4CalendarView });
+Object.assign(window, { V4TodayView, V4RobertBriefView, V4InboxView, V4LeadsView, V4NewLeadsView, V4CalendarView, V4AgentsView, V4InvoicesView });
