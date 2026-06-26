@@ -50,6 +50,9 @@ if str(WEB_ROOT) not in sys.path:
 SCOPES = [
     "https://www.googleapis.com/auth/documents",
     "https://www.googleapis.com/auth/drive.file",
+    # drive.readonly lets us download uploaded Office files (.docx) and PDFs that the
+    # Docs API refuses ("The document must not be an Office file").
+    "https://www.googleapis.com/auth/drive.readonly",
     "https://www.googleapis.com/auth/calendar.events",
     "https://www.googleapis.com/auth/tasks",
 ]
@@ -398,6 +401,83 @@ def load_docs_service(interactive: bool = True):
     if not creds:
         raise RuntimeError("Google Docs auth is not ready.")
     return build("docs", "v1", credentials=creds)
+
+
+def load_drive_service(interactive: bool = True):
+    creds = None
+    if TOKEN_FILE.exists():
+        try:
+            creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), SCOPES)
+        except Exception:
+            creds = None
+    if creds and not creds.has_scopes(SCOPES):
+        creds = None
+    if creds and creds.expired and creds.refresh_token:
+        try:
+            creds.refresh(google.auth.transport.requests.Request())
+            TOKEN_FILE.write_text(creds.to_json(), encoding="utf-8")
+        except Exception:
+            creds = None
+    if not creds and interactive:
+        flow = InstalledAppFlow.from_client_secrets_file(str(CLIENT_SECRET_FILE), SCOPES)
+        creds = flow.run_local_server(port=0)
+        TOKEN_FILE.write_text(creds.to_json(), encoding="utf-8")
+    if not creds:
+        raise RuntimeError(
+            "Google Drive read access is not authorized yet. Run "
+            "scripts/active/reauth_brief_google.py once to grant it."
+        )
+    return build("drive", "v3", credentials=creds)
+
+
+def _docx_bytes_to_lines(data: bytes) -> list[str]:
+    """Extract paragraph text from a .docx (a zip of XML) without extra dependencies."""
+    import io
+    import zipfile
+
+    with zipfile.ZipFile(io.BytesIO(data)) as zf:
+        xml = zf.read("word/document.xml").decode("utf-8", "ignore")
+    lines: list[str] = []
+    for para in re.split(r"</w:p>", xml):
+        texts = re.findall(r"<w:t[^>]*>(.*?)</w:t>", para, re.S)
+        text = "".join(texts)
+        text = (
+            text.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+            .replace("&quot;", '"').replace("&#39;", "'").replace("&apos;", "'")
+        ).strip()
+        if text:
+            lines.append(text)
+    return lines
+
+
+def drive_file_to_source(file_id: str) -> dict:
+    """Fallback reader for files the Docs API rejects: download from Drive and parse.
+
+    Currently handles uploaded Word files (.docx). Other binary types raise a clear
+    error so the caller can tell the user to convert/export.
+    """
+    service = load_drive_service(interactive=False)
+    meta = service.files().get(fileId=file_id, fields="name,mimeType").execute()
+    name = line(meta.get("name")) or "Robert Brief"
+    mime = str(meta.get("mimeType") or "")
+    data = service.files().get_media(fileId=file_id).execute()
+    if isinstance(data, str):
+        data = data.encode("utf-8", "ignore")
+
+    if "wordprocessingml" in mime or name.lower().endswith(".docx"):
+        lines = _docx_bytes_to_lines(data)
+    else:
+        try:
+            lines = [line(item) for item in data.decode("utf-8", "ignore").splitlines() if line(item)]
+        except Exception:
+            lines = []
+
+    if not lines:
+        raise ValueError(
+            f"Could not read this file ({mime or 'unknown type'}). "
+            "Open it in Google Docs and use File then Save as Google Docs, then paste that link."
+        )
+    return {"title": name, "lines": lines[:1200], "links": []}
 
 
 def load_calendar_service(interactive: bool = True):
@@ -2187,7 +2267,16 @@ def notion_to_brief_payload(notion: dict, notion_url: str, email_context: str = 
 
 def google_doc_to_source(document_id: str) -> dict:
     service = load_docs_service(interactive=True)
-    doc = service.documents().get(documentId=document_id).execute()
+    try:
+        doc = service.documents().get(documentId=document_id).execute()
+    except Exception as exc:
+        msg = str(exc)
+        # The Docs API rejects uploaded Office files (.docx) and some other types.
+        # Fall back to downloading the raw file from Drive and parsing it.
+        if "must not be an Office file" in msg or "not supported for this document" in msg or " 400 " in f" {msg} ":
+            brief_log(f"Docs API rejected {document_id}; falling back to Drive download")
+            return drive_file_to_source(document_id)
+        raise
     body = doc.get("body", {}).get("content", []) or []
     lines: list[str] = []
     links: list[dict] = []
