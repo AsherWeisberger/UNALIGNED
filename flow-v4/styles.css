@@ -15789,3 +15789,102 @@ body[data-theme="dark"] .cos2-row-act:hover { color: var(--text); border-color: 
 .org-intake .big{width:54px;height:54px;border-radius:14px;margin:0 auto 9px;display:grid;place-items:center;font-size:20px;border:1px dashed var(--line-2,var(--border));color:var(--text-2);background:var(--surface-1)}
 .org-intake .tn{font-family:var(--font-mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text-2)}
 .org-intake .ts{font-size:10px;color:var(--text-3);margin-top:3px}
+
+/* ============================================================================
+   UNALIGNED ORGANS FLOOR (B) SHELL — the god's-eye command floor + click-to-pop
+   notification bubbles. Namespaced org-floor/org-hud/org-beacon/org-bubble (no
+   collision with the earlier org-* line shell or anything else). Dark cinematic
+   view (the art is always night), uses var(--accent) so the brand color holds.
+   Claude: build the React view with these classes; the art ships at
+   flow-v4/assets/organs-floor.jpg (committed alongside this).
+
+   MARKUP SKELETON:
+   <div class="org-floor">                         (position:relative stage, the art is its background)
+     <div class="org-scrim"></div>
+     <div class="org-hud">
+       <div><div class="eye">Machine Room</div><h1>Organs <i>your floor, from above</i></h1></div>
+       <div class="gauges"><div class="lt"><span class="d"></span>{Running|Halted}</div>
+         <div class="ctr"><span class="ck">Local · Qwen today</span><span class="cv">{tok}</span></div>
+         <div class="ctr"><span class="ck">Claude 10% today</span><span class="cv m">{$}</span></div>
+         <button class="halt">⛔ Halt all</button></div>
+     </div>
+     for each pending approval -> a beacon positioned over its desk:
+     <button class="org-beacon" style="left:43%;top:46%" onClick={openBubble(id)}>
+       <span class="ring"></span><span class="core"></span><span class="lab">{gate · lead}</span></button>
+     and one bubble per beacon (render the selected one, anchored near it):
+     <div class="org-bubble" style="left:calc(43% + 26px);top:38%">
+       <div class="bh"><span class="aib">◆ {agent}</span><span class="bt">Approval needed</span><span class="bx">✕</span></div>
+       <h3>{lead}</h3><div class="chips"><span class="chip">{tier}</span><span class="chip v">{value}</span></div>
+       <div class="lbl">What you're approving</div><div class="what">{draft_reply snippet}</div>
+       <div class="lbl">Why</div><div class="why">{agent_assessment} <span class="ser">{scam gate}</span></div>
+       <div class="btns"><span class="b ap">✓ Approve</span><span class="b gh">Edit</span><span class="b gh">Deny</span></div>
+       <button class="ig">⊘ Not a system task — <b>hand to Robert</b></button>
+     </div>
+   </div>
+   WIRING: one beacon per pending approval, positioned over the matching desk (set left/top % per
+   agent — Deal Desk ~43%/46%, Tracker ~54%/73%, Brief Studio ~80%/60%, etc.). Click a beacon ->
+   render its bubble anchored beside it (does NOT navigate). Bubble pulls draft_reply / agent_assessment
+   / tier / value from the card; buttons do the same board write as the console (send stays gated).
+   Gauges + Halt + Running/Halted bind to ops_health.
+
+   IGNORE vs DENY (not the same action):
+   - Deny  = a real decision on a real draft. Legit lead, we're passing on THIS action.
+             Card stays, draft discarded, stage -> declined/passed.
+   - Ignore = this never should have hit the queue. A conversation for Robert, noise, or a
+             mis-triage. Pull it out of automation, flag the card route_to_robert / human_only,
+             feed that back so triage stops drafting on this kind. The HeyGen item is the
+             canonical case: Robert's conversation to have, not a Deal Desk reply to approve.
+   UPSTREAM FIX: triage should carry a route_to_robert / human_only disposition so these never
+   reach a draft-and-approve gate. Ignore is the human catch when triage misses, and the signal
+   that sharpens it. Same Ignore action belongs on the console action bar and the org-gate.
+   ============================================================================ */
+
+.org-floor{position:relative;height:100%;min-height:0;overflow:hidden;color:#f4f0e8;font-family:var(--font-body);
+  background:#0b0a09 url('assets/organs-floor.jpg') center/cover no-repeat}
+.org-floor .org-scrim{position:absolute;top:0;left:0;right:0;height:120px;background:linear-gradient(180deg,rgba(8,7,6,.78),transparent);pointer-events:none}
+
+.org-floor .org-hud{position:absolute;top:16px;left:24px;right:24px;display:flex;align-items:center;gap:16px;z-index:6}
+.org-floor .org-hud .eye{font-family:var(--font-mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#9a8f7e}
+.org-floor .org-hud h1{font-family:var(--font-display);font-size:20px;font-weight:800;letter-spacing:-.4px;text-shadow:0 2px 14px rgba(0,0,0,.6)}
+.org-floor .org-hud h1 i{font-family:var(--font-serif);font-style:italic;font-weight:400;color:#c9bda9;font-size:14px;margin-left:6px}
+.org-floor .gauges{margin-left:auto;display:flex;gap:13px;align-items:center}
+.org-floor .lt{display:flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--good,#5ec98a)}
+.org-floor .lt .d{width:8px;height:8px;border-radius:50%;background:var(--good,#5ec98a);box-shadow:0 0 9px var(--good,#5ec98a);animation:orgf-pulse 2s infinite}
+.org-floor.is-halted .lt{color:var(--accent)}
+.org-floor.is-halted .lt .d{background:var(--accent);box-shadow:0 0 9px var(--accent);animation:none}
+.org-floor .ctr{display:flex;flex-direction:column;line-height:1.15;background:rgba(12,11,10,.5);backdrop-filter:blur(6px);border:1px solid rgba(244,240,232,.12);border-radius:8px;padding:5px 10px}
+.org-floor .ctr .ck{font-family:var(--font-mono);font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#9a8f7e}
+.org-floor .ctr .cv{font-family:var(--font-mono);font-size:13px;font-weight:600}.org-floor .ctr .cv.m{color:var(--good,#5ec98a)}
+.org-floor .halt{font-family:var(--font-mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#c9bda9;border:1px solid rgba(244,240,232,.16);border-radius:8px;padding:7px 11px;cursor:pointer;background:rgba(12,11,10,.5);backdrop-filter:blur(6px)}
+.org-floor .halt:hover{color:var(--accent);border-color:var(--accent)}
+@keyframes orgf-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+.org-floor .org-beacon{position:absolute;width:34px;height:34px;transform:translate(-50%,-50%);cursor:pointer;z-index:5;border:0;background:transparent;padding:0}
+.org-floor .org-beacon .ring{position:absolute;inset:0;border-radius:50%;border:2px solid var(--accent);animation:orgf-ping 1.8s ease-out infinite}
+.org-floor .org-beacon .core{position:absolute;inset:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 14px var(--accent)}
+.org-floor .org-beacon .lab{position:absolute;top:-20px;left:50%;transform:translateX(-50%);font-family:var(--font-mono);font-size:9px;letter-spacing:.5px;text-transform:uppercase;color:var(--accent);white-space:nowrap;text-shadow:0 1px 6px #000}
+@keyframes orgf-ping{0%{transform:scale(.7);opacity:.9}100%{transform:scale(2.1);opacity:0}}
+
+.org-floor .org-bubble{position:absolute;width:320px;background:rgba(18,16,14,.94);backdrop-filter:blur(14px);border:1px solid rgba(250,60,30,.4);border-radius:14px;box-shadow:0 24px 60px -16px rgba(0,0,0,.7);z-index:10;padding:16px 17px;animation:orgf-pop .18s ease-out}
+@keyframes orgf-pop{from{opacity:0;transform:scale(.92) translateY(6px)}to{opacity:1;transform:none}}
+.org-floor .org-bubble .bh{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.org-floor .org-bubble .aib{font-family:var(--font-mono);font-size:9px;font-weight:700;color:#1a1410;background:var(--accent);padding:2px 7px;border-radius:4px;letter-spacing:.5px}
+.org-floor .org-bubble .bt{font-family:var(--font-mono);font-size:9.5px;letter-spacing:1px;text-transform:uppercase;color:var(--accent)}
+.org-floor .org-bubble .bx{margin-left:auto;color:#9a8f7e;cursor:pointer;font-size:16px;line-height:1}
+.org-floor .org-bubble h3{font-family:var(--font-display);font-size:17px;font-weight:800;letter-spacing:-.3px}
+.org-floor .org-bubble .chips{display:flex;gap:6px;margin:7px 0 11px}
+.org-floor .org-bubble .chip{font-family:var(--font-mono);font-size:10px;color:#c9bda9;border:1px solid rgba(244,240,232,.16);border-radius:5px;padding:2px 8px}
+.org-floor .org-bubble .chip.v{color:var(--good,#5ec98a)}
+.org-floor .org-bubble .lbl{font-family:var(--font-mono);font-size:8.5px;letter-spacing:1px;text-transform:uppercase;color:#9a8f7e;margin-bottom:4px}
+.org-floor .org-bubble .what{background:rgba(244,240,232,.05);border-left:2px solid var(--accent);border-radius:6px;padding:9px 11px;font-size:12.5px;line-height:1.5;color:#f4f0e8;margin-bottom:10px}
+.org-floor .org-bubble .why{font-size:12px;line-height:1.5;color:#c9bda9;margin-bottom:13px}
+.org-floor .org-bubble .why .ser{font-family:var(--font-serif);font-style:italic;color:#9a8f7e}
+.org-floor .org-bubble .btns{display:flex;gap:6px}
+.org-floor .org-bubble .b{flex:1;text-align:center;font-family:var(--font-body);font-weight:700;font-size:11.5px;border-radius:7px;padding:9px 0;cursor:pointer;border:1px solid rgba(244,240,232,.16)}
+.org-floor .org-bubble .b.ap{background:var(--accent);color:#fff;border-color:var(--accent);flex:1.5}
+.org-floor .org-bubble .b.gh{background:transparent;color:#c9bda9}
+.org-floor .org-bubble .ig{margin-top:8px;width:100%;display:flex;align-items:center;justify-content:center;gap:6px;font-family:var(--font-mono);font-size:9.5px;letter-spacing:.5px;text-transform:uppercase;color:#9a8f7e;background:transparent;border:1px dashed rgba(244,240,232,.18);border-radius:7px;padding:7px 0;cursor:pointer;transition:.15s}
+.org-floor .org-bubble .ig:hover{color:#c9bda9;border-color:rgba(244,240,232,.34)}
+.org-floor .org-bubble .ig b{font-weight:700;color:#c9bda9}
+.org-floor .org-bubble:after{content:"";position:absolute;left:-8px;top:30px;width:14px;height:14px;background:rgba(18,16,14,.94);border-left:1px solid rgba(250,60,30,.4);border-bottom:1px solid rgba(250,60,30,.4);transform:rotate(45deg)}
+
