@@ -15965,3 +15965,22 @@ body[data-theme="dark"] .gmail-reply-status.is-success{color:var(--good)}
   .apr-console.has-sel .apr-back{display:inline-flex;align-items:center;gap:6px;margin:0 0 12px;padding:0;background:transparent;border:0;color:var(--accent);font:700 13px/1 var(--font-body);cursor:pointer}
 }
 
+/* ============================================================================
+   ORGANS MOBILE — on phones, OrgansFloorView renders <V4OrgansView/> (the line
+   pipeline) instead of the cropped floor art, and this stacks that pipeline into
+   a vertical column so every worker + gate is legible by scrolling. Desktop keeps
+   the cinematic god's-eye floor.
+   ============================================================================ */
+@media (max-width:720px){
+  .org-wrap .org-top{flex-wrap:wrap;gap:8px 12px;padding:12px 14px}
+  .org-wrap .org-title{font-size:18px}
+  .org-wrap .org-gauges{margin-left:0;flex-wrap:wrap;gap:8px 10px}
+  .org-wrap .org-medic{padding:8px 14px}
+  .org-flow{flex-direction:column;align-items:center;overflow-x:hidden;overflow-y:auto;gap:0;padding:14px 12px 28px}
+  .org-flow .org-organ,.org-flow .org-gate{width:min(88vw,320px)}
+  .org-flow .org-conn{width:2px;height:22px;flex-shrink:0}
+  .org-flow .org-conn:before{left:-2.5px;top:0;animation:org-travel-v 2s linear infinite}
+  .org-organ .ds,.org-gate .gd{min-height:0}
+}
+@keyframes org-travel-v{0%{top:-4px;opacity:0}15%{opacity:1}85%{opacity:1}100%{top:22px;opacity:0}}
+

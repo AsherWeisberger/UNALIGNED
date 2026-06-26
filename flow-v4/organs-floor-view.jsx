@@ -30,6 +30,14 @@
    ============================================================================ */
 function OrgansFloorView({ leads = [], query = '', onOpenConsole }) {
   const { useState } = React;
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(max-width: 720px)').matches : false);
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+    var mq = window.matchMedia('(max-width: 720px)');
+    var on = function(){ setIsMobile(mq.matches); };
+    mq.addEventListener ? mq.addEventListener('change', on) : mq.addListener(on);
+    return function(){ mq.removeEventListener ? mq.removeEventListener('change', on) : mq.removeListener(on); };
+  }, []);
   const { health, resume, halt } = V4UseOpsHealth();
   const [open, setOpen] = useState(null);   // gate id whose bubble is open
   const [idx, setIdx] = useState(0);        // which item within that gate
@@ -118,6 +126,8 @@ function OrgansFloorView({ leads = [], query = '', onOpenConsole }) {
       </div>
     );
   };
+
+  if (isMobile) return <V4OrgansView leads={leads} query={query} onOpenConsole={onOpenConsole} />;
 
   return (
     <div className={'org-floor' + (halted ? ' is-halted' : '')} style={{ flex: '1 1 0', minHeight: 0 }} onClick={closeAll}>
