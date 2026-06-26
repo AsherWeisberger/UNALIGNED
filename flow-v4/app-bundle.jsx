@@ -5415,240 +5415,264 @@ function V4LiveTaskFloor({ groupedWorkers, totalActive, liveWorkers, onOpenLead 
 }
 
 // ─────────────────────────────────────────────────────────────
-// Machine Room — approval console. A consolidated queue of pending
-// approvals grouped by gate. Select one to see What / Why / Tied, then
-// Approve / Edit / Deny. Send stays gated: Approve marks ready, never sends.
+// Machine Room — approval console. Consolidated queue of everything
+// waiting on a human, grouped by gate. Built on the apr-* shell in
+// styles.css. Binds the status light / counters / halt bar to the
+// ops_health row. Approve marks ready; it never sends.
 // ─────────────────────────────────────────────────────────────
+function V4AprMoney(v) {
+  if (v == null || v === '') return '';
+  if (typeof V4CompanyOsMoney === 'function' && typeof v === 'number') return V4CompanyOsMoney(v);
+  return String(v);
+}
+function V4AprNum(n) {
+  const x = Number(n || 0);
+  return x ? x.toLocaleString('en-US') : '0';
+}
+const V4_APR_AGENT = { replies: 'Deal Desk', payments: 'Finance', briefs: 'Brief Maker', posts: 'Calendar' };
+
 function V4MachineRoomConsole({ leads = [], query = '', onOpenLead }) {
   const q = String(query || '').trim().toLowerCase();
   const live = (Array.isArray(leads) ? leads : []).filter(l =>
     l && !['trash', 'dead-leads'].includes(String(l.stage || '').toLowerCase()));
-
   const matchesQ = (l) => !q || [l.brand, l.contactName, l.deliverables, l.agentTier]
     .some(s => String(s || '').toLowerCase().includes(q));
 
   const replies = live.filter(l =>
     String(l.draftReplyStatus || '').toLowerCase() === 'pending' &&
     l.draftReply && String(l.draftReply.body || '').trim()).filter(matchesQ);
-  const payments = live.filter(l =>
-    String(l.stage || '').toLowerCase() === 'invoice-sent').filter(matchesQ);
-  const briefs = live.filter(l => {
-    const s = String(l.briefStatus || '').toLowerCase().replace(/_/g, '-');
-    return s === 'awaiting-robert';
-  }).filter(matchesQ);
-  const posts = live.filter(l =>
-    String(l.stage || '').toLowerCase() === 'done').filter(matchesQ);
+  const payments = live.filter(l => String(l.stage || '').toLowerCase() === 'invoice-sent').filter(matchesQ);
+  const briefs = live.filter(l =>
+    String(l.briefStatus || '').toLowerCase().replace(/_/g, '-') === 'awaiting-robert').filter(matchesQ);
+  const posts = live.filter(l => String(l.stage || '').toLowerCase() === 'done').filter(matchesQ);
 
   const GATES = [
-    { id: 'replies', label: 'Replies', hint: 'Drafted, awaiting your approval', items: replies },
-    { id: 'payments', label: 'Payments', hint: 'Invoice out, unpaid', items: payments },
-    { id: 'briefs', label: 'Briefs', hint: 'Awaiting Robert', items: briefs },
-    { id: 'posts', label: 'Posts', hint: 'Approved, scheduled', items: posts },
+    { id: 'replies', label: 'Replies', items: replies, tag: '' },
+    { id: 'payments', label: 'Payments', items: payments, tag: 'pay' },
+    { id: 'briefs', label: 'Briefs', items: briefs, tag: 'brief' },
+    { id: 'posts', label: 'Posts', items: posts, tag: '' },
   ];
-
   const flat = GATES.flatMap(g => g.items.map(l => ({ gate: g.id, lead: l })));
-  const [selKey, setSelKey] = React.useState(flat[0] ? flat[0].gate + ':' + flat[0].lead.id : null);
+
+  const [selKey, setSelKey] = React.useState(null);
   const [editing, setEditing] = React.useState(false);
   const [editBody, setEditBody] = React.useState('');
   const [editSubject, setEditSubject] = React.useState('');
+  const [health, setHealth] = React.useState(null);
+
+  // Poll ops_health for the status light, counters, and halt state.
+  React.useEffect(() => {
+    let alive = true;
+    const load = () => {
+      fetch(V3_SUPABASE_URL + '/rest/v1/ops_health?id=eq.1&limit=1', {
+        headers: { apikey: V3_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + V3_SUPABASE_ANON_KEY },
+      }).then(r => r.ok ? r.json() : []).then(rows => { if (alive) setHealth((rows && rows[0]) || null); })
+        .catch(() => {});
+    };
+    load();
+    const t = setInterval(load, 30000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
 
   const current = flat.find(f => (f.gate + ':' + f.lead.id) === selKey) || flat[0] || null;
   const lead = current ? current.lead : null;
   const gate = current ? current.gate : null;
-
   const select = (g, l) => { setSelKey(g + ':' + l.id); setEditing(false); };
 
-  // Per-gate Approve/Deny mapping. Approve writes status forward only — never sends.
-  function actions(g, l) {
-    if (g === 'replies') return {
-      approveLabel: 'Approve (mark ready)',
-      approve: { fields: { draft_reply_status: 'approved' }, local: { draftReplyStatus: 'approved' } },
-      deny: { fields: { draft_reply_status: '', draft_reply: null }, local: { draftReplyStatus: '', draftReply: null } },
-    };
-    if (g === 'payments') return {
-      approveLabel: 'Mark paid',
-      approve: { fields: { list_id: 'paid-out' }, local: { stage: 'paid-out' } },
-      deny: { fields: {}, local: {} },
-    };
-    if (g === 'briefs') return {
-      approveLabel: 'Approve brief',
-      approve: { fields: { brief_status: 'approved' }, local: { briefStatus: 'approved' } },
-      deny: { fields: { brief_status: 'edits_requested' }, local: { briefStatus: 'edits_requested' } },
-    };
-    return {
-      approveLabel: 'Mark posted',
-      approve: { fields: { list_id: 'paid-out' }, local: { stage: 'paid-out' } },
-      deny: { fields: {}, local: {} },
-    };
-  }
+  const halted = !!(health && String(health.status || 'ok') !== 'ok');
+  const haltReason = (health && health.halt_reason) || 'The operator is paused. Drafts are held until you resume.';
 
   const advance = () => {
-    if (!lead) return;
-    const { gate: nextGate } = current;
     const idx = flat.findIndex(f => (f.gate + ':' + f.lead.id) === selKey);
     const next = flat[idx + 1] || flat[idx - 1] || null;
     setSelKey(next ? next.gate + ':' + next.lead.id : null);
   };
 
-  const onApprove = () => {
-    const a = actions(gate, lead);
-    V4CosPatchLead(lead, a.approve.fields, a.approve.local);
-    advance();
-  };
-  const onDeny = () => {
-    const a = actions(gate, lead);
-    V4CosPatchLead(lead, a.deny.fields, a.deny.local);
-    advance();
-  };
+  function gateAction(g) {
+    if (g === 'replies') return {
+      approve: { fields: { draft_reply_status: 'approved' }, local: { draftReplyStatus: 'approved' } },
+      deny: { fields: { draft_reply_status: '', draft_reply: null }, local: { draftReplyStatus: '', draftReply: null } },
+    };
+    if (g === 'payments') return {
+      approve: { fields: { list_id: 'paid-out' }, local: { stage: 'paid-out' } },
+      deny: { fields: {}, local: {} },
+    };
+    if (g === 'briefs') return {
+      approve: { fields: { brief_status: 'approved' }, local: { briefStatus: 'approved' } },
+      deny: { fields: { brief_status: 'edits_requested' }, local: { briefStatus: 'edits_requested' } },
+    };
+    return {
+      approve: { fields: { list_id: 'paid-out' }, local: { stage: 'paid-out' } },
+      deny: { fields: {}, local: {} },
+    };
+  }
+
+  const onApprove = () => { const a = gateAction(gate); V4CosPatchLead(lead, a.approve.fields, a.approve.local); advance(); };
+  const onDeny = () => { const a = gateAction(gate); V4CosPatchLead(lead, a.deny.fields, a.deny.local); advance(); };
   const startEdit = () => {
     const dr = lead.draftReply || {};
-    setEditSubject(dr.subject || '');
-    setEditBody(dr.body || '');
-    setEditing(true);
+    setEditSubject(dr.subject || ''); setEditBody(dr.body || ''); setEditing(true);
   };
-  const saveEdit = () => {
-    const payload = JSON.stringify({ subject: editSubject, body: editBody });
-    V4CosPatchLead(lead, { draft_reply: payload },
-      { draftReply: { subject: editSubject, body: editBody } });
-    setEditing(false);
-  };
-  const saveAndApprove = () => {
+  const saveApprove = () => {
     const payload = JSON.stringify({ subject: editSubject, body: editBody });
     V4CosPatchLead(lead, { draft_reply: payload, draft_reply_status: 'approved' },
       { draftReply: { subject: editSubject, body: editBody }, draftReplyStatus: 'approved' });
-    setEditing(false);
-    advance();
+    setEditing(false); advance();
+  };
+  const resume = () => {
+    fetch(V3_SUPABASE_URL + '/rest/v1/ops_health?id=eq.1', {
+      method: 'PATCH',
+      headers: { apikey: V3_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + V3_SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ status: 'ok', halt_reason: '' }),
+    }).then(() => setHealth(h => ({ ...(h || {}), status: 'ok', halt_reason: '' }))).catch(() => {});
   };
 
-  const total = flat.length;
+  const oneLine = (l) => l.recommendedAction ||
+    (l.agentAssessment ? String(l.agentAssessment).split(/(?<=[.!?])\s/)[0] : '') ||
+    l.deliverables || l.stage || '';
 
-  function whatText(g, l) {
+  function whatBody(g, l) {
     if (g === 'replies') return (l.draftReply && l.draftReply.body) || '';
     if (g === 'briefs') return l.briefBody || l.briefSummary || (l.nextMove && l.nextMove.text) || '';
-    if (g === 'payments') return 'Invoice is out for ' + (l.brand || 'this lead') + '. Confirm payment received before closing.';
+    if (g === 'payments') return 'Invoice is out for ' + (l.brand || 'this lead') + '. Confirm payment received, then mark paid.';
     return 'Approved post scheduled for ' + (l.brand || 'this lead') + '. Mark posted once it is live.';
   }
 
   return (
-    <div className="mrc">
-      <div className="mrc-head">
+    <div className={'apr-console' + (halted ? ' is-halted' : '')} style={{ display: 'grid', gridTemplateRows: 'auto auto minmax(0,1fr)', flex: '1 1 0', minHeight: 0, height: '100%', overflow: 'hidden' }}>
+      <div className="apr-top">
         <div>
-          <div className="mrc-eyebrow">Machine Room</div>
-          <h1 className="mrc-title">Approval console</h1>
-          <div className="mrc-sub">{total} item{total === 1 ? '' : 's'} waiting on you. Approve marks ready. Sending stays your step.</div>
+          <div className="apr-eye">Machine Room</div>
+          <h1 className="apr-title">Approvals <i>everything waiting on you</i></h1>
+        </div>
+        <div className="apr-counts">
+          {GATES.map(g => <span className="apr-cpill" key={g.id}>{g.label} <b>{g.items.length}</b></span>)}
+        </div>
+        <div className="apr-sys">
+          <div className="apr-light" title="Operator status">
+            <span className="d"></span><span>{halted ? 'Halted' : 'Running'}</span>
+          </div>
+          <div className="apr-ctr">
+            <span className="ck">Local · Qwen today</span>
+            <span className="cv local">{health ? V4AprNum(health.local_tokens_today) : '—'}</span>
+          </div>
+          <div className="apr-ctr">
+            <span className="ck">Claude 10% today</span>
+            <span className="cv money">{health ? '$' + Number(health.claude_spend_today || 0).toFixed(2) : '—'}</span>
+          </div>
         </div>
       </div>
 
-      <div className="mrc-body">
-        {/* Left: grouped queue */}
-        <div className="mrc-queue">
+      <div className="apr-haltbar">
+        <span className="hi">⚠</span>
+        <span className="ht"><b>Operator halted</b>{haltReason}</span>
+        <button className="apr-resume" onClick={resume}>Resume</button>
+      </div>
+
+      <div className="apr-main" style={{ gridTemplateRows: 'minmax(0,1fr)', minHeight: 0 }}>
+        <div className="apr-queue" style={{ minHeight: 0 }}>
           {GATES.map(g => (
-            <div className="mrc-group" key={g.id}>
-              <div className="mrc-group-hd">
-                <span className="mrc-group-label">{g.label}</span>
-                <span className="mrc-group-count">{g.items.length}</span>
-              </div>
-              <div className="mrc-group-hint">{g.hint}</div>
-              {g.items.length === 0 && <div className="mrc-empty">Nothing here.</div>}
+            <React.Fragment key={g.id}>
+              <div className="apr-grp">{g.label}<span className="gc">{g.items.length}</span></div>
               {g.items.map(l => {
                 const key = g.id + ':' + l.id;
+                const isOn = current && current.gate === g.id && String(current.lead.id) === String(l.id);
                 return (
-                  <button
-                    key={key}
-                    className={'mrc-card' + (key === selKey ? ' is-active' : '')}
-                    onClick={() => select(g.id, l)}
-                  >
-                    <V3Avatar name={l.contactName || l.brand} color={l.color} size="xs" />
-                    <span className="mrc-card-main">
-                      <span className="mrc-card-name">{l.brand || l.contactName || 'Lead'}</span>
-                      <span className="mrc-card-meta">{l.recommendedAction || l.deliverables || l.stage}</span>
-                    </span>
-                    {l.value ? <span className="mrc-card-val">{V4CompanyOsMoney(l.value)}</span> : null}
+                  <button key={key} className={'apr-item' + (isOn ? ' is-on' : '')} onClick={() => select(g.id, l)}>
+                    <div className="apr-r1">
+                      <span className="apr-co">{l.brand || l.contactName || 'Lead'}</span>
+                      {l.value ? <span className="apr-val">{V4AprMoney(l.value)}</span> : null}
+                    </div>
+                    <div className="apr-ln">{oneLine(l)}</div>
+                    <span className={'apr-tag' + (g.tag ? ' ' + g.tag : '')}>◆ {V4_APR_AGENT[g.id]}</span>
                   </button>
                 );
               })}
-            </div>
+            </React.Fragment>
           ))}
+          {flat.length === 0 && <div className="apr-grp">Queue clear<span className="gc">0</span></div>}
         </div>
 
-        {/* Right: detail */}
-        {!lead && (
-          <div className="mrc-detail mrc-detail-empty">
-            <V3Icon name="check" w={28} />
-            <div>Queue clear. Nothing waiting on your approval.</div>
+        {lead && (
+          <div className="apr-detail">
+            <div className="apr-dh">
+              <div className="apr-eye2">Approval / <b>{gate}</b></div>
+              <h2>{lead.brand || lead.contactName}</h2>
+              <div className="apr-chips">
+                <span className="apr-chip">{lead.contactName || lead.email || '—'}</span>
+                {lead.agentTier ? <span className="apr-chip t">{lead.agentTier}</span> : null}
+                {lead.value ? <span className="apr-chip v">{V4AprMoney(lead.value)}</span> : null}
+              </div>
+            </div>
+
+            <div className="apr-body">
+              <div className="apr-blk">
+                <div className="apr-lbl"><span className="apr-aib">◆ {V4_APR_AGENT[gate]}</span> What you're approving</div>
+                {editing ? (
+                  <div className="apr-what">
+                    <input className="apr-sj" value={editSubject} onChange={e => setEditSubject(e.target.value)}
+                      placeholder="Subject" style={{ width: '100%', font: 'inherit', border: '0', background: 'transparent', color: 'inherit', outline: 'none' }} />
+                    <textarea value={editBody} onChange={e => setEditBody(e.target.value)} rows={14}
+                      style={{ width: '100%', font: 'inherit', border: '0', background: 'transparent', color: 'inherit', outline: 'none', resize: 'vertical' }} />
+                  </div>
+                ) : (
+                  <div className="apr-what">
+                    {gate === 'replies' && lead.draftReply && lead.draftReply.subject &&
+                      <div className="apr-sj">{lead.draftReply.subject}</div>}
+                    {whatBody(gate, lead)}
+                  </div>
+                )}
+              </div>
+
+              {lead.agentAssessment && (
+                <div className="apr-blk">
+                  <div className="apr-lbl">Why it makes sense</div>
+                  <div className="apr-why">{lead.agentAssessment}
+                    {lead.recommendedAction && <span className="apr-ser"> — recommended: {lead.recommendedAction}.</span>}
+                  </div>
+                </div>
+              )}
+
+              <div className="apr-blk">
+                <div className="apr-lbl">Tied to this</div>
+                <div className="apr-rel">
+                  <div><div className="k">Lead</div><div className="vv">{lead.brand || lead.contactName}</div></div>
+                  <div><div className="k">Tier</div><div className="vv">{lead.agentTier || '—'}</div></div>
+                  <div><div className="k">Value</div><div className="vv">{lead.value ? V4AprMoney(lead.value) : '—'}</div></div>
+                  <div><div className="k">Stage</div><div className="vv">{lead.stage}</div></div>
+                </div>
+              </div>
+
+              {gate === 'replies' && (
+                <div className="apr-deny show">
+                  <div className="apr-lbl">If you deny</div>
+                  <p>The draft is cleared and {lead.brand || 'the lead'} stays at its current stage. Nothing is sent. The operator will not auto re-draft a card you have handled.</p>
+                </div>
+              )}
+            </div>
+
+            <div className="apr-bar">
+              {editing ? (
+                <React.Fragment>
+                  <button className="apr-btn ap" onClick={saveApprove}>✓ Save &amp; approve</button>
+                  <button className="apr-btn ed" onClick={() => setEditing(false)}>Cancel</button>
+                </React.Fragment>
+              ) : (
+                <React.Fragment>
+                  <button className="apr-btn ap" onClick={onApprove}>✓ Approve</button>
+                  {gate === 'replies' && <button className="apr-btn ed" onClick={startEdit}>✎ Edit &amp; approve</button>}
+                  <button className="apr-btn dn" onClick={onDeny}>Deny</button>
+                </React.Fragment>
+              )}
+              <span className="apr-sp">nothing sends without your separate send</span>
+            </div>
           </div>
         )}
-        {lead && (
-          <div className="mrc-detail">
-            <div className="mrc-detail-hd">
-              <div className="mrc-detail-who">
-                <V3Avatar name={lead.contactName || lead.brand} color={lead.color} size="sm" />
-                <div>
-                  <div className="mrc-detail-name">{lead.brand || lead.contactName}</div>
-                  <div className="mrc-detail-role">{lead.contactName}{lead.contactRole ? ' · ' + lead.contactRole : ''}</div>
-                </div>
-              </div>
-              {onOpenLead && (
-                <button className="mrc-open" onClick={() => onOpenLead(lead.id)}>Open thread</button>
-              )}
-            </div>
-
-            {/* WHAT */}
-            <div className="mrc-sec">
-              <div className="mrc-sec-label">What</div>
-              {editing ? (
-                <div className="mrc-edit">
-                  <input className="mrc-edit-subject" value={editSubject}
-                    onChange={e => setEditSubject(e.target.value)} placeholder="Subject" />
-                  <textarea className="mrc-edit-body" value={editBody}
-                    onChange={e => setEditBody(e.target.value)} rows={12} />
-                </div>
-              ) : (
-                <div className="mrc-what">
-                  {gate === 'replies' && lead.draftReply && lead.draftReply.subject &&
-                    <div className="mrc-what-subject">{lead.draftReply.subject}</div>}
-                  <div className="mrc-what-body">{whatText(gate, lead)}</div>
-                </div>
-              )}
-            </div>
-
-            {/* WHY */}
-            {lead.agentAssessment && (
-              <div className="mrc-sec">
-                <div className="mrc-sec-label">Why</div>
-                <div className="mrc-why">{lead.agentAssessment}</div>
-              </div>
-            )}
-
-            {/* TIED */}
-            <div className="mrc-sec">
-              <div className="mrc-sec-label">Tied</div>
-              <div className="mrc-tied">
-                {lead.agentTier && <span className="mrc-chip">{lead.agentTier}</span>}
-                {lead.value ? <span className="mrc-chip mrc-chip-val">{V4CompanyOsMoney(lead.value)}</span> : null}
-                <span className="mrc-chip mrc-chip-stage">{lead.stage}</span>
-                {lead.recommendedAction && <span className="mrc-chip">{lead.recommendedAction}</span>}
-              </div>
-            </div>
-
-            {/* ACTIONS */}
-            <div className="mrc-actions">
-              {editing ? (
-                <React.Fragment>
-                  <button className="mrc-btn mrc-btn-approve" onClick={saveAndApprove}>Save + approve</button>
-                  <button className="mrc-btn" onClick={saveEdit}>Save</button>
-                  <button className="mrc-btn mrc-btn-ghost" onClick={() => setEditing(false)}>Cancel</button>
-                </React.Fragment>
-              ) : (
-                <React.Fragment>
-                  <button className="mrc-btn mrc-btn-approve" onClick={onApprove}>{actions(gate, lead).approveLabel}</button>
-                  {gate === 'replies' && <button className="mrc-btn" onClick={startEdit}>Edit</button>}
-                  <button className="mrc-btn mrc-btn-deny" onClick={onDeny}>Deny</button>
-                </React.Fragment>
-              )}
-              {gate === 'replies' && !editing &&
-                <span className="mrc-gatenote">Send stays gated — approve does not send.</span>}
-            </div>
+        {!lead && (
+          <div className="apr-detail">
+            <div className="apr-body"><div className="apr-blk"><div className="apr-lbl">Queue clear</div>
+              <div className="apr-why">Nothing is waiting on your approval right now.</div></div></div>
           </div>
         )}
       </div>
@@ -12168,16 +12192,8 @@ function V4App() {
           />
         )}
         {view === 'machine-room' && (
-          <div className="body body-machine-room">
+          <div className="body body-machine-room" style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
             <V4MachineRoomConsole
-              leads={mergedLeads}
-              query={search}
-              onOpenLead={(id) => {
-                setView('company-os');
-                setOpenId(id);
-              }}
-            />
-            <V4AgentsView
               leads={mergedLeads}
               query={search}
               onOpenLead={(id) => {
