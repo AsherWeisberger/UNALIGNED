@@ -15902,9 +15902,10 @@ body[data-theme="dark"] .cos2-row-act:hover { color: var(--text); border-color: 
   will-change:transform,opacity;
   box-shadow:inset 0 0 0 .5px rgba(0,0,0,.06);
   background-image:linear-gradient(135deg,rgba(255,255,255,.07),rgba(0,0,0,.12));
-  transition:transform var(--cube-dur,.56s) cubic-bezier(.66,0,.34,1),opacity var(--cube-dur,.56s) ease;
+  transition:transform var(--cube-dur,.4s) cubic-bezier(.66,0,.34,1),opacity var(--cube-dur,.4s) ease;
 }
 .cube-tx.go i{transform:rotateX(-90deg) translateZ(2px);opacity:0}
+.cube-tx.fade.go i{transform:scale(.4);opacity:0}
 @media(prefers-reduced-motion:reduce){
   .cube-tx i{transition-duration:.001s}
 }
