@@ -12550,6 +12550,11 @@ function V4App() {
           <V3Icon name="network" w={18} />
           Machine
         </button>
+        <button className="ft-tab" aria-current={view === 'organs' ? 'page' : undefined}
+                onClick={() => { setView('organs'); setOpenId(null); }}>
+          <V3Icon name="network" w={18} />
+          Organs
+        </button>
       </footer>
 
       {/* Detail drawer — suppressed in Inbox; the inbox's right pane is its own reader */}
