@@ -14759,3 +14759,112 @@ body[data-theme="dark"] {
   --line-soft:   rgba(244, 240, 232, 0.07);
   --line-strong: rgba(244, 240, 232, 0.18);
 }
+
+/* ============================================================
+   UNALIGNED — EDITORIAL FINISH (single append, light + dark)
+   Append this VERBATIM at the very END of flow-v4/styles.css,
+   then bump the index.html cache buster.
+
+   This ONE file supersedes the earlier cascade-fix.css and
+   polish-light.css. If those were already appended, leave them;
+   this block is appended after and wins by source order. If not,
+   just append this. All rules are additive and last-wins.
+
+   Sections:
+   1. Cascade: warm the later v6 palette blocks (light bone, dark charcoal)
+   2. Light polish: Instrument Serif flourish on the REAL elements
+   3. Dark pass: the Gmail reader was styled light-only (white cards
+      in dark) + the full logo had no dark size cap + an indigo hardcode
+   ============================================================ */
+
+/* ===== 1. CASCADE — warm canvas (beats the v6 "Soft inbox default"
+   #eef2f6 and "V6 workspace" #f6f6f4 blocks, and the bluish dark block) ===== */
+body[data-theme="light"] {
+  --bg:#efece3; --bg-2:#e8e4d8; --bg-elevated:#f6f3ec;
+  --surface-0:#f6f3ec; --surface:#f9f7f1; --surface-1:#f9f7f1; --surface-2:#f3f0e8; --surface-3:#eae6dc;
+  --surface-tint:#f3efe6; --hover:#f0ece2;
+  --line:rgba(22,19,13,.10); --line-2:rgba(22,19,13,.16); --line-soft:rgba(22,19,13,.07);
+  --line-strong:rgba(22,19,13,.18); --line-dash:rgba(22,19,13,.16);
+  --text:#16130d; --text-primary:#16130d; --text-2:#565049; --text-secondary:#565049;
+  --text-3:#8c857b; --text-tertiary:#8c857b; --text-4:#a89f90;
+  --shadow-sm:0 1px 1px rgba(40,30,15,.04);
+  --shadow:0 10px 30px -22px rgba(40,30,15,.20);
+  --shadow-lg:0 28px 70px -28px rgba(40,30,15,.28);
+}
+body[data-theme="dark"] {
+  --bg:#0c0b0a; --bg-2:#100e0c; --bg-elevated:#16130f;
+  --surface-0:#131110; --surface:#17140f; --surface-1:#131110; --surface-2:#1b1713; --surface-3:#221d18;
+  --surface-tint:#1b1713; --hover:#1c1814;
+  --line:rgba(244,240,232,.10); --line-2:rgba(244,240,232,.16); --line-soft:rgba(244,240,232,.07);
+  --line-strong:rgba(244,240,232,.18);
+}
+
+/* ===== 2. LIGHT POLISH — serif flourish on the elements that actually render ===== */
+/* workspace tagline ("ACTIVE WORKSPACE" = .v6-wm small), both modes */
+body[data-theme="light"] .v6-wm small,
+body[data-theme="dark"]  .v6-wm small {
+  font-family: var(--font-serif);
+  font-style: italic;
+  text-transform: lowercase;
+  letter-spacing: .01em;
+  font-size: 13px;
+  font-weight: 400;
+}
+/* brief description */
+body[data-theme="light"] .cos-section-sub {
+  font-family: var(--font-serif); font-style: italic; font-size: 14px; line-height: 1.35; color: var(--text-2);
+}
+/* the wordmark accent mark: indigo hardcode -> vermillion (both modes) */
+.v6-company-os-wordmark em { color: var(--accent); }
+/* warm the one hardcoded byline gray + give the active row a vermillion bar (light) */
+body[data-theme="light"] .gmail-read-submeta { color: var(--text-2); }
+body[data-theme="light"] .cos2-row.is-current { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--accent); }
+/* tabular figures on remaining count chips */
+.cnt, .cos-panel-count, .now-section-count, .compact-section-count,
+.cos2-split-cnt, .b-col-count, .invoice-stat { font-variant-numeric: tabular-nums; }
+
+/* ===== 3. DARK PASS ===== */
+/* 3a. Gmail reader was light-only -> give it dark surfaces so cards stop rendering white */
+body[data-theme="dark"] .gmail-read-pane,
+body[data-theme="dark"] .cos2-gmail-shell,
+body[data-theme="dark"] .cos2-gmail-column,
+body[data-theme="dark"] .cos2-thread-scroll,
+body[data-theme="dark"] .cos2-reader-pane,
+body[data-theme="dark"] .cos2-reader-workspace--gmail,
+body[data-theme="dark"] .drawer-body--thread { background: var(--bg); color: var(--text); }
+
+body[data-theme="dark"] .gmail-read-hd { border-bottom: 1px solid var(--line); }
+body[data-theme="dark"] .gmail-msg { border-bottom: 1px solid var(--line); }
+body[data-theme="dark"] .gmail-msg-hd:hover { background: var(--surface-2); }
+
+body[data-theme="dark"] .gmail-read-subject,
+body[data-theme="dark"] .gmail-msg-name,
+body[data-theme="dark"] .cos2-gmail-subject { color: var(--text); }
+
+body[data-theme="dark"] .gmail-read-submeta,
+body[data-theme="dark"] .gmail-msg-email,
+body[data-theme="dark"] .gmail-msg-snippet,
+body[data-theme="dark"] .gmail-msg-when,
+body[data-theme="dark"] .gmail-msg-rcpts,
+body[data-theme="dark"] .gmail-msg-chev,
+body[data-theme="dark"] .cos2-gmail-submeta { color: var(--text-3); }
+
+body[data-theme="dark"] .gmail-msg-text,
+body[data-theme="dark"] .gmail-msg-body { color: var(--text-2); }
+
+body[data-theme="dark"] .gmail-read-link { color: #7aa2ff; }
+body[data-theme="dark"] .gmail-read-action { color: var(--accent); }
+
+body[data-theme="dark"] .gmail-reply-box,
+body[data-theme="dark"] .gmail-reply-bar { background: var(--surface-1); border-color: var(--line); color: var(--text); }
+
+/* 3b. the full brand logo had no dark size cap -> it rendered at intrinsic (huge) size.
+   Cap the full logo; leave the 40px icon variant alone. */
+body[data-theme="dark"] .v6-logo-full,
+body[data-theme="dark"] .v6-company-os-logo:not(.v6-company-os-logo--icon) { height: 26px; width: auto; }
+
+/* dark logo cap — editorial-finish capped .v6-logo-full but the cos2-top header
+   uses img.v6-mark (the UNALIGNED PNG), which had no dark size rule and rendered
+   at its intrinsic 256px. Match the light sizing. */
+body[data-theme="dark"] .v6-mark { width: 30px; height: 30px; }
+body[data-theme="dark"] .v6-client-brand .v6-mark { width: 28px; height: 28px; }
