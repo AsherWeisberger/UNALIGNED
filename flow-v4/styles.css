@@ -14909,3 +14909,10 @@ body[data-theme="dark"] .v6-client-brand .v6-mark { width: 28px; height: 28px; }
 .hd-theme-toggle .ic, .hd-theme-toggle svg { width: 15px; height: 15px; }
 body[data-theme="light"] .hd-theme-toggle,
 body[data-theme="dark"]  .hd-theme-toggle { display: inline-flex; }
+
+/* ===== EDITORIAL DARK BTN FIX ===== */
+body[data-theme="dark"] .gmail-msg-hd,
+body[data-theme="dark"] .gmail-read-back,
+body[data-theme="dark"] .gmail-read-splits,
+body[data-theme="dark"] .gmail-read-link { background: transparent; border: 0; }
+
