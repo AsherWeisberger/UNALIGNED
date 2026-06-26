@@ -15928,3 +15928,26 @@ body[data-theme="dark"] .gmail-reply-status{color:var(--text-3)}
 body[data-theme="dark"] .gmail-reply-status.is-error{color:var(--bad)}
 body[data-theme="dark"] .gmail-reply-status.is-success{color:var(--good)}
 
+/* ============================================================================
+   APR CONSOLE MOBILE — the Approvals (Machine) console was desktop-first; on a
+   phone the counts row overflowed and the two-pane split didn't adapt. Phone
+   layout: stack the header, scroll the counts instead of clipping, cap the
+   queue and stack the detail beneath it, wrap the action bar. Scoped apr-*.
+   ============================================================================ */
+@media (max-width:720px){
+  .apr-console .apr-top{flex-wrap:wrap;gap:10px;padding:12px 16px}
+  .apr-console .apr-title{font-size:19px}
+  .apr-console .apr-counts{order:3;width:100%;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .apr-console .apr-counts::-webkit-scrollbar{display:none}
+  .apr-console .apr-cpill{flex:0 0 auto;white-space:nowrap}
+  .apr-console .apr-sys{margin-left:0;padding-left:0;border-left:0;gap:10px 14px;flex-wrap:wrap}
+  .apr-console .apr-main{grid-template-columns:1fr}
+  .apr-console .apr-queue{max-height:40vh;border-right:0;border-bottom:1.5px solid var(--line-2,var(--border))}
+  .apr-console .apr-dh{padding:16px 16px 12px}
+  .apr-console .apr-dh h2{font-size:20px}
+  .apr-console .apr-body{padding:14px 16px}
+  .apr-console .apr-bar{padding:12px 16px;flex-wrap:wrap;gap:8px}
+  .apr-console .apr-btn{flex:1 1 auto;justify-content:center;padding:11px 12px;font-size:13px}
+  .apr-console .apr-sp{display:none}
+}
+
