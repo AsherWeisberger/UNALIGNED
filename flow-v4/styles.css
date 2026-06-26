@@ -14692,3 +14692,70 @@ body.v6-booting {
 /* editorial serif accent — the human-voice flourish */
 .hd-brand-tag,
 .page-sub { font-family: var(--font-serif); font-style: italic; letter-spacing: 0; }
+
+/* ============================================================
+   EDITORIAL-TERMINAL CASCADE FIX
+   Append this VERBATIM at the very END of flow-v4/styles.css,
+   after everything else, then bump the index.html ?v= buster.
+
+   Why: the v6 build added later, higher-specificity palette
+   blocks (body[data-theme="light"] "Soft inbox default" ~L10182
+   with #eef2f6, and the "V6 light workspace" ~L11861 with
+   #f6f6f4). They out-rank and out-order the original theme
+   blocks, so the earlier token reskin showed the vermillion
+   accent but kept the old cool backgrounds. This block matches
+   their selector and is last in the file, so it wins by source
+   order. Additive: it edits nothing existing, loses no sync work.
+   ============================================================ */
+
+/* ---- LIGHT: warm every later-block canvas/surface/line/text to bone paper ---- */
+body[data-theme="light"] {
+  --bg:            #efece3;
+  --bg-2:          #e8e4d8;
+  --bg-elevated:   #f6f3ec;
+  --surface-0:     #f6f3ec;
+  --surface:       #f9f7f1;
+  --surface-1:     #f9f7f1;
+  --surface-2:     #f3f0e8;
+  --surface-3:     #eae6dc;
+  --surface-tint:  #f3efe6;
+  --hover:         #f0ece2;
+
+  --line:          rgba(22, 19, 13, 0.10);
+  --line-2:        rgba(22, 19, 13, 0.16);
+  --line-soft:     rgba(22, 19, 13, 0.07);
+  --line-strong:   rgba(22, 19, 13, 0.18);
+  --line-dash:     rgba(22, 19, 13, 0.16);
+
+  --text:          #16130d;
+  --text-primary:  #16130d;
+  --text-2:        #565049;
+  --text-secondary:#565049;
+  --text-3:        #8c857b;
+  --text-tertiary: #8c857b;
+  --text-4:        #a89f90;
+
+  --shadow-sm:     0 1px 1px rgba(40, 30, 15, 0.04);
+  --shadow:        0 10px 30px -22px rgba(40, 30, 15, 0.20);
+  --shadow-lg:     0 28px 70px -28px rgba(40, 30, 15, 0.28);
+}
+
+/* ---- DARK: warm the bluish v6 dark canvas to charcoal (canvas only) ----
+   Note: this does NOT fix the Company OS dark-mode component bugs
+   (white message cards, oversized logo). Those are a separate
+   component pass. This only stops the dark canvas reading blue. */
+body[data-theme="dark"] {
+  --bg:          #0c0b0a;
+  --bg-2:        #100e0c;
+  --surface-0:   #131110;
+  --surface:     #17140f;
+  --surface-1:   #131110;
+  --surface-2:   #1b1713;
+  --surface-3:   #221d18;
+  --surface-tint:#1b1713;
+  --hover:       #1c1814;
+  --line:        rgba(244, 240, 232, 0.10);
+  --line-2:      rgba(244, 240, 232, 0.16);
+  --line-soft:   rgba(244, 240, 232, 0.07);
+  --line-strong: rgba(244, 240, 232, 0.18);
+}
