@@ -15909,3 +15909,22 @@ body[data-theme="dark"] .cos2-row-act:hover { color: var(--text); border-color: 
   .cube-tx i{transition-duration:.001s}
 }
 
+/* ============================================================================
+   DARK GMAIL-REPLY BUTTON FIX — the dark twins (data-theme="dark" .gmail-reply-*)
+   set geometry but dropped every color, leaving Send / Draft with AI / Internal /
+   PDF with no fill and no text contrast in dark mode. Restore color only; layout
+   is already handled by the existing rules above. Appended last so it wins by
+   cascade without editing those rules. Not related to the cube transition.
+   ============================================================================ */
+body[data-theme="dark"] .gmail-reply-send{background:var(--accent);color:#fff;border:0}
+body[data-theme="dark"] .gmail-reply-send:hover:not(:disabled){background:var(--accent-deep,var(--accent));box-shadow:0 1px 2px rgba(0,0,0,.45)}
+body[data-theme="dark"] .gmail-reply-send.is-sent{background:var(--good)}
+body[data-theme="dark"] .gmail-reply-tool{background:transparent;border:0;color:var(--text-2)}
+body[data-theme="dark"] .gmail-reply-tool:hover:not(:disabled),
+body[data-theme="dark"] .gmail-reply-tool.is-on{background:var(--hover,var(--surface-2));color:var(--text)}
+body[data-theme="dark"] .gmail-reply-tool:disabled{opacity:.5}
+body[data-theme="dark"] .gmail-reply-tool-check{color:var(--text-2)}
+body[data-theme="dark"] .gmail-reply-status{color:var(--text-3)}
+body[data-theme="dark"] .gmail-reply-status.is-error{color:var(--bad)}
+body[data-theme="dark"] .gmail-reply-status.is-success{color:var(--good)}
+
