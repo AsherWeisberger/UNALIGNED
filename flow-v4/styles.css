@@ -15523,3 +15523,50 @@ progress { accent-color: var(--accent); }
 /* muted-foreground aliases so secondary text/surfaces read consistently */
 body[data-theme="light"] { --muted-foreground: var(--text-3); --muted: var(--surface-2); }
 body[data-theme="dark"]  { --muted-foreground: var(--text-3); --muted: var(--surface-2); }
+
+/* ===== V6 ROW DARK FIX: lead-list rows (.v6-row/.tesla-row/.cos2-row) were styled light-only.
+   They're <button>s, so dark showed the default white button bg with invisible text.
+   Mirror the light treatment for dark (token-based, resolves warm). ===== */
+
+body[data-theme="dark"] .v6-row,
+body[data-theme="dark"] .tesla-row,
+body[data-theme="dark"] .cos2-row {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text);
+}
+body[data-theme="dark"] .v6-row:hover,
+body[data-theme="dark"] .tesla-row:hover,
+body[data-theme="dark"] .cos2-row:hover {
+  background: var(--surface-1);
+  border-color: var(--line);
+}
+body[data-theme="dark"] .v6-row.cur,
+body[data-theme="dark"] .v6-row.is-current,
+body[data-theme="dark"] .tesla-row.is-current,
+body[data-theme="dark"] .cos2-row.is-current {
+  background: var(--surface-2);
+  border-color: var(--accent);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+body[data-theme="dark"] .v6-dot,
+body[data-theme="dark"] .dq-dot { background: var(--accent); }
+body[data-theme="dark"] .v6-dot.off { background: transparent; border: 1px solid var(--line-2); }
+body[data-theme="dark"] .v6-brand-t,
+body[data-theme="dark"] .tesla-row-brand,
+body[data-theme="dark"] .cos2-row-brand { color: var(--text); }
+body[data-theme="dark"] .v6-src,
+body[data-theme="dark"] .tesla-row-source,
+body[data-theme="dark"] .cos2-row-source { background: var(--surface-3); color: var(--text-2); }
+body[data-theme="dark"] .v6-src.gmail,
+body[data-theme="dark"] .v6-src.x,
+body[data-theme="dark"] .tesla-row-source.is-gmail,
+body[data-theme="dark"] .tesla-row-source.is-x { background: var(--accent-soft); color: var(--accent); }
+body[data-theme="dark"] .v6-age,
+body[data-theme="dark"] .tesla-row-meta,
+body[data-theme="dark"] .cos2-row-when { color: var(--text-3); }
+body[data-theme="dark"] .v6-fact,
+body[data-theme="dark"] .tesla-row-fact { color: var(--text-3); }
+body[data-theme="dark"] .cos2-row-act,
+body[data-theme="dark"] .tesla-row-act { color: var(--text-3); background: transparent; }
+body[data-theme="dark"] .cos2-row-act:hover { color: var(--text); border-color: var(--text-3); background: var(--surface-2); }
