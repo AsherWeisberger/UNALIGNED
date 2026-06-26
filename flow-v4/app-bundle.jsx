@@ -1075,6 +1075,9 @@ function V3NormalizeSupabaseLead(row) {
     gmailThreadId: row.gmail_thread_id || '',
     draftReply: V3ParseDraftReply(row.draft_reply),
     draftReplyStatus: row.draft_reply_status || '',
+    agentAssessment: row.agent_assessment || '',
+    recommendedAction: row.recommended_action || '',
+    agentTier: row.agent_tier || '',
     operatorMemory,
     operatorSummary: operatorMemory?.summary || null,
     operatorAnalysis: operatorMemory?.analysis || null,
@@ -5407,6 +5410,248 @@ function V4LiveTaskFloor({ groupedWorkers, totalActive, liveWorkers, onOpenLead 
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Machine Room — approval console. A consolidated queue of pending
+// approvals grouped by gate. Select one to see What / Why / Tied, then
+// Approve / Edit / Deny. Send stays gated: Approve marks ready, never sends.
+// ─────────────────────────────────────────────────────────────
+function V4MachineRoomConsole({ leads = [], query = '', onOpenLead }) {
+  const q = String(query || '').trim().toLowerCase();
+  const live = (Array.isArray(leads) ? leads : []).filter(l =>
+    l && !['trash', 'dead-leads'].includes(String(l.stage || '').toLowerCase()));
+
+  const matchesQ = (l) => !q || [l.brand, l.contactName, l.deliverables, l.agentTier]
+    .some(s => String(s || '').toLowerCase().includes(q));
+
+  const replies = live.filter(l =>
+    String(l.draftReplyStatus || '').toLowerCase() === 'pending' &&
+    l.draftReply && String(l.draftReply.body || '').trim()).filter(matchesQ);
+  const payments = live.filter(l =>
+    String(l.stage || '').toLowerCase() === 'invoice-sent').filter(matchesQ);
+  const briefs = live.filter(l => {
+    const s = String(l.briefStatus || '').toLowerCase().replace(/_/g, '-');
+    return s === 'awaiting-robert';
+  }).filter(matchesQ);
+  const posts = live.filter(l =>
+    String(l.stage || '').toLowerCase() === 'done').filter(matchesQ);
+
+  const GATES = [
+    { id: 'replies', label: 'Replies', hint: 'Drafted, awaiting your approval', items: replies },
+    { id: 'payments', label: 'Payments', hint: 'Invoice out, unpaid', items: payments },
+    { id: 'briefs', label: 'Briefs', hint: 'Awaiting Robert', items: briefs },
+    { id: 'posts', label: 'Posts', hint: 'Approved, scheduled', items: posts },
+  ];
+
+  const flat = GATES.flatMap(g => g.items.map(l => ({ gate: g.id, lead: l })));
+  const [selKey, setSelKey] = React.useState(flat[0] ? flat[0].gate + ':' + flat[0].lead.id : null);
+  const [editing, setEditing] = React.useState(false);
+  const [editBody, setEditBody] = React.useState('');
+  const [editSubject, setEditSubject] = React.useState('');
+
+  const current = flat.find(f => (f.gate + ':' + f.lead.id) === selKey) || flat[0] || null;
+  const lead = current ? current.lead : null;
+  const gate = current ? current.gate : null;
+
+  const select = (g, l) => { setSelKey(g + ':' + l.id); setEditing(false); };
+
+  // Per-gate Approve/Deny mapping. Approve writes status forward only — never sends.
+  function actions(g, l) {
+    if (g === 'replies') return {
+      approveLabel: 'Approve (mark ready)',
+      approve: { fields: { draft_reply_status: 'approved' }, local: { draftReplyStatus: 'approved' } },
+      deny: { fields: { draft_reply_status: '', draft_reply: null }, local: { draftReplyStatus: '', draftReply: null } },
+    };
+    if (g === 'payments') return {
+      approveLabel: 'Mark paid',
+      approve: { fields: { list_id: 'paid-out' }, local: { stage: 'paid-out' } },
+      deny: { fields: {}, local: {} },
+    };
+    if (g === 'briefs') return {
+      approveLabel: 'Approve brief',
+      approve: { fields: { brief_status: 'approved' }, local: { briefStatus: 'approved' } },
+      deny: { fields: { brief_status: 'edits_requested' }, local: { briefStatus: 'edits_requested' } },
+    };
+    return {
+      approveLabel: 'Mark posted',
+      approve: { fields: { list_id: 'paid-out' }, local: { stage: 'paid-out' } },
+      deny: { fields: {}, local: {} },
+    };
+  }
+
+  const advance = () => {
+    if (!lead) return;
+    const { gate: nextGate } = current;
+    const idx = flat.findIndex(f => (f.gate + ':' + f.lead.id) === selKey);
+    const next = flat[idx + 1] || flat[idx - 1] || null;
+    setSelKey(next ? next.gate + ':' + next.lead.id : null);
+  };
+
+  const onApprove = () => {
+    const a = actions(gate, lead);
+    V4CosPatchLead(lead, a.approve.fields, a.approve.local);
+    advance();
+  };
+  const onDeny = () => {
+    const a = actions(gate, lead);
+    V4CosPatchLead(lead, a.deny.fields, a.deny.local);
+    advance();
+  };
+  const startEdit = () => {
+    const dr = lead.draftReply || {};
+    setEditSubject(dr.subject || '');
+    setEditBody(dr.body || '');
+    setEditing(true);
+  };
+  const saveEdit = () => {
+    const payload = JSON.stringify({ subject: editSubject, body: editBody });
+    V4CosPatchLead(lead, { draft_reply: payload },
+      { draftReply: { subject: editSubject, body: editBody } });
+    setEditing(false);
+  };
+  const saveAndApprove = () => {
+    const payload = JSON.stringify({ subject: editSubject, body: editBody });
+    V4CosPatchLead(lead, { draft_reply: payload, draft_reply_status: 'approved' },
+      { draftReply: { subject: editSubject, body: editBody }, draftReplyStatus: 'approved' });
+    setEditing(false);
+    advance();
+  };
+
+  const total = flat.length;
+
+  function whatText(g, l) {
+    if (g === 'replies') return (l.draftReply && l.draftReply.body) || '';
+    if (g === 'briefs') return l.briefBody || l.briefSummary || (l.nextMove && l.nextMove.text) || '';
+    if (g === 'payments') return 'Invoice is out for ' + (l.brand || 'this lead') + '. Confirm payment received before closing.';
+    return 'Approved post scheduled for ' + (l.brand || 'this lead') + '. Mark posted once it is live.';
+  }
+
+  return (
+    <div className="mrc">
+      <div className="mrc-head">
+        <div>
+          <div className="mrc-eyebrow">Machine Room</div>
+          <h1 className="mrc-title">Approval console</h1>
+          <div className="mrc-sub">{total} item{total === 1 ? '' : 's'} waiting on you. Approve marks ready. Sending stays your step.</div>
+        </div>
+      </div>
+
+      <div className="mrc-body">
+        {/* Left: grouped queue */}
+        <div className="mrc-queue">
+          {GATES.map(g => (
+            <div className="mrc-group" key={g.id}>
+              <div className="mrc-group-hd">
+                <span className="mrc-group-label">{g.label}</span>
+                <span className="mrc-group-count">{g.items.length}</span>
+              </div>
+              <div className="mrc-group-hint">{g.hint}</div>
+              {g.items.length === 0 && <div className="mrc-empty">Nothing here.</div>}
+              {g.items.map(l => {
+                const key = g.id + ':' + l.id;
+                return (
+                  <button
+                    key={key}
+                    className={'mrc-card' + (key === selKey ? ' is-active' : '')}
+                    onClick={() => select(g.id, l)}
+                  >
+                    <V3Avatar name={l.contactName || l.brand} color={l.color} size="xs" />
+                    <span className="mrc-card-main">
+                      <span className="mrc-card-name">{l.brand || l.contactName || 'Lead'}</span>
+                      <span className="mrc-card-meta">{l.recommendedAction || l.deliverables || l.stage}</span>
+                    </span>
+                    {l.value ? <span className="mrc-card-val">{V4CompanyOsMoney(l.value)}</span> : null}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+
+        {/* Right: detail */}
+        {!lead && (
+          <div className="mrc-detail mrc-detail-empty">
+            <V3Icon name="check" w={28} />
+            <div>Queue clear. Nothing waiting on your approval.</div>
+          </div>
+        )}
+        {lead && (
+          <div className="mrc-detail">
+            <div className="mrc-detail-hd">
+              <div className="mrc-detail-who">
+                <V3Avatar name={lead.contactName || lead.brand} color={lead.color} size="sm" />
+                <div>
+                  <div className="mrc-detail-name">{lead.brand || lead.contactName}</div>
+                  <div className="mrc-detail-role">{lead.contactName}{lead.contactRole ? ' · ' + lead.contactRole : ''}</div>
+                </div>
+              </div>
+              {onOpenLead && (
+                <button className="mrc-open" onClick={() => onOpenLead(lead.id)}>Open thread</button>
+              )}
+            </div>
+
+            {/* WHAT */}
+            <div className="mrc-sec">
+              <div className="mrc-sec-label">What</div>
+              {editing ? (
+                <div className="mrc-edit">
+                  <input className="mrc-edit-subject" value={editSubject}
+                    onChange={e => setEditSubject(e.target.value)} placeholder="Subject" />
+                  <textarea className="mrc-edit-body" value={editBody}
+                    onChange={e => setEditBody(e.target.value)} rows={12} />
+                </div>
+              ) : (
+                <div className="mrc-what">
+                  {gate === 'replies' && lead.draftReply && lead.draftReply.subject &&
+                    <div className="mrc-what-subject">{lead.draftReply.subject}</div>}
+                  <div className="mrc-what-body">{whatText(gate, lead)}</div>
+                </div>
+              )}
+            </div>
+
+            {/* WHY */}
+            {lead.agentAssessment && (
+              <div className="mrc-sec">
+                <div className="mrc-sec-label">Why</div>
+                <div className="mrc-why">{lead.agentAssessment}</div>
+              </div>
+            )}
+
+            {/* TIED */}
+            <div className="mrc-sec">
+              <div className="mrc-sec-label">Tied</div>
+              <div className="mrc-tied">
+                {lead.agentTier && <span className="mrc-chip">{lead.agentTier}</span>}
+                {lead.value ? <span className="mrc-chip mrc-chip-val">{V4CompanyOsMoney(lead.value)}</span> : null}
+                <span className="mrc-chip mrc-chip-stage">{lead.stage}</span>
+                {lead.recommendedAction && <span className="mrc-chip">{lead.recommendedAction}</span>}
+              </div>
+            </div>
+
+            {/* ACTIONS */}
+            <div className="mrc-actions">
+              {editing ? (
+                <React.Fragment>
+                  <button className="mrc-btn mrc-btn-approve" onClick={saveAndApprove}>Save + approve</button>
+                  <button className="mrc-btn" onClick={saveEdit}>Save</button>
+                  <button className="mrc-btn mrc-btn-ghost" onClick={() => setEditing(false)}>Cancel</button>
+                </React.Fragment>
+              ) : (
+                <React.Fragment>
+                  <button className="mrc-btn mrc-btn-approve" onClick={onApprove}>{actions(gate, lead).approveLabel}</button>
+                  {gate === 'replies' && <button className="mrc-btn" onClick={startEdit}>Edit</button>}
+                  <button className="mrc-btn mrc-btn-deny" onClick={onDeny}>Deny</button>
+                </React.Fragment>
+              )}
+              {gate === 'replies' && !editing &&
+                <span className="mrc-gatenote">Send stays gated — approve does not send.</span>}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -11924,6 +12169,14 @@ function V4App() {
         )}
         {view === 'machine-room' && (
           <div className="body body-machine-room">
+            <V4MachineRoomConsole
+              leads={mergedLeads}
+              query={search}
+              onOpenLead={(id) => {
+                setView('company-os');
+                setOpenId(id);
+              }}
+            />
             <V4AgentsView
               leads={mergedLeads}
               query={search}
