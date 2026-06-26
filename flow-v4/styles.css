@@ -15691,3 +15691,101 @@ body[data-theme="dark"] .cos2-row-act:hover { color: var(--text); border-color: 
 .apr-sp{margin-left:auto;font-family:var(--font-serif);font-style:italic;color:var(--text-3);font-size:13px}
 
 @media(max-width:820px){ .apr-main{grid-template-columns:1fr} .apr-queue{border-right:0} }
+
+/* ============================================================================
+   UNALIGNED ORGANS VIEW SHELL  (the living pipeline, a tab beside Machine Room)
+   Namespaced org-* (no collisions). Consumes app tokens (var(--bg/--surface-*/
+   --accent/--line*/--text*/--font-*/--good)) so it themes light + dark. Claude:
+   build the React view with these classes and wire state to live board + ops_health.
+   No new tokens, no global selectors.
+
+   MARKUP SKELETON (one scrolling pipeline, left to right):
+   <div class="org-wrap {is-halted}">
+     <div class="org-top"><div><div class="org-eye">Machine Room</div><h1 class="org-title">Organs <i>one lead, flowing through the body</i></h1></div>
+       <div class="org-gauges"><div class="org-lt"><span class="d"></span>{Running|Halted}</div>
+         <div class="org-ctr"><span class="ck">Local · Qwen today</span><span class="cv">{local_tokens_today}</span></div>
+         <div class="org-ctr"><span class="ck">Claude 10% today</span><span class="cv m">{claude_spend_today}</span></div></div></div>
+     <div class="org-medic"><span class="org-mi"><span class="pp"></span>◆ Medic</span><span class="org-mw">{status line}</span><button class="org-halt">⛔ Halt all</button></div>
+     <div class="org-flow">
+       <div class="org-node org-intake"><div class="big">✉</div><div class="tn">Intake</div><div class="ts">Gmail + X scrapers</div></div>
+       <div class="org-node org-conn {cold}"></div>
+       <div class="org-node org-organ {work|done|}"><div class="ic">{glyph}</div><div class="nm">{Agent}</div><div class="ds">{what it does}</div><div class="stt"><span class="sd"></span>{Working|Idle|Done}</div><span class="tk">Reply Engines</span></div>
+       <div class="org-node org-gate {pulse}"><div class="gh">🟥 Approve N</div><div class="gt">{title}</div><div class="gd">{desc}</div><div class="btns"><span class="b ap">Approve</span><span class="b gh">Edit</span><span class="b gh">Deny</span></div></div>
+       … order: Intake → Triage(organ) → DealDesk(organ) → Gate1 → Tracker(organ) → Gate2 → BriefMaker(organ) → Gate3 → Calendar(term cal) → Gate4 → Posted(term x) → QA(organ) → Done(term done), each separated by org-conn …
+       <div class="org-node org-term cal"><div class="big">📅</div><div class="tn">Calendar</div><div class="ts">Brief loaded</div></div>
+       <div class="org-node org-term x"><div class="big">𝕏</div><div class="tn">Posted</div><div class="ts">Paid Partnership on</div></div>
+       <div class="org-node org-term done"><div class="big">✓</div><div class="tn">Done</div><div class="ts">Paid-out</div></div>
+     </div>
+   </div>
+   WIRING: organ gets .work when a card is actively at that agent's stage, .done when it has passed; .org-conn.cold when no work flows downstream yet; .org-gate.pulse when a card is parked at that gate (a pending approval of that type); .org-wrap.is-halted when ops_health.status!=='ok'; counters + Halt all bound to ops_health.
+   ============================================================================ */
+
+.org-wrap{display:grid;grid-template-rows:auto auto 1fr;height:100%;min-height:0;font-family:var(--font-body);color:var(--text);
+  background:radial-gradient(1100px 480px at 50% -12%,var(--accent-soft),transparent 60%),var(--bg)}
+
+.org-top{display:flex;align-items:center;gap:16px;padding:15px 24px;border-bottom:1.5px solid var(--line-2,var(--border))}
+.org-eye{font-family:var(--font-mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-3)}
+.org-title{font-family:var(--font-display);font-size:22px;font-weight:800;letter-spacing:-.5px}
+.org-title i{font-family:var(--font-serif);font-style:italic;font-weight:400;color:var(--text-2);font-size:15px;margin-left:6px}
+.org-gauges{margin-left:auto;display:flex;gap:14px;align-items:center}
+.org-lt{display:flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--good,#5ec98a)}
+.org-lt .d{width:8px;height:8px;border-radius:50%;background:var(--good,#5ec98a);box-shadow:0 0 9px var(--good,#5ec98a);animation:org-pulse 2s infinite}
+.org-ctr{display:flex;flex-direction:column;line-height:1.15}
+.org-ctr .ck{font-family:var(--font-mono);font-size:8.5px;letter-spacing:1px;text-transform:uppercase;color:var(--text-3)}
+.org-ctr .cv{font-family:var(--font-mono);font-size:13px;font-weight:600}.org-ctr .cv.m{color:var(--good,#5ec98a)}
+@keyframes org-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+.org-medic{display:flex;align-items:center;gap:12px;padding:9px 24px;border-bottom:1px solid var(--line);background:linear-gradient(90deg,var(--accent-soft),transparent 40%,var(--accent-soft))}
+.org-medic .org-mi{font-family:var(--font-mono);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);display:flex;align-items:center;gap:8px}
+.org-medic .org-mi .pp{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);animation:org-pulse 2.4s infinite}
+.org-medic .org-mw{font-family:var(--font-serif);font-style:italic;color:var(--text-2);font-size:13px}
+.org-medic .org-halt{margin-left:auto;font-family:var(--font-mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text-3);border:1px solid var(--line-2,var(--border));border-radius:5px;padding:5px 11px;cursor:pointer;background:transparent}
+.org-medic .org-halt:hover{color:var(--accent);border-color:var(--accent)}
+.org-wrap.is-halted .org-lt{color:var(--accent)}
+.org-wrap.is-halted .org-lt .d{background:var(--accent);box-shadow:0 0 9px var(--accent);animation:none}
+.org-wrap.is-halted .org-flow{opacity:.55;filter:grayscale(.3)}
+
+.org-flow{overflow-x:auto;overflow-y:hidden;display:flex;align-items:center;gap:0;padding:30px 28px;height:100%}
+.org-flow::-webkit-scrollbar{height:9px}.org-flow::-webkit-scrollbar-thumb{background:var(--line-2,var(--border));border-radius:6px}
+.org-node{flex-shrink:0}
+
+.org-organ{width:158px;background:linear-gradient(180deg,var(--surface-2),var(--surface-1));border:1px solid var(--line-2,var(--border));border-radius:13px;padding:15px 15px 13px;position:relative;transition:.3s}
+.org-organ.work{border-color:var(--accent);animation:org-breathe 2.4s ease-in-out infinite}
+@keyframes org-breathe{0%,100%{box-shadow:0 0 0 1px rgba(250,60,30,.22),0 0 20px -6px rgba(250,60,30,.42)}50%{box-shadow:0 0 0 1px rgba(250,60,30,.42),0 0 32px -2px rgba(250,60,30,.7)}}
+.org-organ .ic{width:32px;height:32px;border-radius:9px;background:var(--surface-3);display:grid;place-items:center;font-size:16px;margin-bottom:10px}
+.org-organ.work .ic{background:var(--accent-soft);color:var(--accent)}
+.org-organ .nm{font-family:var(--font-display);font-weight:700;font-size:14.5px;letter-spacing:-.2px}
+.org-organ .ds{font-size:11px;color:var(--text-3);margin-top:3px;line-height:1.35;min-height:30px}
+.org-organ .stt{margin-top:9px;font-family:var(--font-mono);font-size:8.5px;letter-spacing:1px;text-transform:uppercase;display:inline-flex;align-items:center;gap:5px;color:var(--text-3)}
+.org-organ .stt .sd{width:6px;height:6px;border-radius:50%;background:var(--text-3)}
+.org-organ.work .stt{color:var(--accent)}.org-organ.work .stt .sd{background:var(--accent);box-shadow:0 0 7px var(--accent)}
+.org-organ.done .stt{color:var(--good,#5ec98a)}.org-organ.done .stt .sd{background:var(--good,#5ec98a)}
+.org-organ .tk{position:absolute;bottom:-9px;left:14px;font-family:var(--font-mono);font-size:8px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3);background:var(--bg);padding:0 5px;border:1px solid var(--line);border-radius:4px}
+
+.org-conn{width:54px;height:2px;background:var(--line-2,var(--border));position:relative;flex-shrink:0}
+.org-conn:before{content:"";position:absolute;top:-2.5px;left:0;width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent);animation:org-travel 2.2s linear infinite}
+@keyframes org-travel{0%{left:-4px;opacity:0}15%{opacity:1}85%{opacity:1}100%{left:54px;opacity:0}}
+.org-conn.cold{background:var(--line)}.org-conn.cold:before{animation:none;opacity:0}
+
+.org-gate{width:170px;border:1.5px solid var(--accent);border-radius:13px;padding:13px 14px;background:var(--accent-soft);position:relative}
+.org-gate.pulse{animation:org-gatep 1.6s ease-in-out infinite}
+@keyframes org-gatep{0%,100%{box-shadow:0 0 0 0 rgba(250,60,30,0)}50%{box-shadow:0 0 0 4px rgba(250,60,30,.18)}}
+.org-gate .gh{font-family:var(--font-mono);font-size:9px;letter-spacing:1.2px;text-transform:uppercase;color:var(--accent);display:flex;align-items:center;gap:6px}
+.org-gate .gt{font-family:var(--font-display);font-weight:700;font-size:13.5px;margin-top:5px}
+.org-gate .gd{font-size:10.5px;color:var(--text-3);margin-top:2px;min-height:26px;line-height:1.3}
+.org-gate .btns{display:flex;gap:5px;margin-top:9px}
+.org-gate .b{flex:1;text-align:center;font-family:var(--font-body);font-weight:700;font-size:10.5px;border-radius:6px;padding:7px 0;cursor:pointer;border:1px solid var(--line-2,var(--border))}
+.org-gate .b.ap{background:var(--accent);color:#fff;border-color:var(--accent)}
+.org-gate .b.gh{background:transparent;color:var(--text-2)}
+
+.org-term{width:120px;text-align:center}
+.org-term .big{width:54px;height:54px;border-radius:14px;margin:0 auto 9px;display:grid;place-items:center;font-size:24px;border:1.5px solid var(--line-2,var(--border));background:var(--surface-1)}
+.org-term.cal .big{border-color:rgba(122,162,255,.4);color:#7aa2ff}
+.org-term.x .big{border-color:var(--line-2,var(--border));background:#000;color:#fff;font-weight:800;font-family:var(--font-display)}
+.org-term.done .big{border-color:rgba(94,201,138,.4);color:var(--good,#5ec98a)}
+.org-term .tn{font-family:var(--font-display);font-weight:700;font-size:13px}
+.org-term .ts{font-family:var(--font-mono);font-size:9px;letter-spacing:.5px;text-transform:uppercase;color:var(--text-3);margin-top:3px}
+.org-intake{width:120px;text-align:center}
+.org-intake .big{width:54px;height:54px;border-radius:14px;margin:0 auto 9px;display:grid;place-items:center;font-size:20px;border:1px dashed var(--line-2,var(--border));color:var(--text-2);background:var(--surface-1)}
+.org-intake .tn{font-family:var(--font-mono);font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text-2)}
+.org-intake .ts{font-size:10px;color:var(--text-3);margin-top:3px}
