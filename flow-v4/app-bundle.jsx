@@ -771,16 +771,18 @@ function V6CompanyOsBoot({ onDone }) {
     }
     const tReveal = setTimeout(() => setPhase('reveal'), 80);
     const tHold = setTimeout(() => setPhase('hold'), 900);
-    const tExit = setTimeout(() => setPhase('exit'), 2400);
-    const tDone = setTimeout(() => {
-      document.body.classList.remove('v6-booting');
-      onDone();
-    }, 3200);
+    // Single completion path: the cube boot reveal (when present) owns the finish;
+    // otherwise fall back to the exit phase + an 800ms close. (Replaces the old
+    // fixed 3200ms tDone, which would have cut a longer cube reveal off early.)
+    const tExit = setTimeout(() => {
+      var finish = function () { document.body.classList.remove('v6-booting'); onDone(); };
+      if (window.cubeBootReveal) window.cubeBootReveal(finish);
+      else { setPhase('exit'); setTimeout(finish, 800); }
+    }, 2400);
     return () => {
       clearTimeout(tReveal);
       clearTimeout(tHold);
       clearTimeout(tExit);
-      clearTimeout(tDone);
       document.body.classList.remove('v6-booting');
     };
   }, [onDone]);
