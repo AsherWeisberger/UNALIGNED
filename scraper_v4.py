@@ -863,6 +863,15 @@ For every lead you extract, you MUST be able to quote a specific sentence from
 the email that proves it is a real opportunity. If you cannot find that sentence,
 do not extract the lead.
 
+━━━ CONVERSATION FOR ROBERT vs DEAL DESK LEAD ━━━
+Some real opportunities are not Deal Desk sponsorships. They are conversations for
+Robert to have himself: a press or podcast interview aimed at Robert directly, a
+founder or peer reaching out personally, an introduction to a partner or investor,
+a relationship or trust thread. These are still leads, but they must NOT get a
+drafted sponsorship reply. Mark them human_only=true. Paid sponsorship, partnership,
+or collaboration asks with a deliverable or rate are human_only=false. When unsure
+whether it is a deal or a Robert conversation, lean human_only=true.
+
 ━━━ OUTPUT FORMAT ━━━
 Return ONLY a valid JSON array. Empty array [] if nothing qualifies.
 No markdown, no preamble, no explanation outside the JSON.
@@ -880,6 +889,7 @@ No markdown, no preamble, no explanation outside the JSON.
     "evidence":    "<direct quote from the email proving this is a real lead>",
     "date":        "<date string verbatim>",
     "intent":      "<partnership | sponsorship | interview | collaboration | intro | other>",
+    "human_only":  "<true if this is a conversation for Robert to handle personally (interview, podcast, intro, personal/relationship) rather than a Deal Desk sponsorship — else false>",
     "priority":    "<hot | warm | cold — hot means specific ask + budget or urgency, cold means vague>",
     "reply_hook":  "<1 sentence opener for a reply that references something specific from their email>"
   }
@@ -948,6 +958,7 @@ def write_codex_handoff(
                 "evidence": "exact quoted sentence proving it is a real lead",
                 "deal_value": "budget/value/tier signal or empty string",
                 "intent": "partnership | sponsorship | interview | collaboration | intro | other",
+                "human_only": "true if a conversation for Robert to handle personally (interview/podcast/intro/personal/relationship) rather than a Deal Desk sponsorship, else false",
                 "priority": "hot | warm | cold",
                 "reply_hook": "one concrete opener sentence for a reply",
             },
@@ -1153,6 +1164,11 @@ def build_card(lead: dict, original_email: dict, conversation: list[dict]) -> di
     if intent not in ("partnership", "sponsorship", "interview", "collaboration", "intro", "other"):
         intent = "other"
 
+    # route_to_robert: conversations for Robert to handle himself (interview, intro,
+    # personal/relationship) are flagged human_only and never get a drafted reply.
+    # Falls back to intent for older extractions that lack the human_only field.
+    human_only = str(lead.get("human_only", "")).strip().lower() in ("true", "1", "yes") or intent in ("interview", "intro")
+
     from_raw     = original_email.get("from", "")
     em_match     = re.search(r"<([^>]+)>", from_raw)
     sender_email = em_match.group(1).strip() if em_match else from_raw.strip()
@@ -1169,6 +1185,7 @@ def build_card(lead: dict, original_email: dict, conversation: list[dict]) -> di
         "rich_description": notes_text,
         "evidence":         evidence_text,
         "intent":           intent,
+        "human_only":       human_only,
         "priority":         priority,
         "deal_value":       _clean(lead.get("deal_value"), ""),
     }
@@ -1208,7 +1225,7 @@ def build_card(lead: dict, original_email: dict, conversation: list[dict]) -> di
         "date_received_iso":  date_iso,
         "description":        json.dumps(rich_desc, ensure_ascii=False),
         "draft_reply":        "",
-        "draft_reply_status": "pending",
+        "draft_reply_status": ("human_only" if human_only else "pending"),
         "activity":           activity_list,
         "original_email":     conversation[:1] if conversation else [],
         "email_thread":       conversation,
