@@ -77,24 +77,44 @@ function UnalignedCopilot({ leads = [] }) {
     },
     ops_health: () => health ? { status: health.status || 'ok', halt_reason: health.halt_reason || '',
       local_tokens_today: health.local_tokens_today || 0, claude_spend_today: health.claude_spend_today || 0 } : { available: false },
+    calendar: async (a) => {
+      // Robert's live schedule — same feed the Calendar view uses (Pacific time).
+      const TZ = 'America/Los_Angeles';
+      const dayKey = (off) => { const d = new Date(); d.setDate(d.getDate() + off); return d.toLocaleDateString('en-CA', { timeZone: TZ }); };
+      const evKey = (ev) => { try { return new Date(ev.start).toLocaleDateString('en-CA', { timeZone: TZ }); } catch (e) { return ''; } };
+      const span = (a && a.range === 'week') ? [0,1,2,3,4,5,6] : (a && a.range === 'today') ? [0] : [-1,0,1];
+      try {
+        const res = await fetch('https://script.google.com/macros/s/AKfycby7SNgq-2mlzm5JkVHkbo0fsa1fOHIh6KPFfKqvPPLoFYYUvYZv94z2-KMdweTbAYVw9A/exec');
+        const all = await res.json();
+        const keys = span.map(dayKey);
+        const items = (Array.isArray(all) ? all : []).filter(ev => keys.includes(evKey(ev)))
+          .map(ev => ({ date: evKey(ev), time: ev.allDay ? 'all day' : ev.start, title: ev.title, location: ev.location || '' }))
+          .sort((x, y) => new Date(x.time) - new Date(y.time));
+        return { timezone: 'Pacific', events: items, count: items.length };
+      } catch (e) { return { error: 'calendar fetch failed: ' + String(e && e.message || e) }; }
+    },
   };
   const TOOL_LABEL = { board_summary: 'reading the board', search_leads: 'searching leads',
-    get_lead: 'pulling the lead', list_pending: 'checking approvals', ops_health: 'checking ops' };
+    get_lead: 'pulling the lead', list_pending: 'checking approvals', ops_health: 'checking ops',
+    calendar: "checking Robert's schedule" };
 
   const SYSTEM =
-    "You are the UNALIGNED operator brain, Asher's voice of truth over the whole desk. " +
-    "Answer anything about the business. You have READ-ONLY tools to look up the live board; use them to figure things out before you answer.\n\n" +
+    "You are the UNALIGNED operator brain, Asher's voice of truth AND his all-around assistant. " +
+    "Answer ANYTHING he asks. For questions about the desk, the leads, approvals, ops, or Robert's schedule, use the tools below to look up live data first. " +
+    "For everything else — math, general knowledge, writing, reasoning, explanations — just answer directly from your own knowledge. Do not refuse a question because it isn't about the board.\n\n" +
     "HARD RULES (never break):\n" +
     "- You are strictly read-only. You never modify, create, delete, send, or schedule anything. You never touch the Mac's files, run shell commands, or change the system. If a request needs that, say plainly you can't and what would be needed.\n" +
-    "- Never use hyphens or em dashes. Be direct, concrete, and brief.\n\n" +
-    "TOOLS — to use one, output ONE line that is exactly a JSON object, nothing else:\n" +
+    "- Never use hyphens or em dashes. Be direct, concrete, and useful.\n" +
+    "- Your world knowledge has a training cutoff and you cannot browse the live web. For breaking news or very recent events, answer what you know and note you can't see live updates. For math, logic, and general knowledge, answer fully and confidently.\n\n" +
+    "TOOLS — use ONLY when the question needs live UNALIGNED data. To call one, output ONE line that is exactly a JSON object, nothing else:\n" +
     '{"tool":"board_summary"}\n' +
     '{"tool":"search_leads","args":{"query":"heygen"}}\n' +
     '{"tool":"get_lead","args":{"brand":"heygen"}}\n' +
     '{"tool":"list_pending"}\n' +
-    '{"tool":"ops_health"}\n\n' +
-    "When you have enough to answer, reply with: FINAL: <answer>\n" +
-    "Look things up with tools first; only guess if the tools clearly can't help, and then say so.";
+    '{"tool":"ops_health"}\n' +
+    '{"tool":"calendar","args":{"range":"today"}}   (range: today | week | omit for yesterday+today+tomorrow)\n\n' +
+    "When you can answer (from a tool result OR your own knowledge), reply with: FINAL: <answer>\n" +
+    "Only call a tool when it genuinely helps. A general question (math, a definition, advice) should go straight to FINAL.";
 
   function parseTool(out) {
     if (/FINAL:/i.test(out)) return null;
@@ -125,7 +145,7 @@ function UnalignedCopilot({ leads = [] }) {
         const fn = TOOLS[call.tool];
         setStep(TOOL_LABEL[call.tool] || ('running ' + call.tool));
         let obs;
-        try { obs = fn ? fn(call.args || {}) : { error: 'unknown tool' }; }
+        try { obs = fn ? await fn(call.args || {}) : { error: 'unknown tool' }; }
         catch (e) { obs = { error: String(e && e.message || e) }; }
         let obsStr = JSON.stringify(obs);
         if (obsStr.length > 2200) obsStr = obsStr.slice(0, 2200) + '…';
