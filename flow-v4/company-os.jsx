@@ -9,106 +9,106 @@
 
 const V4_COMPANY_OS_PREP = [
   {
-    title: 'iMerch / paid bundle hold',
-    tags: ['P0', 'paid', 'client greenlight missing'],
+    title: 'ACL / interview lock + script pressure',
+    tags: ['P0', 'schedule', 'briefs due'],
     points: [
-      'Peter sent two payment receipts on June 24, 2026 for the $4,595 three-placement bundle and shared a backup standalone asset on June 25, 2026.',
-      'The live path is still unresolved: they prefer a fast reply under Elon if a suitable rocket post appears, otherwise they will decide whether to use the backup standalone image.',
-      'Asher owns the written go or no-go confirmation, the canonical posting path, and the shortest useful Robert brief before anything publishes.',
-      'Payment landed, but publishing permission did not. Do not treat a paid lane as live until Peter sends the explicit greenlight.',
+      'Annika floated Sunday, June 28 at 6:00 PM PT for the Qwen Cloud interview, but Alibaba still has to confirm the interviewee, the meeting link, and whether it counts inside the 8-video package.',
+      'They also still want the 8 scripts this week and need Robert’s preferred July 5 on-site interview window.',
+      'Asher owes one clean reply that locks the slot, names the on-site window, and gives a realistic script path without overpromising.',
+      'Keep the ticket reimbursement / payment mess visible until the invoice trail is actually reconciled.',
     ],
   },
   {
-    title: 'ACL / payment + outlines',
-    tags: ['P0', 'money unresolved', 'June 30 pressure'],
-    points: [
-      'Annika and Chang are still asking for the eight scripts, two interview outlines, and Robert availability before June 30, 2026.',
-      'The commercial side is still dirty: Stripe still shows the first $10,000 ACL invoice open and there is still no clean wire receipt or settlement proof in-thread.',
-      'Asher owns one reality-based reply covering payment status, script timing, interview outlines, and Robert availability instead of letting the asks split across messages.',
-      'Do not promise "this week" delivery while payment, reimbursement exposure, and the event-side commitments are still unresolved.',
-    ],
-  },
-  {
-    title: 'Eastworlds / paid pivot reset',
-    tags: ['P0', 'paid', 'new brief needed'],
-    points: [
-      'Eastworlds sent payment proof on June 19, 2026, but Sean reset the campaign on June 26, 2026 from the Pemba summit story to a new Network School wedding robot story.',
-      'That kills the old Chimborazo draft. They said new draft language and assets are coming, so the lane is paid but creatively reset.',
-      'Asher owns the acknowledgement plus the ask for one exact post window, source context, and fresh assets before Robert revisits copy.',
-      'Treat the still-open Stripe invoice as stale bookkeeping until the paid receipt is logged back against the lane.',
-    ],
-  },
-  {
-    title: 'Acti / June 30 quote prep',
+    title: 'ACTI / June 30 quote prep',
     tags: ['P0', 'launch fixed', 'brief next'],
     points: [
-      'AK fixed the official announcement for June 30, 2026 at 7:30 AM PT and sent the final official-draft copy plus the confidential launch video.',
-      'Payment had already been confirmed earlier, so the missing work is Robert-ready quote copy and a 60-second launch brief that fits the live window.',
-      'Asher owns the prep note, the launch-morning handoff, and the final source-link check once the official tweet goes live.',
-      'Do not confuse the confidential launch draft with the final live source post. The real tweet URL still decides execution.',
+      'AK fixed the launch for Tuesday, June 30 at 7:30 AM PT and already sent the confidential final tweet draft plus video.',
+      'Robert now needs a 60-second prep brief and ready quote direction, but execution still waits on the real live tweet URL.',
+      'Asher owns the launch-morning source-link check, final quote handoff, and approval trail back to the client.',
+      'Confidential launch drafts are prep material only. They do not replace the canonical live source post.',
+    ],
+  },
+  {
+    title: 'OMANE / Viktor receipt + June 30 leg',
+    tags: ['P0', 'payment proof', 'execution overlap'],
+    points: [
+      'Ori says the $1k invoice is paid and the $4k wire will land by end of week, but the thread still lacks the missing receipt and a clean wire-confirmation trail.',
+      'The remaining Viktor leg is already aimed at June 30, so payment cleanup and publishing prep are now happening at the same time.',
+      'Asher owns the receipt chase, wire proof capture, and final live-link closure back into the same thread.',
+      'A promised wire is not a closed invoice lane.',
     ],
   },
   {
     title: 'HashMatrix / consecutive plan scope',
-    tags: ['P1', 'lead reply', 'pricing ask'],
+    tags: ['P1', 'lead reply', 'needs scoping'],
     points: [
-      'Stella replied on June 26, 2026 asking for pricing on a consecutive plan for Robert\'s X posts.',
-      'They still have not said cadence, format mix, launch timing, or what product context Robert would actually be posting around.',
-      'Asher owns the reply that turns "consecutive plan" into scoped placements and dates before pricing drifts into something vague.',
-      'Keep this commercial and specific. Missing scope, not interest, is the blocker.',
+      'Stella replied and wants pricing for a consecutive Robert X-post plan.',
+      'They still have not said how many posts, which formats, what dates, or what product story Robert would actually be posting around.',
+      'Asher owns the reply that turns “consecutive plan” into concrete placements before pricing drifts into something vague.',
+      'Keep this commercial and specific. Scope is the blocker, not interest.',
+    ],
+  },
+  {
+    title: 'Eastworlds / Monday live lock',
+    tags: ['P1', 'paid', 'source link missing'],
+    points: [
+      'Sean said to move ahead with the current Pemba draft and proposed Monday at 8:00 AM Pacific for the live post.',
+      'The last missing execution pieces are the final live link and any must-use tags before Robert posts.',
+      'Asher already drafted the right ask; the job is to send it and turn the lane into a clean Robert brief.',
+      'Paid does not mean publish-ready until the source link is final.',
     ],
   },
 ];
 
 const V4_COMPANY_OS_WAITING = [
   {
+    title: 'iMerch / paid but no greenlight',
+    tags: ['watch', 'paid', 'client hold'],
+    points: [
+      'Peter sent both payment receipts on June 24 and a backup standalone creative on June 25.',
+      'They still want to wait for a suitable Elon rocket post before deciding whether to use the reply path or the backup standalone asset.',
+      'Do not publish anything until Peter sends an explicit go / stand-down message.',
+      'Payment landed, but publishing permission did not.',
+    ],
+  },
+  {
     title: 'Riverside / press-release hold',
     tags: ['watch', 'launch slipped', 'PMM pending'],
     points: [
-      'Savion said on June 23, 2026 that launch moved to next week and publishing stays frozen until the PMM team sends the official press release.',
-      'The code and link are already known, but the wording and approval lane still belong to Riverside.',
-      'This is waiting on launch language, not on interview scheduling or asset collection anymore.',
+      'Savion moved launch to next week and said publishing stays frozen until the PMM team sends the official press release.',
+      'The code and general path are known, but the wording and approval lane still belong to Riverside.',
+      'This is waiting on launch language, not on more asset gathering.',
       'Do not send Robert live until the press release and approval pass are both in-thread.',
     ],
   },
   {
-    title: 'iLands / Flot monthly package',
-    tags: ['watch', 'sponsor review', 'source post missing'],
-    points: [
-      'Asher sent the single revised direction on June 23, 2026 after Zoe rejected the earlier multi-option format.',
-      'Zoe\'s last response was only "please wait a moment," so the lane is sitting in sponsor review and still lacks the final quote-post URL or confirmed publish time.',
-      'This is fulfillment under an older package, not a new invoice lane.',
-      'Do not call it Robert-ready until the sponsor approves the copy and sends the exact source-post path.',
-    ],
-  },
-  {
-    title: 'QORDEN AI / metrics gate',
-    tags: ['watch', 'lead reply', 'startup-budget fit'],
-    points: [
-      'Alvina asked on June 23, 2026 for Robert audience demographics and engagement rates before they choose between a dedicated post or thread.',
-      'They also asked whether there is a startup-friendly structure, but they still have not sent launch timing, demo context, or one concrete deliverable to invoice.',
-      'This stays in email until the ask is specific enough to price in one sentence.',
-      'Do not let a metrics request become an unpaid strategy call.',
-    ],
-  },
-  {
-    title: 'OMANE / wire receipt + June 30',
-    tags: ['watch', 'partial close', 'proof still missing'],
-    points: [
-      'OMANE approved the first Viktor X and LinkedIn drafts on June 25, 2026 and Asher submitted the live links back the same day.',
-      'Ori said the $1k invoice is paid, but the $4k wire still only has a promise, and Asher already chased the receipt on June 25, 2026.',
-      'The June 30 X and LinkedIn drafts are approved but still waiting on execution plus payment proof hygiene.',
-      'A promised wire is not a closed invoice lane.',
-    ],
-  },
-  {
     title: 'Atomik / canonical live link',
-    tags: ['watch', 'paid', 'final proof gap'],
+    tags: ['watch', 'paid', 'closeout gap'],
     points: [
-      'Atomik said payment was made on June 25, 2026 and the launch went live, then immediately replaced the source tweet with a reposted final link.',
-      'Asher acknowledged the new source URL, but the thread still does not carry Robert\'s final live QRT link back to the client.',
+      'Atomik said payment was made and swapped in a replacement source tweet after launch.',
+      'The lane still needs Robert’s final live QRT link logged back to the client so the proof trail is complete.',
       'Treat this as execution follow-through, not a new sales lane.',
-      'A deleted source tweet means the canonical replacement link must be logged before the lane is truly closed.',
+      'If the source tweet changes, the replacement URL becomes the only one that matters.',
+    ],
+  },
+  {
+    title: 'EezyCollab / future-rate clarification',
+    tags: ['watch', 'partner follow-up', 'not urgent'],
+    points: [
+      'Stephanie asked whether EezyCollab can still use the older $2,490 Thread + QR bundle rate for future brand pitches.',
+      'KroWork itself is dead, so this is only a partner-database / future-packaging question.',
+      'Useful to answer, but it is not blocking money, scheduling, or a live Robert execution this weekend.',
+      'Keep it warm without letting it outrank paid lanes with live dates.',
+    ],
+  },
+  {
+    title: 'Polsia / do-not-touch lane',
+    tags: ['watch', 'paused', 'organic concern'],
+    points: [
+      'Jeddi previously asked to pause rather than force a paid post to look organic, then later paid and closed the SF poster execution.',
+      'If Polsia comes back, treat it as a fresh scope, not a lane to poke unprompted now.',
+      'The current board value is simply remembering the earlier disclosure sensitivity.',
+      'Do-not-touch means no proactive outreach from this thread unless they reopen it.',
     ],
   },
 ];
@@ -197,11 +197,9 @@ const V4_COMPANY_OS_RULES = [
   'No paid post, travel spend, or launch hold is truly booked until payment proof, written reimbursement, or clearly prepaid package coverage is visible in-thread.',
   'A live post is not a closed deal. If the receipt, W-9, bank proof, or final Robert link is missing, the lane stays open.',
   'A client saying payment was made helps, but the lane still needs a receipt, settlement proof, or a reconciled invoice trail before finance is called done.',
-  'If a sponsor pivots the story after payment, the old draft is dead. Get the new source post, assets, and timing before Robert touches copy again.',
   'Confidential launch drafts and videos are prep material, not permission to publish and not substitutes for the final live source link.',
   'If the client says hold for a press release, approval pass, or launch wording, that hold beats the calendar. Waiting on client language is not Robert-ready.',
   'If the source tweet gets deleted or replaced, the lane stays open until the final canonical live URL is back in-thread.',
-  'If a campaign still belongs to an older package, treat the remaining inventory as fulfillment work unless the thread explicitly says the package is exhausted.',
   'Bundle, quota, or consecutive-plan asks do not remove paid-collab rules. Lock cadence, formats, dates, and owner before quoting anything custom.',
   'Metrics and demographics requests stay in email until the company, format, timing, and budget are concrete enough to price in one sentence.',
   'Every Robert brief must fit inside 60 seconds and include company, deliverable, timing, source link, approval path, payment state, owner, and why Robert is the right fit now.',
@@ -1407,7 +1405,7 @@ function V4CosOverview({ leads, replyCount, onOpenLead }) {
           </section>
 
           <section className="cos-panel cosov-panel">
-            <div className="cos-panel-head"><h3>Action now</h3><span className="cos-panel-count">{(brief.action || []).length}</span></div>
+            <div className="cos-panel-head"><h3>Needs Prep / Action</h3><span className="cos-panel-count">{(brief.action || []).length}</span></div>
             <div className="cosov-priorities">
               {(brief.action || []).slice(0, 3).map(item => (
                 <div 
@@ -1532,7 +1530,7 @@ function V4CosBriefBoard({ leads = [], onOpenLead }) {
           {brief.action.length > 0 && (
             <div className="brief-section">
               <div className="brief-section-head">
-                <span>Action now</span>
+                <span>Needs Prep / Action</span>
                 <span className="brief-count-badge hot">{brief.action.length}</span>
               </div>
               {brief.action.map(item => renderBriefRow(item, true))}
@@ -1542,7 +1540,7 @@ function V4CosBriefBoard({ leads = [], onOpenLead }) {
           {brief.watch.length > 0 && (
             <div className="brief-section">
               <div className="brief-section-head">
-                <span>Watch / Waiting on them</span>
+                <span>Watch / Waiting</span>
                 <span className="brief-count-badge">{brief.watch.length}</span>
               </div>
               {brief.watch.map(item => renderBriefRow(item, false))}
