@@ -5719,19 +5719,11 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
 
   const halted = !!(health && String(health.status || 'ok') !== 'ok');
   const haltReason = (health && health.halt_reason) || 'Operator paused. Drafts are held until you resume.';
-  const connCls = halted ? ' cold' : '';
 
-  // Which organ is mid-flight: parse ops_health.now_handling ("deal_desk → Heygen").
-  // Fallback: if nothing is reported but replies are queued, light Deal Desk.
   const reported = String((health && health.now_handling) || '').split(/[\s→>]+/)[0].trim().toLowerCase();
   let activeKey = V4_ORG_ORDER.includes(reported) ? reported : '';
   if (!activeKey && gmap.replies && gmap.replies.items.length) activeKey = 'deal_desk';
-  const activeIdx = V4_ORG_ORDER.indexOf(activeKey);
-  const organState = (key) => {
-    if (key === activeKey) return 'work';
-    const i = V4_ORG_ORDER.indexOf(key);
-    return (activeIdx >= 0 && i >= 0 && i < activeIdx) ? 'done' : '';
-  };
+  const organState = (key) => (key === activeKey ? 'work' : '');
 
   const totalWaiting = gates.reduce((s, g) => s + g.items.length, 0);
   const medic = halted ? haltReason
@@ -5739,93 +5731,99 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
       : totalWaiting ? (totalWaiting + ' parked at the gates, waiting on you.')
         : 'All clear. Nothing waiting, nothing in flight.';
 
-  const conn = (k) => <div className={'org-node org-conn' + connCls} key={'c-' + k}></div>;
+  const ORG_GATE = { deal_desk: 'replies', tracker: 'payments', brief_maker: 'briefs', qa: 'posts' };
+  const GATE_TITLE = { replies: 'Reply gate', payments: 'Payment gate', briefs: 'Brief gate', posts: 'Post gate' };
+  const GATE_DESC = { replies: 'Drafts waiting on your approval.', payments: 'Invoice out, confirm paid.', briefs: 'Awaiting Robert sign off.', posts: 'Approved and paid, ready to post.' };
 
-  const organ = (key) => {
+  const cardState = (key) => {
+    const gid = ORG_GATE[key];
+    const g = gid ? gmap[gid] : null;
+    if (g && g.items.length) return 'waiting';
+    return organState(key) === 'work' ? 'work' : 'idle';
+  };
+
+  const organCard = (key) => {
     const o = V4_ORG_DEF[key];
-    const st = organState(key);
-    const label = st === 'work' ? 'Working' : st === 'done' ? 'Done' : 'Idle';
+    const gid = ORG_GATE[key];
+    const g = gid ? (gmap[gid] || { items: [] }) : null;
+    const n = g ? g.items.length : 0;
+    const st = cardState(key);
+    const stLabel = st === 'work' ? 'Active' : st === 'waiting' ? 'Waiting' : 'Idle';
+    const first = g && g.items[0];
+    const act = gid ? V4AprGateAction(gid) : null;
+    const doApprove = () => { if (first && act) V4CosPatchLead(first, act.approve.fields, act.approve.local); };
+    const doDeny = () => { if (first && act) V4CosPatchLead(first, act.deny.fields, act.deny.local); };
     return (
-      <div className={'org-node org-organ' + (st ? ' ' + st : '')} key={key}>
-        <div className="ic">{o.glyph}</div>
-        <div className="nm">{o.name}</div>
-        <div className="ds">{o.desc}</div>
-        <div className="stt"><span className="sd"></span>{label}</div>
-        {o.token && <span className="tk">{o.token}</span>}
+      <div className={'orgx-card orgx-' + st} key={key}>
+        <div className="orgx-head">
+          <div className="orgx-ic">{o.glyph}</div>
+          <div className="orgx-id"><div className="orgx-nm">{o.name}</div><div className="orgx-ds">{o.desc}</div></div>
+          <span className={'orgx-pill ' + st}><span className="dot"></span>{stLabel}</span>
+        </div>
+        {o.token && <div className="orgx-tok">&rarr; {o.token}</div>}
+        {n > 0 && act ? (
+          <div className="orgx-gate">
+            <div className="orgx-gt">{GATE_TITLE[gid]} &middot; {n} waiting</div>
+            <div className="orgx-gd">{GATE_DESC[gid]}</div>
+            <div className="orgx-lead">{(first && first.brand) || 'Lead'}{first && first.stage ? <span className="orgx-stage">{first.stage}</span> : null}</div>
+            <div className="orgx-btns">
+              <button className="orgx-b ap" onClick={doApprove}>Approve</button>
+              <button className="orgx-b ed" onClick={() => onOpenConsole && onOpenConsole()}>Edit</button>
+              <button className="orgx-b dn" onClick={doDeny}>Deny</button>
+            </div>
+          </div>
+        ) : (
+          <div className="orgx-quiet">{st === 'work' ? 'Working a lead now.' : 'Nothing queued.'}</div>
+        )}
       </div>
     );
   };
 
-  const gate = (id, title, desc) => {
-    const items = (gmap[id] || { items: [] }).items;
-    const n = items.length;
-    const first = items[0];
-    const act = V4AprGateAction(id);
-    const doApprove = () => { if (first) V4CosPatchLead(first, act.approve.fields, act.approve.local); };
-    const doDeny = () => { if (first) V4CosPatchLead(first, act.deny.fields, act.deny.local); };
+  const railItem = (key) => {
+    const o = V4_ORG_DEF[key];
+    const gid = ORG_GATE[key];
+    const g = gid ? (gmap[gid] || { items: [] }) : null;
+    const n = g ? g.items.length : 0;
+    const st = cardState(key);
     return (
-      <div className={'org-node org-gate' + (n > 0 ? ' pulse' : '')} key={'g-' + id}>
-        <div className="gh">🟥 Approve {n}</div>
-        <div className="gt">{title}</div>
-        <div className="gd">{desc}</div>
-        <div className="btns">
-          <span className="b ap" onClick={doApprove}>Approve</span>
-          <span className="b gh" onClick={() => onOpenConsole && onOpenConsole()}>Edit</span>
-          <span className="b gh" onClick={doDeny}>Deny</span>
-        </div>
+      <div className="orgx-rail-row" key={key}>
+        <span className="orgx-ric">{o.glyph}</span>
+        <span className="orgx-rnm">{o.name}</span>
+        {n > 0 ? <span className="orgx-rgate">{n}</span> : <span className={'orgx-rdot ' + st}></span>}
       </div>
     );
   };
 
   return (
-    <div className={'org-wrap' + (halted ? ' is-halted' : '')}
-      style={{ display: 'grid', gridTemplateRows: 'auto auto minmax(0,1fr)', flex: '1 1 0', minHeight: 0, height: '100%', overflow: 'hidden' }}>
-      <div className="org-top">
+    <div className={'orgx-wrap' + (halted ? ' is-halted' : '')}>
+      <div className="orgx-top">
         <div>
-          <div className="org-eye">Machine Room</div>
-          <h1 className="org-title">Organs <i>one lead, flowing through the body</i></h1>
+          <div className="orgx-eye">Operator brain</div>
+          <h1 className="orgx-title">Organs <i>every agent, every gate, one screen</i></h1>
         </div>
-        <div className="org-gauges">
-          <div className="org-lt"><span className="d"></span>{halted ? 'Halted' : 'Running'}</div>
-          <div className="org-ctr"><span className="ck">Local · Qwen today</span>
-            <span className="cv">{health ? V4AprNum(health.local_tokens_today) : '—'}</span></div>
-          <div className="org-ctr"><span className="ck">Claude 10% today</span>
-            <span className="cv m">{health ? '$' + Number(health.claude_spend_today || 0).toFixed(2) : '—'}</span></div>
+        <div className="orgx-gauges">
+          <div className={'orgx-run' + (halted ? ' off' : '')}><span className="d"></span>{halted ? 'Halted' : 'Running'}</div>
+          <div className="orgx-ctr"><span className="k">Local Qwen today</span><span className="v">{health ? V4AprNum(health.local_tokens_today) : '—'}</span></div>
+          <div className="orgx-ctr"><span className="k">Claude 10% today</span><span className="v m">{health ? '$' + Number(health.claude_spend_today || 0).toFixed(2) : '—'}</span></div>
+          <button className="orgx-halt" onClick={halted ? resume : halt}>{halted ? 'Resume' : 'Halt'}</button>
         </div>
       </div>
 
-      <div className="org-medic">
-        <span className="org-mi"><span className="pp"></span>◆ Medic</span>
-        <span className="org-mw">{medic}</span>
-        <button className="org-halt" onClick={halted ? resume : halt}>{halted ? '▶ Resume' : '⛔ Halt all'}</button>
+      <div className="orgx-medic">
+        <span className="mi"><span className="pp"></span>&#9670; Medic</span>
+        <span className="mw">{medic}</span>
       </div>
 
-      <div className="org-flow">
-        <div className="org-node org-intake"><div className="big">✉</div><div className="tn">Intake</div><div className="ts">Gmail + X scrapers</div></div>
-        {conn('i')}
-        {organ('triage')}
-        {conn('t')}
-        {organ('deal_desk')}
-        {conn('d')}
-        {gate('replies', 'Reply gate', 'Drafts waiting on your approval.')}
-        {conn('r')}
-        {organ('tracker')}
-        {conn('tr')}
-        {gate('payments', 'Payment gate', 'Invoice out, confirm paid.')}
-        {conn('p')}
-        {organ('brief_maker')}
-        {conn('b')}
-        {gate('briefs', 'Brief gate', 'Awaiting Robert sign off.')}
-        {conn('br')}
-        <div className="org-node org-term cal"><div className="big">📅</div><div className="tn">Calendar</div><div className="ts">Brief loaded</div></div>
-        {conn('cal')}
-        {gate('posts', 'Post gate', 'Approved and paid, ready to post.')}
-        {conn('po')}
-        <div className="org-node org-term x"><div className="big">𝕏</div><div className="tn">Posted</div><div className="ts">Paid Partnership on</div></div>
-        {conn('x')}
-        {organ('qa')}
-        {conn('q')}
-        <div className="org-node org-term done"><div className="big">✓</div><div className="tn">Done</div><div className="ts">Paid-out</div></div>
+      <div className="orgx-body">
+        <aside className="orgx-rail">
+          <div className="orgx-rail-h">Organs</div>
+          <div className="orgx-rail-row orgx-src"><span className="orgx-ric">&#9993;</span><span className="orgx-rnm">Intake</span><span className="orgx-rsub">scrapers</span></div>
+          {V4_ORG_ORDER.map(railItem)}
+          <div className="orgx-rail-foot">{totalWaiting} at the gates &middot; {V4_ORG_ORDER.length} organs</div>
+        </aside>
+        <div className="orgx-grid">
+          {V4_ORG_ORDER.map(organCard)}
+        </div>
       </div>
     </div>
   );
@@ -12739,7 +12737,7 @@ function V4App() {
         )}
         {view === 'organs' && (
           <div className="body body-organs" style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-            <OrgansFloorView
+            <V4OrgansView
               leads={mergedLeads}
               query={search}
               onOpenConsole={() => { setView('machine-room'); setOpenId(null); }}
