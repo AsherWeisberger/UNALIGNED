@@ -2437,8 +2437,11 @@ function __v3Timeline(stage, days, contact, brand) {
     const status = i < idx ? 'done' : i === idx ? 'current' : 'pending';
     return {
       stageId: s, name: def.name, status,
-      when: i < idx ? `${(idx - i) + days}d ago` : i === idx ? `${days}d in stage` : '',
-      note: i <= idx ? __v3StageNote(s, contact, brand) : '',
+      // Honest: real per-stage history is not tracked, so do NOT fabricate "Xd ago"
+      // timestamps or event narratives for past stages. Only the current stage shows
+      // its real time-in-stage. Prior stages render as reached, without invented dates.
+      when: i === idx && days ? `${days}d in stage` : '',
+      note: i === idx ? __v3StageNote(s, contact, brand) : '',
     };
   });
 }
