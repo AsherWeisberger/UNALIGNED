@@ -45,3 +45,6 @@ docs/*.html
 
 # Local agent brain (ops/) is now tracked so it travels with the repo for handoff.
 # Secrets/logs stay out via ops/.gitignore (.env, *.log, PAUSE, __pycache__).
+
+# loose token file — never commit
+lead-ingest-token.txt
