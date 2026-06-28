@@ -9,58 +9,68 @@
 
 const V4_COMPANY_OS_PREP = [
   {
-    title: 'ACL / interview lock + script pressure',
-    tags: ['P0', 'schedule', 'briefs due'],
+    title: 'ACL / Qwen Cloud answers in hand',
+    tags: ['P0', 'interview', 'scripts due'],
     points: [
-      'Annika floated Sunday, June 28 at 6:00 PM PT for the Qwen Cloud interview, but Alibaba still has to confirm the interviewee, the meeting link, and whether it counts inside the 8-video package.',
-      'They also still want the 8 scripts this week and need Robert’s preferred July 5 on-site interview window.',
-      'Asher owes one clean reply that locks the slot, names the on-site window, and gives a realistic script path without overpromising.',
-      'Keep the ticket reimbursement / payment mess visible until the invoice trail is actually reconciled.',
+      'Annika confirmed Sunday, June 28 at 6:00 PM PT / Monday, June 29 at 9:00 AM China and sent the updated Alibaba answer doc plus the DingTalk meeting link.',
+      'Still open: final sign-off on the interviewee, whether the online hit counts inside the 8-video package, Robert’s July 5 on-site window, and the overdue first script batch.',
+      'Asher owns the handoff that turns the attached answer draft into a 60-second Robert prep without letting the client reopen scope.',
+      'Keep the ticket / reimbursement confusion visible until the payment trail is actually reconciled.',
+    ],
+  },
+  {
+    title: 'Cline / June 29 quote repost',
+    tags: ['P0', 'invoice next', 'source link missing'],
+    points: [
+      'Pratham said yes to the $1,895 Tier 2 Quote Repost for Sunday, June 29 and sent full billing details for Cline Bot Inc.',
+      'The thread still lacks the live Stripe invoice / payment proof and the final launch post Robert would actually be quoting.',
+      'Asher owns the invoice link, payment chase, and the short Robert brief once the canonical source post lands.',
+      'A verbal yes is not a scheduled execution until the payment trail and source link both exist.',
     ],
   },
   {
     title: 'ACTI / June 30 quote prep',
     tags: ['P0', 'launch fixed', 'brief next'],
     points: [
-      'AK fixed the launch for Tuesday, June 30 at 7:30 AM PT and already sent the confidential final tweet draft plus video.',
-      'Robert now needs a 60-second prep brief and ready quote direction, but execution still waits on the real live tweet URL.',
+      'AK fixed the launch for Tuesday, June 30 at 7:30 AM PT and already sent the confidential official draft, video, and quote direction notes.',
+      'Payment is already confirmed, but Robert still needs a 60-second prep brief and the real live tweet URL before anything can go out.',
       'Asher owns the launch-morning source-link check, final quote handoff, and approval trail back to the client.',
       'Confidential launch drafts are prep material only. They do not replace the canonical live source post.',
     ],
   },
   {
-    title: 'OMANE / Viktor receipt + June 30 leg',
-    tags: ['P0', 'payment proof', 'execution overlap'],
-    points: [
-      'Ori says the $1k invoice is paid and the $4k wire will land by end of week, but the thread still lacks the missing receipt and a clean wire-confirmation trail.',
-      'The remaining Viktor leg is already aimed at June 30, so payment cleanup and publishing prep are now happening at the same time.',
-      'Asher owns the receipt chase, wire proof capture, and final live-link closure back into the same thread.',
-      'A promised wire is not a closed invoice lane.',
-    ],
-  },
-  {
-    title: 'HashMatrix / consecutive plan scope',
-    tags: ['P1', 'lead reply', 'needs scoping'],
-    points: [
-      'Stella replied and wants pricing for a consecutive Robert X-post plan.',
-      'They still have not said how many posts, which formats, what dates, or what product story Robert would actually be posting around.',
-      'Asher owns the reply that turns “consecutive plan” into concrete placements before pricing drifts into something vague.',
-      'Keep this commercial and specific. Scope is the blocker, not interest.',
-    ],
-  },
-  {
-    title: 'Eastworlds / Monday live lock',
+    title: 'Eastworlds / June 29 live lock',
     tags: ['P1', 'paid', 'source link missing'],
     points: [
-      'Sean said to move ahead with the current Pemba draft and proposed Monday at 8:00 AM Pacific for the live post.',
+      'Sean said to move ahead with the current Pemba draft and proposed Monday, June 29 at 8:00 AM Pacific for the live post.',
       'The last missing execution pieces are the final live link and any must-use tags before Robert posts.',
-      'Asher already drafted the right ask; the job is to send it and turn the lane into a clean Robert brief.',
+      'Asher already drafted the right ask; the job is to send it and turn the lane into a clean Robert brief once the source post exists.',
       'Paid does not mean publish-ready until the source link is final.',
+    ],
+  },
+  {
+    title: 'Viture / July 1 kickoff receipt',
+    tags: ['P1', 'payment proof', 'start date set'],
+    points: [
+      'Leo agreed to the July 1 start and said he would initiate payment soon; Asher followed up again on June 27 asking for the receipt.',
+      'Nothing is broken on scope, but the lane is not finance-clean until the payment proof lands in-thread.',
+      'Asher owns the receipt chase and should keep Robert out of execution prep until the proof is there.',
+      'Program start dates do not outrank payment evidence.',
     ],
   },
 ];
 
 const V4_COMPANY_OS_WAITING = [
+  {
+    title: 'OMANE / receipt + wire proof',
+    tags: ['watch', 'payment proof', 'closeout gap'],
+    points: [
+      'Ori had Asher re-submit the invoice to Fillout, acknowledged it, and asked to be reminded about the forms workflow.',
+      'What is still missing is the actual receipt for the second leg and a clean confirmation for the promised $4k wire.',
+      'Keep this in watch, not done, until the proof and the remaining Viktor closeout links are both back in-thread.',
+      'A filled form is not a paid lane.',
+    ],
+  },
   {
     title: 'iMerch / paid but no greenlight',
     tags: ['watch', 'paid', 'client hold'],
@@ -82,13 +92,23 @@ const V4_COMPANY_OS_WAITING = [
     ],
   },
   {
-    title: 'Atomik / canonical live link',
-    tags: ['watch', 'paid', 'closeout gap'],
+    title: 'HashMatrix / scope before quote',
+    tags: ['watch', 'lead reply', 'underspecified'],
     points: [
-      'Atomik said payment was made and swapped in a replacement source tweet after launch.',
-      'The lane still needs Robert’s final live QRT link logged back to the client so the proof trail is complete.',
-      'Treat this as execution follow-through, not a new sales lane.',
-      'If the source tweet changes, the replacement URL becomes the only one that matters.',
+      'Stella wants a consecutive Robert X-post plan, and Stripe now shows a fresh open Hash Matrix invoice.',
+      'The commercial lane is still underspecified: no count, no cadence, no format split, and no concrete story arc.',
+      'Watch for a clean scope reply before treating the invoice as proof of a ready campaign.',
+      'Open invoice does not replace real scope.',
+    ],
+  },
+  {
+    title: 'Atomik / old closeout + new Clodo ask',
+    tags: ['watch', 'paid', 'split lane'],
+    points: [
+      'Atomik already paid and replaced the June 25 source tweet, but the thread still needs Robert’s final live QRT link captured cleanly.',
+      'Aviral also floated a new Clodo launch pitch, so keep the old proof-trail cleanup separate from the new sales conversation.',
+      'Do not let the new ask erase the missing closeout artifact from the previous post.',
+      'One company can have a closed payment lane and a separate new lead at the same time.',
     ],
   },
   {
@@ -197,10 +217,12 @@ const V4_COMPANY_OS_RULES = [
   'No paid post, travel spend, or launch hold is truly booked until payment proof, written reimbursement, or clearly prepaid package coverage is visible in-thread.',
   'A live post is not a closed deal. If the receipt, W-9, bank proof, or final Robert link is missing, the lane stays open.',
   'A client saying payment was made helps, but the lane still needs a receipt, settlement proof, or a reconciled invoice trail before finance is called done.',
+  'An open Stripe invoice is not execution clearance. Scope, payment proof, timing, and the final source post still have to line up in the same thread.',
   'Confidential launch drafts and videos are prep material, not permission to publish and not substitutes for the final live source link.',
   'If the client says hold for a press release, approval pass, or launch wording, that hold beats the calendar. Waiting on client language is not Robert-ready.',
   'If the source tweet gets deleted or replaced, the lane stays open until the final canonical live URL is back in-thread.',
-  'Bundle, quota, or consecutive-plan asks do not remove paid-collab rules. Lock cadence, formats, dates, and owner before quoting anything custom.',
+  'Bundle, quota, or consecutive-plan asks do not remove paid-collab rules. Lock cadence, formats, dates, owner, and narrative before quoting anything custom.',
+  'Separate old closeout work from new outreach even when the same company is on both threads. Do not let fresh interest hide missing proof from the last campaign.',
   'Metrics and demographics requests stay in email until the company, format, timing, and budget are concrete enough to price in one sentence.',
   'Every Robert brief must fit inside 60 seconds and include company, deliverable, timing, source link, approval path, payment state, owner, and why Robert is the right fit now.',
 ];
