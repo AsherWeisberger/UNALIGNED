@@ -33,42 +33,50 @@ export USE_LOCAL_CLASSIFIER="${USE_LOCAL_CLASSIFIER:-1}"
 cd "$ROOT"
 echo "LLM backend: ${LLM_BACKEND} (${LOCAL_MODEL})"
 
-if [ -f "$ROBERT_TOKEN" ]; then
-  echo "Using Robert Gmail token: $ROBERT_TOKEN"
-else
-  echo "Robert Gmail token not found; using default Gmail token."
-fi
+# Each mailbox is independent: a dead/expired token (invalid_grant) logs a warning
+# and skips THAT account only. We do not let one bad token abort the whole run
+# (the old behavior under set -e, which left the board days behind). `if cmd` here
+# captures the exit code so set -e does not fire.
+ROBERT_OK=0
+ASHER_OK=0
 
 if [ -f "$ROBERT_TOKEN" ]; then
-  GMAIL_TOKEN_FILE="$ROBERT_TOKEN" /opt/homebrew/bin/python3 export_gmail_dump.py \
-    --days=1 \
-    --out "$DUMP" \
-    --candidates-out "$CANDIDATES"
+  echo "Using Robert Gmail token: $ROBERT_TOKEN"
+  if GMAIL_TOKEN_FILE="$ROBERT_TOKEN" /opt/homebrew/bin/python3 export_gmail_dump.py \
+       --days=1 --out "$DUMP" --candidates-out "$CANDIDATES"; then
+    ROBERT_OK=1
+  else
+    echo "⚠️  Robert Gmail export FAILED (token expired/revoked?). Skipping Robert this run. Re-auth: python3 scripts/active/reauth_gmail.py --account robert"
+  fi
 else
-  /opt/homebrew/bin/python3 export_gmail_dump.py \
-    --days=1 \
-    --out "$DUMP" \
-    --candidates-out "$CANDIDATES"
+  echo "Robert Gmail token not found; using default Gmail token."
+  if /opt/homebrew/bin/python3 export_gmail_dump.py \
+       --days=1 --out "$DUMP" --candidates-out "$CANDIDATES"; then
+    ROBERT_OK=1
+  fi
 fi
 
 if [ -f "$ASHER_TOKEN" ]; then
   echo "Using Asher Gmail token for Company OS sync: $ASHER_TOKEN"
-  GMAIL_TOKEN_FILE="$ASHER_TOKEN" /opt/homebrew/bin/python3 export_gmail_dump.py \
-    --days=14 \
-    --out "$ASHER_DUMP" \
-    --candidates-out "$ASHER_CANDIDATES"
-  /opt/homebrew/bin/python3 sync_existing_threads_from_dump.py \
-    --dump "$ASHER_DUMP"
-  /opt/homebrew/bin/python3 write_asher_candidate_cards.py \
-    --candidates "$ASHER_CANDIDATES"
+  if GMAIL_TOKEN_FILE="$ASHER_TOKEN" /opt/homebrew/bin/python3 export_gmail_dump.py \
+       --days=14 --out "$ASHER_DUMP" --candidates-out "$ASHER_CANDIDATES"; then
+    ASHER_OK=1
+  else
+    echo "⚠️  Asher Gmail export FAILED (token expired/revoked?). Skipping Asher this run. Re-auth: python3 scripts/active/reauth_gmail.py --account asher"
+  fi
 else
   echo "Asher Gmail token not found; Company OS thread sync will stay on the default mailbox."
-  /opt/homebrew/bin/python3 sync_existing_threads_from_dump.py \
-    --dump "$DUMP"
 fi
 
-/opt/homebrew/bin/python3 write_split_thread_cards.py \
-  --dump "$DUMP"
+# Sync the email chains for whichever mailboxes refreshed cleanly.
+if [ "$ASHER_OK" = 1 ]; then
+  /opt/homebrew/bin/python3 sync_existing_threads_from_dump.py --dump "$ASHER_DUMP" || echo "⚠️  Asher thread sync failed (continuing)."
+  /opt/homebrew/bin/python3 write_asher_candidate_cards.py --candidates "$ASHER_CANDIDATES" || echo "⚠️  Asher candidate-card write failed (continuing)."
+fi
+if [ "$ROBERT_OK" = 1 ]; then
+  /opt/homebrew/bin/python3 sync_existing_threads_from_dump.py --dump "$DUMP" || echo "⚠️  Robert thread sync failed (continuing)."
+  /opt/homebrew/bin/python3 write_split_thread_cards.py --dump "$DUMP" || echo "⚠️  Robert split-card write failed (continuing)."
+fi
 
 if [ "${ASHER_OPERATOR_ENABLED:-1}" = "1" ]; then
   if [ -f "$ASHER_TOKEN" ]; then

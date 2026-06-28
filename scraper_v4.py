@@ -59,10 +59,16 @@ CHUNK_SIZE         = 15    # emails per AI extraction batch (was 50 — smaller 
 CHECKPOINT_INTERVAL = 100
 
 CREDENTIALS_DIR = Path("/Users/asherweisberger/.config/google-credentials")
-TOKEN_FILE      = Path(os.environ.get("GMAIL_TOKEN_FILE", str(CREDENTIALS_DIR / "gmail-token.json")))
-CHECKPOINT_FILE = CREDENTIALS_DIR / "scraper_v4_checkpoint.json"
-LOG_FILE        = CREDENTIALS_DIR / "scraper_v4.log"
-LAST_RUN_FILE   = CREDENTIALS_DIR / "scraper_v4_last_run.txt"
+# Per-account state so two inboxes never collide on one last-run/checkpoint.
+# SCRAPER_ACCOUNT picks the mailbox; "robert" keeps the original unsuffixed file
+# names (no migration), any other account gets its own suffixed files + token.
+SCRAPER_ACCOUNT = os.environ.get("SCRAPER_ACCOUNT", "robert").strip().lower() or "robert"
+_ACCT_SUFFIX    = "" if SCRAPER_ACCOUNT == "robert" else f"_{SCRAPER_ACCOUNT}"
+_DEFAULT_TOKEN  = "gmail-token.json" if SCRAPER_ACCOUNT == "robert" else f"{SCRAPER_ACCOUNT}-gmail-token.json"
+TOKEN_FILE      = Path(os.environ.get("GMAIL_TOKEN_FILE", str(CREDENTIALS_DIR / _DEFAULT_TOKEN)))
+CHECKPOINT_FILE = CREDENTIALS_DIR / f"scraper_v4_checkpoint{_ACCT_SUFFIX}.json"
+LOG_FILE        = CREDENTIALS_DIR / f"scraper_v4{_ACCT_SUFFIX}.log"
+LAST_RUN_FILE   = CREDENTIALS_DIR / f"scraper_v4_last_run{_ACCT_SUFFIX}.txt"
 HANDOFF_DIR     = CREDENTIALS_DIR / "codex_handoffs"
 
 # ─── Gmail query — explicit business-intent signals only ───────────────────
