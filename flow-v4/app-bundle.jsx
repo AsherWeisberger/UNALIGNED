@@ -5712,8 +5712,96 @@ const V4_ORG_DEF = {
   qa: { name: 'QA', glyph: '✓', desc: 'Sold vs delivered, on go live.', token: null },
 };
 
+function V4OrgEditModal({ gate, lead, onClose }) {
+  const { useState, useEffect } = React;
+  const dr = (lead && lead.draftReply) || {};
+  const editable = gate === 'replies' || gate === 'briefs';
+  const initialBody = gate === 'replies' ? (dr.body || '')
+    : gate === 'briefs' ? (lead.briefBody || lead.briefSummary || '') : '';
+  const [editing, setEditing] = useState(false);
+  const [body, setBody] = useState(initialBody);
+  const [subject, setSubject] = useState(dr.subject || '');
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose && onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const GATE_NAME = { replies: 'Reply', payments: 'Payment', briefs: 'Brief', posts: 'Post' };
+  const close = () => onClose && onClose();
+  const approve = () => { const a = V4AprGateAction(gate); V4CosPatchLead(lead, a.approve.fields, a.approve.local); close(); };
+  const deny = () => { const a = V4AprGateAction(gate); V4CosPatchLead(lead, a.deny.fields, a.deny.local); close(); };
+  const saveApprove = () => {
+    if (gate === 'replies') {
+      V4CosPatchLead(lead, { draft_reply: JSON.stringify({ subject: subject, body: body }), draft_reply_status: 'approved' },
+        { draftReply: { subject: subject, body: body }, draftReplyStatus: 'approved' });
+    } else if (gate === 'briefs') {
+      V4CosPatchLead(lead, { brief_body: body, brief_status: 'approved' }, { briefBody: body, briefStatus: 'approved' });
+    }
+    close();
+  };
+
+  const whatRead = gate === 'replies' ? (dr.body || 'Drafted reply ready for review.')
+    : gate === 'briefs' ? (lead.briefBody || lead.briefSummary || 'Brief ready for Robert sign off.')
+    : gate === 'payments' ? ('Invoice is out for ' + (lead.brand || 'this lead') + '. Confirm payment landed, then mark paid.')
+    : ('Approved post for ' + (lead.brand || 'this lead') + '. Mark posted once it is live.');
+  const why = lead.recommendedAction || (lead.agentAssessment ? String(lead.agentAssessment).split(/(?<=[.!?])\s/)[0] : '') || '';
+  const money = (lead.value && typeof V4AprMoney === 'function') ? V4AprMoney(lead.value) : (lead.value ? '$' + lead.value : '');
+
+  return (
+    <div className="orgx-modal-back" onClick={close}>
+      <div className="orgx-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <div className="orgx-modal-hd">
+          <div>
+            <div className="orgx-modal-eye">{GATE_NAME[gate]} gate &middot; approval</div>
+            <h2 className="orgx-modal-ti">{lead.brand || lead.contactName || 'Lead'}</h2>
+          </div>
+          <button className="orgx-modal-x" onClick={close} aria-label="Close">&#10005;</button>
+        </div>
+        <div className="orgx-modal-chips">
+          {lead.stage ? <span className="orgx-stage">{lead.stage}</span> : null}
+          {lead.contactName ? <span className="orgx-mchip">{lead.contactName}</span> : null}
+          {money ? <span className="orgx-mchip v">{money}</span> : null}
+        </div>
+        <div className="orgx-modal-body">
+          <div className="orgx-modal-lbl">What you are approving</div>
+          {editing && editable ? (
+            <div className="orgx-edit">
+              {gate === 'replies' ? <input className="orgx-subj" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Subject" /> : null}
+              <textarea className="orgx-ta" value={body} onChange={(e) => setBody(e.target.value)} rows={12} />
+            </div>
+          ) : (
+            <div className="orgx-read">
+              {gate === 'replies' && dr.subject ? <div className="orgx-subj-read">{dr.subject}</div> : null}
+              <div className="orgx-read-body">{whatRead}</div>
+            </div>
+          )}
+          {why ? <div className="orgx-modal-lbl">Why</div> : null}
+          {why ? <div className="orgx-why">{why}</div> : null}
+        </div>
+        <div className="orgx-modal-ft">
+          {editing ? (
+            <React.Fragment>
+              <button className="orgx-b ap" onClick={saveApprove}>Save &amp; approve</button>
+              <button className="orgx-b ed" onClick={() => setEditing(false)}>Cancel</button>
+            </React.Fragment>
+          ) : (
+            <React.Fragment>
+              <button className="orgx-b ap" onClick={approve}>Approve</button>
+              {editable ? <button className="orgx-b ed" onClick={() => setEditing(true)}>Edit draft</button> : null}
+              <button className="orgx-b dn" onClick={deny}>Deny</button>
+            </React.Fragment>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
   const { health, resume, halt } = V4UseOpsHealth();
+  const [modal, setModal] = React.useState(null);
   const gates = V4AprComputeGates(leads, query);
   const gmap = {}; gates.forEach(g => { gmap[g.id] = g; });
 
@@ -5768,7 +5856,7 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
             <div className="orgx-lead">{(first && first.brand) || 'Lead'}{first && first.stage ? <span className="orgx-stage">{first.stage}</span> : null}</div>
             <div className="orgx-btns">
               <button className="orgx-b ap" onClick={doApprove}>Approve</button>
-              <button className="orgx-b ed" onClick={() => onOpenConsole && onOpenConsole()}>Edit</button>
+              <button className="orgx-b ed" onClick={() => setModal({ gate: gid, lead: first })}>Edit</button>
               <button className="orgx-b dn" onClick={doDeny}>Deny</button>
             </div>
           </div>
@@ -5825,6 +5913,7 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
           {V4_ORG_ORDER.map(organCard)}
         </div>
       </div>
+      {modal ? <V4OrgEditModal gate={modal.gate} lead={modal.lead} onClose={() => setModal(null)} /> : null}
     </div>
   );
 }
