@@ -5756,6 +5756,70 @@ function V4OrgApprovalWhy(gate, lead) {
   return 'This item is waiting because an agent could not safely move it alone.';
 }
 
+function V4OrgLatestInbound(lead) {
+  const thread = Array.isArray(lead?.thread) ? lead.thread : [];
+  for (let i = thread.length - 1; i >= 0; i -= 1) {
+    const msg = thread[i] || {};
+    if (!V4OrgLooksLikeTeamMessage(msg)) return msg;
+  }
+  return null;
+}
+
+function V4OrgLatestTeamTouch(lead) {
+  const thread = Array.isArray(lead?.thread) ? lead.thread : [];
+  for (let i = thread.length - 1; i >= 0; i -= 1) {
+    const msg = thread[i] || {};
+    if (V4OrgLooksLikeTeamMessage(msg)) return msg;
+  }
+  return null;
+}
+
+function V4OrgLooksLikeTeamMessage(msg) {
+  const from = String(msg?.from || '').toLowerCase();
+  const body = String(msg?.body || msg?.snippet || '').toLowerCase();
+  if (V3IsTeamParticipant(from)) return true;
+  if (/\b(asherunaligned@gmail\.com|scobleizer@gmail\.com|unalignedx@gmail\.com|samlevin@mac\.com)\b/.test(from)) return true;
+  if (/\b(all the best,\s*asher|best,\s*asher|thanks robert for looping me in|robert has looped me in|i handle the business side)\b/.test(body)) return true;
+  return false;
+}
+
+function V4OrgShortEmail(value) {
+  const text = String(value || '').replace(/"/g, '').trim();
+  const email = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  if (email) return email[0];
+  return text.replace(/\s*<[^>]+>\s*/g, '').trim() || 'Unknown sender';
+}
+
+function V4OrgApprovalContext(lead) {
+  const inbound = V4OrgLatestInbound(lead);
+  const team = V4OrgLatestTeamTouch(lead);
+  const body = inbound ? String(inbound.body || inbound.snippet || '').trim() : '';
+  return {
+    inbound,
+    team,
+    body: body || lead?.operatorSummary?.asked_for || lead?.notes || lead?.deliverables || '',
+    sender: inbound ? V4OrgShortEmail(inbound.from) : (lead?.contactName || lead?.email || 'Unknown sender'),
+    subject: inbound?.subject || lead?.draftReply?.subject || lead?.briefSubject || lead?.brand || 'Conversation',
+    when: inbound?.when || (inbound?.date ? V3RelativeTime(inbound.date) : ''),
+    teamWhen: team?.when || (team?.date ? V3RelativeTime(team.date) : ''),
+  };
+}
+
+function V4OrgApprovalConflict(lead, context) {
+  const draft = String(lead?.draftReply?.body || '').toLowerCase();
+  const inbound = String(context?.body || '').toLowerCase();
+  const pricingDraft = /\b(rate|pricing|payment terms|send the invoice|send over the invoice|move forward|quote)\b/.test(draft);
+  const paidOrExecution = /\b(payment has been processed|payment processed|paid|should reach you|brief with more details|launch is on|launch date|go live|posting window|already paid)\b/.test(inbound);
+  if (pricingDraft && paidOrExecution) {
+    return 'Possible stale draft. The inbound message already talks about payment, timing, or brief details, but the proposed reply still sounds like fresh pricing.';
+  }
+  const existingPackage = /\b(monthly package|four posts|4 posts|[1-4]\s*\/\s*4|not been completed|continue the collaboration|originally part of the agreement)\b/.test(inbound);
+  if (pricingDraft && existingPackage) {
+    return 'Possible stale draft. This looks like existing package execution, not a new rate request.';
+  }
+  return '';
+}
+
 function V4OrgEditModal({ gate, lead, onClose }) {
   const { useState, useEffect } = React;
   const dr = (lead && lead.draftReply) || {};
@@ -5900,6 +5964,8 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
     V4CosPatchLead(selectedLead, selectedAction.deny.fields, selectedAction.deny.local);
     setSelectedIndex(0);
   };
+  const selectedContext = selectedLead ? V4OrgApprovalContext(selectedLead) : null;
+  const selectedConflict = selectedLead ? V4OrgApprovalConflict(selectedLead, selectedContext) : '';
 
   const opsHeartbeat = (health && (health.heartbeat || health.updated_at || health.last_seen_at)) || '';
   const qwenSpend = health ? V4AprNum(health.local_tokens_today) : '—';
@@ -6014,8 +6080,42 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
                 {selectedLead.stage ? <span>{selectedLead.stage}</span> : null}
                 {selectedLead.value ? <span>{V4AprMoney(selectedLead.value)}</span> : null}
               </div>
-              <div className="orgx-whyline"><b>Why this needs you:</b> {V4OrgApprovalWhy(gate.id, selectedLead)}</div>
-              <div className="orgx-approval-body">{V4OrgApprovalBody(gate.id, selectedLead) || 'No body available. Open edit before approving.'}</div>
+              <div className="orgx-review-stack">
+                <section className="orgx-context-card">
+                  <div className="orgx-mini-head">
+                    <span>What you are replying to</span>
+                    {selectedContext?.when ? <b>{selectedContext.when}</b> : null}
+                  </div>
+                  <div className="orgx-context-from">
+                    <strong>{selectedContext?.sender || 'Unknown sender'}</strong>
+                    <em>{selectedContext?.subject || 'Conversation'}</em>
+                  </div>
+                  <div className="orgx-context-body">{selectedContext?.body || 'No inbound message was captured for this approval. Open the lead before approving.'}</div>
+                </section>
+
+                <section className="orgx-reason-card">
+                  <div className="orgx-mini-head"><span>Why this needs you</span><b>{GATE_AGENT[gate.id] || 'Agent'}</b></div>
+                  {selectedConflict ? <div className="orgx-conflict">{selectedConflict}</div> : null}
+                  <div className="orgx-reason-main">{V4OrgApprovalWhy(gate.id, selectedLead)}</div>
+                  {(selectedLead.agentAssessment || selectedLead.recommendedAction) ? (
+                    <div className="orgx-agent-note">
+                      {selectedLead.agentAssessment || ''}
+                      {selectedLead.recommendedAction ? <span> Recommended: {selectedLead.recommendedAction}.</span> : null}
+                    </div>
+                  ) : null}
+                </section>
+
+                <section className="orgx-reply-card">
+                  <div className="orgx-mini-head">
+                    <span>{gate.id === 'replies' ? 'Proposed reply' : 'Approval item'}</span>
+                    {selectedContext?.teamWhen ? <b>last team touch {selectedContext.teamWhen}</b> : null}
+                  </div>
+                  {gate.id === 'replies' && selectedLead.draftReply?.subject ? (
+                    <div className="orgx-reply-subject">{selectedLead.draftReply.subject}</div>
+                  ) : null}
+                  <div className="orgx-approval-body">{V4OrgApprovalBody(gate.id, selectedLead) || 'No body available. Open edit before approving.'}</div>
+                </section>
+              </div>
               <div className="orgx-approval-actions">
                 <button className="orgx-b ap" onClick={approveSelected}>Approve</button>
                 <button className="orgx-b ed" onClick={() => setModal({ gate: gate.id, lead: selectedLead })}>Edit and inspect</button>

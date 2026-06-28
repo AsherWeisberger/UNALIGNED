@@ -127,7 +127,7 @@ def supabase_patch(card_id: str | int, payload: dict[str, Any]) -> None:
 def load_cards() -> list[dict[str, Any]]:
     wanted = (
         "id,title,contact_name,business_name,email,list_id,estimated_value,intent,description,"
-        "original_email,gmail_thread_id,draft_reply,draft_reply_status,new_reply_at,created_at,"
+        "email_thread,original_email,gmail_thread_id,draft_reply,draft_reply_status,new_reply_at,created_at,"
         "updated_at,moved_at,lead_source"
     )
     cards: list[dict[str, Any]] = []
@@ -190,7 +190,7 @@ def load_gmail_service(token_file: Path, scopes: list[str], interactive: bool) -
 
 
 def canonical_thread(card: dict[str, Any]) -> list[dict[str, Any]]:
-    raw = card.get("original_email") or []
+    raw = card.get("email_thread") or card.get("original_email") or []
     if isinstance(raw, str):
         try:
             raw = json.loads(raw)
@@ -417,6 +417,13 @@ def stale_pending_draft_conflicts(card: dict[str, Any], thread: list[dict[str, A
         draft_text,
     )
     if has_existing_package_signal(text) and pricing_draft:
+        return True
+    paid_execution = re.search(
+        r"\b(payment has been processed|payment processed|payment is processed|paid|invoice paid|"
+        r"should reach you|brief with more details|launch is on|launch date|go live|posting window)\b",
+        text,
+    )
+    if paid_execution and pricing_draft:
         return True
     if latest_inbound_wait_signal(thread) and pricing_draft:
         return True
