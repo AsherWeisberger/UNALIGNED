@@ -240,6 +240,62 @@ def compact_thread_text(thread: list[dict[str, Any]], limit: int = 8) -> str:
     return "\n\n---\n\n".join(parts)
 
 
+def message_body(msg: dict[str, Any] | None) -> str:
+    if not msg:
+        return ""
+    return str(msg.get("body") or msg.get("snippet") or "").strip()
+
+
+def thread_stage_text(card: dict[str, Any], thread: list[dict[str, Any]], limit: int = 10) -> str:
+    parts = [
+        str(card.get("title") or ""),
+        str(card.get("intent") or ""),
+        str(card.get("description") or ""),
+    ]
+    for msg in thread[-limit:]:
+        parts.extend([
+            str(msg.get("subject") or ""),
+            message_body(msg),
+        ])
+    return re.sub(r"\s+", " ", " ".join(parts)).lower()
+
+
+def has_existing_package_signal(text: str) -> bool:
+    return bool(re.search(
+        r"\b(monthly package|package of four posts|four posts|4 posts|[1-4]\s*/\s*4|"
+        r"not been completed|continue the collaboration|trial period|renew it|"
+        r"originally part of the agreement|contract was signed|previous collaborations|"
+        r"working together for so long|already paid|paid package)\b",
+        text,
+    ))
+
+
+def has_execution_signal(text: str) -> bool:
+    return bool(re.search(
+        r"\b(brief|draft|copy|sponsor review|client review|video production|release date|"
+        r"publish|go live|quote link|approved|revised copy|final edits|post|posts|collaboration)\b",
+        text,
+    ))
+
+
+def latest_inbound_wait_signal(thread: list[dict[str, Any]]) -> bool:
+    latest = latest_message(thread)
+    if not latest or participant_is_team(latest.get("from")):
+        return False
+    body = message_body(latest).lower()[:900]
+    wait_signal = re.search(
+        r"\b(thank you|thanks|plz wait|please wait|wait a moment|will get back|"
+        r"shared .* sponsor|submit.*sponsor|sponsor.*review|sounds great)\b",
+        body,
+    )
+    direct_ask = re.search(
+        r"\b(can you|could you|please send|please provide|need the copy|looking forward to receiving|"
+        r"what is|rate|pricing|invoice|payment|budget|question|issue|problem|revise|change)\b",
+        body,
+    )
+    return bool(wait_signal and not direct_ask)
+
+
 def participant_is_team(value: str) -> bool:
     s = str(value or "").lower()
     markers = [
@@ -309,17 +365,12 @@ def derive_reply_type(stage: str, lead: dict[str, Any]) -> str | None:
 
 
 def heuristic_stage(card: dict[str, Any], thread: list[dict[str, Any]]) -> tuple[str, str]:
-    text = " ".join(
-        filter(
-            None,
-            [
-                str(card.get("intent") or ""),
-                str(card.get("description") or ""),
-                *[str(m.get("subject") or "") + " " + str(m.get("body") or "") for m in thread[-6:]],
-            ],
-        )
-    ).lower()
+    text = thread_stage_text(card, thread, limit=8)
 
+    if has_existing_package_signal(text) and has_execution_signal(text):
+        if latest_inbound_wait_signal(thread):
+            return "done", "Existing paid package execution. Latest sponsor-side message is a wait/review note, so no pricing reply is needed."
+        return "done", "Existing paid package execution, not a fresh pricing lead."
     if re.search(r"\bpaid|payment receipt|invoice attached|invoice sent|receipt when paid|processing the payment|cfo is currently processing\b", text):
         return "invoice-sent", "Payment, invoice, or contract appears to be the blocker."
     if re.search(r"\bhow about\b|\bbudget\b|\brate too high\b|\bprice too high\b|\bdiscount\b|\bquote price doubled\b|\bnet[- ]?\d+\b", text):
@@ -331,6 +382,45 @@ def heuristic_stage(card: dict[str, Any], thread: list[dict[str, Any]]) -> tuple
     if thread:
         return "engaged", "There is active back-and-forth but no locked commercial state yet."
     return "new", "Fresh lead with no usable thread history yet."
+
+
+def deterministic_context_guard(card: dict[str, Any], thread: list[dict[str, Any]], summary: dict[str, Any], analysis: dict[str, Any]) -> dict[str, Any]:
+    text = thread_stage_text(card, thread, limit=10)
+    if has_existing_package_signal(text) and has_execution_signal(text):
+        waiting = latest_inbound_wait_signal(thread)
+        guarded = dict(analysis)
+        guarded["stage"] = "done"
+        guarded["safe_to_auto_send"] = False
+        guarded["reply_type"] = None if waiting else "brief-request"
+        guarded["needs_reply"] = False if waiting else bool(card.get("new_reply_at"))
+        guarded["reason"] = (
+            "Existing paid package execution. Latest sponsor-side note says to wait for review, so the system should watch instead of pricing it again."
+            if waiting
+            else "Existing paid package execution. Keep it in execution context instead of treating package language as a new rate request."
+        )
+        summary["brief_signal"] = True
+        summary["pricing_signal"] = False
+        summary["current_status"] = guarded["reason"]
+        summary["next_action"] = "Watch for sponsor feedback." if waiting else "Handle the execution request from the latest message."
+        return guarded
+    return analysis
+
+
+def stale_pending_draft_conflicts(card: dict[str, Any], thread: list[dict[str, Any]]) -> bool:
+    status = str(card.get("draft_reply_status") or "").lower()
+    if status != "pending" or not card.get("draft_reply"):
+        return False
+    text = thread_stage_text(card, thread, limit=10)
+    draft_text = json.dumps(card.get("draft_reply") or {}, ensure_ascii=False).lower()
+    pricing_draft = re.search(
+        r"\b(rate|pricing|payment terms|send over the invoice|invoice info|happy to move forward|quote)\b",
+        draft_text,
+    )
+    if has_existing_package_signal(text) and pricing_draft:
+        return True
+    if latest_inbound_wait_signal(thread) and pricing_draft:
+        return True
+    return False
 
 
 def escalation_flags(card: dict[str, Any], stage: str, thread: list[dict[str, Any]], pol: dict[str, Any]) -> list[str]:
@@ -513,6 +603,7 @@ def build_memory_entry(card: dict[str, Any], thread: list[dict[str, Any]], pol: 
             "reply_type": derive_reply_type(stage_guess, {"has_pricing_signal": summary.get("pricing_signal")}),
             "safe_to_auto_send": False,
         }
+    analysis = deterministic_context_guard(card, thread, summary, analysis)
     summary["pricing_signal"] = bool(summary.get("pricing_signal"))
     summary["brief_signal"] = bool(summary.get("brief_signal"))
     return {
@@ -657,7 +748,18 @@ def main() -> None:
         auto_send_state = {"attempted": False, "sent": False, "reason": ""}
         existing_status = str(card.get("draft_reply_status") or "").lower()
         already_has_draft = existing_status == "pending" and card.get("draft_reply")
-        should_draft = needs_reply and not (already_has_draft and not card.get("new_reply_at"))
+        clear_stale_pending = stale_pending_draft_conflicts(card, thread)
+        if clear_stale_pending:
+            needs_reply = False
+            analysis["needs_reply"] = False
+            analysis["safe_to_auto_send"] = False
+            analysis["reply_type"] = None
+            analysis["reason"] = "Cleared a stale pending pricing draft because this thread is existing package execution, not a new rate request."
+            patch["draft_reply"] = None
+            patch["draft_reply_status"] = ""
+            patch["new_reply_at"] = None
+
+        should_draft = needs_reply and not clear_stale_pending and not (already_has_draft and not card.get("new_reply_at"))
         if should_draft:
             draft = draft_reply(card, analysis, summary, pol, thread)
             if draft:
@@ -675,7 +777,8 @@ def main() -> None:
                         patch["draft_reply_status"] = "sent"
                         patch["new_reply_at"] = None
         else:
-            patch["draft_reply_status"] = card.get("draft_reply_status") or ""
+            if not clear_stale_pending:
+                patch["draft_reply_status"] = card.get("draft_reply_status") or ""
 
         if flags:
             escalated += 1
