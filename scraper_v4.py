@@ -1582,6 +1582,22 @@ def set_last_run_date(date_str: str):
         log.warning(f"Could not write last_run file: {e}")
 
 
+def _codex_disqualified(lead: dict, conversation: list) -> bool:
+    """Defensive gate for Codex-imported leads: catch hard disqualifiers the external
+    Codex extraction may have missed (e.g. a sender who explicitly declines paid work).
+    Returns True if the lead should be routed human_only instead of into the deal queue."""
+    text = " ".join([
+        str(lead.get("notes", "")), str(lead.get("evidence", "")),
+        " ".join(str(m.get("body", "")) for m in (conversation or []) if isinstance(m, dict)),
+    ]).lower()
+    declines = [
+        "not looking for any paid partnership", "not looking for paid partnership",
+        "no paid partnership", "not interested in paid", "not seeking paid",
+        "we are not looking for paid", "we're not looking for any paid",
+    ]
+    return any(p in text for p in declines)
+
+
 def import_codex_leads(extraction_path: str) -> int:
     """
     Import Codex-extracted leads back into Supabase.
@@ -1649,6 +1665,9 @@ def import_codex_leads(extraction_path: str) -> int:
             existing_ids.add(eid)
             continue
 
+        if _codex_disqualified(lead, conversation):
+            lead["human_only"] = "true"
+            log.info(f"Codex lead flagged human_only (declined paid partnership / non-deal): {eid}")
         cards.append(build_card(lead, original, conversation))
         existing_ids.add(eid)
 
