@@ -43,5 +43,5 @@ docs/*.html
 !functions/package.json
 !functions/package-lock.json
 
-# Local agent brain — confidential prompts/floors, runs locally, never published
-ops/
+# Local agent brain (ops/) is now tracked so it travels with the repo for handoff.
+# Secrets/logs stay out via ops/.gitignore (.env, *.log, PAUSE, __pycache__).

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UNALIGNED — Briefs to review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#06070c;--panel:rgba(18,22,34,.72);--line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.14);
+    --txt:#eef1f8;--txt2:#9aa4ba;--txt3:#616a80;--live:#3ee07f;--live2:#22d3bf;--claude:#b79bff;--amber:#fcb74a;--alert:#fb6f8d;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',system-ui,sans-serif;color:var(--txt);min-height:100vh;
+    background:radial-gradient(700px 380px at 50% -6%,rgba(62,224,127,.12),transparent 60%),radial-gradient(600px 400px at 50% 108%,rgba(157,123,255,.08),transparent 60%),var(--bg);
+    -webkit-font-smoothing:antialiased;padding:0 14px 60px}
+  .dsp{font-family:'Space Grotesk',sans-serif}.mono{font-family:'JetBrains Mono',monospace}
+  .wrap{max-width:480px;margin:0 auto}
+  /* header */
+  .hd{text-align:center;padding:30px 6px 18px;position:sticky;top:0;background:linear-gradient(180deg,var(--bg) 72%,transparent);z-index:5}
+  .mk{width:38px;height:38px;border-radius:10px;background:conic-gradient(from 140deg,var(--live),var(--live2),var(--claude),var(--live));display:inline-grid;place-items:center;font-weight:800;color:#06070c;font-size:18px;box-shadow:0 0 24px rgba(62,224,127,.35)}
+  .hd .nm{font-family:'Space Grotesk';font-weight:700;letter-spacing:2px;font-size:15px;margin-top:11px}
+  .hd h1{font-size:23px;font-weight:700;letter-spacing:-.4px;margin-top:14px}
+  .hd .dt{font-size:12.5px;color:var(--txt2);margin-top:5px}
+  .prog{display:inline-flex;align-items:center;gap:8px;margin-top:13px;font-size:11.5px;font-weight:700;letter-spacing:.5px;color:var(--live);background:rgba(62,224,127,.08);border:1px solid rgba(62,224,127,.25);padding:6px 13px;border-radius:20px}
+  /* brief card */
+  .brief{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px;margin-bottom:16px;backdrop-filter:blur(8px);transition:.3s}
+  .brief.gone{opacity:.5}
+  .bk{font-family:'JetBrains Mono';font-size:11px;letter-spacing:.5px;color:var(--live);margin-bottom:7px}
+  .brief h3{font-size:20px;font-weight:700;letter-spacing:-.3px}
+  .post{background:rgba(8,10,16,.6);border:1px solid var(--line2);border-radius:13px;padding:16px;font-size:16px;line-height:1.55;margin-top:14px;transition:.2s}
+  .disc{font-size:11px;color:var(--txt3);margin-top:11px;display:flex;gap:6px;flex-wrap:wrap}
+  .disc b{color:var(--live)}
+  .opts{display:flex;flex-direction:column;gap:8px;margin-top:15px}
+  .opt{text-align:left;font-family:inherit;font-size:13px;color:var(--txt2);background:transparent;border:1px solid var(--line2);border-radius:11px;padding:11px 13px;cursor:pointer;transition:.13s;font-weight:600}
+  .opt:hover{border-color:var(--txt2)}
+  .opt.sel{border-color:var(--live);background:rgba(62,224,127,.08);color:var(--live)}
+  .acts{display:grid;grid-template-columns:1fr auto auto;gap:9px;margin-top:16px}
+  .ax{font-family:inherit;font-weight:700;font-size:15px;border:none;border-radius:13px;padding:15px;cursor:pointer;transition:.13s}
+  .ax:active{transform:scale(.97)}
+  .ax.yes{background:linear-gradient(135deg,var(--live),var(--live2));color:#052a1c;box-shadow:0 7px 22px rgba(62,224,127,.4)}
+  .ax.ed{background:rgba(252,183,74,.12);color:var(--amber);border:1px solid rgba(252,183,74,.4);padding:15px 18px}
+  .ax.no{background:rgba(255,255,255,.04);color:var(--txt2);border:1px solid var(--line2);padding:15px 18px}
+  .eb{width:100%;margin-top:12px;background:rgba(8,10,16,.6);border:1px solid var(--line2);border-radius:11px;color:var(--txt);font-family:inherit;font-size:14px;padding:12px;min-height:78px;display:none;outline:none}
+  .eb.on{display:block}
+  .ebsend{display:none;margin-top:10px;width:100%;font-family:inherit;font-weight:700;font-size:14px;border:none;border-radius:11px;padding:13px;background:var(--panel);border:1px solid var(--line2);color:var(--amber);cursor:pointer}
+  .ebsend.on{display:block}
+  .done{display:none;align-items:center;gap:11px;padding:6px 2px;animation:rise .35s}
+  .done.on{display:flex}
+  .done .ic{width:30px;height:30px;border-radius:50%;background:var(--live);color:#052a1c;display:grid;place-items:center;font-weight:800;font-size:15px;flex-shrink:0}
+  .done.warn .ic{background:var(--amber)}
+  .done .dt2{font-size:13.5px;line-height:1.45}.done .dt2 b{color:var(--txt)}
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1}}
+  .allwrap{text-align:center;padding:30px 20px;display:none}
+  .allwrap.on{display:block;animation:rise .4s}
+  .allwrap .big{font-size:40px}
+  .allwrap h2{font-family:'Space Grotesk';font-size:21px;font-weight:700;margin-top:10px}
+  .allwrap p{font-size:13.5px;color:var(--txt2);margin-top:7px}
+  .foot{text-align:center;font-size:11px;color:var(--txt3);margin-top:24px;display:flex;align-items:center;justify-content:center;gap:7px}
+  .foot .lk{width:6px;height:6px;border-radius:50%;background:var(--live);box-shadow:0 0 7px var(--live)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hd">
+    <div class="mk">◆</div>
+    <div class="nm dsp">UNALIGNED</div>
+    <h1 class="dsp">Briefs to review</h1>
+    <div class="dt">Tonight · 3 ready for you, Robert</div>
+    <div class="prog mono" id="prog">0 OF 3 REVIEWED</div>
+  </div>
+  <div id="briefs"></div>
+  <div class="allwrap" id="allwrap">
+    <div class="big">✓</div>
+    <h2 class="dsp">All caught up</h2>
+    <p>Thanks Robert. Everything you approved is on the calendar and Asher will post it. Sleep easy.</p>
+  </div>
+  <div class="foot"><span class="lk"></span>Secure review link · tied to the UNALIGNED machine · expires after tonight</div>
+</div>
+
+<script>
+const BRIEFS=[
+ {id:1,brand:'BLACKBOX.AI',kind:'QRT · goes live Tue 9:00am PT',disc:['Paid Partnership','Made with AI','@blackboxai'],
+  opts:["Just tried BLACKBOX.AI's new agentic coding benchmark. The eval the field actually needed. Real tasks, real repos, no toy problems. Watching where the models land.",
+        "Most benchmarks bore me. This one from BLACKBOX.AI doesn't. Agentic coding measured on real work.",
+        "BLACKBOX.AI just dropped an agentic coding benchmark worth your attention."],
+  labels:['first person, recommended','reaction','short amplify']},
+ {id:2,brand:'OMANE Media',kind:'Quote Repost · goes live Tue 9:00am PT',disc:['Paid Partnership','@omane'],
+  opts:["OMANE keeps shipping. If you care where media tooling is heading, this launch is worth a look.",
+        "Watching OMANE closely. They move fast and the work holds up.",
+        "OMANE's latest. Worth your time."],
+  labels:['first person, recommended','reaction','short amplify']},
+ {id:3,brand:'Higgsfield AI',kind:'Founder Video · goes live Tue 9:00am PT',disc:['Paid Partnership','Made with AI','@higgsfield_ai'],
+  opts:["Higgsfield's new model is genuinely fun to play with. Quick demo of what it can do.",
+        "Tried Higgsfield's latest. Here is where it shines.",
+        "Higgsfield AI, worth a look. Short demo inside."],
+  labels:['caption A, recommended','caption B','caption C']},
+];
+let picks={},reviewed=new Set();
+const box=document.getElementById('briefs');
+box.innerHTML=BRIEFS.map(b=>`
+ <div class="brief" id="b-${b.id}">
+   <div class="bk">${b.kind}</div>
+   <h3>${b.brand}</h3>
+   <div class="post" id="post-${b.id}">${b.opts[0]}</div>
+   <div class="disc">${b.disc.map(d=>d==='Paid Partnership'||d==='Made with AI'?`<b>${d}</b>`:`<span>${d}</span>`).join('<span style="color:var(--txt3)">·</span>')}</div>
+   <div class="opts" id="opts-${b.id}">${b.opts.map((o,i)=>`<button class="opt ${i===0?'sel':''}" onclick="pick(${b.id},${i},this)">${b.labels[i]}</button>`).join('')}</div>
+   <div class="acts" id="acts-${b.id}">
+     <button class="ax yes" onclick="approve(${b.id})">✓ Approve</button>
+     <button class="ax ed" onclick="edits(${b.id})">Edits</button>
+     <button class="ax no" onclick="decline(${b.id})">No</button>
+   </div>
+   <textarea class="eb" id="eb-${b.id}" placeholder="What should change? Asher will revise and resend."></textarea>
+   <button class="ebsend" id="ebs-${b.id}" onclick="sendEdits(${b.id})">Send edits to Asher</button>
+   <div class="done" id="done-${b.id}"></div>
+ </div>`).join('');
+BRIEFS.forEach(b=>picks[b.id]=0);
+
+function pick(id,i,el){picks[id]=i;document.querySelectorAll('#opts-'+id+' .opt').forEach(o=>o.classList.remove('sel'));el.classList.add('sel');document.getElementById('post-'+id).textContent=BRIEFS.find(b=>b.id===id).opts[i]}
+function hideControls(id){document.getElementById('opts-'+id).style.display='none';document.getElementById('acts-'+id).style.display='none';document.getElementById('eb-'+id).classList.remove('on');document.getElementById('ebs-'+id).classList.remove('on')}
+function markReviewed(id){reviewed.add(id);const p=document.getElementById('prog');p.textContent=reviewed.size+' OF 3 REVIEWED';if(reviewed.size===BRIEFS.length){setTimeout(()=>document.getElementById('allwrap').classList.add('on'),300)}}
+function approve(id){const b=BRIEFS.find(x=>x.id===id);const opt=b.labels[picks[id]].split(',')[0];hideControls(id);const d=document.getElementById('done-'+id);d.className='done on';d.innerHTML=`<div class="ic">✓</div><div class="dt2"><b>Approved.</b> ${opt} is loaded onto the calendar for Tuesday 9am PT. Asher will post it.</div>`;markReviewed(id)}
+function edits(id){const e=document.getElementById('eb-'+id);e.classList.add('on');document.getElementById('ebs-'+id).classList.add('on');e.focus()}
+function sendEdits(id){hideControls(id);const d=document.getElementById('done-'+id);d.className='done on warn';d.innerHTML=`<div class="ic">✎</div><div class="dt2"><b>Edits sent to Asher.</b> He will revise and resend this one for your okay.</div>`;markReviewed(id)}
+function decline(id){hideControls(id);const d=document.getElementById('done-'+id);d.className='done on warn';d.innerHTML=`<div class="ic">✕</div><div class="dt2"><b>Skipped.</b> Asher will follow up on this one.</div>`;markReviewed(id)}
+</script>
+</body>
+</html>
