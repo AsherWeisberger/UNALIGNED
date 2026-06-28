@@ -16014,3 +16014,41 @@ body[data-theme="dark"] .gmail-reply-status.is-success{color:var(--good)}
   .uac-panel{width:100%;max-width:none;height:min(72vh,600px)}
 }
 
+
+/* ============================================================================
+   MOBILE NAV FIX (iPhone). Two problems on phones: the floating Copilot dock
+   (.uac, bottom right) sat on top of the footer tab bar and hid the right side
+   tabs (Machine, Organs), and nine tabs crammed into one row clipped their
+   labels. Fix: float the dock clear above the bar, and lay the tabs out in two
+   even rows so every tab shows on one screen. Phone only (max-width 640px),
+   desktop and tablet untouched. Reversible: remove this block and revert the
+   index.html cache token.
+   ============================================================================ */
+@media (max-width: 640px) {
+  /* let the footer grow to fit two rows instead of a fixed one row height */
+  .app { grid-template-rows: calc(44px + var(--safe-top)) 1fr auto; }
+
+  /* nine tabs in two tidy rows, nothing clipped */
+  .ft {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(5, 1fr);
+    grid-auto-rows: 1fr;
+    row-gap: 2px;
+    padding-top: 6px;
+  }
+  .ft-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 2px;
+    font-size: 10px;
+    line-height: 1.1;
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  /* keep the Copilot dock above the tab bar, never covering it */
+  .uac { bottom: calc(96px + var(--safe-bottom, 0px)); }
+}
