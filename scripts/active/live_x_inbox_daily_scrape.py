@@ -25,6 +25,7 @@ DAILY_NEW_THREADS_PATH = X_OUT / "robert_x_dm_live_inbox_new_threads.json"
 INTAKE_BUILDER = X_ROOT / "work" / "build_daily_x_lead_intake.py"
 NEW_LEADS_CSV = X_OUT / "x_dm_daily_new_leads.csv"
 COMPANY_OS_X_ASSET = REPO_ROOT / "flow-v4" / "assets" / "x_dm_daily_intake.json"
+COMPANY_OS_X_HEALTH = REPO_ROOT / "flow-v4" / "assets" / "x_scraper_health.json"
 ROBERT_HANDOFF_STATE = GOOGLE_STATE_DIR / "robert_handoff_operator_state.json"
 
 BUSINESS_SIGNALS = (
@@ -132,7 +133,7 @@ INBOX_EXTRACT_JS = r"""
   const seen = new Set();
   const rows = [];
   const timeRe = /(\d{1,2}:\d{2}\s*(AM|PM))|(\d+\s*[smhdw])|([A-Z][a-z]{2}\s+\d{1,2})|((Mon|Tue|Wed|Thu|Fri|Sat|Sun))/i;
-  const sampleLink = links.find((link) => clean(link.textContent || link.innerText || ''));
+  const sampleLink = links.find((link) => clean(link.innerText || link.textContent || ''));
   const scrollRoot = scrollRootFor(sampleLink || document.body);
 
   for (const link of links) {
@@ -144,13 +145,13 @@ INBOX_EXTRACT_JS = r"""
     if (rect.bottom < 0 || rect.top > window.innerHeight) continue;
     if (rect.width < 120 || rect.height < 24) continue;
 
-    const text = clean(link.textContent || link.innerText || '');
+    const text = clean(link.innerText || link.textContent || '');
     if (!text) continue;
 
     const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
     let title = lines[0] || '';
     let timestamp = lines.find(line => timeRe.test(line)) || '';
-    let preview = lines.slice(1).join(' ');
+    let preview = lines.slice(1).filter(line => line !== timestamp).join(' ');
 
     if (!timestamp) {
       const match = text.match(timeRe);
@@ -208,7 +209,7 @@ INBOX_SCROLL_JS = r"""
     return document.scrollingElement || document.documentElement;
   };
   const links = Array.from(document.querySelectorAll('a[href*="/i/chat/"], a[href*="/messages/"]'));
-  const sampleLink = links.find((link) => clean(link.textContent || link.innerText || ''));
+  const sampleLink = links.find((link) => clean(link.innerText || link.textContent || ''));
   const scrollRoot = scrollRootFor(sampleLink || document.body);
   const visibleLinks = links.filter((link) => {
     const rect = link.getBoundingClientRect();
@@ -358,19 +359,112 @@ def osa_jxa(script: str) -> str:
     return proc.stdout.strip()
 
 
+def close_automated_chrome_profiles() -> None:
+    """Kill temporary webdriver Chrome profiles before using AppleScript.
+
+    The X scraper must drive Robert's normal logged-in Chrome. OAuth flows,
+    Playwright, and browser tests can leave a second "Google Chrome" process open
+    with a throwaway user-data-dir; macOS AppleScript may attach to that process
+    instead of the real logged-in window. Those windows show the banner
+    "Chrome is being controlled by automated test software" and are never the
+    right X account for this scraper.
+    """
+    try:
+        proc = subprocess.run(
+            ["pgrep", "-fl", "Google Chrome"],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    except Exception:
+        return
+
+    killed = []
+    for line in (proc.stdout or "").splitlines():
+        if not line.strip():
+            continue
+        pid = line.split(None, 1)[0]
+        cmd = line[len(pid):].strip()
+        if (
+            "--enable-automation" in cmd
+            or "--test-type=webdriver" in cmd
+            or "org.chromium.Chromium.scoped_dir" in cmd
+        ):
+            try:
+                subprocess.run(["kill", pid], check=False)
+                killed.append(pid)
+            except Exception:
+                pass
+    if killed:
+        print(f"Closed temporary automated Chrome profile(s): {', '.join(killed)}", flush=True)
+        time.sleep(1.0)
+
+
 def ensure_chrome_tabs() -> tuple[int, int]:
+    """Prefer an already logged-in X inbox tab instead of blindly using the
+    front Chrome window. Chrome profiles are not exposed cleanly through
+    AppleScript, so the safest anchor is the visible X messages tab Ash is
+    already logged into.
+    """
     script = """
 tell application "Google Chrome"
   if (count of windows) is 0 then make new window
-  set w to front window
-  repeat while (count of tabs of w) < 2
-    make new tab at end of tabs of w
+
+  set inboxWindowIndex to 0
+  set inboxTabIndex to 0
+
+  repeat with wi from 1 to count of windows
+    set w to window wi
+    repeat with ti from 1 to count of tabs of w
+      set u to URL of tab ti of w
+      if u contains "x.com/i/chat" or u contains "x.com/messages" or u contains "twitter.com/messages" then
+        set inboxWindowIndex to wi
+        set inboxTabIndex to ti
+        exit repeat
+      end if
+    end repeat
+    if inboxWindowIndex is not 0 then exit repeat
   end repeat
-  return ((count of tabs of w) as text)
+
+  if inboxWindowIndex is 0 then
+    repeat with wi from 1 to count of windows
+      set w to window wi
+      repeat with ti from 1 to count of tabs of w
+        set u to URL of tab ti of w
+        if u contains "x.com/" or u contains "twitter.com/" then
+          set inboxWindowIndex to wi
+          set inboxTabIndex to ti
+          exit repeat
+        end if
+      end repeat
+      if inboxWindowIndex is not 0 then exit repeat
+    end repeat
+  end if
+
+  if inboxWindowIndex is 0 then error "No logged-in X tab found in normal Chrome. Open Robert's X account in Chrome, then run the scraper again."
+
+  set w to window inboxWindowIndex
+
+  set index of w to 1
+  set w to front window
+  set active tab index of w to inboxTabIndex
+  set URL of tab inboxTabIndex of w to "https://x.com/i/chat"
+
+  make new tab at end of tabs of w
+  set workerTabIndex to count of tabs of w
+
+  return ((inboxTabIndex as text) & "," & (workerTabIndex as text) & "," & (URL of tab inboxTabIndex of w))
 end tell
 """
-    osa(script)
-    return (1, 2)
+    raw = osa(script)
+    parts = [p.strip() for p in raw.split(",", 2)]
+    if len(parts) < 2:
+        raise RuntimeError(f"Could not prepare Chrome X tabs: {raw}")
+    inbox_tab = int(parts[0])
+    worker_tab = int(parts[1])
+    context_url = parts[2] if len(parts) > 2 else ""
+    print(f"Chrome context anchored to tab {inbox_tab}: {context_url}", flush=True)
+    return (inbox_tab, worker_tab)
 
 
 def activate_chrome_tab(tab_index: int) -> tuple[int, int, int, int]:
@@ -392,6 +486,7 @@ def chrome_js(tab_index: int, js: str) -> str:
     escaped = js.replace("\\", "\\\\").replace('"', '\\"')
     return osa(
         f'tell application "Google Chrome"\n'
+        f'  set active tab index of front window to {tab_index}\n'
         f'  execute tab {tab_index} of front window javascript "{escaped}"\n'
         f'end tell\n'
     )
@@ -406,6 +501,7 @@ def open_url(tab_index: int, url: str, wait: float) -> None:
     escaped = url.replace('"', '\\"')
     osa(
         f'tell application "Google Chrome"\n'
+        f'  set active tab index of front window to {tab_index}\n'
         f'  set URL of tab {tab_index} of front window to "{escaped}"\n'
         f'end tell\n'
     )
@@ -706,6 +802,18 @@ def append_run_log(entry: dict) -> None:
     write_json(RUN_LOG_PATH, runs)
 
 
+def write_company_os_x_health(summary: dict) -> None:
+    stop_reason = str(summary.get("stop_reason") or "")
+    inspected = int(summary.get("inspected") or 0)
+    health = {
+        **summary,
+        "ok": inspected > 0 and "stalled" not in stop_reason,
+        "source": "live_x_inbox_daily_scrape.py",
+        "note": "This powers the ORGANS X watcher health card.",
+    }
+    write_json(COMPANY_OS_X_HEALTH, health)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Newest-first daily live scrape for Robert's X inbox.")
     parser.add_argument("--wait", type=float, default=4.5, help="Seconds to wait after each X navigation.")
@@ -720,6 +828,7 @@ def main() -> None:
     parser.add_argument("--rebuild-intake", action="store_true", help="Rebuild the X intake and sync Company OS after scraping.")
     args = parser.parse_args()
 
+    close_automated_chrome_profiles()
     inbox_tab, worker_tab = ensure_chrome_tabs()
     state = load_state()
     live_contexts = load_live_contexts()
@@ -883,6 +992,7 @@ def main() -> None:
         "new_threads": len(scraped_new_threads),
     }
     append_run_log(run_summary)
+    write_company_os_x_health(run_summary)
 
     if args.rebuild_intake:
         rebuild_intake()

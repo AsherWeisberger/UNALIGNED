@@ -5712,6 +5712,50 @@ const V4_ORG_DEF = {
   qa: { name: 'QA', glyph: '✓', desc: 'Sold vs delivered, on go live.', token: null },
 };
 
+function V4OrgTimeAgo(value) {
+  if (!value) return 'never';
+  const ms = Date.now() - Date.parse(value);
+  if (!Number.isFinite(ms)) return 'unknown';
+  if (ms < 60000) return 'just now';
+  if (ms < 3600000) return Math.max(1, Math.round(ms / 60000)) + 'm ago';
+  if (ms < 86400000) return Math.max(1, Math.round(ms / 3600000)) + 'h ago';
+  return Math.max(1, Math.round(ms / 86400000)) + 'd ago';
+}
+
+function V4OrgIsStale(value, minutes) {
+  if (!value) return true;
+  const ms = Date.now() - Date.parse(value);
+  return !Number.isFinite(ms) || ms > minutes * 60000;
+}
+
+function V4OrgLeadLine(lead) {
+  if (!lead) return 'Nothing selected';
+  const who = lead.contactName || lead.sender || lead.email || lead.handle || '';
+  const source = lead.source || lead.channel || '';
+  return [lead.brand || lead.name || 'Lead', who, source].filter(Boolean).join(' · ');
+}
+
+function V4OrgApprovalBody(gate, lead) {
+  if (!lead) return '';
+  if (gate === 'replies') {
+    const dr = lead.draftReply || {};
+    return dr.body || dr.subject || lead.lastMessage || lead.summary || '';
+  }
+  if (gate === 'payments') return 'Invoice is out. Confirm payment proof before the work moves into the live posting lane.';
+  if (gate === 'briefs') return lead.briefBody || lead.briefSummary || 'Brief is waiting for Robert sign off before this can be scheduled.';
+  if (gate === 'posts') return 'Marked done. Confirm it is actually paid and posted before closing the loop.';
+  return lead.summary || lead.lastMessage || '';
+}
+
+function V4OrgApprovalWhy(gate, lead) {
+  if (!lead) return 'No approval selected.';
+  if (gate === 'replies') return 'Reply draft is ready, but it needs your approval before anything leaves Robert.';
+  if (gate === 'payments') return 'Finance loop needs a human check so unpaid work does not get posted by mistake.';
+  if (gate === 'briefs') return 'Brief Maker finished the prep. Robert needs the clean doc before go live.';
+  if (gate === 'posts') return 'QA is asking for final confirmation that sold, paid, and delivered all match.';
+  return 'This item is waiting because an agent could not safely move it alone.';
+}
+
 function V4OrgEditModal({ gate, lead, onClose }) {
   const { useState, useEffect } = React;
   const dr = (lead && lead.draftReply) || {};
@@ -5802,6 +5846,10 @@ function V4OrgEditModal({ gate, lead, onClose }) {
 function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
   const { health, resume, halt } = V4UseOpsHealth();
   const [modal, setModal] = React.useState(null);
+  const [selectedGate, setSelectedGate] = React.useState('');
+  const [selectedIndex, setSelectedIndex] = React.useState(0);
+  const [xHealth, setXHealth] = React.useState(null);
+  const [xHealthLoaded, setXHealthLoaded] = React.useState(false);
   const gates = V4AprComputeGates(leads, query);
   const gmap = {}; gates.forEach(g => { gmap[g.id] = g; });
 
@@ -5813,15 +5861,68 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
   if (!activeKey && gmap.replies && gmap.replies.items.length) activeKey = 'deal_desk';
   const organState = (key) => (key === activeKey ? 'work' : '');
 
-  const totalWaiting = gates.reduce((s, g) => s + g.items.length, 0);
-  const medic = halted ? haltReason
-    : activeKey ? (V4_ORG_DEF[activeKey].name + ' is working a lead right now.')
-      : totalWaiting ? (totalWaiting + ' parked at the gates, waiting on you.')
-        : 'All clear. Nothing waiting, nothing in flight.';
-
   const ORG_GATE = { deal_desk: 'replies', tracker: 'payments', brief_maker: 'briefs', qa: 'posts' };
   const GATE_TITLE = { replies: 'Reply gate', payments: 'Payment gate', briefs: 'Brief gate', posts: 'Post gate' };
   const GATE_DESC = { replies: 'Drafts waiting on your approval.', payments: 'Invoice out, confirm paid.', briefs: 'Awaiting Robert sign off.', posts: 'Approved and paid, ready to post.' };
+  const GATE_AGENT = { replies: 'Reply Operator', payments: 'Finance Loop', briefs: 'Brief Maker', posts: 'QA Runner' };
+  const GATE_TONE = { replies: 'blue', payments: 'gold', briefs: 'purple', posts: 'green' };
+
+  React.useEffect(() => {
+    let alive = true;
+    fetch('flow-v4/assets/x_scraper_health.json?v=20260628-organs-command-1')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (alive) { setXHealth(data || null); setXHealthLoaded(true); } })
+      .catch(() => { if (alive) { setXHealth(null); setXHealthLoaded(true); } });
+    return () => { alive = false; };
+  }, []);
+
+  const totalWaiting = gates.reduce((s, g) => s + g.items.length, 0);
+  const pendingGate = gates.find(g => g.items.length);
+  React.useEffect(() => {
+    if (!selectedGate || !(gmap[selectedGate] && gmap[selectedGate].items.length)) {
+      setSelectedGate(pendingGate ? pendingGate.id : '');
+      setSelectedIndex(0);
+    } else if (selectedIndex >= gmap[selectedGate].items.length) {
+      setSelectedIndex(0);
+    }
+  }, [totalWaiting, selectedGate, selectedIndex]);
+
+  const gate = selectedGate ? (gmap[selectedGate] || { items: [] }) : (pendingGate || { id: '', items: [] });
+  const selectedLead = gate.items[selectedIndex] || null;
+  const selectedAction = gate.id ? V4AprGateAction(gate.id) : null;
+  const approveSelected = () => {
+    if (!selectedLead || !selectedAction) return;
+    V4CosPatchLead(selectedLead, selectedAction.approve.fields, selectedAction.approve.local);
+    setSelectedIndex(0);
+  };
+  const denySelected = () => {
+    if (!selectedLead || !selectedAction) return;
+    V4CosPatchLead(selectedLead, selectedAction.deny.fields, selectedAction.deny.local);
+    setSelectedIndex(0);
+  };
+
+  const opsHeartbeat = (health && (health.heartbeat || health.updated_at || health.last_seen_at)) || '';
+  const qwenSpend = health ? V4AprNum(health.local_tokens_today) : '—';
+  const claudeSpend = health ? '$' + Number(health.claude_spend_today || 0).toFixed(2) : '—';
+  const xRanAt = xHealth && (xHealth.ran_at || xHealth.last_checked_at || xHealth.updated_at);
+  const xStale = xHealthLoaded && (!xHealth || V4OrgIsStale(xRanAt, 26 * 60));
+  const xBroken = xHealth && (
+    Number(xHealth.inspected || xHealth.visible_threads || 0) === 0 ||
+    String(xHealth.stop_reason || '').includes('stalled')
+  );
+  const incidents = [];
+  if (halted) incidents.push({ tone: 'red', label: 'Halted', text: haltReason });
+  if (!health || V4OrgIsStale(opsHeartbeat, 20)) incidents.push({ tone: 'gold', label: 'Ops heartbeat', text: 'Local operator health is stale or unavailable.' });
+  if (xStale) incidents.push({ tone: 'gold', label: 'X watcher', text: 'No fresh X scrape health. Check the Chrome session.' });
+  if (xBroken) incidents.push({ tone: 'red', label: 'X watcher', text: 'Last scrape looked stuck or inspected zero threads.' });
+  if (!incidents.length && totalWaiting) incidents.push({ tone: 'blue', label: 'Approvals', text: totalWaiting + ' items are waiting for your click.' });
+  if (!incidents.length) incidents.push({ tone: 'green', label: 'Clear', text: 'No blockers detected. The machine is moving.' });
+
+  const medic = halted ? haltReason
+    : incidents[0] ? incidents[0].text
+      : activeKey ? (V4_ORG_DEF[activeKey].name + ' is working a lead right now.')
+        : totalWaiting ? (totalWaiting + ' parked at the gates, waiting on you.')
+          : 'All clear. Nothing waiting, nothing in flight.';
 
   const cardState = (key) => {
     const gid = ORG_GATE[key];
@@ -5838,32 +5939,26 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
     const st = cardState(key);
     const stLabel = st === 'work' ? 'Active' : st === 'waiting' ? 'Waiting' : 'Idle';
     const first = g && g.items[0];
-    const act = gid ? V4AprGateAction(gid) : null;
-    const doApprove = () => { if (first && act) V4CosPatchLead(first, act.approve.fields, act.approve.local); };
-    const doDeny = () => { if (first && act) V4CosPatchLead(first, act.deny.fields, act.deny.local); };
+    const current = gid && gate.id === gid;
     return (
-      <div className={'orgx-card orgx-' + st} key={key}>
+      <button type="button" className={'orgx-card orgx-' + st + (current ? ' is-selected' : '')} key={key}
+        onClick={() => { if (gid) { setSelectedGate(gid); setSelectedIndex(0); } }}>
         <div className="orgx-head">
           <div className="orgx-ic">{o.glyph}</div>
           <div className="orgx-id"><div className="orgx-nm">{o.name}</div><div className="orgx-ds">{o.desc}</div></div>
           <span className={'orgx-pill ' + st}><span className="dot"></span>{stLabel}</span>
         </div>
         {o.token && <div className="orgx-tok">&rarr; {o.token}</div>}
-        {n > 0 && act ? (
+        {n > 0 ? (
           <div className="orgx-gate">
             <div className="orgx-gt">{GATE_TITLE[gid]} &middot; {n} waiting</div>
             <div className="orgx-gd">{GATE_DESC[gid]}</div>
             <div className="orgx-lead">{(first && first.brand) || 'Lead'}{first && first.stage ? <span className="orgx-stage">{first.stage}</span> : null}</div>
-            <div className="orgx-btns">
-              <button className="orgx-b ap" onClick={doApprove}>Approve</button>
-              <button className="orgx-b ed" onClick={() => setModal({ gate: gid, lead: first })}>Edit</button>
-              <button className="orgx-b dn" onClick={doDeny}>Deny</button>
-            </div>
           </div>
         ) : (
           <div className="orgx-quiet">{st === 'work' ? 'Working a lead now.' : 'Nothing queued.'}</div>
         )}
-      </div>
+      </button>
     );
   };
 
@@ -5887,12 +5982,13 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
       <div className="orgx-top">
         <div>
           <div className="orgx-eye">Operator brain</div>
-          <h1 className="orgx-title">Organs <i>every agent, every gate, one screen</i></h1>
+          <h1 className="orgx-title">ORGANS <i>approval command center</i></h1>
         </div>
         <div className="orgx-gauges">
           <div className={'orgx-run' + (halted ? ' off' : '')}><span className="d"></span>{halted ? 'Halted' : 'Running'}</div>
-          <div className="orgx-ctr"><span className="k">Local Qwen today</span><span className="v">{health ? V4AprNum(health.local_tokens_today) : '—'}</span></div>
-          <div className="orgx-ctr"><span className="k">Claude 10% today</span><span className="v m">{health ? '$' + Number(health.claude_spend_today || 0).toFixed(2) : '—'}</span></div>
+          <div className="orgx-ctr"><span className="k">Approvals</span><span className="v">{totalWaiting}</span></div>
+          <div className="orgx-ctr"><span className="k">Local Qwen</span><span className="v">{qwenSpend}</span></div>
+          <div className="orgx-ctr"><span className="k">Claude guard</span><span className="v m">{claudeSpend}</span></div>
           <button className="orgx-halt" onClick={halted ? resume : halt}>{halted ? 'Resume' : 'Halt'}</button>
         </div>
       </div>
@@ -5900,6 +5996,59 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
       <div className="orgx-medic">
         <span className="mi"><span className="pp"></span>&#9670; Medic</span>
         <span className="mw">{medic}</span>
+      </div>
+
+      <div className="orgx-command-grid">
+        <section className="orgx-command">
+          <div className="orgx-section-top">
+            <div>
+              <div className="orgx-section-eyebrow">Waiting on Asher</div>
+              <h2>{selectedLead ? ((selectedLead.brand || 'Lead') + ' · ' + (GATE_TITLE[gate.id] || 'Approval')) : 'Nothing needs approval'}</h2>
+            </div>
+            <div className={'orgx-agent-chip ' + (GATE_TONE[gate.id] || '')}>{gate.id ? GATE_AGENT[gate.id] : 'Clear lane'}</div>
+          </div>
+          {selectedLead ? (
+            <React.Fragment>
+              <div className="orgx-approval-meta">
+                <span>{V4OrgLeadLine(selectedLead)}</span>
+                {selectedLead.stage ? <span>{selectedLead.stage}</span> : null}
+                {selectedLead.value ? <span>{V4AprMoney(selectedLead.value)}</span> : null}
+              </div>
+              <div className="orgx-whyline"><b>Why this needs you:</b> {V4OrgApprovalWhy(gate.id, selectedLead)}</div>
+              <div className="orgx-approval-body">{V4OrgApprovalBody(gate.id, selectedLead) || 'No body available. Open edit before approving.'}</div>
+              <div className="orgx-approval-actions">
+                <button className="orgx-b ap" onClick={approveSelected}>Approve</button>
+                <button className="orgx-b ed" onClick={() => setModal({ gate: gate.id, lead: selectedLead })}>Edit and inspect</button>
+                <button className="orgx-b dn" onClick={denySelected}>Deny</button>
+                {gate.items.length > 1 ? (
+                  <button className="orgx-b ed" onClick={() => setSelectedIndex((selectedIndex + 1) % gate.items.length)}>Next in queue</button>
+                ) : null}
+              </div>
+            </React.Fragment>
+          ) : (
+            <div className="orgx-empty-state">
+              <div className="orgx-empty-big">No human clicks needed.</div>
+              <div>The agents can keep moving until a reply, payment, brief, or post needs approval.</div>
+            </div>
+          )}
+        </section>
+
+        <aside className="orgx-health">
+          <div className="orgx-section-eyebrow">Machine health</div>
+          <div className="orgx-health-row"><span>Operator</span><b>{halted ? 'Halted' : 'Running'}</b><em>{V4OrgTimeAgo(opsHeartbeat)}</em></div>
+          <div className={'orgx-health-row ' + (xBroken || xStale ? 'warn' : '')}><span>X watcher</span><b>{xBroken ? 'Needs attention' : xStale ? 'Stale' : 'Ready'}</b><em>{V4OrgTimeAgo(xRanAt)}</em></div>
+          <div className="orgx-health-row"><span>Gmail handoff</span><b>{gmap.replies.items.length ? gmap.replies.items.length + ' drafts' : 'Clear'}</b><em>approval gated</em></div>
+          <div className="orgx-health-row"><span>Brief maker</span><b>{gmap.briefs.items.length ? gmap.briefs.items.length + ' waiting' : 'Clear'}</b><em>Robert docs</em></div>
+        </aside>
+      </div>
+
+      <div className="orgx-incident-row">
+        {incidents.map((it, idx) => (
+          <div className={'orgx-incident ' + it.tone} key={idx}>
+            <span>{it.label}</span>
+            <b>{it.text}</b>
+          </div>
+        ))}
       </div>
 
       <div className="orgx-body">
