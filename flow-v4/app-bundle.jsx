@@ -5460,7 +5460,8 @@ function V4AprComputeGates(leads, query) {
   ];
 }
 
-// The board write each gate's Approve/Deny performs. Approve marks ready; nothing sends.
+// The board write each gate's Approve/Deny performs. Reply approvals use
+// V4SendApprovedReply so the button really sends from Asher.
 function V4AprGateAction(g) {
   if (g === 'replies') return {
     approve: { fields: { draft_reply_status: 'approved' }, local: { draftReplyStatus: 'approved' } },
@@ -5478,6 +5479,57 @@ function V4AprGateAction(g) {
     approve: { fields: { list_id: 'paid-out' }, local: { stage: 'paid-out' } },
     deny: { fields: {}, local: {} },
   };
+}
+
+async function V4PatchLeadAsync(lead, fields, localPatch) {
+  const id = lead?.rowId || lead?.id;
+  if (!id) return;
+  const res = await fetch(V3_SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(id), {
+    method: 'PATCH',
+    headers: {
+      apikey: V3_SUPABASE_ANON_KEY,
+      Authorization: 'Bearer ' + V3_SUPABASE_ANON_KEY,
+      'Content-Type': 'application/json',
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify(fields),
+  });
+  if (!res.ok) throw new Error('Board update failed: ' + await res.text());
+  const updated = (window.V3.LEADS || []).map(item =>
+    String(item.id) === String(lead.id) ? { ...item, ...localPatch } : item);
+  window.V3.LEADS = updated;
+  window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated } }));
+}
+
+async function V4SendApprovedReply(lead, overrides = {}) {
+  if (!lead) throw new Error('No lead selected.');
+  const sender = 'asher';
+  const draftLead = overrides.body || overrides.subject
+    ? { ...lead, draftReply: { subject: overrides.subject || lead?.draftReply?.subject || '', body: overrides.body || lead?.draftReply?.body || '' } }
+    : lead;
+  const draft = V3ComposeReplyDraft(draftLead, sender);
+  const recips = V3ReplyRecipients(lead, sender, false);
+  const to = V3UniqueEmails(recips.to || []);
+  if (!to.length) throw new Error('No outside recipient found. Open edit and add the lead email before sending.');
+  const cc = V3UniqueEmails([...(recips.cc || []), ...V3InternalEmails(sender)])
+    .filter(email => email.toLowerCase() !== to[0].toLowerCase())
+    .filter(email => !V3SenderEmails(sender).map(x => x.toLowerCase()).includes(email.toLowerCase()));
+  await V3SendLeadEmail({
+    lead,
+    sender,
+    to: to[0],
+    cc: cc.join(','),
+    subject: draft.subject,
+    body: draft.body,
+    attachPdf: false,
+  });
+  await V4PatchLeadAsync(lead,
+    { draft_reply_status: 'sent', new_reply_at: null },
+    { draftReplyStatus: 'sent', unread: false, needsReply: false });
+  window.dispatchEvent(new CustomEvent('v3:email-sent', {
+    detail: { leadId: lead.id, sender, subject: draft.subject, body: draft.body, to, cc },
+  }));
+  return { to, cc, subject: draft.subject };
 }
 
 // Shared ops_health binding: polls the singleton row, exposes resume() + halt().
@@ -5517,6 +5569,7 @@ function V4MachineRoomConsole({ leads = [], query = '', onOpenLead }) {
   const [editing, setEditing] = React.useState(false);
   const [editBody, setEditBody] = React.useState('');
   const [editSubject, setEditSubject] = React.useState('');
+  const [sendState, setSendState] = React.useState({ key: '', status: '', error: '' });
   const { health, resume } = V4UseOpsHealth();
 
   const current = flat.find(f => (f.gate + ':' + f.lead.id) === selKey) || flat[0] || null;
@@ -5533,17 +5586,37 @@ function V4MachineRoomConsole({ leads = [], query = '', onOpenLead }) {
     setSelKey(next ? next.gate + ':' + next.lead.id : null);
   };
 
-  const onApprove = () => { const a = V4AprGateAction(gate); V4CosPatchLead(lead, a.approve.fields, a.approve.local); advance(); };
+  const onApprove = async () => {
+    if (!lead || !gate) return;
+    const key = gate + ':' + lead.id;
+    if (gate === 'replies') {
+      setSendState({ key, status: 'sending', error: '' });
+      try {
+        await V4SendApprovedReply(lead);
+        setSendState({ key, status: 'sent', error: '' });
+        advance();
+      } catch (err) {
+        setSendState({ key, status: 'error', error: err.message || 'Send failed' });
+      }
+      return;
+    }
+    const a = V4AprGateAction(gate); V4CosPatchLead(lead, a.approve.fields, a.approve.local); advance();
+  };
   const onDeny = () => { const a = V4AprGateAction(gate); V4CosPatchLead(lead, a.deny.fields, a.deny.local); advance(); };
   const startEdit = () => {
     const dr = lead.draftReply || {};
     setEditSubject(dr.subject || ''); setEditBody(dr.body || ''); setEditing(true);
   };
   const saveApprove = () => {
-    const payload = JSON.stringify({ subject: editSubject, body: editBody });
-    V4CosPatchLead(lead, { draft_reply: payload, draft_reply_status: 'approved' },
-      { draftReply: { subject: editSubject, body: editBody }, draftReplyStatus: 'approved' });
-    setEditing(false); advance();
+    const key = gate + ':' + lead.id;
+    setSendState({ key, status: 'sending', error: '' });
+    V4SendApprovedReply(lead, { subject: editSubject, body: editBody })
+      .then(() => {
+        setSendState({ key, status: 'sent', error: '' });
+        setEditing(false);
+        advance();
+      })
+      .catch(err => setSendState({ key, status: 'error', error: err.message || 'Send failed' }));
   };
 
   const oneLine = (l) => l.recommendedAction ||
@@ -5671,19 +5744,20 @@ function V4MachineRoomConsole({ leads = [], query = '', onOpenLead }) {
             </div>
 
             <div className="apr-bar">
+              {sendState.error && (sendState.key === (gate + ':' + lead.id)) ? <span className="apr-sp err">{sendState.error}</span> : null}
               {editing ? (
                 <React.Fragment>
-                  <button className="apr-btn ap" onClick={saveApprove}>✓ Save &amp; approve</button>
+                  <button className="apr-btn ap" onClick={saveApprove} disabled={sendState.status === 'sending'}>✓ Save &amp; send</button>
                   <button className="apr-btn ed" onClick={() => setEditing(false)}>Cancel</button>
                 </React.Fragment>
               ) : (
                 <React.Fragment>
-                  <button className="apr-btn ap" onClick={onApprove}>✓ Approve</button>
+                  <button className="apr-btn ap" onClick={onApprove} disabled={sendState.status === 'sending'}>✓ {gate === 'replies' ? 'Approve & send' : 'Approve'}</button>
                   {gate === 'replies' && <button className="apr-btn ed" onClick={startEdit}>✎ Edit &amp; approve</button>}
                   <button className="apr-btn dn" onClick={onDeny}>Deny</button>
                 </React.Fragment>
               )}
-              <span className="apr-sp">nothing sends without your separate send</span>
+              <span className="apr-sp">{gate === 'replies' ? 'sends from Asher and CCs Robert and Sam' : 'approval only for this gate'}</span>
             </div>
           </div>
         )}
@@ -5829,6 +5903,7 @@ function V4OrgEditModal({ gate, lead, onClose }) {
   const [editing, setEditing] = useState(false);
   const [body, setBody] = useState(initialBody);
   const [subject, setSubject] = useState(dr.subject || '');
+  const [sendState, setSendState] = useState({ status: '', error: '' });
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose && onClose(); };
@@ -5838,12 +5913,29 @@ function V4OrgEditModal({ gate, lead, onClose }) {
 
   const GATE_NAME = { replies: 'Reply', payments: 'Payment', briefs: 'Brief', posts: 'Post' };
   const close = () => onClose && onClose();
-  const approve = () => { const a = V4AprGateAction(gate); V4CosPatchLead(lead, a.approve.fields, a.approve.local); close(); };
+  const approve = async () => {
+    setSendState({ status: 'sending', error: '' });
+    try {
+      if (gate === 'replies') {
+        await V4SendApprovedReply(lead);
+      } else {
+        const a = V4AprGateAction(gate);
+        await V4PatchLeadAsync(lead, a.approve.fields, a.approve.local);
+      }
+      setSendState({ status: 'sent', error: '' });
+      close();
+    } catch (err) {
+      setSendState({ status: 'error', error: err.message || 'Send failed' });
+    }
+  };
   const deny = () => { const a = V4AprGateAction(gate); V4CosPatchLead(lead, a.deny.fields, a.deny.local); close(); };
   const saveApprove = () => {
     if (gate === 'replies') {
-      V4CosPatchLead(lead, { draft_reply: JSON.stringify({ subject: subject, body: body }), draft_reply_status: 'approved' },
-        { draftReply: { subject: subject, body: body }, draftReplyStatus: 'approved' });
+      setSendState({ status: 'sending', error: '' });
+      V4SendApprovedReply(lead, { subject, body })
+        .then(() => { setSendState({ status: 'sent', error: '' }); close(); })
+        .catch(err => setSendState({ status: 'error', error: err.message || 'Send failed' }));
+      return;
     } else if (gate === 'briefs') {
       V4CosPatchLead(lead, { brief_body: body, brief_status: 'approved' }, { briefBody: body, briefStatus: 'approved' });
     }
@@ -5889,14 +5981,15 @@ function V4OrgEditModal({ gate, lead, onClose }) {
           {why ? <div className="orgx-why">{why}</div> : null}
         </div>
         <div className="orgx-modal-ft">
+          {sendState.error ? <span className="orgx-send-error">{sendState.error}</span> : null}
           {editing ? (
             <React.Fragment>
-              <button className="orgx-b ap" onClick={saveApprove}>Save &amp; approve</button>
+              <button className="orgx-b ap" onClick={saveApprove} disabled={sendState.status === 'sending'}>{gate === 'replies' ? 'Save & send' : 'Save & approve'}</button>
               <button className="orgx-b ed" onClick={() => setEditing(false)}>Cancel</button>
             </React.Fragment>
           ) : (
             <React.Fragment>
-              <button className="orgx-b ap" onClick={approve}>Approve</button>
+              <button className="orgx-b ap" onClick={approve} disabled={sendState.status === 'sending'}>{gate === 'replies' ? 'Approve & send' : 'Approve'}</button>
               {editable ? <button className="orgx-b ed" onClick={() => setEditing(true)}>Edit draft</button> : null}
               <button className="orgx-b dn" onClick={deny}>Deny</button>
             </React.Fragment>
@@ -5914,6 +6007,7 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
   const [selectedIndex, setSelectedIndex] = React.useState(0);
   const [xHealth, setXHealth] = React.useState(null);
   const [xHealthLoaded, setXHealthLoaded] = React.useState(false);
+  const [sendState, setSendState] = React.useState({ key: '', status: '', error: '' });
   const gates = V4AprComputeGates(leads, query);
   const gmap = {}; gates.forEach(g => { gmap[g.id] = g; });
 
@@ -5954,8 +6048,20 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
   const gate = selectedGate ? (gmap[selectedGate] || { items: [] }) : (pendingGate || { id: '', items: [] });
   const selectedLead = gate.items[selectedIndex] || null;
   const selectedAction = gate.id ? V4AprGateAction(gate.id) : null;
-  const approveSelected = () => {
+  const approveSelected = async () => {
     if (!selectedLead || !selectedAction) return;
+    const key = gate.id + ':' + selectedLead.id;
+    if (gate.id === 'replies') {
+      setSendState({ key, status: 'sending', error: '' });
+      try {
+        await V4SendApprovedReply(selectedLead);
+        setSendState({ key, status: 'sent', error: '' });
+        setSelectedIndex(0);
+      } catch (err) {
+        setSendState({ key, status: 'error', error: err.message || 'Send failed' });
+      }
+      return;
+    }
     V4CosPatchLead(selectedLead, selectedAction.approve.fields, selectedAction.approve.local);
     setSelectedIndex(0);
   };
@@ -5966,6 +6072,9 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
   };
   const selectedContext = selectedLead ? V4OrgApprovalContext(selectedLead) : null;
   const selectedConflict = selectedLead ? V4OrgApprovalConflict(selectedLead, selectedContext) : '';
+  const selectedSendKey = selectedLead && gate.id ? (gate.id + ':' + selectedLead.id) : '';
+  const selectedSending = sendState.key === selectedSendKey && sendState.status === 'sending';
+  const selectedSendError = sendState.key === selectedSendKey ? sendState.error : '';
 
   const opsHeartbeat = (health && (health.heartbeat || health.updated_at || health.last_seen_at)) || '';
   const qwenSpend = health ? V4AprNum(health.local_tokens_today) : '—';
@@ -6117,7 +6226,8 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
                 </section>
               </div>
               <div className="orgx-approval-actions">
-                <button className="orgx-b ap" onClick={approveSelected}>Approve</button>
+                {selectedSendError ? <div className="orgx-send-error wide">{selectedSendError}</div> : null}
+                <button className="orgx-b ap" onClick={approveSelected} disabled={selectedSending}>{selectedSending ? 'Sending...' : (gate.id === 'replies' ? 'Approve & send' : 'Approve')}</button>
                 <button className="orgx-b ed" onClick={() => setModal({ gate: gate.id, lead: selectedLead })}>Edit and inspect</button>
                 <button className="orgx-b dn" onClick={denySelected}>Deny</button>
                 {gate.items.length > 1 ? (

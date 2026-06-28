@@ -16379,6 +16379,29 @@ body[data-theme="dark"] .orgx-reply-card{
   min-height:36px;
   padding:9px 15px;
 }
+.orgx-b:disabled,
+.apr-btn:disabled{
+  opacity:.62;
+  cursor:progress;
+}
+.orgx-send-error{
+  align-self:center;
+  border:1px solid rgba(211,91,64,.34);
+  border-radius:10px;
+  padding:8px 10px;
+  background:rgba(211,91,64,.09);
+  color:#a83b2c;
+  font-size:12px;
+  font-weight:800;
+  line-height:1.35;
+}
+.orgx-send-error.wide{
+  flex-basis:100%;
+}
+.apr-sp.err{
+  color:#a83b2c;
+  font-weight:800;
+}
 .orgx-empty-state{
   display:grid;
   place-items:center;
