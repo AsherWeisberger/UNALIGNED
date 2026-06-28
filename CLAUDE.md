@@ -60,8 +60,44 @@ IMPORTANT: a running scraper/launchd process uses the OLD code until you `git pu
 The Copilot needs `scripts/active/local_llm_bridge.py` running (same bridge as Draft with AI).
 
 ## Open follow-ups
-- Restart the scraper launchd job after pulling so the human_only gate goes live in production.
-- Claude: pull latest before any bundle edit; wire the cube theme transition + boot reveal if not already done.
 - Build the Copilot web-search tool into `local_llm_bridge.py` (gives it live news/web).
-- Rotate the GitHub token + Anthropic key (both were exposed in chat). Treat as burned.
 - Telegram intake (Telethon userbot on the Mac) and WhatsApp intake are scoped but not built.
+
+## CRITICAL — live state & gaps not captured by code or git (handoff for Codex / any cold agent), updated 2026-06-28
+A cold agent reading the repo will NOT know any of the following. None of it lives in the git diff. Read this before assuming the runbook "just works."
+
+### Things git does NOT contain (must read locally on the Mac)
+- **The entire `ops/` kit is git-ignored** (root `.gitignore` has `ops/`). The orchestrator, agents, router, models, `ops/memory/CANONICAL.md`, `ops/prompts/*`, and `ops/sql/*.sql` exist ONLY on the Mac. Codex pulling from GitHub will be blind to all of it. To see it, read the files directly at `MASTER FILES/ops/`.
+- `ops/.env` holds the live secrets (Supabase keys, ANTHROPIC_API_KEY). Never committed.
+
+### Live environment changes already DONE this session (state, not code)
+- **Full Disk Access GRANTED** to `/bin/bash` and `python3.14` (System Settings > Privacy > FDA). This was the real reason the daily scraper failed ~2 of 3 mornings: launchd-spawned processes couldn't read the repo because it lives in `~/Desktop` (a TCC-protected folder), failing with `Operation not permitted` (history: 37 starts / 13 ends). It now runs end-to-end. If the repo is ever moved, or FDA is reset, this breaks again. Long-term fix = move the repo out of `~/Desktop`.
+- **Gmail re-authed** for BOTH accounts on 2026-06-27: `gmail-token.json` (Robert / scobleizer@gmail.com) and `asher-gmail-token.json` (Asher / asherunaligned@gmail.com), scope gmail.readonly. The OAuth app is still in **Testing** mode, so refresh tokens die every ~7 days → expect weekly `invalid_grant` until the app is **Published** (Google Cloud > OAuth consent screen > Publish app). Re-auth helper: `python3 scripts/active/reauth_gmail.py --account robert|asher`.
+- **Supabase migrations APPLIED** (via SQL editor; file `ops/sql/approval_console.sql`): added `cards.agent_assessment`, `cards.recommended_action`, `cards.agent_tier`; created `ops_health` (singleton id=1) with anon grants + RLS policies (select/insert/update, no delete) + `now_handling` column.
+- **launchd `com.unaligned.dailyscraper`** reloaded + kickstarted successfully post-FDA; the new human_only gate + cron hardening are live.
+
+### Code shipped this session (tracked, in git)
+- `scraper_v4.py`: **per-account state** via `SCRAPER_ACCOUNT` env. `robert` keeps the original unsuffixed token/checkpoint/last_run files; any other account (e.g. `asher`) gets suffixed files + `<account>-gmail-token.json`. Stops two inboxes colliding on one shared cutoff. Run Asher: `SCRAPER_ACCOUNT=asher python3 scraper_v4.py`.
+- `scripts/active/run_codex_daily_scraper.sh`: a dead/expired token now **skips only that account** (with a re-auth hint) instead of `set -e` aborting the whole morning run; BOTH mailboxes sync their email chains every run.
+
+### The ops orchestrator brain (local-only, `ops/`)
+- launchd `com.unaligned.ops-orchestrator`: `orchestrator.py --once` every 5 min (`StartInterval 300`, RunAtLoad). **Writes are ON** (`OPS_WRITES_ENABLED=1`); **sending is NOT wired anywhere** — Approve only marks ready.
+- Core loop wired + proven on real cards: `triage()` (local Qwen, scam-gate) -> `deal_desk_draft()` (Claude, the 10%, reads `pricing_tiers` live, drafts with `reply_engines`). Writes structured fields: `draft_reply` (email only), `draft_reply_status='pending'`, `agent_assessment`/`recommended_action`/`agent_tier`, advances stage up to `engaged`.
+- Maintains `ops_health` each run: status, heartbeat, `local_tokens_today`, `claude_spend_today`, `now_handling`. Kill switch: create `ops/PAUSE`.
+- Staged but NOT wired: tracker, qa, brief_maker, medic (prompts exist, no agent functions yet).
+- Model: `CLAUDE_MODEL=claude-opus-4-8`. Note: Opus 4.8 rejects `temperature` (already removed from `models.py`).
+
+### Dashboard wiring confirmed live
+- Approval console (apr-* shell) and Organs floor view (org-* / OrgansFloorView) both render from the SAME shared helpers (`V4AprComputeGates`, `V4AprGateAction`, `V4UseOpsHealth`) and bind to the `ops_health` row. Cube theme transition + boot reveal ARE wired into the bundle (done — earlier follow-up resolved).
+
+### Still TODO (do these)
+- **Publish the Google OAuth app** (stops weekly Gmail token death). Highest leverage.
+- **Rotate the GitHub token + Anthropic key** — both were pasted in chat this session. Treat as burned. After rotating, update `ops/.env` and the scraper env.
+- Asher's backlog was only partially scraped (a manual run was killed mid-way); the daily cron now covers him going forward.
+
+## How we work (cadence for any agent picking this up)
+- **Branch = `AI-DESIGN`** (GitHub Pages deploys from it). Hyperagent pushes UI/CSS; pull often. After any CSS/bundle change, BUMP the cache token in `index.html` (`styles.css?v=` / `app-bundle.jsx?v=`) — stale tokens silently serve old code, and a backward bump = stale cache. Watch for token regressions on merge.
+- **The live app loads `flow-v4/app-bundle.jsx`** (hand-maintained, ~14k lines), NOT the individual `.jsx` source files (stale). Edit the bundle. `deploy.sh` does NOT concat — it just commits + pushes + firebase deploy.
+- **Verify before push**: use the preview server (python http.server on the repo) and check the actual rendered view; don't trust source files.
+- **Approval-gated, no auto-send. No hyphens/em dashes in drafted content. Live Gmail is the source of truth** (the board lags). When unsure deal vs. Robert-conversation, lean `human_only`.
+- **A running launchd/scraper process uses OLD code until you `git pull` AND restart the job** (`launchctl kickstart -k gui/$(id -u)/<label>`).
