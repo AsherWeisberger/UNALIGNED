@@ -12413,48 +12413,92 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   const [splitsOpen, setSplitsOpen] = React.useState(false);
   const [syncStatus, setSyncStatus] = React.useState('idle');
   const [syncNote, setSyncNote] = React.useState('');
+  const gmailDeltaRef = React.useRef({ running: false, last: 0 });
   const [isMobile, setIsMobile] = React.useState(() =>
     typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches
   );
 
-  const refreshFromGmail = React.useCallback(async () => {
-    if (syncStatus === 'syncing') return;
-    setSyncStatus('syncing');
-    setSyncNote('Pulling Asher Gmail…');
+  const refreshFromGmail = React.useCallback(async (opts = {}) => {
+    if (gmailDeltaRef.current.running) return;
+    const quiet = !!opts.quiet;
+    const minGap = quiet ? 25000 : 0;
+    const now = Date.now();
+    if (minGap && now - gmailDeltaRef.current.last < minGap) return;
+    gmailDeltaRef.current.running = true;
+    gmailDeltaRef.current.last = now;
+    if (!quiet) {
+      setSyncStatus('syncing');
+      setSyncNote('Checking Gmail changes…');
+    }
     try {
-      const res = await V4BriefServiceFetch('/sync-asher-gmail', {
+      let res = await V4BriefServiceFetch('/sync-asher-gmail-delta', {
         method: 'POST',
         body: JSON.stringify({}),
       });
-      const data = await res.json().catch(() => ({}));
+      let data = await res.json().catch(() => ({}));
       if (!res.ok || data.ok === false) {
         throw new Error(data.error || ('Sync failed (' + res.status + ')'));
       }
+      if (data.checkpoint_expired) {
+        if (!quiet) setSyncNote('Gmail checkpoint expired. Running full catch-up…');
+        res = await V4BriefServiceFetch('/sync-asher-gmail', {
+          method: 'POST',
+          body: JSON.stringify({}),
+        });
+        data = await res.json().catch(() => ({}));
+        if (!res.ok || data.ok === false) {
+          throw new Error(data.error || ('Full sync failed (' + res.status + ')'));
+        }
+      }
       if (window.V3?.ReloadLeads) await window.V3.ReloadLeads();
-      const patched = Number(data.threads_patched || 0);
+      const patched = Number(data.cards_updated ?? data.threads_patched ?? 0);
       const created = Number(data.new_cards_written || 0);
-      setSyncNote(
-        created
-          ? `Synced · ${patched} updated · ${created} new`
-          : (patched ? `Synced · ${patched} updated` : 'Synced · up to date')
-      );
-      setSyncStatus('ok');
-    } catch (err) {
-      try {
-        if (window.V3?.ReloadLeads) await window.V3.ReloadLeads();
-        setSyncNote('Reloaded board · Gmail sync unavailable');
+      if (!quiet || patched || created) {
+        setSyncNote(
+          created
+            ? `Synced · ${patched} updated · ${created} new`
+            : (patched ? `Synced · ${patched} updated` : 'Synced · up to date')
+        );
         setSyncStatus('ok');
-      } catch (reloadErr) {
-        setSyncNote(err?.message || 'Sync failed');
-        setSyncStatus('error');
+      }
+    } catch (err) {
+      if (!quiet) {
+        try {
+          if (window.V3?.ReloadLeads) await window.V3.ReloadLeads();
+          setSyncNote('Reloaded board · Gmail sync unavailable');
+          setSyncStatus('ok');
+        } catch (reloadErr) {
+          setSyncNote(err?.message || 'Sync failed');
+          setSyncStatus('error');
+        }
       }
     } finally {
-      window.setTimeout(() => {
-        setSyncStatus('idle');
-        setSyncNote('');
-      }, 3500);
+      gmailDeltaRef.current.running = false;
+      if (!quiet) {
+        window.setTimeout(() => {
+          setSyncStatus('idle');
+          setSyncNote('');
+        }, 3500);
+      }
     }
-  }, [syncStatus]);
+  }, []);
+
+  React.useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState === 'visible') refreshFromGmail({ quiet: true });
+    };
+    const first = window.setTimeout(tick, 2500);
+    const interval = window.setInterval(tick, 45000);
+    const onFocus = () => tick();
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [refreshFromGmail]);
 
   const split = splits.find(s => s.id === splitId) || splits[0];
   const items = split.items || [];

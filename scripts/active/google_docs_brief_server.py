@@ -2465,6 +2465,35 @@ def sync_asher_gmail_now() -> dict:
     return payload
 
 
+def sync_asher_gmail_delta() -> dict:
+    """Fast Gmail delta sync. Uses Gmail historyId instead of exporting days of mail."""
+    script = ACTIVE_SCRIPTS_DIR / "gmail_delta_sync.py"
+    brief_log("Starting fast Asher Gmail delta sync")
+    result = subprocess.run(
+        [sys.executable, str(script)],
+        cwd=str(WEB_ROOT),
+        capture_output=True,
+        text=True,
+        timeout=int(os.environ.get("GMAIL_DELTA_SYNC_TIMEOUT_SEC", "45")),
+    )
+    payload: dict = {}
+    if result.stdout.strip():
+        try:
+            payload = json.loads(result.stdout)
+        except Exception:
+            payload = {"ok": False, "error": (result.stdout or result.stderr or "delta sync failed")[:500]}
+    if result.returncode != 0 and payload.get("ok") is not False:
+        payload = {
+            "ok": False,
+            "error": (result.stderr or result.stdout or "Asher Gmail delta sync failed")[:500],
+        }
+    brief_log(
+        "Asher Gmail delta sync finished "
+        f"ok={payload.get('ok')} mode={payload.get('mode')} updated={payload.get('cards_updated')} checked={payload.get('checked_threads')}"
+    )
+    return payload
+
+
 def import_notion_brief(notion_url: str, email_context: str = "") -> dict:
     notion_url = line(notion_url)
     if not notion_url:
@@ -3232,7 +3261,7 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
         if path not in (
             "/generate-brief-doc", "/start-brief-job", "/create-calendar-hold",
             "/import-notion-brief", "/import-source-brief", "/draft-robert-handoff",
-            "/send-robert-handoff", "/complete", "/sync-asher-gmail",
+            "/send-robert-handoff", "/complete", "/sync-asher-gmail", "/sync-asher-gmail-delta",
         ):
             send_json(self, 404, {"ok": False, "error": "Unknown endpoint."})
             return
@@ -3247,6 +3276,9 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
                 return
             if path == "/sync-asher-gmail":
                 send_json(self, 200, sync_asher_gmail_now())
+                return
+            if path == "/sync-asher-gmail-delta":
+                send_json(self, 200, sync_asher_gmail_delta())
                 return
             if path == "/generate-brief-doc":
                 result = create_brief_doc(payload)
