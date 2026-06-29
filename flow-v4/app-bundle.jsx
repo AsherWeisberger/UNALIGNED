@@ -5883,9 +5883,13 @@ function V4OrgApprovalConflict(lead, context) {
   const draft = String(lead?.draftReply?.body || '').toLowerCase();
   const inbound = String(context?.body || '').toLowerCase();
   const pricingDraft = /\b(rate|pricing|payment terms|send the invoice|send over the invoice|move forward|quote)\b/.test(draft);
-  const paidOrExecution = /\b(payment has been processed|payment processed|paid|should reach you|brief with more details|launch is on|launch date|go live|posting window|already paid)\b/.test(inbound);
+  const paymentChaseDraft = /\b(not received payment|have not received payment|haven't received payment|payment.*not.*received|invoice.*not.*paid|issues holding this up|holding this up)\b/.test(draft);
+  const paidOrExecution = /\b(payment has been processed|payment processed|payment'?s already cleared|payment has cleared|payment cleared|receipt tomorrow|send the receipt|paid|should reach you|brief with more details|launch is on|launch date|go live|posting window|already paid|live link|wrong tag|correct tag|no worries, thanks for the post)\b/.test(inbound);
   if (pricingDraft && paidOrExecution) {
     return 'Possible stale draft. The inbound message already talks about payment, timing, or brief details, but the proposed reply still sounds like fresh pricing.';
+  }
+  if (paymentChaseDraft && paidOrExecution) {
+    return 'Possible stale draft. The inbound message says payment cleared, receipt is coming, or execution already moved forward, but the proposed reply still chases unpaid invoice status.';
   }
   const existingPackage = /\b(monthly package|four posts|4 posts|[1-4]\s*\/\s*4|not been completed|continue the collaboration|originally part of the agreement)\b/.test(inbound);
   if (pricingDraft && existingPackage) {
@@ -5914,6 +5918,12 @@ function V4OrgEditModal({ gate, lead, onClose }) {
   const GATE_NAME = { replies: 'Reply', payments: 'Payment', briefs: 'Brief', posts: 'Post' };
   const close = () => onClose && onClose();
   const approve = async () => {
+    const context = gate === 'replies' ? V4OrgApprovalContext(lead) : null;
+    const conflict = gate === 'replies' ? V4OrgApprovalConflict(lead, context) : '';
+    if (conflict) {
+      setSendState({ status: 'error', error: conflict });
+      return;
+    }
     setSendState({ status: 'sending', error: '' });
     try {
       if (gate === 'replies') {
@@ -6052,6 +6062,10 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
     if (!selectedLead || !selectedAction) return;
     const key = gate.id + ':' + selectedLead.id;
     if (gate.id === 'replies') {
+      if (selectedConflict) {
+        setSendState({ key, status: 'error', error: selectedConflict });
+        return;
+      }
       setSendState({ key, status: 'sending', error: '' });
       try {
         await V4SendApprovedReply(selectedLead);
@@ -6227,7 +6241,7 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
               </div>
               <div className="orgx-approval-actions">
                 {selectedSendError ? <div className="orgx-send-error wide">{selectedSendError}</div> : null}
-                <button className="orgx-b ap" onClick={approveSelected} disabled={selectedSending}>{selectedSending ? 'Sending...' : (gate.id === 'replies' ? 'Approve & send' : 'Approve')}</button>
+                <button className="orgx-b ap" onClick={approveSelected} disabled={selectedSending || (gate.id === 'replies' && !!selectedConflict)}>{selectedSending ? 'Sending...' : (gate.id === 'replies' && selectedConflict ? 'Fix draft first' : (gate.id === 'replies' ? 'Approve & send' : 'Approve'))}</button>
                 <button className="orgx-b ed" onClick={() => setModal({ gate: gate.id, lead: selectedLead })}>Edit and inspect</button>
                 <button className="orgx-b dn" onClick={denySelected}>Deny</button>
                 {gate.items.length > 1 ? (

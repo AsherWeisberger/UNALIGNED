@@ -420,10 +420,19 @@ def stale_pending_draft_conflicts(card: dict[str, Any], thread: list[dict[str, A
         return True
     paid_execution = re.search(
         r"\b(payment has been processed|payment processed|payment is processed|paid|invoice paid|"
-        r"should reach you|brief with more details|launch is on|launch date|go live|posting window)\b",
+        r"payment'?s already cleared|payment has cleared|payment cleared|receipt tomorrow|send the receipt|"
+        r"should reach you|brief with more details|launch is on|launch date|go live|posting window|"
+        r"live link|wrong tag|correct tag|no worries, thanks for the post)\b",
         text,
     )
     if paid_execution and pricing_draft:
+        return True
+    payment_chase_draft = re.search(
+        r"\b(not received payment|have not received payment|haven't received payment|"
+        r"payment.*not.*received|invoice.*not.*paid|issues holding this up|holding this up)\b",
+        draft_text,
+    )
+    if paid_execution and payment_chase_draft:
         return True
     if latest_inbound_wait_signal(thread) and pricing_draft:
         return True
