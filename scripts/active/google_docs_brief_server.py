@@ -2583,7 +2583,7 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
     if valid_drafts:
         push("spacer")
         push("section_heading", "Draft Options")
-        push("body", "Post to publish (draft options)", shaded=True)
+        push("body", "Post to publish (draft options). Robert: for each option mark Y or N, or write your change on the Edit line. Nothing goes live until you pick one.", shaded=True)
         push("blank")
         for idx, draft in enumerate(valid_drafts):
             label = line(draft.get("label"))
@@ -2595,6 +2595,10 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
                 push("body", paragraph, shaded=True)
                 if paragraph_index != len(draft_paragraphs) - 1:
                     push("blank")
+            # VERIFY — Robert signs off on each option before it goes live.
+            push("blank")
+            push("body", "VERIFY (Robert):   Y (  )        N (  )", shaded=True, bold=True)
+            push("body", "Edit / what to change:  ______________________________________________", shaded=True)
             if idx != len(valid_drafts) - 1:
                 push("blank")
 
