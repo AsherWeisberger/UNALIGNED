@@ -1772,10 +1772,72 @@ def standardized_brief_title(company: str, *platform_hints: str) -> str:
     return f"{company_name} x UNALIGNED x {platform}"
 
 
+# Asset detection — pull every attachable file/media link out of the source so the
+# brief lists exactly what Robert must include (hero video, images, logo, media kit, PDF).
+_ASSET_HOST_HINTS = ("drive.google.com/file", "drive.google.com/open", "drive.google.com/uc",
+                     "youtube.com", "youtu.be", "vimeo.com", "loom.com", "dropbox.com",
+                     "wetransfer", "we.tl", "prod-files", "amazonaws.com", "figma.com",
+                     "notion.so/signed", "cdn.")
+_ASSET_EXT = (".mp4", ".mov", ".webm", ".png", ".jpg", ".jpeg", ".gif", ".pdf", ".zip", ".key", ".heic")
+_ASSET_TEXT = ("asset", "video", "hero", "logo", "media kit", "still", "visual", "download",
+               "banner", "image", "graphic", "thumbnail", "b-roll", "broll", "creative", "footage")
+
+
+def classify_asset(href: str, text: str = "") -> str | None:
+    h = (href or "").lower()
+    t = (text or "").lower()
+    if not h.startswith("http"):
+        return None
+    base = h.split("?")[0]
+    is_asset = (any(x in h for x in _ASSET_HOST_HINTS)
+                or any(base.endswith(e) for e in _ASSET_EXT)
+                or any(w in t for w in _ASSET_TEXT))
+    if not is_asset:
+        return None
+    if "youtu" in h or "vimeo" in h or "loom" in h or base.endswith((".mp4", ".mov", ".webm")) or "video" in t or "footage" in t or "b-roll" in t or "broll" in t:
+        label = "Video"
+    elif base.endswith((".png", ".jpg", ".jpeg", ".gif", ".heic")) or any(w in t for w in ("image", "logo", "banner", "still", "graphic", "thumbnail")):
+        label = "Image"
+    elif base.endswith(".pdf") or "media kit" in t:
+        label = "PDF / media kit"
+    elif "figma" in h:
+        label = "Figma"
+    elif any(x in h for x in ("drive.google.com", "dropbox", "wetransfer", "we.tl")):
+        label = "Drive / file"
+    else:
+        label = "Asset"
+    # prefer the link's own descriptive text when it has one
+    clean_text = (text or "").strip()
+    if clean_text and len(clean_text) > 2 and not clean_text.lower().startswith("http"):
+        return clean_text
+    return label
+
+
+def collect_assets(links: list[dict], urls: list[str]) -> list[list[str]]:
+    assets: list[list[str]] = []
+    seen: set[str] = set()
+    for item in (links or []):
+        href = line(item.get("href")) if isinstance(item, dict) else ""
+        txt = line(item.get("text")) if isinstance(item, dict) else ""
+        label = classify_asset(href, txt)
+        if label and href and href not in seen:
+            assets.append([label, href])
+            seen.add(href)
+    for u in (urls or []):
+        label = classify_asset(u, "")
+        if label and u and u not in seen:
+            assets.append([label, u])
+            seen.add(u)
+    return assets[:10]
+
+
 def standardized_calendar_title(company: str, *platform_hints: str) -> str:
-    company_name = line(company) or "Collab"
-    platform = brief_platform_label(*platform_hints)
-    return f"{company_name} - {platform}"
+    # COMPANY x ACTION - PLATFORM, e.g. "VIKTOR x QRT - X.COM".
+    # First hint is the deliverable_type; the post location for these is always X.
+    company_name = (line(company) or "Collab").upper()
+    deliverable = platform_hints[0] if platform_hints else ""
+    action = deliverable_action(deliverable)
+    return f"{company_name} x {action} - X.COM"
 
 
 def build_structured_brief_payload(
@@ -2240,6 +2302,7 @@ def build_structured_brief_payload(
         "go_live_note": clean_sentence("Your job is to send the draft for review and post only when approved on the shared timeline"),
         "angles_or_accuracy_requirements": derive_angle_points(),
         "where_it_lives": where_it_lives,
+        "assets": collect_assets(links, deduped_urls),
         "status_note": compact_status_lines(),
         "why_alignednews": why_alignednews,
         "drafts": [
@@ -2577,6 +2640,23 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
         logistics_entries.extend(combine_values("Why it matters for AlignedNews", [line(payload.get("why_alignednews"))]))
     if logistics_entries:
         push_section("Important Logistics", logistics_entries)
+
+    # Assets to include — every attachable file/media pulled from the source, so Robert
+    # knows exactly what to attach and you can confirm the client sent it all.
+    asset_rows = []
+    seen_asset_urls: set[str] = set()
+    for row in (payload.get("assets") or []):
+        if isinstance(row, (list, tuple)) and len(row) >= 2:
+            label_v, url_v = line(row[0]), line(row[1])
+            if url_v and url_v not in seen_asset_urls:
+                asset_rows.append((label_v or "Asset", url_v))
+                seen_asset_urls.add(url_v)
+    if asset_rows:
+        push("spacer")
+        push("section_heading", "Assets to include")
+        push("body", "Attach these to the post. Confirm the client sent everything before go live.", shaded=True)
+        for label_v, url_v in asset_rows:
+            push("body", url_v, shaded=True, lead_label=label_v)
 
     drafts = payload.get("drafts") or []
     valid_drafts = [item for item in drafts if isinstance(item, dict) and (line(item.get("label")) or line(item.get("text")))]
