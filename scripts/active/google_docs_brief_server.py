@@ -2583,7 +2583,10 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
     if valid_drafts:
         push("spacer")
         push("section_heading", "Draft Options")
-        push("body", "Post to publish (draft options). Robert: read the options below, then pick ONE in the Verify box. Nothing goes live until you choose.", shaded=True)
+        if len(valid_drafts) == 1:
+            push("body", "Post to publish. Robert: approve it in the Verify box (or write a change on the Edit line). Nothing goes live until you do.", shaded=True)
+        else:
+            push("body", "Post to publish (draft options). Robert: read the options below, then pick ONE in the Verify box. Nothing goes live until you choose.", shaded=True)
         push("blank")
         for idx, draft in enumerate(valid_drafts):
             label = line(draft.get("label"))
@@ -2598,11 +2601,15 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
             if idx != len(valid_drafts) - 1:
                 push("blank")
 
-        # VERIFY — Robert picks ONE option before anything goes live.
+        # VERIFY — Robert signs off before anything goes live. One option = approve Y/N;
+        # multiple options = pick exactly one. Checkboxes match however many drafts exist.
         push("spacer")
         push("section_heading", "Verify")
-        pick_line = "Pick ONE to post:        " + "        ".join(
-            f"Option {i + 1} (  )" for i in range(len(valid_drafts)))
+        if len(valid_drafts) == 1:
+            pick_line = "Approve this post:        Y (  )        N (  )"
+        else:
+            pick_line = "Pick ONE to post:        " + "        ".join(
+                f"Option {i + 1} (  )" for i in range(len(valid_drafts)))
         push("body", pick_line, shaded=True, bold=True)
         push("body", "Edit / what to change:  ______________________________________________", shaded=True)
 
