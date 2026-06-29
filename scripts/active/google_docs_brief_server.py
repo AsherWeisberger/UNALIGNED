@@ -2583,7 +2583,7 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
     if valid_drafts:
         push("spacer")
         push("section_heading", "Draft Options")
-        push("body", "Post to publish (draft options). Robert: for each option mark Y or N, or write your change on the Edit line. Nothing goes live until you pick one.", shaded=True)
+        push("body", "Post to publish (draft options). Robert: read the options below, then pick ONE in the Verify box. Nothing goes live until you choose.", shaded=True)
         push("blank")
         for idx, draft in enumerate(valid_drafts):
             label = line(draft.get("label"))
@@ -2595,12 +2595,16 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
                 push("body", paragraph, shaded=True)
                 if paragraph_index != len(draft_paragraphs) - 1:
                     push("blank")
-            # VERIFY — Robert signs off on each option before it goes live.
-            push("blank")
-            push("body", "VERIFY (Robert):   Y (  )        N (  )", shaded=True, bold=True)
-            push("body", "Edit / what to change:  ______________________________________________", shaded=True)
             if idx != len(valid_drafts) - 1:
                 push("blank")
+
+        # VERIFY — Robert picks ONE option before anything goes live.
+        push("spacer")
+        push("section_heading", "Verify")
+        pick_line = "Pick ONE to post:        " + "        ".join(
+            f"Option {i + 1} (  )" for i in range(len(valid_drafts)))
+        push("body", pick_line, shaded=True, bold=True)
+        push("body", "Edit / what to change:  ______________________________________________", shaded=True)
 
     if line(payload.get("submit_url")):
         push("spacer")
