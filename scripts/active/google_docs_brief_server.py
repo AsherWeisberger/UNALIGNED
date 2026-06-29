@@ -2948,8 +2948,42 @@ def create_brief_doc(payload: dict) -> dict:
     return response
 
 
+# deliverable -> short action label for the calendar title (QRT / THREAD / etc.)
+_DELIVERABLE_ACTION = [
+    ("quote", "QRT"), ("qrt", "QRT"), ("thread", "THREAD"),
+    ("retweet", "RETWEET"), ("repost", "REPOST"), ("video", "VIDEO"),
+    ("space", "SPACE"), ("interview", "INTERVIEW"), ("post", "POST"),
+]
+
+
+def deliverable_action(deliverable_type: str) -> str:
+    d = (deliverable_type or "").lower()
+    for key, label in _DELIVERABLE_ACTION:
+        if key in d:
+            return label
+    return "POST"
+
+
+def format_calendar_title(payload: dict) -> str:
+    """COMPANY x ACTION - PLATFORM, e.g. 'VIKTOR x QRT - X.COM'."""
+    company = line(payload.get("company_name")) or line(payload.get("title")) or "Brief"
+    # if we only have the full title, take the part before a separator
+    for sep in (" x ", " - ", ":", "—", "|"):
+        if sep in company:
+            company = company.split(sep)[0].strip()
+            break
+    action = deliverable_action(line(payload.get("deliverable_type")))
+    platform = line(payload.get("platform")) or "X.COM"
+    return f"{company.upper()} x {action} - {platform.upper()}"
+
+
 def create_calendar_hold(payload: dict) -> dict:
-    title = line(payload.get("calendar_title")) or line(payload.get("title"))
+    # Standard format COMPANY x ACTION - PLATFORM (e.g. VIKTOR x QRT - X.COM).
+    # Honor a genuinely custom calendar_title; otherwise (it was auto-set to the
+    # plain brief title) build the standard one.
+    explicit_title = line(payload.get("calendar_title"))
+    plain_title = line(payload.get("title"))
+    title = explicit_title if (explicit_title and explicit_title != plain_title) else format_calendar_title(payload)
     if not title:
         raise ValueError("Calendar title is required.")
     mode = calendar_mode(payload)
@@ -2963,15 +2997,16 @@ def create_calendar_hold(payload: dict) -> dict:
         start_at = datetime.strptime(date_value, "%Y-%m-%d")
         end_at = start_at + timedelta(days=1)
     doc_url = line(payload.get("doc_url"))
-    note_lines = [
-        line(payload.get("subtitle")),
-        "",
-        "GO LIVE",
-        line(payload.get("go_live")),
-        line(payload.get("go_live_note")),
-    ]
+    # Lean calendar note. The detail lives on the brief; the calendar just points
+    # Robert there and reminds him to choose + disclose before posting.
+    note_lines = ["VERIFY OPTIONS ON BRIEF"]
+    note_lines.append("Open the brief, pick one option (or request an edit), and approve it. Nothing goes live until you do.")
+    go_live = line(payload.get("go_live"))
+    if go_live:
+        note_lines.extend(["", f"GO LIVE: {go_live}"])
     if mode == "all_day" and start_value:
-        note_lines.extend(["", f"Target time: {start_at.strftime('%I:%M %p').lstrip('0')}"])
+        note_lines.append(f"Target time: {start_at.strftime('%I:%M %p').lstrip('0')}")
+    note_lines.extend(["", "Turn on the native Paid Partnership label. Everything else you need is on the brief."])
     if doc_url:
         note_lines.extend(["", f"Brief doc: {doc_url}"])
     description = "\n".join([part for part in note_lines if part is not None]).strip()
