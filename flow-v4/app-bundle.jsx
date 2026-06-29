@@ -12920,7 +12920,22 @@ function V4App() {
   const [toast, setToast] = React.useState(null);
   const toastTimer = React.useRef(null);
   const searchRef = React.useRef(null);
+  const organsMenuRef = React.useRef(null);
+  const [organsMenuOpen, setOrgansMenuOpen] = React.useState(false);
   const [pendingReplies, setPendingReplies] = React.useState([]);
+
+  React.useEffect(() => {
+    const onDown = (event) => {
+      if (!organsMenuRef.current || organsMenuRef.current.contains(event.target)) return;
+      setOrgansMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, []);
+
+  React.useEffect(() => {
+    setOrgansMenuOpen(false);
+  }, [view]);
 
   React.useEffect(() => {
     const h = (e) => setBriefId(e.detail.leadId);
@@ -13114,16 +13129,24 @@ function V4App() {
     pipeline: operationalLeads.filter(l => !['paid-out'].includes(l.stage)).reduce((s, l) => s + (l.value || 0), 0),
   };
   const inboxLabel = user === 'robert' ? 'Brief' : 'Inbox';
+  const goView = (id) => {
+    setView(id);
+    if (id !== 'inbox' && id !== 'leads') setOpenId(null);
+    setOrgansMenuOpen(false);
+  };
+  const organsToolViews = ['organs', 'inbox', 'invoices', 'new-leads', 'leads'];
+  const organsMenuActive = organsToolViews.includes(view);
 
   const paletteCommands = [
-    { label: 'Go to Company OS', hint: 'workspace', run: () => { setView('company-os'); setOpenId(null); } },
-    { label: 'Go to Machine Room', hint: 'workers', run: () => { setView('machine-room'); setOpenId(null); } },
-    { label: 'Go to Today', run: () => { setView('today'); setOpenId(null); } },
-    { label: 'Go to Calendar', run: () => { setView('calendar'); setOpenId(null); } },
-    { label: 'Go to ' + inboxLabel, run: () => { setView('inbox'); } },
-    { label: 'Go to Invoices', run: () => { setView('invoices'); setOpenId(null); } },
-    { label: 'Go to New Leads', run: () => { setView('new-leads'); setOpenId(null); } },
-    { label: 'Go to Network', run: () => { setView('leads'); } },
+    { label: 'Go to Company OS', hint: 'workspace', run: () => goView('company-os') },
+    { label: 'Go to Organs', hint: 'command center', run: () => goView('organs') },
+    { label: 'Go to Machine Room', hint: 'workers', run: () => goView('machine-room') },
+    { label: 'Go to Today', run: () => goView('today') },
+    { label: 'Go to Calendar', run: () => goView('calendar') },
+    { label: 'Go to Briefs', run: () => goView('inbox') },
+    { label: 'Go to Invoices', run: () => goView('invoices') },
+    { label: 'Go to New Leads', run: () => goView('new-leads') },
+    { label: 'Go to Network', run: () => goView('leads') },
     { label: 'View as Asher', hint: 'shared lane', run: () => { setTweak('viewAs', 'asher'); setOpenId(null); } },
     { label: 'View as Sammy', hint: 'shared lane', run: () => { setTweak('viewAs', 'sammy'); setOpenId(null); } },
     { label: 'View as Robert', hint: 'creator lane', run: () => { setTweak('viewAs', 'robert'); setOpenId(null); } },
@@ -13142,25 +13165,36 @@ function V4App() {
         </div>
 
         <div className="hd-nav">
-          <button className="hd-nav-btn" aria-current={view === 'today' ? 'page' : undefined} onClick={() => { setView('today'); setOpenId(null); }}>Today</button>
-          <button className="hd-nav-btn" aria-current={view === 'calendar' ? 'page' : undefined} onClick={() => { setView('calendar'); setOpenId(null); }}>
+          <button className="hd-nav-btn" aria-current={view === 'today' ? 'page' : undefined} onClick={() => goView('today')}>Today</button>
+          <button className="hd-nav-btn" aria-current={view === 'calendar' ? 'page' : undefined} onClick={() => goView('calendar')}>
             <V3Icon name="cal" w={13} style={{ marginRight: 4 }} /> Calendar
           </button>
-          <button className="hd-nav-btn" aria-current={view === 'inbox' ? 'page' : undefined} onClick={() => { setView('inbox'); }}>
-            {inboxLabel}
-            {unreadCount > 0 && <span className="cnt">{unreadCount}</span>}
-          </button>
-          <button className="hd-nav-btn" aria-current={view === 'invoices' ? 'page' : undefined} onClick={() => { setView('invoices'); setOpenId(null); }}>
-            Invoices
-          </button>
-          <button className="hd-nav-btn" aria-current={view === 'new-leads' ? 'page' : undefined} onClick={() => { setView('new-leads'); setOpenId(null); }}>
-            New Leads
-            {newLeadCount > 0 && <span className="cnt">{newLeadCount}</span>}
-          </button>
-          <button className="hd-nav-btn" aria-current={view === 'leads' ? 'page' : undefined} onClick={() => { setView('leads'); }}>Network</button>
-          <button className="hd-nav-btn" aria-current={view === 'company-os' ? 'page' : undefined} onClick={() => { setView('company-os'); setOpenId(null); }}>Company OS</button>
-          <button className="hd-nav-btn" aria-current={view === 'machine-room' ? 'page' : undefined} onClick={() => { setView('machine-room'); setOpenId(null); }}>Machine Room</button>
-          <button className="hd-nav-btn" aria-current={view === 'organs' ? 'page' : undefined} onClick={() => { setView('organs'); setOpenId(null); }}>Organs</button>
+          <button className="hd-nav-btn" aria-current={view === 'company-os' ? 'page' : undefined} onClick={() => goView('company-os')}>Company OS</button>
+          <div className="hd-nav-menu" ref={organsMenuRef}>
+            <button
+              className="hd-nav-btn hd-nav-menu-btn"
+              aria-current={organsMenuActive ? 'page' : undefined}
+              aria-haspopup="menu"
+              aria-expanded={organsMenuOpen}
+              onClick={() => setOrgansMenuOpen(open => !open)}
+            >
+              Organs <span className="hd-nav-caret">⌄</span>
+            </button>
+            {organsMenuOpen && (
+              <div className="hd-nav-dropdown" role="menu" aria-label="Organs tools">
+                <button role="menuitem" className="hd-nav-drop-item" aria-current={view === 'organs' ? 'page' : undefined} onClick={() => goView('organs')}>Organs command</button>
+                <button role="menuitem" className="hd-nav-drop-item" aria-current={view === 'inbox' ? 'page' : undefined} onClick={() => goView('inbox')}>
+                  Briefs {unreadCount > 0 && <span>{unreadCount}</span>}
+                </button>
+                <button role="menuitem" className="hd-nav-drop-item" aria-current={view === 'invoices' ? 'page' : undefined} onClick={() => goView('invoices')}>Invoices</button>
+                <button role="menuitem" className="hd-nav-drop-item" aria-current={view === 'new-leads' ? 'page' : undefined} onClick={() => goView('new-leads')}>
+                  New Leads {newLeadCount > 0 && <span>{newLeadCount}</span>}
+                </button>
+                <button role="menuitem" className="hd-nav-drop-item" aria-current={view === 'leads' ? 'page' : undefined} onClick={() => goView('leads')}>Network</button>
+              </div>
+            )}
+          </div>
+          <button className="hd-nav-btn" aria-current={view === 'machine-room' ? 'page' : undefined} onClick={() => goView('machine-room')}>Machine Room</button>
         </div>
 
         <div className="hd-search">
@@ -13349,42 +13383,21 @@ function V4App() {
           <V3Icon name="cal" w={18} />
           Calendar
         </button>
-        <button className="ft-tab" aria-current={view === 'inbox' ? 'page' : undefined}
-                onClick={() => { setView('inbox'); }}>
-          <V3Icon name="inbox" w={18} />
-          {inboxLabel}
-          {unreadCount > 0 && <span className="ft-tab-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>}
-        </button>
-        <button className="ft-tab" aria-current={view === 'invoices' ? 'page' : undefined}
-                onClick={() => { setView('invoices'); setOpenId(null); }}>
-          <V3Icon name="invoice" w={18} />
-          Invoices
-        </button>
-        <button className="ft-tab" aria-current={view === 'new-leads' ? 'page' : undefined}
-                onClick={() => { setView('new-leads'); setOpenId(null); }}>
-          <V3Icon name="plus" w={18} />
-          Leads
-          {newLeadCount > 0 && <span className="ft-tab-badge">{newLeadCount > 99 ? '99+' : newLeadCount}</span>}
-        </button>
-        <button className="ft-tab" aria-current={view === 'leads' ? 'page' : undefined}
-                onClick={() => { setView('leads'); }}>
-          <V3Icon name="leads" w={18} />
-          Network
-        </button>
         <button className="ft-tab" aria-current={view === 'company-os' ? 'page' : undefined}
                 onClick={() => { setView('company-os'); setOpenId(null); }}>
           <V3Icon name="diamond" w={18} />
           OS
         </button>
+        <button className="ft-tab" aria-current={organsMenuActive ? 'page' : undefined}
+                onClick={() => { setView('organs'); setOpenId(null); }}>
+          <V3Icon name="network" w={18} />
+          Organs
+          {(unreadCount + newLeadCount) > 0 && <span className="ft-tab-badge">{(unreadCount + newLeadCount) > 99 ? '99+' : (unreadCount + newLeadCount)}</span>}
+        </button>
         <button className="ft-tab" aria-current={view === 'machine-room' ? 'page' : undefined}
                 onClick={() => { setView('machine-room'); setOpenId(null); }}>
           <V3Icon name="network" w={18} />
           Machine
-        </button>
-        <button className="ft-tab" aria-current={view === 'organs' ? 'page' : undefined}
-                onClick={() => { setView('organs'); setOpenId(null); }}>
-          <V3Icon name="network" w={18} />
-          Organs
         </button>
       </footer>
 
