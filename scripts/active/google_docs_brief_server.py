@@ -2406,8 +2406,8 @@ def import_notion_brief(notion_url: str, email_context: str = "") -> dict:
     notion_url = line(notion_url)
     if not notion_url:
         raise ValueError("Notion URL is required.")
-    if "notion.so" not in notion_url and "notion.site" not in notion_url:
-        raise ValueError("Paste a public Notion link.")
+    if not any(h in notion_url for h in ("notion.so", "notion.site", "notion.com")):
+        raise ValueError("Paste a Notion page link (notion.so, notion.site, or app.notion.com).")
     set_brief_job_stage("reading_source", "Reading source brief")
     brief_log(f"Importing Notion source {notion_url}")
     result = subprocess.run(
@@ -2436,7 +2436,7 @@ def import_source_brief(source_url: str, email_context: str = "") -> dict:
     set_brief_job_stage("reading_source", "Reading source brief")
     brief_log(f"Importing source {source_url}")
 
-    if "notion.so" in source_url or "notion.site" in source_url:
+    if any(h in source_url for h in ("notion.so", "notion.site", "notion.com")):
         return import_notion_brief(source_url, email_context=email_context)
 
     if "docs.google.com/document" in source_url:
