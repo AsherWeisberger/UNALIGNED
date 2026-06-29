@@ -12421,7 +12421,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   const refreshFromGmail = React.useCallback(async (opts = {}) => {
     if (gmailDeltaRef.current.running) return;
     const quiet = !!opts.quiet;
-    const minGap = quiet ? 25000 : 0;
+    const minGap = quiet ? 10000 : 0;
     const now = Date.now();
     if (minGap && now - gmailDeltaRef.current.last < minGap) return;
     gmailDeltaRef.current.running = true;
@@ -12488,7 +12488,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
       if (document.visibilityState === 'visible') refreshFromGmail({ quiet: true });
     };
     const first = window.setTimeout(tick, 2500);
-    const interval = window.setInterval(tick, 45000);
+    const interval = window.setInterval(tick, 15000);
     const onFocus = () => tick();
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', tick);
