@@ -5,7 +5,6 @@ const nodemailer = require('nodemailer');
 
 admin.initializeApp();
 const db = admin.firestore();
-const runtimeConfig = typeof functions.config === 'function' ? functions.config() : {};
 
 const SENDERS = {
   robert: {
@@ -273,13 +272,32 @@ function effectiveCc(cc, sender, to) {
     .join(',');
 }
 
+async function verifySendEmailAuth(req) {
+  const auth = String(req.headers.authorization || '');
+  const sendSnap = await db.collection('_secrets').doc('send_email').get();
+  if (sendSnap.exists && sendSnap.data().token) {
+    return auth === `Bearer ${sendSnap.data().token}`;
+  }
+  const ingestSnap = await db.collection('_secrets').doc('lead_ingest').get();
+  if (ingestSnap.exists && ingestSnap.data().token) {
+    return auth === `Bearer ${ingestSnap.data().token}`;
+  }
+  console.warn('sendEmail: no token configured in _secrets/send_email — rejecting request');
+  return false;
+}
+
 exports.sendEmail = functions.https.onRequest(async (req, res) => {
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
+
+  if (!(await verifySendEmailAuth(req))) {
+    res.status(401).json({ error: 'Invalid or missing bearer token' });
+    return;
+  }
 
   const { to, subject, body, cc, from, attachPdf, threadId } = req.body || {};
 
@@ -450,8 +468,8 @@ const BRIEF_FUNCTION_ORIGIN = 'https://us-central1-unaligned-fc556.cloudfunction
 const BRIEF_GOOGLE_SECRET_DOCS = ['brief_google_oauth', 'gmail_oauth'];
 const BRIEF_LLM_SECRET_DOCS = ['brief_llm'];
 const BRIEF_LOCAL_PROXY = {
-  baseUrl: line(runtimeConfig?.brief?.local_base_url || ''),
-  token: line(runtimeConfig?.brief?.local_token || ''),
+  baseUrl: line(process.env.BRIEF_LOCAL_BASE_URL || ''),
+  token: line(process.env.BRIEF_LOCAL_TOKEN || ''),
 };
 
 function line(value) {

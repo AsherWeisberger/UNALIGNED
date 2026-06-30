@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import email.utils
 import json
 import os
 import re
@@ -49,8 +50,44 @@ def is_inbound(msg):
     return bool(sender) and not any(team in sender for team in TEAM_SENDERS)
 
 
+def parse_sender_email(msg):
+    raw = str(msg.get("email") or msg.get("from") or "").strip()
+    if not raw:
+        return ""
+    _name, addr = email.utils.parseaddr(raw)
+    if addr and "@" in addr:
+        return addr.lower().strip()
+    match = re.search(r"[\w.+%-]+@[\w.-]+\.[A-Za-z]{2,}", raw)
+    return match.group(0).lower() if match else ""
+
+
+def inbound_sender_emails(thread):
+    emails = []
+    for msg in thread or []:
+        if not is_inbound(msg):
+            continue
+        addr = parse_sender_email(msg)
+        if addr and addr not in emails:
+            emails.append(addr)
+    return emails
+
+
 def message_date(msg):
     return msg.get("date_iso") or msg.get("date") or datetime.utcnow().isoformat()
+
+
+def pick_card_for_email(cards_by_email, addr, linked_thread_ids):
+    matches = cards_by_email.get(addr.lower(), [])
+    if not matches:
+        return None
+    unlinked = [c for c in matches if not c.get("gmail_thread_id")]
+    if unlinked:
+        return unlinked[0]
+    for card in matches:
+        tid = str(card.get("gmail_thread_id") or "")
+        if tid and tid not in linked_thread_ids:
+            return card
+    return None
 
 
 def main():
@@ -80,7 +117,7 @@ def main():
     offset = 0
     while True:
         cards_resp = httpx.get(
-            f"{s.SUPABASE_URL}/rest/v1/cards?select=id,gmail_thread_id,list_id,email_thread,original_email,new_reply_at&limit=1000&offset={offset}",
+            f"{s.SUPABASE_URL}/rest/v1/cards?select=id,email,gmail_thread_id,list_id,email_thread,original_email,new_reply_at&limit=1000&offset={offset}",
             headers=s._sb_headers(),
             timeout=30,
         )
@@ -91,11 +128,25 @@ def main():
             break
         offset += 1000
     by_thread = {c.get("gmail_thread_id"): c for c in cards if c.get("gmail_thread_id")}
+    cards_by_email = {}
+    for card in cards:
+        addr = str(card.get("email") or "").strip().lower()
+        if addr and "@" in addr:
+            cards_by_email.setdefault(addr, []).append(card)
 
     updates = []
     skipped = []
+    linked_thread_ids = set()
     for tid, record in freshest.items():
         card = by_thread.get(tid)
+        match_mode = "thread_id"
+        if not card:
+            fresh_thread = record.get("thread") or []
+            for addr in inbound_sender_emails(fresh_thread):
+                card = pick_card_for_email(cards_by_email, addr, linked_thread_ids)
+                if card:
+                    match_mode = "email"
+                    break
         if not card:
             continue
         fresh_thread = record.get("thread") or []
@@ -108,11 +159,12 @@ def main():
 
         existing_sig = [norm_body(m.get("body")) for m in existing_thread]
         fresh_sig = [norm_body(m.get("body")) for m in fresh_thread]
-        if existing_sig == fresh_sig:
+        needs_thread_link = not card.get("gmail_thread_id")
+        if existing_sig == fresh_sig and not needs_thread_link:
             skipped.append({"id": card["id"], "gmail_thread_id": tid, "reason": "same"})
             continue
 
-        if len(fresh_thread) <= len(existing_thread):
+        if not needs_thread_link and len(fresh_thread) <= len(existing_thread):
             skipped.append({
                 "id": card["id"],
                 "gmail_thread_id": tid,
@@ -122,21 +174,24 @@ def main():
             })
             continue
 
-        payload = {
-            "email_thread": fresh_thread,
-            "original_email": fresh_thread[:1],
-        }
+        payload = {}
+        if existing_sig != fresh_sig or not existing_thread:
+            payload["email_thread"] = fresh_thread
+            payload["original_email"] = fresh_thread[:1]
+        if needs_thread_link or match_mode == "email":
+            payload["gmail_thread_id"] = tid
         last = fresh_thread[-1]
         if is_inbound(last) and card.get("list_id") not in INACTIVE_STAGES:
             payload["new_reply_at"] = message_date(last)
         else:
             payload["new_reply_at"] = None
 
-        updates.append((card["id"], tid, payload, len(existing_thread), len(fresh_thread)))
+        linked_thread_ids.add(tid)
+        updates.append((card["id"], tid, payload, len(existing_thread), len(fresh_thread), match_mode))
 
     written = 0
     if not args.dry_run:
-        for card_id, tid, payload, old_len, new_len in updates:
+        for card_id, tid, payload, old_len, new_len, _match_mode in updates:
             resp = httpx.patch(
                 f"{s.SUPABASE_URL}/rest/v1/cards?id=eq.{card_id}",
                 headers=s._sb_headers(),
@@ -161,9 +216,10 @@ def main():
         prepared=len(updates),
         written=written,
         skipped=skipped[:200],
+        email_linked=sum(1 for *_rest, mode in updates if mode == "email"),
         updates=[
-            {"id": card_id, "gmail_thread_id": tid, "old_len": old_len, "new_len": new_len}
-            for card_id, tid, _payload, old_len, new_len in updates[:200]
+            {"id": card_id, "gmail_thread_id": tid, "old_len": old_len, "new_len": new_len, "match_mode": mode}
+            for card_id, tid, _payload, old_len, new_len, mode in updates[:200]
         ],
     )
     print(json.dumps(json.loads(STATUS_FILE.read_text()), indent=2))
