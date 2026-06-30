@@ -860,6 +860,31 @@ function V3ApiToken() {
   }
 }
 
+async function V3BootstrapApiToken() {
+  if (V3ApiToken()) return V3ApiToken();
+  const briefToken = typeof V4LoadBriefApiToken === 'function' ? V4LoadBriefApiToken() : '';
+  if (!briefToken) return '';
+  const bases = typeof V4BriefServiceCandidateUrls === 'function'
+    ? V4BriefServiceCandidateUrls()
+    : ['https://mac-studio.tail50d3a2.ts.net', 'http://127.0.0.1:8767'];
+  for (const base of bases) {
+    try {
+      const res = await fetch(String(base).replace(/\/$/, '') + '/send-email-token', {
+        method: 'GET',
+        headers: { Authorization: 'Bearer ' + briefToken },
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const token = String(data?.token || '').trim();
+      if (token) {
+        try { window.localStorage.setItem(V3_API_TOKEN_KEY, token); } catch (e) {}
+        return token;
+      }
+    } catch (e) {}
+  }
+  return '';
+}
+
 function V3EnsureApiToken() {
   let token = V3ApiToken();
   if (token) return token;
@@ -2295,7 +2320,9 @@ function V3MergePendingReplies(leads, pendingReplies) {
 }
 
 async function V3SendLeadEmail({ lead, sender, to, cc, subject, body, attachPdf = false }) {
-  const token = V3EnsureApiToken();
+  let token = V3ApiToken();
+  if (!token) token = await V3BootstrapApiToken();
+  if (!token) token = V3EnsureApiToken();
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = 'Bearer ' + token;
   const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail', {
@@ -13304,6 +13331,10 @@ function V4App() {
     };
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
+  }, []);
+
+  React.useEffect(() => {
+    V3BootstrapApiToken().catch(() => {});
   }, []);
 
   React.useEffect(() => {

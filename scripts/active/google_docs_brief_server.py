@@ -47,6 +47,7 @@ ROBERT_HANDOFF_PREVIEW_FILE = STATE_DIR / "robert_handoff_operator_preview.json"
 BRIEF_JOBS_FILE = STATE_DIR / "brief_builder_jobs.json"
 NOTION_EXTRACTOR = Path("/Users/asherweisberger/Desktop/UNALIGNED/MASTER FILES/scripts/active/extract_notion_brief.mjs")
 WEB_ROOT = Path("/Users/asherweisberger/Desktop/UNALIGNED/MASTER FILES")
+SEND_EMAIL_TOKEN_FILE = WEB_ROOT / "lead-ingest-token.txt"
 if str(WEB_ROOT) not in sys.path:
     sys.path.insert(0, str(WEB_ROOT))
 SCOPES = [
@@ -109,6 +110,20 @@ def get_api_token() -> str:
         return token
     if API_TOKEN_FILE.exists():
         return line(API_TOKEN_FILE.read_text(encoding="utf-8"))
+    return ""
+
+
+def get_send_email_token() -> str:
+    token = line(os.environ.get("SEND_EMAIL_TOKEN") or os.environ.get("LEAD_INGEST_TOKEN"))
+    if token:
+        return token
+    if SEND_EMAIL_TOKEN_FILE.exists():
+        raw = SEND_EMAIL_TOKEN_FILE.read_text(encoding="utf-8")
+        for part in raw.splitlines():
+            part = part.strip()
+            if part.startswith("TOKEN="):
+                return line(part.split("=", 1)[1])
+        return line(raw)
     return ""
 
 
@@ -3458,6 +3473,16 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
                 send_json(self, 200, get_brief_job(job_id))
             except Exception as exc:
                 send_json(self, 404, {"ok": False, "error": str(exc)})
+            return
+        if parsed.path == "/send-email-token":
+            if not require_api_token(self):
+                send_json(self, 401, {"ok": False, "error": "Missing or invalid brief API token."})
+                return
+            token = get_send_email_token()
+            if not token:
+                send_json(self, 500, {"ok": False, "error": "Send email token is not configured on this machine."})
+                return
+            send_json(self, 200, {"ok": True, "token": token})
             return
         file_path = safe_static_path(self.path)
         if file_path is None:
