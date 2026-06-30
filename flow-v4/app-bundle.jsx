@@ -5501,8 +5501,32 @@ async function V4PatchLeadAsync(lead, fields, localPatch) {
   window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated } }));
 }
 
+function V4IsRobertHandoffApproval(lead) {
+  const source = String(lead?.source || '').toLowerCase();
+  const draft = lead?.draftReply || {};
+  return source.includes('robert imessage') || String(draft.kind || '').toLowerCase() === 'manual';
+}
+
 async function V4SendApprovedReply(lead, overrides = {}) {
   if (!lead) throw new Error('No lead selected.');
+  if (V4IsRobertHandoffApproval(lead)) {
+    const draft = overrides.body || overrides.subject
+      ? { ...(lead.draftReply || {}), subject: overrides.subject || lead?.draftReply?.subject || '', body: overrides.body || lead?.draftReply?.body || '' }
+      : (lead.draftReply || {});
+    const res = await V4BriefServiceFetch('/send-robert-handoff', {
+      method: 'POST',
+      body: JSON.stringify({ lead, draft }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.ok === false) throw new Error(data.error || 'Robert handoff send failed.');
+    await V4PatchLeadAsync(lead,
+      { draft_reply_status: 'sent', new_reply_at: null },
+      { draftReplyStatus: 'sent', unread: false, needsReply: false });
+    window.dispatchEvent(new CustomEvent('v3:email-sent', {
+      detail: { leadId: lead.id, sender: 'robert', subject: data.draft?.subject || draft.subject || '', body: data.draft?.body || draft.body || '', to: data.draft?.to_emails || [], cc: data.draft?.cc_emails || [] },
+    }));
+    return { to: data.draft?.to_emails || [], cc: data.draft?.cc_emails || [], subject: data.draft?.subject || draft.subject || '' };
+  }
   const sender = 'asher';
   const draftLead = overrides.body || overrides.subject
     ? { ...lead, draftReply: { subject: overrides.subject || lead?.draftReply?.subject || '', body: overrides.body || lead?.draftReply?.body || '' } }
@@ -5757,7 +5781,7 @@ function V4MachineRoomConsole({ leads = [], query = '', onOpenLead }) {
                   <button className="apr-btn dn" onClick={onDeny}>Deny</button>
                 </React.Fragment>
               )}
-              <span className="apr-sp">{gate === 'replies' ? 'sends from Asher and CCs Robert and Sam' : 'approval only for this gate'}</span>
+              <span className="apr-sp">{gate === 'replies' ? (V4IsRobertHandoffApproval(lead) ? 'sends from Robert and CCs Asher and Sam' : 'sends from Asher and CCs Robert and Sam') : 'approval only for this gate'}</span>
             </div>
           </div>
         )}
@@ -9769,6 +9793,16 @@ const V4_COMPANY_OS_TOOLKIT = [
     note: 'Best for sponsorship launches where Robert needs exact posting instructions, facts, and copy options in under 60 seconds.',
   },
   {
+    id: 'manual-lead',
+    title: 'Manual Lead Intake',
+    status: 'New',
+    kind: 'Operator',
+    useFor: 'Turn Robert iMessage screenshots or pasted lead text into a clean New Lead.',
+    trigger: 'Paste a lead. Drop screenshot. Build Robert handoff.',
+    output: 'New Lead card plus Robert intro draft for Asher and Sam approval',
+    note: 'This fills the gap when Robert sends screenshots that Gmail and X cannot scrape.',
+  },
+  {
     id: 'x-intake',
     title: 'X Lead Intake',
     status: 'In progress',
@@ -10799,6 +10833,13 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
   const [handoffPreviewError, setHandoffPreviewError] = React.useState('');
   const [handoffPreviewData, setHandoffPreviewData] = React.useState(null);
   const [handoffCopiedIndex, setHandoffCopiedIndex] = React.useState(-1);
+  const [manualLeadOpen, setManualLeadOpen] = React.useState(false);
+  const [manualLeadText, setManualLeadText] = React.useState('');
+  const [manualLeadImage, setManualLeadImage] = React.useState('');
+  const [manualLeadImageName, setManualLeadImageName] = React.useState('');
+  const [manualLeadStatus, setManualLeadStatus] = React.useState('idle');
+  const [manualLeadError, setManualLeadError] = React.useState('');
+  const [manualLeadResult, setManualLeadResult] = React.useState(null);
   const [briefForm, setBriefForm] = React.useState(() => V4BriefMakerDefaultState());
   const [briefAdvancedOpen, setBriefAdvancedOpen] = React.useState(false);
   const [briefApiToken, setBriefApiToken] = React.useState(() => V4LoadBriefApiToken());
@@ -10895,6 +10936,9 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
       }
       if (current.searchParams.get('open') === 'robert-handoff') {
         setHandoffPreviewOpen(true);
+      }
+      if (current.searchParams.get('open') === 'manual-lead') {
+        setManualLeadOpen(true);
       }
     } catch (err) {}
   }, []);
@@ -11118,6 +11162,66 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     }
   };
 
+  const resetManualLead = () => {
+    setManualLeadText('');
+    setManualLeadImage('');
+    setManualLeadImageName('');
+    setManualLeadStatus('idle');
+    setManualLeadError('');
+    setManualLeadResult(null);
+  };
+
+  const handleManualLeadFile = file => {
+    if (!file) return;
+    if (!String(file.type || '').startsWith('image/')) {
+      setManualLeadStatus('error');
+      setManualLeadError('Drop a screenshot image, or paste the text instead.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setManualLeadImage(String(reader.result || ''));
+      setManualLeadImageName(file.name || 'screenshot');
+      setManualLeadStatus('idle');
+      setManualLeadError('');
+    };
+    reader.onerror = () => {
+      setManualLeadStatus('error');
+      setManualLeadError('Could not read that screenshot.');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const buildManualLead = async () => {
+    if (!manualLeadText.trim() && !manualLeadImage) {
+      setManualLeadStatus('error');
+      setManualLeadError('Paste the lead text or drop a screenshot first.');
+      return;
+    }
+    setManualLeadStatus('building');
+    setManualLeadError('');
+    setManualLeadResult(null);
+    try {
+      const res = await V4BriefServiceFetch('/manual-lead-intake', {
+        method: 'POST',
+        body: JSON.stringify({
+          text: manualLeadText,
+          image_data: manualLeadImage,
+          source_label: 'Robert iMessage',
+          create_card: true,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) throw new Error(data.error || 'Manual lead build failed.');
+      setManualLeadResult(data);
+      setManualLeadStatus('done');
+      if (window.V3?.ReloadLeads) await window.V3.ReloadLeads();
+    } catch (err) {
+      setManualLeadStatus('error');
+      setManualLeadError(err.message || 'Manual lead build failed.');
+    }
+  };
+
   const applyImportedBriefPayload = (payload, sourceUrl) => {
     const inferredCalendar = V4InferCalendarFieldsFromGoLive(payload.go_live);
     const inferredMode = payload.calendar_mode || V4InferCalendarMode(payload);
@@ -11334,6 +11438,10 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
       loadRobertHandoffPreview();
       return;
     }
+    if (action.type === 'open-manual-lead') {
+      setManualLeadOpen(true);
+      return;
+    }
     if (action.type === 'view') {
       onNavigateView?.(action.view, action.openId || null);
       return;
@@ -11353,6 +11461,16 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
         ...tool,
         primaryLabel: 'Open Brief Maker',
         primaryAction: { type: 'launch-brief-builder' },
+        simpleCard: true,
+      };
+    }
+    if (tool.id === 'manual-lead') {
+      return {
+        ...tool,
+        primaryLabel: 'Build Lead',
+        primaryAction: { type: 'open-manual-lead' },
+        secondaryLabel: 'Open New Leads',
+        secondaryAction: { type: 'view', view: 'new-leads' },
         simpleCard: true,
       };
     }
@@ -11662,6 +11780,121 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                 </div>
                 <div className="brief-maker-footer-actions">
                   <button type="button" className="cos-toolkit-btn" onClick={resetBriefForm}>Reset</button>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </div>
+      )}
+      {manualLeadOpen && (
+        <div className="brief-modal-backdrop" onClick={() => setManualLeadOpen(false)}>
+          <div className="brief-maker-panel handoff-preview-panel" onClick={e => e.stopPropagation()}>
+            <div className="brief-modal-hd">
+              <div>
+                <div className="brief-maker-hero-kicker">Manual intake</div>
+                <h2 className="brief-modal-title">Manual Lead</h2>
+              </div>
+              <div className="brief-modal-hd-actions">
+                <button type="button" className="cos-toolkit-btn" onClick={resetManualLead}>Reset</button>
+                <button type="button" className="brief-modal-close" onClick={() => setManualLeadOpen(false)} aria-label="Close manual lead">
+                  <V3Icon name="x" w={14} />
+                </button>
+              </div>
+            </div>
+            <div className="brief-maker-body">
+              <div className="brief-maker-form">
+                <div className="brief-maker-source-panel">
+                  <div className="brief-maker-hero">
+                    <div className="brief-maker-hero-kicker">Robert iMessage</div>
+                    <h3>Paste text or drop a screenshot</h3>
+                    <p>The machine extracts the lead, creates a New Lead card, and drafts Robert's intro to Asher and Sam.</p>
+                  </div>
+                  <label className="brief-maker-field brief-maker-field-wide">
+                    <span>Lead text</span>
+                    <textarea
+                      className="brief-maker-input"
+                      value={manualLeadText}
+                      onChange={e => setManualLeadText(e.target.value)}
+                      placeholder="Paste Robert's iMessage text, copied screenshot text, email, X handle, or anything visible from the lead."
+                      rows={8}
+                    />
+                  </label>
+                  <label
+                    className="brief-maker-field brief-maker-field-wide manual-lead-drop"
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={e => {
+                      e.preventDefault();
+                      handleManualLeadFile(e.dataTransfer?.files?.[0]);
+                    }}
+                  >
+                    <span>Screenshot</span>
+                    <input
+                      className="brief-maker-input"
+                      type="file"
+                      accept="image/*"
+                      onChange={e => handleManualLeadFile(e.target.files?.[0])}
+                    />
+                    <em>{manualLeadImageName || 'Drop an iMessage screenshot here if the text is not copyable.'}</em>
+                  </label>
+                  <div className="brief-maker-source-actions">
+                    <button type="button" className="cos-toolkit-btn is-primary" onClick={buildManualLead} disabled={manualLeadStatus === 'building'}>
+                      {manualLeadStatus === 'building' ? 'Building lead...' : 'Build Lead'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <aside className="brief-maker-preview">
+                <div className="brief-maker-server-status">
+                  {manualLeadStatus === 'idle' && (
+                    <div className="brief-maker-empty-state">
+                      <strong>Ready</strong>
+                      <span>Manual leads stay approval-gated. Nothing sends from Robert until you approve.</span>
+                    </div>
+                  )}
+                  {manualLeadStatus === 'building' && (
+                    <div className="brief-maker-empty-state">
+                      <strong>Reading lead</strong>
+                      <span>OCR runs locally when you upload a screenshot. Hermes/Qwen then extracts the lead.</span>
+                    </div>
+                  )}
+                  {manualLeadStatus === 'error' && (
+                    <span className="brief-maker-server-error">{manualLeadError}</span>
+                  )}
+                  {manualLeadStatus === 'done' && manualLeadResult && (
+                    <div className="brief-maker-result-card">
+                      <span className="brief-maker-server-ok">Lead created in New Leads.</span>
+                      <div className="handoff-preview-row">
+                        <div className="handoff-preview-label">Lead</div>
+                        <div className="handoff-preview-value">
+                          {manualLeadResult.extracted?.company || 'Unknown company'}
+                          {manualLeadResult.extracted?.person ? ` · ${manualLeadResult.extracted.person}` : ''}
+                        </div>
+                      </div>
+                      <div className="handoff-preview-row">
+                        <div className="handoff-preview-label">Contact</div>
+                        <div className="handoff-preview-value">
+                          {manualLeadResult.extracted?.email || manualLeadResult.extracted?.x_handle || 'No contact found yet'}
+                        </div>
+                      </div>
+                      <div className="handoff-preview-row is-context">
+                        <div className="handoff-preview-label">What they want</div>
+                        <div className="handoff-preview-context">{manualLeadResult.extracted?.summary || manualLeadResult.extracted?.what_they_want || 'No summary captured.'}</div>
+                      </div>
+                      <div className="handoff-preview-row">
+                        <div className="handoff-preview-label">Robert draft</div>
+                        <pre className="handoff-preview-copy">{String(manualLeadResult.draft?.body || '').trim()}</pre>
+                      </div>
+                      {manualLeadResult.ocr_text ? (
+                        <div className="handoff-preview-row is-context">
+                          <div className="handoff-preview-label">OCR text</div>
+                          <div className="handoff-preview-context">{manualLeadResult.ocr_text}</div>
+                        </div>
+                      ) : null}
+                      <div className="brief-maker-result-actions">
+                        <button type="button" className="cos-toolkit-btn is-primary" onClick={() => onNavigateView?.('new-leads', null)}>Open New Leads</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </aside>
             </div>

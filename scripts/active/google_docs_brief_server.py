@@ -17,6 +17,8 @@ import os
 import re
 import subprocess
 import sys
+import base64
+import tempfile
 import threading
 import traceback
 import uuid
@@ -3022,6 +3024,217 @@ def send_robert_handoff_for_lead(lead: dict, draft_payload: dict | None = None) 
     }
 
 
+def ocr_manual_lead_image(image_data: str) -> str:
+    raw = line(image_data)
+    if not raw:
+        return ""
+    match = re.match(r"^data:image/([a-zA-Z0-9.+-]+);base64,(.+)$", raw, flags=re.S)
+    if not match:
+        raise ValueError("Screenshot upload was not a readable image.")
+    suffix = "." + ("jpg" if match.group(1).lower() in {"jpeg", "jpg"} else match.group(1).lower())
+    try:
+        binary = base64.b64decode(match.group(2), validate=False)
+    except Exception as exc:
+        raise ValueError("Screenshot upload could not be decoded.") from exc
+    with tempfile.NamedTemporaryFile(prefix="unaligned-manual-lead-", suffix=suffix, delete=True) as tmp:
+        tmp.write(binary)
+        tmp.flush()
+        result = subprocess.run(
+            ["tesseract", tmp.name, "stdout", "--psm", "6"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    if result.returncode != 0:
+        raise ValueError((result.stderr or "OCR failed.").strip()[:500])
+    return line(result.stdout)
+
+
+def manual_lead_prompt(raw_text: str, source_hint: str = "") -> str:
+    trimmed = line(raw_text)[:6500]
+    hint = line(source_hint) or "Robert iMessage"
+    return f"""Extract a manual lead from Robert/Asher intake text.
+
+Return strict JSON only. No markdown. No invented facts.
+If a field is missing, use an empty string. Keep the summary short and useful.
+
+JSON shape:
+{{
+  "company": "",
+  "person": "",
+  "email": "",
+  "x_handle": "",
+  "website": "",
+  "deal_type": "",
+  "urgency": "",
+  "what_they_want": "",
+  "summary": "",
+  "next_move": "",
+  "confidence": "low|medium|high",
+  "needs_human_check": true,
+  "source_label": "{hint}"
+}}
+
+Rules:
+- This is for Robert Scoble sponsorship/collaboration lead intake.
+- If an email exists, extract it exactly.
+- If an X handle exists, include @handle.
+- Do not confuse Asher, Sam, Robert, or UNALIGNED with the outside lead.
+- Next move should be one clear action, usually have Robert introduce Asher and Sam.
+- If screenshot text is cropped or unclear, set confidence low and needs_human_check true.
+
+Source:
+{trimmed}
+"""
+
+
+def fallback_manual_lead_extract(raw_text: str, source_label: str) -> dict:
+    emails = extract_emails(raw_text)
+    x_match = re.search(r"(?<![A-Z0-9_])@[A-Z0-9_]{2,20}\b", raw_text or "", flags=re.I)
+    url_match = re.search(r"https?://[^\s)>\]]+|(?:www\.)?[A-Z0-9.-]+\.[A-Z]{2,}(?:/[^\s)]*)?", raw_text or "", flags=re.I)
+    first_email = emails[0] if emails else ""
+    company = ""
+    if first_email:
+        domain = first_email.split("@")[-1].split(".")[0]
+        company = domain.replace("-", " ").replace("_", " ").title()
+    return {
+        "company": company,
+        "person": "",
+        "email": first_email,
+        "x_handle": x_match.group(0) if x_match else "",
+        "website": url_match.group(0) if url_match else "",
+        "deal_type": "Collaboration",
+        "urgency": "",
+        "what_they_want": "",
+        "summary": line(raw_text)[:240],
+        "next_move": "Have Robert introduce Asher and Sam if the contact info is real.",
+        "confidence": "low",
+        "needs_human_check": True,
+        "source_label": source_label,
+    }
+
+
+def manual_lead_to_card_payload(extracted: dict, raw_text: str, ocr_text: str, source_label: str, draft: dict) -> dict:
+    company = line(extracted.get("company")) or line(extracted.get("website")) or line(extracted.get("person")) or "Manual lead"
+    person = line(extracted.get("person")) or company
+    summary = line(extracted.get("summary")) or line(extracted.get("what_they_want")) or "Manual lead captured from Robert iMessage."
+    description = {
+        "type": "manual_lead_intake",
+        "source": source_label,
+        "summary": summary,
+        "what_they_want": line(extracted.get("what_they_want")),
+        "urgency": line(extracted.get("urgency")),
+        "next_move": line(extracted.get("next_move")),
+        "confidence": line(extracted.get("confidence")) or "medium",
+        "needs_human_check": bool(extracted.get("needs_human_check")),
+        "raw_text": line(raw_text)[:5000],
+        "ocr_text": line(ocr_text)[:5000],
+        "draft": draft,
+    }
+    return {
+        "list_id": "new",
+        "title": company,
+        "business_name": company,
+        "contact_name": person,
+        "email": line(extracted.get("email")),
+        "website": line(extracted.get("website")) or (
+            f"https://x.com/{line(extracted.get('x_handle')).lstrip('@')}" if line(extracted.get("x_handle")) else ""
+        ),
+        "intent": line(extracted.get("deal_type")) or line(extracted.get("what_they_want")) or "Manual collaboration lead",
+        "lead_source": source_label,
+        "description": json.dumps(description, ensure_ascii=False),
+        "draft_reply": draft,
+        "draft_reply_status": "pending" if line(extracted.get("email")) else "",
+        "agent_assessment": summary,
+        "recommended_action": line(extracted.get("next_move")) or "Review and send Robert handoff.",
+    }
+
+
+def load_unaligned_ops_env() -> None:
+    env_file = STATE_DIR / "unaligned-scraper.env"
+    if not env_file.exists():
+        return
+    for raw in env_file.read_text(encoding="utf-8").splitlines():
+        current = raw.strip()
+        if not current or current.startswith("#") or "=" not in current:
+            continue
+        if current.startswith("export "):
+            current = current[len("export "):].strip()
+        key, value = current.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+def create_manual_lead_card(card: dict) -> dict:
+    load_unaligned_ops_env()
+    url = "https://hbnpwphxjurvtydezwgh.supabase.co/rest/v1/cards"
+    anon = os.environ.get("SUPABASE_ANON_KEY", "")
+    service = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+    if not anon:
+        raise RuntimeError("SUPABASE_ANON_KEY is missing")
+    headers = {
+        "apikey": anon,
+        "Authorization": "Bearer " + (service or anon),
+        "Content-Type": "application/json",
+        "Prefer": "return=representation",
+    }
+    data = json.dumps(card).encode("utf-8")
+    req = request.Request(url, data=data, headers=headers, method="POST")
+    with request.urlopen(req, timeout=25) as response:
+        rows = json.loads(response.read().decode("utf-8") or "[]")
+    return rows[0] if isinstance(rows, list) and rows else {}
+
+
+def manual_lead_intake(payload: dict) -> dict:
+    source_label = line(payload.get("source_label")) or "Robert iMessage"
+    pasted_text = line(payload.get("text"))
+    ocr_text = ocr_manual_lead_image(line(payload.get("image_data"))) if line(payload.get("image_data")) else ""
+    combined = "\n\n".join(part for part in [pasted_text, ocr_text] if part).strip()
+    if not combined:
+        raise ValueError("Paste lead text or upload a screenshot first.")
+    brief_log("Manual lead intake: extracting lead")
+    extracted = query_local_brief_json(
+        prompt=manual_lead_prompt(combined, source_label),
+        system_prompt="You extract sales lead data from messy screenshots and pasted messages. Return strict JSON only.",
+        max_tokens=900,
+        stage_label="manual-lead",
+    ) or fallback_manual_lead_extract(combined, source_label)
+    extracted["source_label"] = source_label
+    lead_for_draft = {
+        "source": source_label,
+        "email": line(extracted.get("email")),
+        "xContactInfo": line(extracted.get("x_handle")),
+        "contactName": line(extracted.get("person")) or line(extracted.get("company")) or "there",
+        "brand": line(extracted.get("company")) or line(extracted.get("person")) or "Manual lead",
+        "notes": combined,
+        "deliverables": line(extracted.get("deal_type")) or line(extracted.get("what_they_want")),
+        "operatorSummary": {"lead_summary": line(extracted.get("summary"))},
+    }
+    draft_result = build_robert_handoff_for_lead(lead_for_draft) if line(extracted.get("email")) else {
+        "ok": True,
+        "draft": {
+            "kind": "manual",
+            "to_emails": [],
+            "cc_emails": list(ROBERT_HANDOFF_CC_EMAILS),
+            "subject": f"{line(extracted.get('company')) or 'Collaboration'} intro",
+            "body": "Add the lead email before sending Robert's handoff.",
+            "context": combined[:2000],
+        },
+    }
+    draft = draft_result.get("draft") or {}
+    card_payload = manual_lead_to_card_payload(extracted, pasted_text, ocr_text, source_label, draft)
+    created = create_manual_lead_card(card_payload) if payload.get("create_card", True) is not False else {}
+    return {
+        "ok": True,
+        "created": bool(created),
+        "card": created,
+        "card_payload": card_payload,
+        "extracted": extracted,
+        "draft": draft,
+        "raw_text": pasted_text,
+        "ocr_text": ocr_text,
+    }
+
+
 def create_brief_doc(payload: dict) -> dict:
     source_url = line(payload.get("source_url")) or line(payload.get("notion_url"))
     email_context = line(payload.get("email_context"))
@@ -3261,7 +3474,7 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
         if path not in (
             "/generate-brief-doc", "/start-brief-job", "/create-calendar-hold",
             "/import-notion-brief", "/import-source-brief", "/draft-robert-handoff",
-            "/send-robert-handoff", "/complete", "/sync-asher-gmail", "/sync-asher-gmail-delta",
+            "/send-robert-handoff", "/manual-lead-intake", "/complete", "/sync-asher-gmail", "/sync-asher-gmail-delta",
         ):
             send_json(self, 404, {"ok": False, "error": "Unknown endpoint."})
             return
@@ -3290,6 +3503,8 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
                 result = build_robert_handoff_for_lead(payload.get("lead") or {})
             elif path == "/send-robert-handoff":
                 result = send_robert_handoff_for_lead(payload.get("lead") or {}, payload.get("draft"))
+            elif path == "/manual-lead-intake":
+                result = manual_lead_intake(payload)
             elif path == "/import-source-brief":
                 result = import_source_brief(payload.get("source_url") or payload.get("notion_url"), payload.get("email_context"))
             else:
