@@ -1082,7 +1082,8 @@ function V3NormalizeSupabaseLead(row) {
   const received = V3NormalizeDateForUi(row.date_received_iso || row.created_at || row.moved_at);
   const thread = V3ThreadFromRow(row, name, brand, row.list_id);
   const latestThreadDate = V3LatestThreadDate(thread);
-  const lastTouchAt = V3NormalizeDateForUi(latestThreadDate || row.moved_at || received);
+  const newReplyAt = V3NormalizeDateForUi(row.new_reply_at);
+  const lastTouchAt = V3MaxTouchAt(latestThreadDate, row.new_reply_at, row.moved_at, received);
   const activityDays = V3DaysSince(lastTouchAt || row.moved_at || received);
   const rawStage = V3NormalizeStage(row.list_id);
   const closedStage = V3NormalizeEmailLeadStage(row.email, rawStage);
@@ -1115,6 +1116,7 @@ function V3NormalizeSupabaseLead(row) {
     lastTouch: V3RelativeTime(lastTouchAt || row.moved_at || received),
     lastTouchAt: lastTouchAt || row.moved_at || received || null,
     receivedAt: received || null,
+    newReplyAt: newReplyAt || null,
     needsReply,
     approve: row.draft_reply ? ownerId : null,
     color: __v3Color(name + brand),
@@ -1503,13 +1505,44 @@ function V3TimestampForUi(value) {
   return Number.isFinite(t) ? t : 0;
 }
 
+function V3MaxTouchAt(...values) {
+  let best = 0;
+  let bestValue = null;
+  for (const value of values) {
+    const normalized = V3NormalizeDateForUi(value);
+    const t = V3TimestampForUi(normalized);
+    if (t >= best) {
+      best = t;
+      bestValue = normalized;
+    }
+  }
+  return bestValue;
+}
+
 function V3LeadActivityTimestamp(lead) {
   if (!lead) return 0;
   return Math.max(
     V3TimestampForUi(lead.lastTouchAt),
     V3TimestampForUi(lead.receivedAt),
+    V3TimestampForUi(lead.newReplyAt),
+    V3TimestampForUi(lead.briefSentAt),
+    V3TimestampForUi(lead.briefApprovedAt),
+    V3TimestampForUi(lead.operatorUpdatedAt),
     ...(Array.isArray(lead.thread) ? lead.thread.map(msg => V3TimestampForUi(msg.date || msg.dateIso || msg.timestamp || msg.when)) : [0])
   );
+}
+
+function V3LeadActivityLabel(lead) {
+  const ts = V3LeadActivityTimestamp(lead);
+  if (!ts) return lead?.lastTouch || '';
+  const iso = new Date(ts).toISOString();
+  return V3GmailTime.list(iso);
+}
+
+function V3LeadActivityFull(lead) {
+  const ts = V3LeadActivityTimestamp(lead);
+  if (!ts) return '';
+  return V3GmailTime.full(new Date(ts).toISOString());
 }
 
 function V3LeadReceivedTimestamp(lead) {
@@ -5511,6 +5544,17 @@ function V4AprNum(n) {
 }
 const V4_APR_AGENT = { replies: 'Deal Desk', payments: 'Finance', briefs: 'Brief Maker', posts: 'Calendar' };
 
+async function V4CopyRobertReviewLink() {
+  const token = String(window.localStorage.getItem('v4_brief_api_token') || '').trim();
+  const url = 'https://mac-studio.tail50d3a2.ts.net/robert-review.html' + (token ? ('?token=' + encodeURIComponent(token)) : '');
+  try {
+    await navigator.clipboard.writeText(url);
+  } catch (err) {
+    window.prompt('Copy Robert review link:', url);
+  }
+  return url;
+}
+
 // ── Shared approval logic (used by BOTH the Machine Room console and the Organs view) ──
 // The four gates, computed from the live board. One source of truth; Organs and the
 // console both render from this, so the queues never drift.
@@ -5527,11 +5571,12 @@ function V4AprComputeGates(leads, query) {
   const briefs = live.filter(l =>
     String(l.briefStatus || '').toLowerCase().replace(/_/g, '-') === 'awaiting-robert').filter(matchesQ);
   const posts = live.filter(l => String(l.stage || '').toLowerCase() === 'done').filter(matchesQ);
+  const sortRecent = (items) => [...items].sort(V3SortLeadsByActivity);
   return [
-    { id: 'replies', label: 'Replies', items: replies, tag: '' },
-    { id: 'payments', label: 'Payments', items: payments, tag: 'pay' },
-    { id: 'briefs', label: 'Briefs', items: briefs, tag: 'brief' },
-    { id: 'posts', label: 'Posts', items: posts, tag: '' },
+    { id: 'replies', label: 'Replies', items: sortRecent(replies), tag: '' },
+    { id: 'payments', label: 'Payments', items: sortRecent(payments), tag: 'pay' },
+    { id: 'briefs', label: 'Briefs', items: sortRecent(briefs), tag: 'brief' },
+    { id: 'posts', label: 'Posts', items: sortRecent(posts), tag: '' },
   ];
 }
 
@@ -6136,11 +6181,15 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
 
   React.useEffect(() => {
     let alive = true;
-    fetch('flow-v4/assets/x_scraper_health.json?v=20260628-organs-command-1')
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (alive) { setXHealth(data || null); setXHealthLoaded(true); } })
-      .catch(() => { if (alive) { setXHealth(null); setXHealthLoaded(true); } });
-    return () => { alive = false; };
+    const loadXHealth = () => {
+      fetch('flow-v4/assets/x_scraper_health.json?v=' + Date.now())
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (alive) { setXHealth(data || null); setXHealthLoaded(true); } })
+        .catch(() => { if (alive) { setXHealth(null); setXHealthLoaded(true); } });
+    };
+    loadXHealth();
+    const timer = window.setInterval(loadXHealth, 5 * 60 * 1000);
+    return () => { alive = false; window.clearInterval(timer); };
   }, []);
 
   const totalWaiting = gates.reduce((s, g) => s + g.items.length, 0);
@@ -6362,6 +6411,11 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
           <div className={'orgx-health-row ' + (xBroken || xStale ? 'warn' : '')}><span>X watcher</span><b>{xBroken ? 'Needs attention' : xStale ? 'Stale' : 'Ready'}</b><em>{V4OrgTimeAgo(xRanAt)}</em></div>
           <div className="orgx-health-row"><span>Gmail handoff</span><b>{gmap.replies.items.length ? gmap.replies.items.length + ' drafts' : 'Clear'}</b><em>approval gated</em></div>
           <div className="orgx-health-row"><span>Brief maker</span><b>{gmap.briefs.items.length ? gmap.briefs.items.length + ' waiting' : 'Clear'}</b><em>Robert docs</em></div>
+          {gmap.briefs.items.length ? (
+            <button type="button" className="orgx-b ed" style={{ marginTop: 10, width: '100%' }} onClick={() => V4CopyRobertReviewLink()}>
+              Copy Robert review link
+            </button>
+          ) : null}
         </aside>
       </div>
 
@@ -12085,12 +12139,11 @@ function V4IsActionNowLead(lead) {
 }
 
 function V4SortActionLeads(a, b) {
+  const activityDelta = V3LeadActivityTimestamp(b) - V3LeadActivityTimestamp(a);
+  if (activityDelta) return activityDelta;
   const hot = (lead) => (lead.unread || lead.needsReply || lead.followUpDue) ? 1 : 0;
   const hotDelta = hot(b) - hot(a);
   if (hotDelta) return hotDelta;
-  const ts = (lead) => V3TimestampForUi(lead.lastTouchAt);
-  const touchDelta = ts(b) - ts(a);
-  if (touchDelta) return touchDelta;
   return (b.value || 0) - (a.value || 0);
 }
 
@@ -12188,7 +12241,8 @@ function V6RowFact(lead, item) {
 function V6ListRow({ lead, title, isCurrent, onClick, style }) {
   const brand = V4CleanDisplayText(title || lead?.brand || 'Lead');
   const source = lead?.source || 'lead';
-  const age = lead?.daysInStage ? `${lead.daysInStage}d` : (lead?.lastTouch || '');
+  const age = V3LeadActivityLabel(lead) || (lead?.daysInStage ? `${lead.daysInStage}d in stage` : '');
+  const ageTitle = V3LeadActivityFull(lead) || '';
   const fact = V6RowFact(lead);
   return (
     <button
@@ -12196,11 +12250,12 @@ function V6ListRow({ lead, title, isCurrent, onClick, style }) {
       className={`v6-row${isCurrent ? ' cur' : ''}`}
       style={style}
       onClick={onClick}
+      title={ageTitle || undefined}
     >
       <span className={`v6-dot${lead?.unread ? '' : ' off'}`} />
       <span className="v6-brand-t">{brand}</span>
       <span className={`v6-src ${V6SourceClass(source)}`}>{source}</span>
-      <span className="v6-age">{age}</span>
+      <span className="v6-age" title={ageTitle || undefined}>{age}</span>
       <span className="v6-fact">{fact}</span>
     </button>
   );
@@ -12602,8 +12657,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
     .filter(l => !(window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(l)))
     .filter(l => V4CompanyOsFilterLead(l, query)), [leads, query]);
   const live = base.filter(l => !['trash', 'dead-leads'].includes(l.stage));
-  const byStale = (a, b) => (b.daysInStage || 0) - (a.daysInStage || 0);
-  const byRecent = (a, b) => V3TimestampForUi(b.lastTouchAt) - V3TimestampForUi(a.lastTouchAt);
+  const byRecent = (a, b) => V3LeadActivityTimestamp(b) - V3LeadActivityTimestamp(a);
 
   // Snooze, Superhuman style — H hides a thread until tomorrow 9am.
   // Stored per browser; snoozed threads live in their own split.
@@ -12619,9 +12673,9 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   const followUpItems = awake.filter(l => l.followUpDue && !l.unread).sort(byRecent);
   const activeItems = awake.filter(l => !['done', 'paid-out', 'trash', 'dead-leads'].includes(l.stage));
   const replyItems = activeItems.filter(l => l.unread && l.nextMove?.who).sort(V4SortActionLeads);
-  const pricingItems = activeItems.filter(l => l.stage === 'rates-sent').sort(byStale);
-  const negoItems = activeItems.filter(l => l.stage === 'negotiating').sort(byStale);
-  const paymentItems = activeItems.filter(l => l.stage === 'invoice-sent').sort(byStale);
+  const pricingItems = activeItems.filter(l => l.stage === 'rates-sent').sort(byRecent);
+  const negoItems = activeItems.filter(l => l.stage === 'negotiating').sort(byRecent);
+  const paymentItems = activeItems.filter(l => l.stage === 'invoice-sent').sort(byRecent);
   const briefingItems = awake.filter(l => l.stage === 'done').sort(byRecent);
   const waitingItems = activeItems.filter(l => !l.unread && !l.nextMove?.who).sort(byRecent);
   const closedItems = awake.filter(l => ['done', 'paid-out'].includes(l.stage)).sort(byRecent);
@@ -13516,10 +13570,10 @@ function V4App() {
       .filter(l => (l.daysInStage || 0) <= 21)
       .filter(l => !(window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(l)))
       .filter(l => l.nextMove?.who);
-    const byStale = (a, b) => (b.daysInStage || 0) - (a.daysInStage || 0);
+    const byActivity = (a, b) => V3LeadActivityTimestamp(b) - V3LeadActivityTimestamp(a);
     return [
-      ...eligible.filter(l => l.unread).sort(byStale),
-      ...eligible.filter(l => !l.unread).sort(byStale),
+      ...eligible.filter(l => l.unread).sort(byActivity),
+      ...eligible.filter(l => !l.unread).sort(byActivity),
     ];
   }, [mergedLeads]);
 

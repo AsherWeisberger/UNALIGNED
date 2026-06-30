@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UNALIGNED — Briefs to review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#06070c;--panel:rgba(18,22,34,.72);--line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.14);--txt:#eef1f8;--txt2:#9aa4ba;--txt3:#616a80;--live:#3ee07f;--live2:#22d3bf;--claude:#b79bff;--amber:#fcb74a;--alert:#fb6f8d}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',system-ui,sans-serif;color:var(--txt);min-height:100vh;background:radial-gradient(700px 380px at 50% -6%,rgba(62,224,127,.12),transparent 60%),radial-gradient(600px 400px at 50% 108%,rgba(157,123,255,.08),transparent 60%),var(--bg);padding:0 14px 60px}
+  .dsp{font-family:'Space Grotesk',sans-serif}.mono{font-family:'JetBrains Mono',monospace}
+  .wrap{max-width:480px;margin:0 auto}
+  .hd{text-align:center;padding:30px 6px 18px;position:sticky;top:0;background:linear-gradient(180deg,var(--bg) 72%,transparent);z-index:5}
+  .mk{width:38px;height:38px;border-radius:10px;background:conic-gradient(from 140deg,var(--live),var(--live2),var(--claude),var(--live));display:inline-grid;place-items:center;font-weight:800;color:#06070c;font-size:18px}
+  .hd h1{font-size:23px;font-weight:700;margin-top:14px}
+  .hd .dt{font-size:12.5px;color:var(--txt2);margin-top:5px}
+  .prog{display:inline-flex;align-items:center;gap:8px;margin-top:13px;font-size:11.5px;font-weight:700;color:var(--live);background:rgba(62,224,127,.08);border:1px solid rgba(62,224,127,.25);padding:6px 13px;border-radius:20px}
+  .brief{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:20px;margin-bottom:16px}
+  .brief.gone{opacity:.5}
+  .bk{font-family:'JetBrains Mono';font-size:11px;color:var(--live);margin-bottom:7px}
+  .brief h3{font-size:20px;font-weight:700}
+  .post{background:rgba(8,10,16,.6);border:1px solid var(--line2);border-radius:13px;padding:16px;font-size:16px;line-height:1.55;margin-top:14px;white-space:pre-wrap}
+  .disc{font-size:11px;color:var(--txt3);margin-top:11px;display:flex;gap:6px;flex-wrap:wrap}
+  .disc b{color:var(--live)}
+  .opts{display:flex;flex-direction:column;gap:8px;margin-top:15px}
+  .opt{text-align:left;font-size:13px;color:var(--txt2);background:transparent;border:1px solid var(--line2);border-radius:11px;padding:11px 13px;cursor:pointer;font-weight:600}
+  .opt.sel{border-color:var(--live);background:rgba(62,224,127,.08);color:var(--live)}
+  .acts{display:grid;grid-template-columns:1fr auto auto;gap:9px;margin-top:16px}
+  .ax{font-weight:700;font-size:15px;border:none;border-radius:13px;padding:15px;cursor:pointer}
+  .ax.yes{background:linear-gradient(135deg,var(--live),var(--live2));color:#052a1c}
+  .ax.ed{background:rgba(252,183,74,.12);color:var(--amber);border:1px solid rgba(252,183,74,.4);padding:15px 18px}
+  .ax.no{background:rgba(255,255,255,.04);color:var(--txt2);border:1px solid var(--line2);padding:15px 18px}
+  .eb{width:100%;margin-top:12px;background:rgba(8,10,16,.6);border:1px solid var(--line2);border-radius:11px;color:var(--txt);font:inherit;font-size:14px;padding:12px;min-height:78px;display:none}
+  .eb.on{display:block}
+  .ebsend{display:none;margin-top:10px;width:100%;font-weight:700;font-size:14px;border:none;border-radius:11px;padding:13px;background:var(--panel);border:1px solid var(--line2);color:var(--amber);cursor:pointer}
+  .ebsend.on{display:block}
+  .done{display:none;align-items:center;gap:11px;padding:6px 2px}
+  .done.on{display:flex}
+  .done .ic{width:30px;height:30px;border-radius:50%;background:var(--live);color:#052a1c;display:grid;place-items:center;font-weight:800}
+  .done.warn .ic{background:var(--amber)}
+  .allwrap,.empty{text-align:center;padding:30px 20px;display:none}
+  .allwrap.on,.empty.on{display:block}
+  .err{color:var(--alert);font-size:13px;margin:12px 0}
+  .foot{text-align:center;font-size:11px;color:var(--txt3);margin-top:24px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hd">
+    <div class="mk">◆</div>
+    <div class="nm dsp">UNALIGNED</div>
+    <h1 class="dsp">Briefs to review</h1>
+    <div class="dt" id="subtitle">Loading…</div>
+    <div class="prog mono" id="prog">…</div>
+  </div>
+  <div class="err" id="err"></div>
+  <div class="empty" id="empty"><h2 class="dsp">All caught up</h2><p>No briefs waiting for your approval right now.</p></div>
+  <div id="briefs"></div>
+  <div class="allwrap" id="allwrap">
+    <h2 class="dsp">All caught up</h2>
+    <p>Thanks Robert. Everything you approved is on the calendar and Asher will post it.</p>
+  </div>
+  <div class="foot">Secure review link · UNALIGNED machine</div>
+</div>
+<script>
+const API_BASE = 'https://mac-studio.tail50d3a2.ts.net';
+const params = new URLSearchParams(location.search);
+const TOKEN = params.get('token') || '';
+let BRIEFS = [];
+const picks = {};
+const reviewed = new Set();
+
+function fmtWhen(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+}
+
+async function api(path, body) {
+  const opts = body ? { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) } : {};
+  const res = await fetch(API_BASE + path, opts);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.ok === false) throw new Error(data.error || ('HTTP ' + res.status));
+  return data;
+}
+
+function render() {
+  const box = document.getElementById('briefs');
+  if (!BRIEFS.length) {
+    box.innerHTML = '';
+    document.getElementById('empty').classList.add('on');
+    document.getElementById('prog').textContent = '0 WAITING';
+    return;
+  }
+  document.getElementById('empty').classList.remove('on');
+  document.getElementById('subtitle').textContent = BRIEFS.length + ' ready for you, Robert';
+  box.innerHTML = BRIEFS.map(b => `
+    <div class="brief${reviewed.has(b.id) ? ' gone' : ''}" id="b-${b.id}">
+      <div class="bk">${b.kind}${b.sent_at ? ' · sent ' + fmtWhen(b.sent_at) : ''}</div>
+      <h3>${b.brand}</h3>
+      <div class="post" id="post-${b.id}">${b.opts[0] || ''}</div>
+      <div class="disc">${(b.disc||[]).map(d => d==='Paid Partnership' ? '<b>'+d+'</b>' : '<span>'+d+'</span>').join('<span style="color:var(--txt3)">·</span>')}</div>
+      <div class="opts" id="opts-${b.id}">${b.opts.map((o,i) => `<button class="opt ${i===0?'sel':''}" onclick="pick('${b.id}',${i},this)">${b.labels[i] || ('Option '+(i+1))}</button>`).join('')}</div>
+      <div class="acts" id="acts-${b.id}">
+        <button class="ax yes" onclick="approve('${b.id}')">✓ Approve</button>
+        <button class="ax ed" onclick="edits('${b.id}')">Edits</button>
+        <button class="ax no" onclick="decline('${b.id}')">No</button>
+      </div>
+      <textarea class="eb" id="eb-${b.id}" placeholder="What should change? Asher will revise and resend."></textarea>
+      <button class="ebsend" id="ebs-${b.id}" onclick="sendEdits('${b.id}')">Send edits to Asher</button>
+      <div class="done" id="done-${b.id}"></div>
+    </div>`).join('');
+  BRIEFS.forEach(b => { if (picks[b.id] == null) picks[b.id] = 0; });
+  updateProg();
+}
+
+function updateProg() {
+  document.getElementById('prog').textContent = reviewed.size + ' OF ' + BRIEFS.length + ' REVIEWED';
+  if (BRIEFS.length && reviewed.size === BRIEFS.length) document.getElementById('allwrap').classList.add('on');
+}
+
+function pick(id, i, el) {
+  picks[id] = i;
+  document.querySelectorAll('#opts-' + id + ' .opt').forEach(o => o.classList.remove('sel'));
+  el.classList.add('sel');
+  const b = BRIEFS.find(x => x.id === id);
+  if (b) document.getElementById('post-' + id).textContent = b.opts[i] || '';
+}
+
+function hideControls(id) {
+  ['opts','acts'].forEach(part => { const el = document.getElementById(part + '-' + id); if (el) el.style.display = 'none'; });
+  document.getElementById('eb-' + id).classList.remove('on');
+  document.getElementById('ebs-' + id).classList.remove('on');
+}
+
+async function decide(id, action, extra) {
+  hideControls(id);
+  const d = document.getElementById('done-' + id);
+  d.className = 'done on';
+  d.innerHTML = '<div class="ic">…</div><div><b>Submitting…</b></div>';
+  try {
+    const result = await api('/robert-review-decision', { token: TOKEN, card_id: id, action, ...extra });
+    reviewed.add(id);
+    updateProg();
+    if (action === 'approve') {
+      const cal = result.calendar && result.calendar.ok ? ' Loaded onto the calendar.' : '';
+      d.className = 'done on';
+      d.innerHTML = `<div class="ic">✓</div><div><b>Approved.</b>${cal} Asher will post it.</div>`;
+    } else if (action === 'edit') {
+      d.className = 'done on warn';
+      d.innerHTML = '<div class="ic">✎</div><div><b>Edits sent to Asher.</b> He will revise and resend.</div>';
+    } else {
+      d.className = 'done on warn';
+      d.innerHTML = '<div class="ic">✕</div><div><b>Skipped.</b> Asher will follow up.</div>';
+    }
+  } catch (err) {
+    d.className = 'done on warn';
+    d.innerHTML = '<div class="ic">!</div><div><b>Could not save.</b> ' + (err.message || 'Try again.') + '</div>';
+  }
+}
+
+function approve(id) { decide(id, 'approve', { option_index: picks[id] || 0 }); }
+function edits(id) { document.getElementById('eb-' + id).classList.add('on'); document.getElementById('ebs-' + id).classList.add('on'); document.getElementById('eb-' + id).focus(); }
+function sendEdits(id) { const note = document.getElementById('eb-' + id).value.trim(); decide(id, 'edit', { note }); }
+function decline(id) { decide(id, 'decline', {}); }
+
+async function boot() {
+  try {
+    const data = await api('/robert-review-queue?token=' + encodeURIComponent(TOKEN));
+    BRIEFS = data.briefs || [];
+    render();
+  } catch (err) {
+    document.getElementById('err').textContent = err.message || 'Could not load briefs.';
+    document.getElementById('subtitle').textContent = 'Link may be expired or invalid.';
+  }
+}
+boot();
+</script>
+</body>
+</html>

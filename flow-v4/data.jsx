@@ -190,7 +190,8 @@ function V3NormalizeSupabaseLead(row) {
   const received = V3NormalizeDateForUi(row.date_received_iso || row.created_at || row.moved_at);
   const thread = V3ThreadFromRow(row, name, brand, row.list_id);
   const latestThreadDate = V3LatestThreadDate(thread);
-  const lastTouchAt = V3NormalizeDateForUi(latestThreadDate || row.moved_at || received);
+  const newReplyAt = V3NormalizeDateForUi(row.new_reply_at);
+  const lastTouchAt = V3MaxTouchAt(latestThreadDate, row.new_reply_at, row.moved_at, received);
   const activityDays = V3DaysSince(lastTouchAt || row.moved_at || received);
   const rawStage = V3NormalizeStage(row.list_id);
   const closedStage = V3NormalizeEmailLeadStage(row.email, rawStage);
@@ -223,6 +224,7 @@ function V3NormalizeSupabaseLead(row) {
     lastTouch: V3RelativeTime(lastTouchAt || row.moved_at || received),
     lastTouchAt: lastTouchAt || row.moved_at || received || null,
     receivedAt: received || null,
+    newReplyAt: newReplyAt || null,
     needsReply,
     approve: row.draft_reply ? ownerId : null,
     color: __v3Color(name + brand),
@@ -600,11 +602,29 @@ function V3TimestampForUi(value) {
   return Number.isFinite(t) ? t : 0;
 }
 
+function V3MaxTouchAt(...values) {
+  let best = 0;
+  let bestValue = null;
+  for (const value of values) {
+    const normalized = V3NormalizeDateForUi(value);
+    const t = V3TimestampForUi(normalized);
+    if (t >= best) {
+      best = t;
+      bestValue = normalized;
+    }
+  }
+  return bestValue;
+}
+
 function V3LeadActivityTimestamp(lead) {
   if (!lead) return 0;
   return Math.max(
     V3TimestampForUi(lead.lastTouchAt),
     V3TimestampForUi(lead.receivedAt),
+    V3TimestampForUi(lead.newReplyAt),
+    V3TimestampForUi(lead.briefSentAt),
+    V3TimestampForUi(lead.briefApprovedAt),
+    V3TimestampForUi(lead.operatorUpdatedAt),
     ...(Array.isArray(lead.thread) ? lead.thread.map(msg => V3TimestampForUi(msg.date || msg.dateIso || msg.timestamp || msg.when)) : [0])
   );
 }
