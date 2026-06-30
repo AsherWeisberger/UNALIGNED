@@ -850,6 +850,26 @@ Object.assign(window, {
 const V3_SUPABASE_URL = "https://hbnpwphxjurvtydezwgh.supabase.co";
 const V3_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhibnB3cGh4anVydnR5ZGV6d2doIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0MTQ1MzIsImV4cCI6MjA5MDk5MDUzMn0.p5E48__GlGqjC17Z28q8fYFK-qV8CmiidYIP02vGe4s";
 const V3_MIN_VISIBLE_TS = Date.parse('2026-01-01T00:00:00Z');
+const V3_API_TOKEN_KEY = 'v4_api_token';
+
+function V3ApiToken() {
+  try {
+    return String(window.localStorage.getItem(V3_API_TOKEN_KEY) || window.localStorage.getItem('v4_brief_api_token') || '').trim();
+  } catch (e) {
+    return '';
+  }
+}
+
+function V3EnsureApiToken() {
+  let token = V3ApiToken();
+  if (token) return token;
+  const prompted = window.prompt('Paste your UNALIGNED API token (send email + brief services)');
+  token = String(prompted || '').trim();
+  if (token) {
+    try { window.localStorage.setItem(V3_API_TOKEN_KEY, token); } catch (e) {}
+  }
+  return token;
+}
 
 async function V3LoadXDmIntakeRows() {
   try {
@@ -1080,6 +1100,14 @@ function V3NormalizeSupabaseLead(row) {
     agentAssessment: row.agent_assessment || '',
     recommendedAction: row.recommended_action || '',
     agentTier: row.agent_tier || '',
+    dealState: row.deal_state || '',
+    dealConfidence: row.deal_confidence || '',
+    dealAwaiting: row.deal_awaiting || '',
+    dealEvidence: row.deal_evidence || '',
+    dealNextAction: row.deal_next_action || '',
+    needsHumanRead: Boolean(row.needs_human_read),
+    readyToInvoice: Boolean(row.ready_to_invoice),
+    dealAgreement: Boolean(row.agreement),
     operatorMemory,
     operatorSummary: operatorMemory?.summary || null,
     operatorAnalysis: operatorMemory?.analysis || null,
@@ -2267,9 +2295,12 @@ function V3MergePendingReplies(leads, pendingReplies) {
 }
 
 async function V3SendLeadEmail({ lead, sender, to, cc, subject, body, attachPdf = false }) {
+  const token = V3EnsureApiToken();
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = 'Bearer ' + token;
   const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({
       to,
       subject,
@@ -3228,10 +3259,14 @@ window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, A
 V3LoadPricingTiers();
 V3LoadTeamUsers();
 
+window.dispatchEvent(new CustomEvent('v3:leads-loading'));
 V3LoadSupabaseLeads().then(leads => {
   window.V3.LEADS = leads;
-  window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads } }));
-}).catch(err => console.error('Supabase load failed:', err));
+  window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads, ok: true } }));
+}).catch(err => {
+  console.error('Supabase load failed:', err);
+  window.dispatchEvent(new CustomEvent('v3:leads-error', { detail: { error: err?.message || 'Load failed' } }));
+});
 // FLOW v3 — Board view
 
 function V3BoardView({ leads, openId, onOpen, user, ownerFilter, setOwnerFilter }) {
@@ -4656,12 +4691,25 @@ Write ONLY the email body. Start with "Hi ${first},". Keep it concise. End with 
 }
 
 function V3Stands({ lead }) {
+  const hasDealRead = !!(lead.dealState || lead.dealEvidence || lead.dealNextAction || lead.needsHumanRead);
   return (
     <>
       <div className="standstrip-hd">
         <div className="standstrip-title">Where this stands</div>
         <span className="standstrip-pulse">Step {lead.progress + 1} of {window.V3.ACTIVE_STAGE_IDS.length}</span>
       </div>
+
+      {hasDealRead && (
+        <div className="deal-tracker-read" style={{ marginBottom: 14, padding: '10px 12px', borderRadius: 10, background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 6 }}>Deal Tracker read</div>
+          {lead.dealState && <div><strong>State:</strong> {lead.dealState}{lead.dealConfidence ? ` · ${lead.dealConfidence} confidence` : ''}</div>}
+          {lead.dealAwaiting && <div><strong>Awaiting:</strong> {lead.dealAwaiting}</div>}
+          {lead.dealNextAction && <div><strong>Next:</strong> {lead.dealNextAction}</div>}
+          {lead.dealEvidence && <div style={{ marginTop: 6, fontStyle: 'italic', color: 'var(--text-secondary)' }}>"{lead.dealEvidence}"</div>}
+          {lead.needsHumanRead && <div style={{ marginTop: 6, color: 'var(--accent)' }}>Needs your read before auto-draft</div>}
+          {lead.readyToInvoice && <div style={{ marginTop: 4 }}>Ready to invoice</div>}
+        </div>
+      )}
 
       <div className="steplist">
         {lead.timeline.map((step, i) => (
@@ -13173,9 +13221,57 @@ function V4HelpOverlay({ open, onClose }) {
   );
 }
 
+function V4SyncStatusBadge() {
+  const { health } = V4UseOpsHealth();
+  const scraper = String(health?.scraper_last_status || '').toLowerCase();
+  const delta = String(health?.gmail_delta_status || '').toLowerCase();
+  const hb = health?.heartbeat || health?.scraper_last_run || health?.gmail_delta_at;
+  const ago = hb ? V3RelativeTime(hb) : '';
+  let tone = 'ok';
+  let label = 'Board live';
+  if (scraper === 'failed') { tone = 'err'; label = 'Gmail sync failed'; }
+  else if (scraper === 'degraded') { tone = 'warn'; label = 'Partial Gmail sync'; }
+  else if (scraper === 'running') { tone = 'busy'; label = 'Syncing Gmail…'; }
+  else if (delta === 'failed') { tone = 'warn'; label = 'Delta sync issue'; }
+  if (ago && tone === 'ok') label = `Gmail · ${ago}`;
+  return (
+    <div className={'hd-sync hd-sync--' + tone} title={health ? JSON.stringify({ scraper, delta, hb }) : 'Loading fleet status…'}>
+      <span className="dot"></span>
+      {label}
+    </div>
+  );
+}
+
+function V4Onboarding({ onDismiss }) {
+  const seen = (() => { try { return localStorage.getItem('v4_onboarding_done') === '1'; } catch (e) { return true; } })();
+  const [open, setOpen] = React.useState(!seen);
+  if (!open) return null;
+  const close = () => {
+    try { localStorage.setItem('v4_onboarding_done', '1'); } catch (e) {}
+    setOpen(false);
+    onDismiss?.();
+  };
+  return (
+    <div className="v4-onboard-scrim" style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={close}>
+      <div className="v4-onboard-card" style={{ maxWidth: 420, background: 'var(--surface)', borderRadius: 16, padding: 24, border: '1px solid var(--border)' }} onClick={e => e.stopPropagation()}>
+        <h2 style={{ margin: '0 0 8px', fontSize: 20 }}>Company OS is home</h2>
+        <p style={{ margin: '0 0 12px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>Reply to active deals here — not the Gmail app. The header sync badge shows real Gmail pull status.</p>
+        <ul style={{ margin: '0 0 16px', paddingLeft: 18, lineHeight: 1.6 }}>
+          <li><strong>Company OS</strong> — your Asher inbox + tools</li>
+          <li><strong>New Leads</strong> — Robert + X intake only</li>
+          <li><strong>Organs / Machine Room</strong> — approve before anything sends</li>
+        </ul>
+        <button type="button" className="hd-nav-btn" onClick={close}>Got it — open Company OS</button>
+      </div>
+    </div>
+  );
+}
+
 function V4App() {
   const [, setConfigVersion] = React.useState(0);
   const { USERS, LEADS, STAGE_BY_ID, ACTIVE_STAGE_IDS } = window.V3;
+  const [boardState, setBoardState] = React.useState('loading');
+  const [boardError, setBoardError] = React.useState('');
   const [t, setTweak] = useTweaks(V4_TWEAKS);
   const [view, setView] = React.useState(V4DefaultViewForUser(t.viewAs));
   const [openId, setOpenId] = React.useState(null);
@@ -13221,15 +13317,28 @@ function V4App() {
   }, []);
 
   React.useEffect(() => {
-    const h = (e) => {
+    const onLoad = (e) => {
+      setBoardState('ready');
+      setBoardError('');
       setLeads(e.detail.leads);
       setPendingReplies(curr => {
         if (!window.V3.PrunePendingReplies) return curr;
         return window.V3.PrunePendingReplies(curr, e.detail.leads);
       });
     };
-    window.addEventListener('v3:leads-loaded', h);
-    return () => window.removeEventListener('v3:leads-loaded', h);
+    const onLoading = () => { setBoardState('loading'); };
+    const onError = (e) => {
+      setBoardState('error');
+      setBoardError(e.detail?.error || 'Could not load board');
+    };
+    window.addEventListener('v3:leads-loaded', onLoad);
+    window.addEventListener('v3:leads-loading', onLoading);
+    window.addEventListener('v3:leads-error', onError);
+    return () => {
+      window.removeEventListener('v3:leads-loaded', onLoad);
+      window.removeEventListener('v3:leads-loading', onLoading);
+      window.removeEventListener('v3:leads-error', onError);
+    };
   }, []);
 
   React.useEffect(() => {
@@ -13517,10 +13626,13 @@ function V4App() {
           )}
         </div>
 
-        <div className="hd-sync" title="Real-time Gmail sync">
-          <span className="dot"></span>
-          Synced
-        </div>
+        <V4SyncStatusBadge />
+        {boardState === 'loading' && <span className="hd-board-state">Loading board…</span>}
+        {boardState === 'error' && (
+          <button type="button" className="hd-board-state hd-board-state--err" onClick={() => window.V3?.ReloadLeads?.()}>
+            Board error — retry
+          </button>
+        )}
 
         <button
           className="hd-theme-toggle"
@@ -13688,6 +13800,7 @@ function V4App() {
                         leads={mergedLeads.filter(l => !l.isRobertBrief)}
                         onOpenLead={(id) => setOpenId(id)} />
       <V4HelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
+      <V4Onboarding onDismiss={() => setView('company-os')} />
       <UnalignedCopilot leads={mergedLeads} />
 
       {/* Brief viewer modal */}

@@ -5913,6 +5913,11 @@ a { color: inherit; }
   border-color: var(--danger, #dc2626);
   color: var(--danger, #dc2626);
 }
+.hd-sync--warn .dot { background: #f59e0b; }
+.hd-sync--err .dot { background: #dc2626; }
+.hd-sync--busy .dot { animation: pulse 1.2s ease infinite; }
+.hd-board-state { font-size: var(--fs-xs); color: var(--text-secondary); margin-left: 8px; }
+.hd-board-state--err { color: #dc2626; background: none; border: none; cursor: pointer; text-decoration: underline; }
 .cos2-sync-note {
   font-size: var(--fs-xs);
   color: var(--text-secondary);
