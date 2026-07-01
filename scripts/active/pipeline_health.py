@@ -13,6 +13,7 @@ import httpx
 
 ENV_FILE = Path.home() / ".config/google-credentials/unaligned-scraper.env"
 STATE_DIR = Path.home() / ".config/google-credentials"
+REPO_ROOT = Path("/Users/asherweisberger/Desktop/UNALIGNED/MASTER FILES")
 
 
 def load_env() -> None:
@@ -45,6 +46,79 @@ def sb_headers() -> dict:
     }
 
 
+def send_telegram(text: str) -> bool:
+    token = os.environ.get("TELEGRAM_TOKEN", "").strip()
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
+    if not token or not chat_id:
+        return False
+    try:
+        resp = httpx.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": chat_id, "text": text},
+            timeout=15,
+        )
+        return resp.status_code == 200
+    except Exception:
+        return False
+
+
+def morning_telegram_summary(
+    *,
+    status: str,
+    robert_ok: bool,
+    asher_ok: bool,
+    thread_sync: dict,
+    candidate_sync: dict,
+) -> str:
+    x_health = read_json(REPO_ROOT / "flow-v4/assets/x_scraper_health.json")
+    x_bridge = read_json(STATE_DIR / "x_bridge_status.json")
+    x_log_tail = ""
+    live_log = STATE_DIR / "live_x_inbox_scraper.log"
+    try:
+        lines = live_log.read_text(encoding="utf-8", errors="replace").splitlines()
+        x_log_tail = "\n".join(lines[-3:])
+    except Exception:
+        pass
+
+    x_ok = bool(x_health.get("ok")) and int(x_health.get("inspected") or 0) > 0
+    x_line = "X scrape: "
+    if x_health.get("ran_at"):
+        x_line += (
+            f"{'OK' if x_ok else 'ISSUE'} — inspected {x_health.get('inspected', 0)}, "
+            f"business {x_health.get('relevant_count', x_health.get('new_threads', 0))}, "
+            f"stop={x_health.get('stop_reason', 'n/a')}"
+        )
+    else:
+        x_line += "no health record"
+
+    bridge_line = "X bridge: "
+    if x_bridge:
+        bridge_line += (
+            f"{x_bridge.get('inserted', 0)} new, {x_bridge.get('updated', 0)} refreshed, "
+            f"{x_bridge.get('enriched', 0)} enriched, {x_bridge.get('merged_gmail_cards', 0)} gmail merges"
+        )
+    else:
+        bridge_line += "not run"
+
+    gmail_line = (
+        f"Gmail: Robert {'OK' if robert_ok else 'SKIP'} | Asher {'OK' if asher_ok else 'SKIP'} | "
+        f"threads patched {int(thread_sync.get('written', 0) or 0)} | "
+        f"candidates {int(candidate_sync.get('written', 0) or 0)}"
+    )
+
+    status_emoji = {"ok": "✅", "degraded": "⚠️", "failed": "🚨"}.get(status, "ℹ️")
+    lines = [
+        f"{status_emoji} UNALIGNED morning run — {status.upper()}",
+        gmail_line,
+        x_line,
+        bridge_line,
+    ]
+    if not x_ok and x_log_tail:
+        if "Apple Events" in x_log_tail or "No logged-in X tab" in x_log_tail:
+            lines.append("X fix: Chrome open + pinned https://x.com/i/chat + Allow JS from Apple Events")
+    return "\n".join(lines)
+
+
 def upsert_ops_health(fields: dict) -> None:
     url = os.environ.get("SUPABASE_URL", "https://hbnpwphxjurvtydezwgh.supabase.co")
     fields["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -75,6 +149,7 @@ def main() -> int:
             "scraper_last_run": now,
             "scraper_last_status": "running",
         }
+        send_telegram("🌅 UNALIGNED morning scraper started (Gmail + X + pipeline)")
     elif mode == "cron_end":
         robert_ok = os.environ.get("PIPELINE_ROBERT_OK", "0") == "1"
         asher_ok = os.environ.get("PIPELINE_ASHER_OK", "0") == "1"
@@ -91,18 +166,15 @@ def main() -> int:
             "cards_patched": int(thread_sync.get("written", 0) or 0),
             "cards_created": int(candidate_sync.get("written", 0) or 0),
         }
-        if status == "failed" and os.environ.get("TELEGRAM_TOKEN") and os.environ.get("TELEGRAM_CHAT_ID"):
-            try:
-                httpx.post(
-                    f"https://api.telegram.org/bot{os.environ['TELEGRAM_TOKEN']}/sendMessage",
-                    json={
-                        "chat_id": os.environ["TELEGRAM_CHAT_ID"],
-                        "text": "UNALIGNED morning Gmail sync FAILED — both mailboxes skipped. Re-auth tokens.",
-                    },
-                    timeout=15,
-                )
-            except Exception:
-                pass
+        send_telegram(
+            morning_telegram_summary(
+                status=status,
+                robert_ok=robert_ok,
+                asher_ok=asher_ok,
+                thread_sync=thread_sync,
+                candidate_sync=candidate_sync,
+            )
+        )
     elif mode == "delta":
         delta = read_json(STATE_DIR / "gmail_delta_asher_status.json")
         fields = {

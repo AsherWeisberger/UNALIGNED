@@ -1,0 +1,46 @@
+[
+  {
+    "id": "shelly_team_replied_last",
+    "fixture": "shelly_16696_bug_state.json",
+    "description": "Shelley: pending draft after Asher sent hard pricing stance",
+    "expect_stale": true,
+    "expect_stale_substrings": ["team already sent the last message"],
+    "expect_in_replies_gate": false,
+    "expect_stage": "negotiating"
+  },
+  {
+    "id": "benson_dead_leads",
+    "fixture": "benson_16723_bug_state.json",
+    "description": "Benson: demoted X dead-lead must not queue email draft",
+    "expect_stale": true,
+    "expect_stale_substrings": ["inactive stage (dead-leads)"],
+    "expect_in_replies_gate": false,
+    "expect_stage": "dead-leads"
+  },
+  {
+    "id": "adog_team_replied_last",
+    "fixture": "adog_15818_bug_state.json",
+    "description": "AD&OG: orphan draft after Asher already replied on calendar",
+    "expect_stale": true,
+    "expect_stale_substrings": ["team already sent the last message"],
+    "expect_in_replies_gate": false,
+    "expect_stage": "rates-sent"
+  },
+  {
+    "id": "adog_wrong_person_payment",
+    "fixture": "adog_15818_wrong_person.json",
+    "description": "AD&OG: draft greets Yihui but contact/thread is Evie with payment done",
+    "expect_stale": true,
+    "expect_stale_any_substrings": ["yihui", "payment", "pricing", "new inbound"],
+    "expect_in_replies_gate": false,
+    "expect_stage": "rates-sent"
+  },
+  {
+    "id": "valid_pending_draft",
+    "fixture": "synthetic_valid_pending.json",
+    "description": "Lead replied last; pending draft should stay queued",
+    "expect_stale": false,
+    "expect_in_replies_gate": true,
+    "expect_stage": "engaged"
+  }
+]

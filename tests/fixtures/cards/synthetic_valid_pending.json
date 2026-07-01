@@ -1,0 +1,23 @@
+{
+  "id": 99901,
+  "list_id": "engaged",
+  "contact_name": "Jordan",
+  "business_name": "Acme Labs",
+  "draft_reply_status": "pending",
+  "draft_reply": {
+    "subject": "Re: Sponsorship inquiry",
+    "body": "Hi Jordan,\n\nThanks for the follow-up on timing. We can hold June 28 for Robert if that still works on your side."
+  },
+  "email_thread": [
+    {
+      "from": "Robert Scoble <scobleizer@gmail.com>",
+      "body": "Looping in Asher.",
+      "subject": "Intro"
+    },
+    {
+      "from": "Jordan <jordan@acmelabs.com>",
+      "body": "Does June 28 still work for the sponsorship post?",
+      "subject": "Re: Intro"
+    }
+  ]
+}

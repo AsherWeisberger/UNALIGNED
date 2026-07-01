@@ -49,7 +49,9 @@ async function V3LoadSupabaseLeads() {
   };
 
   for (const row of rows) {
-    const key = row.gmail_thread_id ? `thread:${row.gmail_thread_id}` : `row:${row.id}`;
+    const key = row.x_open_dm
+      ? `xdm:${V3NormalizeOpenDmUrl(row.x_open_dm)}`
+      : (row.gmail_thread_id ? `thread:${row.gmail_thread_id}` : `row:${row.id}`);
     const prev = canonical.get(key);
     if (!prev || scoreRow(row) > scoreRow(prev)) canonical.set(key, row);
   }
@@ -265,6 +267,8 @@ function V3NormalizeSupabaseLead(row) {
     thread,
     progress: Math.max(0, V3_ACTIVE_STAGE_IDS.indexOf(stage)),
     unread: Boolean(row.new_reply_at),
+    xOpenDm: V3NormalizeOpenDmUrl(row.x_open_dm || (String(row.website || '').includes('x.com/') ? row.website : '')),
+    xHandle: String(row.x_username || '').trim(),
   };
 }
 
@@ -464,8 +468,22 @@ function V3NormalizeXDmLeads(rows, existingLeads = []) {
       lead?.xHandle,
     ].map(V3LeadIdentityKey)).filter(Boolean)
   );
+  const existingOpenDms = new Set(
+    existingLeads.map(lead => V3NormalizeOpenDmUrl(lead?.xOpenDm)).filter(Boolean)
+  );
+  const qualifiedLeadType = (row) => {
+    const type = String(row?.leadType || '').trim().toLowerCase();
+    const text = String((row?.summaryForTeam || '') + ' ' + (row?.lastLeadMessage || '')).toLowerCase();
+    const partnership = /collab|collaboration|sponsor|sponsorship|partnership|partner|campaign|paid|budget|rates|pricing|brand deal|ambassador/.test(text);
+    const product = /product|platform|startup|demo|launch|tool|agent|robot|framework|software|saas|beta|trial|pilot|integrat/.test(text);
+    if (type === 'paid / sponsorship' || type === 'product / demo') return true;
+    if (type === 'general outreach' || type === 'intro / network' || type === 'payment / admin') return partnership || product;
+    if (type === 'event / media') return partnership || product;
+    return partnership || product;
+  };
   return list
     .filter(row => row && row.newLead !== false)
+    .filter(row => qualifiedLeadType(row))
     .filter(row => !row.alreadyEmailedInRobertGmail)
     .filter(row => {
       const xUser = String(row.xUsername || '').replace(/^@/, '').trim().toLowerCase();
@@ -480,6 +498,8 @@ function V3NormalizeXDmLeads(rows, existingLeads = []) {
       return true;
     })
     .filter(row => {
+      const openDm = V3NormalizeOpenDmUrl(row.openDm);
+      if (openDm && existingOpenDms.has(openDm)) return false;
       const emails = String(row.contactEmails || '')
         .split(/[,\s|]+/)
         .map(item => item.trim().toLowerCase())
@@ -1173,10 +1193,28 @@ function V3LeadMatchesQuery(lead, query) {
   return q.split(' ').filter(Boolean).every(token => hay.includes(token));
 }
 
+function V3NormalizeOpenDmUrl(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  return text.split('#')[0].replace(/\/+$/, '');
+}
+
+function V3FindExistingXCard(leads, openDm, intakeId) {
+  const key = V3NormalizeOpenDmUrl(openDm);
+  if (!key) return null;
+  return (Array.isArray(leads) ? leads : []).find(item => {
+    if (String(item.id) === String(intakeId)) return false;
+    if (String(item.id || '').startsWith('xdm-')) return false;
+    return V3NormalizeOpenDmUrl(item.xOpenDm) === key;
+  }) || null;
+}
+
 function V3IsNewLeadReview(lead) {
   if (!lead || lead.isRobertBrief) return false;
   const sourceKind = V3NewLeadSourceKind(lead);
   const mailbox = V3LeadMailboxOrigin(lead);
+  const stage = String(lead.stage || '').toLowerCase();
+  if (sourceKind === 'x' && stage !== 'new') return false;
   if (mailbox === 'asher') return false;
   if (sourceKind === 'x' || mailbox === 'robert') return !V3CompanyOsQualifiedLead(lead);
   return false;
@@ -1184,13 +1222,13 @@ function V3IsNewLeadReview(lead) {
 
 function V3NewLeadSourceKind(lead) {
   const source = String(lead?.source || '').toLowerCase();
-  if (source.includes('x-dm-intake') || source.includes('twitter_dm') || source.includes('ingest-twitter_dm')) return 'x';
+  if (source === 'x' || source.includes('x-dm') || source.includes('twitter_dm') || source.includes('ingest-twitter_dm')) return 'x';
   return 'gmail';
 }
 
 function V3LeadMailboxOrigin(lead) {
   const source = String(lead?.source || '').toLowerCase();
-  if (source.includes('x-dm-intake') || source.includes('twitter_dm') || source.includes('ingest-twitter_dm')) return 'x';
+  if (source === 'x' || source.includes('x-dm') || source.includes('twitter_dm') || source.includes('ingest-twitter_dm')) return 'x';
   if (
     source.includes('robert-gmail-new-lead') ||
     source.includes('gmail-robert') ||
@@ -2349,35 +2387,55 @@ function V3MoveLeadStage(lead, nextStage, leads = window.V3?.LEADS || V3_LEADS) 
   window.V3.LEADS = updated;
   window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated } }));
 
-  // X DM intake leads are not backed by a Supabase row, so a PATCH would no-op
-  // and the lead would resurface on the next scrape. Persist the decision as a
-  // card instead — its contact_name makes the daily X intake dedupe skip this
-  // lead on future loads, and we relink the in-memory id so Restore can PATCH it.
   const isXIntake = String(lead?.source || '').includes('x-dm-intake') || String(lead?.id || '').startsWith('xdm-');
   if (isXIntake) {
+    const openDm = V3NormalizeOpenDmUrl(lead.xOpenDm);
+    const existing = V3FindExistingXCard(leads, openDm, lead.id);
+    const cardPayload = {
+      list_id: normalizedStage,
+      title: lead.contactName || lead.brand || 'X lead',
+      contact_name: lead.contactName || '',
+      business_name: lead.brand || lead.contactName || '',
+      lead_source: 'X',
+      x_open_dm: openDm || null,
+      email: lead.email || '',
+      intent: lead.deliverables || '',
+    };
+
+    const finalize = (cardId, sourceLabel) => {
+      const merged = (window.V3.LEADS || updated)
+        .filter(item => String(item.id) !== String(lead.id))
+        .map(item => String(item.id) === String(cardId)
+          ? { ...item, stage: normalizedStage, source: sourceLabel || item.source || 'X' }
+          : item);
+      window.V3.LEADS = merged;
+      window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: merged } }));
+    };
+
+    if (existing) {
+      const cardId = existing.rowId || existing.id;
+      fetch(V3_SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(cardId), {
+        method: 'PATCH',
+        headers: { ...V3_SUPABASE_HEADERS, Prefer: 'return=minimal' },
+        body: JSON.stringify(cardPayload),
+      })
+        .then(() => finalize(cardId, existing.source || 'X'))
+        .catch(err => console.warn('[ALIGNED v4] x scope patch failed:', err));
+      return;
+    }
+
     fetch(V3_SUPABASE_URL + '/rest/v1/cards', {
       method: 'POST',
       headers: { ...V3_SUPABASE_HEADERS, Prefer: 'return=representation' },
-      body: JSON.stringify({
-        list_id: normalizedStage,
-        title: lead.contactName || lead.brand || 'X lead',
-        contact_name: lead.contactName || '',
-        lead_source: 'x-dm-intake',
-        website: lead.xOpenDm || (lead.xHandle ? 'https://x.com/' + String(lead.xHandle).replace(/^@/, '') : ''),
-        email: lead.email || '',
-        intent: lead.deliverables || '',
-      }),
+      body: JSON.stringify(cardPayload),
     })
       .then(res => res.ok ? res.json() : null)
       .then(rows => {
         const newId = Array.isArray(rows) && rows[0] ? rows[0].id : null;
         if (newId == null) return;
-        const relinked = (window.V3.LEADS || updated).map(item =>
-          String(item.id) === String(lead.id) ? { ...item, id: newId, rowId: newId, source: 'x-dm-intake' } : item);
-        window.V3.LEADS = relinked;
-        window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: relinked } }));
+        finalize(newId, 'X');
       })
-      .catch(err => console.warn('[ALIGNED v4] x suppress failed:', err));
+      .catch(err => console.warn('[ALIGNED v4] x scope insert failed:', err));
     return;
   }
 

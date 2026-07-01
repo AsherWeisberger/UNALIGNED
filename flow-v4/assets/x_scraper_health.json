@@ -1,11 +1,11 @@
 {
-  "ran_at": "2026-06-30T03:07:28Z",
-  "stop_reason": "outside_recent_window:2026-06-27",
-  "stop_signature": "https://x.com/i/chat/13348-1679620929712795648|Erind Musliu|2d|I apologize. When you are free, don't forget to give me a rating for it. All the best",
-  "inspected": 50,
-  "relevant_count": 18,
-  "new_threads": 18,
-  "ok": true,
+  "ran_at": "2026-06-30T13:03:37",
+  "stop_reason": "exception:35:77: execution error: Google Chrome got an error: Invalid tab index entered. (9)",
+  "stop_signature": null,
+  "inspected": 0,
+  "relevant_count": 0,
+  "new_threads": 0,
+  "ok": false,
   "source": "live_x_inbox_daily_scrape.py",
   "note": "This powers the ORGANS X watcher health card."
 }

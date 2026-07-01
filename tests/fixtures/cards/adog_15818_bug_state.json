@@ -1,0 +1,453 @@
+{
+  "id": 15818,
+  "title": "AD&OG / Instory collaboration and rate",
+  "list_id": "rates-sent",
+  "labels": [
+    "🌡️ Warm",
+    "💼 Deal"
+  ],
+  "description": "{\"rich_description\": \"Evie from AD&OG/Instory asked about collaboration and rates for an interactive AI story app. Needs clean billing/campaign details and package matching.\", \"evidence\": \"Thread references AD&OG collaboration and rate with Evie from Instory/AD&OG.\", \"intent\": \"sponsorship\", \"priority\": \"warm\", \"deal_value\": \"TBD\", \"operator_memory\": {\"summary\": {\"lead_summary\": \"Robert Scoble forwarded an inquiry from Evie at Instory regarding a collaboration for their interactive AI story app. Asher Weisberger has sent the rate card and is actively requesting specific details on the product name, desired promotion type, and selected sponsorship tier to proceed.\", \"company\": \"Instory\", \"contact_name\": \"Evie\", \"asked_for\": \"collaboration for interactive AI story app\", \"current_status\": \"awaiting client details (product name, tier selection)\", \"launch_timing\": \"\", \"quoted_rate\": \"\", \"payment_status\": \"not applicable\", \"next_action\": \"Await response from Evie specifying the product name and selected sponsorship tier.\", \"pricing_signal\": true, \"brief_signal\": false}, \"analysis\": {\"stage\": \"engaged\", \"needs_reply\": false, \"reason\": \"Rates have been sent and the client has not yet provided the necessary scope details (product name, tier) to move forward.\", \"reply_type\": \"null\", \"safe_to_auto_send\": false, \"escalation\": []}, \"escalation\": [], \"updated_at\": \"2026-06-29T12:14:22.609194+00:00\"}}",
+  "checklist": [],
+  "assignee": "",
+  "due_date": null,
+  "created_by": "Hermes Pipeline",
+  "created_at": "2026-06-12T03:54:08.029729+00:00",
+  "updated_at": "2026-06-29T12:14:22.609291+00:00",
+  "contact_name": "Evie",
+  "email": "evie@adogtech.com",
+  "phone": "",
+  "business_name": "AD&OG / Instory",
+  "job_title": "",
+  "lead_source": "GMAIL-CODEX",
+  "estimated_value": "TBD",
+  "priority": "warm",
+  "intent": "sponsorship",
+  "email_id": "19ead13c9dc3a8dd",
+  "gmail_thread_id": "19eaa9949090aa90",
+  "linkedin_url": "",
+  "website": "",
+  "location": "",
+  "draft_reply": {
+    "subject": "Re: AD&OG Collaboration and Rate",
+    "body": "Hi Yihui,\n\nThanks for getting in touch. I would love to learn more about your AI story app demo and share our partnership packages and rate card."
+  },
+  "draft_reply_status": "pending",
+  "activity": [
+    {
+      "time": "2026-06-12T03:54:07.638803Z",
+      "user": "Codex extraction",
+      "action": "created from June Gmail dump"
+    },
+    {
+      "time": "2026-06-26T10:18:40.049464+00:00",
+      "user": "Daily Pipeline",
+      "action": "Auto-moved first-touch → rates-sent: Asher has explicitly sent the rates via PDF and is asking for the lead's selection, but there is no further negotiation or agreement yet."
+    },
+    {
+      "time": "2026-06-28T17:11:43.389826+00:00",
+      "user": "Daily Pipeline",
+      "action": "Auto-moved first-touch → rates-sent: Asher has explicitly sent the rates via PDF and is waiting for the lead to select a package or confirm details."
+    },
+    {
+      "time": "2026-06-28T18:12:34.513577+00:00",
+      "user": "Daily Pipeline",
+      "action": "Auto-moved first-touch → rates-sent: Asher has explicitly sent the rates via PDF and is waiting for the lead to select a tier or package, but no negotiation has occurred yet."
+    },
+    {
+      "time": "2026-06-29T10:25:46.995766+00:00",
+      "user": "Daily Pipeline",
+      "action": "Auto-moved first-touch → rates-sent: Asher has explicitly sent the rates via PDF and is now following up to clarify specific package details, but no negotiation or agreement has occurred yet."
+    },
+    {
+      "time": "2026-06-29T12:28:49.242471+00:00",
+      "user": "Daily Pipeline",
+      "action": "Auto-moved engaged → rates-sent: Asher has explicitly sent the rates via PDF and is following up because the lead has not yet responded or selected a package."
+    }
+  ],
+  "owner": "",
+  "original_email": [
+    {
+      "cc": "\"asherunaligned@gmail.com\" <asherunaligned@gmail.com>, unalignedx <UnalignedX@gmail.com>",
+      "id": "19eaa9949090aa90",
+      "to": "evie@adogtech.com",
+      "body": "Hello! Thanks for getting in touch via X\n\nI’m looping in my client service manager Asher to share rates and business\npartner Sam Levin.\n\nAsher/Sam this is a forwarded message from my X so you can have context of\nhis ask.\n\n“Hey! I’m Yihui from AD&OG.\n\n*We’re working with a new interactive AI story app where users can shape\ntheir own storylines, build relationships with characters, and explore\ndifferent story outcomes based on their choices.*\n\n*I came across your content and thought your style could be a really nice\nfit for this kind of campaign. Would you be open to hearing more about a\npossible collaboration?*\n\n*If yes, feel free to share your rates or rate card, and I’ll send over\nmore details. 😊”*\n\nTake it from here! All the best!\n\nRobert Scoble\n\n-- \nRobert Scoble\nFounder, Unaligned (media company about how AI is bringing us new things)\nMobile: +1-425-205-1921\nX: https://x.com/scobleizer\nWeb: https://unaligned.io\nThis message copyright the sender. All rights reserved.",
+      "date": "Jun 09, 2026",
+      "from": "Robert Scoble <scobleizer@gmail.com>",
+      "subject": "AD&OG Collaboration and Rate",
+      "date_iso": "2026-06-09",
+      "to_emails": [
+        "evie@adogtech.com",
+        "asherunaligned@gmail.com",
+        "UnalignedX@gmail.com"
+      ]
+    }
+  ],
+  "email_thread": [
+    {
+      "cc": "\"asherunaligned@gmail.com\" <asherunaligned@gmail.com>, unalignedx <UnalignedX@gmail.com>",
+      "id": "19eaa9949090aa90",
+      "to": "evie@adogtech.com",
+      "body": "Hello! Thanks for getting in touch via X\n\nI’m looping in my client service manager Asher to share rates and business\npartner Sam Levin.\n\nAsher/Sam this is a forwarded message from my X so you can have context of\nhis ask.\n\n“Hey! I’m Yihui from AD&OG.\n\n*We’re working with a new interactive AI story app where users can shape\ntheir own storylines, build relationships with characters, and explore\ndifferent story outcomes based on their choices.*\n\n*I came across your content and thought your style could be a really nice\nfit for this kind of campaign. Would you be open to hearing more about a\npossible collaboration?*\n\n*If yes, feel free to share your rates or rate card, and I’ll send over\nmore details. 😊”*\n\nTake it from here! All the best!\n\nRobert Scoble\n\n-- \nRobert Scoble\nFounder, Unaligned (media company about how AI is bringing us new things)\nMobile: +1-425-205-1921\nX: https://x.com/scobleizer\nWeb: https://unaligned.io\nThis message copyright the sender. All rights reserved.",
+      "date": "Jun 09, 2026",
+      "from": "Robert Scoble <scobleizer@gmail.com>",
+      "subject": "AD&OG Collaboration and Rate",
+      "date_iso": "2026-06-09",
+      "to_emails": [
+        "evie@adogtech.com",
+        "asherunaligned@gmail.com",
+        "UnalignedX@gmail.com"
+      ]
+    },
+    {
+      "cc": "",
+      "id": "19eaaa291cc40b30",
+      "to": "Robert Scoble <scobleizer@gmail.com>",
+      "body": "Hello!  \n\n Thank you so much for the email, I’m sending over our rates via a PDF in this email. \n \n\n Check them out, and let me know in this email chain how you would like to proceed so we can get this collab going!",
+      "date": "Jun 09, 2026",
+      "from": "Asher Weisberger <asherunaligned@gmail.com>",
+      "subject": "Re: AD&OG Collaboration and Rate",
+      "date_iso": "2026-06-09",
+      "to_emails": [
+        "scobleizer@gmail.com"
+      ]
+    },
+    {
+      "cc": "\"asherunaligned@gmail.com\" <asherunaligned@gmail.com>, unalignedx <UnalignedX@gmail.com>",
+      "id": "19eabfb1c0af1929",
+      "to": "Robert Scoble <scobleizer@gmail.com>",
+      "body": "Hi all，\n\nHope you’re doing well!\n\nMy name is Evie, and I’m part of the marketing team at Instory.\n\nLooking forward to your reply!\n\nBest,\nEvie\n\n\",\"range\":{\"gcpBegin\":76,\"len\":0}},\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyRunProp\",\"param\":{\"range\":{\"gcpBegin\":76,\"len\":1},\"property\":{\"rFonts\":{\"ascii\":\"\\\"Times New Roman\\\"\",\"hAnsi\":\"\\\"Times New Roman\\\"\",\"eastAsia\":\"\\\"Times New Roman\\\"\",\"cs\":\"\\\"Times New Roman\\\"\",\"asciiTheme_i\":true,\"hAnsiTheme_i\":true,\"eastAsiaTheme_i\":true},\"b\":{\"val\":false},\"i\":{\"val\":false},\"strike\":{\"val\":false},\"color\":{\"val\":\"000000\"},\"spacing\":{\"val\":0},\"sz\":{\"val\":220},\"u\":{\"val\":\"STUnderline_none\"},\"shd\":{\"val\":\"STShd_clear\",\"color\":\"auto\",\"fill\":\"FFFFFF\"},\"vertAlign\":{\"val\":\"STVerticalAlignRun_baseline\"},\"author\":\"p.144115212320103121\"},\"mode\":1},\"propertyType\":\"RunProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"InsertText\",\"param\":{\"text\":\"\\r\",\"range\":{\"gcpBegin\":77,\"len\":0}},\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyRunProp\",\"param\":{\"range\":{\"gcpBegin\":77,\"len\":1},\"property\":{\"author\":\"p.144115212320103121\",\"isPlaceholder\":true},\"mode\":1},\"propertyType\":\"RunProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyParagraphProp\",\"param\":{\"range\":{\"gcpBegin\":77,\"len\":1},\"property\":{\"snapToGrid\":{\"val\":true},\"spacing\":{\"before\":0,\"after\":60,\"line\":240},\"ind\":{\"left\":0,\"right\":0,\"hanging\":0},\"numPr\":{}},\"mode\":1},\"propertyType\":\"ParagraphProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"InsertText\",\"param\":{\"text\":\" Telegram: @Lindsay1420\",\"range\":{\"gcpBegin\":78,\"len\":0}},\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyRunProp\",\"param\":{\"range\":{\"gcpBegin\":78,\"len\":23},\"property\":{\"rFonts\":{\"ascii\":\"\\\"Times New Roman\\\"\",\"hAnsi\":\"\\\"Times New Roman\\\"\",\"eastAsia\":\"\\\"Times New Roman\\\"\",\"cs\":\"\\\"Times New Roman\\\"\",\"asciiTheme_i\":true,\"hAnsiTheme_i\":true,\"eastAsiaTheme_i\":true},\"b\":{\"val\":false},\"i\":{\"val\":false},\"strike\":{\"val\":false},\"color\":{\"val\":\"000000\"},\"spacing\":{\"val\":0},\"sz\":{\"val\":220},\"u\":{\"val\":\"STUnderline_none\"},\"shd\":{\"val\":\"STShd_clear\",\"color\":\"auto\",\"fill\":\"FFFFFF\"},\"vertAlign\":{\"val\":\"STVerticalAlignRun_baseline\"},\"author\":\"p.144115212320103121\"},\"mode\":1},\"propertyType\":\"RunProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"InsertText\",\"param\":{\"text\":\"\\r\",\"range\":{\"gcpBegin\":101,\"len\":0}},\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyRunProp\",\"param\":{\"range\":{\"gcpBegin\":101,\"len\":1},\"property\":{\"author\":\"p.144115212320103121\",\"isPlaceholder\":true},\"mode\":1},\"propertyType\":\"RunProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyParagraphProp\",\"param\":{\"range\":{\"gcpBegin\":101,\"len\":1},\"property\":{\"snapToGrid\":{\"val\":true},\"spacing\":{\"before\":0,\"after\":60,\"line\":240},\"ind\":{\"left\":0,\"right\":0,\"hanging\":0},\"numPr\":{}},\"mode\":1},\"propertyType\":\"ParagraphProperty\",\"builtinStyleName\":\"\"}],\"subStory\":[],\"srcGlobalPadId\":\"w3_AV4A3QblAKkyw8BaU60SyqcFNcdWV\",\"copyStart\":2244}\" data-version=\"3.0.0\" inner_data_type=\"webData\" data-hash=\"b2fde98fa9c9e2ad02d667ff2d0507fc\" style=\"font-size: medium;\">\nEvie | ",
+      "date": "Jun 09, 2026",
+      "from": "Evie <evie@adogtech.com>",
+      "subject": "Re: AD&OG Collaboration and Rate",
+      "date_iso": "2026-06-09",
+      "to_emails": [
+        "scobleizer@gmail.com",
+        "asherunaligned@gmail.com",
+        "UnalignedX@gmail.com"
+      ]
+    },
+    {
+      "cc": "Robert Scoble <scobleizer@gmail.com>, Sam Levin UX <unalignedx@gmail.com>",
+      "id": "19ead13bbdad1041",
+      "to": "Evie <evie@adogtech.com>",
+      "body": "Hello! I'm unsure if you saw my email about our rates, but sending again!\n\nWhat are you looking to promote? \n\nCan you give me the name of the company, or product that you are interested in sharing and which Tier on our sponsorship works best for you?\n\nCheck them out, and let me know in this email chain how you would like to proceed so we can get this collab going!",
+      "date": "Jun 09, 2026",
+      "from": "Asher Weisberger <asherunaligned@gmail.com>",
+      "subject": "Re: AD&OG Collaboration and Rate",
+      "date_iso": "2026-06-09",
+      "to_emails": [
+        "evie@adogtech.com",
+        "scobleizer@gmail.com",
+        "unalignedx@gmail.com"
+      ]
+    },
+    {
+      "cc": "Sam Levin <samlevin@mac.com>",
+      "id": "19ec2365a2ee4818",
+      "to": "Evie <evie@adogtech.com>",
+      "body": "Hello, bumping this to the top of your inbox!\n\nAll the best,\nAsher\n\n-----------------------------------\nAsher Weisberger\nClient Services Manager\nUnaligned\nAlignedNews.com\nhttps://unaligned.io\nhttps://x.com/unalignedX\n-------------------------------------",
+      "date": "Jun 13, 2026",
+      "from": "Asher Weisberger <asherunaligned@gmail.com>",
+      "subject": "Re: AD&OG Collaboration and Rate",
+      "date_iso": "2026-06-13",
+      "to_emails": [
+        "evie@adogtech.com",
+        "samlevin@mac.com"
+      ]
+    },
+    {
+      "cc": "Sam Levin <samlevin@mac.com>",
+      "id": "19ef0579fd7f5d94",
+      "to": "\"asherunaligned@gmail.com\" <asherunaligned@gmail.com>",
+      "body": "Hi Asher,\n\nSorry for the late reply~\n\nThis is the official website of the product:\nhttps://inplay.art/en/\n\nIf you'd like to learn more about the product, please feel free to ask me any questions.\n\nWe're interested in collaborating with you on an Custom X Post for this product. \n\nI wanted to check whether you have availability on June 24. If not, please let me know your available dates and we can discuss further.\n\nAlso, could you share your preferred contact information (such as email, Discord, Telegram, or WhatsApp) for easier communication?\n\nLooking forward to hearing from you.\n\nBest regards,\nEvie\n\n\",\"range\":{\"gcpBegin\":76,\"len\":0}},\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyRunProp\",\"param\":{\"range\":{\"gcpBegin\":76,\"len\":1},\"property\":{\"rFonts\":{\"ascii\":\"\\\"Times New Roman\\\"\",\"hAnsi\":\"\\\"Times New Roman\\\"\",\"eastAsia\":\"\\\"Times New Roman\\\"\",\"cs\":\"\\\"Times New Roman\\\"\",\"asciiTheme_i\":true,\"hAnsiTheme_i\":true,\"eastAsiaTheme_i\":true},\"b\":{\"val\":false},\"i\":{\"val\":false},\"strike\":{\"val\":false},\"color\":{\"val\":\"000000\"},\"spacing\":{\"val\":0},\"sz\":{\"val\":220},\"u\":{\"val\":\"STUnderline_none\"},\"shd\":{\"val\":\"STShd_clear\",\"color\":\"auto\",\"fill\":\"FFFFFF\"},\"vertAlign\":{\"val\":\"STVerticalAlignRun_baseline\"},\"author\":\"p.144115212320103121\"},\"mode\":1},\"propertyType\":\"RunProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"InsertText\",\"param\":{\"text\":\"\\r\",\"range\":{\"gcpBegin\":77,\"len\":0}},\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyRunProp\",\"param\":{\"range\":{\"gcpBegin\":77,\"len\":1},\"property\":{\"author\":\"p.144115212320103121\",\"isPlaceholder\":true},\"mode\":1},\"propertyType\":\"RunProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyParagraphProp\",\"param\":{\"range\":{\"gcpBegin\":77,\"len\":1},\"property\":{\"snapToGrid\":{\"val\":true},\"spacing\":{\"before\":0,\"after\":60,\"line\":240},\"ind\":{\"left\":0,\"right\":0,\"hanging\":0},\"numPr\":{}},\"mode\":1},\"propertyType\":\"ParagraphProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"InsertText\",\"param\":{\"text\":\" Telegram: @Lindsay1420\",\"range\":{\"gcpBegin\":78,\"len\":0}},\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyRunProp\",\"param\":{\"range\":{\"gcpBegin\":78,\"len\":23},\"property\":{\"rFonts\":{\"ascii\":\"\\\"Times New Roman\\\"\",\"hAnsi\":\"\\\"Times New Roman\\\"\",\"eastAsia\":\"\\\"Times New Roman\\\"\",\"cs\":\"\\\"Times New Roman\\\"\",\"asciiTheme_i\":true,\"hAnsiTheme_i\":true,\"eastAsiaTheme_i\":true},\"b\":{\"val\":false},\"i\":{\"val\":false},\"strike\":{\"val\":false},\"color\":{\"val\":\"000000\"},\"spacing\":{\"val\":0},\"sz\":{\"val\":220},\"u\":{\"val\":\"STUnderline_none\"},\"shd\":{\"val\":\"STShd_clear\",\"color\":\"auto\",\"fill\":\"FFFFFF\"},\"vertAlign\":{\"val\":\"STVerticalAlignRun_baseline\"},\"author\":\"p.144115212320103121\"},\"mode\":1},\"propertyType\":\"RunProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"InsertText\",\"param\":{\"text\":\"\\r\",\"range\":{\"gcpBegin\":101,\"len\":0}},\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyRunProp\",\"param\":{\"range\":{\"gcpBegin\":101,\"len\":1},\"property\":{\"author\":\"p.144115212320103121\",\"isPlaceholder\":true},\"mode\":1},\"propertyType\":\"RunProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyParagrap",
+      "date": "Jun 22, 2026",
+      "from": "Evie <evie@adogtech.com>",
+      "subject": "Re: Re: AD&OG Collaboration and Rate",
+      "date_iso": "2026-06-22",
+      "to_emails": [
+        "asherunaligned@gmail.com",
+        "samlevin@mac.com"
+      ]
+    },
+    {
+      "cc": "Sam Levin <samlevin@mac.com>",
+      "id": "19ef06fb5fa47e6d",
+      "to": "Evie <evie@adogtech.com>",
+      "body": "Hi Evie,\n\nNo worries on the timing, and thanks for sharing the link. Happy to take a look at inplay.art.\nEmail is the best way to reach us, so let us keep everything on this thread and we will stay quick and responsive here.\n\nFor a Custom X Post, the rate is $1,995. That is a custom written X post crafted specifically for Robert's audience.\nJune 24 works on our end, with one condition: for new collaborations we collect payment in full before anything goes live, so the 24th is good as long as payment is completed before the posting date.\n\nTo get the invoice over to you, could you send your invoicing details (company or billing name, billing address, and any PO or reference number you need on the invoice). Once we have that we will send the invoice, and we will lock in the 24th as soon as payment is in.\n\nLooking forward to working with you.\n\nAll the best,\nAsher\n\n-----------------------------------\nAsher Weisberger\nClient Services Manager\nUnaligned\nAlignedNews.com\nhttps://unaligned.io\nhttps://x.com/unalignedX\n-------------------------------------",
+      "date": "Jun 22, 2026",
+      "from": "Asher Weisberger <asherunaligned@gmail.com>",
+      "subject": "Re: AD&OG Collaboration and Rate",
+      "date_iso": "2026-06-22",
+      "to_emails": [
+        "evie@adogtech.com",
+        "samlevin@mac.com"
+      ]
+    },
+    {
+      "cc": "Sam Levin <samlevin@mac.com>",
+      "id": "19ef087e6923a9ff",
+      "to": "asher weisberger <asherunaligned@gmail.com>",
+      "body": "Hi Asher,\n\nHere is the information of the invoice\nBeneficiary Name: September Information Media Co., Limited\nBeneficiary Address：FLAT/RM A 12/F,KIU FU COMMERCIAL BLDG,300 LOCKHART ROAD,WAN CHAI,HONG KONG\n\nCould you pls tell the timeline after the payment is done? How long will he take creating a post?\n\n--------------原始邮件--------------\n发件人：\"Asher&nbsp;Weisberger \"<asherunaligned@gmail.com&gt;;\n发送时间：2026年6月23日(星期二) 凌晨1:45\n收件人：\"Evie\" <evie@adogtech.com&gt;;\n抄送：\"Sam Levin \"<samlevin@mac.com&gt;;\n主题：Re: AD&amp;OG Collaboration and Rate\n-----------------------------------\n\n Hi Evie,\n\nNo worries on the timing, and thanks for sharing the link. Happy to take a look at inplay.art.\nEmail is the best way to reach us, so let us keep everything on this thread and we will stay quick and responsive here.\n\nFor a Custom X Post, the rate is $1,995. That is a custom written X post crafted specifically for Robert's audience.\nJune 24 works on our end, with one condition: for new collaborations we collect payment in full before anything goes live, so the 24th is good as long as payment is completed before the posting date.\n\nTo get the invoice over to you, could you send your invoicing details (company or billing name, billing address, and any PO or reference number you need on the invoice). Once we have that we will send the invoice, and we will lock in the 24th as soon as payment is in.\n\nLooking forward to working with you.\n\nAll the best,\nAsher\n\n-----------------------------------\nAsher Weisberger\nClient Services Manager\nUnaligned\nAlignedNews.com\nhttps://unaligned.io\nhttps://x.com/unalignedX\n-------------------------------------\n&gt; On Jun 22, 2026, at 1:18 PM, Evie <evie@adogtech.com&gt; wrote:\n&gt; \n&gt; Hi Asher,\n&gt; \n&gt; Sorry for the late reply~\n&gt; \n&gt; This is the official website of the product:\n&gt; https://inplay.art/en/\n&gt; \n&gt; If you'd like to learn more about the product, please feel free to ask me any questions.\n&gt; \n&gt; We're interested in collaborating with you on an Custom X Post for this product. \n&gt; \n&gt; I wanted to check whether you have availability on June 24. If not, please let me know your available dates and we can discuss further.\n&gt; \n&gt; Also, could you share your preferred contact information (such as email, Discord, Telegram, or WhatsApp) for easier communication?\n&gt; \n&gt; Looking forward to hearing from you.\n&gt; \n&gt; Best regards,\n&gt; Evie",
+      "date": "Jun 22, 2026",
+      "from": "Evie <evie@adogtech.com>",
+      "subject": "Re: AD&OG Collaboration and Rate",
+      "date_iso": "2026-06-22",
+      "to_emails": [
+        "asherunaligned@gmail.com",
+        "samlevin@mac.com"
+      ]
+    },
+    {
+      "cc": "Sam Levin <samlevin@mac.com>",
+      "id": "19ef0b47ba01a9f8",
+      "to": "Evie <evie@adogtech.com>",
+      "body": "Here is the invoice! \n\nPlease include name in memo of wire, ALSO send a receipt to this email chain when paid!\n\n￼\n\nBest,\nAsher\n\n-----------------------------------\nAsher Weisberger\nClient Services Manager\nUnaligned\nAlignedNews.com\nhttps://unaligned.io\nhttps://x.com/unalignedX\n-------------------------------------\n\n[Recovered quoted confirmation]\nHi Evie,\nNo worries on the timing, and thanks for sharing the link. Happy to take a look at inplay.art.\nEmail is the best way to reach us, so let us keep everything on this thread and we will stay quick and responsive here.\nFor a Custom X Post, the rate is $1,995. That is a custom written X post crafted specifically for Robert's audience.\nJune 24 works on our end, with one condition: for new collaborations we collect payment in full before anything goes live, so the 24th is good as long as payment is completed before the posting date.\nTo get the invoice over to you, could you send your invoicing details (company or billing name, billing address, and any PO or reference number you need on the invoice). Once we have that we will send the invoice, and we will lock in the 24th as soon as payment is in.\nLooking forward to working with you.\nAll the best,\nAsher\n-----------------------------------\nAsher Weisberger\nClient Services Manager\nUnaligned\nAlignedNews.com\nhttps://unaligned.io\nhttps://x.com/unalignedX\n-------------------------------------",
+      "date": "Jun 22, 2026",
+      "from": "Asher Weisberger <asherunaligned@gmail.com>",
+      "subject": "Re: AD&OG Collaboration and Rate",
+      "date_iso": "2026-06-22",
+      "to_emails": [
+        "evie@adogtech.com",
+        "samlevin@mac.com"
+      ]
+    },
+    {
+      "cc": [
+        "asherunaligned@gmail.com",
+        "unalignedx@gmail.com"
+      ],
+      "to": [
+        "evie@adogtech.com"
+      ],
+      "body": "Hello! Thanks for getting in touch via X\r\n\r\nI’m looping in my client service manager Asher to share rates and business\r\npartner Sam Levin.\r\n\r\nAsher/Sam this is a forwarded message from my X so you can have context of\r\nhis ask.\r\n\r\n“Hey! I’m Yihui from AD&OG.\r\n\r\n\r\n*We’re working with a new interactive AI story app where users can shape\r\ntheir own storylines, build relationships with characters, and explore\r\ndifferent story outcomes based on their choices.*\r\n\r\n\r\n*I came across your content and thought your style could be a really nice\r\nfit for this kind of campaign. Would you be open to hearing more about a\r\npossible collaboration?*\r\n\r\n\r\n*If yes, feel free to share your rates or rate card, and I’ll send over\r\nmore details. 😊”*\r\n\r\n\r\nTake it from here! All the best!\r\n\r\n\r\nRobert Scoble\r\n\r\n\r\n-- \r\nRobert Scoble\r\nFounder, Unaligned (media company about how AI is bringing us new things)\r\nMobile: +1-425-205-1921\r\nX: https://x.com/scobleizer\r\nWeb: https://unaligned.io\r\nThis message copyright the sender. All rights reserved.",
+      "date": "2026-06-09T04:17:10+00:00",
+      "from": "Robert Scoble",
+      "email": "scobleizer@gmail.com",
+      "snippet": "Hello! Thanks for getting in touch via X I&#39;m looping in my client service manager Asher to share rates and business partner Sam Levin. Asher/Sam this is a forwarded message from my X so you can",
+      "subject": "AD&OG Collaboration and Rate",
+      "reply_to": [],
+      "message_id": "19eaa9949090aa90",
+      "gmail_thread_id": "19eaa9949090aa90"
+    },
+    {
+      "cc": [],
+      "to": [
+        "scobleizer@gmail.com"
+      ],
+      "body": "Hello!&nbsp; \n Thank you so much for the email, I’m sending over our rates via a PDF in this email.&nbsp; \n Check them out, and let me know in this email chain how you would like to proceed so we can get this collab going!&nbsp;\nAll the best,&nbsp; Asher&nbsp;\n Asher Weisberger Client Services&nbsp;Manager\nUnaligned\n asherunaligned@gmail.com \n https://unaligned.io &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;\n https://x.com/unalignedx \n \n On Jun 9, 2026, at 12:17 AM, Robert Scoble &lt;scobleizer@gmail.com&gt; wrote:\n\n ﻿Hello! Thanks for getting in touch via X&nbsp; \n I’m looping in my client service manager Asher to share rates and business partner Sam Levin.&nbsp; \n Asher/Sam this is a forwarded message from my X so you can have context of his ask.&nbsp; \n “Hey! I’m Yihui from AD&amp;OG.\n\r\n \n\n\r\n We’re working with a new interactive AI story app where users can shape their own storylines, build relationships with characters, and explore different story outcomes based on their choices. \n\r\n \n \n\r\n I came across your content and thought your style could be a really nice fit for this kind of campaign. Would you be open to hearing more about a possible collaboration? \n\r\n \n \n\r\n If yes, feel free to share your rates or rate card, and I’ll send over more details. 😊” \n\r\n \n\n Take it from here! All the best!&nbsp;\n \n\n Robert Scoble\n \n\n-- \n Robert Scoble\nFounder, Unaligned (media company about how AI is bringing us new things)\nMobile: +1-425-205-1921\nX: https://x.com/scobleizer \nWeb: https://unaligned.io \nThis message copyright the sender. All rights reserved.",
+      "date": "2026-06-09T04:27:10+00:00",
+      "from": "Asher Weisberger",
+      "email": "asherunaligned@gmail.com",
+      "snippet": "Hello! Thank you so much for the email, I&#39;m sending over our rates via a PDF in this email. Check them out, and let me know in this email chain how you would like to proceed so we can get this",
+      "subject": "Re: AD&OG Collaboration and Rate",
+      "reply_to": [],
+      "message_id": "19eaaa291cc40b30",
+      "gmail_thread_id": "19eaa9949090aa90"
+    },
+    {
+      "cc": [
+        "asherunaligned@gmail.com",
+        "unalignedx@gmail.com"
+      ],
+      "to": [
+        "scobleizer@gmail.com"
+      ],
+      "body": "Hi all，\r\n\r\nHope you’re doing well!\r\n\r\nMy name is Evie, and I’m part of the marketing team at Instory.\r\n\r\nLooking forward to your reply!\r\n\r\nBest,\r\nEvie\r\n\r\n\r\n\",\"range\":{\"gcpBegin\":76,\"len\":0}},\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyRunProp\",\"param\":{\"range\":{\"gcpBegin\":76,\"len\":1},\"property\":{\"rFonts\":{\"ascii\":\"\\\"Times New Roman\\\"\",\"hAnsi\":\"\\\"Times New Roman\\\"\",\"eastAsia\":\"\\\"Times New Roman\\\"\",\"cs\":\"\\\"Times New Roman\\\"\",\"asciiTheme_i\":true,\"hAnsiTheme_i\":true,\"eastAsiaTheme_i\":true},\"b\":{\"val\":false},\"i\":{\"val\":false},\"strike\":{\"val\":false},\"color\":{\"val\":\"000000\"},\"spacing\":{\"val\":0},\"sz\":{\"val\":220},\"u\":{\"val\":\"STUnderline_none\"},\"shd\":{\"val\":\"STShd_clear\",\"color\":\"auto\",\"fill\":\"FFFFFF\"},\"vertAlign\":{\"val\":\"STVerticalAlignRun_baseline\"},\"author\":\"p.144115212320103121\"},\"mode\":1},\"propertyType\":\"RunProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"InsertText\",\"param\":{\"text\":\"\\r\",\"range\":{\"gcpBegin\":77,\"len\":0}},\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyRunProp\",\"param\":{\"range\":{\"gcpBegin\":77,\"len\":1},\"property\":{\"author\":\"p.144115212320103121\",\"isPlaceholder\":true},\"mode\":1},\"propertyType\":\"RunProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyParagraphProp\",\"param\":{\"range\":{\"gcpBegin\":77,\"len\":1},\"property\":{\"snapToGrid\":{\"val\":true},\"spacing\":{\"before\":0,\"after\":60,\"line\":240},\"ind\":{\"left\":0,\"right\":0,\"hanging\":0},\"numPr\":{}},\"mode\":1},\"propertyType\":\"ParagraphProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"InsertText\",\"param\":{\"text\":\" Telegram: @Lindsay1420\",\"range\":{\"gcpBegin\":78,\"len\":0}},\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyRunProp\",\"param\":{\"range\":{\"gcpBegin\":78,\"len\":23},\"property\":{\"rFonts\":{\"ascii\":\"\\\"Times New Roman\\\"\",\"hAnsi\":\"\\\"Times New Roman\\\"\",\"eastAsia\":\"\\\"Times New Roman\\\"\",\"cs\":\"\\\"Times New Roman\\\"\",\"asciiTheme_i\":true,\"hAnsiTheme_i\":true,\"eastAsiaTheme_i\":true},\"b\":{\"val\":false},\"i\":{\"val\":false},\"strike\":{\"val\":false},\"color\":{\"val\":\"000000\"},\"spacing\":{\"val\":0},\"sz\":{\"val\":220},\"u\":{\"val\":\"STUnderline_none\"},\"shd\":{\"val\":\"STShd_clear\",\"color\":\"auto\",\"fill\":\"FFFFFF\"},\"vertAlign\":{\"val\":\"STVerticalAlignRun_baseline\"},\"author\":\"p.144115212320103121\"},\"mode\":1},\"propertyType\":\"RunProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"InsertText\",\"param\":{\"text\":\"\\r\",\"range\":{\"gcpBegin\":101,\"len\":0}},\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyRunProp\",\"param\":{\"range\":{\"gcpBegin\":101,\"len\":1},\"property\":{\"author\":\"p.144115212320103121\",\"isPlaceholder\":true},\"mode\":1},\"propertyType\":\"RunProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyParagraphProp\",\"param\":{\"range\":{\"gcpBegin\":101,\"len\":1},\"property\":{\"snapToGrid\":{\"val\":true},\"spacing\":{\"before\":0,\"after\":60,\"line\":240},\"ind\":{\"left\":0,\"right\":0,\"hanging\":0},\"numPr\":{}},\"mode\":1},\"propertyType\":\"ParagraphProperty\",\"builtinStyleName\":\"\"}],\"subStory\":[],\"srcGlobalPadId\":\"w3_AV4A3QblAKkyw8BaU60SyqcFNcdWV\",\"copyStart\":2244}\" data-version=\"3.0.0\" inner_data_type=\"webData\" data-hash=\"b2fde98fa9c9e2ad02d667ff2d0507fc\" style=\"font-size: medi",
+      "date": "2026-06-09T10:43:27+00:00",
+      "from": "Evie",
+      "email": "evie@adogtech.com",
+      "snippet": "Hi all， Hope you&#39;re doing well! My name is Evie, and I&#39;m part of the marketing team at Instory. Looking forward to your reply! Best, Evie Evie | Overseas Operations Manager AD&amp;OG E-mail:",
+      "subject": "Re: AD&OG Collaboration and Rate",
+      "reply_to": [],
+      "message_id": "19eabfb1c0af1929",
+      "gmail_thread_id": "19eaa9949090aa90"
+    },
+    {
+      "cc": [
+        "scobleizer@gmail.com",
+        "unalignedx@gmail.com"
+      ],
+      "to": [
+        "evie@adogtech.com"
+      ],
+      "body": "Hello! I'm unsure if you saw my email about our rates, but sending again!\r\n\r\nWhat are you looking to promote? \r\n\r\nCan you give me the name of the company, or product that you are interested in sharing and which Tier on our sponsorship works best for you?\r\n\r\nCheck them out, and let me know in this email chain how you would like to proceed so we can get this collab going! \r\n\r\n\n\r\n\r\nAll the best!\r\nAsher\r\n\r\n-----------------------------------\r\nAsher Weisberger\r\nClient Services Manager\r\nUnaligned\r\nAlignedNews.com\r\nhttps://unaligned.io\r\nhttps://x.com/unalignedX\r\n-------------------------------------\r\n\r\n\r\n> On Jun 9, 2026, at 6:43 AM, Evie <evie@adogtech.com> wrote:\r\n> \r\n> Hi all，\r\n> \r\n> Hope you’re doing well!\r\n> \r\n> My name is Evie, and I’m part of the marketing team at Instory.\r\n> \r\n> Looking forward to your reply!\r\n> \r\n> Best,\r\n> EvieEvie | Overseas Operations Manager\r\n> AD&OG\r\n> E-mail: <evie@adogtech.com>\r\n>  From: Robert Scoble\r\n> Date: 2026-06-09 12:17\r\n> To: evie\r\n> CC: asherunaligned@gmail.com; unalignedx\r\n> Subject: AD&OG Collaboration and Rate\r\n> Hello! Thanks for getting in touch via X \r\n> \r\n> I’m looping in my client service manager Asher to share rates and business partner Sam Levin. \r\n> \r\n> Asher/Sam this is a forwarded message from my X so you can have context of his ask. \r\n> \r\n> “Hey! I’m Yihui from AD&OG.\r\n> \r\n> We’re working with a new interactive AI story app where users can shape their own storylines, build relationships with characters, and explore different story outcomes based on their choices.\r\n> \r\n> I came across your content and thought your style could be a really nice fit for this kind of campaign. Would you be open to hearing more about a possible collaboration?\r\n> \r\n> If yes, feel free to share your rates or rate card, and I’ll send over more details. \n> ”\r\n> \r\n> Take it from here! All the best! \r\n> \r\n> Robert Scoble\r\n> \r\n> \r\n> -- \r\n> Robert Scoble\r\n> Founder, Unaligned (media company about how AI is bringing us new things)\r\n> Mobile: +1-425-205-1921\r\n> X: https://x.com/scobleizer\r\n> Web: https://unaligned.io\r\n> This message copyright the sender. All rights reserved.",
+      "date": "2026-06-09T15:49:59+00:00",
+      "from": "Asher Weisberger",
+      "email": "asherunaligned@gmail.com",
+      "snippet": "Hello! I&#39;m unsure if you saw my email about our rates, but sending again! What are you looking to promote? Can you give me the name of the company, or product that you are interested in sharing and",
+      "subject": "Re: AD&OG Collaboration and Rate",
+      "reply_to": [],
+      "message_id": "19ead13bbdad1041",
+      "gmail_thread_id": "19eaa9949090aa90"
+    },
+    {
+      "cc": [
+        "samlevin@mac.com"
+      ],
+      "to": [
+        "evie@adogtech.com"
+      ],
+      "body": "Hello, bumping this to the top of your inbox!\r\n\r\nAll the best,\r\nAsher\r\n\r\n-----------------------------------\r\nAsher Weisberger\r\nClient Services Manager\r\nUnaligned\r\nAlignedNews.com\r\nhttps://unaligned.io\r\nhttps://x.com/unalignedX\r\n-------------------------------------\r\n\r\n> On Jun 9, 2026, at 11:49 AM, Asher Weisberger <asherunaligned@gmail.com> wrote:\r\n> \r\n> Hello! I'm unsure if you saw my email about our rates, but sending again!\r\n> \r\n> What are you looking to promote? \r\n> \r\n> Can you give me the name of the company, or product that you are interested in sharing and which Tier on our sponsorship works best for you?\r\n> \r\n> Check them out, and let me know in this email chain how you would like to proceed so we can get this collab going! \r\n> \r\n￼\r\n> \r\n> All the best!\r\n> Asher\r\n> \r\n> -----------------------------------\r\n> Asher Weisberger\r\n> Client Services Manager\r\n> Unaligned\r\n> AlignedNews.com\r\n> https://unaligned.io\r\n> https://x.com/unalignedX\r\n> -------------------------------------\r\n> \r\n> \r\n>> On Jun 9, 2026, at 6:43 AM, Evie <evie@adogtech.com> wrote:\r\n>> \r\n>> Hi all，\r\n>> \r\n>> Hope you’re doing well!\r\n>> \r\n>> My name is Evie, and I’m part of the marketing team at Instory.\r\n>> \r\n>> Looking forward to your reply!\r\n>> \r\n>> Best,\r\n>> EvieEvie | Overseas Operations Manager\r\n>> AD&OG\r\n>> E-mail: <evie@adogtech.com>\r\n>> From: Robert Scoble\r\n>> Date: 2026-06-09 12:17\r\n>> To: evie\r\n>> CC: asherunaligned@gmail.com; unalignedx\r\n>> Subject: AD&OG Collaboration and Rate\r\n>> Hello! Thanks for getting in touch via X \r\n>> \r\n>> I’m looping in my client service manager Asher to share rates and business partner Sam Levin. \r\n>> \r\n>> Asher/Sam this is a forwarded message from my X so you can have context of his ask. \r\n>> \r\n>> “Hey! I’m Yihui from AD&OG.\r\n>> \r\n>> We’re working with a new interactive AI story app where users can shape their own storylines, build relationships with characters, and explore different story outcomes based on their choices.\r\n>> \r\n>> I came across your content and thought your style could be a really nice fit for this kind of campaign. Would you be open to hearing more about a possible collaboration?\r\n>> \r\n>> If yes, feel free to share your rates or rate card, and I’ll send over more details.\r\n￼\r\n>> ”\r\n>> \r\n>> Take it from here! All the best! \r\n>> \r\n>> Robert Scoble\r\n>> \r\n>> \r\n>> -- \r\n>> Robert Scoble\r\n>> Founder, Unaligned (media company about how AI is bringing us new things)\r\n>> Mobile: +1-425-205-1921\r\n>> X: https://x.com/scobleizer\r\n>> Web: https://unaligned.io\r\n>> This message copyright the sender. All rights reserved.\r\n> \r\n> \r\n> \r\n> \r\n> \r\n> \r\n\r\n\nHello, bumping this to the top of your inbox! \n All the best, Asher \n \r\n -----------------------------------\nAsher Weisberger Client Services&nbsp;Manager\nUnaligned AlignedNews.com\nhttps://unaligned.io\nhttps://x.com/unalignedX\n------------------------------------- \r\n \r\n \n On Jun 9, 2026, at 11:49 AM, Asher Weisberger &lt;asherunaligned@gmail.com&gt; wrote: Hello! I'm unsure if you saw my emai",
+      "date": "2026-06-13T18:19:51+00:00",
+      "from": "Asher Weisberger",
+      "email": "asherunaligned@gmail.com",
+      "snippet": "Hello, bumping this to the top of your inbox! All the best, Asher ----------------------------------- Asher Weisberger Client Services Manager Unaligned AlignedNews.com https://unaligned.io https://x.",
+      "subject": "Re: AD&OG Collaboration and Rate",
+      "reply_to": [],
+      "message_id": "19ec2365a2ee4818",
+      "gmail_thread_id": "19eaa9949090aa90"
+    },
+    {
+      "cc": [
+        "samlevin@mac.com"
+      ],
+      "to": [
+        "asherunaligned@gmail.com"
+      ],
+      "body": "Hi Asher,\r\n\r\nSorry for the late reply~\r\n\r\nThis is the official website of the product:\r\nhttps://inplay.art/en/\r\n\r\nIf you'd like to learn more about the product, please feel free to ask me any questions.\r\n\r\nWe're interested in collaborating with you on an Custom X Post for this product. \r\n\r\nI wanted to check whether you have availability on June 24. If not, please let me know your available dates and we can discuss further.\r\n\r\nAlso, could you share your preferred contact information (such as email, Discord, Telegram, or WhatsApp) for easier communication?\r\n\r\nLooking forward to hearing from you.\r\n\r\nBest regards,\r\nEvie\r\n\r\n\r\n\",\"range\":{\"gcpBegin\":76,\"len\":0}},\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyRunProp\",\"param\":{\"range\":{\"gcpBegin\":76,\"len\":1},\"property\":{\"rFonts\":{\"ascii\":\"\\\"Times New Roman\\\"\",\"hAnsi\":\"\\\"Times New Roman\\\"\",\"eastAsia\":\"\\\"Times New Roman\\\"\",\"cs\":\"\\\"Times New Roman\\\"\",\"asciiTheme_i\":true,\"hAnsiTheme_i\":true,\"eastAsiaTheme_i\":true},\"b\":{\"val\":false},\"i\":{\"val\":false},\"strike\":{\"val\":false},\"color\":{\"val\":\"000000\"},\"spacing\":{\"val\":0},\"sz\":{\"val\":220},\"u\":{\"val\":\"STUnderline_none\"},\"shd\":{\"val\":\"STShd_clear\",\"color\":\"auto\",\"fill\":\"FFFFFF\"},\"vertAlign\":{\"val\":\"STVerticalAlignRun_baseline\"},\"author\":\"p.144115212320103121\"},\"mode\":1},\"propertyType\":\"RunProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"InsertText\",\"param\":{\"text\":\"\\r\",\"range\":{\"gcpBegin\":77,\"len\":0}},\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyRunProp\",\"param\":{\"range\":{\"gcpBegin\":77,\"len\":1},\"property\":{\"author\":\"p.144115212320103121\",\"isPlaceholder\":true},\"mode\":1},\"propertyType\":\"RunProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyParagraphProp\",\"param\":{\"range\":{\"gcpBegin\":77,\"len\":1},\"property\":{\"snapToGrid\":{\"val\":true},\"spacing\":{\"before\":0,\"after\":60,\"line\":240},\"ind\":{\"left\":0,\"right\":0,\"hanging\":0},\"numPr\":{}},\"mode\":1},\"propertyType\":\"ParagraphProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"InsertText\",\"param\":{\"text\":\" Telegram: @Lindsay1420\",\"range\":{\"gcpBegin\":78,\"len\":0}},\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyRunProp\",\"param\":{\"range\":{\"gcpBegin\":78,\"len\":23},\"property\":{\"rFonts\":{\"ascii\":\"\\\"Times New Roman\\\"\",\"hAnsi\":\"\\\"Times New Roman\\\"\",\"eastAsia\":\"\\\"Times New Roman\\\"\",\"cs\":\"\\\"Times New Roman\\\"\",\"asciiTheme_i\":true,\"hAnsiTheme_i\":true,\"eastAsiaTheme_i\":true},\"b\":{\"val\":false},\"i\":{\"val\":false},\"strike\":{\"val\":false},\"color\":{\"val\":\"000000\"},\"spacing\":{\"val\":0},\"sz\":{\"val\":220},\"u\":{\"val\":\"STUnderline_none\"},\"shd\":{\"val\":\"STShd_clear\",\"color\":\"auto\",\"fill\":\"FFFFFF\"},\"vertAlign\":{\"val\":\"STVerticalAlignRun_baseline\"},\"author\":\"p.144115212320103121\"},\"mode\":1},\"propertyType\":\"RunProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"InsertText\",\"param\":{\"text\":\"\\r\",\"range\":{\"gcpBegin\":101,\"len\":0}},\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyRunProp\",\"param\":{\"range\":{\"gcpBegin\":101,\"len\":1},\"property\":{\"author\":\"p.144115212320103121\",\"isPlaceholder\":true},\"mode\":1},\"propertyType\":\"RunProperty\",\"builtinStyleName\":\"\"},{\"operatio",
+      "date": "2026-06-22T17:18:47+00:00",
+      "from": "Evie",
+      "email": "evie@adogtech.com",
+      "snippet": "Hi Asher, Sorry for the late reply~ This is the official website of the product: https://inplay.art/en/ If you&#39;d like to learn more about the product, please feel free to ask me any questions. We",
+      "subject": "Re: Re: AD&OG Collaboration and Rate",
+      "reply_to": [],
+      "message_id": "19ef0579fd7f5d94",
+      "gmail_thread_id": "19eaa9949090aa90"
+    },
+    {
+      "cc": [
+        "samlevin@mac.com"
+      ],
+      "to": [
+        "evie@adogtech.com"
+      ],
+      "body": "Hi Evie,\r\n\r\nNo worries on the timing, and thanks for sharing the link. Happy to take a look at inplay.art.\r\nEmail is the best way to reach us, so let us keep everything on this thread and we will stay quick and responsive here.\r\n\r\nFor a Custom X Post, the rate is $1,995. That is a custom written X post crafted specifically for Robert's audience.\r\nJune 24 works on our end, with one condition: for new collaborations we collect payment in full before anything goes live, so the 24th is good as long as payment is completed before the posting date.\r\n\r\nTo get the invoice over to you, could you send your invoicing details (company or billing name, billing address, and any PO or reference number you need on the invoice). Once we have that we will send the invoice, and we will lock in the 24th as soon as payment is in.\r\n\r\nLooking forward to working with you.\r\n\r\nAll the best,\r\nAsher\r\n\r\n-----------------------------------\r\nAsher Weisberger\r\nClient Services Manager\r\nUnaligned\r\nAlignedNews.com\r\nhttps://unaligned.io\r\nhttps://x.com/unalignedX\r\n-------------------------------------\r\n> On Jun 22, 2026, at 1:18 PM, Evie <evie@adogtech.com> wrote:\r\n> \r\n> Hi Asher,\r\n> \r\n> Sorry for the late reply~\r\n> \r\n> This is the official website of the product:\r\n> https://inplay.art/en/\r\n> \r\n> If you'd like to learn more about the product, please feel free to ask me any questions.\r\n> \r\n> We're interested in collaborating with you on an Custom X Post for this product. \r\n> \r\n> I wanted to check whether you have availability on June 24. If not, please let me know your available dates and we can discuss further.\r\n> \r\n> Also, could you share your preferred contact information (such as email, Discord, Telegram, or WhatsApp) for easier communication?\r\n> \r\n> Looking forward to hearing from you.\r\n> \r\n> Best regards,\r\n> Evie",
+      "date": "2026-06-22T17:45:01+00:00",
+      "from": "Asher Weisberger",
+      "email": "asherunaligned@gmail.com",
+      "snippet": "Hi Evie, No worries on the timing, and thanks for sharing the link. Happy to take a look at inplay.art. Email is the best way to reach us, so let us keep everything on this thread and we will stay",
+      "subject": "Re: AD&OG Collaboration and Rate",
+      "reply_to": [],
+      "message_id": "19ef06fb5fa47e6d",
+      "gmail_thread_id": "19eaa9949090aa90"
+    },
+    {
+      "cc": [
+        "samlevin@mac.com"
+      ],
+      "to": [
+        "asherunaligned@gmail.com"
+      ],
+      "body": "Hi Asher,\r\n\r\n\r\nHere is the information of the invoice\r\nBeneficiary Name: September Information Media Co., Limited\r\nBeneficiary Address：FLAT/RM A 12/F,KIU FU COMMERCIAL BLDG,300 LOCKHART ROAD,WAN CHAI,HONG KONG\r\n\r\n\r\nCould you pls tell the timeline after the payment is done? How long will he take creating a post?\r\n\r\n--------------原始邮件--------------\r\n发件人：\"Asher&nbsp;Weisberger \"<asherunaligned@gmail.com&gt;;\r\n发送时间：2026年6月23日(星期二) 凌晨1:45\r\n收件人：\"Evie\" <evie@adogtech.com&gt;;\r\n抄送：\"Sam Levin \"<samlevin@mac.com&gt;;\r\n主题：Re: AD&amp;OG Collaboration and Rate\r\n-----------------------------------\r\n\r\n Hi Evie,\r\n\r\nNo worries on the timing, and thanks for sharing the link. Happy to take a look at inplay.art.\r\nEmail is the best way to reach us, so let us keep everything on this thread and we will stay quick and responsive here.\r\n\r\nFor a Custom X Post, the rate is $1,995. That is a custom written X post crafted specifically for Robert's audience.\r\nJune 24 works on our end, with one condition: for new collaborations we collect payment in full before anything goes live, so the 24th is good as long as payment is completed before the posting date.\r\n\r\nTo get the invoice over to you, could you send your invoicing details (company or billing name, billing address, and any PO or reference number you need on the invoice). Once we have that we will send the invoice, and we will lock in the 24th as soon as payment is in.\r\n\r\nLooking forward to working with you.\r\n\r\nAll the best,\r\nAsher\r\n\r\n-----------------------------------\r\nAsher Weisberger\r\nClient Services Manager\r\nUnaligned\r\nAlignedNews.com\r\nhttps://unaligned.io\r\nhttps://x.com/unalignedX\r\n-------------------------------------\r\n&gt; On Jun 22, 2026, at 1:18 PM, Evie <evie@adogtech.com&gt; wrote:\r\n&gt; \r\n&gt; Hi Asher,\r\n&gt; \r\n&gt; Sorry for the late reply~\r\n&gt; \r\n&gt; This is the official website of the product:\r\n&gt; https://inplay.art/en/\r\n&gt; \r\n&gt; If you'd like to learn more about the product, please feel free to ask me any questions.\r\n&gt; \r\n&gt; We're interested in collaborating with you on an Custom X Post for this product. \r\n&gt; \r\n&gt; I wanted to check whether you have availability on June 24. If not, please let me know your available dates and we can discuss further.\r\n&gt; \r\n&gt; Also, could you share your preferred contact information (such as email, Discord, Telegram, or WhatsApp) for easier communication?\r\n&gt; \r\n&gt; Looking forward to hearing from you.\r\n&gt; \r\n&gt; Best regards,\r\n&gt; Evie",
+      "date": "2026-06-22T18:11:29+00:00",
+      "from": "Evie",
+      "email": "evie@adogtech.com",
+      "snippet": "Hi Asher, Here is the information of the invoice Beneficiary Name: September Information Media Co., Limited Beneficiary Address：FLAT/RM A 12/F,KIU FU COMMERCIAL BLDG,300 LOCKHART ROAD,WAN CHAI,HONG",
+      "subject": "Re: AD&OG Collaboration and Rate",
+      "reply_to": [],
+      "message_id": "19ef087e6923a9ff",
+      "gmail_thread_id": "19eaa9949090aa90"
+    },
+    {
+      "cc": [
+        "samlevin@mac.com"
+      ],
+      "to": [
+        "evie@adogtech.com"
+      ],
+      "body": "Here is the invoice! \r\n\r\nPlease include name in memo of wire, ALSO send a receipt to this email chain when paid!\r\n\r\n￼\r\n\r\nBest,\r\nAsher\r\n\r\n-----------------------------------\r\nAsher Weisberger\r\nClient Services Manager\r\nUnaligned\r\nAlignedNews.com\r\nhttps://unaligned.io\r\nhttps://x.com/unalignedX\r\n-------------------------------------\r\n\r\n> On Jun 22, 2026, at 1:45 PM, Asher Weisberger <asherunaligned@gmail.com> wrote:\r\n> \r\n> Hi Evie,\r\n> \r\n> No worries on the timing, and thanks for sharing the link. Happy to take a look at inplay.art.\r\n> Email is the best way to reach us, so let us keep everything on this thread and we will stay quick and responsive here.\r\n> \r\n> For a Custom X Post, the rate is $1,995. That is a custom written X post crafted specifically for Robert's audience.\r\n> June 24 works on our end, with one condition: for new collaborations we collect payment in full before anything goes live, so the 24th is good as long as payment is completed before the posting date.\r\n> \r\n> To get the invoice over to you, could you send your invoicing details (company or billing name, billing address, and any PO or reference number you need on the invoice). Once we have that we will send the invoice, and we will lock in the 24th as soon as payment is in.\r\n> \r\n> Looking forward to working with you.\r\n> \r\n> All the best,\r\n> Asher\r\n> \r\n> -----------------------------------\r\n> Asher Weisberger\r\n> Client Services Manager\r\n> Unaligned\r\n> AlignedNews.com\r\n> https://unaligned.io\r\n> https://x.com/unalignedX\r\n> -------------------------------------\r\n>> On Jun 22, 2026, at 1:18 PM, Evie <evie@adogtech.com> wrote:\r\n>> \r\n>> Hi Asher,\r\n>> \r\n>> Sorry for the late reply~\r\n>> \r\n>> This is the official website of the product:\r\n>> https://inplay.art/en/\r\n>> \r\n>> If you'd like to learn more about the product, please feel free to ask me any questions.\r\n>> \r\n>> We're interested in collaborating with you on an Custom X Post for this product. \r\n>> \r\n>> I wanted to check whether you have availability on June 24. If not, please let me know your available dates and we can discuss further.\r\n>> \r\n>> Also, could you share your preferred contact information (such as email, Discord, Telegram, or WhatsApp) for easier communication?\r\n>> \r\n>> Looking forward to hearing from you.\r\n>> \r\n>> Best regards,\r\n>> Evie\r\n> \r\n> \r\n> \r\n> \r\n> \r\n> \r\n\r\n\nHere is the invoice!&nbsp; \n Please include name in memo of wire, ALSO send a receipt to this email chain when paid!\nBest, Asher \n \r\n -----------------------------------\nAsher Weisberger Client Services&nbsp;Manager\nUnaligned AlignedNews.com\nhttps://unaligned.io\nhttps://x.com/unalignedX\n------------------------------------- \r\n \r\n \n On Jun 22, 2026, at 1:45 PM, Asher Weisberger &lt;asherunaligned@gmail.com&gt; wrote: Hi Evie,\n\nNo worries on the timing, and thanks for sharing the link. Happy to take a look at inplay.art.\nEmail is the best way to reach us, so let us keep everything on this thread and we will stay quick and responsive here.\n\nFor a Custom X Post, the ",
+      "date": "2026-06-22T19:00:07+00:00",
+      "from": "Asher Weisberger",
+      "email": "asherunaligned@gmail.com",
+      "snippet": "Here is the invoice! Please include name in memo of wire, ALSO send a receipt to this email chain when paid! ￼ Best, Asher ----------------------------------- Asher Weisberger Client Services Manager",
+      "subject": "Re: AD&OG Collaboration and Rate",
+      "reply_to": [],
+      "message_id": "19ef0b47ba01a9f8",
+      "gmail_thread_id": "19eaa9949090aa90"
+    },
+    {
+      "cc": [],
+      "to": [
+        "asherunaligned@gmail.com"
+      ],
+      "body": "Hello,\r\n\r\nHi! Thanks for sending over the invoice.\r\n\r\nAfter discussing it with my manager, may I proceed with 50% upfront to confirm the collaborationf?\r\n\r\nWith the remaining 50% to be paid after the content has been delivered and approved.\r\n\r\nWe'll arrange the first payment these two days. \r\n\r\nMay I know Robert's idea about the Inplay post? That's will help us to prepare the assets if Robert needed\r\n\r\nThanks for your understanding, and we're looking forward to working with you!\r\n\r\n\r\n\r\n\",\"range\":{\"gcpBegin\":76,\"len\":0}},\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyRunProp\",\"param\":{\"range\":{\"gcpBegin\":76,\"len\":1},\"property\":{\"rFonts\":{\"ascii\":\"\\\"Times New Roman\\\"\",\"hAnsi\":\"\\\"Times New Roman\\\"\",\"eastAsia\":\"\\\"Times New Roman\\\"\",\"cs\":\"\\\"Times New Roman\\\"\",\"asciiTheme_i\":true,\"hAnsiTheme_i\":true,\"eastAsiaTheme_i\":true},\"b\":{\"val\":false},\"i\":{\"val\":false},\"strike\":{\"val\":false},\"color\":{\"val\":\"000000\"},\"spacing\":{\"val\":0},\"sz\":{\"val\":220},\"u\":{\"val\":\"STUnderline_none\"},\"shd\":{\"val\":\"STShd_clear\",\"color\":\"auto\",\"fill\":\"FFFFFF\"},\"vertAlign\":{\"val\":\"STVerticalAlignRun_baseline\"},\"author\":\"p.144115212320103121\"},\"mode\":1},\"propertyType\":\"RunProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"InsertText\",\"param\":{\"text\":\"\\r\",\"range\":{\"gcpBegin\":77,\"len\":0}},\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyRunProp\",\"param\":{\"range\":{\"gcpBegin\":77,\"len\":1},\"property\":{\"author\":\"p.144115212320103121\",\"isPlaceholder\":true},\"mode\":1},\"propertyType\":\"RunProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyParagraphProp\",\"param\":{\"range\":{\"gcpBegin\":77,\"len\":1},\"property\":{\"snapToGrid\":{\"val\":true},\"spacing\":{\"before\":0,\"after\":60,\"line\":240},\"ind\":{\"left\":0,\"right\":0,\"hanging\":0},\"numPr\":{}},\"mode\":1},\"propertyType\":\"ParagraphProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"InsertText\",\"param\":{\"text\":\" Telegram: @Lindsay1420\",\"range\":{\"gcpBegin\":78,\"len\":0}},\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyRunProp\",\"param\":{\"range\":{\"gcpBegin\":78,\"len\":23},\"property\":{\"rFonts\":{\"ascii\":\"\\\"Times New Roman\\\"\",\"hAnsi\":\"\\\"Times New Roman\\\"\",\"eastAsia\":\"\\\"Times New Roman\\\"\",\"cs\":\"\\\"Times New Roman\\\"\",\"asciiTheme_i\":true,\"hAnsiTheme_i\":true,\"eastAsiaTheme_i\":true},\"b\":{\"val\":false},\"i\":{\"val\":false},\"strike\":{\"val\":false},\"color\":{\"val\":\"000000\"},\"spacing\":{\"val\":0},\"sz\":{\"val\":220},\"u\":{\"val\":\"STUnderline_none\"},\"shd\":{\"val\":\"STShd_clear\",\"color\":\"auto\",\"fill\":\"FFFFFF\"},\"vertAlign\":{\"val\":\"STVerticalAlignRun_baseline\"},\"author\":\"p.144115212320103121\"},\"mode\":1},\"propertyType\":\"RunProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"InsertText\",\"param\":{\"text\":\"\\r\",\"range\":{\"gcpBegin\":101,\"len\":0}},\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyRunProp\",\"param\":{\"range\":{\"gcpBegin\":101,\"len\":1},\"property\":{\"author\":\"p.144115212320103121\",\"isPlaceholder\":true},\"mode\":1},\"propertyType\":\"RunProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyParagraphProp\",\"param\":{\"range\":{\"gcpBegin\":101,\"len\":1},\"property\":{\"snapToGrid\":{\"val\":true},\"spacing\":{\"before\":0,\"after\"",
+      "date": "2026-06-29T15:28:00+00:00",
+      "from": "Evie",
+      "email": "evie@adogtech.com",
+      "snippet": "Hello, Hi! Thanks for sending over the invoice. After discussing it with my manager, may I proceed with 50% upfront to confirm the collaborationf? With the remaining 50% to be paid after the content",
+      "subject": "Re: Re: AD&OG Collaboration and Rate",
+      "reply_to": [],
+      "message_id": "19f13fec3dfd3610",
+      "gmail_thread_id": "19eaa9949090aa90"
+    },
+    {
+      "cc": [],
+      "to": [
+        "evie@adogtech.com"
+      ],
+      "body": "Thanks for the note, and for moving this forward.\r\n\r\nI have to be straight with you on one thing: we cannot do a split or partial payment. New collaborations are paid in full, 100 percent upfront, before any content goes live. That is a firm policy across every partner, not something specific to this deal. Robert does not post first and get paid later, so a 50 now and 50 after delivery structure will not work on our side.\r\n\r\nThe good news is that once the full invoice is settled we move fast. Send it through when you are ready and we will lock Robert in and start the asset prep right away.\r\n\r\nOn the Inplay post: as soon as payment is in, I will align Robert on the angle and send over his direction plus any talking points, so your team can prepare the assets in parallel.\r\n\r\nAppreciate your understanding, and we are looking forward to working with you.\r\n\r\nBest,\r\nAsher\r\n\r\n-----------------------------------\r\nAsher Weisberger\r\nClient Services Manager\r\nUnaligned\r\nAlignedNews.com\r\nhttps://unaligned.io\r\nhttps://x.com/unalignedX\r\n-------------------------------------\r\n\r\n\r\n> On Jun 29, 2026, at 11:28 AM, Evie <evie@adogtech.com> wrote:\r\n> \r\n> Hello,\r\n> \r\n> Hi! Thanks for sending over the invoice.\r\n> \r\n> After discussing it with my manager, may I proceed with 50% upfront to confirm the collaborationf?\r\n> \r\n> With the remaining 50% to be paid after the content has been delivered and approved.\r\n> \r\n> We'll arrange the first payment these two days. \r\n> \r\n> May I know Robert's idea about the Inplay post? That's will help us to prepare the assets if Robert needed\r\n> \r\n> Thanks for your understanding, and we're looking forward to working with you!\r\n> \r\n> Evie | Overseas Operations Manager\r\n> AD&OG\r\n> E-mail: <evie@adogtech.com>\r\n>  From: Asher Weisberger\r\n> Date: 2026-06-23 03:00\r\n> To: Evie\r\n> CC: Sam Levin\r\n> Subject: Re: AD&OG Collaboration and Rate\r\n> Here is the invoice! \r\n> \r\n> Please include name in memo of wire, ALSO send a receipt to this email chain when paid!\r\n> \r\n> \r\n> Best,\r\n> Asher\r\n> \r\n> -----------------------------------\r\n> Asher Weisberger\r\n> Client Services Manager\r\n> Unaligned\r\n> AlignedNews.com\r\n> https://unaligned.io\r\n> https://x.com/unalignedX\r\n> -------------------------------------\r\n> \r\n>> On Jun 22, 2026, at 1:45â€¯PM, Asher Weisberger <asherunaligned@gmail.com> wrote:\r\n>> \r\n>> Hi Evie,\r\n>> \r\n>> No worries on the timing, and thanks for sharing the link. Happy to take a look at inplay.art.\r\n>> Email is the best way to reach us, so let us keep everything on this thread and we will stay quick and responsive here.\r\n>> \r\n>> For a Custom X Post, the rate is $1,995. That is a custom written X post crafted specifically for Robert's audience.\r\n>> June 24 works on our end, with one condition: for new collaborations we collect payment in full before anything goes live, so the 24th is good as long as payment is completed before the posting date.\r\n>> \r\n>> To get the invoice over to you, could you send your invoicing details (company or billing name,",
+      "date": "2026-06-29T16:35:03+00:00",
+      "from": "Asher Weisberger",
+      "email": "asherunaligned@gmail.com",
+      "snippet": "Thanks for the note, and for moving this forward. I have to be straight with you on one thing: we cannot do a split or partial payment. New collaborations are paid in full, 100 percent upfront, before",
+      "subject": "Re: AD&OG Collaboration and Rate",
+      "reply_to": [],
+      "message_id": "19f143c2879c6e84",
+      "gmail_thread_id": "19eaa9949090aa90"
+    },
+    {
+      "cc": [],
+      "to": [
+        "asherunaligned@gmail.com"
+      ],
+      "body": "Hi,\r\n\r\nThe payment isdone, pls kindly check the attachment\r\n\r\n\r\n\r\n\",\"range\":{\"gcpBegin\":76,\"len\":0}},\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyRunProp\",\"param\":{\"range\":{\"gcpBegin\":76,\"len\":1},\"property\":{\"rFonts\":{\"ascii\":\"\\\"Times New Roman\\\"\",\"hAnsi\":\"\\\"Times New Roman\\\"\",\"eastAsia\":\"\\\"Times New Roman\\\"\",\"cs\":\"\\\"Times New Roman\\\"\",\"asciiTheme_i\":true,\"hAnsiTheme_i\":true,\"eastAsiaTheme_i\":true},\"b\":{\"val\":false},\"i\":{\"val\":false},\"strike\":{\"val\":false},\"color\":{\"val\":\"000000\"},\"spacing\":{\"val\":0},\"sz\":{\"val\":220},\"u\":{\"val\":\"STUnderline_none\"},\"shd\":{\"val\":\"STShd_clear\",\"color\":\"auto\",\"fill\":\"FFFFFF\"},\"vertAlign\":{\"val\":\"STVerticalAlignRun_baseline\"},\"author\":\"p.144115212320103121\"},\"mode\":1},\"propertyType\":\"RunProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"InsertText\",\"param\":{\"text\":\"\\r\",\"range\":{\"gcpBegin\":77,\"len\":0}},\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyRunProp\",\"param\":{\"range\":{\"gcpBegin\":77,\"len\":1},\"property\":{\"author\":\"p.144115212320103121\",\"isPlaceholder\":true},\"mode\":1},\"propertyType\":\"RunProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyParagraphProp\",\"param\":{\"range\":{\"gcpBegin\":77,\"len\":1},\"property\":{\"snapToGrid\":{\"val\":true},\"spacing\":{\"before\":0,\"after\":60,\"line\":240},\"ind\":{\"left\":0,\"right\":0,\"hanging\":0},\"numPr\":{}},\"mode\":1},\"propertyType\":\"ParagraphProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"InsertText\",\"param\":{\"text\":\" Telegram: @Lindsay1420\",\"range\":{\"gcpBegin\":78,\"len\":0}},\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyRunProp\",\"param\":{\"range\":{\"gcpBegin\":78,\"len\":23},\"property\":{\"rFonts\":{\"ascii\":\"\\\"Times New Roman\\\"\",\"hAnsi\":\"\\\"Times New Roman\\\"\",\"eastAsia\":\"\\\"Times New Roman\\\"\",\"cs\":\"\\\"Times New Roman\\\"\",\"asciiTheme_i\":true,\"hAnsiTheme_i\":true,\"eastAsiaTheme_i\":true},\"b\":{\"val\":false},\"i\":{\"val\":false},\"strike\":{\"val\":false},\"color\":{\"val\":\"000000\"},\"spacing\":{\"val\":0},\"sz\":{\"val\":220},\"u\":{\"val\":\"STUnderline_none\"},\"shd\":{\"val\":\"STShd_clear\",\"color\":\"auto\",\"fill\":\"FFFFFF\"},\"vertAlign\":{\"val\":\"STVerticalAlignRun_baseline\"},\"author\":\"p.144115212320103121\"},\"mode\":1},\"propertyType\":\"RunProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"InsertText\",\"param\":{\"text\":\"\\r\",\"range\":{\"gcpBegin\":101,\"len\":0}},\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyRunProp\",\"param\":{\"range\":{\"gcpBegin\":101,\"len\":1},\"property\":{\"author\":\"p.144115212320103121\",\"isPlaceholder\":true},\"mode\":1},\"propertyType\":\"RunProperty\",\"builtinStyleName\":\"\"},{\"operationType\":\"ModifyParagraphProp\",\"param\":{\"range\":{\"gcpBegin\":101,\"len\":1},\"property\":{\"snapToGrid\":{\"val\":true},\"spacing\":{\"before\":0,\"after\":60,\"line\":240},\"ind\":{\"left\":0,\"right\":0,\"hanging\":0},\"numPr\":{}},\"mode\":1},\"propertyType\":\"ParagraphProperty\",\"builtinStyleName\":\"\"}],\"subStory\":[],\"srcGlobalPadId\":\"w3_AV4A3QblAKkyw8BaU60SyqcFNcdWV\",\"copyStart\":2244}\" data-version=\"3.0.0\" inner_data_type=\"webData\" data-hash=\"b2fde98fa9c9e2ad02d667ff2d0507fc\" style=\"font-size: medium;\">\r\nEvie | Overseas Operations Manager\r\nAD&OG\r\nE-mail: <evie@adogtech.com>\r\n \r\nFrom: As",
+      "date": "2026-06-30T08:45:00+00:00",
+      "from": "Evie",
+      "email": "evie@adogtech.com",
+      "snippet": "Hi, The payment isdone, pls kindly check the attachment Evie | Overseas Operations Manager AD&amp;OG E-mail: &lt;evie@adogtech.com&gt; From: Asher Weisberger Date: 2026-06-30 00:35 To: Evie Subject: Re",
+      "subject": "Re: Re: AD&OG Collaboration and Rate",
+      "reply_to": [],
+      "message_id": "19f17b4182a3dcad",
+      "gmail_thread_id": "19eaa9949090aa90"
+    },
+    {
+      "cc": [],
+      "to": [
+        "evie@adogtech.com"
+      ],
+      "body": "Awesome, since in our previous convo we talked about June 24th and that date has passed. When would you like to schedule this collaberation on Roberts calender?\r\n\r\nBest,\r\nAsher\r\n\r\n> On Jun 30, 2026, at 4:45 AM, Evie <evie@adogtech.com> wrote:\r\n> \r\n> Hi,\r\n> \r\n> The payment isdone, pls kindly check the attachment\r\n> \r\n> Evie | Overseas Operations Manager\r\n> AD&OG\r\n> E-mail: <evie <mailto:evie@adogtech.com>@adogtech.com <mailto:evie@adogtech.com>>\r\n>  \r\n> From: Asher Weisberger <mailto:asherunaligned@gmail.com>\r\n> Date: 2026-06-30 00:35\r\n> To: Evie <mailto:evie@adogtech.com>\r\n> Subject: Re: AD&OG Collaboration and Rate\r\n> Thanks for the note, and for moving this forward.\r\n>  \r\n> I have to be straight with you on one thing: we cannot do a split or partial payment. New collaborations are paid in full, 100 percent upfront, before any content goes live. That is a firm policy across every partner, not something specific to this deal. Robert does not post first and get paid later, so a 50 now and 50 after delivery structure will not work on our side.\r\n>  \r\n> The good news is that once the full invoice is settled we move fast. Send it through when you are ready and we will lock Robert in and start the asset prep right away.\r\n>  \r\n> On the Inplay post: as soon as payment is in, I will align Robert on the angle and send over his direction plus any talking points, so your team can prepare the assets in parallel.\r\n>  \r\n> Appreciate your understanding, and we are looking forward to working with you.\r\n>  \r\n> Best,\r\n> Asher\r\n>  \r\n> -----------------------------------\r\n> Asher Weisberger\r\n> Client Services Manager\r\n> Unaligned\r\n> AlignedNews.com\r\n> https://unaligned.io\r\n> https://x.com/unalignedX\r\n> -------------------------------------\r\n>  \r\n>  \r\n> > On Jun 29, 2026, at 11:28 AM, Evie <evie@adogtech.com> wrote:\r\n> > \r\n> > Hello,\r\n> > \r\n> > Hi! Thanks for sending over the invoice.\r\n> > \r\n> > After discussing it with my manager, may I proceed with 50% upfront to confirm the collaborationf?\r\n> > \r\n> > With the remaining 50% to be paid after the content has been delivered and approved.\r\n> > \r\n> > We'll arrange the first payment these two days. \r\n> > \r\n> > May I know Robert's idea about the Inplay post? That's will help us to prepare the assets if Robert needed\r\n> > \r\n> > Thanks for your understanding, and we're looking forward to working with you!\r\n> > \r\n> > Evie | Overseas Operations Manager\r\n> > AD&OG\r\n> > E-mail: <evie@adogtech.com>\r\n> >  From: Asher Weisberger\r\n> > Date: 2026-06-23 03:00\r\n> > To: Evie\r\n> > CC: Sam Levin\r\n> > Subject: Re: AD&OG Collaboration and Rate\r\n> > Here is the invoice! \r\n> > \r\n> > Please include name in memo of wire, ALSO send a receipt to this email chain when paid!\r\n> > \r\n> > \r\n> > Best,\r\n> > Asher\r\n> > \r\n> > -----------------------------------\r\n> > Asher Weisberger\r\n> > Client Services Manager\r\n> > Unaligned\r\n> > AlignedNews.com\r\n> > https://unaligned.io\r\n> > https://x.com/unalignedX\r\n> > -------------------------------------\r\n> > \r\n> >>",
+      "date": "2026-06-30T14:53:30+00:00",
+      "from": "Asher Weisberger",
+      "email": "asherunaligned@gmail.com",
+      "snippet": "Awesome, since in our previous convo we talked about June 24th and that date has passed. When would you like to schedule this collaberation on Roberts calender? Best, Asher On Jun 30, 2026, at 4:45 AM,",
+      "subject": "Re: AD&OG Collaboration and Rate",
+      "reply_to": [],
+      "message_id": "19f19058c02aef9c",
+      "gmail_thread_id": "19eaa9949090aa90"
+    }
+  ],
+  "date_received": "Jun 09, 2026",
+  "date_received_iso": "2026-06-09",
+  "reply_hook": "Clarify deliverables, timing, budget, and product links for Instory.",
+  "quality_tier": "lead",
+  "sender_group": "",
+  "merged_into": null,
+  "moved_at": "2026-06-29T12:28:49.242447+00:00",
+  "new_reply_at": "2026-06-30T08:45:00+00:00",
+  "brief_status": null,
+  "agent_assessment": null,
+  "recommended_action": null,
+  "agent_tier": null,
+  "deal_state": null,
+  "deal_confidence": null,
+  "deal_awaiting": null,
+  "deal_evidence": null,
+  "deal_next_action": null,
+  "last_inbound_at": null,
+  "needs_human_read": false,
+  "needs_reply": false,
+  "needs_followup": false,
+  "ready_to_invoice": false,
+  "agreement": false,
+  "x_open_dm": null
+}

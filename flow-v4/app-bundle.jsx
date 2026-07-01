@@ -896,9 +896,10 @@ function V3EnsureApiToken() {
   return token;
 }
 
-async function V3LoadXDmIntakeRows() {
+async function V3LoadXDmIntakeRows(cacheBust) {
   try {
-    const res = await fetch('flow-v4/assets/x_dm_daily_intake.json?v=20260622-live-x-inbox-dates-1');
+    const version = cacheBust || Date.now();
+    const res = await fetch('flow-v4/assets/x_dm_daily_intake.json?v=' + version);
     if (!res.ok) throw new Error('X intake ' + res.status);
     const rows = await res.json();
     return Array.isArray(rows) ? rows : [];
@@ -908,7 +909,7 @@ async function V3LoadXDmIntakeRows() {
   }
 }
 
-async function V3LoadSupabaseLeads() {
+async function V3LoadSupabaseLeads(opts = {}) {
   const rows = [];
   for (let offset = 0; ; offset += 1000) {
     const url = V3_SUPABASE_URL + "/rest/v1/cards?select=*&order=id.desc&offset=" + offset + "&limit=1000";
@@ -941,13 +942,15 @@ async function V3LoadSupabaseLeads() {
   };
 
   for (const row of rows) {
-    const key = row.gmail_thread_id ? `thread:${row.gmail_thread_id}` : `row:${row.id}`;
+    const key = row.x_open_dm
+      ? `xdm:${V3NormalizeOpenDmUrl(row.x_open_dm)}`
+      : (row.gmail_thread_id ? `thread:${row.gmail_thread_id}` : `row:${row.id}`);
     const prev = canonical.get(key);
     if (!prev || scoreRow(row) > scoreRow(prev)) canonical.set(key, row);
   }
 
   const leads = V3FilterVisibleLeads([...canonical.values()].map(V3NormalizeSupabaseLead));
-  const xRows = await V3LoadXDmIntakeRows();
+  const xRows = await V3LoadXDmIntakeRows(opts?.cacheBust);
   leads.push(...V3FilterVisibleLeads(V3NormalizeXDmLeads(xRows, leads)));
   if (!leads.some(lead => String(lead.email || '').trim().toLowerCase() === 'jocelyn.cruz@hockeystick.io')) {
     leads.push(V3HockeystickFallbackLead());
@@ -955,8 +958,9 @@ async function V3LoadSupabaseLeads() {
   return V3FilterVisibleLeads(leads);
 }
 
-async function V3ReloadLeads() {
-  const leads = await V3LoadSupabaseLeads();
+async function V3ReloadLeads(opts = {}) {
+  window.dispatchEvent(new CustomEvent('v3:leads-loading'));
+  const leads = await V3LoadSupabaseLeads({ cacheBust: opts.cacheBust || Date.now() });
   window.V3.LEADS = leads;
   window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads } }));
   return leads;
@@ -993,6 +997,148 @@ function V3ParseBriefDescription(value) {
   } catch (e) {
     return { body: value };
   }
+}
+
+function V3ParseXDescriptionContext(value) {
+  const payload = V3ParseBriefDescription(value);
+  if (!payload || typeof payload !== 'object') return {};
+  return {
+    xSummary: payload.x_summary || '',
+    lastMessage: payload.last_message || '',
+    lastRobertMessage: payload.last_robert_message || '',
+    lastSender: payload.last_sender || '',
+    repliedViaX: Boolean(payload.replied_via_x),
+    xCurrentStatus: payload.x_current_status || '',
+    xReplyMarkedAt: payload.x_reply_marked_at || '',
+  };
+}
+
+function V3ExtractRobertPositionFromSummary(summary) {
+  const text = String(summary || '');
+  const match = text.match(/Robert['’]s latest position:\s*(.+?)(?:\s+Contact captured:|$)/i);
+  return match ? match[1].trim() : '';
+}
+
+function V3IsXLeadRecord(lead) {
+  if (!lead) return false;
+  const source = String(lead.source || '').toLowerCase();
+  if (source === 'x' || source.includes('x-dm') || source.includes('twitter_dm') || source.includes('ingest-twitter_dm')) return true;
+  return Boolean(lead.xOpenDm);
+}
+
+function V3InferXReplyState(lead) {
+  if (!lead) return { repliedViaX: false, needsXReply: true, xLastRobertMessage: '', xLastSender: '', xReplyMarkedAt: '' };
+  const status = String(lead.xCurrentStatus || '').toLowerCase();
+  const ctx = V3ParseXDescriptionContext(lead.rawDescription);
+  const xLastSender = String(lead.xLastSender || ctx.lastSender || '').trim();
+  const xLastRobertMessage = String(
+    lead.xLastRobertMessage || ctx.lastRobertMessage || V3ExtractRobertPositionFromSummary(lead.notes || lead.rawDescription || ctx.xSummary) || ''
+  ).trim();
+  const xReplyMarkedAt = String(lead.xReplyMarkedAt || ctx.xReplyMarkedAt || '').trim();
+  let repliedViaX = lead.xRepliedViaX === true || ctx.repliedViaX || Boolean(xReplyMarkedAt);
+  if (status.includes('robert was last')) repliedViaX = true;
+  if (xLastSender.toLowerCase() === 'robert') repliedViaX = true;
+  if (status.includes('lead waiting') || status.includes('send - lead')) repliedViaX = false;
+  const needsXReply = !repliedViaX || status.includes('lead waiting') || xLastSender.toLowerCase() === 'lead';
+  return { repliedViaX, needsXReply, xLastRobertMessage, xLastSender, xReplyMarkedAt };
+}
+
+function V3XLeadRepliedViaX(lead) {
+  return V3InferXReplyState(lead).repliedViaX;
+}
+
+function V3ApplyXReplyState(lead) {
+  if (!lead || !V3IsXLeadRecord(lead)) return lead;
+  const state = V3InferXReplyState(lead);
+  const first = String(lead.contactName || 'them').split(' ')[0];
+  const next = {
+    ...lead,
+    xRepliedViaX: state.repliedViaX,
+    xLastRobertMessage: state.xLastRobertMessage || lead.xLastRobertMessage || '',
+    xLastSender: state.xLastSender || lead.xLastSender || '',
+    xReplyMarkedAt: state.xReplyMarkedAt || lead.xReplyMarkedAt || '',
+    needsReply: state.needsXReply,
+    unread: state.needsXReply,
+  };
+  if (state.repliedViaX && !state.needsXReply) {
+    next.nextMove = {
+      who: null,
+      text: `Replied via X — waiting on ${first}`,
+      action: '',
+    };
+  }
+  return next;
+}
+
+function V3BuildXThreadFromLead(lead) {
+  if (!lead) return [];
+  const received = V3NormalizeDateForUi(lead.receivedAt || lead.lastTouchAt);
+  const leadBody = String(lead.evidence || lead.xLastLeadMessage || '').trim();
+  const summary = String(lead.notes || lead.rawDescription || '').trim();
+  const robertBody = String(lead.xLastRobertMessage || V3ExtractRobertPositionFromSummary(summary) || '').trim();
+  const thread = [];
+  if (leadBody || summary) {
+    thread.push({
+      from: lead.xHandle || lead.contactName || 'Lead',
+      when: V3RelativeTime(received),
+      date: received || null,
+      subject: lead.deliverables || 'X DM lead',
+      body: leadBody || summary,
+      to: [],
+      cc: [],
+      replyTo: [],
+    });
+  }
+  if (robertBody) {
+    thread.push({
+      from: 'Robert Scoble',
+      when: V3RelativeTime(lead.xReplyMarkedAt || lead.lastTouchAt || received),
+      date: V3NormalizeDateForUi(lead.xReplyMarkedAt || lead.lastTouchAt || received),
+      subject: 'Reply via X',
+      body: robertBody,
+      to: [],
+      cc: [],
+      replyTo: [],
+    });
+  }
+  return thread;
+}
+
+function V3MarkRepliedViaX(lead) {
+  if (!lead) return;
+  const ctx = V3ParseXDescriptionContext(lead.rawDescription);
+  const merged = {
+    ...V3ParseBriefDescription(lead.rawDescription),
+    x_summary: ctx.xSummary || lead.notes || '',
+    last_message: ctx.lastMessage || lead.evidence || '',
+    last_robert_message: ctx.lastRobertMessage || lead.xLastRobertMessage || 'Marked as replied on X.',
+    last_sender: 'Robert',
+    replied_via_x: true,
+    x_current_status: lead.xCurrentStatus || 'WAIT - Robert was last',
+    x_reply_marked_at: new Date().toISOString(),
+    open_dm: lead.xOpenDm || ctx.open_dm || '',
+  };
+  const localPatch = {
+    xRepliedViaX: true,
+    xLastSender: 'Robert',
+    xReplyMarkedAt: merged.x_reply_marked_at,
+    xCurrentStatus: merged.x_current_status,
+    needsReply: false,
+    unread: false,
+    nextMove: {
+      who: null,
+      text: `Replied via X — waiting on ${String(lead.contactName || 'them').split(' ')[0]}`,
+      action: '',
+    },
+    thread: V3BuildXThreadFromLead({ ...lead, ...merged, xLastRobertMessage: merged.last_robert_message }),
+  };
+  if (typeof V4CosPatchLead === 'function') {
+    V4CosPatchLead(lead, { description: JSON.stringify(merged) }, localPatch);
+    return;
+  }
+  const updated = (window.V3.LEADS || []).map(item => String(item.id) === String(lead.id) ? { ...item, ...localPatch, rawDescription: JSON.stringify(merged) } : item);
+  window.V3.LEADS = updated;
+  window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated } }));
 }
 
 function V3ParseOperatorMemory(value) {
@@ -1096,10 +1242,13 @@ function V3NormalizeSupabaseLead(row) {
   const category = V3CategoryFromRow(row);
   const timelineDays = V3TimelineDaysFromRow(row);
   const briefPayload = V3ParseBriefDescription(row.description);
+  const xContext = V3ParseXDescriptionContext(row.description);
   const operatorMemory = V3ParseOperatorMemory(row.description);
   const isRobertBrief = V3IsRobertBriefRow(row) || briefPayload.kind === 'official-posting' || briefPayload.type === 'official-posting';
   const leadSource = row.lead_source || (row.gmail_thread_id ? 'Gmail' : 'Manual');
-  return {
+  const xOpenDm = V3NormalizeOpenDmUrl(row.x_open_dm || (String(row.website || '').includes('x.com/') ? row.website : ''));
+  const isXCard = Boolean(xOpenDm) || String(leadSource || '').toLowerCase() === 'x';
+  const normalized = {
     id: String(row.id),
     contactName: name,
     contactRole: row.job_title || row.lead_source || '',
@@ -1165,10 +1314,31 @@ function V3NormalizeSupabaseLead(row) {
     briefStatus: briefPayload.status || row.brief_status || row.briefStatus || '',
     nextMove: V3NextMoveFromRow(stage, name, ownerId, needsReply, row),
     timeline: __v3Timeline(stage, daysInStage, name, brand),
-    thread,
+    thread: isXCard && !(Array.isArray(thread) && thread.length) ? V3BuildXThreadFromLead({
+      contactName: name,
+      brand,
+      deliverables: row.intent || row.lead_source || '',
+      receivedAt: received,
+      lastTouchAt: lastTouchAt || received,
+      evidence: xContext.lastMessage || '',
+      notes: xContext.xSummary || row.description || '',
+      rawDescription: row.description || '',
+      xHandle: String(row.x_username || xContext.x_username || '').trim(),
+      xLastRobertMessage: xContext.lastRobertMessage || '',
+      xReplyMarkedAt: xContext.xReplyMarkedAt || '',
+    }) : thread,
     progress: Math.max(0, V3_ACTIVE_STAGE_IDS.indexOf(stage)),
     unread: Boolean(row.new_reply_at),
+    xOpenDm,
+    xHandle: String(row.x_username || xContext.x_username || '').trim(),
+    xCurrentStatus: xContext.xCurrentStatus || '',
+    xLastSender: xContext.lastSender || '',
+    xLastRobertMessage: xContext.lastRobertMessage || '',
+    xLastLeadMessage: xContext.lastMessage || '',
+    xReplyMarkedAt: xContext.xReplyMarkedAt || '',
+    xRepliedViaX: xContext.repliedViaX || false,
   };
+  return isXCard ? V3ApplyXReplyState(normalized) : normalized;
 }
 
 function V3ParseDraftReply(value) {
@@ -1367,8 +1537,22 @@ function V3NormalizeXDmLeads(rows, existingLeads = []) {
       lead?.xHandle,
     ].map(V3LeadIdentityKey)).filter(Boolean)
   );
+  const existingOpenDms = new Set(
+    existingLeads.map(lead => V3NormalizeOpenDmUrl(lead?.xOpenDm)).filter(Boolean)
+  );
+  const qualifiedLeadType = (row) => {
+    const type = String(row?.leadType || '').trim().toLowerCase();
+    const text = String((row?.summaryForTeam || '') + ' ' + (row?.lastLeadMessage || '')).toLowerCase();
+    const partnership = /collab|collaboration|sponsor|sponsorship|partnership|partner|campaign|paid|budget|rates|pricing|brand deal|ambassador/.test(text);
+    const product = /product|platform|startup|demo|launch|tool|agent|robot|framework|software|saas|beta|trial|pilot|integrat/.test(text);
+    if (type === 'paid / sponsorship' || type === 'product / demo') return true;
+    if (type === 'general outreach' || type === 'intro / network' || type === 'payment / admin') return partnership || product;
+    if (type === 'event / media') return partnership || product;
+    return partnership || product;
+  };
   return list
     .filter(row => row && row.newLead !== false)
+    .filter(row => qualifiedLeadType(row))
     .filter(row => !row.alreadyEmailedInRobertGmail)
     .filter(row => {
       const xUser = String(row.xUsername || '').replace(/^@/, '').trim().toLowerCase();
@@ -1383,6 +1567,8 @@ function V3NormalizeXDmLeads(rows, existingLeads = []) {
       return true;
     })
     .filter(row => {
+      const openDm = V3NormalizeOpenDmUrl(row.openDm);
+      if (openDm && existingOpenDms.has(openDm)) return false;
       const emails = String(row.contactEmails || '')
         .split(/[,\s|]+/)
         .map(item => item.trim().toLowerCase())
@@ -1416,6 +1602,9 @@ function V3NormalizeXDmLeadRow(row) {
   const handle = String(row.xUsername || '').trim();
   const nextStep = String(row.bestNextStep || '').trim();
   const currentStatus = String(row.currentStatus || '').trim();
+  const lastSender = String(row.lastSender || '').trim();
+  const lastRobertMessage = String(row.lastRobertMessage || V3ExtractRobertPositionFromSummary(summary) || '').trim();
+  const repliedViaX = row.repliedViaX === true || String(row.repliedViaX || '').toLowerCase() === 'true';
   const quickNote = String(row.quickNote || '').trim();
   const owner = String(row.recommendedOwner || '').toLowerCase();
   const ownerId = owner.includes('robert') ? 'robert' : (owner.includes('sam') ? 'sammy' : 'asher');
@@ -1427,7 +1616,7 @@ function V3NormalizeXDmLeadRow(row) {
       : (type.includes('paid') || type.includes('sponsor')
         ? 'partnership'
         : 'collaboration'));
-  return {
+  const base = {
     id: 'xdm-' + String(row.rank || brand || name).replace(/[^a-z0-9_-]+/gi, '-').toLowerCase(),
     contactName: name,
     contactRole: 'X DM lead',
@@ -1475,16 +1664,19 @@ function V3NormalizeXDmLeadRow(row) {
     briefStatus: '',
     nextMove: { who: ownerId, text: nextStep || 'Open X thread and move to email.', action: 'Reply' },
     timeline: __v3Timeline('new', 0, name, brand),
-    thread: [{
-      from: handle || name,
-      when: V3RelativeTime(received),
-      date: received || null,
-      subject: String(row.leadType || 'X DM lead'),
-      body: latestLeadMessage || summary,
-      to: [],
-      cc: [],
-      replyTo: [],
-    }],
+    thread: V3BuildXThreadFromLead({
+      contactName: name,
+      brand,
+      deliverables: String(row.leadType || 'X DM lead'),
+      receivedAt: received,
+      lastTouchAt: received,
+      evidence: latestLeadMessage,
+      notes: summary,
+      rawDescription: summary,
+      xHandle: handle,
+      xLastRobertMessage: lastRobertMessage,
+      xLastLeadMessage: latestLeadMessage,
+    }),
     progress: Math.max(0, V3_ACTIVE_STAGE_IDS.indexOf('new')),
     unread: true,
     xHandle: handle,
@@ -1494,9 +1686,14 @@ function V3NormalizeXDmLeadRow(row) {
     xBestNextStep: nextStep,
     xMessageCount: Number(row.messageCount || 0),
     xCurrentStatus: currentStatus,
+    xLastSender: lastSender,
+    xLastRobertMessage: lastRobertMessage,
+    xLastLeadMessage: latestLeadMessage,
+    xRepliedViaX: repliedViaX,
     xEmailDraft: String(row.emailDraft || ''),
     xQuickNote: quickNote,
   };
+  return V3ApplyXReplyState(base);
 }
 
 function V3TimestampForUi(value) {
@@ -2089,10 +2286,28 @@ function V3LeadMatchesQuery(lead, query) {
   return q.split(' ').filter(Boolean).every(token => hay.includes(token));
 }
 
+function V3NormalizeOpenDmUrl(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  return text.split('#')[0].replace(/\/+$/, '');
+}
+
+function V3FindExistingXCard(leads, openDm, intakeId) {
+  const key = V3NormalizeOpenDmUrl(openDm);
+  if (!key) return null;
+  return (Array.isArray(leads) ? leads : []).find(item => {
+    if (String(item.id) === String(intakeId)) return false;
+    if (String(item.id || '').startsWith('xdm-')) return false;
+    return V3NormalizeOpenDmUrl(item.xOpenDm) === key;
+  }) || null;
+}
+
 function V3IsNewLeadReview(lead) {
   if (!lead || lead.isRobertBrief) return false;
   const sourceKind = V3NewLeadSourceKind(lead);
   const mailbox = V3LeadMailboxOrigin(lead);
+  const stage = String(lead.stage || '').toLowerCase();
+  if (sourceKind === 'x' && stage !== 'new') return false;
   if (mailbox === 'asher') return false;
   if (sourceKind === 'x' || mailbox === 'robert') return !V3CompanyOsQualifiedLead(lead);
   return false;
@@ -2100,13 +2315,13 @@ function V3IsNewLeadReview(lead) {
 
 function V3NewLeadSourceKind(lead) {
   const source = String(lead?.source || '').toLowerCase();
-  if (source.includes('x-dm-intake') || source.includes('twitter_dm') || source.includes('ingest-twitter_dm')) return 'x';
+  if (source === 'x' || source.includes('x-dm') || source.includes('twitter_dm') || source.includes('ingest-twitter_dm')) return 'x';
   return 'gmail';
 }
 
 function V3LeadMailboxOrigin(lead) {
   const source = String(lead?.source || '').toLowerCase();
-  if (source.includes('x-dm-intake') || source.includes('twitter_dm') || source.includes('ingest-twitter_dm')) return 'x';
+  if (source === 'x' || source.includes('x-dm') || source.includes('twitter_dm') || source.includes('ingest-twitter_dm')) return 'x';
   if (
     source.includes('robert-gmail-new-lead') ||
     source.includes('gmail-robert') ||
@@ -2248,10 +2463,11 @@ function V3NewLeadPrimaryIdentity(lead) {
 
 function V3NewLeadReason(lead) {
   if (V3NewLeadSourceKind(lead) === 'x') {
+    if (V3XLeadRepliedViaX(lead)) return 'Replied via X';
     const status = String(lead?.xCurrentStatus || lead?.xBestNextStep || '').toLowerCase();
     if (status.includes('needs live check')) return 'Needs live check';
     if (status.includes('already routed')) return 'Already routed';
-    if (status.includes('robert was last')) return 'Waiting on them';
+    if (status.includes('robert was last')) return 'Replied via X';
     if (status.includes('route scheduling')) return 'Route to email';
     if (status.includes('invoice')) return 'Payment follow-up';
     if (status.includes('lead waiting')) return 'Needs reply';
@@ -2423,7 +2639,7 @@ const V3_STAGES = [
 const V3_STAGE_BY_ID = Object.fromEntries(V3_STAGES.map(s => [s.id, s]));
 const V3_ACTIVE_STAGE_IDS = ['new','first-touch','engaged','rates-sent','negotiating','invoice-sent','done','paid-out'];
 const V3_BOARD_STAGE_IDS = ['new','first-touch','engaged','rates-sent','negotiating','invoice-sent','trash','done','paid-out'];
-const V3_TRASH_STAGE_IDS = ['trash'];
+const V3_TRASH_STAGE_IDS = ['trash', 'dead-leads'];
 
 const V3_CATEGORIES = ['interview', 'collaboration', 'partnership', 'intro', 'paid'];
 
@@ -3273,35 +3489,68 @@ function V3MoveLeadStage(lead, nextStage, leads = window.V3?.LEADS || V3_LEADS) 
   window.V3.LEADS = updated;
   window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated } }));
 
-  // X DM intake leads are not backed by a Supabase row, so a PATCH would no-op
-  // and the lead would resurface on the next scrape. Persist the decision as a
-  // card instead — its contact_name makes the daily X intake dedupe skip this
-  // lead on future loads, and we relink the in-memory id so Restore can PATCH it.
+  // X intake rows are JSON-only. x_bridge may already have a Supabase card for
+  // the same openDm — PATCH that card instead of POSTing a duplicate.
   const isXIntake = String(lead?.source || '').includes('x-dm-intake') || String(lead?.id || '').startsWith('xdm-');
   if (isXIntake) {
+    const openDm = V3NormalizeOpenDmUrl(lead.xOpenDm);
+    const existing = V3FindExistingXCard(leads, openDm, lead.id);
+    const cardPayload = {
+      list_id: normalizedStage,
+      title: lead.contactName || lead.brand || 'X lead',
+      contact_name: lead.contactName || '',
+      business_name: lead.brand || lead.contactName || '',
+      lead_source: 'X',
+      x_open_dm: openDm || null,
+      email: lead.email || '',
+      intent: lead.deliverables || '',
+      description: JSON.stringify({
+        x_summary: lead.notes || '',
+        last_message: lead.evidence || lead.xLastLeadMessage || '',
+        last_robert_message: lead.xLastRobertMessage || V3ExtractRobertPositionFromSummary(lead.notes || '') || '',
+        last_sender: lead.xLastSender || (V3XLeadRepliedViaX(lead) ? 'Robert' : 'Lead'),
+        replied_via_x: V3XLeadRepliedViaX(lead),
+        x_current_status: lead.xCurrentStatus || '',
+        x_username: lead.xHandle || '',
+        open_dm: openDm || '',
+        x_reply_marked_at: lead.xReplyMarkedAt || '',
+      }),
+    };
+
+    const finalize = (cardId, sourceLabel) => {
+      const merged = (window.V3.LEADS || updated)
+        .filter(item => String(item.id) !== String(lead.id))
+        .map(item => String(item.id) === String(cardId)
+          ? { ...item, stage: normalizedStage, source: sourceLabel || item.source || 'X' }
+          : item);
+      window.V3.LEADS = merged;
+      window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: merged } }));
+    };
+
+    if (existing) {
+      const cardId = existing.rowId || existing.id;
+      fetch(V3_SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(cardId), {
+        method: 'PATCH',
+        headers: { ...V3_SUPABASE_HEADERS, Prefer: 'return=minimal' },
+        body: JSON.stringify(cardPayload),
+      })
+        .then(() => finalize(cardId, existing.source || 'X'))
+        .catch(err => console.warn('[ALIGNED v4] x scope patch failed:', err));
+      return;
+    }
+
     fetch(V3_SUPABASE_URL + '/rest/v1/cards', {
       method: 'POST',
       headers: { ...V3_SUPABASE_HEADERS, Prefer: 'return=representation' },
-      body: JSON.stringify({
-        list_id: normalizedStage,
-        title: lead.contactName || lead.brand || 'X lead',
-        contact_name: lead.contactName || '',
-        lead_source: 'x-dm-intake',
-        website: lead.xOpenDm || (lead.xHandle ? 'https://x.com/' + String(lead.xHandle).replace(/^@/, '') : ''),
-        email: lead.email || '',
-        intent: lead.deliverables || '',
-      }),
+      body: JSON.stringify(cardPayload),
     })
       .then(res => res.ok ? res.json() : null)
       .then(rows => {
         const newId = Array.isArray(rows) && rows[0] ? rows[0].id : null;
         if (newId == null) return;
-        const relinked = (window.V3.LEADS || updated).map(item =>
-          String(item.id) === String(lead.id) ? { ...item, id: newId, rowId: newId, source: 'x-dm-intake' } : item);
-        window.V3.LEADS = relinked;
-        window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: relinked } }));
+        finalize(newId, 'X');
       })
-      .catch(err => console.warn('[ALIGNED v4] x suppress failed:', err));
+      .catch(err => console.warn('[ALIGNED v4] x scope insert failed:', err));
     return;
   }
 
@@ -3314,7 +3563,7 @@ function V3MoveLeadStage(lead, nextStage, leads = window.V3?.LEADS || V3_LEADS) 
   }).catch(err => console.warn('[ALIGNED v4] stage update failed:', err));
 }
 
-window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_VISIBLE_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_VISIBLE_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, CompanyOsQualifiedLead: V3CompanyOsQualifiedLead, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, NewLeadReason: V3NewLeadReason, ResolveReplyTone: V3ResolveReplyTone, ReplyToneLabel: V3ReplyToneLabel, NewLeadSourceKind: V3NewLeadSourceKind, NewLeadSourceLabel: V3NewLeadSourceLabel, NewLeadHandle: V3NewLeadHandle, NewLeadSummary: V3NewLeadSummary, NewLeadPrimaryIdentity: V3NewLeadPrimaryIdentity, LeadMatchesQuery: V3LeadMatchesQuery, PrunePendingReplies: V3PrunePendingReplies, MergePendingReplies: V3MergePendingReplies, ReloadLeads: V3ReloadLeads };
+window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_VISIBLE_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_VISIBLE_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, CompanyOsQualifiedLead: V3CompanyOsQualifiedLead, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, NewLeadReason: V3NewLeadReason, ResolveReplyTone: V3ResolveReplyTone, ReplyToneLabel: V3ReplyToneLabel, NewLeadSourceKind: V3NewLeadSourceKind, NewLeadSourceLabel: V3NewLeadSourceLabel, NewLeadHandle: V3NewLeadHandle, NewLeadSummary: V3NewLeadSummary, NewLeadPrimaryIdentity: V3NewLeadPrimaryIdentity, LeadMatchesQuery: V3LeadMatchesQuery, PrunePendingReplies: V3PrunePendingReplies, MergePendingReplies: V3MergePendingReplies, ReloadLeads: V3ReloadLeads, XLeadRepliedViaX: V3XLeadRepliedViaX, MarkRepliedViaX: V3MarkRepliedViaX };
 
 V3LoadPricingTiers();
 V3LoadTeamUsers();
@@ -3458,6 +3707,12 @@ function V3BoardCard({ lead, isActive, user, onOpen, onMoveStage }) {
         <strong>{lead.brand}</strong>
         {lead.value && <span> · {v3Money(lead.value, { compact: true })}</span>}
       </div>
+      {V3XLeadRepliedViaX(lead) && (
+        <div className="b-card-x-replied">
+          <V3Icon name="network" w={12} />
+          <span>Replied via X</span>
+        </div>
+      )}
 
       {/* Next move dashed callout */}
       {isTrash ? (
@@ -5558,6 +5813,15 @@ async function V4CopyRobertReviewLink() {
 // ── Shared approval logic (used by BOTH the Machine Room console and the Organs view) ──
 // The four gates, computed from the live board. One source of truth; Organs and the
 // console both render from this, so the queues never drift.
+function V4TeamRepliedLast(lead) {
+  const thread = Array.isArray(lead?.thread) ? lead.thread : [];
+  if (!thread.length) return false;
+  const latest = thread[thread.length - 1] || {};
+  if (V3IsTeamParticipant(latest.from)) return true;
+  const body = String(latest.body || latest.snippet || '').toLowerCase();
+  return /\b(all the best,\s*asher|best,\s*asher|thanks robert for looping me in|robert has looped me in|i handle the business side)\b/.test(body);
+}
+
 function V4AprComputeGates(leads, query) {
   const q = String(query || '').trim().toLowerCase();
   const live = (Array.isArray(leads) ? leads : []).filter(l =>
@@ -5566,7 +5830,9 @@ function V4AprComputeGates(leads, query) {
     .some(s => String(s || '').toLowerCase().includes(q));
   const replies = live.filter(l =>
     String(l.draftReplyStatus || '').toLowerCase() === 'pending' &&
-    l.draftReply && String(l.draftReply.body || '').trim()).filter(matchesQ);
+    l.draftReply && String(l.draftReply.body || '').trim() &&
+    !V4TeamRepliedLast(l) &&
+    !l.newReplyAt).filter(matchesQ);
   const payments = live.filter(l => String(l.stage || '').toLowerCase() === 'invoice-sent').filter(matchesQ);
   const briefs = live.filter(l =>
     String(l.briefStatus || '').toLowerCase().replace(/_/g, '-') === 'awaiting-robert').filter(matchesQ);
@@ -5679,6 +5945,7 @@ async function V4SendApprovedReply(lead, overrides = {}) {
 // Shared ops_health binding: polls the singleton row, exposes resume() + halt().
 function V4UseOpsHealth() {
   const [health, setHealth] = React.useState(null);
+  const reloadRef = React.useRef(() => {});
   React.useEffect(() => {
     let alive = true;
     const load = () => {
@@ -5687,9 +5954,12 @@ function V4UseOpsHealth() {
       }).then(r => r.ok ? r.json() : []).then(rows => { if (alive) setHealth((rows && rows[0]) || null); })
         .catch(() => {});
     };
+    reloadRef.current = load;
     load();
     const t = setInterval(load, 30000);
-    return () => { alive = false; clearInterval(t); };
+    const onRefresh = () => load();
+    window.addEventListener('v4:refresh-complete', onRefresh);
+    return () => { alive = false; clearInterval(t); window.removeEventListener('v4:refresh-complete', onRefresh); };
   }, []);
   const write = (fields, optimistic) => {
     fetch(V3_SUPABASE_URL + '/rest/v1/ops_health?id=eq.1', {
@@ -5702,7 +5972,8 @@ function V4UseOpsHealth() {
   const resume = () => write({ status: 'ok', halt_reason: '' }, { status: 'ok', halt_reason: '' });
   const halt = () => write({ status: 'halted', halt_reason: 'Halted from the dashboard' },
     { status: 'halted', halt_reason: 'Halted from the dashboard' });
-  return { health, setHealth, resume, halt };
+  const reload = () => reloadRef.current();
+  return { health, setHealth, resume, halt, reload };
 }
 
 function V4MachineRoomConsole({ leads = [], query = '', onOpenLead }) {
@@ -6023,6 +6294,69 @@ function V4OrgApprovalContext(lead) {
   };
 }
 
+function V4PlaintextForCopilot(text) {
+  return V4CleanDisplayText(String(text || '').replace(/<[^>]+>/g, ' '));
+}
+
+function V4BuildCopilotFocusFromOrgans(gateId, lead) {
+  if (!lead || !gateId) return null;
+  const GATE_TITLE = { replies: 'Reply gate', payments: 'Payment gate', briefs: 'Brief gate', posts: 'Post gate' };
+  const context = gateId === 'replies' ? V4OrgApprovalContext(lead) : null;
+  const conflict = gateId === 'replies' ? V4OrgApprovalConflict(lead, context) : '';
+  const draftBody = gateId === 'replies'
+    ? V4PlaintextForCopilot(lead.draftReply?.body || V4OrgApprovalBody(gateId, lead) || '')
+    : V4PlaintextForCopilot(V4OrgApprovalBody(gateId, lead) || '');
+  return {
+    surface: 'organs',
+    view: 'organs',
+    gate: gateId,
+    gateLabel: GATE_TITLE[gateId] || gateId,
+    leadId: lead.id,
+    brand: lead.brand || lead.contactName || 'Lead',
+    contactName: lead.contactName || '',
+    stage: lead.stage || '',
+    email: lead.email || '',
+    source: lead.source || '',
+    xOpenDm: lead.xOpenDm || '',
+    repliedViaX: typeof V3XLeadRepliedViaX === 'function' ? V3XLeadRepliedViaX(lead) : false,
+    why: V4OrgApprovalWhy(gateId, lead),
+    conflict: conflict || null,
+    inbound: context ? {
+      from: context.sender,
+      subject: V4PlaintextForCopilot(context.subject),
+      when: context.when || '',
+      body: V4PlaintextForCopilot(context.body).slice(0, 2200),
+    } : null,
+    draft: gateId === 'replies' ? {
+      subject: V4PlaintextForCopilot(lead.draftReply?.subject || ''),
+      body: draftBody.slice(0, 2800),
+      status: lead.draftReplyStatus || '',
+    } : { body: draftBody.slice(0, 2800), status: lead.draftReplyStatus || '' },
+    agentAssessment: lead.agentAssessment || '',
+    recommendedAction: lead.recommendedAction || '',
+    nextMove: (lead.nextMove && lead.nextMove.text) || '',
+    value: lead.value || null,
+    thread: Array.isArray(lead.thread) ? lead.thread.slice(-5).map(m => ({
+      from: V4PlaintextForCopilot(m.from),
+      subject: V4PlaintextForCopilot(m.subject),
+      body: V4PlaintextForCopilot(m.body).slice(0, 700),
+    })) : [],
+    notes: V4PlaintextForCopilot(lead.notes || lead.operatorSummary?.lead_summary || '').slice(0, 1200),
+  };
+}
+
+function V4SetCopilotFocus(payload) {
+  window.__v4CopilotFocus = payload || null;
+  window.dispatchEvent(new CustomEvent('v4:copilot-focus', { detail: payload || null }));
+}
+
+function V4ClearCopilotFocus(surface) {
+  const current = window.__v4CopilotFocus;
+  if (surface && current && current.surface !== surface) return;
+  window.__v4CopilotFocus = null;
+  window.dispatchEvent(new CustomEvent('v4:copilot-focus', { detail: null }));
+}
+
 function V4OrgApprovalConflict(lead, context) {
   const draft = String(lead?.draftReply?.body || '').toLowerCase();
   const inbound = String(context?.body || '').toLowerCase();
@@ -6161,6 +6495,7 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
   const [selectedIndex, setSelectedIndex] = React.useState(0);
   const [xHealth, setXHealth] = React.useState(null);
   const [xHealthLoaded, setXHealthLoaded] = React.useState(false);
+  const [refreshState, setRefreshState] = React.useState({ status: 'idle', note: '', at: 0 });
   const [sendState, setSendState] = React.useState({ key: '', status: '', error: '' });
   const gates = V4AprComputeGates(leads, query);
   const gmap = {}; gates.forEach(g => { gmap[g.id] = g; });
@@ -6179,17 +6514,39 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
   const GATE_AGENT = { replies: 'Reply Operator', payments: 'Finance Loop', briefs: 'Brief Maker', posts: 'QA Runner' };
   const GATE_TONE = { replies: 'blue', payments: 'gold', briefs: 'purple', posts: 'green' };
 
+  const loadXHealth = React.useCallback(() => {
+    fetch('flow-v4/assets/x_scraper_health.json?v=' + Date.now())
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { setXHealth(data || null); setXHealthLoaded(true); })
+      .catch(() => { setXHealth(null); setXHealthLoaded(true); });
+  }, []);
+
   React.useEffect(() => {
-    let alive = true;
-    const loadXHealth = () => {
-      fetch('flow-v4/assets/x_scraper_health.json?v=' + Date.now())
-        .then(r => r.ok ? r.json() : null)
-        .then(data => { if (alive) { setXHealth(data || null); setXHealthLoaded(true); } })
-        .catch(() => { if (alive) { setXHealth(null); setXHealthLoaded(true); } });
-    };
     loadXHealth();
     const timer = window.setInterval(loadXHealth, 5 * 60 * 1000);
-    return () => { alive = false; window.clearInterval(timer); };
+    const onRefresh = () => loadXHealth();
+    window.addEventListener('v4:refresh-complete', onRefresh);
+    return () => { window.clearInterval(timer); window.removeEventListener('v4:refresh-complete', onRefresh); };
+  }, [loadXHealth]);
+
+  const runRefresh = React.useCallback(async (includeXScrape) => {
+    setRefreshState({ status: 'syncing', note: includeXScrape ? 'Gmail + X scrape + board…' : 'Gmail + board…', at: Date.now() });
+    try {
+      const result = await V4RefreshAllData({ includeXScrape });
+      const patched = Number(result?.gmail?.cards_updated ?? result?.gmail?.threads_patched ?? 0);
+      const created = Number(result?.gmail?.new_cards_written || 0);
+      const xBridgeOk = result?.xBridge?.ok !== false;
+      const parts = ['Board reloaded'];
+      if (created) parts.push(created + ' new');
+      if (patched) parts.push(patched + ' updated');
+      if (includeXScrape && result?.xScrape?.ok) parts.push('X scraped');
+      if (xBridgeOk) parts.push('X bridge synced');
+      setRefreshState({ status: 'ok', note: parts.join(' · '), at: Date.now() });
+    } catch (err) {
+      setRefreshState({ status: 'error', note: err?.message || 'Refresh failed', at: Date.now() });
+    } finally {
+      window.setTimeout(() => setRefreshState(s => (s.status === 'idle' ? s : { ...s, status: 'idle', note: '' })), 5000);
+    }
   }, []);
 
   const totalWaiting = gates.reduce((s, g) => s + g.items.length, 0);
@@ -6237,6 +6594,15 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
   const selectedSendKey = selectedLead && gate.id ? (gate.id + ':' + selectedLead.id) : '';
   const selectedSending = sendState.key === selectedSendKey && sendState.status === 'sending';
   const selectedSendError = sendState.key === selectedSendKey ? sendState.error : '';
+
+  React.useEffect(() => {
+    if (selectedLead && gate.id) {
+      V4SetCopilotFocus(V4BuildCopilotFocusFromOrgans(gate.id, selectedLead));
+    } else {
+      V4ClearCopilotFocus('organs');
+    }
+    return () => V4ClearCopilotFocus('organs');
+  }, [selectedLead?.id, gate?.id, selectedIndex, leads]);
 
   const opsHeartbeat = (health && (health.heartbeat || health.updated_at || health.last_seen_at)) || '';
   const qwenSpend = health ? V4AprNum(health.local_tokens_today) : '—';
@@ -6326,8 +6692,18 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
           <div className="orgx-ctr"><span className="k">Approvals</span><span className="v">{totalWaiting}</span></div>
           <div className="orgx-ctr"><span className="k">Local Qwen</span><span className="v">{qwenSpend}</span></div>
           <div className="orgx-ctr"><span className="k">Claude guard</span><span className="v m">{claudeSpend}</span></div>
+          <button
+            type="button"
+            className={'orgx-refresh' + (refreshState.status === 'syncing' ? ' is-syncing' : '') + (refreshState.status === 'error' ? ' is-error' : '')}
+            title="Refresh Gmail, board, and X intake. Shift+click also runs live X scrape (Chrome must be open)."
+            onClick={(e) => runRefresh(e.shiftKey)}
+            disabled={refreshState.status === 'syncing'}
+          >
+            {refreshState.status === 'syncing' ? 'Refreshing…' : 'Refresh all'}
+          </button>
           <button className="orgx-halt" onClick={halted ? resume : halt}>{halted ? 'Resume' : 'Halt'}</button>
         </div>
+        {refreshState.note ? <div className={'orgx-refresh-note is-' + refreshState.status}>{refreshState.note}</div> : null}
       </div>
 
       <div className="orgx-medic">
@@ -6505,6 +6881,7 @@ function UnalignedCopilot({ leads = [] }) {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState('');
+  const [focus, setFocus] = useState(() => (typeof window !== 'undefined' ? window.__v4CopilotFocus : null) || null);
   const [msgs, setMsgs] = useState([
     { role: 'ai', text: "I'm your line to the whole desk. Ask me anything: who's waiting on a reply, what's unpaid, which leads are hot, what a brand last said, how much is in the pipeline. I'll dig through the live board to answer." },
   ]);
@@ -6512,6 +6889,13 @@ function UnalignedCopilot({ leads = [] }) {
   const bridge = typeof window !== 'undefined' && window.claude && window.claude.complete;
   const label = (typeof window !== 'undefined' && window.claude && window.claude.label) ? window.claude.label() : 'Mac Studio';
   const scrollRef = useRef(null);
+  const focusKey = focus ? `${focus.surface}:${focus.leadId}:${focus.gate}` : '';
+
+  useEffect(() => {
+    const onFocus = (e) => setFocus(e?.detail || window.__v4CopilotFocus || null);
+    window.addEventListener('v4:copilot-focus', onFocus);
+    return () => window.removeEventListener('v4:copilot-focus', onFocus);
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -6562,6 +6946,11 @@ function UnalignedCopilot({ leads = [] }) {
     },
     ops_health: () => health ? { status: health.status || 'ok', halt_reason: health.halt_reason || '',
       local_tokens_today: health.local_tokens_today || 0, claude_spend_today: health.claude_spend_today || 0 } : { available: false },
+    current_focus: () => {
+      const f = (typeof window !== 'undefined' && window.__v4CopilotFocus) || focus || null;
+      if (!f) return { focused: false };
+      return { focused: true, ...f };
+    },
     calendar: async (a) => {
       // Robert's live schedule — same feed the Calendar view uses (Pacific time).
       const TZ = 'America/Los_Angeles';
@@ -6581,7 +6970,7 @@ function UnalignedCopilot({ leads = [] }) {
   };
   const TOOL_LABEL = { board_summary: 'reading the board', search_leads: 'searching leads',
     get_lead: 'pulling the lead', list_pending: 'checking approvals', ops_health: 'checking ops',
-    calendar: "checking Robert's schedule" };
+    current_focus: 'reading the card on screen', calendar: "checking Robert's schedule" };
 
   const SYSTEM =
     "You are the UNALIGNED operator brain, Asher's voice of truth AND his all-around assistant. " +
@@ -6591,15 +6980,25 @@ function UnalignedCopilot({ leads = [] }) {
     "- You are strictly read-only. You never modify, create, delete, send, or schedule anything. You never touch the Mac's files, run shell commands, or change the system. If a request needs that, say plainly you can't and what would be needed.\n" +
     "- Never use hyphens or em dashes. Be direct, concrete, and useful.\n" +
     "- Your world knowledge has a training cutoff and you cannot browse the live web. For breaking news or very recent events, answer what you know and note you can't see live updates. For math, logic, and general knowledge, answer fully and confidently.\n\n" +
+    "SCREEN FOCUS: When CURRENT SCREEN FOCUS is attached, the user is actively reviewing that approval card (often in Organs). Treat it as the primary subject. Help them decide approve vs edit vs deny, critique the draft reply, suggest better wording or structure for Robert/Asher voice, flag stale drafts, and explain the best next step. Call current_focus if you need the full inbound + draft payload.\n\n" +
     "TOOLS — use ONLY when the question needs live UNALIGNED data. To call one, output ONE line that is exactly a JSON object, nothing else:\n" +
     '{"tool":"board_summary"}\n' +
     '{"tool":"search_leads","args":{"query":"heygen"}}\n' +
     '{"tool":"get_lead","args":{"brand":"heygen"}}\n' +
     '{"tool":"list_pending"}\n' +
     '{"tool":"ops_health"}\n' +
+    '{"tool":"current_focus"}\n' +
     '{"tool":"calendar","args":{"range":"today"}}   (range: today | week | omit for yesterday+today+tomorrow)\n\n' +
     "When you can answer (from a tool result OR your own knowledge), reply with: FINAL: <answer>\n" +
     "Only call a tool when it genuinely helps. A general question (math, a definition, advice) should go straight to FINAL.";
+
+  function focusPromptBlock(activeFocus) {
+    if (!activeFocus) return '';
+    let blob = '';
+    try { blob = JSON.stringify(activeFocus); } catch (e) { blob = String(activeFocus); }
+    if (blob.length > 4500) blob = blob.slice(0, 4500) + '…';
+    return '\n\nCURRENT SCREEN FOCUS (user is looking at this card right now):\n' + blob;
+  }
 
   function parseTool(out) {
     if (/FINAL:/i.test(out)) return null;
@@ -6618,11 +7017,12 @@ function UnalignedCopilot({ leads = [] }) {
       return;
     }
     setBusy(true); setStep('thinking');
+    const activeFocus = (typeof window !== 'undefined' && window.__v4CopilotFocus) || focus || null;
     let transcript = '';
     let answer = '';
     try {
       for (let i = 0; i < 6; i++) {
-        const prompt = SYSTEM + '\n\nQUESTION: ' + text + '\n' + transcript +
+        const prompt = SYSTEM + focusPromptBlock(activeFocus) + '\n\nQUESTION: ' + text + '\n' + transcript +
           '\nYour next step (a single tool JSON line, or "FINAL: answer"):';
         const out = String(await window.claude.complete(prompt, { max_tokens: 800 }) || '').trim();
         const call = parseTool(out);
@@ -6636,7 +7036,7 @@ function UnalignedCopilot({ leads = [] }) {
         if (obsStr.length > 2200) obsStr = obsStr.slice(0, 2200) + '…';
         transcript += '\n' + out + '\nOBSERVATION: ' + obsStr;
         if (i === 5) {
-          const fin = SYSTEM + '\n\nQUESTION: ' + text + '\n' + transcript + '\nNow give: FINAL: <answer>';
+          const fin = SYSTEM + focusPromptBlock(activeFocus) + '\n\nQUESTION: ' + text + '\n' + transcript + '\nNow give: FINAL: <answer>';
           answer = String(await window.claude.complete(fin, { max_tokens: 800 }) || '').replace(/^[\s\S]*?FINAL:\s*/i, '').trim();
         }
       }
@@ -6658,6 +7058,14 @@ function UnalignedCopilot({ leads = [] }) {
             <span className="uac-src">{bridge ? label : 'offline'}</span>
             <button className="uac-x" onClick={() => setOpen(false)}>✕</button>
           </div>
+          {focus ? (
+            <div className="uac-focus" key={focusKey}>
+              <span className="uac-focus-label">Focused</span>
+              <strong>{focus.brand}</strong>
+              <span className="uac-focus-meta">{focus.gateLabel}{focus.stage ? ` · ${focus.stage}` : ''}</span>
+              {focus.conflict ? <span className="uac-focus-warn" title={focus.conflict}>Stale draft risk</span> : null}
+            </div>
+          ) : null}
           <div className="uac-log" ref={scrollRef}>
             {msgs.map((m, i) => <div key={i} className={'uac-msg uac-' + m.role}>{m.text}</div>)}
             {busy && <div className="uac-msg uac-ai uac-think">{step ? (step + '…') : 'thinking…'}</div>}
@@ -6667,7 +7075,9 @@ function UnalignedCopilot({ leads = [] }) {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-              placeholder="Ask about any lead, payment, or move…"
+              placeholder={focus
+                ? 'Ask about this draft, formatting, approve or edit…'
+                : 'Ask about any lead, payment, or move…'}
               rows={1}
             />
             <button className="uac-send" disabled={busy || !input.trim()} onClick={send}>↑</button>
@@ -9028,6 +9438,7 @@ function V4NewLeadHasPricingSignal(lead) {
 }
 
 function V4NewLeadWorkflowLabel(lead) {
+  if (V3XLeadRepliedViaX(lead)) return 'Replied via X';
   if (V4NewLeadHasPricingSignal(lead)) return 'Route to pricing';
   return 'Route to scope';
 }
@@ -9189,7 +9600,8 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
                       </div>
                       <div className="new-lead-reason-row">
                         <span className="new-lead-reason">{reason}</span>
-                        <span className={'new-lead-workflow-chip' + (hasPricingSignal ? ' is-pricing' : ' is-scope')}>{workflowLabel}</span>
+                        <span className={'new-lead-workflow-chip' + (V3XLeadRepliedViaX(lead) ? ' is-x-replied' : (hasPricingSignal ? ' is-pricing' : ' is-scope'))}>{workflowLabel}</span>
+                        {kind === 'x' && V3XLeadRepliedViaX(lead) ? <span className="new-lead-x-replied-note">No email — reply was on X</span> : null}
                         {kind === 'x' && lead.xMessageCount ? <span>{lead.xMessageCount} messages</span> : null}
                       </div>
                       {summaryGist ? (
@@ -10136,6 +10548,12 @@ function V4CompanyOsPhaseTag(lead) {
 function V4XLeadContextRows(lead) {
   if (!lead) return [];
   const rows = [];
+  if (V3XLeadRepliedViaX(lead)) {
+    rows.push({
+      label: 'Team reply',
+      value: lead.xLastRobertMessage || 'Robert replied on X — waiting on them.',
+    });
+  }
   if (lead.notes) rows.push({ label: 'Intake summary', value: lead.notes });
   if (lead.evidence && lead.evidence !== lead.notes) rows.push({ label: 'Latest DM', value: lead.evidence });
   if (lead.xBestNextStep) rows.push({ label: 'Best next step', value: lead.xBestNextStep });
@@ -10146,6 +10564,7 @@ function V4XLeadContextRows(lead) {
 
 function V4CompanyOsMailboxOrigin(lead) {
   const source = String(lead?.source || '').toLowerCase();
+  if (source === 'x' || lead?.xOpenDm) return 'x';
   if (source.includes('x-dm-intake') || source.includes('twitter_dm') || source.includes('ingest-twitter_dm')) return 'x';
   if (source.includes('robert-gmail-new-lead') || source.includes('gmail-robert') || source.includes('robert gmail')) return 'robert';
   if (source.includes('asher-gmail') || source.includes('gmail-asher') || source.includes('asher candidate') || source.includes('asher gmail')) return 'asher';
@@ -10717,6 +11136,46 @@ function V4CompanyOsOperator({ activeLead, sender, setSender, recipients, draft,
 
 // PATCH a card in Supabase and update local state optimistically,
 // same pattern as V3MoveLeadStage.
+// Pull fresh Gmail + X bridge data from the Mac, then reload Supabase + intake JSON into memory.
+// Shift+click (includeXScrape) also runs the live X Chrome scrape (~2–5 min, Chrome must be open).
+async function V4RefreshAllData(opts = {}) {
+  const quiet = !!opts.quiet;
+  const includeXScrape = !!opts.includeXScrape;
+  if (window.__v4RefreshRunning) {
+    if (!quiet) return { ok: false, skipped: true, reason: 'refresh already running' };
+    return { ok: false, skipped: true };
+  }
+  window.__v4RefreshRunning = true;
+  if (!quiet) window.dispatchEvent(new CustomEvent('v4:refresh-started', { detail: { includeXScrape } }));
+  const summary = { includeXScrape, gmail: null, xBridge: null, xScrape: null, boardReloaded: false };
+  try {
+    try {
+      const res = await V4BriefServiceFetch('/refresh-dashboard', {
+        method: 'POST',
+        body: JSON.stringify({ include_x_scrape: includeXScrape }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.error || ('Refresh service failed (' + res.status + ')'));
+      }
+      summary.gmail = data.gmail_delta || null;
+      summary.xBridge = data.x_bridge || null;
+      summary.xScrape = data.x_scrape || null;
+    } catch (err) {
+      if (!quiet) console.warn('[ALIGNED v4] Mac refresh unavailable, reloading board only:', err?.message || err);
+    }
+    await V3ReloadLeads({ cacheBust: Date.now() });
+    summary.boardReloaded = true;
+    window.dispatchEvent(new CustomEvent('v4:refresh-complete', { detail: summary }));
+    return { ok: true, ...summary };
+  } catch (err) {
+    window.dispatchEvent(new CustomEvent('v4:refresh-error', { detail: { error: err?.message || String(err) } }));
+    throw err;
+  } finally {
+    window.__v4RefreshRunning = false;
+  }
+}
+
 function V4CosPatchLead(lead, fields, localPatch) {
   const id = lead?.rowId || lead?.id;
   if (!id) return;
@@ -12255,6 +12714,7 @@ function V6ListRow({ lead, title, isCurrent, onClick, style }) {
     >
       <span className={`v6-dot${lead?.unread ? '' : ' off'}`} />
       <span className="v6-brand-t">{brand}</span>
+      {V3XLeadRepliedViaX(lead) ? <span className="v6-x-replied">X replied</span> : null}
       <span className={`v6-src ${V6SourceClass(source)}`}>{source}</span>
       <span className="v6-age" title={ageTitle || undefined}>{age}</span>
       <span className="v6-fact">{fact}</span>
@@ -12316,6 +12776,11 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
           {isXLead && lead.xOpenDm && (
             <button className="cos-quick-btn" type="button" onClick={() => window.open(lead.xOpenDm, '_blank', 'noopener')}>
               Open DM
+            </button>
+          )}
+          {isXLead && !V3XLeadRepliedViaX(lead) && (
+            <button className="cos-quick-btn" type="button" onClick={() => window.V3.MarkRepliedViaX?.(lead)}>
+              Mark replied on X
             </button>
           )}
           {lead.unread && (
@@ -12451,6 +12916,15 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
           <div className="gmail-read-scroll">
             {isXLead ? (
               <div className="cos-reader-stands gmail-read-x-context">
+                {V3XLeadRepliedViaX(lead) && (
+                  <div className="cos-x-replied-banner">
+                    <V3Icon name="network" w={14} />
+                    <div>
+                      <strong>Replied via X</strong>
+                      <span>{lead.xLastRobertMessage || 'Robert already replied in the DM thread. No email thread exists for this lead yet.'}</span>
+                    </div>
+                  </div>
+                )}
                 <div className="cos-operator-strip">
                   <div className="cos-operator-strip-head">
                     <div>
@@ -12528,6 +13002,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
               <div className="v6-rhead fadein">
                 <div className="v6-tags">
                   {(lead.unread || lead.needsReply) && <span className="v6-tag hot">Action now</span>}
+                  {V3XLeadRepliedViaX(lead) && <span className="v6-tag is-x-replied">Replied via X</span>}
                   <span className="v6-tag">{lead.source || 'Lead'}</span>
                   {lead.category && <span className="v6-tag">{lead.category}</span>}
                   {owner && <span className="v6-tag">Owner · {owner.name}</span>}
@@ -13209,6 +13684,7 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
 }
 
 window.V4CompanyOsView = V4CompanyOsView;
+window.V4RefreshAllData = V4RefreshAllData;
 // FLOW v4 — main app shell (refined top bar + view wiring)
 
 const V4_TWEAKS = /*EDITMODE-BEGIN*/{
@@ -13624,7 +14100,8 @@ function V4App() {
     { label: 'View as Robert', hint: 'creator lane', run: () => { setTweak('viewAs', 'robert'); setOpenId(null); } },
     { label: t.theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode', run: () => setTweak('theme', t.theme === 'dark' ? 'light' : 'dark') },
     { label: 'Keyboard shortcuts', hint: '?', run: () => setHelpOpen(true) },
-    { label: 'Refresh data', run: () => window.location.reload() },
+    { label: 'Refresh all data', hint: 'Gmail + board + X intake', run: () => V4RefreshAllData().catch(() => {}) },
+    { label: 'Refresh all + X scrape', hint: 'Shift+Refresh in Organs', run: () => V4RefreshAllData({ includeXScrape: true }).catch(() => {}) },
   ];
 
   return (

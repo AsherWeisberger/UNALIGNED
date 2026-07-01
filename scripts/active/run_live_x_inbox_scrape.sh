@@ -26,4 +26,7 @@ cd "$ROOT"
   --max-irrelevant-streak="${LIVE_X_MAX_IRRELEVANT_STREAK:-25}" \
   --known-stop-streak="${LIVE_X_KNOWN_STOP_STREAK:-3}"
 
+/opt/homebrew/bin/python3 scripts/active/x_bridge.py || true
+echo "X bridge sync complete."
+
 echo "===== $(date) live x inbox scraper end ====="

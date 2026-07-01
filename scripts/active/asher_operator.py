@@ -46,6 +46,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from local_llm import OPERATOR_FRAMEWORK, backend_label, llm_json, no_dashes, resolve_tone  # noqa: E402
 
+_ACTIVE_DIR = Path(__file__).resolve().parent
+if str(_ACTIVE_DIR) not in sys.path:
+    sys.path.insert(0, str(_ACTIVE_DIR))
+from draft_staleness import inbound_needs_payment_ack, should_regenerate_draft  # noqa: E402
+
 POLICY_FILE = ROOT / "scripts" / "active" / "asher_operator_policy.json"
 STATE_DIR = Path.home() / ".config" / "google-credentials"
 MEMORY_FILE = STATE_DIR / "asher_operator_memory.json"
@@ -407,36 +412,8 @@ def deterministic_context_guard(card: dict[str, Any], thread: list[dict[str, Any
 
 
 def stale_pending_draft_conflicts(card: dict[str, Any], thread: list[dict[str, Any]]) -> bool:
-    status = str(card.get("draft_reply_status") or "").lower()
-    if status != "pending" or not card.get("draft_reply"):
-        return False
-    text = thread_stage_text(card, thread, limit=10)
-    draft_text = json.dumps(card.get("draft_reply") or {}, ensure_ascii=False).lower()
-    pricing_draft = re.search(
-        r"\b(rate|pricing|payment terms|send over the invoice|invoice info|happy to move forward|quote)\b",
-        draft_text,
-    )
-    if has_existing_package_signal(text) and pricing_draft:
-        return True
-    paid_execution = re.search(
-        r"\b(payment has been processed|payment processed|payment is processed|paid|invoice paid|"
-        r"payment'?s already cleared|payment has cleared|payment cleared|receipt tomorrow|send the receipt|"
-        r"should reach you|brief with more details|launch is on|launch date|go live|posting window|"
-        r"live link|wrong tag|correct tag|no worries, thanks for the post)\b",
-        text,
-    )
-    if paid_execution and pricing_draft:
-        return True
-    payment_chase_draft = re.search(
-        r"\b(not received payment|have not received payment|haven't received payment|"
-        r"payment.*not.*received|invoice.*not.*paid|issues holding this up|holding this up)\b",
-        draft_text,
-    )
-    if paid_execution and payment_chase_draft:
-        return True
-    if latest_inbound_wait_signal(thread) and pricing_draft:
-        return True
-    return False
+    stale, _reason = should_regenerate_draft(card, thread)
+    return stale
 
 
 def escalation_flags(card: dict[str, Any], stage: str, thread: list[dict[str, Any]], pol: dict[str, Any]) -> list[str]:
@@ -556,6 +533,7 @@ Avoid:
 Reply type: {analysis.get("reply_type") or "follow-up"}
 Reason:
 {analysis.get("reason") or ""}
+{"Payment confirmation inbound: thank them, confirm you will verify payment, move to execution. Do not re-quote rates or re-introduce the deal." if analysis.get("reply_type") == "payment-ack" else ""}
 
 Lead memory:
 {json.dumps(memory_summary, ensure_ascii=False)}
@@ -765,17 +743,21 @@ def main() -> None:
         existing_status = str(card.get("draft_reply_status") or "").lower()
         already_has_draft = existing_status == "pending" and card.get("draft_reply")
         clear_stale_pending = stale_pending_draft_conflicts(card, thread)
+        stale_reason = ""
         if clear_stale_pending:
-            needs_reply = False
-            analysis["needs_reply"] = False
+            _, stale_reason = should_regenerate_draft(card, thread)
+            needs_reply = True
+            analysis["needs_reply"] = True
             analysis["safe_to_auto_send"] = False
-            analysis["reply_type"] = None
-            analysis["reason"] = "Cleared a stale pending pricing draft because this thread is existing package execution, not a new rate request."
+            if inbound_needs_payment_ack(card, thread):
+                reply_type = "payment-ack"
+                analysis["reply_type"] = reply_type
+            analysis["reason"] = f"Replacing stale draft: {stale_reason or 'inbound moved on'}"
             patch["draft_reply"] = None
             patch["draft_reply_status"] = ""
-            patch["new_reply_at"] = None
+            already_has_draft = False
 
-        should_draft = needs_reply and not clear_stale_pending and not (already_has_draft and not card.get("new_reply_at"))
+        should_draft = needs_reply and not (already_has_draft and not card.get("new_reply_at") and not clear_stale_pending)
         if should_draft:
             draft = draft_reply(card, analysis, summary, pol, thread)
             if draft:

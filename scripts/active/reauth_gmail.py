@@ -50,7 +50,23 @@ def backup(path: Path) -> Path | None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--account", choices=sorted(ACCOUNTS), default="asher")
+    parser.add_argument(
+        "--refresh-only",
+        action="store_true",
+        help="Only refresh the existing access token (no browser).",
+    )
     args = parser.parse_args()
+
+    if args.refresh_only:
+        import subprocess
+
+        cmd = [
+            sys.executable,
+            str(ROOT / "scripts/active/refresh_gmail_tokens.py"),
+            "--account",
+            args.account,
+        ]
+        return subprocess.call(cmd)
 
     cfg = ACCOUNTS[args.account]
     token_file: Path = cfg["token_file"]

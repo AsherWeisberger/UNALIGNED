@@ -33,6 +33,19 @@ export USE_LOCAL_CLASSIFIER="${USE_LOCAL_CLASSIFIER:-1}"
 cd "$ROOT"
 echo "LLM backend: ${LLM_BACKEND} (${LOCAL_MODEL})"
 
+# Single drafting pipeline: 5-min orchestrator OR morning daily_pipeline — not both.
+if [ "${OPS_WRITES_ENABLED:-0}" = "1" ]; then
+  export DAILY_PIPELINE_ENABLED="${DAILY_PIPELINE_ENABLED:-0}"
+  echo "Orchestrator writes ON — daily_pipeline disabled unless DAILY_PIPELINE_ENABLED=1"
+else
+  export DAILY_PIPELINE_ENABLED="${DAILY_PIPELINE_ENABLED:-1}"
+fi
+
+/opt/homebrew/bin/python3 scripts/active/pipeline_health.py cron_start || true
+
+# Keep OAuth access tokens warm; Telegram alert if refresh token is dead.
+/opt/homebrew/bin/python3 scripts/active/refresh_gmail_tokens.py --quiet || true
+
 # Each mailbox is independent: a dead/expired token (invalid_grant) logs a warning
 # and skips THAT account only. We do not let one bad token abort the whole run
 # (the old behavior under set -e, which left the board days behind). `if cmd` here
@@ -58,6 +71,11 @@ fi
 
 if [ -f "$ASHER_TOKEN" ]; then
   echo "Using Asher Gmail token for Company OS sync: $ASHER_TOKEN"
+  if GMAIL_TOKEN_FILE="$ASHER_TOKEN" /opt/homebrew/bin/python3 scripts/active/gmail_delta_sync.py; then
+    echo "Asher Gmail delta sync complete."
+  else
+    echo "⚠️  Asher Gmail delta sync failed (continuing to full export)."
+  fi
   if GMAIL_TOKEN_FILE="$ASHER_TOKEN" /opt/homebrew/bin/python3 export_gmail_dump.py \
        --days=14 --out "$ASHER_DUMP" --candidates-out "$ASHER_CANDIDATES"; then
     ASHER_OK=1
@@ -107,6 +125,16 @@ if [ "${LIVE_X_ENABLED:-1}" = "1" ]; then
     --known-stop-streak="${LIVE_X_KNOWN_STOP_STREAK:-3}" \
     >> "$LIVE_X_LOG" 2>&1 || true
   echo "Live X inbox pass complete."
+  /opt/homebrew/bin/python3 scripts/active/x_bridge.py >> "$LIVE_X_LOG" 2>&1 || true
+  echo "X bridge sync complete."
+  if [ "${X_API_SHADOW_ENABLED:-0}" = "1" ]; then
+    echo "Starting X API shadow lane."
+    /opt/homebrew/bin/python3 scripts/active/x_api_dm_shadow_scrape.py \
+      --recent-days="${X_API_SHADOW_RECENT_DAYS:-1}" \
+      --max-pages="${X_API_SHADOW_MAX_PAGES:-3}" >> "$LIVE_X_LOG" 2>&1 || true
+    /opt/homebrew/bin/python3 scripts/active/compare_x_scrape_sources.py >> "$LIVE_X_LOG" 2>&1 || true
+    echo "X API shadow comparison appended to live X log."
+  fi
 fi
 
 if [ "${ROBERT_HANDOFF_ENABLED:-0}" = "1" ]; then
@@ -121,6 +149,10 @@ if [ "${ROBERT_HANDOFF_ENABLED:-0}" = "1" ]; then
 fi
 
 date +"%Y/%m/%d" > "$HOME/.config/google-credentials/scraper_v4_last_run.txt"
+
+export PIPELINE_ROBERT_OK="$ROBERT_OK"
+export PIPELINE_ASHER_OK="$ASHER_OK"
+/opt/homebrew/bin/python3 scripts/active/pipeline_health.py cron_end || true
 
 echo "Codex Gmail dump and existing-thread sync complete."
 echo "Candidates are ready at: $CANDIDATES"

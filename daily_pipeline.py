@@ -32,8 +32,17 @@ import sys
 import httpx
 import anthropic
 from datetime import datetime, timezone
+from pathlib import Path
 
 from lead_blocklist import is_blocked_card
+
+_SCRIPT_ACTIVE = Path(__file__).resolve().parent / "scripts" / "active"
+if str(_SCRIPT_ACTIVE) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_ACTIVE))
+from draft_staleness import (  # noqa: E402
+    inbound_needs_payment_ack,
+    should_regenerate_draft,
+)
 from local_llm import (
     LLM_BACKEND,
     LOCAL_MODEL,
@@ -462,6 +471,16 @@ email/domain, plus the company website and the brand's verified X handle
 - Asks them to spell out exactly what they're proposing
 Friendly but careful, never accusatory. Under 90 words. Sign off with Sam's signature.
 """,
+    "payment-ack": """\
+You are drafting a reply on behalf of Asher Weisberger, Client Services Manager at UNALIGNED \
+(Robert Scoble's tech podcast/media company). The lead just confirmed payment was sent or processed. \
+Write a short professional reply that:
+- Thanks them by name if you know it from the thread
+- Confirms you will verify payment on your side
+- Moves toward execution (brief, deliverables, posting window) without re-quoting rates
+- Does NOT ask them to pay again, send pricing, or re-introduce the collaboration from scratch
+Under 100 words. Sign off as Asher Weisberger, Client Services Manager, Unaligned.
+""",
 }
 
 
@@ -814,6 +833,10 @@ def main():
         reason     = analysis.get("reason", "")
         needs_reply = analysis.get("needs_reply", False)
         reply_type  = analysis.get("reply_type")
+        if inbound_needs_payment_ack(card):
+            needs_reply = True
+            reply_type = "payment-ack"
+            reason = (reason + " Payment confirmation inbound.").strip()
 
         print(f"  → {new_stage} | {reason}")
 
@@ -832,9 +855,20 @@ def main():
             moved.append(f"{name} @ {biz}: {stage} → {new_stage}")
             print(f"  ✓ Moving to {new_stage}")
 
-        # Reply drafting — only if card doesn't already have a pending draft
+        # Reply drafting — regenerate when inbound moved on but an old pending draft remains
         existing_draft_status = card.get("draft_reply_status") or ""
         already_has_draft = existing_draft_status == "pending" and card.get("draft_reply")
+        regenerate, stale_reason = should_regenerate_draft(card) if already_has_draft else (False, "")
+        if regenerate:
+            print(f"  ↻ Stale draft ({stale_reason}) — clearing and redrafting")
+            patch["draft_reply"] = None
+            patch["draft_reply_status"] = ""
+            already_has_draft = False
+            activity_entries.append({
+                "time": datetime.now(timezone.utc).isoformat(),
+                "user": "Daily Pipeline",
+                "action": f"Replaced stale draft: {stale_reason}",
+            })
 
         if needs_reply and reply_type and not already_has_draft:
             final_stage = new_stage if new_stage else stage

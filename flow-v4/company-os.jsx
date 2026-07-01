@@ -475,6 +475,16 @@ const V4_COMPANY_OS_TOOLKIT = [
     note: 'New transactions should flow through Stripe. Older custom invoice history stays preserved locally.',
   },
   {
+    id: 'invoice-maker',
+    title: 'Invoice Maker',
+    status: 'Live',
+    kind: 'Skill',
+    useFor: 'Generate a PDF invoice for any client deal and save it to INVOICES/OUTSTANDING.',
+    trigger: 'Make an invoice. Create invoice for [company].',
+    output: 'PDF saved to Desktop/UNALIGNED/INVOICES/OUTSTANDING',
+    note: 'Handles wire and Stripe payment types. Invoice number auto-sets to today\'s date.',
+  },
+  {
     id: 'calendar-brief-ops',
     title: 'Calendar and Brief Ops',
     status: 'Next',
@@ -837,6 +847,26 @@ function V4QuickStageActions(lead) {
 function senderShortLabel(sender) {
   const map = { asher: 'Asher', robert: 'Robert', sam: 'Sammy' };
   return map[sender] || 'Asher';
+}
+
+const V4_INVOICE_ACTION_URL = 'http://127.0.0.1:8766/generate-invoice';
+
+function V4InvoiceMakerDefaultState() {
+  return {
+    name: '',
+    company: '',
+    email: '',
+    address: '',
+    campaign: '',
+    deliverables: '',
+    amount: '',
+    payment: 'wire',
+  };
+}
+
+function V4InvoiceStripeTotal(amount) {
+  const base = parseFloat(amount) || 0;
+  return base > 0 ? (base * 1.03).toFixed(2) : '';
 }
 
 function V4BriefMakerDefaultState() {
@@ -1651,6 +1681,11 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
   const [calendarStatus, setCalendarStatus] = React.useState('idle');
   const [calendarError, setCalendarError] = React.useState('');
   const [calendarResult, setCalendarResult] = React.useState(null);
+  const [invoiceMakerOpen, setInvoiceMakerOpen] = React.useState(false);
+  const [invoiceForm, setInvoiceForm] = React.useState(() => V4InvoiceMakerDefaultState());
+  const [invoiceStatus, setInvoiceStatus] = React.useState('idle');
+  const [invoiceError, setInvoiceError] = React.useState('');
+  const [invoiceResult, setInvoiceResult] = React.useState(null);
   const briefDebugStage = React.useMemo(() => {
     try {
       const current = new URL(String(window.location?.href || ''));
@@ -2150,6 +2185,58 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     }
   };
 
+  const generateInvoice = async () => {
+    if (!invoiceForm.company) {
+      setInvoiceError('Company name is required.');
+      return;
+    }
+    if (!invoiceForm.deliverables) {
+      setInvoiceError('Deliverables are required.');
+      return;
+    }
+    if (!invoiceForm.amount || parseFloat(invoiceForm.amount) <= 0) {
+      setInvoiceError('A valid amount is required.');
+      return;
+    }
+    setInvoiceStatus('generating');
+    setInvoiceError('');
+    setInvoiceResult(null);
+    try {
+      const payload = {
+        name: invoiceForm.name.trim(),
+        company: invoiceForm.company.trim(),
+        email: invoiceForm.email.trim(),
+        address: invoiceForm.address.trim(),
+        campaign: invoiceForm.campaign.trim(),
+        deliverables: invoiceForm.deliverables.trim(),
+        amount: parseFloat(invoiceForm.amount),
+      };
+      if (invoiceForm.payment === 'stripe') {
+        payload.amount = parseFloat((parseFloat(invoiceForm.amount) * 1.03).toFixed(2));
+        payload.payment_details = 'Pay via Stripe invoice link — link will be sent separately.';
+      }
+      const res = await fetch(V4_INVOICE_ACTION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Invoice generation failed.');
+      setInvoiceResult(data);
+      setInvoiceStatus('done');
+    } catch (err) {
+      setInvoiceStatus('error');
+      setInvoiceError(err.message || 'Invoice generation failed. Is the brief action server running?');
+    }
+  };
+
+  const resetInvoiceForm = () => {
+    setInvoiceForm(V4InvoiceMakerDefaultState());
+    setInvoiceStatus('idle');
+    setInvoiceError('');
+    setInvoiceResult(null);
+  };
+
   const runAction = (action) => {
     if (!action) return;
     if (action.type === 'launch-brief-builder') {
@@ -2158,6 +2245,10 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
         return;
       }
       setBriefMakerOpen(true);
+      return;
+    }
+    if (action.type === 'launch-invoice-maker') {
+      setInvoiceMakerOpen(true);
       return;
     }
     if (action.type === 'open-robert-handoff') {
@@ -2230,6 +2321,14 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
         primaryAction: { type: 'view', view: 'invoices' },
         secondaryLabel: 'Open terms queue',
         secondaryAction: { type: 'split', splitId: 'payment' },
+      };
+    }
+    if (tool.id === 'invoice-maker') {
+      return {
+        ...tool,
+        primaryLabel: 'Open Invoice Maker',
+        primaryAction: { type: 'launch-invoice-maker' },
+        simpleCard: true,
       };
     }
     if (tool.id === 'calendar-brief-ops') {
@@ -2572,6 +2671,156 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {invoiceMakerOpen && (
+        <div className="brief-modal-backdrop" onClick={() => setInvoiceMakerOpen(false)}>
+          <div className="brief-maker-panel" onClick={e => e.stopPropagation()}>
+            <div className="brief-modal-hd">
+              <div>
+                <h2 className="brief-modal-title">Invoice Maker</h2>
+              </div>
+              <div className="brief-modal-hd-actions">
+                <button type="button" className="brief-modal-close" onClick={() => setInvoiceMakerOpen(false)} aria-label="Close invoice maker">
+                  <V3Icon name="x" w={14} />
+                </button>
+              </div>
+            </div>
+            <div className="brief-maker-body">
+              <div className="brief-maker-form">
+                <div className="brief-maker-source-panel">
+                  <div className="brief-maker-field-group">
+                    <label className="brief-maker-label">Company <span style={{color:'#c00'}}>*</span></label>
+                    <input
+                      className="brief-maker-input"
+                      placeholder="e.g. Viture, iMerch.ai"
+                      value={invoiceForm.company}
+                      onChange={e => setInvoiceForm(f => ({ ...f, company: e.target.value }))}
+                    />
+                  </div>
+                  <div className="brief-maker-field-group">
+                    <label className="brief-maker-label">Contact Name</label>
+                    <input
+                      className="brief-maker-input"
+                      placeholder="e.g. Leo Li"
+                      value={invoiceForm.name}
+                      onChange={e => setInvoiceForm(f => ({ ...f, name: e.target.value }))}
+                    />
+                  </div>
+                  <div className="brief-maker-field-group">
+                    <label className="brief-maker-label">Billing Email</label>
+                    <input
+                      className="brief-maker-input"
+                      placeholder="billing@company.com"
+                      value={invoiceForm.email}
+                      onChange={e => setInvoiceForm(f => ({ ...f, email: e.target.value }))}
+                    />
+                  </div>
+                  <div className="brief-maker-field-group">
+                    <label className="brief-maker-label">Billing Address</label>
+                    <input
+                      className="brief-maker-input"
+                      placeholder="123 Main St, City, ST 00000"
+                      value={invoiceForm.address}
+                      onChange={e => setInvoiceForm(f => ({ ...f, address: e.target.value }))}
+                    />
+                  </div>
+                  <div className="brief-maker-field-group">
+                    <label className="brief-maker-label">Campaign / Product</label>
+                    <input
+                      className="brief-maker-input"
+                      placeholder="Optional. Defaults to company name."
+                      value={invoiceForm.campaign}
+                      onChange={e => setInvoiceForm(f => ({ ...f, campaign: e.target.value }))}
+                    />
+                  </div>
+                  <div className="brief-maker-field-group">
+                    <label className="brief-maker-label">Deliverables <span style={{color:'#c00'}}>*</span></label>
+                    <textarea
+                      className="brief-maker-textarea"
+                      rows={4}
+                      placeholder={'1x Quote Repost on X.com|Payment 1 of 2\n\nUse | to separate multiple lines in the PDF.'}
+                      value={invoiceForm.deliverables}
+                      onChange={e => setInvoiceForm(f => ({ ...f, deliverables: e.target.value }))}
+                    />
+                    <div className="brief-maker-hint">Separate multiple lines with <code>|</code></div>
+                  </div>
+                  <div className="brief-maker-field-group">
+                    <label className="brief-maker-label">Amount (USD) <span style={{color:'#c00'}}>*</span></label>
+                    <input
+                      className="brief-maker-input"
+                      type="number"
+                      min="1"
+                      step="0.01"
+                      placeholder="e.g. 1895"
+                      value={invoiceForm.amount}
+                      onChange={e => setInvoiceForm(f => ({ ...f, amount: e.target.value }))}
+                    />
+                  </div>
+                  <div className="brief-maker-field-group">
+                    <label className="brief-maker-label">Payment Method</label>
+                    <div style={{display:'flex', gap:'12px', marginTop:'6px'}}>
+                      <label style={{display:'flex', alignItems:'center', gap:'6px', cursor:'pointer', fontWeight: invoiceForm.payment === 'wire' ? 700 : 400}}>
+                        <input type="radio" name="inv-payment" value="wire" checked={invoiceForm.payment === 'wire'} onChange={() => setInvoiceForm(f => ({ ...f, payment: 'wire' }))} />
+                        Wire (default)
+                      </label>
+                      <label style={{display:'flex', alignItems:'center', gap:'6px', cursor:'pointer', fontWeight: invoiceForm.payment === 'stripe' ? 700 : 400}}>
+                        <input type="radio" name="inv-payment" value="stripe" checked={invoiceForm.payment === 'stripe'} onChange={() => setInvoiceForm(f => ({ ...f, payment: 'stripe' }))} />
+                        Stripe (+3% fee)
+                      </label>
+                    </div>
+                    {invoiceForm.payment === 'stripe' && invoiceForm.amount && parseFloat(invoiceForm.amount) > 0 && (
+                      <div className="brief-maker-hint" style={{marginTop:'6px'}}>
+                        Base ${parseFloat(invoiceForm.amount).toLocaleString('en-US', {minimumFractionDigits:2})} + 3% = <strong>${parseFloat(V4InvoiceStripeTotal(invoiceForm.amount)).toLocaleString('en-US', {minimumFractionDigits:2})}</strong> billed to client
+                      </div>
+                    )}
+                  </div>
+                  {invoiceStatus === 'error' && (
+                    <div className="brief-maker-error">{invoiceError}</div>
+                  )}
+                  {invoiceStatus === 'done' && invoiceResult && (
+                    <div className="brief-maker-result">
+                      <strong>Invoice created.</strong>
+                      <span>{invoiceResult.filename}</span>
+                      <a className="cos-toolkit-btn is-primary" href={invoiceResult.url} target="_blank" rel="noreferrer">Open PDF</a>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <aside className="brief-maker-sidebar">
+                <div className="brief-maker-sidebar-section">
+                  <div className="brief-maker-sidebar-label">Invoice goes to</div>
+                  <div className="brief-maker-sidebar-value" style={{fontSize:'12px', lineHeight:1.7}}>
+                    Desktop/UNALIGNED/<br />INVOICES/OUTSTANDING
+                  </div>
+                </div>
+                <div className="brief-maker-sidebar-section">
+                  <div className="brief-maker-sidebar-label">Invoice number</div>
+                  <div className="brief-maker-sidebar-value">Auto (today&rsquo;s date)</div>
+                </div>
+                <div className="brief-maker-sidebar-section">
+                  <div className="brief-maker-sidebar-label">Wire details</div>
+                  <div className="brief-maker-sidebar-value" style={{fontSize:'11px', lineHeight:1.7}}>
+                    Fifth Third Bank<br />
+                    Samuel Levin<br />
+                    Acct 7934845327<br />
+                    Routing 074908594
+                  </div>
+                </div>
+                <div className="brief-maker-footer-actions" style={{marginTop:'auto'}}>
+                  <button
+                    type="button"
+                    className={'cos-toolkit-btn is-primary' + (invoiceStatus === 'generating' ? ' is-loading' : '')}
+                    disabled={invoiceStatus === 'generating'}
+                    onClick={generateInvoice}
+                  >
+                    {invoiceStatus === 'generating' ? 'Generating...' : 'Generate Invoice'}
+                  </button>
+                  <button type="button" className="cos-toolkit-btn" onClick={resetInvoiceForm}>Reset</button>
+                </div>
+              </aside>
             </div>
           </div>
         </div>

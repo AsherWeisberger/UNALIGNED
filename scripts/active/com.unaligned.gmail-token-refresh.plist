@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.unaligned.gmail-token-refresh</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/python3</string>
+    <string>/Users/asherweisberger/.local/bin/refresh_gmail_tokens.py</string>
+  </array>
+  <key>StartInterval</key>
+  <integer>21600</integer>
+  <key>WorkingDirectory</key>
+  <string>/Users/asherweisberger/Desktop/UNALIGNED/MASTER FILES</string>
+  <key>StandardOutPath</key>
+  <string>/Users/asherweisberger/Library/Logs/unaligned/gmail-token-refresh.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/asherweisberger/Library/Logs/unaligned/gmail-token-refresh.error.log</string>
+</dict>
+</plist>

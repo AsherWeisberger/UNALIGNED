@@ -2482,6 +2482,95 @@ def sync_asher_gmail_now() -> dict:
     return payload
 
 
+def run_active_script(
+    script_name: str,
+    *,
+    extra_args: list[str] | None = None,
+    timeout: int = 120,
+    env_overrides: dict[str, str] | None = None,
+) -> dict:
+    script = ACTIVE_SCRIPTS_DIR / script_name
+    if not script.exists():
+        return {"ok": False, "error": f"Missing script: {script_name}"}
+    brief_log(f"Running {script_name} timeout={timeout}s args={extra_args or []}")
+    result = subprocess.run(
+        [sys.executable, str(script), *(extra_args or [])],
+        cwd=str(WEB_ROOT),
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        env={**os.environ, **(env_overrides or {})},
+    )
+    payload: dict = {"ok": result.returncode == 0, "returncode": result.returncode}
+    stdout = (result.stdout or "").strip()
+    stderr = (result.stderr or "").strip()
+    if stdout:
+        try:
+            payload["data"] = json.loads(stdout)
+        except Exception:
+            payload["stdout"] = stdout[:500]
+    if stderr:
+        payload["stderr"] = stderr[:500]
+    if result.returncode != 0 and not payload.get("error"):
+        payload["error"] = (stderr or stdout or f"{script_name} failed")[:500]
+    brief_log(f"Finished {script_name} ok={payload.get('ok')} rc={result.returncode}")
+    return payload
+
+
+def refresh_dashboard(payload: dict | None = None) -> dict:
+    """Fast dashboard refresh: Gmail delta + optional X scrape + x_bridge."""
+    body = payload if isinstance(payload, dict) else {}
+    include_x_scrape = bool(body.get("include_x_scrape"))
+    out: dict = {"ok": True, "steps": []}
+
+    out["gmail_delta"] = sync_asher_gmail_delta()
+    out["steps"].append("gmail_delta")
+    if out["gmail_delta"].get("ok") is False:
+        out["ok"] = False
+
+    out["stale_draft_sweep"] = run_active_script("refresh_stale_drafts.py", timeout=90)
+    out["steps"].append("stale_draft_sweep")
+    if out["stale_draft_sweep"].get("ok") is False:
+        out["ok"] = False
+
+    out["asher_operator"] = run_active_script(
+        "asher_operator.py",
+        extra_args=["--only-needs-reply"],
+        timeout=int(os.environ.get("ASHER_OPERATOR_REFRESH_TIMEOUT_SEC", "300")),
+        env_overrides={"ASHER_OPERATOR_AUTO_SEND": "false"},
+    )
+    out["steps"].append("asher_operator")
+    if out["asher_operator"].get("ok") is False:
+        out["ok"] = False
+
+    if include_x_scrape:
+        out["x_scrape"] = run_active_script(
+            "live_x_inbox_daily_scrape.py",
+            extra_args=[
+                "--rebuild-intake",
+                "--recent-days=1",
+                "--max-candidates=60",
+                "--max-irrelevant-streak=25",
+                "--known-stop-streak=3",
+            ],
+            timeout=int(os.environ.get("LIVE_X_REFRESH_TIMEOUT_SEC", "600")),
+        )
+        out["steps"].append("x_scrape")
+        if out["x_scrape"].get("ok") is False:
+            out["ok"] = False
+
+    out["x_bridge"] = run_active_script("x_bridge.py", timeout=90)
+    out["steps"].append("x_bridge")
+    if out["x_bridge"].get("ok") is False:
+        out["ok"] = False
+
+    brief_log(
+        "Dashboard refresh finished "
+        f"ok={out.get('ok')} steps={out.get('steps')} include_x_scrape={include_x_scrape}"
+    )
+    return out
+
+
 def sync_asher_gmail_delta() -> dict:
     """Fast Gmail delta sync. Uses Gmail historyId instead of exporting days of mail."""
     script = ACTIVE_SCRIPTS_DIR / "gmail_delta_sync.py"
@@ -3179,6 +3268,180 @@ def load_unaligned_ops_env() -> None:
         os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
+def supabase_rest_headers() -> dict:
+    load_unaligned_ops_env()
+    anon = os.environ.get("SUPABASE_ANON_KEY", "")
+    service = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+    if not anon:
+        raise RuntimeError("SUPABASE_ANON_KEY is missing")
+    return {
+        "apikey": anon,
+        "Authorization": "Bearer " + (service or anon),
+        "Content-Type": "application/json",
+        "Prefer": "return=representation",
+    }
+
+
+def supabase_fetch_cards(query: str) -> list:
+    url = f"https://hbnpwphxjurvtydezwgh.supabase.co/rest/v1/cards?{query}"
+    req = request.Request(url, headers=supabase_rest_headers(), method="GET")
+    with request.urlopen(req, timeout=25) as response:
+        rows = json.loads(response.read().decode("utf-8") or "[]")
+    return rows if isinstance(rows, list) else []
+
+
+def supabase_patch_card(card_id: str, fields: dict) -> dict:
+    url = f"https://hbnpwphxjurvtydezwgh.supabase.co/rest/v1/cards?id=eq.{card_id}"
+    data = json.dumps(fields).encode("utf-8")
+    headers = supabase_rest_headers()
+    req = request.Request(url, data=data, headers=headers, method="PATCH")
+    with request.urlopen(req, timeout=25) as response:
+        rows = json.loads(response.read().decode("utf-8") or "[]")
+    return rows[0] if isinstance(rows, list) and rows else {}
+
+
+def parse_card_description(value) -> dict:
+    if not value:
+        return {}
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except Exception:
+            return {"body": value}
+    return {}
+
+
+def card_to_robert_brief(row: dict) -> dict:
+    desc = parse_card_description(row.get("description"))
+    drafts = desc.get("drafts") or []
+    if not drafts and line(row.get("brief_body")):
+        drafts = [{"label": "Recommended", "text": line(row.get("brief_body"))}]
+    labels = []
+    opts = []
+    for idx, draft in enumerate(drafts[:3]):
+        if isinstance(draft, str):
+            labels.append(f"Option {idx + 1}")
+            opts.append(draft)
+            continue
+        labels.append(line(draft.get("label")) or f"Option {idx + 1}")
+        opts.append(line(draft.get("text")) or line(draft.get("body")) or "")
+    if not opts:
+        fallback = line(row.get("brief_body")) or line(row.get("brief_summary")) or line(row.get("intent"))
+        if fallback:
+            labels = ["Recommended"]
+            opts = [fallback]
+    go_live = line(desc.get("go_live")) or line(row.get("brief_action")) or "Go-live TBD"
+    disc = []
+    if line(desc.get("partner")) or line(row.get("brief_partner")):
+        disc.append(line(desc.get("partner")) or line(row.get("brief_partner")))
+    if line(desc.get("x_handle")):
+        disc.append(line(desc.get("x_handle")))
+    disc.extend(["Paid Partnership"])
+    links = desc.get("links") or row.get("brief_links") or []
+    doc_url = ""
+    if isinstance(links, list):
+        for link in links:
+            if isinstance(link, dict) and "docs.google.com" in line(link.get("url")):
+                doc_url = line(link.get("url"))
+                break
+            if isinstance(link, str) and "docs.google.com" in link:
+                doc_url = link
+                break
+    return {
+        "id": str(row.get("id")),
+        "brand": line(row.get("business_name")) or line(row.get("title")) or "Campaign",
+        "kind": go_live,
+        "disc": [d for d in disc if d],
+        "opts": opts or ["No draft text captured yet."],
+        "labels": labels or ["Recommended"],
+        "doc_url": doc_url,
+        "sent_at": line(row.get("brief_sent_at")) or line(row.get("moved_at")) or line(row.get("updated_at")),
+        "calendar_date": line(desc.get("calendar_date")),
+        "calendar_start": line(desc.get("calendar_start")),
+        "calendar_end": line(desc.get("calendar_end")),
+        "calendar_title": line(desc.get("calendar_title")) or line(row.get("brief_title")) or line(row.get("title")),
+        "description": desc,
+    }
+
+
+def validate_robert_token(token: str) -> bool:
+    expected = get_api_token()
+    if not expected:
+        return True
+    return line(token) == expected
+
+
+def robert_review_queue(token: str) -> dict:
+    if not validate_robert_token(token):
+        raise PermissionError("Invalid review token.")
+    rows = supabase_fetch_cards(
+        "brief_status=eq.awaiting_robert&select=*&order=updated_at.desc&limit=25"
+    )
+    briefs = [card_to_robert_brief(row) for row in rows]
+    return {"ok": True, "briefs": briefs, "count": len(briefs)}
+
+
+def robert_review_decision(payload: dict) -> dict:
+    token = line(payload.get("token"))
+    if not validate_robert_token(token):
+        raise PermissionError("Invalid review token.")
+    card_id = line(payload.get("card_id"))
+    action = line(payload.get("action")).lower()
+    if not card_id or action not in {"approve", "edit", "decline"}:
+        raise ValueError("card_id and action are required.")
+    rows = supabase_fetch_cards(f"id=eq.{card_id}&select=*&limit=1")
+    if not rows:
+        raise ValueError("Brief not found.")
+    row = rows[0]
+    desc = parse_card_description(row.get("description"))
+    brief = card_to_robert_brief(row)
+    now = datetime.now(timezone.utc).isoformat()
+    fields: dict = {}
+    if action == "approve":
+        option_index = int(payload.get("option_index") or 0)
+        chosen = (brief.get("opts") or [""])[max(0, min(option_index, len(brief.get("opts") or []) - 1))]
+        fields["brief_status"] = "approved"
+        fields["brief_body"] = chosen
+        desc["approved_at"] = now
+        desc["approved_option_index"] = option_index
+        desc["approved_text"] = chosen
+        fields["description"] = json.dumps(desc, ensure_ascii=False)
+        calendar_result = None
+        if line(brief.get("calendar_date")):
+            try:
+                calendar_result = create_calendar_hold({
+                    "title": brief.get("calendar_title") or brief.get("brand"),
+                    "calendar_title": brief.get("calendar_title") or brief.get("brand"),
+                    "calendar_date": brief.get("calendar_date"),
+                    "calendar_start": brief.get("calendar_start"),
+                    "calendar_end": brief.get("calendar_end"),
+                    "go_live": brief.get("kind"),
+                    "doc_url": brief.get("doc_url"),
+                    "drafts": [{"text": chosen}],
+                })
+                desc["calendar"] = calendar_result
+                fields["description"] = json.dumps(desc, ensure_ascii=False)
+            except Exception as exc:
+                calendar_result = {"ok": False, "error": str(exc)}
+        updated = supabase_patch_card(card_id, fields)
+        return {"ok": True, "action": action, "card": updated, "calendar": calendar_result, "approved_at": now}
+    if action == "edit":
+        note = line(payload.get("note")) or "Robert requested edits."
+        fields["brief_status"] = "edits_requested"
+        desc["edit_note"] = note
+        desc["edit_requested_at"] = now
+        fields["description"] = json.dumps(desc, ensure_ascii=False)
+        updated = supabase_patch_card(card_id, fields)
+        return {"ok": True, "action": action, "card": updated, "note": note}
+    fields["brief_status"] = "declined"
+    desc["declined_at"] = now
+    fields["description"] = json.dumps(desc, ensure_ascii=False)
+    updated = supabase_patch_card(card_id, fields)
+    return {"ok": True, "action": action, "card": updated}
+
+
 def create_manual_lead_card(card: dict) -> dict:
     load_unaligned_ops_env()
     url = "https://hbnpwphxjurvtydezwgh.supabase.co/rest/v1/cards"
@@ -3484,6 +3747,16 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
                 return
             send_json(self, 200, {"ok": True, "token": token})
             return
+        if parsed.path == "/robert-review-queue":
+            query = parse_qs(parsed.query or "")
+            token = line((query.get("token") or [""])[0])
+            try:
+                send_json(self, 200, robert_review_queue(token))
+            except PermissionError as exc:
+                send_json(self, 401, {"ok": False, "error": str(exc)})
+            except Exception as exc:
+                send_json(self, 400, {"ok": False, "error": str(exc)})
+            return
         file_path = safe_static_path(self.path)
         if file_path is None:
             send_json(self, 404, {"ok": False, "error": "Unknown endpoint."})
@@ -3500,15 +3773,19 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
             "/generate-brief-doc", "/start-brief-job", "/create-calendar-hold",
             "/import-notion-brief", "/import-source-brief", "/draft-robert-handoff",
             "/send-robert-handoff", "/manual-lead-intake", "/complete", "/sync-asher-gmail", "/sync-asher-gmail-delta",
+            "/refresh-dashboard", "/robert-review-decision",
         ):
             send_json(self, 404, {"ok": False, "error": "Unknown endpoint."})
-            return
-        if not require_api_token(self):
-            send_json(self, 401, {"ok": False, "error": "Missing or invalid brief API token."})
             return
         try:
             length = int(self.headers.get("Content-Length", "0"))
             payload = json.loads(self.rfile.read(length).decode("utf-8") or "{}")
+            if path == "/robert-review-decision":
+                send_json(self, 200, robert_review_decision(payload))
+                return
+            if not require_api_token(self):
+                send_json(self, 401, {"ok": False, "error": "Missing or invalid brief API token."})
+                return
             if path == "/complete":
                 send_json(self, 200, complete_local_llm(payload))
                 return
@@ -3517,6 +3794,9 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
                 return
             if path == "/sync-asher-gmail-delta":
                 send_json(self, 200, sync_asher_gmail_delta())
+                return
+            if path == "/refresh-dashboard":
+                send_json(self, 200, refresh_dashboard(payload))
                 return
             if path == "/generate-brief-doc":
                 result = create_brief_doc(payload)

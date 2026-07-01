@@ -39,29 +39,26 @@ BUSINESS_SIGNALS = (
     "paid",
     "pricing",
     "rate",
+    "rates",
     "budget",
-    "invoice",
-    "payment",
-    "promo",
-    "promotion",
-    "feature",
-    "interview",
-    "podcast",
-    "speaker",
-    "speaking",
-    "event",
-    "summit",
-    "conference",
+    "brand deal",
+    "ambassador",
     "demo",
     "product",
+    "platform",
+    "startup",
     "launch",
-    "newsletter",
+    "tool",
+    "agent",
+    "robot",
+    "framework",
+    "software",
+    "saas",
+    "beta",
+    "trial",
+    "integrat",
+    "pilot",
     "customer",
-    "brand",
-    "creator",
-    "media",
-    "press",
-    "coverage",
 )
 
 NON_BUSINESS_SIGNALS = (
@@ -71,6 +68,14 @@ NON_BUSINESS_SIGNALS = (
     "huge fan",
     "hello friend",
     "how are you",
+    "any rts",
+    "retweet",
+    "impressions would be great",
+    "quote tweet",
+    "sent a post",
+    "reacted ",
+    "love your work",
+    "big fan",
 )
 
 GROUP_CHAT_SIGNALS = (
@@ -400,71 +405,132 @@ def close_automated_chrome_profiles() -> None:
         time.sleep(1.0)
 
 
-def ensure_chrome_tabs() -> tuple[int, int]:
-    """Prefer an already logged-in X inbox tab instead of blindly using the
-    front Chrome window. Chrome profiles are not exposed cleanly through
-    AppleScript, so the safest anchor is the visible X messages tab Ash is
-    already logged into.
-    """
-    script = """
+INBOX_ROOT_URL = "https://x.com/i/chat"
+
+
+def is_inbox_root_url(url: str) -> bool:
+    base = (url or "").split("#")[0].rstrip("/")
+    return base in (INBOX_ROOT_URL, "https://twitter.com/i/chat")
+
+
+def is_x_inbox_url(url: str) -> bool:
+    haystack = (url or "").lower()
+    return (
+        "x.com/i/chat" in haystack
+        or "x.com/messages" in haystack
+        or "twitter.com/messages" in haystack
+    )
+
+
+def list_chrome_tabs() -> list[dict]:
+    raw = osa(
+        """
 tell application "Google Chrome"
   if (count of windows) is 0 then make new window
-
-  set inboxWindowIndex to 0
-  set inboxTabIndex to 0
-
+  set out to ""
   repeat with wi from 1 to count of windows
-    set w to window wi
-    repeat with ti from 1 to count of tabs of w
-      set u to URL of tab ti of w
-      if u contains "x.com/i/chat" or u contains "x.com/messages" or u contains "twitter.com/messages" then
-        set inboxWindowIndex to wi
-        set inboxTabIndex to ti
-        exit repeat
-      end if
+    repeat with ti from 1 to count of tabs of window wi
+      set out to out & wi & "|" & ti & "|" & (URL of tab ti of window wi) & linefeed
     end repeat
-    if inboxWindowIndex is not 0 then exit repeat
   end repeat
-
-  if inboxWindowIndex is 0 then
-    repeat with wi from 1 to count of windows
-      set w to window wi
-      repeat with ti from 1 to count of tabs of w
-        set u to URL of tab ti of w
-        if u contains "x.com/" or u contains "twitter.com/" then
-          set inboxWindowIndex to wi
-          set inboxTabIndex to ti
-          exit repeat
-        end if
-      end repeat
-      if inboxWindowIndex is not 0 then exit repeat
-    end repeat
-  end if
-
-  if inboxWindowIndex is 0 then error "No logged-in X tab found in normal Chrome. Open Robert's X account in Chrome, then run the scraper again."
-
-  set w to window inboxWindowIndex
-
-  set index of w to 1
-  set w to front window
-  set active tab index of w to inboxTabIndex
-  set URL of tab inboxTabIndex of w to "https://x.com/i/chat"
-
-  make new tab at end of tabs of w
-  set workerTabIndex to count of tabs of w
-
-  return ((inboxTabIndex as text) & "," & (workerTabIndex as text) & "," & (URL of tab inboxTabIndex of w))
+  return out
 end tell
 """
-    raw = osa(script)
-    parts = [p.strip() for p in raw.split(",", 2)]
-    if len(parts) < 2:
-        raise RuntimeError(f"Could not prepare Chrome X tabs: {raw}")
-    inbox_tab = int(parts[0])
-    worker_tab = int(parts[1])
-    context_url = parts[2] if len(parts) > 2 else ""
-    print(f"Chrome context anchored to tab {inbox_tab}: {context_url}", flush=True)
-    return (inbox_tab, worker_tab)
+    )
+    tabs: list[dict] = []
+    for line in (raw or "").splitlines():
+        parts = line.split("|", 2)
+        if len(parts) != 3:
+            continue
+        try:
+            tabs.append({"window": int(parts[0]), "tab": int(parts[1]), "url": parts[2]})
+        except ValueError:
+            continue
+    return tabs
+
+
+def pick_pinned_inbox_tab(tabs: list[dict], state: dict) -> dict | None:
+    saved_window = int(state.get("pinned_inbox_window") or 0)
+    saved_tab = int(state.get("pinned_inbox_tab") or 0)
+    if saved_window and saved_tab:
+        for tab in tabs:
+            if tab["window"] == saved_window and tab["tab"] == saved_tab and is_x_inbox_url(tab["url"]):
+                return tab
+
+    for tab in tabs:
+        if is_inbox_root_url(tab["url"]):
+            return tab
+
+    for tab in tabs:
+        if is_x_inbox_url(tab["url"]):
+            return tab
+
+    for tab in tabs:
+        haystack = (tab.get("url") or "").lower()
+        if "x.com/" in haystack or "twitter.com/" in haystack:
+            return tab
+    return None
+
+
+def ensure_chrome_tabs(state: dict | None = None) -> tuple[int, int]:
+    """Always anchor on Robert's pinned X inbox tab (https://x.com/i/chat).
+
+    The scraper reuses the saved tab index between runs, prefers the exact inbox
+    root URL over deep-linked chat threads, and keeps thread scraping on a
+    separate worker tab so the pinned inbox tab stays put.
+    """
+    state = state if isinstance(state, dict) else {}
+    tabs = list_chrome_tabs()
+    inbox = pick_pinned_inbox_tab(tabs, state)
+    if not inbox:
+        raise RuntimeError(
+            "No logged-in X tab found in normal Chrome. "
+            "Pin https://x.com/i/chat in Google Chrome while logged in as Robert, then run again."
+        )
+
+    window_index = int(inbox["window"])
+    inbox_tab = int(inbox["tab"])
+    state["pinned_inbox_window"] = window_index
+    state["pinned_inbox_tab"] = inbox_tab
+
+    osa(
+        f"""
+tell application "Google Chrome"
+  activate
+  set index of window {window_index} to 1
+  set w to window {window_index}
+  set active tab index of w to {inbox_tab}
+  set URL of tab {inbox_tab} of w to "{INBOX_ROOT_URL}"
+end tell
+"""
+    )
+
+    worker_tab = 0
+    saved_worker = int(state.get("pinned_worker_tab") or 0)
+    if saved_worker and saved_worker != inbox_tab:
+        for tab in tabs:
+            if tab["window"] == window_index and tab["tab"] == saved_worker:
+                worker_tab = saved_worker
+                break
+
+    if not worker_tab:
+        raw = osa(
+            f"""
+tell application "Google Chrome"
+  set w to window {window_index}
+  make new tab at end of tabs of w
+  return count of tabs of w
+end tell
+"""
+        )
+        worker_tab = int(raw)
+
+    state["pinned_worker_tab"] = worker_tab
+    print(
+        f"Chrome pinned inbox tab {inbox_tab} (window {window_index}) -> {INBOX_ROOT_URL} | worker tab {worker_tab}",
+        flush=True,
+    )
+    return inbox_tab, worker_tab
 
 
 def activate_chrome_tab(tab_index: int) -> tuple[int, int, int, int]:
@@ -699,11 +765,10 @@ def is_business_candidate(candidate: dict, thread: dict | None = None) -> bool:
     if thread:
         text_parts.extend(msg.get("text") or "" for msg in (thread.get("messages") or [])[-8:])
     haystack = " ".join(text_parts).lower()
-    if any(signal in haystack for signal in BUSINESS_SIGNALS):
-        return True
     if any(signal in haystack for signal in NON_BUSINESS_SIGNALS):
-        return False
-    return False
+        if not any(signal in haystack for signal in BUSINESS_SIGNALS):
+            return False
+    return any(signal in haystack for signal in BUSINESS_SIGNALS)
 
 
 def load_state() -> dict:
@@ -779,6 +844,9 @@ def sync_company_os_x_asset() -> None:
                     "alreadyEmailedInRobertGmail": sent_from_robert or str(row.get("Already Emailed In Robert Gmail") or "").upper() == "YES",
                     "summaryForTeam": row.get("Summary For Team", ""),
                     "lastLeadMessage": row.get("Last Lead Message", ""),
+                    "lastSender": row.get("Last Sender", ""),
+                    "lastRobertMessage": row.get("Last Robert Message", ""),
+                    "repliedViaX": str(row.get("Replied Via X") or "").upper() == "YES",
                     "bestNextStep": row.get("Best Next Step", ""),
                     "recommendedOwner": row.get("Recommended Owner", ""),
                     "messageCount": int_or_zero(row.get("Message Count") or 0),
@@ -829,8 +897,8 @@ def main() -> None:
     args = parser.parse_args()
 
     close_automated_chrome_profiles()
-    inbox_tab, worker_tab = ensure_chrome_tabs()
     state = load_state()
+    inbox_tab, worker_tab = ensure_chrome_tabs(state)
     live_contexts = load_live_contexts()
     processed_threads = state["processed_threads"]
     today = datetime.now()
@@ -1001,4 +1069,19 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as exc:
+        failure = {
+            "ran_at": now_iso(),
+            "stop_reason": f"exception:{exc}",
+            "stop_signature": None,
+            "inspected": 0,
+            "relevant_count": 0,
+            "new_threads": 0,
+        }
+        try:
+            write_company_os_x_health(failure)
+        except Exception:
+            pass
+        raise

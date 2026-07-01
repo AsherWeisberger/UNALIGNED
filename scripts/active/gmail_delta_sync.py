@@ -29,6 +29,9 @@ from googleapiclient.errors import HttpError
 
 
 ROOT = Path(__file__).resolve().parents[2]
+ACTIVE_DIR = Path(__file__).resolve().parent
+if str(ACTIVE_DIR) not in sys.path:
+    sys.path.insert(0, str(ACTIVE_DIR))
 ENV_FILE = Path.home() / ".config/google-credentials/unaligned-scraper.env"
 STATE_DIR = Path.home() / ".config/google-credentials"
 CLIENT_SECRET_FILE = Path(os.environ.get("GOOGLE_CLIENT_SECRET_FILE", str(STATE_DIR / "client_secret.json")))
@@ -47,6 +50,9 @@ TEAM_SENDERS = (
     "sam levin",
 )
 INACTIVE_STAGES = {"done", "paid-out", "trash", "dead-leads"}
+
+from draft_staleness import stale_draft_clear_patch
+from x_gmail_merge import pick_cards_for_email_match
 
 
 def load_env() -> None:
@@ -126,7 +132,8 @@ def supabase_patch(card_id: str | int, payload: dict[str, Any]) -> None:
 def load_cards() -> list[dict[str, Any]]:
     wanted = (
         "id,title,contact_name,business_name,email,list_id,gmail_thread_id,"
-        "email_thread,original_email,draft_reply_status,new_reply_at,updated_at"
+        "email_thread,original_email,draft_reply,draft_reply_status,new_reply_at,updated_at,"
+        "lead_source,x_open_dm"
     )
     cards: list[dict[str, Any]] = []
     offset = 0
@@ -405,7 +412,7 @@ def main() -> int:
             addr = str(msg.get("email") or "").lower()
             if not addr or any(team in addr for team in TEAM_SENDERS):
                 continue
-            for card in cards_by_email.get(addr, []):
+            for card in pick_cards_for_email_match(cards_by_email.get(addr, [])):
                 matched[str(card["id"])] = card
         if not matched:
             unknown_threads.append({"thread_id": thread_id, "subject": fresh[-1].get("subject") if fresh else ""})
@@ -422,6 +429,9 @@ def main() -> int:
                 payload["new_reply_at"] = last.get("date") or now_iso()
             elif str(card.get("list_id") or "") not in INACTIVE_STAGES:
                 payload["new_reply_at"] = None
+            stale_patch = stale_draft_clear_patch({**card, **payload}, merged)
+            if stale_patch:
+                payload.update({k: v for k, v in stale_patch.items() if not k.startswith("_")})
             if not args.dry_run:
                 supabase_patch(card["id"], payload)
             touched.append({

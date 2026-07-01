@@ -23,6 +23,13 @@ node_modules/
 extractor/node_modules/
 functions/node_modules/
 
+# Local frontend build output
+dist/
+_site/
+
+# Local Supabase CLI state
+supabase/.temp/
+
 # Generated local data
 data/*.log
 data/backup_*.json
