@@ -47,4 +47,21 @@ for item in dist.iterdir():
     else:
         shutil.copy2(item, dest)
 
+for name in ("flow-v4",):
+    src = root / name
+    dest = site / name
+    if src.exists():
+        if dest.exists():
+            shutil.rmtree(dest)
+        shutil.copytree(
+            src,
+            dest,
+            ignore=shutil.ignore_patterns("*.pyc", "__pycache__"),
+        )
+
+for name in ("favicon.ico", "unaligned_logo.png", ".nojekyll"):
+    src = root / name
+    if src.exists():
+        shutil.copy2(src, site / name)
+
 print(f"build_site_vite.py: wrote _site with {entry_file}")
