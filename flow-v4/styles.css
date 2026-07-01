@@ -5719,6 +5719,109 @@ a { color: inherit; }
 .handoff-preview-row.is-context .handoff-preview-context {
   color: var(--text-2);
 }
+.x-signal-panel {
+  width: min(1120px, calc(100vw - 32px));
+  max-height: min(90vh, 900px);
+}
+.x-signal-result-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.x-signal-result-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid #dbe5f5;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #f7fbff 0%, #fffdf7 100%);
+}
+.x-signal-result-top span:last-child {
+  max-width: 420px;
+  text-align: right;
+  font: 500 12px/1.45 var(--font-body);
+  color: var(--text-2);
+}
+.x-signal-headline {
+  padding: 16px 18px;
+  border: 1px solid #e3e7ef;
+  border-radius: 16px;
+  background: #fff;
+  font: 700 16px/1.35 var(--font-display);
+  color: var(--text);
+}
+.x-signal-ranked-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.x-signal-ranked-card,
+.x-signal-wave-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #e3e7ef;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 14px 36px -32px rgba(17, 32, 51, 0.35);
+}
+.x-signal-ranked-card {
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: start;
+}
+.x-signal-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 64px;
+  border-radius: 14px;
+  background: var(--accent);
+  color: #fff;
+}
+.x-signal-score strong {
+  font: 800 24px/1 var(--font-display);
+}
+.x-signal-score span {
+  font: 700 9px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+.x-signal-ranked-card p,
+.x-signal-wave-card p {
+  margin: 6px 0 0;
+  font: 500 12.5px/1.55 var(--font-body);
+  color: var(--text-2);
+}
+.x-signal-ranked-card a,
+.x-signal-wave-card a {
+  display: inline-flex;
+  margin-top: 8px;
+  font: 700 11px/1 var(--font-body);
+  color: var(--accent);
+  text-decoration: none;
+}
+.x-signal-details {
+  padding: 12px;
+  border: 1px solid #e3e7ef;
+  border-radius: 16px;
+  background: #fbfcff;
+}
+.x-signal-details summary {
+  cursor: pointer;
+  font: 700 12px/1 var(--font-body);
+  color: var(--text);
+}
+.x-signal-details .handoff-preview-copy {
+  margin-top: 12px;
+}
+.x-signal-loading {
+  min-height: 150px;
+  justify-content: center;
+}
 .cos-toolkit-status {
   display: inline-flex;
   align-items: center;

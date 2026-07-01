@@ -1438,6 +1438,78 @@ def enrich_brief_config(config: dict[str, Any]) -> dict[str, Any]:
     return enriched
 
 
+def score_existing_drafts_with_signal(
+    drafts: list[dict[str, Any]],
+    signal: dict[str, Any],
+    *,
+    must_tag: str | None = None,
+) -> list[dict[str, Any]]:
+    """
+    Add relative reach scoring to already-written Robert drafts without rewriting them.
+
+    This is intentionally a stack-quality score, not an impression forecast.
+    It answers: which draft best matches the current X wave for this campaign?
+    """
+    keywords = signal.get("keywords") or {}
+    terms = keywords.get("suggested_keywords") or []
+    top_conversation = signal.get("top_conversation") or []
+    scored: list[dict[str, Any]] = []
+    for idx, item in enumerate(drafts or []):
+        if not isinstance(item, dict):
+            continue
+        draft = dict(item)
+        text = str(draft.get("text") or "")
+        lower = text.lower()
+        if idx == 0 and top_conversation:
+            anchor = top_conversation[0]
+            draft.setdefault("angle", "qrt_reaction")
+            draft.setdefault("anchor", anchor.get("url", ""))
+            draft.setdefault("anchor_eng", anchor.get("engagement", 0))
+        elif "?" in text[:140]:
+            draft.setdefault("angle", "question")
+        elif any(term.lower() in lower[:160] for term in ("wrong", "not ", "myth", "everyone")):
+            draft.setdefault("angle", "contrarian")
+        else:
+            draft.setdefault("angle", "field_demo")
+        if must_tag:
+            draft["_must_tag"] = must_tag
+        _reach_score_draft(draft, terms=terms)
+        draft.pop("_must_tag", None)
+        scored.append(draft)
+    return scored
+
+
+def analyze_partnership_signal(
+    *,
+    brand: str,
+    topic: str,
+    handle: str | None = None,
+    tag: str | None = None,
+    link: str | None = None,
+    hashtags: str | None = None,
+    drafts: list[dict[str, Any]] | None = None,
+    max_results: int = 25,
+) -> dict[str, Any]:
+    client = XClient()
+    signal = partnership_intel(
+        client,
+        brand=brand,
+        topic=topic,
+        handle=handle,
+        must_tag=tag,
+        link=link,
+        hashtags=hashtags,
+        max_results=max_results,
+    )
+    if drafts:
+        signal["scored_existing_drafts"] = score_existing_drafts_with_signal(
+            drafts,
+            signal,
+            must_tag=tag,
+        )
+    return signal
+
+
 def save_brief(brief: dict[str, Any], markdown: str, *, stem: str) -> Path:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")

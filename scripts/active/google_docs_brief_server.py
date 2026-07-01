@@ -1245,6 +1245,112 @@ def merge_draft_payload(base: dict, llm_payload: dict | None) -> dict:
     return merged
 
 
+def should_run_x_signal_for_brief(payload: dict) -> bool:
+    explicit = payload.get("x_signal")
+    if isinstance(explicit, dict) and explicit.get("enabled") is False:
+        return False
+    deliverable = line(payload.get("deliverable_type")).lower()
+    title = line(payload.get("title")).lower()
+    source_text = line(payload.get("source_text")).lower()
+    must = payload.get("must_include") or {}
+    if line(must.get("tag")).startswith("@"):
+        return True
+    haystack = " ".join([deliverable, title, source_text[:1000]])
+    return any(term in haystack for term in ("x.com", "twitter", "qrt", "quote repost", "quote tweet", "amplification x"))
+
+
+def x_signal_payload_for_brief(payload: dict) -> dict | None:
+    if not should_run_x_signal_for_brief(payload):
+        return None
+    must = payload.get("must_include") or {}
+    tag = line(must.get("tag"))
+    handle = tag.lstrip("@") if tag.startswith("@") else ""
+    company = line(payload.get("company_name")) or line(payload.get("title")) or handle or "Campaign"
+    topic = " ".join(
+        item for item in [
+            line(payload.get("deliverable_type")),
+            line(payload.get("core_idea")),
+            line(payload.get("announcement")),
+            company,
+        ] if item
+    )[:240] or company
+    drafts = [
+        {"label": line(item.get("label")), "text": line(item.get("text"))}
+        for item in (payload.get("drafts") or [])
+        if isinstance(item, dict) and line(item.get("text"))
+    ]
+    try:
+        from x_signal_intel import analyze_partnership_signal
+
+        set_brief_job_stage("scoring_reach", "Scoring X reach")
+        brief_log(f"brief-x-signal: analyzing {company}")
+        signal = analyze_partnership_signal(
+            brand=company,
+            topic=topic,
+            handle=handle or None,
+            tag=tag or None,
+            link=line(must.get("link")) or None,
+            hashtags=line(must.get("hashtags")) or None,
+            drafts=drafts,
+            max_results=25,
+        )
+        return signal
+    except Exception as exc:
+        brief_log(f"brief-x-signal: skipped {exc}")
+        return {"ok": False, "error": str(exc)}
+
+
+def attach_x_signal_to_brief_payload(payload: dict) -> dict:
+    signal = x_signal_payload_for_brief(payload)
+    if not signal:
+        return payload
+    enriched = dict(payload)
+    if signal.get("ok") is False:
+        enriched["x_signal_result"] = {"ok": False, "error": line(signal.get("error"))}
+        return enriched
+    scored = signal.get("scored_existing_drafts") or []
+    if scored:
+        existing = list(enriched.get("drafts") or [])
+        by_label = {line(item.get("label")): item for item in scored if isinstance(item, dict)}
+        by_index = [item for item in scored if isinstance(item, dict)]
+        next_drafts = []
+        for idx, draft in enumerate(existing):
+            if not isinstance(draft, dict):
+                continue
+            match = by_label.get(line(draft.get("label"))) or (by_index[idx] if idx < len(by_index) else {})
+            next_item = dict(draft)
+            for key in ("reach_score", "reach_tier", "reach_reason", "anchor", "wave_stack"):
+                if match.get(key) not in (None, ""):
+                    next_item[key] = match.get(key)
+            next_drafts.append(next_item)
+        if next_drafts:
+            enriched["drafts"] = sorted(next_drafts, key=lambda item: int(item.get("reach_score") or 0), reverse=True)
+            top = enriched["drafts"][0]
+            enriched["recommended_reach"] = {
+                "label": line(top.get("label")),
+                "reach_score": top.get("reach_score"),
+                "reach_tier": top.get("reach_tier"),
+                "reach_reason": line(top.get("reach_reason")),
+                "anchor": line(top.get("anchor")),
+            }
+    enriched["x_signal_result"] = {
+        "ok": True,
+        "generated_at": signal.get("generated_at"),
+        "headline": signal.get("headline"),
+        "keywords": (signal.get("keywords") or {}).get("suggested_keywords") or [],
+        "hashtags": (signal.get("keywords") or {}).get("suggested_hashtags") or [],
+        "top_conversation": signal.get("top_conversation") or [],
+        "draft_posts": signal.get("draft_posts") or [],
+        "wording_rules": signal.get("wording_rules") or [],
+        "differentiation_notes": signal.get("differentiation_notes") or [],
+        "scoring_note": (
+            "Reach score is a relative wave-stack index for choosing between drafts. "
+            "It is not an impression forecast."
+        ),
+    }
+    return enriched
+
+
 def clean_sentence(value: str | None) -> str:
     text = line(value)
     if not text:
@@ -2354,6 +2460,7 @@ def build_structured_brief_payload(
         brief_log("brief-facts: using source directly")
     draft_payload = query_local_brief_drafts(source_payload, merged)
     merged = merge_draft_payload(merged, draft_payload)
+    merged = attach_x_signal_to_brief_payload(merged)
     merged["title"] = standardized_brief_title(
         line(merged.get("company_name")) or company,
         line(merged.get("deliverable_type")) or deliverable_type,
@@ -2569,6 +2676,43 @@ def refresh_dashboard(payload: dict | None = None) -> dict:
         f"ok={out.get('ok')} steps={out.get('steps')} include_x_scrape={include_x_scrape}"
     )
     return out
+
+
+def analyze_x_signal_request(payload: dict | None = None) -> dict:
+    body = payload if isinstance(payload, dict) else {}
+    brand = line(body.get("brand"))
+    topic = line(body.get("topic")) or brand
+    if not brand:
+        raise ValueError("Add the company or product name.")
+    drafts = body.get("drafts") or []
+    if isinstance(drafts, str):
+        split = [chunk.strip() for chunk in re.split(r"\n\s*\n(?=Option\s+\d|Draft\s+\d)", drafts) if chunk.strip()]
+        drafts = [{"label": f"Draft {idx + 1}", "text": chunk} for idx, chunk in enumerate(split or [drafts])]
+    if not isinstance(drafts, list):
+        drafts = []
+    try:
+        from x_signal_intel import analyze_partnership_signal
+
+        signal = analyze_partnership_signal(
+            brand=brand,
+            topic=topic,
+            handle=line(body.get("handle")).lstrip("@") or None,
+            tag=line(body.get("tag")) or None,
+            link=line(body.get("link")) or None,
+            hashtags=line(body.get("hashtags")) or None,
+            drafts=drafts,
+            max_results=int(body.get("max_results") or 25),
+        )
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+    return {
+        "ok": True,
+        "signal": signal,
+        "scoring_note": (
+            "Reach score is a relative wave-stack index for choosing between drafts. "
+            "It is not an impression forecast."
+        ),
+    }
 
 
 def sync_asher_gmail_delta() -> dict:
@@ -2793,6 +2937,42 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
         for label_v, url_v in asset_rows:
             push("body", url_v, shaded=True, lead_label=label_v)
 
+    x_signal = payload.get("x_signal_result") or {}
+    recommended_reach = payload.get("recommended_reach") or {}
+    if isinstance(x_signal, dict) and x_signal:
+        push("spacer")
+        push("section_heading", "X Signal")
+        if x_signal.get("ok") is False:
+            push("body", f"X Signal skipped: {line(x_signal.get('error'))}", shaded=True)
+        else:
+            if line(recommended_reach.get("label")):
+                score = recommended_reach.get("reach_score")
+                tier = line(recommended_reach.get("reach_tier"))
+                reason = line(recommended_reach.get("reach_reason"))
+                anchor = line(recommended_reach.get("anchor"))
+                summary = f"Recommended draft: {line(recommended_reach.get('label'))}"
+                if score not in (None, ""):
+                    summary += f" · Reach {score}/100"
+                    if tier:
+                        summary += f" ({tier})"
+                if reason:
+                    summary += f". Why: {reason}"
+                push("body", summary, shaded=True)
+                if anchor:
+                    push("body", anchor, shaded=True, lead_label="Anchor")
+            keywords = [line(item) for item in (x_signal.get("keywords") or []) if line(item)]
+            if keywords:
+                push("body", ", ".join(keywords[:6]), shaded=True, lead_label="Live terms")
+            top_posts = x_signal.get("top_conversation") or []
+            if top_posts:
+                top = top_posts[0] if isinstance(top_posts[0], dict) else {}
+                if top:
+                    post_line = f"@{line(top.get('username'))}: {line(top.get('text'))[:180]}"
+                    if top.get("engagement") not in (None, ""):
+                        post_line = f"{top.get('engagement')} eng · {post_line}"
+                    push("body", post_line, shaded=True, lead_label="Top wave")
+            push("body", line(x_signal.get("scoring_note")) or "Reach score ranks draft fit against the live X wave. It is not an impression forecast.", shaded=True, lead_label="Read this")
+
     drafts = payload.get("drafts") or []
     valid_drafts = [item for item in drafts if isinstance(item, dict) and (line(item.get("label")) or line(item.get("text")))]
     if valid_drafts:
@@ -2805,6 +2985,13 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
         push("blank")
         for idx, draft in enumerate(valid_drafts):
             label = line(draft.get("label"))
+            if draft.get("reach_score") not in (None, ""):
+                reach_meta = f"Reach {draft.get('reach_score')}/100"
+                if line(draft.get("reach_tier")):
+                    reach_meta += f" · {line(draft.get('reach_tier'))}"
+                if line(draft.get("reach_reason")):
+                    reach_meta += f" · {line(draft.get('reach_reason'))}"
+                label = f"{label}. {reach_meta}" if label else reach_meta
             text_value = str(draft.get("text") or "").strip()
             if label:
                 push("draft_label", label, bold=True, shaded=True)
@@ -3773,7 +3960,7 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
             "/generate-brief-doc", "/start-brief-job", "/create-calendar-hold",
             "/import-notion-brief", "/import-source-brief", "/draft-robert-handoff",
             "/send-robert-handoff", "/manual-lead-intake", "/complete", "/sync-asher-gmail", "/sync-asher-gmail-delta",
-            "/refresh-dashboard", "/robert-review-decision",
+            "/refresh-dashboard", "/x-signal-analyze", "/robert-review-decision",
         ):
             send_json(self, 404, {"ok": False, "error": "Unknown endpoint."})
             return
@@ -3797,6 +3984,9 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
                 return
             if path == "/refresh-dashboard":
                 send_json(self, 200, refresh_dashboard(payload))
+                return
+            if path == "/x-signal-analyze":
+                send_json(self, 200, analyze_x_signal_request(payload))
                 return
             if path == "/generate-brief-doc":
                 result = create_brief_doc(payload)

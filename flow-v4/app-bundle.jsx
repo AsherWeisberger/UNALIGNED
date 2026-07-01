@@ -10335,6 +10335,16 @@ const V4_COMPANY_OS_TOOLKIT = [
     note: 'Best for sponsorship launches where Robert needs exact posting instructions, facts, and copy options in under 60 seconds.',
   },
   {
+    id: 'x-signal',
+    title: 'X Signal',
+    status: 'New',
+    kind: 'Signal',
+    useFor: 'Score post drafts against the live X conversation before Robert posts.',
+    trigger: 'Run reach signal. Score these drafts. Find the strongest X angle.',
+    output: 'Relative reach score, live terms, anchor thread, and ranked draft guidance',
+    note: 'This is a wave-stack tool. It helps pick the strongest option right now. It is not an impressions guarantee.',
+  },
+  {
     id: 'manual-lead',
     title: 'Manual Lead Intake',
     status: 'New',
@@ -11417,6 +11427,19 @@ function V4CosBriefBoard({ leads = [] }) {
 
 function V4CosToolkit({ onNavigateView, onActivateSplit }) {
   const [briefMakerOpen, setBriefMakerOpen] = React.useState(false);
+  const [xSignalOpen, setXSignalOpen] = React.useState(false);
+  const [xSignalForm, setXSignalForm] = React.useState({
+    brand: '',
+    topic: '',
+    handle: '',
+    tag: '',
+    link: '',
+    hashtags: '',
+    drafts_text: '',
+  });
+  const [xSignalStatus, setXSignalStatus] = React.useState('idle');
+  const [xSignalError, setXSignalError] = React.useState('');
+  const [xSignalResult, setXSignalResult] = React.useState(null);
   const [handoffPreviewOpen, setHandoffPreviewOpen] = React.useState(false);
   const [handoffPreviewStatus, setHandoffPreviewStatus] = React.useState('idle');
   const [handoffPreviewError, setHandoffPreviewError] = React.useState('');
@@ -11522,6 +11545,9 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
       const current = new URL(String(window.location?.href || ''));
       if (current.searchParams.get('open') === 'brief-maker') {
         setBriefMakerOpen(true);
+      }
+      if (current.searchParams.get('open') === 'x-signal') {
+        setXSignalOpen(true);
       }
       if (current.searchParams.get('open') === 'robert-handoff') {
         setHandoffPreviewOpen(true);
@@ -11758,6 +11784,67 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     setManualLeadStatus('idle');
     setManualLeadError('');
     setManualLeadResult(null);
+  };
+
+  const resetXSignal = () => {
+    setXSignalForm({ brand: '', topic: '', handle: '', tag: '', link: '', hashtags: '', drafts_text: '' });
+    setXSignalStatus('idle');
+    setXSignalError('');
+    setXSignalResult(null);
+  };
+
+  const updateXSignalField = (key, value) => {
+    setXSignalForm(curr => ({ ...curr, [key]: value }));
+    if (xSignalStatus !== 'idle') {
+      setXSignalStatus('idle');
+      setXSignalError('');
+      setXSignalResult(null);
+    }
+  };
+
+  const parseXSignalDrafts = () => {
+    const text = String(xSignalForm.drafts_text || '').trim();
+    if (!text) return [];
+    const chunks = text
+      .split(/\n\s*\n(?=(?:Option|Draft)\s*\d|(?:Option|Draft)\s+[A-Z]|$)/i)
+      .map(item => item.trim())
+      .filter(Boolean);
+    return (chunks.length ? chunks : [text]).map((chunk, idx) => {
+      const lines = chunk.split('\n');
+      const first = String(lines[0] || '').trim();
+      const looksLikeLabel = /^(Option|Draft)\s+/i.test(first) && lines.length > 1;
+      return {
+        label: looksLikeLabel ? first.replace(/[:.]\s*$/, '') : `Draft ${idx + 1}`,
+        text: looksLikeLabel ? lines.slice(1).join('\n').trim() : chunk,
+      };
+    });
+  };
+
+  const runXSignal = async () => {
+    if (!String(xSignalForm.brand || '').trim()) {
+      setXSignalStatus('error');
+      setXSignalError('Add the company or product name first.');
+      return;
+    }
+    setXSignalStatus('running');
+    setXSignalError('');
+    setXSignalResult(null);
+    try {
+      const res = await V4BriefServiceFetch('/x-signal-analyze', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...xSignalForm,
+          drafts: parseXSignalDrafts(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) throw new Error(data.error || 'X Signal failed.');
+      setXSignalResult(data);
+      setXSignalStatus('done');
+    } catch (err) {
+      setXSignalStatus('error');
+      setXSignalError(err.message || 'X Signal failed.');
+    }
   };
 
   const handleManualLeadFile = file => {
@@ -12022,6 +12109,10 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
       setBriefMakerOpen(true);
       return;
     }
+    if (action.type === 'open-x-signal') {
+      setXSignalOpen(true);
+      return;
+    }
     if (action.type === 'open-robert-handoff') {
       setHandoffPreviewOpen(true);
       loadRobertHandoffPreview();
@@ -12060,6 +12151,16 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
         primaryAction: { type: 'open-manual-lead' },
         secondaryLabel: 'Open New Leads',
         secondaryAction: { type: 'view', view: 'new-leads' },
+        simpleCard: true,
+      };
+    }
+    if (tool.id === 'x-signal') {
+      return {
+        ...tool,
+        primaryLabel: 'Run X Signal',
+        primaryAction: { type: 'open-x-signal' },
+        secondaryLabel: 'Open Brief Maker',
+        secondaryAction: { type: 'launch-brief-builder' },
         simpleCard: true,
       };
     }
@@ -12140,7 +12241,13 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
             <div className="cos-toolkit-body">
               {tool.simpleCard ? (
                 <div className="cos-toolkit-simple-copy">
-                  Build a Google Doc brief for Robert from one source link.
+                  {tool.id === 'brief-maker'
+                    ? 'Build a Google Doc brief for Robert from one source link.'
+                    : tool.id === 'x-signal'
+                      ? 'Score drafts against live X momentum before Robert posts.'
+                      : tool.id === 'manual-lead'
+                        ? 'Create a New Lead from pasted text or an iMessage screenshot.'
+                        : tool.useFor}
                 </div>
               ) : (
                 <>
@@ -12369,6 +12476,156 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                 </div>
                 <div className="brief-maker-footer-actions">
                   <button type="button" className="cos-toolkit-btn" onClick={resetBriefForm}>Reset</button>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </div>
+      )}
+      {xSignalOpen && (
+        <div className="brief-modal-backdrop" onClick={() => setXSignalOpen(false)}>
+          <div className="brief-maker-panel x-signal-panel" onClick={e => e.stopPropagation()}>
+            <div className="brief-modal-hd">
+              <div>
+                <div className="brief-maker-hero-kicker">X Signal</div>
+                <h2 className="brief-modal-title">Reach Signal</h2>
+              </div>
+              <div className="brief-modal-hd-actions">
+                <button type="button" className="cos-toolkit-btn" onClick={resetXSignal}>Reset</button>
+                <button type="button" className="brief-modal-close" onClick={() => setXSignalOpen(false)} aria-label="Close X Signal">
+                  <V3Icon name="x" w={14} />
+                </button>
+              </div>
+            </div>
+            <div className="brief-maker-body">
+              <div className="brief-maker-form">
+                <div className="brief-maker-source-panel">
+                  <div className="brief-maker-hero">
+                    <div className="brief-maker-hero-kicker">Wave stack</div>
+                    <h3>Score the post before Robert publishes</h3>
+                    <p>Pull live X conversation data, rank the draft options, and show the strongest current angle.</p>
+                  </div>
+                  <div className="brief-maker-field-grid">
+                    <label className="brief-maker-field">
+                      <span>Company or product</span>
+                      <input className="brief-maker-input" value={xSignalForm.brand} onChange={e => updateXSignalField('brand', e.target.value)} placeholder="Latitude" />
+                    </label>
+                    <label className="brief-maker-field">
+                      <span>X handle</span>
+                      <input className="brief-maker-input" value={xSignalForm.handle} onChange={e => updateXSignalField('handle', e.target.value)} placeholder="@trylatitude" />
+                    </label>
+                  </div>
+                  <label className="brief-maker-field brief-maker-field-wide">
+                    <span>Campaign topic</span>
+                    <input className="brief-maker-input" value={xSignalForm.topic} onChange={e => updateXSignalField('topic', e.target.value)} placeholder="V2 open source launch, agent observability, QRT on X" />
+                  </label>
+                  <div className="brief-maker-field-grid">
+                    <label className="brief-maker-field">
+                      <span>Required tag</span>
+                      <input className="brief-maker-input" value={xSignalForm.tag} onChange={e => updateXSignalField('tag', e.target.value)} placeholder="@trylatitude" />
+                    </label>
+                    <label className="brief-maker-field">
+                      <span>Link</span>
+                      <input className="brief-maker-input" value={xSignalForm.link} onChange={e => updateXSignalField('link', e.target.value)} placeholder="https://latitude.so" />
+                    </label>
+                  </div>
+                  <label className="brief-maker-field brief-maker-field-wide">
+                    <span>Drafts to score (optional)</span>
+                    <textarea
+                      className="brief-maker-input"
+                      value={xSignalForm.drafts_text}
+                      onChange={e => updateXSignalField('drafts_text', e.target.value)}
+                      placeholder={'Option 1. Recommended\\nPaste draft copy here\\n\\nOption 2. Technical angle\\nPaste draft copy here'}
+                      rows={8}
+                    />
+                  </label>
+                  <div className="brief-maker-source-note">
+                    The score is relative. It ranks draft fit against the current X wave. It is not an impression forecast.
+                  </div>
+                  <div className="brief-maker-source-actions">
+                    <button type="button" className="cos-toolkit-btn is-primary" onClick={runXSignal} disabled={xSignalStatus === 'running'}>
+                      {xSignalStatus === 'running' ? 'Reading X...' : 'Run Signal'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <aside className="brief-maker-preview">
+                <div className="brief-maker-server-status">
+                  {xSignalStatus === 'idle' && (
+                    <div className="brief-maker-empty-state">
+                      <strong>Ready</strong>
+                      <span>Add the campaign and drafts. The machine will pull live X context and rank the angles.</span>
+                    </div>
+                  )}
+                  {xSignalStatus === 'running' && (
+                    <div className="brief-maker-loading-card x-signal-loading">
+                      <div className="brief-maker-loading-top">
+                        <strong>Scanning X</strong>
+                        <span>Live signal</span>
+                      </div>
+                      <span className="brief-maker-server-note">Finding live terms, anchor threads, and relative draft strength.</span>
+                    </div>
+                  )}
+                  {xSignalStatus === 'error' && (
+                    <span className="brief-maker-server-error">{xSignalError}</span>
+                  )}
+                  {xSignalStatus === 'done' && xSignalResult && (
+                    <div className="x-signal-result-card">
+                      <div className="x-signal-result-top">
+                        <span className="brief-maker-server-ok">Signal ready.</span>
+                        <span>{xSignalResult.scoring_note}</span>
+                      </div>
+                      {xSignalResult.signal?.headline && (
+                        <div className="x-signal-headline">{xSignalResult.signal.headline}</div>
+                      )}
+                      {(xSignalResult.signal?.scored_existing_drafts || []).length > 0 && (
+                        <div className="x-signal-ranked-list">
+                          <div className="handoff-preview-label">Ranked drafts</div>
+                          {[...(xSignalResult.signal.scored_existing_drafts || [])]
+                            .sort((a, b) => Number(b.reach_score || 0) - Number(a.reach_score || 0))
+                            .map((draft, idx) => (
+                              <section key={`${draft.label || 'draft'}-${idx}`} className="x-signal-ranked-card">
+                                <div className="x-signal-score">
+                                  <strong>{draft.reach_score || 0}</strong>
+                                  <span>{draft.reach_tier || 'Signal'}</span>
+                                </div>
+                                <div>
+                                  <strong>{draft.label || `Draft ${idx + 1}`}</strong>
+                                  <p>{draft.reach_reason || 'No signal reason captured.'}</p>
+                                  {draft.anchor && <a href={draft.anchor} target="_blank" rel="noreferrer">Open anchor thread</a>}
+                                </div>
+                              </section>
+                            ))}
+                        </div>
+                      )}
+                      {(xSignalResult.signal?.keywords?.suggested_keywords || []).length > 0 && (
+                        <div className="handoff-preview-row is-context">
+                          <div className="handoff-preview-label">Live terms</div>
+                          <div className="handoff-preview-context">{xSignalResult.signal.keywords.suggested_keywords.slice(0, 8).join(', ')}</div>
+                        </div>
+                      )}
+                      {(xSignalResult.signal?.top_conversation || []).length > 0 && (
+                        <div className="x-signal-ranked-list">
+                          <div className="handoff-preview-label">Top waves</div>
+                          {(xSignalResult.signal.top_conversation || []).slice(0, 3).map((post, idx) => (
+                            <section key={`${post.url || idx}`} className="x-signal-wave-card">
+                              <strong>{post.engagement || 0} eng · @{post.username || 'unknown'}</strong>
+                              <p>{post.text}</p>
+                              {post.url && <a href={post.url} target="_blank" rel="noreferrer">Open post</a>}
+                            </section>
+                          ))}
+                        </div>
+                      )}
+                      {(xSignalResult.signal?.draft_posts || []).length > 0 && (
+                        <details className="x-signal-details">
+                          <summary>Generated signal options</summary>
+                          {(xSignalResult.signal.draft_posts || []).slice(0, 3).map((draft, idx) => (
+                            <pre key={`${draft.label || 'signal'}-${idx}`} className="handoff-preview-copy">{`${draft.label || `Option ${idx + 1}`}\\nReach ${draft.reach_score || 0}/100 · ${draft.reach_reason || ''}\\n\\n${draft.text || ''}`}</pre>
+                          ))}
+                        </details>
+                      )}
+                    </div>
+                  )}
                 </div>
               </aside>
             </div>
@@ -13353,7 +13610,8 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   React.useEffect(() => {
     try {
       const current = new URL(String(window.location?.href || ''));
-      if (current.searchParams.get('open') === 'brief-maker') {
+      const openTarget = current.searchParams.get('open');
+      if (['brief-maker', 'x-signal', 'manual-lead', 'robert-handoff', 'toolkit'].includes(openTarget)) {
         setSplitId('toolkit');
       }
     } catch (err) {}
