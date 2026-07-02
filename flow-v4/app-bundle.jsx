@@ -2665,12 +2665,13 @@ function V3SenderSignature(sender) {
     'Asher Weisberger',
     'Client Services Manager',
     'Unaligned',
-    'asherunaligned@gmail.com',
+    'AlignedNews.com',
+    'https://unaligned.io',
+    'https://x.com/unalignedX',
   ].join('\n');
 }
 
 function V3SenderSignatureFooter(sender) {
-  if (sender === 'asher') return 'unaligned.io | x.com/unalignedx';
   return '';
 }
 

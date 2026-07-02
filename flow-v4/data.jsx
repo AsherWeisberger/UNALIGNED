@@ -780,8 +780,9 @@ function V3SenderSignature(sender) {
     'Asher Weisberger',
     'Client Services Manager',
     'Unaligned',
-    'asherunaligned@gmail.com',
-    'unaligned.io | x.com/unalignedx',
+    'AlignedNews.com',
+    'https://unaligned.io',
+    'https://x.com/unalignedX',
   ].join('\n');
 }
 
@@ -1500,13 +1501,13 @@ Object.assign(window, { V3SenderForUser, V3SenderName, V3SenderSignature, V3Ensu
 
 // ─── UNALIGNED Tiers (from SINGLE TIER pricing sheet) ────────
 let V3_TIERS = {
-  1: { id: 1, price: 1195, name: 'Retweet',           short: 'RT',         items: ['1 retweet'] },
-  2: { id: 2, price: 1895, name: 'Quote Repost',      short: 'QUOTE',      items: ['1 quote repost', "Robert's original quote (≤3 sentences)"] },
-  3: { id: 3, price: 1995, name: 'Custom X Post',     short: 'CUSTOM X',   items: ['1 custom-written X post'] },
-  4: { id: 4, price: 2495, name: 'Narrative Thread',  short: 'THREAD',     items: ['1 thread (1 + 2 attached)'] },
-  5: { id: 5, price: 2995, name: 'Content Core',      short: 'CORE',       items: ['1 custom X post', '1 LinkedIn post', 'Newsletter feature'] },
-  6: { id: 6, price: 3995, name: 'Growth Bundle',     short: 'GROWTH',     items: ['1 custom X post', '1 LinkedIn post', '1 retweet', 'Newsletter feature'] },
-  7: { id: 7, price: 5995, name: 'Maximum Impact',    short: 'MAX',        items: ['2 custom X posts', '1 LinkedIn post', '2 retweets', 'Newsletter feature', 'Strategy sync'] },
+  1: { id: 1, price: 1295, name: 'Retweet',           short: 'RT',         items: ['1 retweet or repost'] },
+  2: { id: 2, price: 2195, name: 'Quote Repost',      short: 'QUOTE',      items: ['1 quote repost', "Robert's original take"] },
+  3: { id: 3, price: 2495, name: 'Custom X Post',     short: 'CUSTOM X',   items: ['1 custom-written X post'] },
+  4: { id: 4, price: 2995, name: 'Narrative Thread',  short: 'THREAD',     items: ['1 thread (main + 2 replies)'] },
+  5: { id: 5, price: 3495, name: 'Content Core',      short: 'CORE',       items: ['1 custom X post', '1 LinkedIn post', 'Newsletter feature'] },
+  6: { id: 6, price: 4495, name: 'Growth Bundle',     short: 'GROWTH',     items: ['1 custom X post', '1 LinkedIn post', '1 retweet', 'Newsletter feature'] },
+  7: { id: 7, price: 6495, name: 'Maximum Impact',    short: 'MAX',        items: ['2 custom X posts', '1 LinkedIn post', '2 retweets', 'Newsletter feature', 'Strategy sync'] },
 };
 
 const V3_DELIV_TYPES = {
