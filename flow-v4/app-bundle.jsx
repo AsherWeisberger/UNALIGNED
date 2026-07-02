@@ -1094,11 +1094,20 @@ async function V3LoadSupabaseLeads(opts = {}) {
   return leads;
 }
 
+function V3PrefetchHotLeadDetails(leads, limit = 10) {
+  const hot = (Array.isArray(leads) ? leads : [])
+    .filter(l => !l._detailHydrated && l.gmailThreadId)
+    .filter(l => l.needsReply || ['pending', 'review'].includes(String(l.draftReplyStatus || '').toLowerCase()))
+    .slice(0, limit);
+  hot.forEach(lead => V3HydrateLeadDetail(lead).catch(() => {}));
+}
+
 async function V3ReloadLeads(opts = {}) {
   window.dispatchEvent(new CustomEvent('v3:leads-loading'));
   const leads = await V3LoadSupabaseLeads({ cacheBust: opts.cacheBust || Date.now() });
   window.V3.LEADS = leads;
   window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads } }));
+  V3PrefetchHotLeadDetails(leads);
   return leads;
 }
 
@@ -1976,7 +1985,7 @@ function V3NormalizeSupabaseLead(row) {
   const thread = V3ThreadFromRow(row, name, brand, row.list_id);
   const latestThreadDate = V3LatestThreadDate(thread);
   const newReplyAt = V3NormalizeDateForUi(row.new_reply_at);
-  const lastTouchAt = V3MaxTouchAt(latestThreadDate, row.new_reply_at, row.moved_at, received);
+  const lastTouchAt = V3MaxTouchAt(latestThreadDate, row.new_reply_at, row.last_inbound_at, row.updated_at, row.moved_at, received);
   const activityDays = V3DaysSince(lastTouchAt || row.moved_at || received);
   const rawStage = V3NormalizeStage(row.list_id);
   const closedStage = V3NormalizeEmailLeadStage(row.email, rawStage);
@@ -2011,6 +2020,7 @@ function V3NormalizeSupabaseLead(row) {
     timelineDays,
     lastTouch: V3RelativeTime(lastTouchAt || row.moved_at || received),
     lastTouchAt: lastTouchAt || row.moved_at || received || null,
+    lastInboundAt: V3NormalizeDateForUi(row.last_inbound_at) || null,
     receivedAt: received || null,
     newReplyAt: newReplyAt || null,
     needsReply,
@@ -2582,6 +2592,7 @@ function V3LeadActivityTimestamp(lead) {
   if (!lead) return 0;
   return Math.max(
     V3TimestampForUi(lead.lastTouchAt),
+    V3TimestampForUi(lead.lastInboundAt),
     V3TimestampForUi(lead.receivedAt),
     V3TimestampForUi(lead.newReplyAt),
     V3TimestampForUi(lead.briefSentAt),
@@ -2674,6 +2685,25 @@ function V3NextMoveFromRow(stage, name, owner, needsReply, row) {
   return __v3NextMove(stage, name, owner, needsReply);
 }
 
+function V3ThreadFallbackBody(row) {
+  const memory = V3ParseOperatorMemory(row.description);
+  if (memory?.summary) return String(memory.summary).trim();
+  const assessment = String(row.agent_assessment || '').trim();
+  if (assessment) return assessment;
+  const desc = String(row.description || '').trim();
+  if (!desc) return String(row.intent || '').trim();
+  if (desc.startsWith('{') || desc.includes('operator_memory')) {
+    try {
+      const parsed = typeof row.description === 'object' ? row.description : JSON.parse(desc);
+      if (parsed?.operator_memory?.summary) return String(parsed.operator_memory.summary).trim();
+      if (parsed?.x_summary) return String(parsed.x_summary).trim();
+      if (parsed?.last_message) return String(parsed.last_message).trim();
+    } catch (e) {}
+    return '';
+  }
+  return desc;
+}
+
 function V3ThreadFromRow(row, name, brand, stage) {
   const thread = Array.isArray(row.email_thread) ? row.email_thread : (Array.isArray(row.original_email) ? row.original_email : null);
   if (thread && thread.length) {
@@ -2689,12 +2719,16 @@ function V3ThreadFromRow(row, name, brand, stage) {
       replyTo: V3EmailsFromValue(m.reply_to || m.replyTo),
     })).sort((a, b) => V3TimestampForUi(a.date || a.dateIso || a.when) - V3TimestampForUi(b.date || b.dateIso || b.when));
   }
+  if (row.gmail_thread_id) return [];
+  const body = V3ThreadFallbackBody(row);
+  if (!body && !row.intent) return [];
+  const touchAt = V3NormalizeDateForUi(row.last_inbound_at || row.new_reply_at || row.updated_at || row.moved_at || row.created_at);
   return [{
     from: name,
-    when: V3RelativeTime(row.created_at),
-    date: row.created_at || null,
+    when: V3RelativeTime(touchAt),
+    date: touchAt || null,
     subject: row.title || (brand + ' lead'),
-    body: row.description || row.intent || '',
+    body: body || row.intent || '',
     to: V3EmailsFromValue(row.email ? [row.email] : []),
     cc: [],
     replyTo: [],
@@ -5248,6 +5282,7 @@ window.dispatchEvent(new CustomEvent('v3:leads-loading'));
 V3LoadSupabaseLeads().then(leads => {
   window.V3.LEADS = leads;
   window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads, ok: true } }));
+  V3PrefetchHotLeadDetails(leads);
 }).catch(err => {
   console.error('Supabase load failed:', err);
   window.dispatchEvent(new CustomEvent('v3:leads-error', { detail: { error: err?.message || 'Load failed' } }));
@@ -7087,6 +7122,9 @@ function V3GmailThread({ lead }) {
   };
 
   if (!messages.length) {
+    if (!lead?._detailHydrated && lead?.gmailThreadId) {
+      return <div className="gmail-thread-empty">Loading thread from Gmail archive…</div>;
+    }
     return <div className="gmail-thread-empty">No messages in this thread yet.</div>;
   }
 
@@ -12827,11 +12865,14 @@ function V4CompanyOsListSnippet(lead) {
   const latest = Array.isArray(lead.thread) && lead.thread.length ? lead.thread[lead.thread.length - 1] : null;
   const sourceKind = window.V3?.NewLeadSourceKind ? window.V3.NewLeadSourceKind(lead) : 'gmail';
   const deliverables = V4CosIsGenericLeadLabel(lead.deliverables) ? '' : String(lead.deliverables || '');
+  const latestBody = String(latest?.body || '');
+  const latestLooksLikeJson = latestBody.includes('operator_memory') || /^\s*[\[{]/.test(latestBody);
   const summary = sourceKind === 'x' && window.V3?.NewLeadSummary
     ? window.V3.NewLeadSummary(lead)
     : String(
         lead.operatorSummary?.lead_summary ||
-        latest?.body ||
+        lead.agentAssessment ||
+        (!latestLooksLikeJson ? latestBody : '') ||
         latest?.subject ||
         lead.notes ||
         deliverables ||
@@ -15758,7 +15799,7 @@ function V4CosConversationTouchAt(lead) {
   if (!lead) return 0;
   const thread = Array.isArray(lead?.thread) ? lead.thread : [];
   const latestThread = V3LatestThreadDate(thread);
-  const candidates = [lead.newReplyAt, latestThread];
+  const candidates = [lead.newReplyAt, lead.lastInboundAt, latestThread];
   if (thread.length) candidates.push(lead.lastTouchAt);
   if (V3IsXLeadRecord(lead)) candidates.push(lead.xReplyMarkedAt);
   let best = 0;
@@ -17237,6 +17278,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
   const [xDmDraftStatus, setXDmDraftStatus] = React.useState('idle');
   const [xDmCopied, setXDmCopied] = React.useState(false);
   React.useEffect(() => { setTab('thread'); }, [lead?.id]);
+  V3UseLeadDetailHydration(lead);
   React.useEffect(() => {
     setThreadSync({ status: 'idle', note: '' });
     setQuickSend({ status: '', error: '' });
