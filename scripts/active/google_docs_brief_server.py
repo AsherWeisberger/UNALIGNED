@@ -75,6 +75,8 @@ PREFERRED_LOCAL_MODELS = [
 ]
 ALLOWED_ORIGINS = {
     "https://asherweisberger.github.io",
+    "https://agentdashboard.cloud",
+    "https://www.agentdashboard.cloud",
     "https://mac-studio.tail50d3a2.ts.net",
     "http://127.0.0.1:4174",
     "http://localhost:4174",
@@ -83,8 +85,8 @@ ALLOWED_ORIGINS = {
 }
 
 LOCAL_BRIEF_LLM_ENABLED = str(os.environ.get("LOCAL_BRIEF_LLM_ENABLED") or "1").strip().lower() in {"1", "true", "yes", "on"}
-LOCAL_BRIEF_SKIP_FACTS = str(os.environ.get("LOCAL_BRIEF_SKIP_FACTS") or "1").strip().lower() in {"1", "true", "yes", "on"}
-LOCAL_BRIEF_SKIP_DRAFTS = str(os.environ.get("LOCAL_BRIEF_SKIP_DRAFTS") or "1").strip().lower() in {"1", "true", "yes", "on"}
+LOCAL_BRIEF_SKIP_FACTS = str(os.environ.get("LOCAL_BRIEF_SKIP_FACTS") or "0").strip().lower() in {"1", "true", "yes", "on"}
+LOCAL_BRIEF_SKIP_DRAFTS = str(os.environ.get("LOCAL_BRIEF_SKIP_DRAFTS") or "0").strip().lower() in {"1", "true", "yes", "on"}
 LOCAL_BRIEF_LLM_TIMEOUT_SEC = max(15, int(os.environ.get("LOCAL_BRIEF_LLM_TIMEOUT_SEC") or "35"))
 NOTION_BRIEF_CACHE_TTL_SEC = max(60, int(os.environ.get("NOTION_BRIEF_CACHE_TTL_SEC") or "3600"))
 NOTION_CACHE_DIR = STATE_DIR / "notion-brief-cache"
@@ -106,6 +108,7 @@ from robert_handoff_operator import (  # type: ignore
     mark_x_asset_sent as mark_robert_x_asset_sent,
 )
 from x_dm_draft import draft_x_dm_reply_for_lead  # type: ignore
+from brief_draft_rewrite import draft_looks_instructional, ensure_publishable_drafts  # type: ignore
 
 
 BRIEF_JOBS_LOCK = threading.Lock()
@@ -1034,6 +1037,8 @@ Each draft must feel source specific, not templated.
 Do not repeat the same CTA line in every option.
 Use the last sender email context when present to understand what the sponsor emphasized, how they framed the ask, and any delivery constraints.
 
+CRITICAL: If SENDER DEMO CONTEXT below describes what Robert actually built or tested (a heatwave app, a launch page demo, a zip code tool, etc.), that story is the lead for every draft. Do not ignore it. Do not substitute the Notion "example prompt" text instead.
+
 Return exactly this JSON:
 {{
   "why_alignednews": "",
@@ -1055,6 +1060,8 @@ Rules:
 - Default to tight copy: a few short lines per option, not several long paragraphs, unless the deliverable is explicitly a long thread.
 - Option 1 must make a natural tie in to AlignedNews.com. The other options should do that too when it fits.
 - Write like the post is ready to publish right now. No brief notes. No explainer copy. No internal commentary.
+- Never output posting directions, creative briefs, or angle labels like "Example Prompt". Every draft must be finished copy Robert can paste into X.
+- If the sender context describes a demo app or example thread, write the actual post about that demo. Do not tell Robert what to build or how to frame it.
 - Keep the copy punchy and readable. Short paragraphs. Strong first line. Concrete proof points.
 - Avoid generic product-sheet phrasing like "see behaviors" or "this matters because".
 - If you reference AlignedNews.com, do it once, naturally, in Robert's voice. It should feel like a real closing thought, not a slogan.
@@ -1105,7 +1112,7 @@ Angles and accuracy requirements:
 Status notes:
 {status_lines or "- (none provided)"}
 
-Last sender email context:
+SENDER DEMO CONTEXT (what Robert actually tested — lead every draft with this when present):
 {email_context or "(none provided)"}
 
 Source text:
@@ -1250,6 +1257,7 @@ def merge_draft_payload(base: dict, llm_payload: dict | None) -> dict:
         valid_drafts.append({"label": label_value or "Option", "text": text_value})
     if valid_drafts:
         merged["drafts"] = valid_drafts
+        merged["drafts_source"] = "llm_drafts"
     why_alignednews = polish_alignednews_sentence(llm_payload.get("why_alignednews"))
     if why_alignednews and not draft_text_is_lazy(why_alignednews, joined_lines):
         merged["why_alignednews"] = why_alignednews
@@ -1271,11 +1279,27 @@ def should_run_x_signal_for_brief(payload: dict) -> bool:
     deliverable = line(payload.get("deliverable_type")).lower()
     title = line(payload.get("title")).lower()
     source_text = line(payload.get("source_text")).lower()
+    email_context = line(payload.get("email_context")).lower()
     must = payload.get("must_include") or {}
     if line(must.get("tag")).startswith("@"):
         return True
-    haystack = " ".join([deliverable, title, source_text[:1000]])
-    return any(term in haystack for term in ("x.com", "twitter", "qrt", "quote repost", "quote tweet", "amplification x"))
+    haystack = " ".join([deliverable, title, source_text[:1500], email_context[:800]])
+    x_terms = (
+        "x.com",
+        "twitter",
+        "qrt",
+        "quote repost",
+        "quote tweet",
+        "amplification x",
+        "custom x post",
+        "standalone",
+        "narrative thread",
+        "dedicated post",
+        "dedicated thread",
+        " x post",
+        "post on x",
+    )
+    return any(term in haystack for term in x_terms)
 
 
 def parse_agency_constraints(email_context: str) -> dict:
@@ -1356,17 +1380,27 @@ def apply_agency_constraints_to_payload(payload: dict) -> dict:
         merged["max_thread_replies"] = max_replies
     campaign_angles = merged.get("campaign_angles") or []
     if campaign_angles and merged.get("drafts_source") == "notion_angles":
-        must = merged.get("must_include") or {}
-        merged["drafts"] = compose_notion_angle_drafts(
-            campaign_angles,
-            x_post_structure=merged.get("x_post_structure") or [],
-            tag=line(must.get("tag")),
-            hashtags=line(must.get("hashtags")),
-            link=line(must.get("link")),
-            post_format=post_format,
-            max_replies=max_replies,
-        )
-        merged["drafts_source"] = "notion_angles"
+        usable_angles = [angle for angle in campaign_angles if not angle_is_instructional(angle)]
+        if usable_angles:
+            must = merged.get("must_include") or {}
+            joined = line(merged.get("source_text")) + "\n" + line(merged.get("email_context"))
+            merged["drafts"] = [
+                draft
+                for draft in compose_notion_angle_drafts(
+                    usable_angles,
+                    x_post_structure=merged.get("x_post_structure") or [],
+                    tag=line(must.get("tag")),
+                    hashtags=line(must.get("hashtags")),
+                    link=line(must.get("link")),
+                    post_format=post_format,
+                    max_replies=max_replies,
+                )
+                if not draft_text_is_lazy(line(draft.get("text")), joined)
+            ]
+            if merged["drafts"]:
+                merged["drafts_source"] = "notion_angles"
+            else:
+                merged["drafts_source"] = ""
     if constraints.get("standalone_post"):
         go_live = line(merged.get("go_live")).lower()
         conflict_note = (
@@ -1731,6 +1765,12 @@ def infer_x_signal_topic(payload: dict) -> str:
     explicit = line(x_cfg.get("topic"))
     if explicit:
         return explicit[:80]
+    email_context = line(payload.get("email_context"))
+    if email_context and len(email_context) >= 24:
+        # Sender box often names the demo thread or product moment X is discussing right now.
+        short = email_context.split(".")[0].strip()
+        if 12 <= len(short) <= 80 and "example prompt" not in short.lower():
+            return short
     source_text = line(payload.get("source_text"))
     company = line(payload.get("company_name"))
     if re.search(r"brain[\u00b2²2]?", source_text, re.I):
@@ -1738,6 +1778,11 @@ def infer_x_signal_topic(payload: dict) -> str:
     launch_line = infer_campaign_launch_line((payload.get("source_text") or "").splitlines())
     if launch_line:
         short = launch_line.split(".")[0].strip()
+        if 8 <= len(short) <= 72:
+            return short
+    core = line(payload.get("core_idea"))
+    if core:
+        short = core.split(".")[0].strip()
         if 8 <= len(short) <= 72:
             return short
     return company or "Campaign"
@@ -1763,7 +1808,7 @@ def x_signal_payload_for_brief(payload: dict) -> dict | None:
     company = line(payload.get("company_name")) or line(payload.get("title")) or "Campaign"
     handle = infer_x_signal_handle(payload, tag=tag, company=company) or None
     topic = infer_x_signal_topic(payload)
-    joined = line(payload.get("source_text"))
+    joined = line(payload.get("source_text")) + "\n" + line(payload.get("email_context"))
     drafts = [
         {"label": line(item.get("label")), "text": line(item.get("text"))}
         for item in (payload.get("drafts") or [])
@@ -1796,13 +1841,13 @@ def x_signal_payload_for_brief(payload: dict) -> dict | None:
 
 def drafts_need_x_signal(drafts: list[dict], joined_lines: str) -> bool:
     valid = [item for item in (drafts or []) if isinstance(item, dict) and line(item.get("text"))]
-    if any(isinstance(item, dict) and item.get("brief_angle") for item in valid):
-        return False
     if len(valid) < 2:
         return True
-    if any(draft_text_is_lazy(line(item.get("text")), joined_lines) for item in valid):
-        return True
     lazy_count = sum(1 for item in valid if draft_text_is_lazy(line(item.get("text")), joined_lines))
+    if lazy_count:
+        return True
+    if any(isinstance(item, dict) and item.get("brief_angle") for item in valid):
+        return False
     return lazy_count >= max(1, len(valid) - 1)
 
 
@@ -2251,6 +2296,41 @@ def resolve_post_format(
     return "custom_post", 0
 
 
+ANGLE_INSTRUCTION_MARKERS = (
+    "example prompt",
+    "workflow walkthrough",
+    "screen recording",
+    "show a screenshot",
+    "expand the hook",
+    "your real workflow",
+    "personal demo",
+    "use it for a",
+    "walk through",
+    "add your proof",
+)
+
+
+def angle_is_instructional(angle: dict) -> bool:
+    hook = line(angle.get("hook") or "")
+    title = line(angle.get("title") or "")
+    thread = line(angle.get("thread") or "")
+    combined = f"{title} {hook} {thread}".lower()
+    if any(marker in combined for marker in ANGLE_INSTRUCTION_MARKERS):
+        return True
+    if draft_text_is_brief_instruction(combined):
+        return True
+    if title and not hook and not thread:
+        if re.search(r"\b(example|demo|walkthrough|prompt|format|structure)\b", title, re.I):
+            return True
+    return False
+
+
+def angle_thread_sentences(value: str, count: int = 2) -> str:
+    current = clean_sentence(value)
+    parts = [line(part) for part in re.split(r"(?<=[.!?])\s+", current) if line(part)]
+    return " ".join(parts[:count]).strip()
+
+
 def compose_angle_standalone_draft(
     angle: dict,
     *,
@@ -2259,7 +2339,11 @@ def compose_angle_standalone_draft(
     link: str = "",
 ) -> str:
     """Custom X Post: one copy-paste tweet. Link goes in a separate reply on X."""
+    if angle_is_instructional(angle):
+        return ""
     hook = strip_quoted_copy(angle.get("hook") or "") or line(angle.get("title"))
+    if draft_looks_instructional(hook):
+        return ""
     footer_parts = [part for part in (tag, hashtags) if part]
     footer = " ".join(footer_parts).strip()
     main_post = f"{hook} {footer}".strip() if footer else hook
@@ -2282,10 +2366,13 @@ def compose_angle_thread_draft(
         return compose_angle_standalone_draft(angle, tag=tag, hashtags=hashtags, link=link)
 
     hook = strip_quoted_copy(angle.get("hook") or "") or line(angle.get("title"))
-    context = angle_context_reply(angle)
-    reveal = "Brain² is what made this possible. Your context. Every frontier model. One subscription."
-    social = "Add your proof: saved X hours, replaced Y tools, or a team reaction screenshot."
-    cta_note = f"Post the link in a reply to this thread: {link or 'clickup.com/brain'}"
+    thread_text = line(angle.get("thread") or "")
+    structure = line(angle.get("structure") or "")
+    examples = [line(item) for item in (angle.get("examples") or []) if line(item)]
+    context = angle_thread_sentences(thread_text or structure, 2) or angle_context_reply(angle)
+    reveal = angle_thread_sentences(thread_text, 2) or angle_thread_sentences(structure, 2) or context
+    social = first_nonempty(examples[0] if examples else "", angle_thread_sentences(structure, 1), "")
+    cta_note = f"Post the link in a reply to this thread: {link}" if link else ""
 
     footer_parts = [part for part in (tag, hashtags) if part]
     footer = " ".join(footer_parts).strip()
@@ -2320,18 +2407,21 @@ def compose_notion_angle_drafts(
         label = " ".join(label_bits).strip()
         if idx == 1:
             label = f"{label} (recommended)"
+        text = compose_angle_thread_draft(
+            angle,
+            tag=tag,
+            hashtags=hashtags,
+            link=link,
+            x_post_structure=x_post_structure,
+            post_format=post_format,
+            max_replies=max_replies,
+        )
+        if not line(text) or draft_looks_instructional(text):
+            continue
         drafts.append(
             {
                 "label": label,
-                "text": compose_angle_thread_draft(
-                    angle,
-                    tag=tag,
-                    hashtags=hashtags,
-                    link=link,
-                    x_post_structure=x_post_structure,
-                    post_format=post_format,
-                    max_replies=max_replies,
-                ),
+                "text": text,
                 "brief_angle": angle.get("number"),
                 "ideal_for": line(angle.get("ideal_for")),
             }
@@ -2476,7 +2566,14 @@ BRIEF_INSTRUCTION_MARKERS = (
     "this is your take",
     "not a response to anyone else",
     "use it for a personal demo",
+    "example prompt",
     "workflow walkthrough",
+    "expand the hook",
+    "your real workflow",
+    "show a screen recording",
+    "show a screenshot",
+    "walk through",
+    "add your proof",
     "bold opinion about what",
     "amplification play",
     "your job is to send",
@@ -2574,6 +2671,18 @@ def draft_text_is_lazy(value: str, joined_lines: str) -> bool:
         "made with ai toggle",
     )
     if sum(1 for phrase in generic_phrases if phrase in lowered) >= 3:
+        return True
+    client_slop = (
+        "hi, welcome to try",
+        "welcome to try and share",
+        "private beta",
+        "beta code we provide",
+        "keep everything confidential",
+        "early product ambassadors",
+        "goal to team to result",
+        "create an ai product launch page for indie developers",
+    )
+    if any(item in lowered for item in client_slop):
         return True
     return False
 
@@ -2940,6 +3049,8 @@ def build_structured_brief_payload(
     ]
     summary = " ".join(intro_lines[:4]).strip()
     joined_lines = "\n".join(lines)
+    if line(email_context):
+        joined_lines = f"{joined_lines}\n\nSender context:\n{line(email_context)}"
     context_for_platform = " ".join([title, campaign_line, go_live_line, guardrails_line, summary, joined_lines[:900]])
     campaign_platform = infer_campaign_platform(context_for_platform, email_context)
 
@@ -3244,9 +3355,10 @@ def build_structured_brief_payload(
         agency_constraints=agency_preview,
         deliverable_type=deliverable_type,
     )
+    usable_part2_angles = [angle for angle in part2_angle_choices if not angle_is_instructional(angle)]
     notion_angle_drafts = (
         compose_notion_angle_drafts(
-            part2_angle_choices,
+            usable_part2_angles,
             x_post_structure=x_post_structure,
             tag=company_handle,
             hashtags=hashtags,
@@ -3254,9 +3366,15 @@ def build_structured_brief_payload(
             post_format=preview_format,
             max_replies=preview_max_replies,
         )
-        if part2_angle_choices
+        if usable_part2_angles
         else []
     )
+    if notion_angle_drafts:
+        notion_angle_drafts = [
+            draft
+            for draft in notion_angle_drafts
+            if not draft_text_is_lazy(line(draft.get("text")), joined_lines)
+        ]
 
     if any(term in joined_lines.lower() for term in ("user-generated agents", "user generated agents", "(uga)", "survival benchmark", "juno")):
         draft_one = build_thread_draft(
@@ -3439,7 +3557,7 @@ def build_structured_brief_payload(
             "hashtags": hashtags,
         },
         "source_url": source_url,
-        "source_text": "\n".join(lines[:350]),
+        "source_text": joined_lines[:3500],
         "source_label": source_label,
     }
     if submit_url:
@@ -3474,6 +3592,7 @@ def build_structured_brief_payload(
     merged = attach_x_signal_to_brief_payload(merged, joined_lines=joined_lines)
     merged = apply_agency_constraints_to_payload(merged)
     merged = polish_robert_drafts(finalize_drafts_for_agency(merged))
+    merged = ensure_publishable_drafts(merged)
     merged["title"] = standardized_brief_title(
         company_name,
         line(merged.get("deliverable_type")) or deliverable_type,
@@ -3917,24 +4036,37 @@ def split_doc_paragraphs(value: str) -> list[str]:
 
 
 def split_draft_paragraphs(value: str) -> list[str]:
-    normalized = str(value or "").replace("\u000b", "\n").replace("\r\n", "\n")
+    from brief_draft_rewrite import normalize_thread_sections_text
+
+    normalized = normalize_thread_sections_text(str(value or "").replace("\u000b", "\n").replace("\r\n", "\n"))
+    if re.search(r"(?im)^Main post:\s*", normalized):
+        blocks = [item.strip() for item in re.split(r"\n\s*(?=Main post:|Reply\s+\d+:)", normalized) if item.strip()]
+        cleaned: list[str] = []
+        for block in blocks:
+            block_lines = [line(item) for item in block.splitlines() if line(item)]
+            if not block_lines:
+                continue
+            header_match = re.match(r"(?i)^(Main post|Reply\s+\d+):\s*(.*)$", block_lines[0])
+            if header_match:
+                header = header_match.group(1)
+                first_body = line(header_match.group(2))
+                rest = [item for item in block_lines[1:] if item]
+                body_parts = [part for part in ([first_body] if first_body else []) + rest if part]
+                body = " ".join(body_parts).strip()
+                cleaned.append(f"{header}:\n{body}".strip() if body else f"{header}:")
+                continue
+            cleaned.append("\n".join(block_lines).strip())
+        return cleaned or [normalized]
+
     groups = [item.strip() for item in re.split(r"\n\s*\n+", normalized) if item.strip()]
-    cleaned: list[str] = []
-    for group in groups:
-        lines = [line(item) for item in group.splitlines()]
-        if not any(lines):
-            continue
-        if len(lines) >= 2 and re.match(r"^(Main post|Reply \d+):$", lines[0], re.I):
-            body = " ".join(item for item in lines[1:] if item)
-            cleaned.append(f"{lines[0]}\n{body}".strip())
-            continue
-        cleaned.append("\n".join(item for item in lines if item).strip())
-    return cleaned
+    return groups or ([normalized] if normalized else [])
 
 
 def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
-    payload = polish_robert_drafts(
-        finalize_drafts_for_agency(apply_agency_constraints_to_payload(dict(payload)))
+    payload = ensure_publishable_drafts(
+        polish_robert_drafts(
+            finalize_drafts_for_agency(apply_agency_constraints_to_payload(dict(payload)))
+        )
     )
     blocks: list[dict] = []
 

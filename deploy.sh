@@ -9,7 +9,7 @@ if [ -z "$branch" ]; then
 fi
 
 echo "=== Committing and pushing to GitHub Pages branch: ${branch} ==="
-git add index.html 404.html flow-v4.html aligned.html firebase.json feedback.html connect.html scope.html unaligned_logo.png favicon.ico robert-review.html flow-v4 functions
+git add index.html 404.html flow-v4.html aligned.html firebase.json feedback.html connect.html scope.html CNAME unaligned_logo.png favicon.ico robert-review.html flow-v4 functions
 if [ -d assets/docs ]; then
   git add assets/docs
 fi
@@ -22,5 +22,6 @@ firebase deploy --only hosting,functions:sendEmail,functions:collabFeedback,func
 
 echo ""
 echo "=== Done ==="
-echo "GitHub Pages: https://asherweisberger.github.io/UNALIGNED/"
+echo "GitHub Pages: https://agentdashboard.cloud/"
+echo "Legacy URL:   https://asherweisberger.github.io/UNALIGNED/"
 echo "Firebase:     https://unaligned-fc556.firebaseapp.com"

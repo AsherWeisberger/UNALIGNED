@@ -1071,14 +1071,13 @@ async function V3HydrateLeadDetail(lead, opts = {}) {
 function V3UseLeadDetailHydration(lead) {
   React.useEffect(() => {
     if (!lead?.id || lead._detailHydrated) return;
-    if (Array.isArray(lead.thread) && lead.thread.length > 0) return;
     if (!lead.gmailThreadId && !lead.email) return;
     let cancelled = false;
     V3HydrateLeadDetail(lead).catch(err => {
       if (!cancelled) console.warn('[ALIGNED v4] lead detail hydrate failed:', err);
     });
     return () => { cancelled = true; };
-  }, [lead?.id, lead?._detailHydrated, lead?.gmailThreadId, lead?.email, lead?.thread?.length]);
+  }, [lead?.id, lead?._detailHydrated, lead?.gmailThreadId, lead?.email]);
 }
 
 const V3_BOARD_CACHE_KEY = 'v3-board-leads-cache-v1';
@@ -2171,7 +2170,10 @@ function V3NormalizeSupabaseLead(row) {
   const stage = closedStage;
   const daysInStage = V3DaysSince(row.moved_at || received);
   const followUpDue = V3LeadFollowUpDue(row, thread, stage, activityDays);
-  const needsReply = Boolean(row.new_reply_at) || row.draft_reply_status === 'pending' || stage === 'new' || followUpDue;
+  const pendingDraft = String(row.draft_reply_status || '').toLowerCase() === 'pending';
+  const latestMsg = thread.length ? thread[thread.length - 1] : null;
+  const teamRepliedLast = latestMsg && V3IsTeamParticipant(latestMsg.from);
+  const needsReply = Boolean(row.new_reply_at) || (pendingDraft && !teamRepliedLast) || stage === 'new' || followUpDue;
   const ownerId = V3NormalizeOwner(row.assignee || row.created_by);
   const value = V3ParseMoney(row.estimated_value);
   const category = V3CategoryFromRow(row);
@@ -2864,9 +2866,19 @@ function V3NextMoveFromRow(stage, name, owner, needsReply, row) {
   return __v3NextMove(stage, name, owner, needsReply);
 }
 
+function V3OperatorSummaryText(summary) {
+  if (!summary) return '';
+  if (typeof summary === 'string') return summary.trim();
+  if (typeof summary === 'object') {
+    return String(summary.lead_summary || summary.current_status || summary.asked_for || '').trim();
+  }
+  return '';
+}
+
 function V3ThreadFallbackBody(row) {
   const memory = V3ParseOperatorMemory(row.description);
-  if (memory?.summary) return String(memory.summary).trim();
+  const summaryText = V3OperatorSummaryText(memory?.summary);
+  if (summaryText) return summaryText;
   const assessment = String(row.agent_assessment || '').trim();
   if (assessment) return assessment;
   const desc = String(row.description || '').trim();
@@ -2874,7 +2886,8 @@ function V3ThreadFallbackBody(row) {
   if (desc.startsWith('{') || desc.includes('operator_memory')) {
     try {
       const parsed = typeof row.description === 'object' ? row.description : JSON.parse(desc);
-      if (parsed?.operator_memory?.summary) return String(parsed.operator_memory.summary).trim();
+      const parsedSummary = V3OperatorSummaryText(parsed?.operator_memory?.summary);
+      if (parsedSummary) return parsedSummary;
       if (parsed?.x_summary) return String(parsed.x_summary).trim();
       if (parsed?.last_message) return String(parsed.last_message).trim();
     } catch (e) {}
@@ -2883,7 +2896,23 @@ function V3ThreadFallbackBody(row) {
   return desc;
 }
 
+function V3CoerceThreadText(value) {
+  if (value == null) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (typeof value === 'object') {
+    const nested = value.body || value.text || value.snippet || value.html || value.plain || value.content;
+    if (nested != null) return V3CoerceThreadText(nested);
+    const summaryText = V3OperatorSummaryText(value);
+    if (summaryText) return summaryText;
+    try { return JSON.stringify(value); } catch (e) { return ''; }
+  }
+  return String(value);
+}
+
 function V3ThreadFromRow(row, name, brand, stage) {
+  const hasThreadFields = Object.prototype.hasOwnProperty.call(row, 'email_thread')
+    || Object.prototype.hasOwnProperty.call(row, 'original_email');
   const thread = Array.isArray(row.email_thread) ? row.email_thread : (Array.isArray(row.original_email) ? row.original_email : null);
   if (thread && thread.length) {
     return thread.map((m, i) => ({
@@ -2892,13 +2921,15 @@ function V3ThreadFromRow(row, name, brand, stage) {
       date: V3NormalizeDateForUi(m.date || m.date_iso || m.timestamp || row.created_at),
       dateIso: V3NormalizeDateForUi(m.date_iso),
       subject: m.subject || row.title || (brand + ' conversation'),
-      body: m.body || m.text || m.snippet || '',
+      body: V3CoerceThreadText(m.body || m.text || m.snippet || ''),
+      attachments: V3NormalizeThreadAttachments(m.attachments),
       to: V3EmailsFromValue(m.to || m.to_list || m.recipients?.to),
       cc: V3EmailsFromValue(m.cc || m.cc_list || m.recipients?.cc),
       replyTo: V3EmailsFromValue(m.reply_to || m.replyTo),
     })).sort((a, b) => V3TimestampForUi(a.date || a.dateIso || a.when) - V3TimestampForUi(b.date || b.dateIso || b.when));
   }
   if (row.gmail_thread_id) return [];
+  if (!hasThreadFields) return [];
   const body = V3ThreadFallbackBody(row);
   if (!body && !row.intent) return [];
   const touchAt = V3NormalizeDateForUi(row.last_inbound_at || row.new_reply_at || row.updated_at || row.moved_at || row.created_at);
@@ -4197,8 +4228,93 @@ function V3StripThreadQuotes(text) {
   return out;
 }
 
+function V3GmailAttachmentSizeLabel(bytes) {
+  const n = Number(bytes) || 0;
+  if (!n) return '';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function V3GmailThreadOpenUrl(lead, msg) {
+  const threadId = msg?.gmail_thread_id || msg?.gmailThreadId || lead?.gmailThreadId;
+  if (!threadId) return '';
+  return `https://mail.google.com/mail/u/0/#all/${encodeURIComponent(threadId)}`;
+}
+
+function V3NormalizeThreadAttachments(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(item => item && (item.filename || item.mimeType))
+    .map(item => ({
+      filename: String(item.filename || 'Attachment').trim(),
+      mimeType: String(item.mimeType || '').trim(),
+      size: Number(item.size) || 0,
+      href: String(item.href || '').trim(),
+      kind: String(item.kind || 'file').trim(),
+      label: String(item.label || '').trim(),
+    }));
+}
+
+function V3GmailThreadAttachments(msg, lead) {
+  const stored = V3NormalizeThreadAttachments(msg?.attachments);
+  if (stored.length) return stored;
+
+  const body = V3CoerceThreadText(msg?.body);
+  const fromTeam = V3IsTeamParticipant(msg?.from);
+  const hasPlaceholder = /\uFFFC|￼/.test(body);
+  const pricingLang = /\b(pricing structure|rate card|partnership tiers?|sponsorship (?:rate|package)s?|attached (?:our )?(?:rate|pricing)|send(?:ing)? (?:you )?(?:over )?our pricing)\b/i.test(body);
+  if (!fromTeam || !(hasPlaceholder || pricingLang)) return [];
+
+  const pack = V3InferPricingPdfPack(lead);
+  const meta = V3PricingPdfMeta(pack);
+  return [{
+    filename: meta.filename,
+    mimeType: 'application/pdf',
+    kind: 'pricing-pdf',
+    href: meta.path,
+    label: meta.label,
+  }];
+}
+
+function V3GmailMessageAttachmentList({ msg, lead }) {
+  const items = V3GmailThreadAttachments(msg, lead);
+  if (!items.length) return null;
+  const gmailUrl = V3GmailThreadOpenUrl(lead, msg);
+  const needsGmailLink = items.some(att => !att.href && att.kind === 'file');
+  return (
+    <div className="gmail-msg-attachments">
+      {items.map((att, idx) => {
+        const href = att.href || (att.kind === 'file' && gmailUrl ? gmailUrl : '');
+        const size = V3GmailAttachmentSizeLabel(att.size);
+        const Tag = href ? 'a' : 'span';
+        return (
+          <Tag
+            key={`${att.filename}-${idx}`}
+            className={'gmail-msg-attach' + (att.kind === 'pricing-pdf' ? ' is-pricing' : '')}
+            href={href || undefined}
+            target={href ? '_blank' : undefined}
+            rel={href ? 'noreferrer' : undefined}
+            title={href ? `Open ${att.filename}` : att.filename}
+          >
+            <V3Icon name="doc" w={16} />
+            <span className="gmail-msg-attach-name">{att.filename}</span>
+            {att.label ? <span className="gmail-msg-attach-meta">{att.label}</span> : null}
+            {size ? <span className="gmail-msg-attach-meta">{size}</span> : null}
+            {href ? <span className="gmail-msg-attach-open">Open</span> : null}
+          </Tag>
+        );
+      })}
+      {needsGmailLink && gmailUrl ? (
+        <a className="gmail-msg-attach-gmail" href={gmailUrl} target="_blank" rel="noreferrer">View in Gmail</a>
+      ) : null}
+    </div>
+  );
+}
+
 function V3FormatThreadMessageBody(body) {
-  let text = V3StripThreadQuotes(body);
+  let text = V3StripThreadQuotes(V3CoerceThreadText(body));
+  text = text.replace(/\uFFFC|￼/g, '');
   text = text
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/?(?:div|p|span|a|b|i|u|strong|em|blockquote|ul|ol|li|table|tr|td|th|h[1-6]|img|font|hr|pre|code)\b[^>]*\/?>/gi, '\n')
@@ -4359,7 +4475,8 @@ function V3MergePendingReplies(leads, pendingReplies) {
   });
 }
 
-const V3_PRICING_PDF_CANONICAL_BASE = 'https://asherweisberger.github.io/UNALIGNED';
+const V3_PRICING_PDF_CANONICAL_BASE = 'https://agentdashboard.cloud';
+const V3_PRICING_PDF_LEGACY_BASE = 'https://asherweisberger.github.io/UNALIGNED';
 const V3_PRICING_PDF_VERSION = '20260628';
 const V3_PRICING_PDF_PACKS = {
   single: { id: 'single', label: '1× Single Tier', path: 'docs/SINGLE_TIER.pdf', filename: 'UNALIGNED SINGLE TIER PRICING 2026.pdf', stamp: 'Current live rate card · June 28, 2026' },
@@ -4371,9 +4488,12 @@ function V3PricingPdfHref(relativePath) {
   const clean = String(relativePath || '').replace(/^\//, '');
   const versioned = `${clean}?v=${V3_PRICING_PDF_VERSION}`;
   if (typeof window !== 'undefined') {
-    const host = window.location.hostname || '';
+    const host = String(window.location.hostname || '').toLowerCase();
     const origin = String(window.location.origin || '').replace(/\/$/, '');
-    if (host.includes('asherweisberger.github.io')) {
+    if (host === 'asherweisberger.github.io') {
+      return `${V3_PRICING_PDF_LEGACY_BASE}/${versioned}`;
+    }
+    if (host === 'agentdashboard.cloud' || host === 'www.agentdashboard.cloud') {
       return `${V3_PRICING_PDF_CANONICAL_BASE}/${versioned}`;
     }
     if (origin) return `${origin}/${versioned}`;
@@ -7318,14 +7438,20 @@ function V3GmailThread({ lead }) {
         const dateValue = m.date || m.dateIso || m.timestamp || m.when;
         const isOpen = expanded.has(i);
         const displayBody = V3FormatThreadMessageBody(m.body);
+        const attachments = V3GmailThreadAttachments(m, lead);
         const preview = displayBody.replace(/\s+/g, ' ').trim().slice(0, 120);
+        const attachHint = attachments.length
+          ? ` · ${attachments[0].kind === 'pricing-pdf' ? 'Rate card' : 'Attachment'}`
+          : '';
         return (
-          <article key={i} className={'gmail-msg' + (isOpen ? ' is-open' : ' is-collapsed')}>
+          <article key={i} className={'gmail-msg' + (isOpen ? ' is-open' : ' is-collapsed') + (attachments.length ? ' has-attach' : '')}>
             <button type="button" className="gmail-msg-hd" onClick={() => toggle(i)} aria-expanded={isOpen}>
               <V3Avatar name={m.from} color={m.from === 'Sammy' ? '#16894a' : m.from === 'Asher' ? '#2f5fd6' : lead.color} size="sm" />
               <div className="gmail-msg-who">
                 <span className="gmail-msg-name">{m.from || 'Unknown'}</span>
-                {!isOpen && preview ? <span className="gmail-msg-snippet">{preview}</span> : null}
+                {!isOpen && (preview || attachments.length) ? (
+                  <span className="gmail-msg-snippet">{preview || 'Attachment'}{attachHint}</span>
+                ) : null}
                 {isOpen && senderEmail ? <span className="gmail-msg-email">&lt;{senderEmail}&gt;</span> : null}
               </div>
               <div className="gmail-msg-when">
@@ -7338,13 +7464,18 @@ function V3GmailThread({ lead }) {
             </button>
             {isOpen ? (
               <div className="gmail-msg-body">
-                {(m.to?.length || m.cc?.length) ? (
-                  <div className="gmail-msg-rcpts">
-                    {m.to?.length ? <span>to {m.to.join(', ')}</span> : null}
-                    {m.cc?.length ? <span>cc {m.cc.join(', ')}</span> : null}
-                  </div>
-                ) : null}
+                {(() => {
+                  const toList = V3EmailsFromValue(m.to);
+                  const ccList = V3EmailsFromValue(m.cc);
+                  return (toList.length || ccList.length) ? (
+                    <div className="gmail-msg-rcpts">
+                      {toList.length ? <span>to {toList.join(', ')}</span> : null}
+                      {ccList.length ? <span>cc {ccList.join(', ')}</span> : null}
+                    </div>
+                  ) : null;
+                })()}
                 <div className="gmail-msg-text" style={{ whiteSpace: 'pre-wrap' }}>{displayBody}</div>
+                <V3GmailMessageAttachmentList msg={m} lead={lead} />
               </div>
             ) : null}
           </article>
@@ -12706,12 +12837,27 @@ function V4ShouldUseMachineHostedBriefFlow() {
   }
 }
 
-function V4IsGithubHostedPage() {
+const V4_PAGES_HOSTS = new Set(['asherweisberger.github.io', 'agentdashboard.cloud', 'www.agentdashboard.cloud']);
+
+function V4IsPagesHostedSite() {
   try {
-    return String(window.location?.hostname || '') === 'asherweisberger.github.io';
+    return V4_PAGES_HOSTS.has(String(window.location?.hostname || '').toLowerCase());
   } catch (err) {
     return false;
   }
+}
+
+function V4IsGithubHostedPage() {
+  return V4IsPagesHostedSite();
+}
+
+function V4PublicSiteBase() {
+  try {
+    const host = String(window.location?.hostname || '').toLowerCase();
+    if (host === 'asherweisberger.github.io') return 'https://asherweisberger.github.io/UNALIGNED';
+    if (V4_PAGES_HOSTS.has(host)) return String(window.location.origin || '').replace(/\/$/, '');
+  } catch (err) {}
+  return 'https://asherweisberger.github.io/UNALIGNED';
 }
 
 function V4OpenMachineHostedBriefMaker() {
@@ -12732,6 +12878,10 @@ const V4_PUBLIC_GITHUB_PAGES = new Set([
 
 const V4_PUBLIC_FORM_BASE = 'https://asherweisberger.github.io/UNALIGNED';
 const V4_ROBERT_CONNECT_LINK = V4_PUBLIC_FORM_BASE + '/connect';
+
+function V4PublicFormBase() {
+  return typeof V4PublicSiteBase === 'function' ? V4PublicSiteBase() : V4_PUBLIC_FORM_BASE;
+}
 
 function V4IsPublicGithubPage() {
   try {
@@ -15977,13 +16127,20 @@ const V4_COS_GMAIL_NEGOTIATION_STAGES = ['negotiating', 'invoice-sent'];
 const V4_COS_GMAIL_CONVERSATION_STAGES = ['engaged', 'first-touch', 'rates-sent'];
 const V4_COS_FRESH_INTAKE_MS = 7 * 24 * 60 * 60 * 1000;
 
+function V4CosHasActionableDraft(lead) {
+  const draftSt = String(lead?.draftReplyStatus || '').toLowerCase();
+  if (!lead?.draftReply?.body || !(draftSt === 'review' || draftSt === 'pending')) return false;
+  if (lead.newReplyAt) return false;
+  if (V4TeamRepliedLast(lead)) return false;
+  return true;
+}
+
 /** Real email/DM activity only — ignores agent memory bumps and stage moves. */
 function V4CosConversationTouchAt(lead) {
   if (!lead) return 0;
   const thread = Array.isArray(lead?.thread) ? lead.thread : [];
   const latestThread = V3LatestThreadDate(thread);
   const candidates = [lead.newReplyAt, lead.lastInboundAt, latestThread];
-  if (thread.length) candidates.push(lead.lastTouchAt);
   if (V3IsXLeadRecord(lead)) candidates.push(lead.xReplyMarkedAt);
   let best = 0;
   for (const value of candidates) {
@@ -16034,13 +16191,11 @@ function V4CosIsActiveGmailConversation(lead) {
   const ts = V4CosConversationTouchAt(lead);
   const inWindow = ts && (Date.now() - ts) <= V4_COS_ACTIVE_WINDOW_MS;
   const recentMsgs = V4CosThreadMessagesInWindow(lead, V4_COS_ACTIVE_WINDOW_MS);
-  const draftSt = String(lead.draftReplyStatus || '').toLowerCase();
-  const hasDraft = Boolean(lead.draftReply?.body) && (draftSt === 'review' || draftSt === 'pending');
+  const hasDraft = V4CosHasActionableDraft(lead);
 
   if (V4_COS_GMAIL_CONVERSATION_STAGES.includes(lead.stage) && inWindow) {
     if (lead.unread || lead.newReplyAt || lead.needsReply || hasDraft) return true;
     if (recentMsgs >= 1) return true;
-    if (Array.isArray(lead.thread) && lead.thread.length >= 2) return true;
   }
 
   if (!inWindow) return false;
@@ -16058,8 +16213,7 @@ function V4CosIsActiveXConversation(lead) {
 
   const ts = V4CosConversationTouchAt(lead);
   const inWindow = ts && (Date.now() - ts) <= V4_COS_ACTIVE_WINDOW_MS;
-  const draftSt = String(lead.draftReplyStatus || '').toLowerCase();
-  const hasDraft = Boolean(lead.draftReply?.body) && (draftSt === 'review' || draftSt === 'pending');
+  const hasDraft = V4CosHasActionableDraft(lead);
 
   if (V3XLeadRepliedViaX(lead) && inWindow) return true;
   if (!inWindow) return false;
@@ -16076,8 +16230,7 @@ function V4CosActiveLeadNeedsYou(lead) {
   if (!lead) return false;
   if (lead.unread || lead.newReplyAt) return true;
   if (V4XLeadNeedsDmReply(lead)) return true;
-  const draftSt = String(lead.draftReplyStatus || '').toLowerCase();
-  if (lead.draftReply?.body && (draftSt === 'pending' || draftSt === 'review')) return true;
+  if (V4CosHasActionableDraft(lead)) return true;
   if (lead.needsReply && !(V3IsXLeadRecord(lead) && V3XLeadRepliedViaX(lead))) return true;
   return false;
 }
@@ -18753,22 +18906,23 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
           <>
             <div className="cos2-list">
               <div className="cos-list-toolbar">
-                <div className="cos-queue-toolbar-row">
-                  <nav className="cos-queue-bar" aria-label="Queues">
-                    {mainQueues.map(q => (
-                      <button
-                        key={q.id}
-                        type="button"
-                        className={'cos-queue-pill' + (split.id === q.id ? ' is-active' : '') + (q.hot ? ' is-hot' : '')}
-                        onClick={() => pickSplit(q.id)}
-                        title={queueHints[q.id] || q.hint}
-                      >
-                        {q.label}
-                        <span className="cos-queue-pill-cnt">{q.items.length}</span>
-                      </button>
-                    ))}
-                  </nav>
-                  <div className={'cos-more-wrap' + (splitsOpen ? ' is-open' : '')} ref={moreMenuRef}>
+                <div className="cos-list-toolbar-section cos-list-toolbar-section--queues">
+                  <div className="cos-queue-toolbar-row">
+                    <nav className="cos-queue-bar" aria-label="Queues">
+                      {mainQueues.map(q => (
+                        <button
+                          key={q.id}
+                          type="button"
+                          className={'cos-queue-pill' + (split.id === q.id ? ' is-active' : '') + (q.hot ? ' is-hot' : '')}
+                          onClick={() => pickSplit(q.id)}
+                          title={queueHints[q.id] || q.hint}
+                        >
+                          <span className="cos-queue-pill-label">{q.label}</span>
+                          <span className="cos-queue-pill-cnt">{q.items.length}</span>
+                        </button>
+                      ))}
+                    </nav>
+                    <div className={'cos-more-wrap' + (splitsOpen ? ' is-open' : '')} ref={moreMenuRef}>
                     <button
                       type="button"
                       className={'cos-queue-pill cos-queue-pill--more' + (moreSplits.some(s => s.id === split.id) ? ' is-active' : '')}
@@ -18800,8 +18954,10 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
                         ))}
                       </div>
                     ) : null}
+                    </div>
                   </div>
                 </div>
+                <div className="cos-list-toolbar-section cos-list-toolbar-section--source">
                 <div className="cos-source-seg" role="tablist" aria-label="Lead source">
                   {[
                     { id: 'all', label: 'All' },
@@ -18824,6 +18980,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
                       </button>
                     );
                   })}
+                </div>
                 </div>
               </div>
               {split.queue ? (

@@ -30,6 +30,7 @@ jobs:
           rsync -a --exclude '.git' --exclude '.github' --exclude '_site' \
                 --exclude 'functions' --exclude 'scripts' --exclude '*.py' \
                 ./ _site/
+          test -f _site/CNAME && echo "Custom domain: $(cat _site/CNAME)"
 
       - name: Compile JSX
         run: |

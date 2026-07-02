@@ -514,6 +514,8 @@ const FEEDBACK_PUBLIC_ORIGINS = [
   'https://unaligned-fc556.firebaseapp.com',
   'https://unaligned-fc556.web.app',
   'https://asherweisberger.github.io',
+  'https://agentdashboard.cloud',
+  'https://www.agentdashboard.cloud',
   'http://localhost:5000',
   'http://127.0.0.1:5000',
 ];
