@@ -15891,7 +15891,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
     { id: 'snoozed', label: 'Snoozed', section: 'More', items: liveAll.filter(isSnoozed).sort((a, b) => Date.parse(snoozes[a.id]) - Date.parse(snoozes[b.id])) },
     { id: 'closed', label: 'Done and paid', section: 'More', items: closedItems },
     { id: 'trash', label: 'Trash', section: 'More', trash: true, items: base.filter(l => ['trash', 'dead-leads'].includes(l.stage)).sort(byRecent) },
-    { id: 'toolkit', label: 'Toolkit', section: 'More', toolkit: true, items: V4_COMPANY_OS_TOOLKIT },
+    { id: 'toolkit', label: 'Toolkit', section: 'Organs', toolkit: true, items: V4_COMPANY_OS_TOOLKIT },
   ];
 
   const [splitId, setSplitId] = React.useState(() => {
@@ -15906,7 +15906,11 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
   const skipSplitResetRef = React.useRef(false);
   const [splitsOpen, setSplitsOpen] = React.useState(false);
   const moreMenuRef = React.useRef(null);
-  const moreSplits = React.useMemo(() => splits.filter(s => !s.queue), [splits]);
+  const moreSplits = React.useMemo(() => splits.filter(s => !s.queue && !s.toolkit), [splits]);
+
+  React.useEffect(() => {
+    window.dispatchEvent(new CustomEvent('v4:cos-surface', { detail: { toolkit: splitId === 'toolkit' } }));
+  }, [splitId]);
 
   React.useEffect(() => {
     if (!splitsOpen) return;
@@ -16376,7 +16380,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
                     onClick={() => setSplitsOpen(open => !open)}
                     aria-expanded={splitsOpen}
                     aria-haspopup="menu"
-                    title="Snoozed, done, trash, toolkit"
+                    title="Snoozed, done, trash"
                   >
                     More
                   </button>
@@ -16774,7 +16778,7 @@ function V4Onboarding({ onDismiss }) {
         <p style={{ margin: '0 0 12px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>Reply to active deals here — not the Gmail app. Use <strong>↻ Refresh thread</strong> on any lead, or click the header Gmail badge to sync everything.</p>
         <ul style={{ margin: '0 0 16px', paddingLeft: 18, lineHeight: 1.6 }}>
           <li><strong>Company OS</strong> — read threads, refresh one lead, approve drafts</li>
-          <li><strong>Organs</strong> — today&apos;s decisions, one-click Approve &amp; send</li>
+          <li><strong>Organs</strong> — approvals, Briefs, Invoices, and <strong>Toolkit</strong> (brief maker, X signal)</li>
           <li><strong>Sync Gmail</strong> — Organs top bar or header badge (all leads)</li>
         </ul>
         <button type="button" className="hd-nav-btn" onClick={close}>Got it — open Company OS</button>
@@ -16812,6 +16816,13 @@ function V4App() {
   const cosListSearchRef = React.useRef(null);
   const organsMenuRef = React.useRef(null);
   const [organsMenuOpen, setOrgansMenuOpen] = React.useState(false);
+  const [cosToolkitOpen, setCosToolkitOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    const onSurface = (e) => setCosToolkitOpen(!!e.detail?.toolkit);
+    window.addEventListener('v4:cos-surface', onSurface);
+    return () => window.removeEventListener('v4:cos-surface', onSurface);
+  }, []);
   const [pendingReplies, setPendingReplies] = React.useState([]);
 
   React.useEffect(() => {
@@ -17067,11 +17078,16 @@ function V4App() {
     setOrgansMenuOpen(false);
   };
   const organsToolViews = ['organs', 'inbox', 'invoices', 'new-leads', 'leads'];
-  const organsMenuActive = organsToolViews.includes(view);
+  const organsMenuActive = organsToolViews.includes(view) || (view === 'company-os' && cosToolkitOpen);
+  const goToOrgansToolkit = () => {
+    try { window.sessionStorage.setItem('cos-queue', 'toolkit'); } catch (e) {}
+    goView('company-os');
+  };
 
   const paletteCommands = [
     { label: 'Go to Company OS', hint: 'workspace', run: () => goView('company-os') },
     { label: 'Go to Organs', hint: 'command center', run: () => goView('organs') },
+    { label: 'Go to Toolkit', hint: 'brief maker, X signal, handoffs', run: goToOrgansToolkit },
     { label: 'Go to Today', run: () => goView('today') },
     { label: 'Go to Calendar', run: () => goView('calendar') },
     { label: 'Go to Briefs', run: () => goView('inbox') },
@@ -17123,6 +17139,14 @@ function V4App() {
                   New Leads {newLeadCount > 0 && <span>{newLeadCount}</span>}
                 </button>
                 <button role="menuitem" className="hd-nav-drop-item" aria-current={view === 'leads' ? 'page' : undefined} onClick={() => goView('leads')}>Network</button>
+                <button
+                  role="menuitem"
+                  className="hd-nav-drop-item"
+                  aria-current={view === 'company-os' && cosToolkitOpen ? 'page' : undefined}
+                  onClick={goToOrgansToolkit}
+                >
+                  Toolkit
+                </button>
               </div>
             )}
           </div>
