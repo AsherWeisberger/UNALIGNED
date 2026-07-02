@@ -15906,11 +15906,20 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
   const skipSplitResetRef = React.useRef(false);
   const [splitsOpen, setSplitsOpen] = React.useState(false);
   const moreMenuRef = React.useRef(null);
-  const moreSplits = React.useMemo(() => splits.filter(s => !s.queue && !s.toolkit), [splits]);
+  const moreSplits = React.useMemo(() => splits.filter(s => !s.queue), [splits]);
 
   React.useEffect(() => {
     window.dispatchEvent(new CustomEvent('v4:cos-surface', { detail: { toolkit: splitId === 'toolkit' } }));
   }, [splitId]);
+
+  React.useEffect(() => {
+    const onActivate = (e) => {
+      const id = String(e.detail?.splitId || '').trim();
+      if (id && splits.some(s => s.id === id)) setSplitId(id);
+    };
+    window.addEventListener('v4:cos-activate-split', onActivate);
+    return () => window.removeEventListener('v4:cos-activate-split', onActivate);
+  }, [splits]);
 
   React.useEffect(() => {
     if (!splitsOpen) return;
@@ -16380,7 +16389,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
                     onClick={() => setSplitsOpen(open => !open)}
                     aria-expanded={splitsOpen}
                     aria-haspopup="menu"
-                    title="Snoozed, done, trash"
+                    title="Snoozed, done, trash, toolkit"
                   >
                     More
                   </button>
@@ -17081,6 +17090,7 @@ function V4App() {
   const organsMenuActive = organsToolViews.includes(view) || (view === 'company-os' && cosToolkitOpen);
   const goToOrgansToolkit = () => {
     try { window.sessionStorage.setItem('cos-queue', 'toolkit'); } catch (e) {}
+    window.dispatchEvent(new CustomEvent('v4:cos-activate-split', { detail: { splitId: 'toolkit' } }));
     goView('company-os');
   };
 
@@ -17139,6 +17149,7 @@ function V4App() {
                   New Leads {newLeadCount > 0 && <span>{newLeadCount}</span>}
                 </button>
                 <button role="menuitem" className="hd-nav-drop-item" aria-current={view === 'leads' ? 'page' : undefined} onClick={() => goView('leads')}>Network</button>
+                <div className="hd-nav-drop-sep" aria-hidden="true" />
                 <button
                   role="menuitem"
                   className="hd-nav-drop-item"

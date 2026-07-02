@@ -892,6 +892,12 @@ a { color: inherit; }
   font: 700 10px/1 var(--font-mono);
 }
 
+.hd-nav-drop-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border);
+}
+
 .hd-search {
   flex: 1 1 180px;
   max-width: 320px;
