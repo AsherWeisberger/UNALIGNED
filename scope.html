@@ -6,127 +6,22 @@
   <title>UNALIGNED · Scope your collaboration</title>
   <meta name="description" content="Pick your UNALIGNED package, see pricing, and send scope for Robert Scoble's team." />
   <link rel="icon" href="/favicon.ico" />
-  <style>
-    :root {
-      --bg: #f3f1eb;
-      --card: #fff;
-      --text: #12151c;
-      --muted: #5c6475;
-      --line: #e3dfd5;
-      --accent: #1f4fd6;
-      --accent-soft: #e8efff;
-      --good: #15803d;
-      --radius: 16px;
-      --font: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-      --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
-      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0; min-height: 100vh; font-family: var(--font); color: var(--text);
-      background:
-        radial-gradient(1100px 480px at 0% -5%, #dce8ff 0%, transparent 58%),
-        radial-gradient(800px 360px at 100% 0%, #fde8d8 0%, transparent 52%),
-        var(--bg);
-      padding: 28px 16px 56px;
-    }
-    .wrap { max-width: 720px; margin: 0 auto; }
-    .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
-    .mark {
-      width: 44px; height: 44px; border-radius: 13px;
-      background: linear-gradient(135deg, #1f4fd6, #6d28d9);
-      color: #fff; display: grid; place-items: center;
-      font: 700 14px/1 var(--mono); letter-spacing: .08em;
-    }
-    .brand h1 { margin: 0; font-size: 17px; letter-spacing: .14em; text-transform: uppercase; }
-    .brand p { margin: 2px 0 0; font-size: 13px; color: var(--muted); font-family: var(--sans); }
-    .card {
-      background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
-      padding: 24px 22px; box-shadow: 0 20px 44px rgba(18, 21, 28, .07);
-    }
-    .eyebrow {
-      font: 700 10px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase;
-      color: var(--muted); margin-bottom: 8px;
-    }
-    h2 { margin: 0 0 8px; font-size: 28px; line-height: 1.12; }
-    .lead { margin: 0 0 18px; color: var(--muted); font-size: 15px; line-height: 1.55; font-family: var(--sans); }
-    .steps { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
-    .step-pill {
-      font: 700 10px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase;
-      padding: 7px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted);
-    }
-    .step-pill.is-on { background: var(--accent-soft); color: var(--accent); border-color: #c7d7fb; }
-    .tier-grid { display: grid; gap: 10px; margin-bottom: 18px; }
-    .tier-card {
-      width: 100%; text-align: left; border: 1px solid var(--line); border-radius: 14px;
-      padding: 14px 16px; background: #fff; cursor: pointer;
-      transition: border-color .15s, box-shadow .15s, transform .12s;
-    }
-    .tier-card:hover { border-color: color-mix(in oklab, var(--accent) 35%, var(--line)); }
-    .tier-card.is-on {
-      border-color: var(--accent); background: var(--accent-soft);
-      box-shadow: 0 10px 24px rgba(31, 79, 214, .12); transform: translateY(-1px);
-    }
-    .tier-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
-    .tier-name { font: 700 16px/1.2 var(--sans); }
-    .tier-price { font: 700 18px/1 var(--mono); color: var(--accent); white-space: nowrap; }
-    .tier-short {
-      display: inline-block; margin-top: 6px; font: 700 10px/1 var(--mono);
-      letter-spacing: .1em; color: var(--muted);
-    }
-    .tier-items { margin: 10px 0 0; padding-left: 18px; font: 500 13px/1.5 var(--sans); color: var(--muted); }
-    .field { margin-bottom: 16px; }
-    .field label { display: block; font: 600 14px/1.3 var(--sans); margin-bottom: 7px; }
-    .hint { display: block; font-size: 12px; color: var(--muted); margin-top: 6px; font-family: var(--sans); }
-    input[type="text"], input[type="email"], input[type="url"], input[type="date"] {
-      width: 100%; border: 1px solid var(--line); border-radius: 12px;
-      padding: 11px 13px; font: 500 14px/1.4 var(--sans); background: #fff;
-    }
-    textarea {
-      width: 100%; min-height: 96px; resize: vertical; border: 1px solid var(--line);
-      border-radius: 12px; padding: 12px 14px; font: 500 14px/1.45 var(--sans); background: #fff;
-    }
-    input:focus, textarea:focus {
-      outline: 2px solid color-mix(in oklab, var(--accent) 35%, white); border-color: var(--accent);
-    }
-    .summary {
-      border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px;
-      background: color-mix(in srgb, var(--accent-soft) 45%, white);
-      margin-bottom: 16px; font-family: var(--sans); font-size: 14px; line-height: 1.5;
-    }
-    .summary strong { display: block; margin-bottom: 4px; }
-    .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
-    .btn {
-      border-radius: 12px; min-height: 44px; padding: 0 16px; font: 700 13px/1 var(--mono);
-      letter-spacing: .05em; text-transform: uppercase; cursor: pointer; border: 1px solid var(--line);
-      background: #fff;
-    }
-    .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; flex: 1; }
-    .btn:disabled { opacity: .55; cursor: default; }
-    .status {
-      margin-top: 14px; padding: 12px 14px; border-radius: 12px; font-size: 14px;
-      font-family: var(--sans); display: none;
-    }
-    .status.is-error { display: block; background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
-    .status.is-ok { display: block; background: #ecfdf5; color: var(--good); border: 1px solid #bbf7d0; }
-    .thanks { text-align: center; padding: 28px 8px; }
-    .thanks h2 { font-size: 32px; }
-    @media (max-width: 560px) {
-      h2 { font-size: 24px; }
-      .card { padding: 20px 16px; }
-    }
-  </style>
+  <link rel="stylesheet" href="assets/unaligned-form.css?v=20260702-cinematic-v1" />
 </head>
-<body>
-  <div class="wrap">
-    <div class="brand">
-      <div class="mark">UN</div>
-      <div>
-        <h1>UNALIGNED</h1>
-        <p>Collaboration scope</p>
-      </div>
+<body class="ua-form-page ua-form-scope">
+  <div class="ua-scene">
+    <div class="ua-grain" aria-hidden="true"></div>
+    <div class="ua-vignette" aria-hidden="true"></div>
+    <div class="ua-wrap">
+      <header class="ua-hero">
+        <div class="ua-logo-frame">
+          <img src="assets/unaligned-form-logo.jpg" alt="UNALIGNED" class="ua-logo" width="800" height="199" />
+          <div class="ua-logo-glow" aria-hidden="true"></div>
+        </div>
+        <p class="ua-tagline">Collaboration scope</p>
+      </header>
+      <div class="ua-card" id="app"><p class="lead">Loading your scope form…</p></div>
     </div>
-    <div class="card" id="app"><p class="lead">Loading your scope form…</p></div>
   </div>
   <script>
     const API = 'https://us-central1-unaligned-fc556.cloudfunctions.net/collabScopeIntake';
