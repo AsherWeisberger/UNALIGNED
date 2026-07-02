@@ -11763,6 +11763,24 @@ body[data-theme="light"] .cmdk-row.is-active {
   color: var(--text-4);
 }
 
+.mail-compose-attach-wrap {
+  gap: 6px;
+}
+
+.mail-compose-attach-pack {
+  max-width: 148px;
+  border: 1px solid var(--border-2);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font: 500 10.5px/1.2 var(--font-body);
+  padding: 4px 6px;
+}
+
+.mail-compose-attach-pack:disabled {
+  opacity: 0.45;
+}
+
 .mail-compose-attach {
   display: inline-flex;
   align-items: center;

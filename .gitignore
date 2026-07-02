@@ -42,6 +42,8 @@ Invoice*.pdf
 invoices/
 docs/*.pdf
 !docs/SINGLE_TIER.pdf
+!docs/DUO_BUNDLE.pdf
+!docs/MULTI_TIER.pdf
 docs/*.html
 
 # Keep real source files tracked

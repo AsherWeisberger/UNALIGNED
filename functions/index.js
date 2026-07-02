@@ -299,7 +299,7 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
     return;
   }
 
-  const { to, subject, body, cc, from, attachPdf, threadId } = req.body || {};
+  const { to, subject, body, cc, from, attachPdf, pricingPdfPack, threadId } = req.body || {};
 
   if (!to || !subject || !body) {
     res.status(400).json({ error: 'Missing to, subject, or body' });
@@ -318,11 +318,26 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
 
     let attachments = [];
     if (attachPdf) {
-      const pdfUrl = 'https://unaligned-fc556.web.app/docs/SINGLE_TIER.pdf';
-      const pdfResp = await fetch(pdfUrl);
+      const PRICING_PDFS = {
+        single: {
+          url: 'https://unaligned-fc556.web.app/docs/SINGLE_TIER.pdf',
+          filename: 'UNALIGNED SINGLE TIER PRICING 2026.pdf',
+        },
+        duo: {
+          url: 'https://unaligned-fc556.web.app/docs/DUO_BUNDLE.pdf',
+          filename: 'UNALIGNED DUO BUNDLE PRICING 2026.pdf',
+        },
+        multi: {
+          url: 'https://unaligned-fc556.web.app/docs/MULTI_TIER.pdf',
+          filename: 'UNALIGNED MULTI TIER PRICING 2026.pdf',
+        },
+      };
+      const pack = ['single', 'duo', 'multi'].includes(pricingPdfPack) ? pricingPdfPack : 'single';
+      const pdf = PRICING_PDFS[pack];
+      const pdfResp = await fetch(pdf.url);
       if (pdfResp.ok) {
         const pdfBuffer = Buffer.from(await pdfResp.arrayBuffer());
-        attachments = [{ filename: 'SINGLE_TIER.pdf', content: pdfBuffer, contentType: 'application/pdf' }];
+        attachments = [{ filename: pdf.filename, content: pdfBuffer, contentType: 'application/pdf' }];
       }
     }
 

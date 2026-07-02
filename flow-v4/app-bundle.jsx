@@ -3597,7 +3597,31 @@ function V3MergePendingReplies(leads, pendingReplies) {
   });
 }
 
-async function V3SendLeadEmail({ lead, sender, to, cc, subject, body, attachPdf = false }) {
+const V3_PRICING_PDF_PACKS = {
+  single: { id: 'single', label: '1× Single Tier', path: 'docs/SINGLE_TIER.pdf', filename: 'UNALIGNED SINGLE TIER PRICING 2026.pdf' },
+  duo: { id: 'duo', label: '2× Duo Bundle', path: 'docs/DUO_BUNDLE.pdf', filename: 'UNALIGNED DUO BUNDLE PRICING 2026.pdf' },
+  multi: { id: 'multi', label: '4× Multi Tier', path: 'docs/MULTI_TIER.pdf', filename: 'UNALIGNED MULTI TIER PRICING 2026.pdf' },
+};
+
+function V3InferPricingPdfPack(lead) {
+  const text = [
+    lead?.pricingPack,
+    lead?.deliverables,
+    lead?.notes,
+    lead?.evidence,
+    lead?.nextMove?.text,
+    ...(Array.isArray(lead?.thread) ? lead.thread.map(m => `${m.subject || ''} ${m.body || ''}`) : []),
+  ].filter(Boolean).join(' ').toLowerCase();
+  if (/\b(multi[\s-]?tier|monthly multi|monthly package|monthly placements|retainer|recurring|presence|momentum|authority|market leader|billed monthly|3[\s-]?month minimum)\b/.test(text)) return 'multi';
+  if (/\b(duo[\s-]?bundle|duo pack|two placements|2[\s×x][\s-]?pack|2-pack|two tier|book any two)\b/.test(text)) return 'duo';
+  return 'single';
+}
+
+function V3PricingPdfMeta(pack) {
+  return V3_PRICING_PDF_PACKS[pack] || V3_PRICING_PDF_PACKS.single;
+}
+
+async function V3SendLeadEmail({ lead, sender, to, cc, subject, body, attachPdf = false, pricingPdfPack = null }) {
   let token = V3ApiToken();
   if (!token) token = await V3BootstrapApiToken();
   if (!token) {
@@ -3615,6 +3639,7 @@ async function V3SendLeadEmail({ lead, sender, to, cc, subject, body, attachPdf 
       threadId: lead?.gmailThreadId || null,
       cc: cc ?? V3DefaultCc(sender),
       attachPdf,
+      pricingPdfPack: attachPdf ? (pricingPdfPack || V3InferPricingPdfPack(lead)) : null,
     }),
   });
   const data = await resp.json();
@@ -3622,7 +3647,7 @@ async function V3SendLeadEmail({ lead, sender, to, cc, subject, body, attachPdf 
   return data;
 }
 
-Object.assign(window, { V3SenderForUser, V3SenderName, V3SenderSignature, V3EnsureSenderSignature, V3ComposeReplyDraft, V3ResolveReplyTone, V3ReplyToneLabel, V3SubjectForLead, V3DefaultCc, V3InternalEmails, V3SenderEmails, V3IsSelfRecipient, V3SplitEmails, V3EmailsFromValue, V3ExtractEmail, V3LeadReplyToEmail, V3ThreadParticipants, V3LeadMatchesQuery, V3UniqueEmails, V3ReplyRecipients, V3ThreadMessageKey, V3PendingReplyKey, V3PendingReplyMatchesLead, V3PrunePendingReplies, V3MergePendingReplies, V3SendLeadEmail, V3LeadActivityTimestamp, V3LeadReceivedTimestamp, V3SortLeadsByActivity, V3NewLeadReason });
+Object.assign(window, { V3SenderForUser, V3SenderName, V3SenderSignature, V3EnsureSenderSignature, V3ComposeReplyDraft, V3ResolveReplyTone, V3ReplyToneLabel, V3SubjectForLead, V3DefaultCc, V3InternalEmails, V3SenderEmails, V3IsSelfRecipient, V3SplitEmails, V3EmailsFromValue, V3ExtractEmail, V3LeadReplyToEmail, V3ThreadParticipants, V3LeadMatchesQuery, V3UniqueEmails, V3ReplyRecipients, V3ThreadMessageKey, V3PendingReplyKey, V3PendingReplyMatchesLead, V3PrunePendingReplies, V3MergePendingReplies, V3SendLeadEmail, V3InferPricingPdfPack, V3PricingPdfMeta, V3_PRICING_PDF_PACKS, V3LeadActivityTimestamp, V3LeadReceivedTimestamp, V3SortLeadsByActivity, V3NewLeadReason });
 
 
 // FLOW v3 — data with category labels matching UNALIGNED's INTERVIEW / COLLABORATION / PARTNERSHIP / INTRO tabs
@@ -5656,6 +5681,38 @@ function V3Drawer({ lead, user, queue = [], onNavigate, onClose }) {
   );
 }
 
+function V3PricingPdfAttachControl({ attachPdf, setAttachPdf, pricingPdfPack, setPricingPdfPack, disabled, compact = false }) {
+  const packLabel = V3PricingPdfMeta(pricingPdfPack).label;
+  const select = (
+    <select
+      className="mail-compose-attach-pack"
+      value={pricingPdfPack}
+      disabled={disabled || !attachPdf}
+      onChange={e => setPricingPdfPack(e.target.value)}
+      title="Rate card to attach"
+    >
+      {Object.values(V3_PRICING_PDF_PACKS).map(pack => (
+        <option key={pack.id} value={pack.id}>{pack.label}</option>
+      ))}
+    </select>
+  );
+  if (compact) {
+    return (
+      <label className="gmail-reply-tool gmail-reply-tool-check mail-compose-attach-wrap">
+        <input type="checkbox" checked={attachPdf} disabled={disabled} onChange={e => setAttachPdf(e.target.checked)} />
+        {select}
+      </label>
+    );
+  }
+  return (
+    <label className="mail-compose-attach mail-compose-attach-wrap">
+      <input type="checkbox" checked={attachPdf} disabled={disabled} onChange={e => setAttachPdf(e.target.checked)} />
+      {attachPdf ? `Attach ${packLabel}` : 'Attach rate card'}
+      {select}
+    </label>
+  );
+}
+
 function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
   const isGmail = layout === 'gmail';
   const isInline = isGmail || layout === 'inline' || layout === 'dock';
@@ -5669,6 +5726,7 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
   const [ccDraft, setCcDraft] = React.useState('');
   const [body, setBody] = React.useState(draft.body);
   const [attachPdf, setAttachPdf] = React.useState(false);
+  const [pricingPdfPack, setPricingPdfPack] = React.useState(() => V3InferPricingPdfPack(lead));
   const [status, setStatus] = React.useState('draft');
   const [error, setError] = React.useState('');
   const [success, setSuccess] = React.useState('');
@@ -5712,6 +5770,7 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
     setCcDraft('');
     setBody(nextDraft.body);
     setAttachPdf(false);
+    setPricingPdfPack(V3InferPricingPdfPack(lead));
     setStatus('draft');
     setError('');
     setSuccess('');
@@ -5846,7 +5905,7 @@ Write ONLY the email body. Start with "Hi ${first},". Keep it concise. End with 
     setStatus('sending');
     setError('');
     try {
-      await V3SendLeadEmail({ lead, sender, to: recipient, cc: ccLine, subject, body: msg, attachPdf });
+      await V3SendLeadEmail({ lead, sender, to: recipient, cc: ccLine, subject, body: msg, attachPdf, pricingPdfPack });
       fetch(V3_SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(lead.id), {
         method: 'PATCH',
         headers: {
@@ -5936,10 +5995,14 @@ Write ONLY the email body. Start with "Hi ${first},". Keep it concise. End with 
             <button className={'gmail-reply-tool ' + (internalOnly ? 'is-on' : '')} type="button" disabled={status === 'sending'} onClick={() => setInternalOnly(value => !value)} title="Talk internally only">
               Internal
             </button>
-            <label className="gmail-reply-tool gmail-reply-tool-check">
-              <input type="checkbox" checked={attachPdf} disabled={status === 'sending'} onChange={e => setAttachPdf(e.target.checked)} />
-              PDF
-            </label>
+            <V3PricingPdfAttachControl
+              attachPdf={attachPdf}
+              setAttachPdf={setAttachPdf}
+              pricingPdfPack={pricingPdfPack}
+              setPricingPdfPack={setPricingPdfPack}
+              disabled={status === 'sending'}
+              compact
+            />
           </div>
           {statusText ? (
             <div className={'gmail-reply-status ' + (success ? 'is-success' : error || aiDraftError || isSelfRecipient ? 'is-error' : '')}>
@@ -5996,10 +6059,14 @@ Write ONLY the email body. Start with "Hi ${first},". Keep it concise. End with 
             <button className={'mail-compose-mode ' + (internalOnly ? 'is-active' : '')} type="button" disabled={status === 'sending'} onClick={() => setInternalOnly(value => !value)} title="Talk internally only">
               <V3Icon name="mail" w={12} /> Internal
             </button>
-            <label className="mail-compose-attach">
-              <input type="checkbox" checked={attachPdf} disabled={status === 'sending'} onChange={e => setAttachPdf(e.target.checked)} />
-              PDF
-            </label>
+            <V3PricingPdfAttachControl
+              attachPdf={attachPdf}
+              setAttachPdf={setAttachPdf}
+              pricingPdfPack={pricingPdfPack}
+              setPricingPdfPack={setPricingPdfPack}
+              disabled={status === 'sending'}
+              compact
+            />
           </div>
           {statusText ? (
             <div className={'mail-compose-status ' + (success ? 'is-success' : error || aiDraftError || isSelfRecipient ? 'is-error' : '')}>
@@ -6057,15 +6124,13 @@ Write ONLY the email body. Start with "Hi ${first},". Keep it concise. End with 
         >
           <V3Icon name={status === 'sent' ? 'check' : 'send'} w={12} /> {status === 'sending' ? 'Sending…' : status === 'sent' ? 'Sent' : 'Send'}
         </button>
-        <label className="mail-compose-attach">
-          <input
-            type="checkbox"
-            checked={attachPdf}
-            disabled={status === 'sending'}
-            onChange={e => setAttachPdf(e.target.checked)}
-          />
-          Attach SINGLE TIER.pdf
-        </label>
+        <V3PricingPdfAttachControl
+          attachPdf={attachPdf}
+          setAttachPdf={setAttachPdf}
+          pricingPdfPack={pricingPdfPack}
+          setPricingPdfPack={setPricingPdfPack}
+          disabled={status === 'sending'}
+        />
         {statusText ? (
           <div className={'mail-compose-status ' + (success ? 'is-success' : error || aiDraftError || isSelfRecipient ? 'is-error' : '')}>
             {statusText}
@@ -12289,9 +12354,11 @@ function V4CompanyOsExecutionMeta(lead) {
   if (calendarLink) calendarState = 'Placed on calendar';
   else if (lead?.stage === 'done') calendarState = 'Create Robert task';
 
+  const pricingPdfPack = V3InferPricingPdfPack(lead);
+  const pricingPdf = V3PricingPdfMeta(pricingPdfPack);
   let pdfState = 'Not scoped yet';
-  if (tier) pdfState = 'Ready to attach';
-  if (lead?.stage === 'invoice-sent' || lead?.stage === 'done') pdfState = tier ? 'Use in pricing / execution thread' : pdfState;
+  if (tier) pdfState = `Ready · ${pricingPdf.label}`;
+  if (lead?.stage === 'invoice-sent' || lead?.stage === 'done') pdfState = tier ? `Use ${pricingPdf.label} in thread` : pdfState;
 
   return {
     tier,
@@ -12303,7 +12370,8 @@ function V4CompanyOsExecutionMeta(lead) {
     calendarState,
     calendarLink: calendarLink || '',
     pdfState,
-    pdfLink: 'docs/SINGLE_TIER.pdf',
+    pdfLink: pricingPdf.path,
+    pdfPack: pricingPdfPack,
     postingWindow: postingWindow || 'No publish window locked yet',
     executionOwner,
   };
