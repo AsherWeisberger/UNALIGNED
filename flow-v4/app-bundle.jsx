@@ -15467,11 +15467,14 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
       note: isXLead ? 'Pulling DM context from X intake…' : 'Pulling this thread from Gmail…',
     });
     try {
-      if (isXLead) await V4RefreshLeadFromX(lead);
-      else await V4RefreshLeadFromGmail(lead);
+      let result = null;
+      if (isXLead) result = await V4RefreshLeadFromX(lead);
+      else result = await V4RefreshLeadFromGmail(lead);
       setThreadSync({
         status: 'ok',
-        note: isXLead ? 'X DM context refreshed' : 'Thread refreshed from Gmail',
+        note: isXLead
+          ? 'X DM context refreshed'
+          : (String(result?.note || '').trim() || 'Thread refreshed from Gmail'),
       });
     } catch (err) {
       setThreadSync({ status: 'error', note: err?.message || 'Refresh failed' });

@@ -317,6 +317,57 @@ def fetch_thread(service: Any, thread_id: str) -> list[dict[str, Any]]:
     return [format_message(m) for m in thread.get("messages", [])]
 
 
+def thread_exists(service: Any, thread_id: str) -> bool:
+    if not thread_id:
+        return False
+    try:
+        service.users().threads().get(userId="me", id=thread_id, format="minimal", fields="id").execute()
+        return True
+    except HttpError as exc:
+        if getattr(exc.resp, "status", None) == 404:
+            return False
+        raise
+
+
+def lookup_thread_id_by_email(service: Any, email: str) -> str:
+    addr = str(email or "").strip().lower()
+    if not addr or "@" not in addr:
+        return ""
+    try:
+        result = service.users().messages().list(
+            userId="me",
+            q=f"(from:{addr} OR to:{addr}) newer_than:180d",
+            maxResults=8,
+            fields="messages(id,threadId)",
+        ).execute()
+        for msg in result.get("messages", []) or []:
+            tid = str(msg.get("threadId") or "").strip()
+            if tid:
+                return tid
+    except Exception:
+        return ""
+    return ""
+
+
+def resolve_thread_id_for_card(service: Any, card: dict[str, Any]) -> tuple[str, str, bool]:
+    """Return (thread_id, source, stale_cleared).
+
+    source is one of: stored, email_lookup, or empty string.
+    stale_cleared is True when the card had a gmail_thread_id that no longer exists.
+    """
+    stored = str(card.get("gmail_thread_id") or "").strip()
+    stale_cleared = False
+    if stored and thread_exists(service, stored):
+        return stored, "stored", False
+    if stored:
+        stale_cleared = True
+    email = str(card.get("email") or "").strip().lower()
+    discovered = lookup_thread_id_by_email(service, email) if email and "@" in email else ""
+    if discovered:
+        return discovered, "email_lookup", stale_cleared
+    return "", "", stale_cleared
+
+
 def recent_thread_ids(service: Any, limit: int) -> set[str]:
     result = service.users().messages().list(
         userId="me",
@@ -468,5 +519,105 @@ def main() -> int:
     return 0
 
 
+def find_thread_id_for_card(service: Any, card: dict[str, Any]) -> str:
+    thread_id, _source, _stale = resolve_thread_id_for_card(service, card)
+    return thread_id
+
+
+def sync_single_card(card_id: str | int) -> dict[str, Any]:
+    """Pull one Gmail thread into a single Supabase card (on-demand from Company OS / Organs)."""
+    load_env()
+    service = load_gmail_service(interactive=False)
+    rows = supabase_get(
+        f"/rest/v1/cards?select=id,title,contact_name,business_name,email,list_id,gmail_thread_id,"
+        f"email_thread,original_email,draft_reply,draft_reply_status,new_reply_at&id=eq.{card_id}&limit=1"
+    )
+    if not isinstance(rows, list) or not rows:
+        return {"ok": False, "error": f"Card {card_id} not found"}
+    card = rows[0]
+    stored_thread = str(card.get("gmail_thread_id") or "").strip()
+    thread_id, source, stale_cleared = resolve_thread_id_for_card(service, card)
+    if stale_cleared and not thread_id:
+        supabase_patch(card["id"], {"gmail_thread_id": ""})
+        return {
+            "ok": False,
+            "error": (
+                "The saved Gmail thread was deleted or moved. "
+                "No newer thread found for this email — run a full Gmail sync or verify the address."
+            ),
+            "stale_thread_cleared": True,
+            "previous_thread_id": stored_thread,
+        }
+    if not thread_id:
+        return {"ok": False, "error": "No Gmail thread linked to this lead yet. Run a full Gmail sync first."}
+    try:
+        fresh = fetch_thread(service, thread_id)
+    except HttpError:
+        if source == "stored":
+            thread_id, source, stale_cleared = resolve_thread_id_for_card(service, {**card, "gmail_thread_id": ""})
+            if thread_id:
+                fresh = fetch_thread(service, thread_id)
+            else:
+                supabase_patch(card["id"], {"gmail_thread_id": ""})
+                return {
+                    "ok": False,
+                    "error": (
+                        "Gmail thread no longer exists and no replacement was found for this email. "
+                        "Cleared the stale link — try full Gmail sync."
+                    ),
+                    "stale_thread_cleared": True,
+                    "previous_thread_id": stored_thread,
+                }
+        else:
+            return {
+                "ok": False,
+                "error": "Gmail thread no longer exists. Run a full Gmail sync to re-link this lead.",
+            }
+    except Exception as exc:
+        return {"ok": False, "error": f"Gmail thread fetch failed: {str(exc)[:200]}"}
+    if not fresh:
+        return {"ok": False, "error": "Gmail returned an empty thread."}
+    merged = merge_threads(card.get("email_thread") or card.get("original_email") or [], fresh)
+    last = merged[-1] if merged else {}
+    payload: dict[str, Any] = {
+        "gmail_thread_id": thread_id,
+        "email_thread": merged,
+        "original_email": merged[:1],
+    }
+    if inbound_needs_reply(last) and str(card.get("list_id") or "") not in INACTIVE_STAGES:
+        payload["new_reply_at"] = last.get("date") or now_iso()
+    elif str(card.get("list_id") or "") not in INACTIVE_STAGES:
+        payload["new_reply_at"] = None
+    stale_patch = stale_draft_clear_patch({**card, **payload}, merged)
+    if stale_patch:
+        payload.update({k: v for k, v in stale_patch.items() if not k.startswith("_")})
+    supabase_patch(card["id"], payload)
+    note = ""
+    if stale_cleared and source == "email_lookup":
+        note = "Re-linked to a newer Gmail thread for this contact."
+    elif stale_cleared:
+        note = "Cleared a stale Gmail thread link."
+
+    return {
+        "ok": True,
+        "card_id": card["id"],
+        "thread_id": thread_id,
+        "thread_source": source,
+        "stale_thread_cleared": stale_cleared,
+        "note": note,
+        "business": card.get("business_name") or card.get("title"),
+        "messages": len(merged),
+        "latest_inbound": bool(payload.get("new_reply_at")),
+    }
+
+
 if __name__ == "__main__":
+    if "--card-id" in sys.argv:
+        import argparse as _argparse
+
+        _parser = _argparse.ArgumentParser()
+        _parser.add_argument("--card-id", required=True)
+        _args = _parser.parse_args()
+        print(json.dumps(sync_single_card(_args.card_id), indent=2))
+        sys.exit(0)
     sys.exit(main())
