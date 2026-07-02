@@ -1486,8 +1486,50 @@ function V4XLeadAskKindFromText(text) {
   if (/best email|email to reach|what(?:'s| is) your email|reach you (?:at|via) email/i.test(text)) return 'email_request';
   if (/rates|pricing|budget|\$\d|how much|your fee|standard rate/i.test(text)) return 'rates';
   if (/paid|sponsor|brand deal|ambassador|collab/i.test(text)) return 'paid_collab';
-  if (/demo|product|launch|platform|\btool\b|trial|saas/i.test(blob)) return 'product';
+  if (/\b(?:full\s+)?list\b/i.test(blob) && /\b(?:do you have|got a|have a|share)\b/i.test(blob)) return 'info_request';
+  if (/\b(?:do you have|can you send|could you share|where can i find)\b/i.test(blob)) return 'info_request';
+  if (/\bdemo\b|product|launch|platform|\btool\b|trial|saas/i.test(blob)) return 'product';
   return 'general';
+}
+
+function V4XLeadMessageIsQuestion(text) {
+  const t = String(text || '').trim();
+  if (!t) return false;
+  if (/\?/.test(t)) return true;
+  return /^(?:do|does|did|can|could|would|will|have you|are you|is there|any chance|where|when|how|what)\b/i.test(t);
+}
+
+function V4XLeadQuestionHandle(text) {
+  const match = String(text || '').match(/@([A-Za-z0-9_]{2,})/);
+  return match ? `@${match[1]}` : '';
+}
+
+function V4XLeadQuestionOpener(lead) {
+  const msg = V4XLeadInboundText(lead);
+  if (!V4XLeadMessageIsQuestion(msg)) return '';
+
+  const lower = msg.toLowerCase();
+  const handle = V4XLeadQuestionHandle(msg);
+
+  if (/\b(?:full\s+)?list\b/.test(lower) && /\b(?:do you have|got a|have a|share)\b/.test(lower)) {
+    const who = handle || 'that';
+    return `Glad you're following along — I don't keep a public ${who} list in DMs. They usually post the latest through their own feed.`;
+  }
+
+  if (/\bdo you have\b/i.test(msg)) {
+    const who = handle ? ` for ${handle}` : '';
+    return `I don't have that${who} handy in DMs — email is the better place to line up specifics on our side.`;
+  }
+
+  if (/\b(?:where can i find|how do i get)\b/i.test(lower)) {
+    return 'Best bet is to check their official channels first — I do not keep a running list in DMs.';
+  }
+
+  if (/amazing|great|love|nice|cool|awesome/i.test(msg)) {
+    return 'Appreciate that — happy to help where I can.';
+  }
+
+  return 'Good question — I do not have a clean answer in DMs, but we can line this up properly over email.';
 }
 
 function V4XLeadInboundText(lead) {
@@ -1586,7 +1628,7 @@ function V4XLeadConversationHook(lead) {
 
 function V4XLeadMessageBite(lead) {
   const msg = V4XLeadInboundText(lead);
-  if (!msg) return '';
+  if (!msg || V4XLeadMessageIsQuestion(msg)) return '';
   let text = msg
     .replace(/^(?:hi|hey|hello|dear|yo)\s+(?:robert|scoble|there)[!,.\s]*/i, '')
     .replace(/^robert\s+scoble\s*[,，]\s*/i, '')
@@ -1608,6 +1650,9 @@ function V4XHandoffLine(lead) {
   if (ask === 'product') {
     return 'Happy to review properly over email: Scobleizer@gmail.com with AsherUnaligned@gmail.com CC. Asher handles client business at UNALIGNED.';
   }
+  if (ask === 'info_request') {
+    return 'Easiest on email: Scobleizer@gmail.com with AsherUnaligned@gmail.com CC — Asher can help track down specifics at UNALIGNED.';
+  }
   return 'For sponsorship details, email Scobleizer@gmail.com and CC AsherUnaligned@gmail.com — Asher handles client business at UNALIGNED.';
 }
 
@@ -1616,6 +1661,7 @@ function V4XHandoffClose(lead) {
   if (ask === 'travel') return 'Send timing, location, and what you need from Robert when you can.';
   if (ask === 'rates') return 'Send scope, deliverables, and budget when you can.';
   if (ask === 'product') return 'Send a quick overview and what kind of post or demo you had in mind.';
+  if (ask === 'info_request') return 'Send what you are trying to find and Asher can help point you in the right direction.';
   return 'Send scope, timing, and budget when you can.';
 }
 
@@ -1676,6 +1722,9 @@ function V4XLeadDmOpener(lead, opts = {}) {
     ? `Thanks for reaching out about ${hook} — yes, email works best.`
     : 'Thanks for the DM — yes, email works best on our side.';
   if (hook) return `Thanks for reaching out about ${hook}.`;
+
+  const questionOpener = V4XLeadQuestionOpener(lead);
+  if (questionOpener) return questionOpener;
 
   const bite = V4XLeadMessageBite(lead);
   if (bite && !/^(us|you|them|our|your) on\b/i.test(bite) && !/\b(remote basis|regular pay|work schedule)\b/i.test(bite)) {
