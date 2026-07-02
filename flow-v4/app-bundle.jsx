@@ -13797,6 +13797,26 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     }
   };
 
+  const V4ToolkitIconName = (toolId) => ({
+    'brief-maker': 'doc',
+    'x-signal': 'bolt',
+    'manual-lead': 'plus',
+    'robert-handoff': 'send',
+    'x-intake': 'network',
+    'gmail-intake': 'mail',
+    'company-operator': 'board',
+    'stripe-sync': 'invoice',
+    'calendar-brief-ops': 'cal',
+  }[toolId] || 'spark');
+
+  const V4ToolkitShortDesc = (tool) => {
+    if (tool.id === 'brief-maker') return 'One link in → Google Doc brief for Robert.';
+    if (tool.id === 'x-signal') return 'Score drafts against live X momentum before posting.';
+    if (tool.id === 'manual-lead') return 'Paste text or drop a screenshot → New Lead card.';
+    if (tool.id === 'robert-handoff') return 'Review intro emails before Robert loops in Asher + Sam.';
+    return tool.useFor;
+  };
+
   const toolkitCards = V4_COMPANY_OS_TOOLKIT.map(tool => {
     if (tool.id === 'brief-maker') {
       return {
@@ -13883,73 +13903,94 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     return tool;
   });
 
+  const toolkitFeatured = toolkitCards.filter(tool => tool.simpleCard);
+  const toolkitPipeline = toolkitCards.filter(tool => !tool.simpleCard);
+
+  const renderToolkitActions = (tool, compact) => (
+    <div className={'cos-toolkit-tile-actions' + (compact ? ' is-compact' : '')}>
+      {tool.primaryHref ? (
+        <a className="cos-toolkit-btn is-primary" href={tool.primaryHref} target="_blank" rel="noreferrer">
+          {tool.primaryLabel}
+        </a>
+      ) : tool.primaryAction ? (
+        <button type="button" className="cos-toolkit-btn is-primary" onClick={() => runAction(tool.primaryAction)}>
+          {tool.primaryLabel}
+        </button>
+      ) : null}
+      {!compact && tool.secondaryAction ? (
+        <button type="button" className="cos-toolkit-btn is-ghost" onClick={() => runAction(tool.secondaryAction)}>
+          {tool.secondaryLabel}
+        </button>
+      ) : !compact && tool.secondaryHref ? (
+        <a className="cos-toolkit-btn is-ghost" href={tool.secondaryHref} target="_blank" rel="noreferrer">
+          {tool.secondaryLabel}
+        </a>
+      ) : null}
+    </div>
+  );
+
   return (
-    <div className="cosov">
-      <div className="cos-section-eyebrow-row">
-        <span className="cos-eyebrow">Toolkit</span>
-        <span className="cos-section-date">{V4_COMPANY_OS_TOOLKIT.length} tools</span>
-      </div>
-      <h2 className="cos-section-title">The skills and systems behind Company OS</h2>
-      <p className="cos-section-sub cos-section-sub-left">
-        This is the operator stack. Lead intake, reply handling, briefs, invoicing, and execution tools live here so the system can become more autonomous without getting messy.
-      </p>
-      <div className="cos-toolkit-grid">
-        {toolkitCards.map(tool => (
-          <section key={tool.id} className={'cos-panel cos-toolkit-card' + (tool.simpleCard ? ' is-brief-maker' : '')}>
-            <div className="cos-panel-head">
-              <h3>{tool.title}</h3>
-              <span className={'cos-toolkit-status is-' + String(tool.status || '').toLowerCase().replace(/\s+/g, '-')}>{tool.status}</span>
+    <div className="cosov cos-toolkit-page">
+      <header className="cos-toolkit-hero">
+        <div className="cos-toolkit-hero-copy">
+          <span className="cos-eyebrow">Operator toolkit</span>
+          <h2 className="cos-toolkit-hero-title">Build, signal, intake, hand off</h2>
+          <p className="cos-toolkit-hero-sub">
+            The four tools you reach for daily up top. Automations and finance underneath.
+          </p>
+        </div>
+        <div className="cos-toolkit-hero-stat">
+          <span className="cos-toolkit-hero-stat-num">{toolkitFeatured.length}</span>
+          <span className="cos-toolkit-hero-stat-lbl">primary tools</span>
+        </div>
+      </header>
+
+      <div className="cos-toolkit-featured">
+        {toolkitFeatured.map((tool, index) => (
+          <article
+            key={tool.id}
+            className={'cos-toolkit-tile is-featured is-' + tool.id}
+            style={{ animationDelay: `${0.04 + index * 0.05}s` }}
+          >
+            <div className="cos-toolkit-tile-glow" aria-hidden="true" />
+            <div className="cos-toolkit-tile-icon">
+              <V3Icon name={V4ToolkitIconName(tool.id)} w={22} />
             </div>
-            <div className="cos-toolkit-body">
-              {tool.simpleCard ? (
-                <div className="cos-toolkit-simple-copy">
-                  {tool.id === 'brief-maker'
-                    ? 'Build a Google Doc brief for Robert from one source link.'
-                    : tool.id === 'x-signal'
-                      ? 'Score drafts against live X momentum before Robert posts.'
-                      : tool.id === 'manual-lead'
-                        ? 'Create a New Lead from pasted text or an iMessage screenshot.'
-                        : tool.useFor}
-                </div>
-              ) : (
-                <>
-                  <div className="cos-toolkit-meta">
-                    <span className="cos-chip cos-chip-tight">{tool.kind}</span>
-                    <span className="cos-toolkit-output">{tool.output}</span>
-                  </div>
-                  <div className="cos-toolkit-row">
-                    <div className="cos-toolkit-label">Use for</div>
-                    <div className="cos-toolkit-value">{tool.useFor}</div>
-                  </div>
-                  <div className="cos-toolkit-row">
-                    <div className="cos-toolkit-label">Trigger</div>
-                    <div className="cos-toolkit-value">{tool.trigger}</div>
-                  </div>
-                </>
-              )}
-              <div className="cos-toolkit-actions">
-                {tool.primaryHref ? (
-                  <a className="cos-toolkit-btn is-primary" href={tool.primaryHref} target="_blank" rel="noreferrer">
-                    {tool.primaryLabel}
-                  </a>
-                ) : tool.primaryAction ? (
-                  <button type="button" className="cos-toolkit-btn is-primary" onClick={() => runAction(tool.primaryAction)}>
-                    {tool.primaryLabel}
-                  </button>
-                ) : null}
-                {tool.secondaryAction ? (
-                  <button type="button" className="cos-toolkit-btn" onClick={() => runAction(tool.secondaryAction)}>
-                    {tool.secondaryLabel}
-                  </button>
-                ) : tool.secondaryHref ? (
-                  <a className="cos-toolkit-btn" href={tool.secondaryHref} target="_blank" rel="noreferrer">
-                    {tool.secondaryLabel}
-                  </a>
-                ) : null}
+            <div className="cos-toolkit-tile-main">
+              <div className="cos-toolkit-tile-top">
+                <h3>{tool.title}</h3>
+                <span className={'cos-toolkit-badge is-' + String(tool.status || '').toLowerCase().replace(/\s+/g, '-')}>
+                  {tool.status}
+                </span>
               </div>
-              {!tool.simpleCard && <div className="cos-toolkit-note">{tool.note}</div>}
+              <p className="cos-toolkit-tile-desc">{V4ToolkitShortDesc(tool)}</p>
+              {renderToolkitActions(tool, false)}
             </div>
-          </section>
+          </article>
+        ))}
+      </div>
+
+      <div className="cos-toolkit-pipeline-hd">
+        <h3>Automations &amp; ops</h3>
+        <span>{toolkitPipeline.length} connected</span>
+      </div>
+      <div className="cos-toolkit-pipeline">
+        {toolkitPipeline.map(tool => (
+          <article key={tool.id} className={'cos-toolkit-tile is-compact is-' + tool.id}>
+            <div className="cos-toolkit-tile-icon is-small">
+              <V3Icon name={V4ToolkitIconName(tool.id)} w={16} />
+            </div>
+            <div className="cos-toolkit-tile-main">
+              <div className="cos-toolkit-tile-top">
+                <h3>{tool.title}</h3>
+                <span className={'cos-toolkit-badge is-' + String(tool.status || '').toLowerCase().replace(/\s+/g, '-')}>
+                  {tool.status}
+                </span>
+              </div>
+              <p className="cos-toolkit-tile-desc">{V4ToolkitShortDesc(tool)}</p>
+            </div>
+            {renderToolkitActions(tool, true)}
+          </article>
         ))}
       </div>
       {briefMakerOpen && (
