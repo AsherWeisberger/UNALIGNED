@@ -1,7 +1,7 @@
 // UNALIGNED Ops — main app shell (top bar, views, command palette)
 
 const V4_TWEAKS = /*EDITMODE-BEGIN*/{
-  "viewAs": "robert",
+  "viewAs": "asher",
   "theme": "light",
   "view": "company-os"
 }/*EDITMODE-END*/;

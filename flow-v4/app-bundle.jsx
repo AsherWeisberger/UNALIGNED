@@ -2638,9 +2638,7 @@ function V3ThreadFromRow(row, name, brand, stage) {
   }];
 }
 
-function V3SenderForUser(user) {
-  if (user === 'robert') return 'robert';
-  if (user === 'sammy') return 'sam';
+function V3SenderForUser(_user) {
   return 'asher';
 }
 
@@ -6536,9 +6534,9 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
               </div>
             ) : null}
             <select className="gmail-reply-from" value={sender} disabled={status === 'sending'} onChange={e => setSender(e.target.value)} title="Send as">
-              <option value="robert">Robert Scoble</option>
-              <option value="sam">Sam Levin</option>
               <option value="asher">Asher</option>
+              <option value="sam">Sam Levin</option>
+              <option value="robert">Robert Scoble</option>
             </select>
           </div>
           {onCollapse && (
@@ -6599,9 +6597,9 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
       <div className="mail-compose mail-compose--gmail mail-compose--inline">
         <div className="mail-compose-inline-meta">
           <select className="mail-compose-sender" value={sender} disabled={status === 'sending'} onChange={e => setSender(e.target.value)} title="Sender">
-            <option value="robert">Robert Scoble</option>
-            <option value="sam">Sam Levin / UnalignedX</option>
             <option value="asher">Asher</option>
+            <option value="sam">Sam Levin / UnalignedX</option>
+            <option value="robert">Robert Scoble</option>
           </select>
           <div className="mail-compose-inline-to">
             <span className="mail-compose-inline-label">To</span>
@@ -6670,9 +6668,9 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
     <div className="mail-compose">
       <div className="mail-compose-topbar">
         <select className="mail-compose-sender" value={sender} disabled={status === 'sending'} onChange={e => setSender(e.target.value)} title="Sender">
-          <option value="robert">Robert Scoble</option>
-          <option value="sam">Sam Levin / UnalignedX</option>
           <option value="asher">Asher</option>
+          <option value="sam">Sam Levin / UnalignedX</option>
+          <option value="robert">Robert Scoble</option>
         </select>
         <span className="mail-compose-tone" title="Operator tone for this thread">{draftToneLabel}</span>
         <button className="mail-compose-ai" type="button" disabled={status === 'sending' || aiDrafting} onClick={aiRedraft} title={'Regenerate via ' + aiBridgeLabel + ' (Qwen, ~15s)'}>
@@ -16548,9 +16546,9 @@ function V4LeadNegotiateWorkspace({
           setAiBaseline(nextDraft.body);
           setUserBody(nextDraft.body);
         }}>
-          <option value="robert">Robert Scoble</option>
-          <option value="sam">Sam Levin</option>
           <option value="asher">Asher</option>
+          <option value="sam">Sam Levin</option>
+          <option value="robert">Robert Scoble</option>
         </select>
         <span className="cos-negotiate-recip">To {toLine || 'add recipient'}</span>
       </div>
@@ -18228,7 +18226,7 @@ window.V4LeadIsTravelLead = V4LeadIsTravelLead;
 // FLOW v4 — main app shell (refined top bar + view wiring)
 
 const V4_TWEAKS = /*EDITMODE-BEGIN*/{
-  "viewAs": "robert",
+  "viewAs": "asher",
   "theme": "light",
   "view": "company-os"
 }/*EDITMODE-END*/;

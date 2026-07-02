@@ -746,9 +746,7 @@ function V3ThreadFromRow(row, name, brand, stage) {
   }];
 }
 
-function V3SenderForUser(user) {
-  if (user === 'robert') return 'robert';
-  if (user === 'sammy') return 'sam';
+function V3SenderForUser(_user) {
   return 'asher';
 }
 
