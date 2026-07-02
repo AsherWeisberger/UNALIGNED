@@ -8977,8 +8977,8 @@
     "rank": 0,
     "newLead": true,
     "seenInPriorScrape": true,
-    "changedSincePriorScrape": false,
-    "newestDmDate": "2026-06-30",
+    "changedSincePriorScrape": true,
+    "newestDmDate": "2026-07-02",
     "leadScore": 0,
     "xName": "Alex Hammer",
     "xUsername": "",
@@ -8989,14 +8989,14 @@
     "leadType": "Intro / Network",
     "currentStatus": "",
     "alreadyEmailedInRobertGmail": false,
-    "summaryForTeam": "Alex Hammer is asking for an intro or broader connection. Latest lead message: Since Alfred Lin and a few other elite investors asked for our demo, do you want me to hire you as an Advisor to facilitate those meetings? 3:38 PM 3:38 PM Robert’s latest position: Do you know when the meetings are set up for? It's not a thing I usually do, but I'm intrigued and honored. 9:26 PM 9:26 PM",
-    "lastLeadMessage": "Since Alfred Lin and a few other elite investors asked for our demo, do you want me to hire you as an Advisor to facilitate those meetings? 3:38 PM 3:38 PM",
-    "lastSender": "Robert",
+    "summaryForTeam": "Alex Hammer is asking for an intro or broader connection. Latest lead message: I know that you know a lot of the top investors, but how well do you know them? Can you negotiate for us the best terms so that we are selecting our investors rather than them selecting us, as we are the first startup in the world to (in process) solve the AI… Robert’s latest position: Do you know when the meetings are set up for? It's not a thing I usually do, but I'm intrigued and honored. 9:26 PM 9:26 PM",
+    "lastLeadMessage": "I know that you know a lot of the top investors, but how well do you know them? Can you negotiate for us the best terms so that we are selecting our investors rather than them selecting us, as we are the first startup in the world to (in process) solve the AI backlash. I am willing to pay top Advisor $$ if the value is there. 10:54 AM 10:54 AM",
+    "lastSender": "Lead",
     "lastRobertMessage": "Do you know when the meetings are set up for? It's not a thing I usually do, but I'm intrigued and honored. 9:26 PM 9:26 PM",
-    "repliedViaX": true,
-    "bestNextStep": "Review thread manually before sending anything new.",
-    "recommendedOwner": "Asher",
-    "messageCount": 7,
+    "repliedViaX": false,
+    "bestNextStep": "Reply in X once to move them to email with Robert + Asher + Sammy.",
+    "recommendedOwner": "Robert / Asher",
+    "messageCount": 8,
     "dmMessages": [
       {
         "sender": "Lead",
@@ -9025,8 +9025,65 @@
       {
         "sender": "Robert",
         "text": "Do you know when the meetings are set up for? It's not a thing I usually do, but I'm intrigued and honored.\n9:26 PM\n9:26 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "I know that you know a lot of the top investors, but how well do you know them? Can you negotiate for us the best terms so that we are selecting our investors rather than them selecting us, as we are the first startup in the world to (in process) solve the AI backlash. I am willing to pay top Advisor $$ if the value is there.\n10:54 AM\n10:54 AM"
       }
     ]
+  },
+  {
+    "rank": 0,
+    "newLead": false,
+    "seenInPriorScrape": true,
+    "changedSincePriorScrape": true,
+    "newestDmDate": "2026-07-02",
+    "leadScore": 0,
+    "xName": "Alexander Swai",
+    "xUsername": "@underscor_io",
+    "openDm": "https://x.com/i/chat/13348-1157546221545906176",
+    "contactInfo": "Handle: @underscor_io",
+    "contactEmails": "",
+    "contactPhones": "",
+    "leadType": "Event / Media",
+    "currentStatus": "",
+    "alreadyEmailedInRobertGmail": false,
+    "summaryForTeam": "Alexander Swai is reaching out about an event, interview, media spot, or speaking-related opportunity. Latest lead message: I will space this sometime this week with peers and invite you through our alt acc @underscor_io 12:44 AM 12:44 AM Robert’s latest position: It's hard for me to get excited about it, but it totally depends on the execution. There's a lot of new tools hitting that watch everything you do and write you various reports ab…",
+    "lastLeadMessage": "I will space this sometime this week with peers and invite you through our alt acc @underscor_io 12:44 AM 12:44 AM",
+    "lastSender": "Lead",
+    "lastRobertMessage": "It's hard for me to get excited about it, but it totally depends on the execution. There's a lot of new tools hitting that watch everything you do and write you various reports about what you've done. I just don't think it's that interesting, but I might be totally wrong. It's hard to see where this would go. 12:21 AM 12:21 AM",
+    "repliedViaX": false,
+    "bestNextStep": "Reply in X once to move them to email with Robert + Asher + Sammy.",
+    "recommendedOwner": "Robert / Asher",
+    "messageCount": 6,
+    "dmMessages": [
+      {
+        "sender": "Lead",
+        "text": "Howdy\n1:51 PM\n1:51 PM"
+      },
+      {
+        "sender": "Robert",
+        "text": "Hi\n7:12 PM\n7:12 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Any feedback on this?\n11:44 PM\n11:44 PM"
+      },
+      {
+        "sender": "Robert",
+        "text": "It's hard for me to get excited about it, but it totally depends on the execution. \n\nThere's a lot of new tools hitting that watch everything you do and write you various reports about what you've done. I just don't think it's that interesting, but I might be totally wrong. It's hard to see where this would go.\n12:21 AM\n12:21 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Offcourse, an MVE would help.. I wanted to validate it first before we Execute.\n\nOverall the idea is monetization globally. Our aim is to get initial churn then the rest unfolds\n12:34 AM\n12:34 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "I will space this sometime this week with peers and invite you through our alt acc @underscor_io\n12:44 AM\n12:44 AM"
+      }
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 0,
@@ -9077,8 +9134,8 @@
     "rank": 0,
     "newLead": false,
     "seenInPriorScrape": true,
-    "changedSincePriorScrape": false,
-    "newestDmDate": "2026-06-30",
+    "changedSincePriorScrape": true,
+    "newestDmDate": "2026-07-01",
     "leadScore": 0,
     "xName": "Andrew 🇮🇪",
     "xUsername": "",
@@ -9271,9 +9328,72 @@
   },
   {
     "rank": 0,
-    "newLead": false,
+    "newLead": true,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": true,
+    "newestDmDate": "2026-07-01",
+    "leadScore": 0,
+    "xName": "Ark Baltser",
+    "xUsername": "",
+    "openDm": "https://x.com/i/chat/13348-1464133492845993993",
+    "contactInfo": "Phone: 6505378088 1",
+    "contactEmails": "",
+    "contactPhones": "6505378088 1",
+    "leadType": "Paid / Sponsorship",
+    "currentStatus": "",
+    "alreadyEmailedInRobertGmail": false,
+    "summaryForTeam": "Ark Baltser is pitching a paid collaboration or sponsorship. Latest lead message: Just posted this collab with a famous YouTuber and a special forces dog wearing Petpin. Lmk what you think. :D 5:45 PM 5:45 PM Robert’s latest position: I'm on my way, I might be five minutes late. 1:43 PM 1:43 PM Contact captured: phone: 6505378088 1.",
+    "lastLeadMessage": "Just posted this collab with a famous YouTuber and a special forces dog wearing Petpin. Lmk what you think. :D 5:45 PM 5:45 PM",
+    "lastSender": "Lead",
+    "lastRobertMessage": "I'm on my way, I might be five minutes late. 1:43 PM 1:43 PM",
+    "repliedViaX": false,
+    "bestNextStep": "Reply in X once to move them to email with Robert + Asher + Sammy.",
+    "recommendedOwner": "Robert / Asher",
+    "messageCount": 9,
+    "dmMessages": [
+      {
+        "sender": "Robert",
+        "text": "Can you please send me a calendar request with the address? scobleizer@gmail.com\n5:05 AM\n5:05 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Just did, see you Monday!\n5:10 AM\n5:10 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Morning and happy Friday, I just posted something I’m pretty proud of, a 3D map generated from a dog’s walk using our collar. Would love your eyes on it if you have a sec, really curious what you think\n12:57 PM\n12:57 PM"
+      },
+      {
+        "sender": "Robert",
+        "text": "Just reshared\n4:02 PM\n4:02 PM"
+      },
+      {
+        "sender": "Robert",
+        "text": "Love\n4:02 PM\n4:02 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "See you soon, here’s my phone number just in case: 6505378088\n1:42 PM\n1:42 PM"
+      },
+      {
+        "sender": "Robert",
+        "text": "I'm on my way, I might be five minutes late.\n1:43 PM\n1:43 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "No worries, take your time\n1:43 PM\n1:43 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Just posted this collab with a famous YouTuber and a special forces dog wearing Petpin. Lmk what you think. :D\n5:45 PM\n5:45 PM"
+      }
+    ]
+  },
+  {
+    "rank": 0,
+    "newLead": false,
+    "seenInPriorScrape": true,
+    "changedSincePriorScrape": false,
     "newestDmDate": "2026-06-30",
     "leadScore": 0,
     "xName": "Arkid",
@@ -9532,6 +9652,71 @@
   {
     "rank": 0,
     "newLead": false,
+    "seenInPriorScrape": false,
+    "changedSincePriorScrape": true,
+    "newestDmDate": "2026-07-01",
+    "leadScore": 0,
+    "xName": "Asi Meskin",
+    "xUsername": "",
+    "openDm": "https://x.com/i/chat/13348-83964064",
+    "contactInfo": "Email: asherunaligned@gmail.com",
+    "contactEmails": "asherunaligned@gmail.com",
+    "contactPhones": "",
+    "leadType": "Paid / Sponsorship",
+    "currentStatus": "",
+    "alreadyEmailedInRobertGmail": false,
+    "summaryForTeam": "Asi Meskin is pitching a paid collaboration or sponsorship. Latest lead message: Totally get it—sounds like you’re crushing it! 💪 No worries at all. When things ease up a bit, just drop me a quick message and we’ll lock in a quick call. Looking forward to chatting with you when the timing’s right! 🚀 6:16 AM 6:16 AM Robert’s latest position: Hi Asi! Will do. I'll message you here when my calendar opens up and we can lock in that call. Scobleizer@gmail.com with AsherUnaligned@gmail.com CC is best . Asher runs client bu… Contact captured: email: asherunaligned@gmail.com.",
+    "lastLeadMessage": "Totally get it—sounds like you’re crushing it! 💪 No worries at all. When things ease up a bit, just drop me a quick message and we’ll lock in a quick call. Looking forward to chatting with you when the timing’s right! 🚀 6:16 AM 6:16 AM",
+    "lastSender": "Robert",
+    "lastRobertMessage": "Hi Asi! Will do. I'll message you here when my calendar opens up and we can lock in that call. Scobleizer@gmail.com with AsherUnaligned@gmail.com CC is best . Asher runs client business at UNALIGNED. Send scope, deliverables, and budget when you can. 7:53 PM 7:53 PM",
+    "repliedViaX": true,
+    "bestNextStep": "Email from Robert, CC Asher and Sammy, and move the deal off X.",
+    "recommendedOwner": "Asher / Sammy",
+    "messageCount": 9,
+    "dmMessages": [
+      {
+        "sender": "Lead",
+        "text": "Transform lives with your voice through t.co/gRWZuzgfHJ! Deliver AI-powered, personalized messages to your followers—morning alarms, affirmations & more—while earning revenue effortlessly. 🌟 Imagine reaching 1M subscribers = $500K/month! Learn more: https://t.co/khIPERe3sC…… ##oolyAI #Impact\n5:00 AM\n5:00 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "🎙 Hi, I’m Asi!\n\nTurn your voice into daily inspiration with https://t.co/gRWZuzgfHJ and earn effortlessly:\n💸 Subscribers pay $0.99/month—you keep 70%.\n📢 Promote your content directly—no algorithms.\n⚡ Just 1M subscribers = $500K/month!\nReady to connect with your audience like never before? Let’s chat! 💬\n4o\n2:25 AM\n2:25 AM"
+      },
+      {
+        "sender": "Robert",
+        "text": "That sounds cool, will have to try it!\n2:46 AM\n2:46 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Glad you think so! By the way, would you like to meet up to discuss this further? If so, could you let me know where you're located? I'll suggest a few optional times that might work.\n6:25 AM\n6:25 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Hi👋Your Voice can wake up & inspire millions morning, every night. \n✅ AI-powered, personalized messages\n✅ Direct audience connection, no algorithms\n✅ Earn 70% revenue—$500K/month with 1M subs\nJoin visionaries shaping the future. Ready? Let’s connect!\n6:22 AM\n6:22 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "🚀Hi! Turn your voice into daily inspiration with us! \n\n💸 Subscribers pay $0.99/month—you keep 70%. \n📷 Promote your content directly—no algorithms. \n⚡ Just 1M subscribers = $500K/month!\nChat back for a quick call with us!\n3:36 AM\n3:36 AM"
+      },
+      {
+        "sender": "Robert",
+        "text": "I'm in South San Jose but am so booked for next three weeks it isn't funny.\n11:46 AM\n11:46 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Totally get it—sounds like you’re crushing it! 💪 No worries at all. When things ease up a bit, just drop me a quick message and we’ll lock in a quick call. Looking forward to chatting with you when the timing’s right! 🚀\n6:16 AM\n6:16 AM"
+      },
+      {
+        "sender": "Robert",
+        "text": "Hi Asi!\n\nWill do. I'll message you here when my calendar opens up and we can lock in that call.\n\nScobleizer@gmail.com with AsherUnaligned@gmail.com CC is best .  Asher runs client business at UNALIGNED.\n\nSend scope, deliverables, and budget when you can.\n7:53 PM\n7:53 PM"
+      }
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
+  },
+  {
+    "rank": 0,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-06-22",
@@ -9612,6 +9797,79 @@
         "text": "Yes, could you give me your email and I'll have my business manager work with you?\n12:32 PM\n12:32 PM"
       }
     ]
+  },
+  {
+    "rank": 0,
+    "newLead": false,
+    "seenInPriorScrape": false,
+    "changedSincePriorScrape": true,
+    "newestDmDate": "2026-07-01",
+    "leadScore": 0,
+    "xName": "Ben Cera",
+    "xUsername": "",
+    "openDm": "https://x.com/i/chat/13348-255193554",
+    "contactInfo": "Phone: 2057847644966547920 12",
+    "contactEmails": "",
+    "contactPhones": "2057847644966547920 12",
+    "leadType": "Product / Demo",
+    "currentStatus": "",
+    "alreadyEmailedInRobertGmail": false,
+    "summaryForTeam": "Ben Cera wants Robert to look at or engage with a product/company. Latest lead message: I flew the whole team to Cabo. If you enjoy today's post as much as Polsia and I did on our offsite, your support of a like, share, comment or retweet would mean a lot. Thank you! Ben 4:23 PM 4:23 PM Robert’s latest position: Will put together a post 12:42 PM 12:42 PM Contact captured: phone: 2057847644966547920 12.",
+    "lastLeadMessage": "I flew the whole team to Cabo. If you enjoy today's post as much as Polsia and I did on our offsite, your support of a like, share, comment or retweet would mean a lot. Thank you! Ben 4:23 PM 4:23 PM",
+    "lastSender": "Lead",
+    "lastRobertMessage": "Will put together a post 12:42 PM 12:42 PM",
+    "repliedViaX": false,
+    "bestNextStep": "Reply in X once to move them to email with Robert + Asher + Sammy.",
+    "recommendedOwner": "Robert / Asher",
+    "messageCount": 11,
+    "dmMessages": [
+      {
+        "sender": "Lead",
+        "text": "Hi! Let me know if you'd like an unlimited account to polsia, would love for your product feedback!\n1:50 PM\n1:50 PM"
+      },
+      {
+        "sender": "Robert",
+        "text": "Love! Will try it out! scobleizer@gmail.com\n2:29 PM\n2:29 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Amazing, just sign up (just takes a few clicks) and i will upgrade your account!\n2:14 AM\n2:14 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Hi! On May 22nd, I’m announcing a big news on Twitter regarding Polsia with an insane launch video. If you could show some love, with a thoughtful comment or even a quote retweet, it would mean the world to me. Can I count you in? Thanks!\n11:04 AM\n11:04 AM"
+      },
+      {
+        "sender": "Robert",
+        "text": "Yes please! Will help.\n4:51 PM\n4:51 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Thanks!\n9:23 PM\n9:23 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "It's live! The announcement just dropped. If you can like, comment or repost it would mean a huge amount 🙏 x.com/Bencera/status/2057847644966547920\n12:02 PM\n12:02 PM"
+      },
+      {
+        "sender": "Robert",
+        "text": "I will. You have some rock stars doing same. Josh Elman and Tony Conrad"
+      },
+      {
+        "sender": "Robert",
+        "text": "Will put together a post\n12:42 PM\n12:42 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Thank you!!\n2:29 PM\n2:29 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "I flew the whole team to Cabo.\nIf you enjoy today's post as much as Polsia and I did on our offsite, your support of a like, share, comment or retweet would mean a lot. \nThank you! Ben\n4:23 PM\n4:23 PM"
+      }
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 0,
@@ -10687,81 +10945,6 @@
     ],
     "spamBlocked": false,
     "qualifyBlocked": true
-  },
-  {
-    "rank": 0,
-    "newLead": true,
-    "seenInPriorScrape": true,
-    "changedSincePriorScrape": false,
-    "newestDmDate": "2026-06-30",
-    "leadScore": 0,
-    "xName": "Eren Chen",
-    "xUsername": "",
-    "openDm": "https://x.com/i/chat/13348-1857862811814113280",
-    "contactInfo": "",
-    "contactEmails": "",
-    "contactPhones": "",
-    "leadType": "Payment / Admin",
-    "currentStatus": "",
-    "alreadyEmailedInRobertGmail": false,
-    "summaryForTeam": "Eren Chen is handling payment or invoice follow-up. Latest lead message: Hey Robert, a Chinese Robotics company wants to sponsor you to visit their Shenzhen factory, covering all expenses and pay extra compensation. Lmk if you are interested. 9:56 AM 9:56 AM Robert’s latest position: Awesome! 5:56 PM 5:56 PM",
-    "lastLeadMessage": "Hey Robert, a Chinese Robotics company wants to sponsor you to visit their Shenzhen factory, covering all expenses and pay extra compensation. Lmk if you are interested. 9:56 AM 9:56 AM",
-    "lastSender": "Lead",
-    "lastRobertMessage": "Awesome! 5:56 PM 5:56 PM",
-    "repliedViaX": false,
-    "bestNextStep": "Reply in X once to move them to email with Robert + Asher + Sammy.",
-    "recommendedOwner": "Robert / Asher",
-    "messageCount": 12,
-    "dmMessages": [
-      {
-        "sender": "Lead",
-        "text": "Awesome\n3:43 PM\n3:43 PM"
-      },
-      {
-        "sender": "Lead",
-        "text": "I will get either vp or ceo for interview (hopefully)\n3:44 PM\n3:44 PM"
-      },
-      {
-        "sender": "Robert",
-        "text": "Yes please! How about at CES? Or before?\n2:28 AM\n2:28 AM"
-      },
-      {
-        "sender": "Lead",
-        "text": "at CES will be great, we wish you can take pics and videos of our booth too\n12:49 PM\n12:49 PM"
-      },
-      {
-        "sender": "Robert",
-        "text": "Yes sir!\n1:33 PM\n1:33 PM"
-      },
-      {
-        "sender": "Robert",
-        "text": "Can I bring 20 people by on Wednesday morning at CES?\n2:10 PM\n2:10 PM"
-      },
-      {
-        "sender": "Lead",
-        "text": "Absolutely, around what time? We will be prepared.\n5:26 PM\n5:26 PM"
-      },
-      {
-        "sender": "Robert",
-        "text": "Sometime in the morning, I think the show floor opens at 10:00, so somewhere around 10:30.\n5:53 PM\n5:53 PM"
-      },
-      {
-        "sender": "Lead",
-        "text": "No problem, see you soon\n5:55 PM\n5:55 PM"
-      },
-      {
-        "sender": "Robert",
-        "text": "Awesome!\n5:56 PM\n5:56 PM"
-      },
-      {
-        "sender": "Lead",
-        "text": "Looking forward to meeting in person.\n5:59 PM\n5:59 PM"
-      },
-      {
-        "sender": "Lead",
-        "text": "Hey Robert, a Chinese Robotics company wants to sponsor you to visit their Shenzhen factory, covering all expenses and pay extra compensation. Lmk if you are interested.\n9:56 AM\n9:56 AM"
-      }
-    ]
   },
   {
     "rank": 0,
@@ -12915,7 +13098,7 @@
     "rank": 0,
     "newLead": false,
     "seenInPriorScrape": true,
-    "changedSincePriorScrape": true,
+    "changedSincePriorScrape": false,
     "newestDmDate": "2026-07-01",
     "leadScore": 0,
     "xName": "Living Agentic with NoBanks Nearby",
@@ -13312,8 +13495,8 @@
     "rank": 0,
     "newLead": false,
     "seenInPriorScrape": true,
-    "changedSincePriorScrape": false,
-    "newestDmDate": "2026-06-29",
+    "changedSincePriorScrape": true,
+    "newestDmDate": "2026-07-02",
     "leadScore": 0,
     "xName": "Michael Finberg",
     "xUsername": "",
@@ -13324,31 +13507,15 @@
     "leadType": "Paid / Sponsorship",
     "currentStatus": "",
     "alreadyEmailedInRobertGmail": false,
-    "summaryForTeam": "Michael Finberg is pitching a paid collaboration or sponsorship. Latest lead message: Your comment has been approved! Thank you for sharing your thoughts with The New York Times community. michael | San Diego We have ten years before the AI bubbles pop. A ten year economic depression will then arrive that will make the 1930's look like a carni… Robert’s latest position: Yeah, I think you have a good read. 10:37 PM 10:37 PM",
-    "lastLeadMessage": "Your comment has been approved! Thank you for sharing your thoughts with The New York Times community. michael | San Diego We have ten years before the AI bubbles pop. A ten year economic depression will then arrive that will make the 1930's look like a carnival picnic. If we survive that war also may loom. The twin brother of economic depression. Oh, I forgot climate change, demographic collapse and, nuclear proliferation could also be a problem. DUCK! 3:03 AM 3:03 AM",
+    "summaryForTeam": "Michael Finberg is pitching a paid collaboration or sponsorship. Latest lead message: AI on YT is getting better. This video explains how America and China pulled off economic miracles after WW2 and at the end of Maoist China. Both systems are running into a wall as other countries scramble to create hybrid models. Alas, the global stressors t…",
+    "lastLeadMessage": "AI on YT is getting better. This video explains how America and China pulled off economic miracles after WW2 and at the end of Maoist China. Both systems are running into a wall as other countries scramble to create hybrid models. Alas, the global stressors that interest me like AI, climate, demographic collapse, and nuclear proliferation are not mentioned much. Nobody's perfect. This channel in other videos also explains how the bamboo curtain of the overseas Chinese dominate SE Asia's economi…",
     "lastSender": "Lead",
-    "lastRobertMessage": "Yeah, I think you have a good read. 10:37 PM 10:37 PM",
+    "lastRobertMessage": "",
     "repliedViaX": false,
     "bestNextStep": "Reply in X once to move them to email with Robert + Asher + Sammy.",
     "recommendedOwner": "Robert / Asher",
-    "messageCount": 9,
+    "messageCount": 6,
     "dmMessages": [
-      {
-        "sender": "Robert",
-        "text": "Yeah, I think you have a good read.\n10:37 PM\n10:37 PM"
-      },
-      {
-        "sender": "Lead",
-        "text": "Thanks, bro. I know it's hard for a Silicon Valley vet to see it, but reality is reality. Rob was completely fucked over by these guys. I was there.\n7:02 AM\n7:02 AM"
-      },
-      {
-        "sender": "Lead",
-        "text": "A massive triangle is forming on the SPY. That means consolidation before the next leg UP. This bull has ten years to go with major declines to push out the weak hands for sure. But we're heading for  150K on the DOW minimum. Before collapse and global economic depression and finally war. ten years of \"feast\" for elites. Not everybody. Then ten years of shit for everyone. Musk will take a massive fall. Then war in the 2040's. We'll both be dead by then, but your kids will not be.\n7:11 AM\n7:11 AM"
-      },
-      {
-        "sender": "Lead",
-        "text": "AI is probably one of the greatest technologies ever made by human beings and we have barely scratched the surface, but it came too late to make a real difference. But without AI, I would be crippled on multiple levels today. Even in its present crude form. It's potent.  Little did I know when you told me about ChatGPT in 2022 it would change my life. Especially 2025-26.\n7:18 AM\n7:18 AM"
-      },
       {
         "sender": "Lead",
         "text": "AI cognitive augmentation interests me more that AI automation. Especially accelerated augmentation. interdisciplinary/compression is my holy grail.\n11:16 AM\n11:16 AM"
@@ -13368,6 +13535,10 @@
       {
         "sender": "Lead",
         "text": "Your comment has been approved!\nThank you for sharing your thoughts with The New York Times community.\nmichael | San Diego\nWe have ten years before the AI bubbles pop. A ten year economic depression will then arrive that will make the 1930's look like a carnival picnic. If we survive that war also may loom. The twin brother of economic depression. Oh, I forgot climate change, demographic collapse and, nuclear proliferation could also be a problem. DUCK!\n3:03 AM\n3:03 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "AI on YT is getting better.\n\nThis video explains how America and China pulled off economic miracles after WW2 and at the end of Maoist China.\n\nBoth systems are running into a wall as other countries scramble to create hybrid models.\n\nAlas, the global stressors that interest me like AI, climate, demographic collapse, and nuclear proliferation are not mentioned much.\n\nNobody's perfect.\n\nThis channel in other videos also explains how the bamboo curtain of the overseas Chinese dominate SE Asia's economies.\n\nHow Mao hated them, Deng embraced them.\n\nPlus if you want to be a billionaire in China you need a red hat and a white glove.\n\nGet a CCP sponsor.\n\nyoutube.com/watch?v=ummm-FABP3w&si=qhfoEApmDWmt4bmF\n1:22 AM\n1:22 AM"
       }
     ],
     "spamBlocked": false,
@@ -14450,10 +14621,10 @@
   },
   {
     "rank": 0,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
-    "changedSincePriorScrape": false,
-    "newestDmDate": "2026-06-22",
+    "changedSincePriorScrape": true,
+    "newestDmDate": "2026-07-02",
     "leadScore": 0,
     "xName": "Qorden.ai",
     "xUsername": "",
@@ -14464,14 +14635,14 @@
     "leadType": "Payment / Admin",
     "currentStatus": "",
     "alreadyEmailedInRobertGmail": false,
-    "summaryForTeam": "Qorden.ai is handling payment or invoice follow-up. Latest lead message: Hi, At Qorden AI, we are launching a product to solve multilingual communication issues. And reaching out for a potential collaboration as your work felt like a great fit. We’re open to structuring this in a way that works for you (compensation, product acces… Robert’s latest position: Sounds interesting. Will have my business manager work with you 11:40 PM 11:40 PM Contact captured: email: alvina.rafi@qorden.ai.",
-    "lastLeadMessage": "Hi, At Qorden AI, we are launching a product to solve multilingual communication issues. And reaching out for a potential collaboration as your work felt like a great fit. We’re open to structuring this in a way that works for you (compensation, product access, or both). Let me know if you’re interested, and happy to share more details via email: alvina.rafi@qorden.ai 4:12 AM 4:12 AM",
-    "lastSender": "Robert",
+    "summaryForTeam": "Qorden.ai is handling payment or invoice follow-up. Latest lead message: Hi, Please send your account link, engagement rate, audience demographics (country wise), and rate card at alvina.rafi@qorden.ai. Thanks! 12:34 AM 12:34 AM Robert’s latest position: Sounds interesting. Will have my business manager work with you 11:40 PM 11:40 PM Contact captured: email: alvina.rafi@qorden.ai.",
+    "lastLeadMessage": "Hi, Please send your account link, engagement rate, audience demographics (country wise), and rate card at alvina.rafi@qorden.ai. Thanks! 12:34 AM 12:34 AM",
+    "lastSender": "Lead",
     "lastRobertMessage": "Sounds interesting. Will have my business manager work with you 11:40 PM 11:40 PM",
-    "repliedViaX": true,
+    "repliedViaX": false,
     "bestNextStep": "Email from Robert, CC Asher and Sammy, and move the deal off X.",
     "recommendedOwner": "Asher / Sammy",
-    "messageCount": 2,
+    "messageCount": 3,
     "dmMessages": [
       {
         "sender": "Lead",
@@ -14480,8 +14651,14 @@
       {
         "sender": "Robert",
         "text": "Sounds interesting. Will have my business manager work with you\n11:40 PM\n11:40 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Hi,\n\nPlease send your account link, engagement rate, audience demographics (country wise), and rate card at alvina.rafi@qorden.ai.\n\nThanks!\n12:34 AM\n12:34 AM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 0,
@@ -14518,8 +14695,8 @@
     "rank": 0,
     "newLead": false,
     "seenInPriorScrape": true,
-    "changedSincePriorScrape": false,
-    "newestDmDate": "2026-06-29",
+    "changedSincePriorScrape": true,
+    "newestDmDate": "2026-07-01",
     "leadScore": 0,
     "xName": "Rohan Arun",
     "xUsername": "",
@@ -14527,17 +14704,17 @@
     "contactInfo": "",
     "contactEmails": "",
     "contactPhones": "",
-    "leadType": "Intro / Network",
+    "leadType": "Paid / Sponsorship",
     "currentStatus": "",
     "alreadyEmailedInRobertGmail": false,
-    "summaryForTeam": "Rohan Arun is asking for an intro or broader connection. Latest lead message: Word feel free to schedule a call on my calendar here on google hangouts, but I'm also around for the next two weeks before I drive to Utah to meet in person 7:06 PM 7:06 PM Robert’s latest position: I'm in San Jose. Unfortunately am pretty booked until the 9th. 3:09 AM 3:09 AM",
-    "lastLeadMessage": "Word feel free to schedule a call on my calendar here on google hangouts, but I'm also around for the next two weeks before I drive to Utah to meet in person 7:06 PM 7:06 PM",
-    "lastSender": "Robert",
-    "lastRobertMessage": "I'm in San Jose. Unfortunately am pretty booked until the 9th. 3:09 AM 3:09 AM",
-    "repliedViaX": true,
-    "bestNextStep": "Review thread manually before sending anything new.",
-    "recommendedOwner": "Asher",
-    "messageCount": 5,
+    "summaryForTeam": "Rohan Arun is pitching a paid collaboration or sponsorship. Latest lead message: Show more Robert’s latest position: That would be fun. When works for you? 3:42 PM 3:42 PM",
+    "lastLeadMessage": "Show more",
+    "lastSender": "Lead",
+    "lastRobertMessage": "That would be fun. When works for you? 3:42 PM 3:42 PM",
+    "repliedViaX": false,
+    "bestNextStep": "Reply in X once to move them to email with Robert + Asher + Sammy.",
+    "recommendedOwner": "Robert / Asher",
+    "messageCount": 11,
     "dmMessages": [
       {
         "sender": "Lead",
@@ -14558,6 +14735,30 @@
       {
         "sender": "Robert",
         "text": "I'm in San Jose. Unfortunately am pretty booked until the 9th.\n3:09 AM\n3:09 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "No worries, feel free to let me know a time and I can send a pigeon haha. I suspect I could help somehow so happy to whenever you need me.\n3:28 PM\n3:28 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "I know that's a recent hacking surface so I understand. I also smoke weed so happy to bring a joint if we ever have time to meet in person\n3:29 PM\n3:29 PM"
+      },
+      {
+        "sender": "Robert",
+        "text": "That would be fun. When works for you?\n3:42 PM\n3:42 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "I'll be back in SF around the 15th for a VC dinner, and may be able to get you into it if interested to meet in person but otherwise I'm super free all week just send me a time I'll make it work. I'm in b2c now so I don't do sales calls all day anymore.\n3:43 PM\n3:43 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Anytime after the 15th I could meet in person but I'm actually driving into Utah haha so I can meet on zoom anytime this week just let me know. I have 0 meetings this week. \n\nI've actually done a lot so I think we would have a fun conversation. I co-founded my first startup with CNET's founder, Halsey Minor, in 2011 right out of school. Then sold that tech to Standard Cognition to launch their first store on Market st, since my camera mapping solution is still SOTA. I was the first to use LLMs for automation in 2021, and the first approved by OpenAI to sell GPT3 for automation months before adept.ai. Anton tried to hire me to the Lovable founding team because we published AI generated websites with more features months before they launched. I suspect I invented function calling as my first application to openAI, or at least discovered it at the same time, and most agents now use my semantic targets algorithm. We had multimodal models to train on computer use in 2022. I just sold my las…\nShow more\n3:49 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Show more"
       }
     ],
     "spamBlocked": false,
@@ -15566,9 +15767,9 @@
   {
     "rank": 0,
     "newLead": false,
-    "seenInPriorScrape": false,
+    "seenInPriorScrape": true,
     "changedSincePriorScrape": true,
-    "newestDmDate": "2026-06-30",
+    "newestDmDate": "2026-07-01",
     "leadScore": 0,
     "xName": "stash",
     "xUsername": "",
@@ -15579,62 +15780,58 @@
     "leadType": "Product / Demo",
     "currentStatus": "",
     "alreadyEmailedInRobertGmail": false,
-    "summaryForTeam": "stash wants Robert to look at or engage with a product/company. Latest lead message: Sent invite for 2pm-3 monday 2:54 PM 2:54 PM Robert’s latest position: scobleizer@gmail.com 6:53 PM 6:53 PM",
-    "lastLeadMessage": "Sent invite for 2pm-3 monday 2:54 PM 2:54 PM",
+    "summaryForTeam": "stash wants Robert to look at or engage with a product/company. Latest lead message: big drop 9:00 PM 9:00 PM Robert’s latest position: I mean chief of staff. 6:14 PM 6:14 PM",
+    "lastLeadMessage": "big drop 9:00 PM 9:00 PM",
     "lastSender": "Lead",
-    "lastRobertMessage": "scobleizer@gmail.com 6:53 PM 6:53 PM",
+    "lastRobertMessage": "I mean chief of staff. 6:14 PM 6:14 PM",
     "repliedViaX": false,
     "bestNextStep": "Reply in X once to move them to email with Robert + Asher + Sammy.",
     "recommendedOwner": "Robert / Asher",
-    "messageCount": 14,
+    "messageCount": 11,
     "dmMessages": [
       {
         "sender": "Robert",
-        "text": "Would love that! Where?\n6:51 PM\n6:51 PM"
-      },
-      {
-        "sender": "Lead",
-        "text": "454 Natoma"
-      },
-      {
-        "sender": "Lead",
-        "text": "San francisco\n6:51 PM\n6:51 PM"
+        "text": "He is a national treasure"
       },
       {
         "sender": "Robert",
-        "text": "How about Monday?"
+        "text": "Like Doug Engelbart level.\n2:11 AM\n2:11 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "“mother of all agents”\n2:12 AM\n2:12 AM"
       },
       {
         "sender": "Robert",
-        "text": "Can you send me a calendar request for some time between 11 a.m. and 3 p.m.?"
+        "text": "And a truly sweet human being."
       },
       {
         "sender": "Robert",
-        "text": "scobleizer@gmail.com\n6:53 PM\n6:53 PM"
+        "text": "Says a lot about you too.\n2:13 AM\n2:13 AM"
       },
       {
         "sender": "Lead",
-        "text": "Will do!"
+        "text": "We're hiring for 15-20 roles across Forward Deployed roboticists and Members of Technical Staff across Manipulation, Navigation, Agents, and Infra. Any folks come to mind lmk!!\n4:00 PM\n4:00 PM"
       },
       {
         "sender": "Lead",
-        "text": "MOnday works\n6:59 PM\n6:59 PM"
+        "text": "hey robert! if you know anyone\n5:34 PM\n5:34 PM"
+      },
+      {
+        "sender": "Robert",
+        "text": "Yikes finding a cofounder is tough"
+      },
+      {
+        "sender": "Robert",
+        "text": "I mean chief of staff.\n6:14 PM\n6:14 PM"
       },
       {
         "sender": "Lead",
-        "text": "JUST LAUNCHED!"
+        "text": "yes\n6:55 PM\n6:55 PM"
       },
       {
         "sender": "Lead",
-        "text": "Go check out our super overproduced launch video\n1:41 PM\n1:41 PM"
-      },
-      {
-        "sender": "Lead",
-        "text": "Thanks a ton!! I’ll send over that invite now btw\n2:24 PM\n2:24 PM"
-      },
-      {
-        "sender": "Lead",
-        "text": "Sent invite for 2pm-3 monday\n2:54 PM\n2:54 PM"
+        "text": "big drop\n9:00 PM\n9:00 PM"
       }
     ],
     "spamBlocked": false,
@@ -15719,8 +15916,8 @@
     "rank": 0,
     "newLead": false,
     "seenInPriorScrape": true,
-    "changedSincePriorScrape": false,
-    "newestDmDate": "2026-06-01",
+    "changedSincePriorScrape": true,
+    "newestDmDate": "2026-07-02",
     "leadScore": 0,
     "xName": "Tesana - Make games with AI",
     "xUsername": "",
@@ -15731,14 +15928,14 @@
     "leadType": "Paid / Sponsorship",
     "currentStatus": "",
     "alreadyEmailedInRobertGmail": false,
-    "summaryForTeam": "Tesana - Make games with AI is pitching a paid collaboration or sponsorship. Latest lead message: What would we need to do to get a RT? boss 😇 1:46 PM 1:46 PM Robert’s latest position: Yeah, can I have your email and I'll have my business manager work with you on that. It's one way to get me to try it. :-) 1:45 PM 1:45 PM Contact captured: email: sanel@tesana.ai.",
-    "lastLeadMessage": "What would we need to do to get a RT? boss 😇 1:46 PM 1:46 PM",
+    "summaryForTeam": "Tesana - Make games with AI is pitching a paid collaboration or sponsorship. Latest lead message: Hey you have to try our latest Atomos model. Create an account on tesana and we will top up 3000$ credits and you can blast away 11:17 PM 11:17 PM Robert’s latest position: Yeah, can I have your email and I'll have my business manager work with you on that. It's one way to get me to try it. :-) 1:45 PM 1:45 PM Contact captured: email: sanel@tesana.ai.",
+    "lastLeadMessage": "Hey you have to try our latest Atomos model. Create an account on tesana and we will top up 3000$ credits and you can blast away 11:17 PM 11:17 PM",
     "lastSender": "Lead",
     "lastRobertMessage": "Yeah, can I have your email and I'll have my business manager work with you on that. It's one way to get me to try it. :-) 1:45 PM 1:45 PM",
     "repliedViaX": false,
     "bestNextStep": "Email from Robert, CC Asher and Sammy, and move the deal off X.",
     "recommendedOwner": "Asher / Sammy",
-    "messageCount": 7,
+    "messageCount": 8,
     "dmMessages": [
       {
         "sender": "Lead",
@@ -15767,6 +15964,10 @@
       {
         "sender": "Lead",
         "text": "What would we need to do to get a RT? boss 😇\n1:46 PM\n1:46 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Hey you have to try our latest Atomos model. Create an account on tesana and we will top up 3000$ credits and you can blast away\n11:17 PM\n11:17 PM"
       }
     ],
     "spamBlocked": false,
@@ -15995,8 +16196,8 @@
   {
     "rank": 0,
     "newLead": false,
-    "seenInPriorScrape": false,
-    "changedSincePriorScrape": true,
+    "seenInPriorScrape": true,
+    "changedSincePriorScrape": false,
     "newestDmDate": "2026-07-01",
     "leadScore": 0,
     "xName": "Trisha Code",
@@ -16237,26 +16438,26 @@
     "rank": 0,
     "newLead": true,
     "seenInPriorScrape": true,
-    "changedSincePriorScrape": false,
-    "newestDmDate": "2026-06-01",
+    "changedSincePriorScrape": true,
+    "newestDmDate": "2026-07-01",
     "leadScore": 0,
     "xName": "WallStreetBets",
     "xUsername": "@WSBcollabs",
     "openDm": "https://x.com/i/chat/13348-588569122",
-    "contactInfo": "Handle: @WSBcollabs",
+    "contactInfo": "Handle: @WSBcollabs, @AsherUnaligned",
     "contactEmails": "",
     "contactPhones": "",
     "leadType": "Paid / Sponsorship",
     "currentStatus": "",
     "alreadyEmailedInRobertGmail": false,
-    "summaryForTeam": "WallStreetBets is pitching a paid collaboration or sponsorship. Latest lead message: Awesome, I'll message you on Tg with @WSBcollabs and intro you to my partners. 1:07 PM 1:07 PM Robert’s latest position: Cool. Will check later. 3:54 PM 3:54 PM",
+    "summaryForTeam": "WallStreetBets is pitching a paid collaboration or sponsorship. Latest lead message: Awesome, I'll message you on Tg with @WSBcollabs and intro you to my partners. 1:07 PM 1:07 PM Robert’s latest position: Hello! Could you add my client service manager in as well. his TG is @AsherUnaligned 7:05 PM 7:05 PM",
     "lastLeadMessage": "Awesome, I'll message you on Tg with @WSBcollabs and intro you to my partners. 1:07 PM 1:07 PM",
     "lastSender": "Robert",
-    "lastRobertMessage": "Cool. Will check later. 3:54 PM 3:54 PM",
+    "lastRobertMessage": "Hello! Could you add my client service manager in as well. his TG is @AsherUnaligned 7:05 PM 7:05 PM",
     "repliedViaX": true,
     "bestNextStep": "Review thread manually before sending anything new.",
     "recommendedOwner": "Asher",
-    "messageCount": 4,
+    "messageCount": 5,
     "dmMessages": [
       {
         "sender": "Lead",
@@ -16273,6 +16474,10 @@
       {
         "sender": "Robert",
         "text": "Cool. Will check later.\n3:54 PM\n3:54 PM"
+      },
+      {
+        "sender": "Robert",
+        "text": "Hello! Could you add my client service manager in as well. his TG is @AsherUnaligned\n7:05 PM\n7:05 PM"
       }
     ]
   },
@@ -16385,6 +16590,79 @@
       {
         "sender": "Lead",
         "text": "amazing video, do you have full list of @hf0 demoday? happy to peak on it! :)\n7:08 AM\n7:08 AM"
+      }
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
+  },
+  {
+    "rank": 0,
+    "newLead": false,
+    "seenInPriorScrape": false,
+    "changedSincePriorScrape": true,
+    "newestDmDate": "2026-07-02",
+    "leadScore": 0,
+    "xName": "Zach Magley",
+    "xUsername": "@BoardyAI",
+    "openDm": "https://x.com/i/chat/13348-1606511123670466562",
+    "contactInfo": "Handle: @BoardyAI",
+    "contactEmails": "",
+    "contactPhones": "",
+    "leadType": "Paid / Sponsorship",
+    "currentStatus": "",
+    "alreadyEmailedInRobertGmail": false,
+    "summaryForTeam": "Zach Magley is pitching a paid collaboration or sponsorship around AI creators. Latest lead message: Or if you mention Lumina to someone who might be. I’d appreciate that more than you know. Hope I get a chance to shake your hand one day. 10:12 AM 10:12 AM Robert’s latest position: I met someone yesterday doing the same. Can you get 100 people to use it? 12:44 AM 12:44 AM",
+    "lastLeadMessage": "Or if you mention Lumina to someone who might be. I’d appreciate that more than you know. Hope I get a chance to shake your hand one day. 10:12 AM 10:12 AM",
+    "lastSender": "Lead",
+    "lastRobertMessage": "I met someone yesterday doing the same. Can you get 100 people to use it? 12:44 AM 12:44 AM",
+    "repliedViaX": false,
+    "bestNextStep": "Reply in X once to move them to email with Robert + Asher + Sammy.",
+    "recommendedOwner": "Robert / Asher",
+    "messageCount": 11,
+    "dmMessages": [
+      {
+        "sender": "Lead",
+        "text": "So, maybe you'll see this, maybe not. I'm obviously a solo founder, average guy from the midwest who used AI to come up with an idea for distribution for what's about to be an endless supply of AI Cinema. What would you do if you were me?\n12:03 AM\n12:03 AM"
+      },
+      {
+        "sender": "Robert",
+        "text": "I met someone yesterday doing the same. Can you get 100 people to use it?\n12:44 AM\n12:44 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "I think I’ve gotten quite close to that. My Firebase data shows hits from multiple countries, multiple times. Not just USA.\n1:29 AM\n1:29 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "My issue was people thinking I was t real. Bought a domain. Verified myself on X and LinkedIn in. @BoardyAI is helping me network. I’ve got Sali Igbal Ferad of MorfeuAI Studio who has 60,000 videos he needs distributed from his creators.\n1:31 AM\n1:31 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Also meeting with Roy Price, formerly of Amazon studios tomorrow via Google meet. \n\nPossible matchmaking AI layer to Lumina. To open up community collaborations for AI creators.\n1:37 AM\n1:37 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Sorry to blow you up. I just need a little direction. Idk if I’m looking at the right place. Total layman still. Teaching myself as I go. But, my blue line (labeled last 30 days) on Firebase says 453\n1:45 AM\n1:45 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Hey 👋🏻 FYI. Meeting with Roy seemed to go great. Talked about what N1BW and Lumina could do for the AI Cinema market together. \n\nKind of feels like we’re about to unlock a superpower. \n\nWould like to have an actual conversation with you if you’ve got 30min to advise/chat with me?\n8:02 PM\n8:02 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "There’s definitely a market. Nobody has what Lumina has yet tho.\n10:40 PM\n10:40 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Big moves Robert!!!\n5:00 AM\n5:00 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "I need a cofounder. Just saying 😅"
+      },
+      {
+        "sender": "Lead",
+        "text": "Or if you mention Lumina to someone who might be. I’d appreciate that more than you know. \n\nHope I get a chance to shake your hand one day.\n10:12 AM\n10:12 AM"
       }
     ],
     "spamBlocked": false,
@@ -16621,6 +16899,77 @@
     ],
     "spamBlocked": false,
     "qualifyBlocked": true
+  },
+  {
+    "rank": 0,
+    "newLead": true,
+    "seenInPriorScrape": true,
+    "changedSincePriorScrape": true,
+    "newestDmDate": "2026-07-02",
+    "leadScore": 0,
+    "xName": "🌎🕊️🧑‍🤝‍🧑🇺🇸 Greg Mozart 🚫💣🧨📢",
+    "xUsername": "",
+    "openDm": "https://x.com/i/chat/13348-22280235",
+    "contactInfo": "Email: safebotsai@gmail.com",
+    "contactEmails": "safebotsai@gmail.com",
+    "contactPhones": "",
+    "leadType": "Event / Media",
+    "currentStatus": "",
+    "alreadyEmailedInRobertGmail": false,
+    "summaryForTeam": "🌎🕊️🧑‍🤝‍🧑🇺🇸 Greg Mozart 🚫💣🧨📢 is reaching out about an event, interview, media spot, or speaking-related opportunity around July 2nd anytime. Latest lead message: For the interview, can you please load this URL in your Chrome browser, same as we did last time... then just click connect with X. It's live videoconferencing, running on your own site powered by Safebots. My team and I enhanced it to be able to show present… Robert’s latest position: I sent you a calendar request for noon. 10:36 PM 10:36 PM Contact captured: email: safebotsai@gmail.com.",
+    "lastLeadMessage": "For the interview, can you please load this URL in your Chrome browser, same as we did last time... then just click connect with X. It's live videoconferencing, running on your own site powered by Safebots. My team and I enhanced it to be able to show presentations, which I'll be using to demo during the interview. 10:53 AM 10:53 AM",
+    "lastSender": "Lead",
+    "lastRobertMessage": "I sent you a calendar request for noon. 10:36 PM 10:36 PM",
+    "repliedViaX": false,
+    "bestNextStep": "Email from Robert, CC Asher and Sammy, and move the deal off X.",
+    "recommendedOwner": "Asher / Sammy",
+    "messageCount": 11,
+    "dmMessages": [
+      {
+        "sender": "Robert",
+        "text": "Yeah awesome\n11:47 PM\n11:47 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Yeah, it’s exciting. Looks like I’ll be meeting w them Monday. So if there’s a chance to move our show taping, please let me know what works — anytime July 29 onwards I’m wide open.\n9:47 PM\n9:47 PM"
+      },
+      {
+        "sender": "Robert",
+        "text": "That works. But might have to move to mid July.\n10:06 PM\n10:06 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Okay tell me the earliest dates in July you can do it\n9:02 AM\n9:02 AM"
+      },
+      {
+        "sender": "Robert",
+        "text": "July 1 or 2nd is mostly open\n9:04 AM\n9:04 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Either one sounds great. Shoot me a calendar invite for July 2nd anytime.\n10:11 PM\n10:11 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "You can send the calendar invite to safebotsai@gmail.com\nOr use calendly.com/safebotsai/meeting if you want\n10:34 PM\n10:34 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "I can do Thu July 2nd, it’s wide open for now.\n3:35 PM\n3:35 PM"
+      },
+      {
+        "sender": "Robert",
+        "text": "I sent you a calendar request for noon.\n10:36 PM\n10:36 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Looking forward to tomorrow, Robert. I heard you loud and clear last time, and I won't be pitching the Safebots backend. I'm going to be live-demoing what people can build with it. My pitch is:anyone can now build a community around themselves and grow their own brand without needing to rely on third party platforms and be at the mercy of their algorithms.\n\nYou are into open AI models and self-empowerment. So what I will show tomorrow is the epitome of that. Just like in the future each of us can have our own agents and own robots making money for us, now any influencer can have their own platform where they can grow their network and get revenue coming from around the world etc. I'll have a nice surprise gift for you on the show.\n1:21 AM\n1:21 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "For the interview, can you please load this URL in your Chrome browser, same as we did last time... then just click connect with X. It's live videoconferencing, running on your own site powered by Safebots. My team and I enhanced it to be able to show presentations, which I'll be using to demo during the interview.\n10:53 AM\n10:53 AM"
+      }
+    ]
   },
   {
     "rank": 0,

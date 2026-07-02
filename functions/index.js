@@ -19,21 +19,22 @@ function getGoogle() {
 
 const PRICING_PDF_DIR = path.join(__dirname, 'pricing');
 const PRICING_PDF_CANONICAL_BASE = 'https://asherweisberger.github.io/UNALIGNED';
+const PRICING_PDF_VERSION = '20260628';
 const PRICING_PDF_PACKS = {
   single: {
     file: 'SINGLE_TIER.pdf',
     filename: 'UNALIGNED SINGLE TIER PRICING 2026.pdf',
-    url: `${PRICING_PDF_CANONICAL_BASE}/docs/SINGLE_TIER.pdf`,
+    url: `${PRICING_PDF_CANONICAL_BASE}/docs/SINGLE_TIER.pdf?v=${PRICING_PDF_VERSION}`,
   },
   duo: {
     file: 'DUO_BUNDLE.pdf',
     filename: 'UNALIGNED DUO BUNDLE PRICING 2026.pdf',
-    url: `${PRICING_PDF_CANONICAL_BASE}/docs/DUO_BUNDLE.pdf`,
+    url: `${PRICING_PDF_CANONICAL_BASE}/docs/DUO_BUNDLE.pdf?v=${PRICING_PDF_VERSION}`,
   },
   multi: {
     file: 'MULTI_TIER.pdf',
     filename: 'UNALIGNED MULTI TIER PRICING 2026.pdf',
-    url: `${PRICING_PDF_CANONICAL_BASE}/docs/MULTI_TIER.pdf`,
+    url: `${PRICING_PDF_CANONICAL_BASE}/docs/MULTI_TIER.pdf?v=${PRICING_PDF_VERSION}`,
   },
 };
 
@@ -504,6 +505,135 @@ exports.ingestLead = functions.https.onRequest(async (req, res) => {
   } catch (err) {
     console.error('ingestLead error:', err.message);
     return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Collaborator feedback (public form, token per collab) ───────────────
+
+const FEEDBACK_PUBLIC_ORIGINS = [
+  'https://unaligned-fc556.firebaseapp.com',
+  'https://unaligned-fc556.web.app',
+  'https://asherweisberger.github.io',
+  'http://localhost:5000',
+  'http://127.0.0.1:5000',
+];
+
+function feedbackCors(req, res) {
+  const origin = String(req.headers.origin || '');
+  if (FEEDBACK_PUBLIC_ORIGINS.some((o) => origin === o || origin.startsWith(o))) {
+    res.set('Access-Control-Allow-Origin', origin);
+  } else {
+    res.set('Access-Control-Allow-Origin', '*');
+  }
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+  res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+}
+
+async function getSupabaseService() {
+  const secretSnap = await getDb().collection('_secrets').doc('lead_ingest').get();
+  if (!secretSnap.exists) throw new Error('Supabase service secret not configured');
+  const { supabase_url, supabase_key } = secretSnap.data();
+  if (!supabase_url || !supabase_key) throw new Error('Supabase URL/key missing on lead_ingest secret');
+  const sb = (path, opts = {}) => fetch(`${supabase_url}/rest/v1/${path}`, {
+    ...opts,
+    headers: {
+      apikey: supabase_key,
+      Authorization: `Bearer ${supabase_key}`,
+      'Content-Type': 'application/json',
+      ...(opts.headers || {}),
+    },
+  });
+  return sb;
+}
+
+function feedbackToken(value) {
+  const token = String(value || '').trim();
+  if (!/^[a-zA-Z0-9_-]{12,64}$/.test(token)) return null;
+  return token;
+}
+
+function feedbackScore(value, min, max) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  const i = Math.round(n);
+  if (i < min || i > max) return null;
+  return i;
+}
+
+exports.collabFeedback = functions.https.onRequest(async (req, res) => {
+  feedbackCors(req, res);
+  if (req.method === 'OPTIONS') return res.status(204).send('');
+  try {
+    const token = feedbackToken(req.query?.token || req.body?.token);
+    if (!token) return res.status(400).json({ ok: false, error: 'Invalid or missing token' });
+
+    const sb = await getSupabaseService();
+    const load = await sb(`collab_feedback?token=eq.${encodeURIComponent(token)}&select=*&limit=1`, { method: 'GET' });
+    const rows = await load.json();
+    if (!load.ok) throw new Error(`Supabase read failed: ${load.status}`);
+    const row = Array.isArray(rows) && rows[0] ? rows[0] : null;
+    if (!row) return res.status(404).json({ ok: false, error: 'Feedback link not found' });
+    if (row.expires_at && Date.parse(row.expires_at) < Date.now()) {
+      return res.status(410).json({ ok: false, error: 'This feedback link has expired' });
+    }
+
+    if (req.method === 'GET') {
+      return res.json({
+        ok: true,
+        invite: {
+          brand: row.brand || '',
+          contactName: row.contact_name || '',
+          deliverable: row.deliverable || '',
+          tier: row.tier || '',
+          status: row.status || 'pending',
+          submittedAt: row.submitted_at || null,
+        },
+      });
+    }
+
+    if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'GET or POST only' });
+    if (row.status === 'submitted') {
+      return res.status(409).json({ ok: false, error: 'Feedback already submitted. Thank you.' });
+    }
+
+    const body = req.body || {};
+    const answers = body.answers && typeof body.answers === 'object' ? body.answers : body;
+    const patch = {
+      status: 'submitted',
+      submitted_at: new Date().toISOString(),
+      overall_score: feedbackScore(answers.overall_score, 1, 10),
+      process_score: feedbackScore(answers.process_score, 1, 10),
+      robert_score: feedbackScore(answers.robert_score, 1, 10),
+      communication_score: feedbackScore(answers.communication_score, 1, 10),
+      nps: feedbackScore(answers.nps, 0, 10),
+      would_again: ['yes', 'maybe', 'no'].includes(String(answers.would_again || '').toLowerCase())
+        ? String(answers.would_again).toLowerCase() : null,
+      went_well: String(answers.went_well || '').trim().slice(0, 4000),
+      improve: String(answers.improve || '').trim().slice(0, 4000),
+      public_ok: Boolean(answers.public_ok),
+      testimonial: String(answers.testimonial || '').trim().slice(0, 2000),
+      responses: answers,
+    };
+
+    const missing = ['overall_score', 'process_score', 'robert_score', 'communication_score', 'nps', 'would_again']
+      .filter((key) => patch[key] == null);
+    if (missing.length) {
+      return res.status(400).json({ ok: false, error: `Missing or invalid: ${missing.join(', ')}` });
+    }
+
+    const update = await sb(`collab_feedback?token=eq.${encodeURIComponent(token)}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify(patch),
+    });
+    if (!update.ok) {
+      const detail = await update.text();
+      throw new Error(`Supabase update failed: ${update.status} ${detail.slice(0, 200)}`);
+    }
+    return res.json({ ok: true, submitted: true });
+  } catch (err) {
+    console.error('collabFeedback error:', err.message);
+    return res.status(500).json({ ok: false, error: err.message });
   }
 });
 

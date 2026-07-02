@@ -1,10 +1,10 @@
 {
-  "ran_at": "2026-07-01T13:18:14",
-  "stop_reason": "known_streak",
-  "stop_signature": "https://x.com/i/chat/13348-1901771760229388288|🌱Benson|1d|What's the deal bro",
-  "inspected": 33,
-  "relevant_count": 7,
-  "new_threads": 7,
+  "ran_at": "2026-07-02T13:07:08",
+  "stop_reason": "outside_recent_window:2026-06-30",
+  "stop_signature": "https://x.com/i/chat/13348-1947350193885876227|Arkid|2d|Hey @Scobleizer Have been writing about how world models for fashion will come through - wrote the 2nd part today -",
+  "inspected": 46,
+  "relevant_count": 14,
+  "new_threads": 14,
   "ok": true,
   "source": "live_x_inbox_daily_scrape.py",
   "note": "This powers the ORGANS X watcher health card."

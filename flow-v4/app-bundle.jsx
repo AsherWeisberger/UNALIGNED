@@ -1235,7 +1235,7 @@ function V3ApplyXReplyState(lead) {
   const next = {
     ...lead,
     xRepliedViaX: state.repliedViaX,
-    xLastRobertMessage: state.xLastRobertMessage || lead.xLastRobertMessage || '',
+    xLastRobertMessage: V4XIntakeCleanDm(state.xLastRobertMessage || lead.xLastRobertMessage || ''),
     xLastSender: state.xLastSender || lead.xLastSender || '',
     xReplyMarkedAt: state.xReplyMarkedAt || lead.xReplyMarkedAt || '',
     needsReply: state.needsXReply,
@@ -1789,21 +1789,28 @@ function V3BuildXThreadFromLead(lead) {
 function V3MarkRepliedViaX(lead) {
   if (!lead) return;
   const ctx = V3ParseXDescriptionContext(lead.rawDescription);
+  const cached = V4_X_DM_DRAFT_CACHE.get(String(lead.id));
+  const draftBody = String(cached?.draft || '').trim();
+  const priorRobert = V4XIntakeCleanDm(ctx.lastRobertMessage || lead.xLastRobertMessage || '');
+  const replyBody = V4XIntakeCleanDm(draftBody) || priorRobert || 'Marked as replied on X.';
+  const markedAt = new Date().toISOString();
   const merged = {
     ...V3ParseBriefDescription(lead.rawDescription),
     x_summary: ctx.xSummary || lead.notes || '',
     last_message: ctx.lastMessage || lead.evidence || '',
-    last_robert_message: ctx.lastRobertMessage || lead.xLastRobertMessage || 'Marked as replied on X.',
+    last_robert_message: replyBody,
     last_sender: 'Robert',
     replied_via_x: true,
     x_current_status: lead.xCurrentStatus || 'WAIT - Robert was last',
-    x_reply_marked_at: new Date().toISOString(),
+    x_reply_marked_at: markedAt,
     open_dm: lead.xOpenDm || ctx.open_dm || '',
   };
+  window.dispatchEvent(new CustomEvent('v4:active-mission-clear', { detail: { leadId: lead.id, channel: 'x' } }));
   const localPatch = {
     xRepliedViaX: true,
     xLastSender: 'Robert',
-    xReplyMarkedAt: merged.x_reply_marked_at,
+    xLastRobertMessage: replyBody,
+    xReplyMarkedAt: markedAt,
     xCurrentStatus: merged.x_current_status,
     needsReply: false,
     unread: false,
@@ -1812,7 +1819,7 @@ function V3MarkRepliedViaX(lead) {
       text: `Replied via X — waiting on ${String(lead.contactName || 'them').split(' ')[0]}`,
       action: '',
     },
-    thread: V3BuildXThreadFromLead({ ...lead, ...merged, xLastRobertMessage: merged.last_robert_message }),
+    thread: V3BuildXThreadFromLead({ ...lead, ...localPatch, xLastRobertMessage: replyBody, xReplyMarkedAt: markedAt }),
   };
   if (typeof V4CosPatchLead === 'function') {
     V4CosPatchLead(lead, { description: JSON.stringify(merged) }, localPatch);
@@ -2015,7 +2022,7 @@ function V3NormalizeSupabaseLead(row) {
     xHandle: String(row.x_username || xContext.x_username || '').trim(),
     xCurrentStatus: xContext.xCurrentStatus || '',
     xLastSender: xContext.lastSender || '',
-    xLastRobertMessage: xContext.lastRobertMessage || '',
+    xLastRobertMessage: V4XIntakeCleanDm(xContext.lastRobertMessage || ''),
     xLastLeadMessage: xContext.lastMessage || '',
     xReplyMarkedAt: xContext.xReplyMarkedAt || '',
     xRepliedViaX: xContext.repliedViaX || false,
@@ -2838,7 +2845,82 @@ function V3AllowedTierPrices() {
   );
 }
 
+function V3LatestInboundMessage(lead) {
+  const thread = Array.isArray(lead?.thread) ? lead.thread : [];
+  for (let i = thread.length - 1; i >= 0; i -= 1) {
+    const msg = thread[i];
+    if (msg && !V3IsTeamParticipant(msg.from)) return msg;
+  }
+  return null;
+}
+
+function V3InboundMessageText(msg) {
+  return String(msg?.body || msg?.snippet || '').trim();
+}
+
+function V3ExtractPricesFromText(text) {
+  const prices = [];
+  const re = /\$\s*([\d,]+(?:\.\d{2})?)/g;
+  let m;
+  while ((m = re.exec(String(text || '')))) {
+    const num = Number(String(m[1]).replace(/,/g, ''));
+    if (Number.isFinite(num) && num >= 500 && num <= 50000) prices.push(num);
+  }
+  return prices;
+}
+
+function V3TierNameForPrice(price) {
+  const tiers = window.V3?.TIERS || (typeof V3_TIERS !== 'undefined' ? V3_TIERS : {});
+  const row = Object.values(tiers).find(t => Number(t.price) === Number(price));
+  return row ? row.name : '';
+}
+
+function V3InboundAsksPaymentSplit(text) {
+  const t = String(text || '').toLowerCase();
+  return /\b50\s*%|\b50 percent|\bhalf\b.{0,40}\b(upfront|up front|before|after|payment|paid)\b|\b(upfront|up front|partial|split|installment).{0,40}\b(payment|pay|paid)\b|\b(pay|payment).{0,40}\b(before|after|upfront|up front|delivery|live|posting)\b|\bbefore and after\b|\bafter.{0,40}(deliver|approv|post|live)\b/i.test(t);
+}
+
+function V3InboundConfirmsDeal(text) {
+  const t = String(text || '').toLowerCase();
+  return /\b(confirm|confirmed|good to (move|proceed)|happy to (move|proceed)|ready to (move|proceed)|want to (move|proceed)|let's (move|proceed)|we(?:'re| are) (?:good|ready)|proceed with|move forward)\b/i.test(t);
+}
+
+function V3ThreadQuotedPackage(lead) {
+  const thread = Array.isArray(lead?.thread) ? lead.thread : [];
+  let lastPrice = null;
+  let lastTier = '';
+  for (const msg of thread) {
+    if (!msg || !V3IsTeamParticipant(msg.from)) continue;
+    const body = V3InboundMessageText(msg);
+    const prices = V3ExtractPricesFromText(body);
+    if (prices.length) lastPrice = prices[prices.length - 1];
+    const tierMatch = body.match(/\b(Custom X Post|Quote Repost|Retweet|Narrative Thread|Content Core|Growth Bundle|Maximum Impact)\b/i);
+    if (tierMatch) lastTier = tierMatch[1];
+  }
+  const quoted = Number(String(lead?.operatorSummary?.quoted_rate || '').replace(/[^\d]/g, ''));
+  if (Number.isFinite(quoted) && quoted > 0) lastPrice = lastPrice || quoted;
+  const value = Number(lead?.value);
+  if (Number.isFinite(value) && value > 0) lastPrice = lastPrice || value;
+  const payload = V3ParseBriefDescription(lead?.rawDescription || '');
+  const dealValue = Number(String(payload?.deal_value || '').replace(/[^\d]/g, ''));
+  if (Number.isFinite(dealValue) && dealValue > 0) lastPrice = lastPrice || dealValue;
+  const evidencePrices = V3ExtractPricesFromText(String(lead?.evidence || lead?.notes || ''));
+  if (evidencePrices.length) lastPrice = lastPrice || evidencePrices[evidencePrices.length - 1];
+  if (!lastTier && lastPrice) lastTier = V3TierNameForPrice(lastPrice);
+  if (!lastTier) {
+    const combined = `${lead?.deliverables || ''} ${lead?.evidence || ''}`;
+    const tierMatch = combined.match(/\b(Custom X Post|Quote Repost|Retweet|Narrative Thread)\b/i);
+    if (tierMatch) lastTier = tierMatch[1];
+  }
+  return { price: lastPrice || null, tier: lastTier || '' };
+}
+
+function V3ThreadLockedPriceValue(lead) {
+  return V3ThreadQuotedPackage(lead).price || null;
+}
+
 function V3ThreadHasLockedPrice(lead) {
+  if (V3ThreadLockedPriceValue(lead)) return true;
   const allowed = V3AllowedTierPrices();
   const quoted = Number(String(lead?.operatorSummary?.quoted_rate || '').replace(/[^\d]/g, ''));
   if (allowed.has(quoted)) return true;
@@ -2850,19 +2932,43 @@ function V3ThreadHasLockedPrice(lead) {
   return false;
 }
 
+function V3ReplyDraftMode(lead) {
+  const inbound = V3LatestInboundMessage(lead);
+  const inboundText = V3InboundMessageText(inbound);
+  const pkg = V3ThreadQuotedPackage(lead);
+  const stage = String(lead?.stage || '');
+  const paymentStages = ['negotiating', 'invoice-sent', 'done', 'paid-out'];
+  if (V3InboundAsksPaymentSplit(inboundText)) return 'payment_terms';
+  if (pkg.price && /\b(invoice|billing|stripe|payment terms|pay)\b/i.test(inboundText)) return 'payment_terms';
+  if (paymentStages.includes(stage) && pkg.price) return 'payment_terms';
+  if (pkg.price && (V3InboundConfirmsDeal(inboundText) || paymentStages.includes(stage))) return 'locked_deal';
+  if (!V3ThreadHasLockedPrice(lead)) return 'rate_card';
+  return 'general';
+}
+
 function V3ConversationAckLine(lead) {
+  const inbound = V3LatestInboundMessage(lead);
+  const inboundText = V3InboundMessageText(inbound);
   const brand = String(lead?.brand || '').trim();
-  const askedFor = String(lead?.operatorSummary?.asked_for || lead?.deliverables || '').trim();
-  if (askedFor) {
+  if (V3InboundAsksPaymentSplit(inboundText)) {
+    if (V3InboundConfirmsDeal(inboundText)) {
+      return brand
+        ? `Thanks for confirming on ${brand}, and for the note on payment timing.`
+        : 'Thanks for confirming, and for the note on payment timing.';
+    }
+    return brand
+      ? `Thanks for the note on payment timing for ${brand}.`
+      : 'Thanks for the note on payment timing.';
+  }
+  if (V3InboundConfirmsDeal(inboundText)) {
+    return brand ? `Thanks for confirming on ${brand}.` : 'Thanks for confirming.';
+  }
+  const askedFor = String(lead?.deliverables || lead?.operatorSummary?.asked_for || '').trim();
+  if (askedFor && !/\b(stripe|billing link|rate card|operator|business management)\b/i.test(askedFor)) {
     const a = askedFor.toLowerCase();
     const b = brand.toLowerCase();
-    if (brand && !a.includes(b)) return `Thanks for reaching out about ${brand}. I saw your note about ${askedFor}.`;
-    return `Thanks for reaching out. I saw your note about ${askedFor}.`;
-  }
-  const summary = String(lead?.operatorSummary?.lead_summary || '').trim();
-  if (summary) {
-    const first = summary.split(/[.!?]/).map(s => s.trim()).find(s => s.length > 16);
-    if (first && first.length < 220) return `Thanks for reaching out. ${first}.`;
+    if (brand && !a.includes(b)) return `Thanks for reaching out about ${brand}.`;
+    return 'Thanks for reaching out.';
   }
   if (brand) return `Thanks for reaching out about ${brand}.`;
   return 'Thanks for reaching out.';
@@ -2870,12 +2976,15 @@ function V3ConversationAckLine(lead) {
 
 function V3SanitizeAiDraftPrices(body, lead) {
   const allowed = V3AllowedTierPrices();
+  const lockedValue = V3ThreadLockedPriceValue(lead);
   const lockedPrice = V3ThreadHasLockedPrice(lead);
   let text = String(body || '');
   let hadBadPrice = false;
   text = text.replace(/\$\s*([\d,]+(?:\.\d{2})?)/g, (match, numStr) => {
     const num = Number(String(numStr).replace(/,/g, ''));
-    if (lockedPrice && allowed.has(num)) return '$' + Number(num).toLocaleString('en-US');
+    if (lockedPrice && (allowed.has(num) || (lockedValue && num === lockedValue))) {
+      return '$' + Number(num).toLocaleString('en-US');
+    }
     hadBadPrice = true;
     return '[[BAD_PRICE]]';
   });
@@ -2883,7 +2992,7 @@ function V3SanitizeAiDraftPrices(body, lead) {
     /\b(standard rate|our rate|rate is|priced at|my rate|fee is|cost is)\b([^.\n]{0,50})\b([1-9]\d{3})\b/gi,
     (match, label, mid, numStr) => {
       const num = Number(numStr);
-      if (lockedPrice && allowed.has(num)) return match;
+      if (lockedPrice && (allowed.has(num) || (lockedValue && num === lockedValue))) return match;
       hadBadPrice = true;
       return `${label}${mid}[[BAD_PRICE]]`;
     }
@@ -2899,7 +3008,11 @@ function V3SanitizeAiDraftPrices(body, lead) {
 function V3AiDraftHasProblems(body, lead) {
   const text = String(body || '');
   if (!text.trim()) return true;
+  const mode = V3ReplyDraftMode(lead);
   const lockedPrice = V3ThreadHasLockedPrice(lead);
+  if ((mode === 'payment_terms' || mode === 'locked_deal') && /\b(rate card|pick what fits|which option works|partnership tiers|attach(?:ed)? our (?:rate card|sponsorship package))\b/i.test(text)) {
+    return true;
+  }
   if (!lockedPrice && (/\$\s*[\d,]+/.test(text) || /\b(standard rate|our rate|rate is|priced at|my rate)\b/i.test(text))) {
     return true;
   }
@@ -2928,6 +3041,69 @@ function V3SafeCommercialReplyDraft(lead, sender) {
   ].join('\n'));
 }
 
+function V3PaymentTermsReplyDraft(lead, sender) {
+  const first = V3ExternalThreadFirstName(lead);
+  const pkg = V3ThreadQuotedPackage(lead);
+  const tier = pkg.tier || 'Custom X Post';
+  const priceStr = pkg.price ? `$${Number(pkg.price).toLocaleString('en-US')}` : 'the agreed rate';
+  const brand = String(lead?.brand || '').trim();
+  const ack = V3ConversationAckLine(lead);
+  const lines = [
+    `Hi ${first},`,
+    '',
+    ack,
+    '',
+    'On payment: we collect the full amount upfront before the post goes live. That is firm across every partner, so a 50 percent before and 50 percent after structure will not work on our side.',
+    '',
+  ];
+  if (pkg.price) {
+    lines.push(`The ${tier}${brand ? ` for ${brand}` : ''} is confirmed at ${priceStr}. Once payment is settled, we will lock in timing and move fast on draft and assets.`);
+  } else {
+    lines.push('Once payment is settled, we will lock in timing and move fast on draft and assets.');
+  }
+  lines.push('', 'Send billing details when ready and I will get the Stripe link over to you.', '', 'Best,');
+  return V3NoDashes(lines.join('\n'));
+}
+
+function V3LockedDealReplyDraft(lead, sender) {
+  const first = V3ExternalThreadFirstName(lead);
+  const pkg = V3ThreadQuotedPackage(lead);
+  const tier = pkg.tier || 'partnership';
+  const priceStr = pkg.price ? `$${Number(pkg.price).toLocaleString('en-US')}` : 'the agreed rate';
+  const brand = String(lead?.brand || '').trim();
+  const ack = V3ConversationAckLine(lead);
+  return V3NoDashes([
+    `Hi ${first},`,
+    '',
+    ack,
+    '',
+    `Great. The ${tier}${brand ? ` for ${brand}` : ''} is set at ${priceStr}. Payment is due in full before the post goes live.`,
+    '',
+    'Send billing details when ready and I will get the Stripe link over so we can lock timing.',
+    '',
+    'Best,',
+  ].join('\n'));
+}
+
+function V3ApplyQuickReplyDraft(lead, sender) {
+  const mode = V3ReplyDraftMode(lead);
+  if (mode === 'payment_terms') {
+    return {
+      body: V3ComposeMessageOnly(V3PaymentTermsReplyDraft(lead, sender), sender),
+      attachPdf: false,
+      pricingPdfPack: null,
+    };
+  }
+  if (mode === 'locked_deal') {
+    return {
+      body: V3ComposeMessageOnly(V3LockedDealReplyDraft(lead, sender), sender),
+      attachPdf: false,
+      pricingPdfPack: null,
+    };
+  }
+  return V3ApplyRateCardReplyDraft(lead, sender);
+}
+
 function V3BuildAiReplyPrompt({ lead, sender, subject, tone }) {
   const first = V3ExternalThreadFirstName(lead);
   const brand = lead?.brand || 'the company';
@@ -2938,10 +3114,17 @@ function V3BuildAiReplyPrompt({ lead, sender, subject, tone }) {
     `[${m.from || '?'}] ${m.subject || ''}\n${String(m.body || '').slice(0, 700)}`
   )).join('\n\n---\n\n');
   const senderName = V3SenderName(sender);
+  const mode = V3ReplyDraftMode(lead);
+  const pkg = V3ThreadQuotedPackage(lead);
   const lockedPrice = V3ThreadHasLockedPrice(lead);
-  const priceRule = lockedPrice
-    ? 'A price was already discussed in this thread. You may reference that agreed tier and amount only. Do not introduce a new price.'
-    : 'Do not quote any dollar amount in the email. Prices are on the attached rate card PDF. Let them pick the tier.';
+  let priceRule = 'Do not quote any dollar amount in the email. Prices are on the attached rate card PDF. Let them pick the tier.';
+  if (mode === 'payment_terms') {
+    const priceStr = pkg.price ? `$${Number(pkg.price).toLocaleString('en-US')}` : 'the agreed amount';
+    priceRule = `They asked about split or partial payment. Answer directly: payment is 100 percent upfront before posting, no 50/50. Reference the agreed ${pkg.tier || 'package'} at ${priceStr} only. Do not attach or mention a rate card. Offer to send the Stripe link once billing details are in.`;
+  } else if (lockedPrice) {
+    const priceStr = pkg.price ? `$${Number(pkg.price).toLocaleString('en-US')}` : 'the agreed amount';
+    priceRule = `A price was already discussed in this thread (${pkg.tier || 'package'} at ${priceStr}). Reference that agreed tier and amount only. Do not introduce a new price or rate card.`;
+  }
   return `Write an email reply for UNALIGNED sponsorship partnerships.
 
 VOICE RULES:
@@ -2990,7 +3173,7 @@ function V3FinalizeAiReplyDraft(body, lead, sender) {
   text = V3NoDashes(text);
   text = V3ComposeMessageOnly(text, sender);
   if (V3AiDraftHasProblems(text, lead)) {
-    return V3ComposeMessageOnly(V3SafeCommercialReplyDraft(lead, sender), sender);
+    return V3ApplyQuickReplyDraft(lead, sender).body;
   }
   return text;
 }
@@ -6246,8 +6429,16 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
     setAiDraftError('');
     setError('');
     try {
-      if (!V3ThreadHasLockedPrice(lead)) {
+      const draftMode = V3ReplyDraftMode(lead);
+      if (draftMode === 'rate_card') {
         const quick = V3ApplyRateCardReplyDraft(lead, sender);
+        setBody(quick.body);
+        setAttachPdf(quick.attachPdf);
+        setPricingPdfPack(quick.pricingPdfPack);
+        return;
+      }
+      if (draftMode === 'payment_terms' || draftMode === 'locked_deal') {
+        const quick = V3ApplyQuickReplyDraft(lead, sender);
         setBody(quick.body);
         setAttachPdf(quick.attachPdf);
         setPricingPdfPack(quick.pricingPdfPack);
@@ -12320,6 +12511,7 @@ function V4CompanyOsListSnippet(lead) {
   if (!lead) return 'Open thread';
   const latest = Array.isArray(lead.thread) && lead.thread.length ? lead.thread[lead.thread.length - 1] : null;
   const sourceKind = window.V3?.NewLeadSourceKind ? window.V3.NewLeadSourceKind(lead) : 'gmail';
+  const deliverables = V4CosIsGenericLeadLabel(lead.deliverables) ? '' : String(lead.deliverables || '');
   const summary = sourceKind === 'x' && window.V3?.NewLeadSummary
     ? window.V3.NewLeadSummary(lead)
     : String(
@@ -12327,11 +12519,13 @@ function V4CompanyOsListSnippet(lead) {
         latest?.body ||
         latest?.subject ||
         lead.notes ||
-        lead.deliverables ||
+        deliverables ||
         lead.nextMove?.text ||
         ''
       );
-  return summary.replace(/\s+/g, ' ').trim() || lead.email || 'Open thread';
+  const cleaned = summary.replace(/\s+/g, ' ').trim();
+  if (cleaned && !V4CosIsGenericLeadLabel(cleaned)) return cleaned;
+  return lead.email || V4CosLeadDisplaySubtitle(lead) || 'Open thread';
 }
 
 function V4CompanyOsPriority(lead) {
@@ -12558,7 +12752,7 @@ function V4XLeadContextRows(lead) {
   if (V3XLeadRepliedViaX(lead)) {
     rows.push({
       label: 'Team reply',
-      value: lead.xLastRobertMessage || ctx.lastRobertMessage || 'Robert replied on X — waiting on them.',
+      value: V4XReplyDisplayText(lead),
     });
   }
   const summary = lead.notes || ctx.xSummary || '';
@@ -12575,9 +12769,37 @@ function V4XLeadContextRows(lead) {
 
 function V4XIntakeCleanDm(text) {
   return V4CleanDisplayText(text)
+    .replace(/(?:\n|\s)+\d{1,2}:\d{2}\s*(?:AM|PM)(?:\s*(?:\n|\s)+\d{1,2}:\d{2}\s*(?:AM|PM))*\s*$/gi, '')
     .replace(/\b\d{1,2}:\d{2}\s*(?:AM|PM)(?:\s+\d{1,2}:\d{2}\s*(?:AM|PM))*\b/gi, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function V4XReplyMarkedStamp(lead) {
+  const at = String(
+    lead?.xReplyMarkedAt
+    || V3ParseXDescriptionContext(lead?.rawDescription || '').xReplyMarkedAt
+    || ''
+  ).trim();
+  if (!at) return '';
+  return window.V3?.GmailTime?.list(at) || '';
+}
+
+function V4XReplyMessageOnly(lead) {
+  return V4XIntakeCleanDm(
+    lead?.xLastRobertMessage
+    || V3ParseXDescriptionContext(lead?.rawDescription || '').lastRobertMessage
+    || ''
+  );
+}
+
+function V4XReplyDisplayText(lead) {
+  const msg = V4XReplyMessageOnly(lead);
+  const stamp = V4XReplyMarkedStamp(lead);
+  if (msg && stamp) return `${msg} · ${stamp}`;
+  if (msg) return msg;
+  if (stamp) return `Marked ${stamp}`;
+  return 'Robert already replied in the DM thread. No email thread exists for this lead yet.';
 }
 
 function V4XIntakeDmBody(lead) {
@@ -15017,6 +15239,51 @@ function V4CleanDisplayText(t) {
     .trim();
 }
 
+const V4_GENERIC_LEAD_LABELS = new Set([
+  'gmail', 'manual', 'x', 'email', 'lead', 'unknown company', 'untitled lead',
+  'gmail lead', 'robert-gmail-new-lead', 'twitter_dm', 'x-dm', 'x dm', 'open thread',
+]);
+
+function V4CosIsGenericLeadLabel(value) {
+  const s = String(value || '').trim().toLowerCase();
+  if (!s || s.length < 2) return true;
+  if (V4_GENERIC_LEAD_LABELS.has(s)) return true;
+  if (/^gmail\b/.test(s) || /\bgmail lead\b/.test(s)) return true;
+  return false;
+}
+
+function V4CosLeadDisplayTitle(lead) {
+  if (!lead) return 'Lead';
+  const candidates = [
+    lead.brand,
+    lead.briefCompany,
+    lead.briefPartner,
+    lead.contactName,
+    V3ThreadSenderFirstName(lead),
+    V3EmailLocalPartFirstName(lead),
+  ].map(v => V4CleanDisplayText(v)).filter(v => v && !V4CosIsGenericLeadLabel(v));
+  if (candidates.length) return candidates[0];
+  const thread = Array.isArray(lead.thread) ? lead.thread : [];
+  for (let i = thread.length - 1; i >= 0; i--) {
+    const subj = String(thread[i]?.subject || '').replace(/^re:\s*/i, '').trim();
+    if (subj && !V4CosIsGenericLeadLabel(subj)) {
+      return V4CleanDisplayText(subj.length > 48 ? subj.slice(0, 45).trim() + '…' : subj);
+    }
+  }
+  const email = String(lead.email || '').trim();
+  if (email) return V4CleanDisplayText(email.split('@')[0] || 'Lead');
+  return 'Lead';
+}
+
+function V4CosLeadDisplaySubtitle(lead) {
+  const title = V4CosLeadDisplayTitle(lead);
+  const contact = V4CleanDisplayText(lead?.contactName || '');
+  const parts = [];
+  if (contact && contact.toLowerCase() !== title.toLowerCase()) parts.push(contact);
+  if (lead?.email) parts.push(String(lead.email).trim());
+  return parts.join(' · ');
+}
+
 const V4_ACTION_RECENT_MS = 45 * 24 * 60 * 60 * 1000;
 
 function V4IsActionNowLead(lead) {
@@ -15163,6 +15430,277 @@ function V4CosIsWatchLead(lead) {
   return true;
 }
 
+const V4_COS_ACTIVE_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
+const V4_COS_ACTIVE_MAX = 12;
+const V4_COS_ACTIVE_MAX_PER_CHANNEL = 10;
+const V4_COS_GMAIL_NEGOTIATION_STAGES = ['negotiating', 'invoice-sent'];
+const V4_COS_GMAIL_CONVERSATION_STAGES = ['engaged', 'first-touch', 'rates-sent'];
+const V4_COS_FRESH_INTAKE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Real email/DM activity only — ignores agent memory bumps and stage moves. */
+function V4CosConversationTouchAt(lead) {
+  if (!lead) return 0;
+  const thread = Array.isArray(lead?.thread) ? lead.thread : [];
+  const latestThread = V3LatestThreadDate(thread);
+  const candidates = [lead.newReplyAt, latestThread];
+  if (thread.length) candidates.push(lead.lastTouchAt);
+  if (V3IsXLeadRecord(lead)) candidates.push(lead.xReplyMarkedAt);
+  let best = 0;
+  for (const value of candidates) {
+    const t = V3TimestampForUi(value);
+    if (t > best) best = t;
+  }
+  return best;
+}
+
+function V4CosConversationAgeLabel(lead) {
+  const ts = V4CosConversationTouchAt(lead);
+  if (ts) return V3GmailTime.list(new Date(ts).toISOString());
+  if (window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(lead)) {
+    const received = V3LeadReceivedTimestamp(lead);
+    if (received) return V3GmailTime.list(new Date(received).toISOString());
+  }
+  return lead?.lastTouch || '';
+}
+
+function V4CosThreadMessagesInWindow(lead, windowMs) {
+  const thread = Array.isArray(lead?.thread) ? lead.thread : [];
+  const cutoff = Date.now() - windowMs;
+  return thread.filter(msg => {
+    const ts = V3TimestampForUi(msg?.date || msg?.dateIso || msg?.timestamp || msg?.when);
+    return ts && ts >= cutoff;
+  }).length;
+}
+
+function V4CosIsClosedForActive(lead) {
+  if (!lead) return true;
+  if (['trash', 'dead-leads', 'paid-out', 'done'].includes(lead.stage)) return true;
+  if (window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(lead)) return true;
+  return false;
+}
+
+function V4CosIsGmailLeadForActive(lead) {
+  if (!lead || V3IsXLeadRecord(lead)) return false;
+  if (V4CompanyOsLeadSourceChannel(lead) === 'x') return false;
+  return true;
+}
+
+function V4CosIsActiveGmailConversation(lead) {
+  if (!lead || !V4CosIsGmailLeadForActive(lead)) return false;
+  if (V4CosIsClosedForActive(lead)) return false;
+
+  if (V4_COS_GMAIL_NEGOTIATION_STAGES.includes(lead.stage)) return true;
+
+  const ts = V4CosConversationTouchAt(lead);
+  const inWindow = ts && (Date.now() - ts) <= V4_COS_ACTIVE_WINDOW_MS;
+  const recentMsgs = V4CosThreadMessagesInWindow(lead, V4_COS_ACTIVE_WINDOW_MS);
+  const draftSt = String(lead.draftReplyStatus || '').toLowerCase();
+  const hasDraft = Boolean(lead.draftReply?.body) && (draftSt === 'review' || draftSt === 'pending');
+
+  if (V4_COS_GMAIL_CONVERSATION_STAGES.includes(lead.stage) && inWindow) {
+    if (lead.unread || lead.newReplyAt || lead.needsReply || hasDraft) return true;
+    if (recentMsgs >= 1) return true;
+    if (Array.isArray(lead.thread) && lead.thread.length >= 2) return true;
+  }
+
+  if (!inWindow) return false;
+  if (lead.unread || lead.newReplyAt) return true;
+  if (hasDraft) return true;
+  if (recentMsgs >= 2) return true;
+  return false;
+}
+
+function V4CosIsActiveXConversation(lead) {
+  if (!lead || !V3IsXLeadRecord(lead)) return false;
+  if (V4CosIsClosedForActive(lead)) return false;
+
+  if (V4XLeadNeedsDmReply(lead)) return true;
+
+  const ts = V4CosConversationTouchAt(lead);
+  const inWindow = ts && (Date.now() - ts) <= V4_COS_ACTIVE_WINDOW_MS;
+  const draftSt = String(lead.draftReplyStatus || '').toLowerCase();
+  const hasDraft = Boolean(lead.draftReply?.body) && (draftSt === 'review' || draftSt === 'pending');
+
+  if (V3XLeadRepliedViaX(lead) && inWindow) return true;
+  if (!inWindow) return false;
+  if (lead.unread || lead.newReplyAt || lead.needsReply) return true;
+  if (hasDraft) return true;
+  return false;
+}
+
+function V4CosIsActiveConversation(lead) {
+  return V4CosIsActiveGmailConversation(lead) || V4CosIsActiveXConversation(lead);
+}
+
+function V4CosActiveLeadNeedsYou(lead) {
+  if (!lead) return false;
+  if (lead.unread || lead.newReplyAt) return true;
+  if (V4XLeadNeedsDmReply(lead)) return true;
+  const draftSt = String(lead.draftReplyStatus || '').toLowerCase();
+  if (lead.draftReply?.body && (draftSt === 'pending' || draftSt === 'review')) return true;
+  if (lead.needsReply && !(V3IsXLeadRecord(lead) && V3XLeadRepliedViaX(lead))) return true;
+  return false;
+}
+
+function V4CosSortActiveLeads(a, b) {
+  const needDelta = (V4CosActiveLeadNeedsYou(b) ? 1 : 0) - (V4CosActiveLeadNeedsYou(a) ? 1 : 0);
+  if (needDelta) return needDelta;
+  const hot = (l) => (l.unread || l.newReplyAt ? 2 : 0) + (l.draftReply?.body ? 1 : 0);
+  const hotDelta = hot(b) - hot(a);
+  if (hotDelta) return hotDelta;
+  return V4CosConversationTouchAt(b) - V4CosConversationTouchAt(a);
+}
+
+function V4CosMissionDayKey() {
+  return 'cos-mission-' + new Date().toDateString();
+}
+
+function V4CosActiveMissionSnapshot(leads = []) {
+  const needsYou = leads.filter(V4CosActiveLeadNeedsYou);
+  const waiting = leads.filter(l => !V4CosActiveLeadNeedsYou(l));
+  const total = leads.length;
+  const clearedPct = total ? Math.round((waiting.length / total) * 100) : 100;
+  return { needsYou, waiting, total, clearedPct, needsYouCount: needsYou.length, waitingCount: waiting.length };
+}
+
+function V4CosIsFreshIntake(lead) {
+  if (!window.V3.IsNewLeadReview || !window.V3.IsNewLeadReview(lead)) return false;
+  const received = V3LeadReceivedTimestamp(lead);
+  return received && (Date.now() - received) <= V4_COS_FRESH_INTAKE_MS;
+}
+
+function V4CosBuildSendQueueSections(items = []) {
+  const isIntake = (l) => window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(l);
+  const freshIntake = items.filter(l => isIntake(l) && V4CosIsFreshIntake(l))
+    .sort((a, b) => V3LeadReceivedTimestamp(b) - V3LeadReceivedTimestamp(a));
+  const staleIntake = items.filter(l => isIntake(l) && !V4CosIsFreshIntake(l))
+    .sort((a, b) => V3LeadReceivedTimestamp(b) - V3LeadReceivedTimestamp(a));
+  const sendWork = items.filter(l => !isIntake(l)).sort(V4SortActionLeads);
+  const sections = [];
+  if (freshIntake.length) sections.push({ id: 'fresh-intake', label: 'New this week', items: freshIntake });
+  if (sendWork.length) sections.push({ id: 'send-work', label: 'Replies & drafts', items: sendWork });
+  if (staleIntake.length) sections.push({ id: 'stale-intake', label: 'Older intake', hint: 'Came in over a week ago — accept or trash', items: staleIntake });
+  return sections.length ? sections : [{ id: 'all', label: null, hint: null, items }];
+}
+
+function V4CosActiveLeadQueueId(lead) {
+  if (V4CosIsTravelLead(lead)) return 'travel';
+  if (V4CosIsSendLead(lead)) return 'send';
+  if (V4CosIsChaseLead(lead)) return 'chase';
+  return 'watch';
+}
+
+function V4CosActiveLeadStatus(lead) {
+  if (lead.unread || lead.newReplyAt) return { label: 'New reply', tone: 'hot' };
+  const draftSt = String(lead.draftReplyStatus || '').toLowerCase();
+  if (draftSt === 'review') return { label: 'Review draft', tone: 'draft' };
+  if (lead.draftReply?.body) return { label: 'Send draft', tone: 'draft' };
+  if (V3IsXLeadRecord(lead)) {
+    if (V4XLeadNeedsDmReply(lead)) return { label: 'X DM', tone: 'x' };
+    if (V3XLeadRepliedViaX(lead)) return { label: 'Waiting', tone: 'x' };
+  }
+  if (V4_COS_GMAIL_NEGOTIATION_STAGES.includes(lead.stage)) return { label: 'Negotiating', tone: 'live' };
+  const recentMsgs = V4CosThreadMessagesInWindow(lead, V4_COS_ACTIVE_WINDOW_MS);
+  if (recentMsgs >= 2 || (Array.isArray(lead.thread) && lead.thread.length >= 3)) {
+    return { label: 'Live thread', tone: 'live' };
+  }
+  if (lead.needsReply) return { label: 'Reply owed', tone: 'hot' };
+  return { label: 'Active', tone: 'muted' };
+}
+
+function V4CosActiveStripItem({ lead, selectedId, onPick }) {
+  const brand = V4CosLeadDisplayTitle(lead);
+  const sub = V4CosLeadDisplaySubtitle(lead);
+  const status = V4CosActiveLeadStatus(lead);
+  const age = V4CosConversationAgeLabel(lead) || '';
+  const isCurrent = String(lead.id) === String(selectedId);
+  const needsYou = V4CosActiveLeadNeedsYou(lead);
+  return (
+    <button
+      type="button"
+      className={'cos-active-item' + (isCurrent ? ' is-current' : '') + (needsYou ? ' is-needs-you' : ' is-waiting') + (lead.unread ? ' is-unread' : '')}
+      onClick={() => onPick(lead)}
+      title={[brand, sub, needsYou ? 'Your move' : 'Waiting on them', status.label, age].filter(Boolean).join(' · ')}
+    >
+      <span className={'cos-active-dot' + (needsYou ? ' is-pulse' : ' is-wait')} />
+      <span className="cos-active-brand">{brand}</span>
+      <span className={'cos-active-tag is-' + status.tone}>{status.label}</span>
+      {sub ? <span className="cos-active-sub">{sub}</span> : null}
+      {age ? <span className="cos-active-age">{age}</span> : null}
+    </button>
+  );
+}
+
+function V4CosActiveStrip({ leads = [], selectedId, onPick, collapsed, onToggle, eyebrow = 'Active', subtitle = '', ariaLabel = 'Active conversations', channel = '' }) {
+  if (!leads.length) return null;
+  const todo = leads.filter(V4CosActiveLeadNeedsYou);
+  const waiting = leads.filter(l => !V4CosActiveLeadNeedsYou(l));
+  return (
+    <section className={'cos-active-strip' + (channel ? ` is-${channel}` : '') + (collapsed ? ' is-collapsed' : '')} aria-label={ariaLabel}>
+      <header className="cos-active-strip-hd">
+        <button type="button" className="cos-active-strip-toggle" onClick={onToggle} aria-expanded={!collapsed}>
+          <span className="cos-active-strip-eyebrow">{eyebrow}</span>
+          {subtitle ? <span className="cos-active-strip-sub">{subtitle}</span> : null}
+        </button>
+        {todo.length ? (
+          <span className="cos-active-strip-mission" title="Need your reply">{todo.length} to clear</span>
+        ) : (
+          <span className="cos-active-strip-mission is-clear" title="Nothing needs you right now">Clear</span>
+        )}
+        <span className="cos-active-strip-cnt">{leads.length}</span>
+      </header>
+      {!collapsed ? (
+        <div className="cos-active-strip-scroll">
+          {todo.map(lead => (
+            <V4CosActiveStripItem key={lead.id} lead={lead} selectedId={selectedId} onPick={onPick} />
+          ))}
+          {todo.length && waiting.length ? (
+            <div className="cos-active-strip-divider">Waiting on them</div>
+          ) : null}
+          {waiting.map(lead => (
+            <V4CosActiveStripItem key={lead.id} lead={lead} selectedId={selectedId} onPick={onPick} />
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function V4CosActiveMissionBoard({ snapshot, clearedToday, pulse }) {
+  if (!snapshot.total) return null;
+  const { needsYouCount, waitingCount, total, clearedPct } = snapshot;
+  const doneToday = clearedToday + waitingCount;
+  const deckPct = total ? Math.min(100, Math.round((doneToday / Math.max(total, doneToday)) * 100)) : 100;
+  return (
+    <div className={'cos-active-mission' + (pulse ? ' is-pulse' : '') + (needsYouCount === 0 ? ' is-clear' : '')}>
+      <div className="cos-active-mission-hd">
+        <div className="cos-active-mission-copy">
+          <span className="cos-active-mission-eyebrow">Active board</span>
+          <span className="cos-active-mission-label">
+            {needsYouCount === 0
+              ? 'Board clear. Everything live is on their side.'
+              : `Reply to clear the board · ${waitingCount} already waiting`}
+          </span>
+        </div>
+        <div className="cos-active-mission-score" aria-live="polite">
+          <span className="cos-active-mission-score-num">
+            <AnimatedCounter value={needsYouCount} />
+          </span>
+          <span className="cos-active-mission-score-lbl">need you</span>
+        </div>
+      </div>
+      <div className="cos-active-mission-track" role="progressbar" aria-valuenow={deckPct} aria-valuemin={0} aria-valuemax={100} aria-label="Active board progress">
+        <div className="cos-active-mission-fill" style={{ width: deckPct + '%' }} />
+      </div>
+      <div className="cos-active-mission-meta">
+        <span><strong>{total}</strong> live</span>
+        <span><strong>{clearedToday}</strong> cleared today</span>
+        <span><strong>{clearedPct}%</strong> on their side</span>
+      </div>
+    </div>
+  );
+}
+
 function V4CosQueueActionLabel(lead, queueId) {
   if (window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(lead)) return 'Triage';
   if (queueId === 'travel') return lead?.needsReply ? 'Reply' : 'Pursue';
@@ -15181,12 +15719,14 @@ function V4CosQueueActionLabel(lead, queueId) {
 }
 
 function V4QueueRow({ lead, queueId, isCurrent, onClick, style }) {
-  const brand = V4CleanDisplayText(lead?.brand || lead?.contactName || 'Lead');
+  const brand = V4CosLeadDisplayTitle(lead);
   const line = V4CosAgentLine(lead);
   const action = V4CosQueueActionLabel(lead, queueId);
   const value = lead?.value ? (typeof v3Money === 'function' ? v3Money(lead.value) : '$' + lead.value) : '';
-  const age = V3LeadActivityLabel(lead) || '';
   const isIntake = window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(lead);
+  const age = isIntake
+    ? (V3GmailTime.list(lead.receivedAt) || V4CosConversationAgeLabel(lead))
+    : (V4CosConversationAgeLabel(lead) || V3LeadActivityLabel(lead) || '');
   const needsDm = V4XLeadNeedsDmReply(lead);
   const isTravel = V4LeadIsTravelLead(lead);
   return (
@@ -15714,9 +16254,9 @@ function V4LeadNegotiateWorkspace({
           <V3Icon name="chev_d" w={16} style={{ transform: 'rotate(90deg)' }} />
         </button>
         <div className="gmail-read-hd-main">
-          <h1 className="gmail-read-subject">{V4CleanDisplayText(lead.brand || gmailSubject)}</h1>
+          <h1 className="gmail-read-subject">{V4CosLeadDisplayTitle(lead)}</h1>
           <div className="gmail-read-submeta cos-negotiate-submeta">
-            <span>{lead.contactName}</span>
+            <span>{V4CosLeadDisplaySubtitle(lead) || lead.contactName}</span>
             <span className="gmail-read-sep">·</span>
             <span style={{ color: stage.color }}>{stage.name}</span>
             <span className={`cos-operator-status is-${operatorStatus.tone}`}>{operatorStatus.label}</span>
@@ -15902,6 +16442,11 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
               Open DM
             </button>
           ) : null}
+          {!V3XLeadRepliedViaX(lead) ? (
+            <button type="button" className="cos-quick-btn" onClick={() => window.V3.MarkRepliedViaX?.(lead)}>
+              Mark replied on X
+            </button>
+          ) : null}
           {xDmReplyOpen ? (
             <button type="button" className="cos-quick-btn" onClick={() => setXDmReplyOpen(false)}>Minimize</button>
           ) : (
@@ -16078,8 +16623,13 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
   const hasDraftReady = Boolean(lead.draftReply?.body);
   const isThreadTab = tab === 'thread';
   const gmailSubject = window.V3?.V3SubjectForLead ? window.V3.V3SubjectForLead(lead) : (lead.thread?.[0]?.subject || lead.brand);
+  const readerTitle = V4CosLeadDisplayTitle(lead);
+  const readerSubtitle = V4CosLeadDisplaySubtitle(lead);
   const threadMessageCount = Array.isArray(lead.thread) ? lead.thread.length : 0;
   const agentReason = lead.agentAssessment || operatorSummary.lead_summary || operatorAnalysis.reason || '';
+  const showThreadSubject = gmailSubject
+    && !V4CosIsGenericLeadLabel(gmailSubject)
+    && V4CleanDisplayText(gmailSubject).toLowerCase() !== readerTitle.toLowerCase();
 
   return (
     <div className={'cos2-reader v6-reader cos2-reader--split cos2-reader--gmail' + (composeOpen ? ' cos2-reader--compose-open' : '') + (isThreadTab ? ' cos2-reader--gmail-native' : '')}>
@@ -16095,9 +16645,10 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
               </button>
             )}
             <div className="gmail-read-hd-main">
-              <h1 className="gmail-read-subject">{V4CleanDisplayText(gmailSubject)}</h1>
+              <h1 className="gmail-read-subject">{readerTitle}</h1>
+              {showThreadSubject ? <div className="gmail-read-thread-subject">{V4CleanDisplayText(gmailSubject)}</div> : null}
               <div className="gmail-read-submeta">
-                <span className="gmail-read-contact">{lead.contactName}{lead.email ? ` · ${lead.email}` : ''}</span>
+                <span className="gmail-read-contact">{readerSubtitle || lead.contactName || lead.email || ''}</span>
                 <span className="gmail-read-sep">·</span>
                 <span>{threadMessageCount} {threadMessageCount === 1 ? 'message' : 'messages'}</span>
                 <span className="gmail-read-sep">·</span>
@@ -16170,15 +16721,19 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
                     </div>
                   </div>
                 )}
-                {V3XLeadRepliedViaX(lead) && (
-                  <div className="cos-x-replied-banner">
-                    <V3Icon name="network" w={14} />
-                    <div>
-                      <strong>Replied via X</strong>
-                      <span>{lead.xLastRobertMessage || 'Robert already replied in the DM thread. No email thread exists for this lead yet.'}</span>
+                {V3XLeadRepliedViaX(lead) && (() => {
+                  const xStamp = V4XReplyMarkedStamp(lead);
+                  const xMsg = V4XReplyMessageOnly(lead);
+                  return (
+                    <div className="cos-x-replied-banner">
+                      <V3Icon name="network" w={14} />
+                      <div>
+                        <strong>Replied via X{xStamp ? ` · ${xStamp}` : ''}</strong>
+                        <span>{xMsg || 'Robert already replied in the DM thread. No email thread exists for this lead yet.'}</span>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
                 <V4XIntakePanel lead={lead} />
               </div>
             ) : (
@@ -16393,18 +16948,22 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
     .filter(V4CosIsTravelLead)
     .sort((a, b) => V4SortActionLeads(a, b) || byRecent(a, b));
   const intakeNonTravel = intakeItems.filter(l => !V4CosIsTravelLead(l));
+  const freshIntake = intakeNonTravel.filter(V4CosIsFreshIntake)
+    .sort((a, b) => V3LeadReceivedTimestamp(b) - V3LeadReceivedTimestamp(a));
+  const staleIntake = intakeNonTravel.filter(l => !V4CosIsFreshIntake(l))
+    .sort((a, b) => V3LeadReceivedTimestamp(b) - V3LeadReceivedTimestamp(a));
   const sendItems = activeItems.filter(V4CosIsSendLead).sort(V4SortActionLeads);
-  const sendQueue = [...intakeNonTravel, ...sendItems];
+  const sendQueue = [...freshIntake, ...sendItems, ...staleIntake];
   const chaseItems = activeItems.filter(l => !V4CosIsTravelLead(l) && V4CosIsChaseLead(l)).sort((a, b) => (b.daysInStage || 0) - (a.daysInStage || 0) || byRecent(a, b));
   const watchItems = activeItems.filter(l => !V4CosIsTravelLead(l) && V4CosIsWatchLead(l)).sort(byRecent);
   const closedItems = live.filter(l => ['done', 'paid-out'].includes(l.stage)).sort(byRecent);
   const base = allCos;
 
   const splits = [
-    { id: 'travel', label: 'Travel', hint: 'Sponsored trips, factory visits, on-site events — highest value', queue: true, hot: travelItems.length > 0, items: travelItems },
     { id: 'send', label: 'Send', hint: 'Drafts to approve, replies owed, new intake', queue: true, hot: sendQueue.length > 0, items: sendQueue },
     { id: 'chase', label: 'Chase', hint: 'Negotiating, payment, follow ups, brief Robert', queue: true, hot: chaseItems.length > 0, items: chaseItems },
     { id: 'watch', label: 'Watch', hint: 'Nothing urgent from our side right now', queue: true, items: watchItems },
+    { id: 'travel', label: 'Travel', hint: 'Sponsored trips, factory visits, on-site events — highest value', queue: true, hot: travelItems.length > 0, items: travelItems },
     { id: 'snoozed', label: 'Snoozed', section: 'More', items: liveAll.filter(isSnoozed).sort((a, b) => Date.parse(snoozes[a.id]) - Date.parse(snoozes[b.id])) },
     { id: 'closed', label: 'Done and paid', section: 'More', items: closedItems },
     { id: 'trash', label: 'Trash', section: 'More', trash: true, items: base.filter(l => ['trash', 'dead-leads'].includes(l.stage)).sort(byRecent) },
@@ -16578,8 +17137,117 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
     };
   }, [refreshFromGmail]);
 
+  const [activeGmailCollapsed, setActiveGmailCollapsed] = React.useState(() => {
+    try {
+      const saved = window.localStorage.getItem('cos-active-gmail-collapsed');
+      if (saved != null) return saved === '1';
+      return window.localStorage.getItem('cos-active-collapsed') === '1';
+    } catch (e) { return false; }
+  });
+  const [activeXCollapsed, setActiveXCollapsed] = React.useState(() => {
+    try { return window.localStorage.getItem('cos-active-x-collapsed') === '1'; } catch (e) { return false; }
+  });
+  React.useEffect(() => {
+    try { window.localStorage.setItem('cos-active-gmail-collapsed', activeGmailCollapsed ? '1' : '0'); } catch (e) {}
+  }, [activeGmailCollapsed]);
+  React.useEffect(() => {
+    try { window.localStorage.setItem('cos-active-x-collapsed', activeXCollapsed ? '1' : '0'); } catch (e) {}
+  }, [activeXCollapsed]);
+
+  const activeGmailLeads = React.useMemo(() => activeItems
+    .filter(V4CosIsActiveGmailConversation)
+    .sort(V4CosSortActiveLeads)
+    .slice(0, V4_COS_ACTIVE_MAX_PER_CHANNEL), [activeItems]);
+  const activeXLeads = React.useMemo(() => activeItems
+    .filter(V4CosIsActiveXConversation)
+    .sort(V4CosSortActiveLeads)
+    .slice(0, V4_COS_ACTIVE_MAX_PER_CHANNEL), [activeItems]);
+  const activeMissionLeads = React.useMemo(
+    () => [...activeGmailLeads, ...activeXLeads],
+    [activeGmailLeads, activeXLeads]
+  );
+  const activeMissionSnapshot = React.useMemo(
+    () => V4CosActiveMissionSnapshot(activeMissionLeads),
+    [activeMissionLeads]
+  );
+
+  const prevNeedsYouRef = React.useRef(null);
+  const [clearedToday, setClearedToday] = React.useState(() => {
+    try {
+      const data = JSON.parse(window.localStorage.getItem(V4CosMissionDayKey()) || '{}');
+      if (data.date === new Date().toDateString()) return Number(data.cleared || 0);
+    } catch (e) {}
+    return 0;
+  });
+  const [missionPulse, setMissionPulse] = React.useState(false);
+
+  React.useEffect(() => {
+    const today = new Date().toDateString();
+    try {
+      const data = JSON.parse(window.localStorage.getItem(V4CosMissionDayKey()) || '{}');
+      if (data.date !== today) {
+        window.localStorage.setItem(V4CosMissionDayKey(), JSON.stringify({ cleared: 0, date: today }));
+        setClearedToday(0);
+        prevNeedsYouRef.current = null;
+      }
+    } catch (e) {}
+  }, []);
+
+  React.useEffect(() => {
+    const count = activeMissionSnapshot.needsYouCount;
+    let pulseTimer = 0;
+    if (prevNeedsYouRef.current !== null && count < prevNeedsYouRef.current) {
+      const delta = prevNeedsYouRef.current - count;
+      setClearedToday(prev => {
+        const next = prev + delta;
+        try {
+          window.localStorage.setItem(V4CosMissionDayKey(), JSON.stringify({
+            cleared: next,
+            date: new Date().toDateString(),
+          }));
+        } catch (e) {}
+        return next;
+      });
+      setMissionPulse(true);
+      pulseTimer = window.setTimeout(() => setMissionPulse(false), 700);
+    }
+    prevNeedsYouRef.current = count;
+    return () => { if (pulseTimer) window.clearTimeout(pulseTimer); };
+  }, [activeMissionSnapshot.needsYouCount]);
+
+  React.useEffect(() => {
+    const onClear = () => {
+      setMissionPulse(true);
+      window.setTimeout(() => setMissionPulse(false), 700);
+    };
+    window.addEventListener('v4:active-mission-clear', onClear);
+    window.addEventListener('v3:email-sent', onClear);
+    return () => {
+      window.removeEventListener('v4:active-mission-clear', onClear);
+      window.removeEventListener('v3:email-sent', onClear);
+    };
+  }, []);
+
+  const pickActiveLead = (lead) => {
+    if (!lead) return;
+    const queueId = V4CosActiveLeadQueueId(lead);
+    const needsQueueSwitch = queueId && splits.some(s => s.id === queueId) && queueId !== splitId;
+    if (needsQueueSwitch) {
+      // splitId effect normally clears selId — keep the Active pick intact
+      skipSplitResetRef.current = true;
+      setSplitId(queueId);
+    }
+    setSelId(lead.id);
+    setMobileOpen(true);
+  };
+
   const split = splits.find(s => s.id === splitId) || splits[0];
   const items = split.items || [];
+  const listSections = React.useMemo(() => {
+    if (!split.queue || query) return [{ id: 'all', label: null, hint: null, items }];
+    if (split.id === 'send') return V4CosBuildSendQueueSections(items);
+    return [{ id: 'all', label: null, hint: null, items }];
+  }, [split.id, split.queue, items, query]);
   let selected = null;
   if (selId != null) {
     selected = items.find(l => String(l.id) === String(selId)) || null;
@@ -16730,18 +17398,10 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
   const { USERS } = window.V3;
 
   const queueHints = {
-    travel: 'Sponsored travel, factory visits, and on-site opportunities. Move these first.',
-    send: 'Agent drafts and replies you owe. Read thread, edit if needed, send.',
-    chase: 'Deals in motion. Nudge, chase payment, or brief Robert.',
-    watch: 'Quiet for now. Check back when something moves.',
-  };
-  const [hintDismissed, setHintDismissed] = React.useState(() => {
-    try { return JSON.parse(window.localStorage.getItem('cos-queue-hints') || '{}'); } catch (e) { return {}; }
-  });
-  const dismissHint = (id) => {
-    const next = { ...hintDismissed, [id]: true };
-    setHintDismissed(next);
-    try { window.localStorage.setItem('cos-queue-hints', JSON.stringify(next)); } catch (e) {}
+    travel: 'Travel and on-site opportunities.',
+    send: 'Drafts and replies to send.',
+    chase: 'Follow ups, payment, and briefs.',
+    watch: 'Waiting on them for now.',
   };
 
   const splitCountLabel = (s) => {
@@ -16776,7 +17436,11 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
     </React.Fragment>
   ));
 
-  const mainQueues = splits.filter(s => s.queue);
+  const mainQueues = splits.filter(s => {
+    if (!s.queue) return false;
+    if (s.id === 'travel' && !s.items.length && splitId !== 'travel') return false;
+    return true;
+  });
 
   return (
     <section className={'page cos2-page cos2-page--queue' + (mobileOpen ? ' is-mobile-reader-open' : '') + (splitsOpen ? ' is-splits-open' : '')}>
@@ -16867,78 +17531,111 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
         ) : (
           <>
             <div className="cos2-list">
-              <div className="cos-source-bar" role="tablist" aria-label="Lead source">
-                {[
-                  { id: 'all', label: 'All' },
-                  { id: 'x', label: 'X' },
-                  { id: 'gmail', label: 'Gmail' },
-                ].map(tab => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={sourceFilter === tab.id}
-                    className={'cos-source-pill' + (sourceFilter === tab.id ? ' is-active' : '') + (tab.id === 'x' ? ' is-x' : '') + (tab.id === 'gmail' ? ' is-gmail' : '')}
-                    onClick={() => setSourceFilter(tab.id)}
-                  >
-                    <span>{tab.label}</span>
-                    <span className="cos-source-pill-cnt">{sourceCounts[tab.id] ?? 0}</span>
-                  </button>
-                ))}
+              <div className="cos-list-toolbar">
+                <div className="cos-queue-toolbar-row">
+                  <nav className="cos-queue-bar" aria-label="Queues">
+                    {mainQueues.map(q => (
+                      <button
+                        key={q.id}
+                        type="button"
+                        className={'cos-queue-pill' + (split.id === q.id ? ' is-active' : '') + (q.hot ? ' is-hot' : '')}
+                        onClick={() => pickSplit(q.id)}
+                        title={queueHints[q.id] || q.hint}
+                      >
+                        {q.label}
+                        <span className="cos-queue-pill-cnt">{q.items.length}</span>
+                      </button>
+                    ))}
+                  </nav>
+                  <div className={'cos-more-wrap' + (splitsOpen ? ' is-open' : '')} ref={moreMenuRef}>
+                    <button
+                      type="button"
+                      className={'cos-queue-pill cos-queue-pill--more' + (moreSplits.some(s => s.id === split.id) ? ' is-active' : '')}
+                      onClick={() => setSplitsOpen(open => !open)}
+                      aria-expanded={splitsOpen}
+                      aria-haspopup="menu"
+                      title="Snoozed, done, trash, toolkit"
+                    >
+                      More
+                    </button>
+                    {splitsOpen ? (
+                      <div className="cos-more-dropdown" role="menu" aria-label="More queues">
+                        {moreSplits.map(s => (
+                          <button
+                            key={s.id}
+                            type="button"
+                            role="menuitem"
+                            className={'cos-more-item' + (s.id === split.id ? ' is-active' : '') + (s.hot ? ' is-hot' : '') + (s.toolkit ? ' is-toolkit' : '')}
+                            onClick={() => pickSplit(s.id)}
+                            title={s.hint || s.label}
+                          >
+                            <span>{s.label}</span>
+                            {s.toolkit ? (
+                              <span className="cos-more-item-meta">Tools</span>
+                            ) : (
+                              <span className="cos-more-item-cnt">{s.items?.length || 0}</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="cos-source-seg" role="tablist" aria-label="Lead source">
+                  {[
+                    { id: 'all', label: 'All' },
+                    { id: 'x', label: 'X' },
+                    { id: 'gmail', label: 'Gmail' },
+                  ].map(tab => {
+                    const cnt = sourceCounts[tab.id] ?? 0;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={sourceFilter === tab.id}
+                        className={'cos-source-seg-btn' + (sourceFilter === tab.id ? ' is-active' : '') + (tab.id === 'x' ? ' is-x' : '') + (tab.id === 'gmail' ? ' is-gmail' : '')}
+                        onClick={() => setSourceFilter(tab.id)}
+                        title={`${tab.label} leads (${cnt})`}
+                      >
+                        {tab.label}
+                        {cnt > 0 ? <span className="cos-source-seg-cnt">{cnt}</span> : null}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <nav className="cos-queue-bar" aria-label="Queues">
-                {mainQueues.map(q => (
-                  <button
-                    key={q.id}
-                    type="button"
-                    className={'cos-queue-pill' + (split.id === q.id ? ' is-active' : '') + (q.hot ? ' is-hot' : '')}
-                    onClick={() => pickSplit(q.id)}
-                    title={q.hint}
-                  >
-                    {q.label}
-                    <span className="cos-queue-pill-cnt">{q.items.length}</span>
-                  </button>
-                ))}
-                <div className={'cos-more-wrap' + (splitsOpen ? ' is-open' : '')} ref={moreMenuRef}>
-                  <button
-                    type="button"
-                    className={'cos-queue-pill cos-queue-pill--more' + (moreSplits.some(s => s.id === split.id) ? ' is-active' : '')}
-                    onClick={() => setSplitsOpen(open => !open)}
-                    aria-expanded={splitsOpen}
-                    aria-haspopup="menu"
-                    title="Snoozed, done, trash, toolkit"
-                  >
-                    More
-                  </button>
-                  {splitsOpen ? (
-                    <div className="cos-more-dropdown" role="menu" aria-label="More queues">
-                      {moreSplits.map(s => (
-                        <button
-                          key={s.id}
-                          type="button"
-                          role="menuitem"
-                          className={'cos-more-item' + (s.id === split.id ? ' is-active' : '') + (s.hot ? ' is-hot' : '') + (s.toolkit ? ' is-toolkit' : '')}
-                          onClick={() => pickSplit(s.id)}
-                          title={s.hint || s.label}
-                        >
-                          <span>{s.label}</span>
-                          {s.toolkit ? (
-                            <span className="cos-more-item-meta">Tools</span>
-                          ) : (
-                            <span className="cos-more-item-cnt">{s.items?.length || 0}</span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
+              {!split.toolkit && split.queue ? (
+                <div className="cos-active-strip-stack">
+                  <V4CosActiveMissionBoard
+                    snapshot={activeMissionSnapshot}
+                    clearedToday={clearedToday}
+                    pulse={missionPulse}
+                  />
+                  <V4CosActiveStrip
+                    leads={activeGmailLeads}
+                    selectedId={selected?.id}
+                    onPick={pickActiveLead}
+                    collapsed={activeGmailCollapsed}
+                    onToggle={() => setActiveGmailCollapsed(c => !c)}
+                    eyebrow="Active Gmail"
+                    subtitle="3-day threads · negotiating · in conversation"
+                    ariaLabel="Active Gmail conversations"
+                    channel="gmail"
+                  />
+                  <V4CosActiveStrip
+                    leads={activeXLeads}
+                    selectedId={selected?.id}
+                    onPick={pickActiveLead}
+                    collapsed={activeXCollapsed}
+                    onToggle={() => setActiveXCollapsed(c => !c)}
+                    eyebrow="Active X"
+                    subtitle="DM replies · waiting on them · 3 days"
+                    ariaLabel="Active X conversations"
+                    channel="x"
+                  />
                 </div>
-              </nav>
-              {split.queue && !hintDismissed[split.id] && queueHints[split.id] && (
-                <div className="cos-queue-hint">
-                  <span>{queueHints[split.id]}</span>
-                  <button type="button" onClick={() => dismissHint(split.id)} aria-label="Dismiss">✕</button>
-                </div>
-              )}
+              ) : null}
               {!split.toolkit ? (
                 <div className="cos2-list-search">
                   <V3Icon name="search" w={12} />
@@ -16966,32 +17663,42 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
               ) : null}
               <div className="cos2-list-scroll v6-list-scroll">
               {split.queue ? (
-                items.map((l, index) => (
-                  <div key={l.id} className={'cos2-row-wrap' + (String(l.id) === String(selected?.id) ? ' is-current' : '')}>
-                    <V4QueueRow
-                      lead={l}
-                      queueId={split.id}
-                      isCurrent={String(l.id) === String(selected?.id)}
-                      style={{ animationDelay: `${0.03 + index * 0.02}s` }}
-                      onClick={() => { setSelId(l.id); setMobileOpen(true); }}
-                    />
-                    {V4XLeadNeedsDmReply(l) ? (
-                      <button
-                        type="button"
-                        className={'cos2-row-act cos2-row-act--copy is-visible' + (copiedDmId === String(l.id) ? ' is-copied' : '')}
-                        title="Copy X DM draft"
-                        onClick={(e) => copyCosDmDraft(l, e)}
-                      >
-                        {copiedDmId === String(l.id) ? '✓' : '⎘'}
-                      </button>
+                listSections.map((section) => (
+                  <React.Fragment key={section.id}>
+                    {section.label ? (
+                      <div className="cos-list-section-hd" data-section={section.id} title={section.hint || ''}>
+                        <span>{section.label}</span>
+                        <span className="cos-list-section-cnt">{section.items.length}</span>
+                      </div>
                     ) : null}
-                    <button type="button"
-                            className="cos2-row-act"
-                            title="Move to trash"
-                            onClick={(e) => { e.stopPropagation(); window.V3.MoveLeadStage(l, 'trash'); }}>
-                      <V3Icon name="trash" w={13} />
-                    </button>
-                  </div>
+                    {section.items.map((l, index) => (
+                      <div key={l.id} className={'cos2-row-wrap' + (String(l.id) === String(selected?.id) ? ' is-current' : '')}>
+                        <V4QueueRow
+                          lead={l}
+                          queueId={split.id}
+                          isCurrent={String(l.id) === String(selected?.id)}
+                          style={{ animationDelay: `${0.03 + index * 0.02}s` }}
+                          onClick={() => { setSelId(l.id); setMobileOpen(true); }}
+                        />
+                        {V4XLeadNeedsDmReply(l) ? (
+                          <button
+                            type="button"
+                            className={'cos2-row-act cos2-row-act--copy is-visible' + (copiedDmId === String(l.id) ? ' is-copied' : '')}
+                            title="Copy X DM draft"
+                            onClick={(e) => copyCosDmDraft(l, e)}
+                          >
+                            {copiedDmId === String(l.id) ? '✓' : '⎘'}
+                          </button>
+                        ) : null}
+                        <button type="button"
+                                className="cos2-row-act"
+                                title="Move to trash"
+                                onClick={(e) => { e.stopPropagation(); window.V3.MoveLeadStage(l, 'trash'); }}>
+                          <V3Icon name="trash" w={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </React.Fragment>
                 ))
               ) : (
                 items.map((l, index) => (

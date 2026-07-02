@@ -20,6 +20,14 @@
     ],
     "rewrites": [
       {
+        "source": "/feedback",
+        "destination": "/feedback.html"
+      },
+      {
+        "source": "/feedback.html",
+        "destination": "/feedback.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
