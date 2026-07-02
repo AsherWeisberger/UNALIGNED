@@ -992,6 +992,46 @@ const V3_SUPABASE_LIST_COLUMNS = [
 
 const V3_detailHydrateInflight = new Map();
 
+function V3SetFocusedLeadId(id) {
+  window.__v3FocusedLeadId = id ? String(id) : '';
+}
+
+function V3FocusedLeadId() {
+  return String(window.__v3FocusedLeadId || '');
+}
+
+function V3LeadNeedsThreadRefresh(prev, incoming) {
+  if (!prev?._detailHydrated) return true;
+  if (V3TimestampForUi(incoming?.lastInboundAt) > V3TimestampForUi(prev?.lastInboundAt)) return true;
+  if (V3TimestampForUi(incoming?.newReplyAt) > V3TimestampForUi(prev?.newReplyAt)) return true;
+  if (String(incoming?.draftReplyStatus || '') !== String(prev?.draftReplyStatus || '')) return true;
+  if (String(incoming?.draftReply?.body || '').trim() !== String(prev?.draftReply?.body || '').trim()) return true;
+  return false;
+}
+
+function V3PreserveHydratedLead(prev, incoming) {
+  if (!prev?._detailHydrated || !Array.isArray(prev.thread) || !prev.thread.length) return incoming;
+  return {
+    ...incoming,
+    thread: prev.thread,
+    _detailHydrated: true,
+  };
+}
+
+function V3MergeReloadedLeads(incoming, previous) {
+  const prevById = new Map((Array.isArray(previous) ? previous : []).map(l => [String(l.id), l]));
+  const focusId = V3FocusedLeadId();
+  return (Array.isArray(incoming) ? incoming : []).map(lead => {
+    const prev = prevById.get(String(lead.id));
+    if (!prev?._detailHydrated) return lead;
+    const merged = V3PreserveHydratedLead(prev, lead);
+    if (V3LeadNeedsThreadRefresh(prev, lead)) {
+      V3HydrateLeadDetail(merged, { force: true, silent: true }).catch(() => {});
+    }
+    return merged;
+  });
+}
+
 async function V3FetchSupabaseCardById(cardId) {
   const url = V3_SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(cardId) + '&select=*&limit=1';
   const res = await fetch(url, { headers: V3_SUPABASE_HEADERS });
@@ -1000,24 +1040,29 @@ async function V3FetchSupabaseCardById(cardId) {
   return Array.isArray(rows) && rows[0] ? rows[0] : null;
 }
 
-async function V3HydrateLeadDetail(lead) {
+async function V3HydrateLeadDetail(lead, opts = {}) {
   const cardId = String(lead?.rowId || lead?.id || '');
-  if (!cardId || lead?._detailHydrated) return lead;
+  if (!cardId) return lead;
+  const existing = (window.V3.LEADS || []).find(item => String(item.id) === cardId) || lead;
+  if (existing?._detailHydrated && !opts.force) return existing;
   if (V3_detailHydrateInflight.has(cardId)) return V3_detailHydrateInflight.get(cardId);
   const promise = (async () => {
     const row = await V3FetchSupabaseCardById(cardId);
-    if (!row) return lead;
+    if (!row) return existing;
     let hydrated = V3NormalizeSupabaseLead(row);
     const threadRows = window.__v3LastXDmThreadRows;
     if (Array.isArray(threadRows) && threadRows.length) {
       [hydrated] = V3MergeXDmThreadContextsIntoLeads([hydrated], threadRows);
     }
     hydrated._detailHydrated = true;
+    const merged = (existing?._detailHydrated && opts.silent && Array.isArray(existing.thread) && existing.thread.length)
+      ? { ...hydrated, thread: hydrated.thread?.length ? hydrated.thread : existing.thread }
+      : hydrated;
     const updated = (window.V3.LEADS || []).map(item =>
-      String(item.id) === String(lead.id) ? hydrated : item);
+      String(item.id) === cardId ? merged : item);
     window.V3.LEADS = updated;
-    window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated } }));
-    return hydrated;
+    window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated, quiet: !!opts.silent } }));
+    return merged;
   })().finally(() => V3_detailHydrateInflight.delete(cardId));
   V3_detailHydrateInflight.set(cardId, promise);
   return promise;
@@ -1026,13 +1071,14 @@ async function V3HydrateLeadDetail(lead) {
 function V3UseLeadDetailHydration(lead) {
   React.useEffect(() => {
     if (!lead?.id || lead._detailHydrated) return;
+    if (Array.isArray(lead.thread) && lead.thread.length > 0) return;
     if (!lead.gmailThreadId && !lead.email) return;
     let cancelled = false;
     V3HydrateLeadDetail(lead).catch(err => {
       if (!cancelled) console.warn('[ALIGNED v4] lead detail hydrate failed:', err);
     });
     return () => { cancelled = true; };
-  }, [lead?.id, lead?._detailHydrated, lead?.gmailThreadId, lead?.email]);
+  }, [lead?.id, lead?._detailHydrated, lead?.gmailThreadId, lead?.email, lead?.thread?.length]);
 }
 
 async function V3LoadSupabaseLeads(opts = {}) {
@@ -1094,20 +1140,27 @@ async function V3LoadSupabaseLeads(opts = {}) {
   return leads;
 }
 
-function V3PrefetchHotLeadDetails(leads, limit = 10) {
+function V3PrefetchHotLeadDetails(leads, opts = {}) {
+  if (opts.skip) return;
+  const limit = Number(opts.limit) > 0 ? Number(opts.limit) : 10;
+  const skipId = String(opts.skipId || V3FocusedLeadId() || '');
   const hot = (Array.isArray(leads) ? leads : [])
+    .filter(l => String(l.id) !== skipId)
     .filter(l => !l._detailHydrated && l.gmailThreadId)
     .filter(l => l.needsReply || ['pending', 'review'].includes(String(l.draftReplyStatus || '').toLowerCase()))
     .slice(0, limit);
-  hot.forEach(lead => V3HydrateLeadDetail(lead).catch(() => {}));
+  hot.forEach(lead => V3HydrateLeadDetail(lead, { silent: true }).catch(() => {}));
 }
 
 async function V3ReloadLeads(opts = {}) {
-  window.dispatchEvent(new CustomEvent('v3:leads-loading'));
-  const leads = await V3LoadSupabaseLeads({ cacheBust: opts.cacheBust || Date.now() });
+  const quiet = !!opts.quiet;
+  const prev = window.V3?.LEADS || [];
+  if (!quiet) window.dispatchEvent(new CustomEvent('v3:leads-loading'));
+  const incoming = await V3LoadSupabaseLeads({ cacheBust: opts.cacheBust || Date.now() });
+  const leads = prev.length ? V3MergeReloadedLeads(incoming, prev) : incoming;
   window.V3.LEADS = leads;
-  window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads } }));
-  V3PrefetchHotLeadDetails(leads);
+  window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads, quiet } }));
+  if (!quiet) V3PrefetchHotLeadDetails(leads);
   return leads;
 }
 
@@ -6128,6 +6181,12 @@ function V3Drawer({ lead, user, queue = [], onNavigate, onClose }) {
   React.useEffect(() => {
     setTab(pickInitialTab(lead));
     setComposeOpen(false);
+  }, [lead?.id]);
+  React.useEffect(() => {
+    V3SetFocusedLeadId(lead?.id || null);
+    return () => {
+      if (V3FocusedLeadId() === String(lead?.id || '')) V3SetFocusedLeadId(null);
+    };
   }, [lead?.id]);
   V3UseLeadDetailHydration(lead);
 
@@ -18054,7 +18113,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
           throw new Error(data.error || ('Full sync failed (' + res.status + ')'));
         }
       }
-      if (window.V3?.ReloadLeads) await window.V3.ReloadLeads();
+      if (window.V3?.ReloadLeads) await window.V3.ReloadLeads({ quiet: true });
       const patched = Number(data.cards_updated ?? data.threads_patched ?? 0);
       const created = Number(data.new_cards_written || 0);
       const operatorQueued = !!data.operator_queued;
@@ -18073,7 +18132,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
     } catch (err) {
       if (!quiet) {
         try {
-          if (window.V3?.ReloadLeads) await window.V3.ReloadLeads();
+          if (window.V3?.ReloadLeads) await window.V3.ReloadLeads({ quiet: true });
           setSyncNote('Reloaded board · Gmail sync unavailable');
           setSyncStatus('ok');
         } catch (reloadErr) {
@@ -18287,6 +18346,13 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
 
   React.useEffect(() => {
     if (!selected) setComposeOpen(false);
+  }, [selected?.id]);
+
+  React.useEffect(() => {
+    V3SetFocusedLeadId(selected?.id || null);
+    return () => {
+      if (V3FocusedLeadId() === String(selected?.id || '')) V3SetFocusedLeadId(null);
+    };
   }, [selected?.id]);
 
   const moveSel = (delta) => {
@@ -19060,6 +19126,14 @@ function V4App() {
   }, []);
 
   React.useEffect(() => {
+    if (view === 'company-os') return undefined;
+    V3SetFocusedLeadId(openId || null);
+    return () => {
+      if (V3FocusedLeadId() === String(openId || '')) V3SetFocusedLeadId(null);
+    };
+  }, [openId, view]);
+
+  React.useEffect(() => {
     setOrgansMenuOpen(false);
   }, [view]);
 
@@ -19079,7 +19153,10 @@ function V4App() {
         return window.V3.PrunePendingReplies(curr, e.detail.leads);
       });
     };
-    const onLoading = () => { setBoardState('loading'); };
+    const onLoading = () => {
+      if (window.V3?.LEADS?.length) return;
+      setBoardState('loading');
+    };
     const onError = (e) => {
       setBoardState('error');
       setBoardError(e.detail?.error || 'Could not load board');
