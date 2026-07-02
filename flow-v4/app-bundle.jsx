@@ -14688,6 +14688,9 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
           </article>
         ))}
       </div>
+
+      <V4CosPartnerFeedback />
+
       {briefMakerOpen && (
         <div className="brief-modal-backdrop" onClick={() => setBriefMakerOpen(false)}>
           <div className="brief-maker-panel" onClick={e => e.stopPropagation()}>
@@ -15660,6 +15663,192 @@ function V4CosActiveStrip({ leads = [], selectedId, onPick, collapsed, onToggle,
           {waiting.map(lead => (
             <V4CosActiveStripItem key={lead.id} lead={lead} selectedId={selectedId} onPick={onPick} />
           ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function V4CosFeedbackAvg(rows, key) {
+  const vals = (rows || []).map((row) => Number(row[key])).filter((n) => Number.isFinite(n));
+  if (!vals.length) return null;
+  return Math.round((vals.reduce((sum, n) => sum + n, 0) / vals.length) * 10) / 10;
+}
+
+function V4CosFeedbackAgainTone(value) {
+  const v = String(value || '').toLowerCase();
+  if (v === 'yes') return 'good';
+  if (v === 'maybe') return 'warn';
+  if (v === 'no') return 'bad';
+  return 'muted';
+}
+
+async function V4LoadCollabFeedback(limit = 30) {
+  const url = V3_SUPABASE_URL
+    + '/rest/v1/collab_feedback?select=id,brand,contact_name,deliverable,tier,status,overall_score,process_score,robert_score,communication_score,nps,would_again,went_well,improve,testimonial,public_ok,submitted_at,card_id'
+    + '&status=eq.submitted&order=submitted_at.desc&limit=' + encodeURIComponent(String(limit || 30));
+  const res = await fetch(url, { headers: V3_SUPABASE_HEADERS });
+  if (!res.ok) throw new Error('Could not load partner feedback (' + res.status + ')');
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
+function V4CosPartnerFeedback({ compact, onOpenLead }) {
+  const [rows, setRows] = React.useState([]);
+  const [status, setStatus] = React.useState('loading');
+  const [error, setError] = React.useState('');
+  const [collapsed, setCollapsed] = React.useState(Boolean(compact));
+  const [expandedId, setExpandedId] = React.useState(null);
+
+  const load = React.useCallback(async () => {
+    setStatus('loading');
+    setError('');
+    try {
+      const data = await V4LoadCollabFeedback(compact ? 12 : 30);
+      setRows(data);
+      setStatus(data.length ? 'ready' : 'empty');
+      setExpandedId((prev) => prev ?? (data[0]?.id ?? null));
+    } catch (err) {
+      setRows([]);
+      setStatus('error');
+      setError(err.message || 'Could not load partner feedback');
+    }
+  }, [compact]);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  const avgOverall = V4CosFeedbackAvg(rows, 'overall_score');
+  const avgNps = V4CosFeedbackAvg(rows, 'nps');
+  const avgProcess = V4CosFeedbackAvg(rows, 'process_score');
+  const againYes = rows.filter((row) => row.would_again === 'yes').length;
+  const improveThemes = rows.map((row) => String(row.improve || '').trim()).filter(Boolean).slice(0, 3);
+
+  if (compact && status === 'empty') return null;
+
+  const renderRow = (row) => {
+    const open = expandedId === row.id;
+    const contact = row.contact_name ? row.contact_name.split(' ')[0] : '';
+    const when = row.submitted_at
+      ? (typeof V3RelativeTime === 'function' ? V3RelativeTime(row.submitted_at) : row.submitted_at.slice(0, 10))
+      : '—';
+    return (
+      <article key={row.id} className={'cos-partner-fb-row' + (open ? ' is-open' : '')}>
+        <button
+          type="button"
+          className="cos-partner-fb-row-hd"
+          onClick={() => setExpandedId(open ? null : row.id)}
+          aria-expanded={open}
+        >
+          <div className="cos-partner-fb-row-main">
+            <strong>{row.brand || 'Partner'}</strong>
+            {contact ? <span className="cos-partner-fb-contact">{contact}</span> : null}
+            {row.deliverable ? <span className="cos-partner-fb-deliverable">{row.deliverable}</span> : null}
+          </div>
+          <div className="cos-partner-fb-row-scores">
+            <span className="cos-partner-fb-pill is-overall">{row.overall_score}/10</span>
+            <span className="cos-partner-fb-pill is-nps">NPS {row.nps}</span>
+            <span className={'cos-partner-fb-pill is-again is-' + V4CosFeedbackAgainTone(row.would_again)}>
+              {row.would_again || '—'}
+            </span>
+          </div>
+          <span className="cos-partner-fb-when">{when}</span>
+        </button>
+        {open ? (
+          <div className="cos-partner-fb-row-body">
+            <div className="cos-partner-fb-score-grid">
+              <span>Process <strong>{row.process_score ?? '—'}</strong></span>
+              <span>Robert <strong>{row.robert_score ?? '—'}</strong></span>
+              <span>Comms <strong>{row.communication_score ?? '—'}</strong></span>
+            </div>
+            {row.went_well ? (
+              <div className="cos-partner-fb-quote is-good">
+                <span className="cos-partner-fb-quote-lbl">Went well</span>
+                <p>{row.went_well}</p>
+              </div>
+            ) : null}
+            {row.improve ? (
+              <div className="cos-partner-fb-quote is-improve">
+                <span className="cos-partner-fb-quote-lbl">Improve</span>
+                <p>{row.improve}</p>
+              </div>
+            ) : null}
+            {row.public_ok && row.testimonial ? (
+              <div className="cos-partner-fb-quote is-testimonial">
+                <span className="cos-partner-fb-quote-lbl">Public quote OK</span>
+                <p>{row.testimonial}</p>
+              </div>
+            ) : null}
+            {row.card_id && onOpenLead ? (
+              <button type="button" className="cos-partner-fb-open-card" onClick={() => onOpenLead(row.card_id)}>
+                Open deal card
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </article>
+    );
+  };
+
+  return (
+    <section className={'cos-partner-fb' + (compact ? ' is-compact' : ' is-full') + (collapsed ? ' is-collapsed' : '')}>
+      <header className="cos-partner-fb-hd">
+        <div className="cos-partner-fb-copy">
+          <span className="cos-partner-fb-eyebrow">Partner feedback</span>
+          <span className="cos-partner-fb-label">
+            {status === 'empty'
+              ? 'No submissions yet — paste a link at wrap-up.'
+              : status === 'error'
+                ? error
+                : `${rows.length} submission${rows.length === 1 ? '' : 's'} · avg ${avgOverall ?? '—'}/10 · NPS ${avgNps ?? '—'}`}
+          </span>
+        </div>
+        <div className="cos-partner-fb-actions">
+          {compact ? (
+            <button
+              type="button"
+              className="cos-partner-fb-toggle"
+              onClick={() => setCollapsed((c) => !c)}
+              aria-expanded={!collapsed}
+            >
+              {collapsed ? 'Show' : 'Hide'}
+            </button>
+          ) : null}
+          <button type="button" className="cos-partner-fb-refresh" onClick={load} disabled={status === 'loading'} title="Refresh partner feedback">
+            {status === 'loading' ? '…' : '↻'}
+          </button>
+        </div>
+      </header>
+
+      {status === 'ready' && !collapsed ? (
+        <>
+          {!compact ? (
+            <div className="cos-partner-fb-stats">
+              <div className="cos-partner-fb-stat"><strong>{avgOverall ?? '—'}</strong><span>Overall</span></div>
+              <div className="cos-partner-fb-stat"><strong>{avgNps ?? '—'}</strong><span>NPS</span></div>
+              <div className="cos-partner-fb-stat"><strong>{avgProcess ?? '—'}</strong><span>Process</span></div>
+              <div className="cos-partner-fb-stat"><strong>{againYes}/{rows.length}</strong><span>Would again</span></div>
+            </div>
+          ) : null}
+          {improveThemes.length && !compact ? (
+            <div className="cos-partner-fb-themes">
+              <span className="cos-partner-fb-themes-lbl">Recent improve notes</span>
+              {improveThemes.map((note, i) => (
+                <p key={i} className="cos-partner-fb-theme">{note}</p>
+              ))}
+            </div>
+          ) : null}
+          <div className="cos-partner-fb-list">
+            {(compact ? rows.slice(0, 5) : rows).map(renderRow)}
+          </div>
+        </>
+      ) : null}
+
+      {status === 'loading' && !collapsed ? (
+        <div className="cos-partner-fb-empty">Loading partner feedback…</div>
+      ) : null}
+      {status === 'empty' && !compact ? (
+        <div className="cos-partner-fb-empty">
+          No partner feedback yet. Run <code>create_collab_feedback_link.py</code> at wrap-up and paste the link in your closing email.
         </div>
       ) : null}
     </section>
@@ -17612,6 +17801,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
                     clearedToday={clearedToday}
                     pulse={missionPulse}
                   />
+                  <V4CosPartnerFeedback compact onOpenLead={pickActiveLead} />
                   <V4CosActiveStrip
                     leads={activeGmailLeads}
                     selectedId={selected?.id}
