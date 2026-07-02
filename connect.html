@@ -16,7 +16,7 @@
   <link rel="canonical" href="https://asherweisberger.github.io/UNALIGNED/connect" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>UNALIGNED · Reach Robert's team</title>
-  <!-- form build: 20260702-contact-pref-v1 -->
+  <!-- form build: 20260702-company-name-v2 -->
   <meta name="description" content="Share your idea with Robert Scoble's team. We read everything and route the best fits to Robert's desk." />
   <link rel="icon" href="favicon.ico" />
   <style>
@@ -233,7 +233,9 @@
     };
 
     const state = {
-      name: '',
+      company: '',
+      first_name: '',
+      last_name: '',
       email: '',
       contact_detail: '',
       contact_preference: '',
@@ -346,7 +348,17 @@
       }));
 
       const form = el('form');
-      form.appendChild(textField('name', 'Your name', { required: true, placeholder: 'First and last', autocomplete: 'name' }));
+      form.appendChild(textField('company', 'Company', {
+        placeholder: 'Acme AI',
+        autocomplete: 'organization',
+        hint: 'Optional if you\'re reaching out solo.',
+      }));
+
+      const nameRow = el('div', { className: 'grid-2' });
+      nameRow.appendChild(textField('first_name', 'First name', { required: true, placeholder: 'Jane', autocomplete: 'given-name' }));
+      nameRow.appendChild(textField('last_name', 'Last name', { required: true, placeholder: 'Doe', autocomplete: 'family-name' }));
+      form.appendChild(nameRow);
+
       form.appendChild(choiceField('contact_preference', 'Best way to reach you', CONTACT_PREFS, syncContactDetailField));
       form.appendChild(contactDetailField());
 
@@ -388,7 +400,10 @@
         submit.disabled = true;
         try {
           const payload = {
-            name: state.name,
+            company: state.company,
+            first_name: state.first_name,
+            last_name: state.last_name,
+            name: [state.first_name, state.last_name].filter(Boolean).join(' ').trim(),
             email: state.contact_preference === 'email' ? state.contact_detail : state.email,
             contact_preference: state.contact_preference,
             contact_detail: state.contact_detail,

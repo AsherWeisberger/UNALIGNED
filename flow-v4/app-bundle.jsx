@@ -16188,6 +16188,11 @@ function V4DeskIntakeContactLabel(value) {
   return map[String(value || '').toLowerCase()] || value || '—';
 }
 
+function V4DeskIntakeCompany(row) {
+  const responses = row?.responses && typeof row.responses === 'object' ? row.responses : {};
+  return String(responses.company || '').trim();
+}
+
 function V4DeskIntakeContactDetail(row) {
   const pref = String(row?.contact_preference || '').toLowerCase();
   const responses = row?.responses && typeof row.responses === 'object' ? row.responses : {};
@@ -16345,6 +16350,9 @@ function V4CosDeskIntake() {
         >
           <div className="cos-desk-intake-row-main">
             <strong>{row.name || 'Unknown'}</strong>
+            {V4DeskIntakeCompany(row) ? (
+              <span className="cos-desk-intake-topic">{V4DeskIntakeCompany(row)}</span>
+            ) : null}
             <span className="cos-desk-intake-email">{row.email}</span>
             {V4DeskIntakeContactDetail(row) ? (
               <span className="cos-desk-intake-handle">{V4DeskIntakeContactDetail(row)}</span>
@@ -16361,6 +16369,9 @@ function V4CosDeskIntake() {
           <div className="cos-desk-intake-row-body">
             {row.message ? <p className="cos-desk-intake-message">{row.message}</p> : null}
             <div className="cos-desk-intake-contact-grid">
+              {V4DeskIntakeCompany(row) ? (
+                <span>Company <strong>{V4DeskIntakeCompany(row)}</strong></span>
+              ) : null}
               <span>Preferred <strong>{V4DeskIntakeContactLabel(row.contact_preference)}</strong></span>
               {V4DeskIntakeContactDetail(row) ? (
                 <span>Contact <strong>{V4DeskIntakeContactDetail(row)}</strong></span>

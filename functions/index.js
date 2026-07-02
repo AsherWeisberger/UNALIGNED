@@ -824,7 +824,10 @@ function deskContactDetail(body = {}, contactPreference = '') {
 
 function normalizeDeskSubmission(body = {}) {
   if (body.company_website) return { error: 'Rejected' };
-  const name = deskCleanText(body.name, 120);
+  const firstName = deskCleanText(body.first_name || body.firstName, 80);
+  const lastName = deskCleanText(body.last_name || body.lastName, 80);
+  const company = deskCleanText(body.company, 120);
+  const name = deskCleanText(body.name, 120) || deskCleanText(`${firstName} ${lastName}`.trim(), 120);
   const message = deskCleanText(body.message, 4000);
   const topicType = String(body.topic_type || body.topicType || '').toLowerCase();
   const contactPreference = String(body.contact_preference || body.contactPreference || '').toLowerCase();
@@ -833,6 +836,8 @@ function normalizeDeskSubmission(body = {}) {
   let xHandle = '';
   let whatsapp = '';
 
+  if (!firstName || firstName.length < 1) return { error: 'First name is required' };
+  if (!lastName || lastName.length < 1) return { error: 'Last name is required' };
   if (!name || name.length < 2) return { error: 'Name is required' };
   if (!DESK_TOPIC_TYPES.has(topicType)) return { error: 'Pick what you want to talk about' };
   if (!DESK_CONTACT_PREFS.has(contactPreference)) return { error: 'Pick your preferred way to be contacted' };
@@ -879,6 +884,9 @@ function normalizeDeskSubmission(body = {}) {
         topic_type: topicType,
         contact_preference: contactPreference,
         contact_detail: storedContactDetail,
+        company,
+        first_name: firstName,
+        last_name: lastName,
         submitted_from: deskCleanText(body.source, 40) || 'connect_form',
       },
     },
