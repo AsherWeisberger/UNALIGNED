@@ -16749,6 +16749,23 @@ function V4App() {
   }, []);
 
   React.useEffect(() => {
+    const showToast = (message) => {
+      setToast(message);
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      toastTimer.current = setTimeout(() => {
+        setToast(null);
+        toastTimer.current = null;
+      }, 5000);
+    };
+    const onStageFailed = (e) => {
+      const err = e.detail?.error || 'Could not save';
+      showToast('Trash/move failed — ' + err);
+    };
+    window.addEventListener('v3:stage-persist-failed', onStageFailed);
+    return () => window.removeEventListener('v3:stage-persist-failed', onStageFailed);
+  }, []);
+
+  React.useEffect(() => {
     var apply = function () { document.body.setAttribute('data-theme', t.theme); };
     if (window.cubeThemeTransition) window.cubeThemeTransition(apply);
     else apply();
