@@ -372,19 +372,28 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
     if (window.claude?.label) setAiBridgeLabel(window.claude.label());
     try {
       const tone = draftTone || (window.V3?.ResolveReplyTone ? window.V3.ResolveReplyTone(lead) : 'direct');
-      const first = String(lead.contactName || 'there').split(/\s+/)[0] || 'there';
+      const first = V3ExternalThreadFirstName(lead);
       const brand = lead.brand || 'the company';
       const nextAction = String(lead.operatorSummary?.next_action || lead.nextMove?.text || '').trim();
       const thread = (lead.thread || []).slice(-6).map(m => (
         `[${m.from || '?'}] ${m.subject || ''}\n${String(m.body || '').slice(0, 900)}`
       )).join('\n\n---\n\n');
       const senderName = V3SenderName(sender);
+      const pricingBlock = V3PricingTiersForPrompt();
       const prompt = `Write an email reply for UNALIGNED sponsorship partnerships.
 
 VOICE RULES:
 - Never use hyphens or em dashes as punctuation. Use periods or commas instead.
 - Sound like a real person. No AI filler, no corporate template voice.
 - TONE: ${tone} (direct = brief business; friendship = warm rapport; long_standing = trust-based, skip cold intro)
+
+PRICING RULES:
+- NEVER invent, estimate, or round a dollar amount.
+- ONLY quote a price if it appears verbatim on the LIVE RATE CARD below.
+- If they ask about cost or rates and scope is unclear, say you will attach the rate card and ask what deliverables they want. Do not name a price.
+- Do not offer discounts or negotiate numbers unless the thread already locked a tier price.
+
+${pricingBlock}
 
 Sender: ${senderName}
 Contact first name: ${first}
@@ -397,7 +406,7 @@ ${thread.slice(0, 4200)}
 
 Write ONLY the email body. Start with "Hi ${first},". Keep it concise. End with "Best," on its own line. Do not add a signature block.`;
       const out = await window.claude.complete(prompt, { max_tokens: 700 });
-      setBody(V3EnsureSenderSignature(String(out || '').trim(), sender));
+      setBody(V3FinalizeAiReplyDraft(String(out || '').trim(), lead, sender));
       if (window.claude?.label) setAiBridgeLabel(window.claude.label());
     } catch (err) {
       setAiDraftError(err.message || 'AI draft failed');

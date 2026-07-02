@@ -2743,9 +2743,7 @@ function V3ReplyToneLabel(tone) {
   return 'Direct / new contact';
 }
 
-function V3ExternalThreadFirstName(lead) {
-  const contactFirst = String(lead?.contactName || '').trim().split(/\s+/)[0];
-  if (contactFirst) return contactFirst;
+function V3ThreadSenderFirstName(lead) {
   const thread = Array.isArray(lead?.thread) ? lead.thread : [];
   for (let i = thread.length - 1; i >= 0; i -= 1) {
     const from = String(thread[i]?.from || '');
@@ -2756,6 +2754,19 @@ function V3ExternalThreadFirstName(lead) {
       if (first) return first;
     }
   }
+  return '';
+}
+
+function V3ExternalThreadFirstName(lead) {
+  const contactFirst = String(lead?.contactName || '').trim().split(/\s+/)[0];
+  const threadFirst = V3ThreadSenderFirstName(lead);
+  const contactLooksProper = contactFirst && (
+    /^[A-Z][a-z]/.test(contactFirst) ||
+    /[A-Z]/.test(contactFirst.slice(1))
+  );
+  if (contactLooksProper) return contactFirst;
+  if (threadFirst) return threadFirst;
+  if (contactFirst) return contactFirst.charAt(0).toUpperCase() + contactFirst.slice(1).toLowerCase();
   return 'there';
 }
 
@@ -2781,6 +2792,56 @@ function V3FixDraftGreeting(body, firstName) {
     return lines.join('\n');
   }
   return body;
+}
+
+function V3PricingTiersForPrompt() {
+  const tiers = window.V3?.TIERS || (typeof V3_TIERS !== 'undefined' ? V3_TIERS : {});
+  const rows = Object.values(tiers)
+    .filter(t => t && Number(t.price) > 0)
+    .sort((a, b) => Number(a.id) - Number(b.id));
+  if (!rows.length) {
+    return 'LIVE RATE CARD unavailable. Do NOT quote any dollar amount. Say you will attach the rate card or discuss tiers after scope is clear.';
+  }
+  const lines = rows.map(t => {
+    const items = Array.isArray(t.items) && t.items.length ? ` (${t.items.join('; ')})` : '';
+    return `- ${t.name}: $${Number(t.price).toLocaleString('en-US')}${items}`;
+  });
+  return 'LIVE RATE CARD (authoritative, only quote prices from this list):\n' + lines.join('\n');
+}
+
+function V3SanitizeAiDraftPrices(body) {
+  const tiers = window.V3?.TIERS || (typeof V3_TIERS !== 'undefined' ? V3_TIERS : {});
+  const allowed = new Set(
+    Object.values(tiers)
+      .map(t => Number(t.price))
+      .filter(n => Number.isFinite(n) && n > 0)
+  );
+  let text = String(body || '');
+  let hadBadPrice = false;
+  text = text.replace(/\$\s*([\d,]+(?:\.\d{2})?)/g, (match, numStr) => {
+    const num = Number(String(numStr).replace(/,/g, ''));
+    if (allowed.has(num)) return '$' + Number(num).toLocaleString('en-US');
+    hadBadPrice = true;
+    return '[[BAD_PRICE]]';
+  });
+  if (!hadBadPrice) return text.trim();
+  text = text
+    .replace(/[^\n.!?]*\[\[BAD_PRICE\]\][^\n.!?]*[.!?]?\s*/g, '')
+    .replace(/\[\[BAD_PRICE\]\]/g, '')
+    .trim();
+  const fallback = 'Happy to share our rate card with tier options once I know what deliverables you have in mind.';
+  if (!text) return fallback;
+  if (!/rate card|pricing|tier/i.test(text)) return text + '\n\n' + fallback;
+  return text;
+}
+
+function V3FinalizeAiReplyDraft(body, lead, sender) {
+  const first = V3ExternalThreadFirstName(lead);
+  let text = V3StripExistingSignatures(String(body || '').trim());
+  text = V3FixDraftGreeting(text, first);
+  text = V3SanitizeAiDraftPrices(text);
+  text = V3NoDashes(text);
+  return V3ComposeMessageOnly(text, sender);
 }
 
 function V3AdaptDraftSubject(storedSubject, lead) {
@@ -5936,19 +5997,28 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
     if (window.claude?.label) setAiBridgeLabel(window.claude.label());
     try {
       const tone = draftTone || (window.V3?.ResolveReplyTone ? window.V3.ResolveReplyTone(lead) : 'direct');
-      const first = String(lead.contactName || 'there').split(/\s+/)[0] || 'there';
+      const first = V3ExternalThreadFirstName(lead);
       const brand = lead.brand || 'the company';
       const nextAction = String(lead.operatorSummary?.next_action || lead.nextMove?.text || '').trim();
       const thread = (lead.thread || []).slice(-6).map(m => (
         `[${m.from || '?'}] ${m.subject || ''}\n${String(m.body || '').slice(0, 900)}`
       )).join('\n\n---\n\n');
       const senderName = V3SenderName(sender);
+      const pricingBlock = V3PricingTiersForPrompt();
       const prompt = `Write an email reply for UNALIGNED sponsorship partnerships.
 
 VOICE RULES:
 - Never use hyphens or em dashes as punctuation. Use periods or commas instead.
 - Sound like a real person. No AI filler, no corporate template voice.
 - TONE: ${tone} (direct = brief business; friendship = warm rapport; long_standing = trust-based, skip cold intro)
+
+PRICING RULES:
+- NEVER invent, estimate, or round a dollar amount.
+- ONLY quote a price if it appears verbatim on the LIVE RATE CARD below.
+- If they ask about cost or rates and scope is unclear, say you will attach the rate card and ask what deliverables they want. Do not name a price.
+- Do not offer discounts or negotiate numbers unless the thread already locked a tier price.
+
+${pricingBlock}
 
 Sender: ${senderName}
 Contact first name: ${first}
@@ -5961,7 +6031,7 @@ ${thread.slice(0, 4200)}
 
 Write ONLY the email body. Start with "Hi ${first},". Keep it concise. End with "Best," on its own line. Do not add a signature block.`;
       const out = await window.claude.complete(prompt, { max_tokens: 700 });
-      setBody(V3ComposeMessageOnly(String(out || '').trim(), sender));
+      setBody(V3FinalizeAiReplyDraft(String(out || '').trim(), lead, sender));
       if (window.claude?.label) setAiBridgeLabel(window.claude.label());
     } catch (err) {
       setAiDraftError(err.message || 'AI draft failed');
