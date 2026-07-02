@@ -1081,10 +1081,78 @@ function V3UseLeadDetailHydration(lead) {
   }, [lead?.id, lead?._detailHydrated, lead?.gmailThreadId, lead?.email, lead?.thread?.length]);
 }
 
+const V3_BOARD_CACHE_KEY = 'v3-board-leads-cache-v1';
+const V3_BOARD_CACHE_MAX = 900;
+
+function V3BoardCacheStrip(lead) {
+  if (!lead || typeof lead !== 'object') return lead;
+  const out = { ...lead };
+  delete out.thread;
+  delete out.originalEmail;
+  delete out.emailThread;
+  return out;
+}
+
+function V3SaveBoardCache(leads) {
+  try {
+    const payload = {
+      savedAt: new Date().toISOString(),
+      leads: (Array.isArray(leads) ? leads : []).slice(0, V3_BOARD_CACHE_MAX).map(V3BoardCacheStrip),
+    };
+    window.localStorage.setItem(V3_BOARD_CACHE_KEY, JSON.stringify(payload));
+  } catch (err) {
+    console.warn('[ALIGNED v4] board cache save failed:', err);
+  }
+}
+
+function V3LoadBoardCache() {
+  try {
+    const raw = window.localStorage.getItem(V3_BOARD_CACHE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!Array.isArray(data?.leads) || !data.leads.length) return null;
+    return data;
+  } catch (err) {
+    return null;
+  }
+}
+
+function V3BoardCacheAgeLabel(savedAt) {
+  const ts = Date.parse(savedAt || '');
+  if (!Number.isFinite(ts)) return 'earlier';
+  const mins = Math.max(1, Math.round((Date.now() - ts) / 60000));
+  if (mins < 60) return mins + 'm ago';
+  const hrs = Math.round(mins / 60);
+  if (hrs < 48) return hrs + 'h ago';
+  return new Date(ts).toLocaleString();
+}
+
+function V3PublishBoardLoaded(leads, meta = {}) {
+  window.V3.LEADS = leads;
+  window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads, ok: !meta.cached, ...meta } }));
+  if (!meta.cached) V3SaveBoardCache(leads);
+  if (!meta.cached && !meta.quiet) V3PrefetchHotLeadDetails(leads);
+}
+
+function V3PublishBoardLoadFailed(err) {
+  const error = err?.message || String(err || 'Load failed');
+  const cached = V3LoadBoardCache();
+  if (cached?.leads?.length) {
+    V3PublishBoardLoaded(cached.leads, {
+      cached: true,
+      cachedAt: cached.savedAt,
+      cacheError: error,
+    });
+    return;
+  }
+  console.error('Supabase load failed:', error);
+  window.dispatchEvent(new CustomEvent('v3:leads-error', { detail: { error } }));
+}
+
 function V3FriendlySupabaseError(status, detail) {
   const text = String(detail || '');
   if (status === 522 || status === 523 || status === 524 || text.includes('Connection timed out')) {
-    return 'Supabase is temporarily unreachable — wait a minute and hit Board error → retry';
+    return 'Supabase database is down (522 timeout) — check supabase.com/dashboard or restore project';
   }
   if (status === 57014 || text.includes('statement timeout')) {
     return 'Supabase query timed out — retry in a moment';
@@ -1098,12 +1166,17 @@ function V3FriendlySupabaseError(status, detail) {
 
 async function V3FetchSupabaseJson(path, opts = {}) {
   const attempts = Math.max(1, Number(opts.retries) || 3);
+  const timeoutMs = Number(opts.timeoutMs) > 0 ? Number(opts.timeoutMs) : 22000;
   let lastErr = null;
   for (let i = 0; i < attempts; i += 1) {
     try {
+      const ctrl = new AbortController();
+      const timer = window.setTimeout(() => ctrl.abort(), timeoutMs);
       const res = await fetch(V3_SUPABASE_URL + path, {
         headers: opts.headers || V3_SUPABASE_HEADERS,
+        signal: ctrl.signal,
       });
+      window.clearTimeout(timer);
       if (!res.ok) {
         const detail = await res.text();
         throw new Error(V3FriendlySupabaseError(res.status, detail));
@@ -1117,7 +1190,10 @@ async function V3FetchSupabaseJson(path, opts = {}) {
         || msg.includes('timed out')
         || msg.includes('Failed to fetch')
         || msg.includes('NetworkError')
+        || msg.includes('AbortError')
+        || msg.includes('aborted')
         || msg.includes('522')
+        || msg.includes('database is down')
       );
       if (!retryable) throw err;
       await new Promise((resolve) => setTimeout(resolve, 1200 * (i + 1)));
@@ -1194,12 +1270,24 @@ async function V3ReloadLeads(opts = {}) {
   const quiet = !!opts.quiet;
   const prev = window.V3?.LEADS || [];
   if (!quiet) window.dispatchEvent(new CustomEvent('v3:leads-loading'));
-  const incoming = await V3LoadSupabaseLeads({ cacheBust: opts.cacheBust || Date.now() });
-  const leads = prev.length ? V3MergeReloadedLeads(incoming, prev) : incoming;
-  window.V3.LEADS = leads;
-  window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads, quiet } }));
-  if (!quiet) V3PrefetchHotLeadDetails(leads);
-  return leads;
+  try {
+    const incoming = await V3LoadSupabaseLeads({ cacheBust: opts.cacheBust || Date.now() });
+    const leads = prev.length ? V3MergeReloadedLeads(incoming, prev) : incoming;
+    V3PublishBoardLoaded(leads, { quiet });
+    return leads;
+  } catch (err) {
+    if (prev.length) {
+      V3PublishBoardLoaded(prev, {
+        cached: true,
+        cachedAt: V3LoadBoardCache()?.savedAt || null,
+        cacheError: err?.message || String(err),
+        quiet,
+      });
+      return prev;
+    }
+    V3PublishBoardLoadFailed(err);
+    throw err;
+  }
 }
 
 function V3NormalizeEmailLeadStage(email, rawStage) {
@@ -5370,15 +5458,9 @@ V3LoadPricingTiers();
 V3LoadTeamUsers();
 
 window.dispatchEvent(new CustomEvent('v3:leads-loading'));
-V3LoadSupabaseLeads().then(leads => {
-  window.V3.LEADS = leads;
-  window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads, ok: true } }));
-  V3PrefetchHotLeadDetails(leads);
-}).catch(err => {
-  const error = err?.message || String(err || 'Load failed');
-  console.error('Supabase load failed:', error);
-  window.dispatchEvent(new CustomEvent('v3:leads-error', { detail: { error } }));
-});
+V3LoadSupabaseLeads()
+  .then((leads) => V3PublishBoardLoaded(leads, { ok: true }))
+  .catch((err) => V3PublishBoardLoadFailed(err));
 // FLOW v3 — Board view
 
 function V3BoardView({ leads, openId, onOpen, user, ownerFilter, setOwnerFilter }) {
@@ -19238,8 +19320,8 @@ function V4App() {
 
   React.useEffect(() => {
     const onLoad = (e) => {
-      setBoardState('ready');
-      setBoardError('');
+      setBoardState(e.detail?.cached ? 'cached' : 'ready');
+      setBoardError(e.detail?.cached ? (e.detail.cacheError || '') : '');
       setLeads(e.detail.leads);
       setPendingReplies(curr => {
         if (!window.V3.PrunePendingReplies) return curr;
@@ -19635,6 +19717,16 @@ function V4App() {
 
         <V4SyncStatusBadge />
         {boardState === 'loading' && <span className="hd-board-state">Loading board…</span>}
+        {boardState === 'cached' && (
+          <button
+            type="button"
+            className="hd-board-state hd-board-state--warn"
+            onClick={() => window.V3?.ReloadLeads?.()}
+            title={boardError || 'Showing cached board while Supabase is unreachable'}
+          >
+            Cached board — retry live load
+          </button>
+        )}
         {boardState === 'error' && (
           <button type="button" className="hd-board-state hd-board-state--err" onClick={() => window.V3?.ReloadLeads?.()} title={boardError || 'Could not load leads from Supabase'}>
             Board error — retry{boardError ? ` (${boardError})` : ''}

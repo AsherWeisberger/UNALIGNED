@@ -6733,6 +6733,7 @@ a.cos-desk-intake-copy:hover {
 .hd-sync--err .dot { background: #dc2626; }
 .hd-sync--busy .dot { animation: pulse 1.2s ease infinite; }
 .hd-board-state { font-size: var(--fs-xs); color: var(--text-secondary); margin-left: 8px; }
+.hd-board-state--warn { color: #b45309; background: none; border: none; cursor: pointer; text-decoration: underline; }
 .hd-board-state--err { color: #dc2626; background: none; border: none; cursor: pointer; text-decoration: underline; }
 .cos2-sync-note {
   font-size: var(--fs-xs);
