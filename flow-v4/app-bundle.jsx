@@ -6731,6 +6731,126 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
   );
 }
 
+function V3PartnerFeedbackProfile({ lead }) {
+  const [rows, setRows] = React.useState([]);
+  const [status, setStatus] = React.useState('idle');
+  const [linkStatus, setLinkStatus] = React.useState('idle');
+  const [linkError, setLinkError] = React.useState('');
+  const [linkUrl, setLinkUrl] = React.useState('');
+  const cardId = String(lead?.id || '').trim();
+  const canLink = /^\d+$/.test(cardId);
+  const showWrapUp = ['done', 'paid-out'].includes(lead?.stage);
+
+  React.useEffect(() => {
+    let active = true;
+    setStatus('loading');
+    V4LoadCollabFeedbackForLead(lead).then((data) => {
+      if (!active) return;
+      setRows(data);
+      setStatus('ready');
+    }).catch(() => {
+      if (!active) return;
+      setRows([]);
+      setStatus('ready');
+    });
+    return () => { active = false; };
+  }, [lead?.id, lead?.email]);
+
+  const submitted = rows.filter((row) => row.status === 'submitted');
+  const pending = rows.filter((row) => row.status === 'pending');
+  const latest = submitted[0] || null;
+
+  const createLink = async (forceNew) => {
+    if (!canLink) return;
+    setLinkStatus('working');
+    setLinkError('');
+    try {
+      const data = await V4CreateCollabFeedbackLink(cardId, forceNew);
+      setLinkUrl(data.link || '');
+      setLinkStatus('done');
+      if (data.link && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(data.link);
+      }
+      const refreshed = await V4LoadCollabFeedbackForLead(lead);
+      setRows(refreshed);
+    } catch (err) {
+      setLinkStatus('error');
+      setLinkError(err.message || 'Could not create link');
+    }
+  };
+
+  if (!showWrapUp && !submitted.length && !pending.length && status !== 'loading') return null;
+
+  return (
+    <div className="partner-fb-profile">
+      <div className="partner-fb-profile-hd">
+        <span className="partner-fb-profile-title">Partner feedback</span>
+        {latest ? (
+          <span className={'partner-fb-profile-badge is-' + V4CosFeedbackAgainTone(latest.would_again)}>
+            {latest.overall_score}/10 · NPS {latest.nps}
+          </span>
+        ) : pending.length ? (
+          <span className="partner-fb-profile-badge is-pending">Awaiting response</span>
+        ) : null}
+      </div>
+
+      {showWrapUp && canLink ? (
+        <div className="partner-fb-profile-actions">
+          <button type="button" className="partner-fb-profile-btn" onClick={() => createLink(false)} disabled={linkStatus === 'working'}>
+            {linkStatus === 'working' ? 'Creating…' : (pending.length ? 'Copy feedback link' : 'Create feedback link')}
+          </button>
+          {pending.length ? (
+            <button type="button" className="partner-fb-profile-btn is-ghost" onClick={() => createLink(true)} disabled={linkStatus === 'working'}>
+              New link
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {showWrapUp && !canLink ? (
+        <p className="partner-fb-profile-note">This lead is not on a Supabase card yet, so feedback cannot auto-link. Use the script with --brand and --contact.</p>
+      ) : null}
+      {linkStatus === 'done' && linkUrl ? (
+        <p className="partner-fb-profile-note is-ok">Link copied. Paste at the end of your wrap-up email.</p>
+      ) : null}
+      {linkStatus === 'error' ? (
+        <p className="partner-fb-profile-note is-error">{linkError}</p>
+      ) : null}
+
+      {latest ? (
+        <div className="partner-fb-profile-body">
+          <div className="partner-fb-profile-identity">
+            <strong>{latest.contact_name || lead.contactName}</strong>
+            {latest.contact_email ? <span>{latest.contact_email}</span> : null}
+            {latest.contact_handle ? <span>{latest.contact_handle}</span> : null}
+          </div>
+          {latest.went_well ? <p className="partner-fb-profile-good"><strong>Went well:</strong> {latest.went_well}</p> : null}
+          {latest.improve ? <p className="partner-fb-profile-improve"><strong>Improve:</strong> {latest.improve}</p> : null}
+          {latest.public_ok && latest.testimonial ? (
+            <p className="partner-fb-profile-quote">"{latest.testimonial}"</p>
+          ) : null}
+          <p className="partner-fb-profile-meta">
+            Would work again: <strong>{latest.would_again || '—'}</strong>
+            {latest.submitted_at ? <> · {typeof V3RelativeTime === 'function' ? V3RelativeTime(latest.submitted_at) : latest.submitted_at.slice(0, 10)}</> : null}
+          </p>
+        </div>
+      ) : null}
+
+      {submitted.length > 1 ? (
+        <div className="partner-fb-profile-history">
+          <span className="partner-fb-profile-history-lbl">Earlier feedback</span>
+          {submitted.slice(1).map((row) => (
+            <div key={row.id} className="partner-fb-profile-history-row">
+              <span>{row.brand || lead.brand}</span>
+              <span>{row.overall_score}/10</span>
+              <span>{row.would_again || '—'}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function V3Stands({ lead }) {
   const hasDealRead = !!(lead.dealState || lead.dealEvidence || lead.dealNextAction || lead.needsHumanRead);
   return (
@@ -6739,6 +6859,8 @@ function V3Stands({ lead }) {
         <div className="standstrip-title">Where this stands</div>
         <span className="standstrip-pulse">Step {lead.progress + 1} of {window.V3.ACTIVE_STAGE_IDS.length}</span>
       </div>
+
+      <V3PartnerFeedbackProfile lead={lead} />
 
       {hasDealRead && (
         <div className="deal-tracker-read" style={{ marginBottom: 14, padding: '10px 12px', borderRadius: 10, background: 'var(--surface-2)', border: '1px solid var(--border)' }}>
@@ -15683,14 +15805,45 @@ function V4CosFeedbackAgainTone(value) {
   return 'muted';
 }
 
+const V4_CREATE_COLLAB_FEEDBACK_API = 'https://us-central1-unaligned-fc556.cloudfunctions.net/createCollabFeedbackLink';
+const V4_COLLAB_FEEDBACK_SELECT = 'id,brand,contact_name,contact_email,contact_handle,thread_key,source_channel,deliverable,tier,status,overall_score,process_score,robert_score,communication_score,nps,would_again,went_well,improve,testimonial,public_ok,submitted_at,created_at,card_id';
+
 async function V4LoadCollabFeedback(limit = 30) {
   const url = V3_SUPABASE_URL
-    + '/rest/v1/collab_feedback?select=id,brand,contact_name,deliverable,tier,status,overall_score,process_score,robert_score,communication_score,nps,would_again,went_well,improve,testimonial,public_ok,submitted_at,card_id'
+    + '/rest/v1/collab_feedback?select=' + V4_COLLAB_FEEDBACK_SELECT
     + '&status=eq.submitted&order=submitted_at.desc&limit=' + encodeURIComponent(String(limit || 30));
   const res = await fetch(url, { headers: V3_SUPABASE_HEADERS });
   if (!res.ok) throw new Error('Could not load partner feedback (' + res.status + ')');
   const data = await res.json();
   return Array.isArray(data) ? data : [];
+}
+
+async function V4LoadCollabFeedbackForLead(lead) {
+  const cardId = String(lead?.id || '').trim();
+  const email = String(lead?.email || '').trim().toLowerCase();
+  const filters = [];
+  if (/^\d+$/.test(cardId)) filters.push('card_id.eq.' + cardId);
+  if (email) filters.push('contact_email.eq.' + email);
+  if (!filters.length) return [];
+  const url = V3_SUPABASE_URL
+    + '/rest/v1/collab_feedback?select=' + V4_COLLAB_FEEDBACK_SELECT
+    + '&or=(' + filters.join(',') + ')'
+    + '&order=submitted_at.desc.nullslast,created_at.desc&limit=10';
+  const res = await fetch(url, { headers: V3_SUPABASE_HEADERS });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
+async function V4CreateCollabFeedbackLink(cardId, forceNew) {
+  const res = await fetch(V4_CREATE_COLLAB_FEEDBACK_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cardId: Number(cardId), forceNew: Boolean(forceNew) }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.ok) throw new Error(data.error || 'Could not create feedback link');
+  return data;
 }
 
 function V4CosPartnerFeedback({ compact, onOpenLead }) {
@@ -15741,7 +15894,9 @@ function V4CosPartnerFeedback({ compact, onOpenLead }) {
         >
           <div className="cos-partner-fb-row-main">
             <strong>{row.brand || 'Partner'}</strong>
-            {contact ? <span className="cos-partner-fb-contact">{contact}</span> : null}
+            {row.contact_name ? <span className="cos-partner-fb-contact">{row.contact_name}</span> : (contact ? <span className="cos-partner-fb-contact">{contact}</span> : null)}
+            {row.contact_email ? <span className="cos-partner-fb-email">{row.contact_email}</span> : null}
+            {row.contact_handle ? <span className="cos-partner-fb-handle">{row.contact_handle}</span> : null}
             {row.deliverable ? <span className="cos-partner-fb-deliverable">{row.deliverable}</span> : null}
           </div>
           <div className="cos-partner-fb-row-scores">
@@ -15778,6 +15933,10 @@ function V4CosPartnerFeedback({ compact, onOpenLead }) {
                 <p>{row.testimonial}</p>
               </div>
             ) : null}
+            <div className="cos-partner-fb-identity-meta">
+              {row.source_channel ? <span>{row.source_channel}</span> : null}
+              {row.card_id ? <span>card #{row.card_id}</span> : null}
+            </div>
             {row.card_id && onOpenLead ? (
               <button type="button" className="cos-partner-fb-open-card" onClick={() => onOpenLead(row.card_id)}>
                 Open deal card

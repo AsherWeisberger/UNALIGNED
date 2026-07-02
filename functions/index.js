@@ -532,7 +532,9 @@ function feedbackCors(req, res) {
 async function getSupabaseService() {
   const secretSnap = await getDb().collection('_secrets').doc('lead_ingest').get();
   if (!secretSnap.exists) throw new Error('Supabase service secret not configured');
-  const { supabase_url, supabase_key } = secretSnap.data();
+  const data = secretSnap.data();
+  const supabase_url = data.supabase_url;
+  const supabase_key = data.supabase_service_key || data.supabase_service_role_key || data.supabase_key;
   if (!supabase_url || !supabase_key) throw new Error('Supabase URL/key missing on lead_ingest secret');
   const sb = (path, opts = {}) => fetch(`${supabase_url}/rest/v1/${path}`, {
     ...opts,
@@ -560,6 +562,177 @@ function feedbackScore(value, min, max) {
   return i;
 }
 
+async function loadFeedbackRow(sb, token) {
+  const rpc = await sb('rpc/collab_feedback_by_token', {
+    method: 'POST',
+    body: JSON.stringify({ p_token: token }),
+  });
+  if (rpc.ok) {
+    const rows = await rpc.json();
+    if (Array.isArray(rows) && rows[0]) return rows[0];
+  }
+
+  const load = await sb(`collab_feedback?token=eq.${encodeURIComponent(token)}&select=*&limit=1`, { method: 'GET' });
+  const rows = await load.json();
+  if (!load.ok) throw new Error(`Supabase read failed: ${load.status}`);
+  return Array.isArray(rows) && rows[0] ? rows[0] : null;
+}
+
+async function submitFeedbackRow(sb, token, patch) {
+  const rpc = await sb('rpc/collab_feedback_submit', {
+    method: 'POST',
+    body: JSON.stringify({
+      p_token: token,
+      p_patch: {
+        ...patch,
+        responses: patch.responses || {},
+      },
+    }),
+  });
+  if (rpc.ok) {
+    const ok = await rpc.json();
+    if (ok === true) return;
+    if (ok === false) throw new Error('Feedback link not found');
+  } else {
+    const detail = await rpc.text();
+    if (detail.includes('expired')) throw new Error('expired');
+    if (detail.includes('already_submitted')) throw new Error('already_submitted');
+  }
+
+  const update = await sb(`collab_feedback?token=eq.${encodeURIComponent(token)}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify(patch),
+  });
+  if (!update.ok) {
+    const detail = await update.text();
+    throw new Error(`Supabase update failed: ${update.status} ${detail.slice(0, 200)}`);
+  }
+}
+
+const COLLAB_FEEDBACK_BASE = process.env.COLLAB_FEEDBACK_BASE
+  || 'https://asherweisberger.github.io/UNALIGNED/feedback.html';
+
+function feedbackTierFromIntent(intent) {
+  const match = String(intent || '').match(/tier\s*(\d+)/i);
+  return match ? `Tier ${match[1]}` : '';
+}
+
+function feedbackSourceChannel(card) {
+  const source = String(card.lead_source || '').toLowerCase();
+  if (source.includes('twitter') || source.startsWith('x') || source.includes('x_dm')) return 'x';
+  if (card.gmail_thread_id) return 'gmail';
+  return 'other';
+}
+
+function feedbackContactHandle(card) {
+  const emailId = String(card.email_id || '');
+  if (emailId.includes(':')) {
+    const handle = emailId.split(':').slice(1).join(':').trim();
+    if (handle && !handle.startsWith('thread:')) {
+      return handle.startsWith('@') ? handle : `@${handle}`;
+    }
+  }
+  const title = String(card.title || '').trim();
+  if (title.startsWith('@')) return title.split(/\s+/)[0];
+  return '';
+}
+
+function feedbackThreadKey(card) {
+  if (card.gmail_thread_id) return String(card.gmail_thread_id);
+  return String(card.email_id || '').trim();
+}
+
+function feedbackInviteFromCard(card) {
+  return {
+    card_id: Number(card.id),
+    brand: String(card.business_name || card.title || '').trim(),
+    contact_name: String(card.contact_name || '').trim(),
+    contact_email: String(card.email || '').trim() || null,
+    contact_handle: feedbackContactHandle(card),
+    thread_key: feedbackThreadKey(card),
+    source_channel: feedbackSourceChannel(card),
+    deliverable: String(card.intent || '').trim(),
+    tier: feedbackTierFromIntent(card.intent),
+  };
+}
+
+async function findPendingFeedbackInvite(sb, cardId) {
+  const load = await sb(
+    `collab_feedback?card_id=eq.${encodeURIComponent(cardId)}&status=eq.pending&select=id,token,expires_at,brand,contact_name&order=created_at.desc&limit=1`,
+    { method: 'GET' },
+  );
+  const rows = await load.json();
+  if (!load.ok) throw new Error(`Supabase read failed: ${load.status}`);
+  return Array.isArray(rows) && rows[0] ? rows[0] : null;
+}
+
+exports.createCollabFeedbackLink = functions.https.onRequest(async (req, res) => {
+  feedbackCors(req, res);
+  if (req.method === 'OPTIONS') return res.status(204).send('');
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'POST only' });
+  try {
+    const body = req.body || {};
+    const cardId = Number(body.cardId || body.card_id || 0);
+    if (!Number.isFinite(cardId) || cardId <= 0) {
+      return res.status(400).json({ ok: false, error: 'cardId is required' });
+    }
+
+    const sb = await getSupabaseService();
+    const cardLoad = await sb(`cards?id=eq.${encodeURIComponent(cardId)}&select=*&limit=1`, { method: 'GET' });
+    const cards = await cardLoad.json();
+    if (!cardLoad.ok) throw new Error(`Supabase card read failed: ${cardLoad.status}`);
+    const card = Array.isArray(cards) && cards[0] ? cards[0] : null;
+    if (!card) return res.status(404).json({ ok: false, error: 'Card not found' });
+
+    const forceNew = Boolean(body.forceNew || body.force_new);
+    if (!forceNew) {
+      const pending = await findPendingFeedbackInvite(sb, cardId);
+      if (pending?.token) {
+        return res.json({
+          ok: true,
+          existing: true,
+          link: `${COLLAB_FEEDBACK_BASE}?t=${pending.token}`,
+          inviteId: pending.id,
+          brand: pending.brand || '',
+          contactName: pending.contact_name || '',
+        });
+      }
+    }
+
+    const fields = feedbackInviteFromCard(card);
+    const token = require('crypto').randomBytes(18).toString('base64url');
+    const expiresAt = new Date(Date.now() + 90 * 86400000).toISOString();
+    const insert = await sb('collab_feedback', {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({
+        token,
+        ...fields,
+        status: 'pending',
+        expires_at: expiresAt,
+      }),
+    });
+    const created = await insert.json();
+    if (!insert.ok) {
+      throw new Error(`Supabase insert failed: ${insert.status} ${JSON.stringify(created).slice(0, 200)}`);
+    }
+    const row = Array.isArray(created) && created[0] ? created[0] : null;
+    return res.json({
+      ok: true,
+      existing: false,
+      link: `${COLLAB_FEEDBACK_BASE}?t=${token}`,
+      inviteId: row?.id || null,
+      brand: fields.brand,
+      contactName: fields.contact_name,
+      cardId,
+    });
+  } catch (err) {
+    console.error('createCollabFeedbackLink error:', err.message);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 exports.collabFeedback = functions.https.onRequest(async (req, res) => {
   feedbackCors(req, res);
   if (req.method === 'OPTIONS') return res.status(204).send('');
@@ -568,10 +741,7 @@ exports.collabFeedback = functions.https.onRequest(async (req, res) => {
     if (!token) return res.status(400).json({ ok: false, error: 'Invalid or missing token' });
 
     const sb = await getSupabaseService();
-    const load = await sb(`collab_feedback?token=eq.${encodeURIComponent(token)}&select=*&limit=1`, { method: 'GET' });
-    const rows = await load.json();
-    if (!load.ok) throw new Error(`Supabase read failed: ${load.status}`);
-    const row = Array.isArray(rows) && rows[0] ? rows[0] : null;
+    const row = await loadFeedbackRow(sb, token);
     if (!row) return res.status(404).json({ ok: false, error: 'Feedback link not found' });
     if (row.expires_at && Date.parse(row.expires_at) < Date.now()) {
       return res.status(410).json({ ok: false, error: 'This feedback link has expired' });
@@ -621,14 +791,16 @@ exports.collabFeedback = functions.https.onRequest(async (req, res) => {
       return res.status(400).json({ ok: false, error: `Missing or invalid: ${missing.join(', ')}` });
     }
 
-    const update = await sb(`collab_feedback?token=eq.${encodeURIComponent(token)}`, {
-      method: 'PATCH',
-      headers: { Prefer: 'return=minimal' },
-      body: JSON.stringify(patch),
-    });
-    if (!update.ok) {
-      const detail = await update.text();
-      throw new Error(`Supabase update failed: ${update.status} ${detail.slice(0, 200)}`);
+    try {
+      await submitFeedbackRow(sb, token, patch);
+    } catch (submitErr) {
+      if (submitErr.message === 'expired') {
+        return res.status(410).json({ ok: false, error: 'This feedback link has expired' });
+      }
+      if (submitErr.message === 'already_submitted') {
+        return res.status(409).json({ ok: false, error: 'Feedback already submitted. Thank you.' });
+      }
+      throw submitErr;
     }
     return res.json({ ok: true, submitted: true });
   } catch (err) {
