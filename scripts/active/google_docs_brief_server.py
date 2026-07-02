@@ -11,10 +11,14 @@ can be dropped directly into Robert's calendar.
 
 from __future__ import annotations
 
+from typing import Any
+
+import hashlib
 import json
 import mimetypes
 import os
 import re
+import time
 import subprocess
 import sys
 import base64
@@ -79,6 +83,11 @@ ALLOWED_ORIGINS = {
 }
 
 LOCAL_BRIEF_LLM_ENABLED = str(os.environ.get("LOCAL_BRIEF_LLM_ENABLED") or "1").strip().lower() in {"1", "true", "yes", "on"}
+LOCAL_BRIEF_SKIP_FACTS = str(os.environ.get("LOCAL_BRIEF_SKIP_FACTS") or "1").strip().lower() in {"1", "true", "yes", "on"}
+LOCAL_BRIEF_SKIP_DRAFTS = str(os.environ.get("LOCAL_BRIEF_SKIP_DRAFTS") or "1").strip().lower() in {"1", "true", "yes", "on"}
+LOCAL_BRIEF_LLM_TIMEOUT_SEC = max(15, int(os.environ.get("LOCAL_BRIEF_LLM_TIMEOUT_SEC") or "35"))
+NOTION_BRIEF_CACHE_TTL_SEC = max(60, int(os.environ.get("NOTION_BRIEF_CACHE_TTL_SEC") or "3600"))
+NOTION_CACHE_DIR = STATE_DIR / "notion-brief-cache"
 
 mimetypes.add_type("text/jsx", ".jsx")
 mimetypes.add_type("application/javascript", ".js")
@@ -96,6 +105,7 @@ from robert_handoff_operator import (  # type: ignore
     load_gmail_send_service as load_robert_gmail_send_service,
     mark_x_asset_sent as mark_robert_x_asset_sent,
 )
+from x_dm_draft import draft_x_dm_reply_for_lead  # type: ignore
 
 
 BRIEF_JOBS_LOCK = threading.Lock()
@@ -376,9 +386,18 @@ def require_api_token(handler: BaseHTTPRequestHandler) -> bool:
     origin = line(handler.headers.get("Origin")).lower()
     client_host = line((handler.client_address or ("",))[0]).lower()
     host = line(handler.headers.get("Host")).lower()
+    referer = line(handler.headers.get("Referer")).lower()
     if origin == "https://asherweisberger.github.io" and host.startswith("mac-studio.tail50d3a2.ts.net"):
         return True
     if origin == "https://mac-studio.tail50d3a2.ts.net" and host.startswith("mac-studio.tail50d3a2.ts.net"):
+        return True
+    # Same-origin GET (e.g. /send-email-token bootstrap) often omits Origin — allow Mac dashboard.
+    if host.startswith("mac-studio.tail50d3a2.ts.net") and (
+        not origin
+        or origin in {"null", "file://"}
+        or origin.startswith("https://mac-studio.tail50d3a2.ts.net")
+        or referer.startswith("https://mac-studio.tail50d3a2.ts.net")
+    ):
         return True
     if client_host in {"127.0.0.1", "::1", "localhost"} and (
         host.startswith("127.0.0.1:8767")
@@ -1109,7 +1128,7 @@ def query_local_brief_json(
         if not base_url or not model:
             continue
         try:
-            request_timeout = 120 if "127.0.0.1:8642" in base_url else 90
+            request_timeout = LOCAL_BRIEF_LLM_TIMEOUT_SEC if "127.0.0.1:8642" in base_url else min(LOCAL_BRIEF_LLM_TIMEOUT_SEC + 15, 60)
             brief_log(f"{stage_label}: calling {target.get('label') or model}")
             payload = {
                 "model": model,
@@ -1259,31 +1278,505 @@ def should_run_x_signal_for_brief(payload: dict) -> bool:
     return any(term in haystack for term in ("x.com", "twitter", "qrt", "quote repost", "quote tweet", "amplification x"))
 
 
+def parse_agency_constraints(email_context: str) -> dict:
+    text = line(email_context)
+    if not text:
+        return {}
+    lowered = text.lower()
+    max_chars = None
+    match = re.search(r"maximum of (\d{2,3}) characters", lowered)
+    if match:
+        max_chars = int(match.group(1))
+    elif "280 character" in lowered:
+        max_chars = 280
+    standalone_post = any(
+        phrase in lowered
+        for phrase in ("standalone post", "no retweets", "no retweet", "no qrt", "no quote tweet")
+    )
+    return {
+        "standalone_post": standalone_post,
+        "post_format": "standalone_single" if standalone_post else "",
+        "max_thread_replies": 0 if standalone_post else 2,
+        "max_chars": max_chars,
+        "no_emojis": "no emojis" in lowered or "do not include emojis" in lowered,
+        "no_urls_in_copy": (
+            ("do not include" in lowered and "url" in lowered)
+            or "no urls in the post" in lowered
+            or "no emojis or urls" in lowered
+            or bool(re.search(r"no\s+urls?\s+in\s+(?:the\s+)?post", lowered))
+        ),
+        "link_in_reply": "257 character" in lowered or "reduces the available character" in lowered,
+        "media_allowed": "video under" in lowered or "image is allowed" in lowered,
+        "raw_requirements": text,
+    }
+
+
+def agency_requirement_lines(constraints: dict) -> list[str]:
+    if not constraints:
+        return []
+    lines_out: list[str] = []
+    if constraints.get("standalone_post"):
+        lines_out.append("Format: Custom X Post (one standalone tweet). Not a multi-reply thread.")
+        lines_out.append("Standalone post only. No retweets, QRTs, or quote tweets.")
+    if constraints.get("max_chars"):
+        lines_out.append(f"Main post copy max {constraints['max_chars']} characters.")
+    if constraints.get("no_emojis"):
+        lines_out.append("No emojis in the main post copy.")
+    if constraints.get("no_urls_in_copy"):
+        lines_out.append("No URLs in the main post copy. Put the link in a reply.")
+    if constraints.get("link_in_reply"):
+        lines_out.append("Each link costs about 23 characters. Budget ~257 characters if you include a link in the main post.")
+    if constraints.get("media_allowed"):
+        lines_out.append("Media optional: video under 15 seconds or an image may be attached (not required).")
+    return lines_out
+
+
+def apply_agency_constraints_to_payload(payload: dict) -> dict:
+    constraints = parse_agency_constraints(line(payload.get("email_context")))
+    if not constraints:
+        return payload
+    merged = dict(payload)
+    merged["agency_constraints"] = constraints
+    requirements = agency_requirement_lines(constraints)
+    if requirements:
+        existing = [line(item) for item in (merged.get("angles_or_accuracy_requirements") or []) if line(item)]
+        merged["angles_or_accuracy_requirements"] = requirements + [
+            item for item in existing if item not in requirements
+        ]
+    if constraints.get("standalone_post"):
+        merged["deliverable_type"] = "Custom X post (standalone)"
+        merged["post_format"] = "standalone_single"
+        merged["max_thread_replies"] = 0
+    post_format, max_replies = resolve_post_format(
+        agency_constraints=constraints,
+        deliverable_type=line(merged.get("deliverable_type")),
+    )
+    if constraints:
+        merged["post_format"] = post_format
+        merged["max_thread_replies"] = max_replies
+    campaign_angles = merged.get("campaign_angles") or []
+    if campaign_angles and merged.get("drafts_source") == "notion_angles":
+        must = merged.get("must_include") or {}
+        merged["drafts"] = compose_notion_angle_drafts(
+            campaign_angles,
+            x_post_structure=merged.get("x_post_structure") or [],
+            tag=line(must.get("tag")),
+            hashtags=line(must.get("hashtags")),
+            link=line(must.get("link")),
+            post_format=post_format,
+            max_replies=max_replies,
+        )
+        merged["drafts_source"] = "notion_angles"
+    if constraints.get("standalone_post"):
+        go_live = line(merged.get("go_live")).lower()
+        conflict_note = (
+            "Agency requires a standalone post. The Notion brief may mention QRT or reacting to Zeb. "
+            "Confirm with the client which rule applies to Robert before posting."
+        )
+        prior = line(merged.get("go_live_note"))
+        if "qrt" in go_live or "quote" in go_live or "react" in go_live:
+            merged["go_live_note"] = f"{prior} {conflict_note}".strip() if prior else conflict_note
+    status = [line(item) for item in (merged.get("status_note") or []) if line(item)]
+    if requirements and not any("agency requirements" in item.lower() for item in status):
+        status.insert(0, "Agency requirements from the sender text box apply. See Potential Content Angles.")
+    merged["status_note"] = status
+    return merged
+
+
+def strip_hyphens_from_paragraph(text: str) -> str:
+    out = line(text)
+    if not out:
+        return ""
+    for dash in ("—", "–", "−", "‒"):
+        out = out.replace(dash, ". ")
+    out = re.sub(r"\s+-\s+", ". ", out)
+    out = re.sub(r"(?<![/@#])(?<!\w)-(?!\w)", " ", out)
+    out = re.sub(r"(\w)-(\w)", r"\1 \2", out)
+    out = re.sub(r"\.\s*\.", ".", out)
+    return re.sub(r"[ \t]+", " ", out).strip()
+
+
+def strip_hyphens_from_copy(text: str) -> str:
+    """Robert post copy: no hyphens or em/en dashes anywhere."""
+    raw = str(text or "").strip()
+    if not raw:
+        return ""
+    main, reply_note = split_link_in_reply_note(raw)
+    if "Main post:" in main or re.search(r"Reply\s+\d+:", main):
+        blocks = re.split(r"\n\s*(?=Main post:|Reply\s+\d+:)", main)
+        cleaned_blocks = [strip_hyphens_from_paragraph(block) for block in blocks if line(block)]
+        out = "\n\n".join(cleaned_blocks).strip()
+    else:
+        out = strip_hyphens_from_paragraph(main)
+    if reply_note:
+        reply = strip_hyphens_from_paragraph(reply_note)
+        return f"{out}\n\n{reply}".strip()
+    return out
+
+
+def strip_hyphens_from_label(text: str) -> str:
+    out = line(text)
+    if not out:
+        return ""
+    for dash in ("—", "–", "−", "‒"):
+        out = out.replace(dash, ". ")
+    out = re.sub(r"\s+-\s+", ". ", out)
+    out = re.sub(r"\s+", " ", out).strip()
+    return out
+
+
+def polish_robert_draft_item(draft: dict) -> dict:
+    if not isinstance(draft, dict):
+        return draft
+    out = dict(draft)
+    if line(out.get("text")):
+        out["text"] = strip_hyphens_from_copy(line(out.get("text")))
+    if line(out.get("label")):
+        out["label"] = strip_hyphens_from_label(line(out.get("label")))
+    if line(out.get("reach_reason")):
+        out["reach_reason"] = strip_hyphens_from_label(line(out.get("reach_reason")))
+    return out
+
+
+def polish_robert_drafts(payload: dict) -> dict:
+    merged = dict(payload)
+    drafts = [polish_robert_draft_item(item) for item in (merged.get("drafts") or []) if isinstance(item, dict)]
+    if drafts:
+        merged["drafts"] = drafts
+    reach = merged.get("recommended_reach")
+    if isinstance(reach, dict) and line(reach.get("label")):
+        merged["recommended_reach"] = {
+            **reach,
+            "label": strip_hyphens_from_label(line(reach.get("label"))),
+            "reach_reason": strip_hyphens_from_label(line(reach.get("reach_reason"))),
+        }
+    return merged
+
+
+def draft_suffix_already_present(text: str, part: str) -> bool:
+    part = line(part)
+    if not part:
+        return True
+    return part.lower() in text.lower()
+
+
+def split_link_in_reply_note(text: str) -> tuple[str, str]:
+    raw = line(text)
+    if not raw:
+        return "", ""
+    match = re.search(r"(?i)\n\s*Link in reply:\s*.+$", raw)
+    if not match:
+        return raw, ""
+    main = raw[: match.start()].strip()
+    reply = raw[match.start() :].strip()
+    return main, reply
+
+
+def draft_needs_standalone_rewrite(text: str) -> bool:
+    main, _ = split_link_in_reply_note(text)
+    return bool(
+        re.search(
+            r"(?i)QRT|quote[\s-]?tweet|retweet|redefine how you work|^\d+\s+AI Tools|I'd QRT",
+            main,
+        )
+    )
+
+
+def rewrite_standalone_draft_text(text: str, *, company: str = "", topic: str = "brain") -> str:
+    main, reply_note = split_link_in_reply_note(text)
+    out = clean_draft_text(main)
+    company = line(company) or "ClickUp"
+    topic = line(topic) or "brain"
+    if not draft_needs_standalone_rewrite(out):
+        merged = out
+        if reply_note:
+            merged = f"{merged}\n\n{reply_note}".strip()
+        return merged
+    out = re.sub(r"(?i)^\d+\s+AI Tools[^.]*\.\s*", "", out)
+    out = re.sub(r"(?i)I['’]?d QRT (?:this|that)(?: and tie in [^.]*)?", "", out)
+    out = re.sub(r"(?i)\b(QRT|quote[\s-]?tweet|retweet)\b", "", out)
+    out = re.sub(r"(?i)Anchor:.*", "", out)
+    out = re.sub(r"\s*…\s*", " ", out)
+    out = (
+        f"Everyone is sharing {topic} tool lists right now. "
+        f"Lists are fine. Workflow context is still the gap. "
+        f"My take after testing {company} Brain² with a real team."
+    )
+    out = re.sub(r":\s*$", "", out)
+    out = re.sub(r"\(\s*" + re.escape(topic) + r"\s*\)\s*$", "", out, flags=re.I)
+    out = re.sub(r"\s+", " ", out).strip()
+    if reply_note:
+        out = f"{out}\n\n{reply_note}".strip()
+    return out
+
+
+def sanitize_agency_draft_item(
+    draft: dict,
+    constraints: dict,
+    must: dict | None = None,
+    *,
+    company: str = "",
+    topic: str = "brain",
+) -> dict:
+    if not constraints or not isinstance(draft, dict):
+        return draft
+    out = dict(draft)
+    must = must or {}
+    label = line(out.get("label"))
+    if constraints.get("standalone_post"):
+        label = re.sub(r"(?i)QRT this thread|QRT their post|\bQRT\b", "Standalone post", label)
+        label = re.sub(r"\s+", " ", label).strip()
+        out["label"] = label
+        enforced = enforce_draft_agency_constraints(
+            line(out.get("text")),
+            constraints,
+            must,
+            company=company,
+            topic=topic,
+            rewrite_body=False,
+        )
+        rewritten = rewrite_standalone_draft_text(enforced, company=company, topic=topic)
+        main, reply_note = split_link_in_reply_note(rewritten)
+        out["text"] = enforce_draft_agency_constraints(
+            main,
+            constraints,
+            must,
+            company=company,
+            topic=topic,
+            rewrite_body=False,
+        )
+        if reply_note and "link in reply:" not in line(out.get("text")).lower():
+            out["text"] = f"{line(out.get('text'))}\n\n{reply_note}".strip()
+        reason = line(out.get("reach_reason"))
+        if reason:
+            reason = reason.replace("wave 2 on wave 1 (QRT)", "live thread context (standalone)")
+            reason = re.sub(r"(?i)\bqrt\b", "standalone", reason)
+            out["reach_reason"] = reason
+        out["anchor"] = ""
+    else:
+        out["text"] = enforce_draft_agency_constraints(line(out.get("text")), constraints, must)
+    return polish_robert_draft_item(out)
+
+
+def finalize_drafts_for_agency(payload: dict) -> dict:
+    constraints = payload.get("agency_constraints") or {}
+    if not constraints:
+        return payload
+    merged = dict(payload)
+    must = merged.get("must_include") or {}
+    company = line(merged.get("company_name"))
+    topic = infer_x_signal_topic(merged).split()[0].lower() if infer_x_signal_topic(merged) else "brain"
+    drafts = [
+        sanitize_agency_draft_item(item, constraints, must, company=company, topic=topic)
+        for item in (merged.get("drafts") or [])
+        if isinstance(item, dict)
+    ]
+    if constraints.get("standalone_post"):
+        clean = [
+            item for item in drafts
+            if "qrt" not in line(item.get("label")).lower()
+            and "qrt" not in line(item.get("text")).lower()
+            and "quote tweet" not in line(item.get("text")).lower()
+        ]
+        if clean:
+            drafts = clean
+    drafts = sorted(drafts, key=lambda item: int(item.get("reach_score") or 0), reverse=True)
+    for idx, draft in enumerate(drafts[:3], start=1):
+        rest = normalize_draft_option_label(line(draft.get("label")), idx)
+        suffix = " (Recommended)" if idx == 1 else ""
+        draft["label"] = f"Option {idx}. {rest}{suffix}"
+    if drafts:
+        merged["drafts"] = [polish_robert_draft_item(item) for item in drafts[:3]]
+        top = drafts[0]
+        merged["recommended_reach"] = {
+            "label": line(top.get("label")),
+            "reach_score": top.get("reach_score"),
+            "reach_tier": top.get("reach_tier"),
+            "reach_reason": line(top.get("reach_reason")),
+            "anchor": "",
+        }
+    return merged
+
+
+def enforce_draft_agency_constraints(
+    text: str,
+    constraints: dict,
+    must: dict | None = None,
+    *,
+    company: str = "",
+    topic: str = "brain",
+    rewrite_body: bool = True,
+) -> str:
+    if not text or not constraints:
+        return text
+    out = clean_draft_text(text)
+    if "Main post:" in out:
+        return enforce_thread_draft_agency_constraints(
+            out,
+            constraints,
+            must,
+            company=company,
+            topic=topic,
+        )
+    main, reply_note = split_link_in_reply_note(out)
+    if constraints.get("standalone_post") and rewrite_body:
+        main = rewrite_standalone_draft_text(main, company=company, topic=topic)
+        if "Main post:" in main:
+            main = main.split("Main post:", 1)[-1].split("Reply 1:", 1)[0].strip()
+    if constraints.get("no_emojis"):
+        main = re.sub(
+            r"[\U0001F300-\U0001FAFF\U00002600-\U000027BF\U0000FE00-\U0000FE0F\u2600-\u27BF]+",
+            "",
+            main,
+        )
+    must = must or {}
+    link = line(must.get("link"))
+    tag = line(must.get("tag"))
+    hashtags = line(must.get("hashtags"))
+    if constraints.get("no_urls_in_copy"):
+        main = re.sub(r"https?://\S+", "", main)
+        if link:
+            main = re.sub(re.escape(link), "", main, flags=re.I)
+        main = re.sub(r"\b[\w.-]+\.(com|io|ai|co|org|net)(?:/\S*)?", "", main, flags=re.I)
+    main = re.sub(r"\s+", " ", main).strip()
+    suffix_parts = [
+        part for part in (tag, hashtags)
+        if part and not draft_suffix_already_present(main, part)
+    ]
+    suffix = " ".join(suffix_parts).strip()
+    max_chars = constraints.get("max_chars")
+    if max_chars:
+        body = main
+        if suffix and not body.endswith(suffix):
+            combined_len = len(body) + 1 + len(suffix)
+            if combined_len > max_chars:
+                room = max_chars - len(suffix) - 1
+                if room > 40:
+                    body = body[:room].rsplit(" ", 1)[0].strip()
+                main = f"{body} {suffix}".strip()
+            else:
+                main = f"{body} {suffix}".strip()
+        elif len(body) > max_chars:
+            main = body[:max_chars].rsplit(" ", 1)[0].strip()
+        else:
+            main = body
+    if constraints.get("no_urls_in_copy") and link:
+        if reply_note and link.lower() not in reply_note.lower():
+            reply_note = f"Link in reply: {link}"
+        elif not reply_note:
+            reply_note = f"Link in reply: {link}"
+    out = main
+    if reply_note:
+        out = f"{main}\n\n{reply_note}".strip()
+    return strip_hyphens_from_copy(out)
+
+
+def enforce_thread_draft_agency_constraints(
+    text: str,
+    constraints: dict,
+    must: dict | None = None,
+    *,
+    company: str = "",
+    topic: str = "brain",
+) -> str:
+    raw = clean_draft_text(text)
+    blocks = re.split(r"\n\s*(?=Main post:|Reply\s+\d+:)", raw)
+    if not blocks or not blocks[0].lower().startswith("main post:"):
+        return strip_hyphens_from_copy(
+            enforce_draft_agency_constraints(
+                raw,
+                constraints,
+                must,
+                company=company,
+                topic=topic,
+                rewrite_body=False,
+            )
+        )
+    rebuilt_blocks: list[str] = []
+    link = line((must or {}).get("link"))
+    for block in blocks:
+        block = block.strip()
+        if not block:
+            continue
+        if block.lower().startswith("main post:"):
+            main_body = re.sub(r"(?i)^Main post:\s*", "", block).strip()
+            main_body = enforce_draft_agency_constraints(
+                main_body,
+                constraints,
+                must,
+                company=company,
+                topic=topic,
+                rewrite_body=False,
+            )
+            main_body = split_link_in_reply_note(main_body)[0].strip()
+            rebuilt_blocks.append(f"Main post:\n{main_body}")
+        else:
+            rebuilt_blocks.append(strip_hyphens_from_paragraph(block))
+    rebuilt = "\n\n".join(rebuilt_blocks).strip()
+    if constraints.get("no_urls_in_copy") and link and "link in reply:" not in rebuilt.lower():
+        rebuilt = f"{rebuilt}\n\nLink in reply: {link}".strip()
+    return strip_hyphens_from_copy(rebuilt)
+
+
+def infer_campaign_launch_line(lines: list[str]) -> str:
+    for item in lines:
+        text = line(item)
+        if re.search(r"what we'?re launching", text, re.I):
+            return re.sub(r"^what we'?re launching:\s*", "", text, flags=re.I).strip()
+    return ""
+
+
+def infer_x_signal_topic(payload: dict) -> str:
+    x_cfg = payload.get("x_signal") or {}
+    explicit = line(x_cfg.get("topic"))
+    if explicit:
+        return explicit[:80]
+    source_text = line(payload.get("source_text"))
+    company = line(payload.get("company_name"))
+    if re.search(r"brain[\u00b2²2]?", source_text, re.I):
+        return "Brain² AI"
+    launch_line = infer_campaign_launch_line((payload.get("source_text") or "").splitlines())
+    if launch_line:
+        short = launch_line.split(".")[0].strip()
+        if 8 <= len(short) <= 72:
+            return short
+    return company or "Campaign"
+
+
+def infer_x_signal_handle(payload: dict, *, tag: str, company: str) -> str:
+    x_cfg = payload.get("x_signal") or {}
+    explicit = line(x_cfg.get("handle"))
+    if explicit:
+        return explicit.lstrip("@")
+    if company.lower() == "clickup":
+        return "clickup"
+    if tag.startswith("@"):
+        return tag.lstrip("@")
+    return ""
+
+
 def x_signal_payload_for_brief(payload: dict) -> dict | None:
     if not should_run_x_signal_for_brief(payload):
         return None
     must = payload.get("must_include") or {}
     tag = line(must.get("tag"))
-    handle = tag.lstrip("@") if tag.startswith("@") else ""
-    company = line(payload.get("company_name")) or line(payload.get("title")) or handle or "Campaign"
-    topic = " ".join(
-        item for item in [
-            line(payload.get("deliverable_type")),
-            line(payload.get("core_idea")),
-            line(payload.get("announcement")),
-            company,
-        ] if item
-    )[:240] or company
+    company = line(payload.get("company_name")) or line(payload.get("title")) or "Campaign"
+    handle = infer_x_signal_handle(payload, tag=tag, company=company) or None
+    topic = infer_x_signal_topic(payload)
+    joined = line(payload.get("source_text"))
     drafts = [
         {"label": line(item.get("label")), "text": line(item.get("text"))}
         for item in (payload.get("drafts") or [])
-        if isinstance(item, dict) and line(item.get("text"))
+        if isinstance(item, dict)
+        and line(item.get("text"))
+        and not draft_text_is_lazy(line(item.get("text")), joined)
     ]
     try:
         from x_signal_intel import analyze_partnership_signal
 
         set_brief_job_stage("scoring_reach", "Scoring X reach")
         brief_log(f"brief-x-signal: analyzing {company}")
+        standalone_post = bool((parse_agency_constraints(line(payload.get("email_context"))) or {}).get("standalone_post"))
         signal = analyze_partnership_signal(
             brand=company,
             topic=topic,
@@ -1293,6 +1786,7 @@ def x_signal_payload_for_brief(payload: dict) -> dict | None:
             hashtags=line(must.get("hashtags")) or None,
             drafts=drafts,
             max_results=25,
+            standalone_post=standalone_post,
         )
         return signal
     except Exception as exc:
@@ -1300,7 +1794,67 @@ def x_signal_payload_for_brief(payload: dict) -> dict | None:
         return {"ok": False, "error": str(exc)}
 
 
-def attach_x_signal_to_brief_payload(payload: dict) -> dict:
+def drafts_need_x_signal(drafts: list[dict], joined_lines: str) -> bool:
+    valid = [item for item in (drafts or []) if isinstance(item, dict) and line(item.get("text"))]
+    if any(isinstance(item, dict) and item.get("brief_angle") for item in valid):
+        return False
+    if len(valid) < 2:
+        return True
+    if any(draft_text_is_lazy(line(item.get("text")), joined_lines) for item in valid):
+        return True
+    lazy_count = sum(1 for item in valid if draft_text_is_lazy(line(item.get("text")), joined_lines))
+    return lazy_count >= max(1, len(valid) - 1)
+
+
+def apply_x_signal_draft_posts(enriched: dict, signal: dict, *, joined_lines: str = "") -> dict:
+    draft_posts = signal.get("draft_posts") or []
+    if not draft_posts:
+        return enriched
+    if not drafts_need_x_signal(list(enriched.get("drafts") or []), joined_lines):
+        return enriched
+    brief_drafts: list[dict] = []
+    constraints = (enriched.get("agency_constraints") or {}) if isinstance(enriched, dict) else {}
+    must = enriched.get("must_include") or {}
+    company = line(enriched.get("company_name"))
+    topic_term = infer_x_signal_topic(enriched).split()[0].lower() if isinstance(enriched, dict) else "brain"
+    for draft in draft_posts:
+        item = sanitize_agency_draft_item(
+            {
+                "label": line(draft.get("label")) or "Draft",
+                "text": clean_draft_text(draft.get("text") or ""),
+                "reach_score": draft.get("reach_score"),
+                "reach_tier": draft.get("reach_tier"),
+                "reach_reason": draft.get("reach_reason"),
+                "anchor": draft.get("anchor"),
+            },
+            constraints,
+            must,
+            company=company,
+            topic=topic_term,
+        )
+        if not line(item.get("text")):
+            continue
+        brief_drafts.append(polish_robert_draft_item(item))
+    if brief_drafts:
+        enriched["drafts"] = sorted(
+            brief_drafts,
+            key=lambda item: int(item.get("reach_score") or 0),
+            reverse=True,
+        )
+        enriched["drafts_source"] = "x_signal_partnership"
+        top = enriched["drafts"][0]
+        enriched["recommended_reach"] = {
+            "label": line(top.get("label")),
+            "reach_score": top.get("reach_score"),
+            "reach_tier": top.get("reach_tier"),
+            "reach_reason": line(top.get("reach_reason")),
+            "anchor": line(top.get("anchor")),
+        }
+        brief_log(f"brief-x-signal: replaced {len(brief_drafts)} drafts from live X conversation")
+    return enriched
+
+
+def attach_x_signal_to_brief_payload(payload: dict, *, joined_lines: str = "") -> dict:
     signal = x_signal_payload_for_brief(payload)
     if not signal:
         return payload
@@ -1308,8 +1862,9 @@ def attach_x_signal_to_brief_payload(payload: dict) -> dict:
     if signal.get("ok") is False:
         enriched["x_signal_result"] = {"ok": False, "error": line(signal.get("error"))}
         return enriched
+    enriched = apply_x_signal_draft_posts(enriched, signal, joined_lines=joined_lines or line(payload.get("source_text")))
     scored = signal.get("scored_existing_drafts") or []
-    if scored:
+    if scored and enriched.get("drafts_source") != "x_signal_partnership":
         existing = list(enriched.get("drafts") or [])
         by_label = {line(item.get("label")): item for item in scored if isinstance(item, dict)}
         by_index = [item for item in scored if isinstance(item, dict)]
@@ -1321,6 +1876,8 @@ def attach_x_signal_to_brief_payload(payload: dict) -> dict:
             next_item = dict(draft)
             for key in ("reach_score", "reach_tier", "reach_reason", "anchor", "wave_stack"):
                 if match.get(key) not in (None, ""):
+                    if key == "anchor" and (enriched.get("agency_constraints") or {}).get("standalone_post"):
+                        continue
                     next_item[key] = match.get(key)
             next_drafts.append(next_item)
         if next_drafts:
@@ -1505,6 +2062,283 @@ def parse_thread_sections(lines: list[str]) -> list[dict]:
     return [section for section in sections if section.get("body")]
 
 
+def strip_quoted_copy(value: str) -> str:
+    text = line(value)
+    if text.startswith('"') and text.endswith('"'):
+        return text[1:-1].strip()
+    return text
+
+
+def parse_part2_direction(lines: list[str]) -> str:
+    start = None
+    for idx, raw in enumerate(lines):
+        if re.search(r"^Part\s*2\s*:", line(raw), re.I):
+            start = idx + 1
+            break
+    if start is None:
+        return ""
+    captured: list[str] = []
+    for raw in lines[start:]:
+        text = line(raw)
+        if not text:
+            continue
+        if re.match(r"^Part\s*\d+\s*:", text, re.I) or text in {
+            "What Works on X Right Now (From Successful AI Launches)",
+            "Content Angles for X",
+            "Engagement Requirements",
+        }:
+            break
+        captured.append(text)
+    return " ".join(captured).strip()
+
+
+def parse_notion_media_guidance(lines: list[str]) -> str:
+    for raw in lines:
+        text = line(raw)
+        if "demonstration" in text.lower() and "description" in text.lower():
+            return text
+        if re.search(r"show a (?:result|screenshot)", text, re.I):
+            return text
+    return ""
+
+
+def parse_x_post_structure(lines: list[str]) -> list[str]:
+    start = None
+    for idx, raw in enumerate(lines):
+        if line(raw).startswith("X Post Structure"):
+            start = idx + 1
+            break
+    if start is None:
+        return []
+    steps: list[str] = []
+    for raw in lines[start:]:
+        text = line(raw)
+        if not text:
+            continue
+        if text in {"Engagement Requirements", "Timing", "Platform Priority & Deliverables Summary"}:
+            break
+        if re.match(r"^(Hook tweet|Context|The reveal|Social proof|CTA in reply)", text, re.I):
+            steps.append(text)
+        elif steps and not re.match(r"^(Platform|Priority|Min Deliverables)", text, re.I):
+            steps.append(text)
+        if len(steps) >= 5:
+            break
+    return steps[:5]
+
+
+def parse_content_angles(lines: list[str]) -> list[dict]:
+    angles: list[dict] = []
+    current: dict | None = None
+    in_section = False
+    for raw in lines:
+        text = line(raw)
+        if text == "Content Angles for X":
+            in_section = True
+            continue
+        if not in_section:
+            continue
+        if text.startswith("X Post Structure") or text.startswith("Engagement Requirements"):
+            break
+        match = re.match(r'^Angle\s+(\d+):\s*"?(.+?)"?\s*(?:\(([^)]+)\))?\s*$', text, re.I)
+        if match:
+            if current:
+                angles.append(current)
+            current = {
+                "number": int(match.group(1)),
+                "title": strip_quoted_copy(match.group(2)),
+                "voice": line(match.group(3) or ""),
+                "ideal_for": "",
+                "hook": "",
+                "thread": "",
+                "format": "",
+                "structure": "",
+                "examples": [],
+            }
+            continue
+        if not current:
+            continue
+        lowered = text.lower()
+        if lowered.startswith("ideal for:"):
+            current["ideal_for"] = text.split(":", 1)[-1].strip()
+        elif lowered.startswith("hook:"):
+            current["hook"] = strip_quoted_copy(text.split(":", 1)[-1].strip())
+        elif lowered.startswith("hook (text on video or caption):"):
+            current["hook"] = strip_quoted_copy(text.split(":", 1)[-1].strip())
+        elif lowered.startswith("thread:"):
+            current["thread"] = text.split(":", 1)[-1].strip()
+        elif lowered.startswith("format:"):
+            current["format"] = text.split(":", 1)[-1].strip()
+        elif lowered.startswith("structure:"):
+            current["structure"] = text.split(":", 1)[-1].strip()
+        elif text.startswith('"') and text.endswith('"'):
+            current["examples"].append(strip_quoted_copy(text))
+        elif not text.lower().startswith("why this works:"):
+            extra = current.get("thread") or ""
+            current["thread"] = f"{extra} {text}".strip() if extra else text
+    if current:
+        angles.append(current)
+    return angles
+
+
+def select_part2_content_angles(angles: list[dict], *, limit: int = 3) -> list[dict]:
+    """Part 2 = Robert's own take. Skip Part 1 Zeb reaction angles."""
+    skip_numbers = {4}
+    filtered = [item for item in angles if item.get("number") not in skip_numbers]
+    by_number = {int(item.get("number") or 0): item for item in filtered}
+    priority = (1, 2, 3, 5, 6)
+    selected: list[dict] = []
+    for number in priority:
+        item = by_number.get(number)
+        if item and item not in selected:
+            selected.append(item)
+        if len(selected) >= limit:
+            break
+    for item in filtered:
+        if item not in selected:
+            selected.append(item)
+        if len(selected) >= limit:
+            break
+    return selected[:limit]
+
+
+def angle_context_reply(angle: dict) -> str:
+    thread = line(angle.get("thread"))
+    structure = line(angle.get("structure"))
+    hook = line(angle.get("hook"))
+    lowered = f"{thread} {structure} {hook}".lower()
+    if "contrast" in lowered or "on the left" in lowered or "tourist" in lowered:
+        return (
+            "Generic chat gives tips. Brain² executes inside ClickUp with your tasks, docs, and connected apps."
+        )
+    if "problem" in lowered or "briefing" in lowered:
+        return (
+            "The problem is briefing a generic chat on your job every morning. "
+            "Context switching. Copy paste. Brain² skips that because it lives in your workspace."
+        )
+    if "@brain" in lowered or "mention" in lowered or "task comment" in lowered:
+        return (
+            "I tagged @Brain in a task comment. It read the thread, pulled data from connected apps, "
+            "and delivered a finished status update. No prompt engineering."
+        )
+    if "q3" in lowered or "one prompt" in lowered or "plan my entire" in lowered:
+        return (
+            "I asked Brain to plan Q3 from scratch. One prompt. It returned a project plan, task list, and timeline."
+        )
+    if "screen recording" in lowered or "walk through" in lowered or "video" in lowered:
+        return (
+            "Open ClickUp. Show a real workspace. Tag @Brain in a task or chat. "
+            "Let it pull context and deliver a finished output on camera."
+        )
+    if thread:
+        return " ".join(sentence_parts(thread)[:2]).strip()
+    return "Expand the hook with your real workflow. Show a screenshot or screen recording."
+
+
+UNALIGNED_NARRATIVE_THREAD_REPLIES = 2  # Narrative Thread tier: 1 main + 2 attached (pricing playbook)
+
+
+def resolve_post_format(
+    *,
+    agency_constraints: dict | None = None,
+    deliverable_type: str = "",
+) -> tuple[str, int]:
+    """Return (format_id, max_replies). Agency standalone wins over Notion thread structure."""
+    constraints = agency_constraints or {}
+    if constraints.get("standalone_post") or constraints.get("post_format") == "standalone_single":
+        return "standalone_single", 0
+    if "thread" in (deliverable_type or "").lower():
+        return "narrative_thread", int(constraints.get("max_thread_replies") or UNALIGNED_NARRATIVE_THREAD_REPLIES)
+    return "custom_post", 0
+
+
+def compose_angle_standalone_draft(
+    angle: dict,
+    *,
+    tag: str = "",
+    hashtags: str = "",
+    link: str = "",
+) -> str:
+    """Custom X Post: one copy-paste tweet. Link goes in a separate reply on X."""
+    hook = strip_quoted_copy(angle.get("hook") or "") or line(angle.get("title"))
+    footer_parts = [part for part in (tag, hashtags) if part]
+    footer = " ".join(footer_parts).strip()
+    main_post = f"{hook} {footer}".strip() if footer else hook
+    if link:
+        return f"{main_post}\n\nLink in reply: {link}".strip()
+    return main_post
+
+
+def compose_angle_thread_draft(
+    angle: dict,
+    *,
+    tag: str = "",
+    hashtags: str = "",
+    link: str = "",
+    x_post_structure: list[str] | None = None,
+    post_format: str = "narrative_thread",
+    max_replies: int = UNALIGNED_NARRATIVE_THREAD_REPLIES,
+) -> str:
+    if post_format == "standalone_single" or max_replies <= 0:
+        return compose_angle_standalone_draft(angle, tag=tag, hashtags=hashtags, link=link)
+
+    hook = strip_quoted_copy(angle.get("hook") or "") or line(angle.get("title"))
+    context = angle_context_reply(angle)
+    reveal = "Brain² is what made this possible. Your context. Every frontier model. One subscription."
+    social = "Add your proof: saved X hours, replaced Y tools, or a team reaction screenshot."
+    cta_note = f"Post the link in a reply to this thread: {link or 'clickup.com/brain'}"
+
+    footer_parts = [part for part in (tag, hashtags) if part]
+    footer = " ".join(footer_parts).strip()
+    main_post = f"{hook} {footer}".strip() if footer else hook
+
+    # UNALIGNED Narrative Thread = 1 main + 2 replies. Fold Notion's 5 steps into 3 posts.
+    reply_one = f"{context} {reveal}".strip()
+    reply_two = f"{social} {cta_note}".strip()
+    replies = [reply_one, reply_two][: max(1, max_replies)]
+    return build_thread_draft(main_post, replies)
+
+
+def compose_notion_angle_drafts(
+    angles: list[dict],
+    *,
+    x_post_structure: list[str] | None = None,
+    tag: str = "",
+    hashtags: str = "",
+    link: str = "",
+    post_format: str = "narrative_thread",
+    max_replies: int = UNALIGNED_NARRATIVE_THREAD_REPLIES,
+) -> list[dict]:
+    drafts: list[dict] = []
+    for idx, angle in enumerate(angles[:3], start=1):
+        voice = line(angle.get("voice"))
+        title = line(angle.get("title"))
+        label_bits = [f"Angle {angle.get('number', idx)}."]
+        if title:
+            label_bits.append(title)
+        if voice:
+            label_bits.append(f"({voice})")
+        label = " ".join(label_bits).strip()
+        if idx == 1:
+            label = f"{label} (recommended)"
+        drafts.append(
+            {
+                "label": label,
+                "text": compose_angle_thread_draft(
+                    angle,
+                    tag=tag,
+                    hashtags=hashtags,
+                    link=link,
+                    x_post_structure=x_post_structure,
+                    post_format=post_format,
+                    max_replies=max_replies,
+                ),
+                "brief_angle": angle.get("number"),
+                "ideal_for": line(angle.get("ideal_for")),
+            }
+        )
+    return drafts
+
+
 def collect_heading_section(lines: list[str], patterns: tuple[str, ...], limit: int = 8) -> list[str]:
     start = None
     for idx, current in enumerate(lines):
@@ -1632,11 +2466,63 @@ def clean_draft_text(value: str) -> str:
     return text.strip()
 
 
+BRIEF_INSTRUCTION_MARKERS = (
+    "this brief is for",
+    "paid creators and influencer",
+    "influencer partners promoting",
+    "primary channel",
+    "separate from the zeb",
+    "create your own original content",
+    "this is your take",
+    "not a response to anyone else",
+    "use it for a personal demo",
+    "workflow walkthrough",
+    "bold opinion about what",
+    "amplification play",
+    "your job is to send",
+    "send the draft for review",
+    "nothing goes live until",
+    "influencer posts should follow",
+    "qt/reaction pattern",
+    "quote-repost",
+    "built from the notion",
+    "for robert.",
+    "post to publish",
+    "pick one in the verify",
+)
+
+
+def draft_text_is_brief_instruction(value: str) -> bool:
+    lowered = clean_draft_text(value).lower()
+    if not lowered:
+        return False
+    return any(marker in lowered for marker in BRIEF_INSTRUCTION_MARKERS)
+
+
+def normalize_draft_option_label(label: str, idx: int) -> str:
+    base = line(label)
+    if not base:
+        return f"Draft {idx}"
+    for sep in ("—", " – ", " - ", ". "):
+        if sep in base:
+            rest = base.split(sep, 1)[-1].strip()
+            break
+    else:
+        rest = re.sub(r"^Option\s+[A-Z0-9]+\s*", "", base, flags=re.I).strip()
+    rest = re.sub(r"\s*\(Recommended\)\s*", "", rest, flags=re.I).strip()
+    rest = re.sub(r"^\((.+)\)$", r"\1", rest).strip()
+    if not rest or re.fullmatch(r"Option\s+\d+", rest, flags=re.I):
+        return f"Draft {idx}"
+    return rest
+
+
 def draft_text_is_lazy(value: str, joined_lines: str) -> bool:
     text = clean_draft_text(value)
     if not text:
         return True
     lowered = text.lower()
+    if draft_text_is_brief_instruction(text):
+        return True
     if lowered in {
         "core idea.",
         "how it works.",
@@ -1652,7 +2538,7 @@ def draft_text_is_lazy(value: str, joined_lines: str) -> bool:
         "essential information",
         "creators who pick a fight with the category",
         "tone: provocative",
-        "the thesis:",
+        "thesis:",
         "add your tracking code",
         "insert tracking code",
         "[tracking link]",
@@ -1661,6 +2547,11 @@ def draft_text_is_lazy(value: str, joined_lines: str) -> bool:
     if any(item in lowered for item in banned) and not source_mentions(joined_lines, "ai employee", "assistant and employee"):
         return True
     if "reply tweet:." in lowered:
+        return True
+    if (
+        "this brief is for paid creators" in lowered
+        or ("promoting the brain" in lowered and "primary channel" in lowered)
+    ):
         return True
     stripped_lines = [line(item) for item in text.splitlines() if line(item)]
     unique_lines = {item.lower() for item in stripped_lines}
@@ -1816,13 +2707,39 @@ def joined_clean_lines(values: list[str], company: str = "", limit: int = 3) -> 
     return " ".join(output).strip()
 
 
+_FALSE_COMPANY_X_PREFIXES = re.compile(
+    r"^(what works on|how to|tips for|guide to|built on|live on|best on)\b",
+    re.I,
+)
+
+
+_BAD_COMPANY_NAMES = {
+    "what works on",
+    "brain² influencer brief",
+    "brain2 influencer brief",
+    "influencer brief",
+    "company",
+    "campaign",
+    "collab",
+}
+
+
 def infer_company_name(title: str, lines: list[str]) -> str:
     title = line(title)
+    joined = "\n".join(lines)
+    clickup_owner = re.search(r"Brain[\u00b2²2]?\s+is\s+([A-Za-z][A-Za-z0-9]+)'s", joined, re.I)
+    if clickup_owner:
+        return clickup_owner.group(1)
+    if re.search(r"\bClickUp\b", joined, re.I):
+        return "ClickUp"
     for current in lines:
         text = line(current)
         match = re.match(r"^([A-Za-z0-9][A-Za-z0-9 .&+-]{1,40}?)\s+x\s+", text, re.I)
         if match:
-            return line(match.group(1))
+            candidate = line(match.group(1))
+            if _FALSE_COMPANY_X_PREFIXES.match(candidate):
+                continue
+            return candidate
     if title:
         first_part = re.split(r"[|:•—-]", title)[0].strip()
         if "@Scobleizer" in first_part and len(lines) > 0:
@@ -1836,6 +2753,16 @@ def infer_company_name(title: str, lines: list[str]) -> str:
     if company_line and ":" in company_line:
         return line(company_line.split(":", 1)[1])
     return title or "Company"
+
+
+def resolve_company_name(title: str, lines: list[str], current: str = "") -> str:
+    inferred = infer_company_name(title, lines)
+    normalized = line(current).lower()
+    if normalized in _BAD_COMPANY_NAMES or _FALSE_COMPANY_X_PREFIXES.match(line(current) or ""):
+        return inferred
+    if not line(current):
+        return inferred
+    return line(current)
 
 
 def extract_handles(text: str) -> list[str]:
@@ -1862,6 +2789,14 @@ def infer_deliverable_type(lines: list[str], extra_text: str = "") -> str:
 
 def infer_campaign_platform(text: str, extra_text: str = "") -> str:
     current = " ".join(part for part in [line(text), line(extra_text)] if part).lower()
+    if (
+        "x is the #1 channel" in current
+        or "x is the primary" in current
+        or "x (twitter)" in current and "primary" in current
+        or "primary focus" in current
+        or re.search(r"influencer brief\s*\|\s*x\b", current)
+    ):
+        return "X.com"
     if "amplification x" in current or "x amplification" in current or "quote retweet" in current or "qrt" in current:
         return "X.com"
     if "youtube" in current or "youtu.be" in current:
@@ -1973,7 +2908,7 @@ def build_structured_brief_payload(
     source_label: str,
     email_context: str = "",
 ) -> dict:
-    company = infer_company_name(title, lines)
+    company = resolve_company_name(title, lines, infer_company_name(title, lines))
     thread_sections = parse_thread_sections(lines)
     filtered_lines = [
         current for current in (
@@ -2005,7 +2940,7 @@ def build_structured_brief_payload(
     ]
     summary = " ".join(intro_lines[:4]).strip()
     joined_lines = "\n".join(lines)
-    context_for_platform = " ".join([title, campaign_line, go_live_line, guardrails_line])
+    context_for_platform = " ".join([title, campaign_line, go_live_line, guardrails_line, summary, joined_lines[:900]])
     campaign_platform = infer_campaign_platform(context_for_platform, email_context)
 
     about_heading = collect_heading_section(filtered_lines, (rf"^About\s+{re.escape(company)}\b", r"^About\b", r"^Project Overview\b"), limit=5)
@@ -2096,11 +3031,24 @@ def build_structured_brief_payload(
     direct_site_link = next((u for u in deduped_urls if all(x not in u.lower() for x in ("x.com", "twitter.com", "notion.", "docs.google.com", "drive.google.com"))), "")
     if direct_site_link:
         site_link = direct_site_link
+    cta_domain = re.search(
+        r"(?:CTA:\s*)?(clickup\.com(?:/[^\s,;]*)?)",
+        joined_lines,
+        re.I,
+    )
+    if cta_domain:
+        site_link = cta_domain.group(1).rstrip(").,;")
 
+    launch_line = infer_campaign_launch_line(lines)
+    hook_line = find_first_matching_line(lines, (r"^the hook:", r"^the hook\b"))
     if campaign_line:
         about_line = campaign_line
     about_line = clean_content_value(about_line, company=company) or joined_clean_lines(about_heading, company=company, limit=2)
+    if launch_line:
+        about_line = launch_line
     core_idea = clean_content_value(core_idea, company=company) or joined_clean_lines(why_people_care, company=company, limit=2) or joined_clean_lines(core_heading, company=company, limit=2)
+    if hook_line:
+        core_idea = re.sub(r"^the hook:\s*", "", hook_line, flags=re.I).strip()
     how_it_works = clean_content_value(how_it_works, company=company) or joined_clean_lines(how_heading, company=company, limit=3)
     announcement = clean_content_value(announcement, company=company) or clean_content_value(campaign_line, company=company) or summary
 
@@ -2128,6 +3076,14 @@ def build_structured_brief_payload(
         if re.search(r"\bai employee\b", joined_lines, re.I)
         else f"I would use {company} to tell the bigger AI story, not just the product launch, which is exactly what I do at AlignedNews.com"
     )
+
+    part2_direction = parse_part2_direction(lines)
+    notion_media_guidance = parse_notion_media_guidance(lines)
+    x_post_structure = parse_x_post_structure(lines)
+    content_angles = parse_content_angles(lines)
+    part2_angle_choices = select_part2_content_angles(content_angles)
+    if part2_direction:
+        how_it_works_text = clean_sentence(part2_direction)
 
     def unique_clean(items: list[str], *, drop_prefixes: tuple[str, ...] = ()) -> list[str]:
         output: list[str] = []
@@ -2158,6 +3114,20 @@ def build_structured_brief_payload(
 
     def derive_angle_points() -> list[str]:
         points: list[str] = []
+        if part2_direction:
+            points.append(f"Part 2 (your own take): {first_sentences(part2_direction, 3)}")
+        if x_post_structure:
+            points.extend(f"Thread step {idx}: {step}" for idx, step in enumerate(x_post_structure, start=1))
+        for angle in part2_angle_choices[:4]:
+            hook = strip_quoted_copy(angle.get("hook") or "")
+            title = line(angle.get("title"))
+            voice = line(angle.get("voice"))
+            summary = hook or title
+            if summary:
+                label = f"Angle {angle.get('number')}: {summary}"
+                if voice:
+                    label = f"{label} ({voice})"
+                points.append(label)
         if thread_sections:
             for section in thread_sections[:4]:
                 body = " ".join(
@@ -2268,6 +3238,25 @@ def build_structured_brief_payload(
     closing_line = " ".join(part for part in closing_parts if line(part)).strip()
     if quote_post and "quote repost" in deliverable_type.lower():
         closing_line = f"Quote post: {quote_post}. {closing_line}".strip()
+
+    agency_preview = parse_agency_constraints(email_context)
+    preview_format, preview_max_replies = resolve_post_format(
+        agency_constraints=agency_preview,
+        deliverable_type=deliverable_type,
+    )
+    notion_angle_drafts = (
+        compose_notion_angle_drafts(
+            part2_angle_choices,
+            x_post_structure=x_post_structure,
+            tag=company_handle,
+            hashtags=hashtags,
+            link=site_link,
+            post_format=preview_format,
+            max_replies=preview_max_replies,
+        )
+        if part2_angle_choices
+        else []
+    )
 
     if any(term in joined_lines.lower() for term in ("user-generated agents", "user generated agents", "(uga)", "survival benchmark", "juno")):
         draft_one = build_thread_draft(
@@ -2389,6 +3378,16 @@ def build_structured_brief_payload(
         ) if "thread" in deliverable_type.lower() else join_draft_paragraphs(proof_line, how_it_works_text, f"{aligned_line}. {closing_line}".strip())
 
     where_it_lives = compact_where_it_lives()
+    if notion_angle_drafts:
+        draft_entries = notion_angle_drafts
+        drafts_source = "notion_angles"
+    else:
+        draft_entries = [
+            {"label": "Option 1 (recommended)", "text": draft_one},
+            {"label": "Option 2 (technical angle)", "text": draft_two},
+            {"label": "Option 3 (market angle)", "text": draft_three},
+        ]
+        drafts_source = ""
 
     payload_title = standardized_brief_title(
         company,
@@ -2428,11 +3427,12 @@ def build_structured_brief_payload(
         "assets": collect_assets(links, deduped_urls),
         "status_note": compact_status_lines(),
         "why_alignednews": why_alignednews,
-        "drafts": [
-            {"label": "Option 1 (recommended)", "text": draft_one},
-            {"label": "Option 2 (technical angle)", "text": draft_two},
-            {"label": "Option 3 (market angle)", "text": draft_three},
-        ],
+        "part2_direction": part2_direction,
+        "notion_media_guidance": notion_media_guidance,
+        "x_post_structure": x_post_structure,
+        "campaign_angles": part2_angle_choices,
+        "drafts": draft_entries,
+        "drafts_source": drafts_source,
         "must_include": {
             "tag": company_handle,
             "link": site_link,
@@ -2444,8 +3444,9 @@ def build_structured_brief_payload(
     }
     if submit_url:
         payload["submit_url"] = submit_url
-    if not LOCAL_BRIEF_LLM_ENABLED:
-        return payload
+    if line(email_context):
+        payload["email_context"] = line(email_context)
+    merged = dict(payload)
     source_payload = {
         "title": title,
         "source_url": source_url,
@@ -2453,16 +3454,28 @@ def build_structured_brief_payload(
         "links": links,
         "email_context": payload.get("email_context"),
     }
-    llm_payload = query_local_brief_model(source_payload)
-    merged = merge_brief_payload(payload, llm_payload)
-    if not llm_payload:
-        set_brief_job_stage("extracting_facts", "Using source directly")
-        brief_log("brief-facts: using source directly")
-    draft_payload = query_local_brief_drafts(source_payload, merged)
-    merged = merge_draft_payload(merged, draft_payload)
-    merged = attach_x_signal_to_brief_payload(merged)
+    if LOCAL_BRIEF_LLM_ENABLED and not LOCAL_BRIEF_SKIP_FACTS:
+        llm_payload = query_local_brief_model(source_payload)
+        merged = merge_brief_payload(merged, llm_payload)
+        if not llm_payload:
+            set_brief_job_stage("extracting_facts", "Using source directly")
+            brief_log("brief-facts: using source directly")
+    else:
+        brief_log("brief-facts: skipped (structured Notion parse)")
+    if LOCAL_BRIEF_LLM_ENABLED and not LOCAL_BRIEF_SKIP_DRAFTS:
+        draft_payload = query_local_brief_drafts(source_payload, merged)
+        merged = merge_draft_payload(merged, draft_payload)
+    else:
+        brief_log("brief-drafts: skipped (live X signal will supply drafts)")
+    merged = apply_agency_constraints_to_payload(merged)
+    company_name = resolve_company_name(title, lines, line(merged.get("company_name")) or company)
+    merged["company_name"] = company_name
+    set_brief_job_stage("scoring_reach", "Pulling live X signal")
+    merged = attach_x_signal_to_brief_payload(merged, joined_lines=joined_lines)
+    merged = apply_agency_constraints_to_payload(merged)
+    merged = polish_robert_drafts(finalize_drafts_for_agency(merged))
     merged["title"] = standardized_brief_title(
-        line(merged.get("company_name")) or company,
+        company_name,
         line(merged.get("deliverable_type")) or deliverable_type,
         campaign_platform,
         campaign_line,
@@ -2472,7 +3485,7 @@ def build_structured_brief_payload(
         joined_lines[:1200],
     )
     merged["calendar_title"] = standardized_calendar_title(
-        line(merged.get("company_name")) or company,
+        company_name,
         line(merged.get("deliverable_type")) or deliverable_type,
         campaign_platform,
         campaign_line,
@@ -2481,6 +3494,7 @@ def build_structured_brief_payload(
         guardrails_line,
         joined_lines[:1200],
     )
+    merged["filename"] = slug_filename(f"{company_name}_{brief_platform_label(deliverable_type, campaign_platform, campaign_line, title, joined_lines[:400])}")
     return merged
 
 
@@ -2671,6 +3685,14 @@ def refresh_dashboard(payload: dict | None = None) -> dict:
     if out["x_bridge"].get("ok") is False:
         out["ok"] = False
 
+    out["x_gate_rules"] = run_active_script("export_x_gate_rules.py", timeout=30)
+    out["steps"].append("x_gate_rules")
+
+    out["x_spam_cleanup"] = run_active_script("x_spam_cleanup.py", timeout=120)
+    out["steps"].append("x_spam_cleanup")
+    if out["x_spam_cleanup"].get("ok") is False:
+        out["ok"] = False
+
     brief_log(
         "Dashboard refresh finished "
         f"ok={out.get('ok')} steps={out.get('steps')} include_x_scrape={include_x_scrape}"
@@ -2715,6 +3737,56 @@ def analyze_x_signal_request(payload: dict | None = None) -> dict:
     }
 
 
+_OPERATOR_DELTA_LOCK = threading.Lock()
+_OPERATOR_DELTA_LAST = 0.0
+
+
+def _queue_asher_operator_after_delta(payload: dict) -> None:
+    """Background operator pass when Gmail delta finds new/changed cards."""
+    global _OPERATOR_DELTA_LAST
+    if payload.get("ok") is False:
+        return
+    updated = int(payload.get("cards_updated") or payload.get("threads_patched") or 0)
+    created = int(payload.get("new_cards_written") or 0)
+    if updated <= 0 and created <= 0:
+        return
+    min_gap = int(os.environ.get("OPERATOR_DELTA_MIN_GAP_SEC", "90"))
+    now = time.time()
+    with _OPERATOR_DELTA_LOCK:
+        if now - _OPERATOR_DELTA_LAST < min_gap:
+            payload["operator_queued"] = False
+            payload["operator_skipped"] = "throttled"
+            return
+        _OPERATOR_DELTA_LAST = now
+
+    def _run() -> None:
+        brief_log("Delta-triggered asher_operator --only-needs-reply")
+        run_active_script(
+            "asher_operator.py",
+            extra_args=["--only-needs-reply"],
+            timeout=int(os.environ.get("ASHER_OPERATOR_DELTA_TIMEOUT_SEC", "180")),
+            env_overrides={"ASHER_OPERATOR_AUTO_SEND": "false"},
+        )
+
+    threading.Thread(target=_run, name="asher-operator-delta", daemon=True).start()
+    payload["operator_queued"] = True
+
+
+def sync_lead_thread(payload: dict | None = None) -> dict:
+    """Pull one lead's Gmail thread into Supabase (from Company OS / Organs refresh button)."""
+    body = payload if isinstance(payload, dict) else {}
+    card_id = line(body.get("card_id") or body.get("lead_id") or body.get("id"))
+    if not card_id:
+        return {"ok": False, "error": "card_id is required"}
+    try:
+        from gmail_delta_sync import sync_single_card
+
+        return sync_single_card(card_id)
+    except Exception as exc:
+        brief_log(f"sync_lead_thread error card={card_id}: {exc}")
+        return {"ok": False, "error": str(exc)}
+
+
 def sync_asher_gmail_delta() -> dict:
     """Fast Gmail delta sync. Uses Gmail historyId instead of exporting days of mail."""
     script = ACTIVE_SCRIPTS_DIR / "gmail_delta_sync.py"
@@ -2741,7 +3813,38 @@ def sync_asher_gmail_delta() -> dict:
         "Asher Gmail delta sync finished "
         f"ok={payload.get('ok')} mode={payload.get('mode')} updated={payload.get('cards_updated')} checked={payload.get('checked_threads')}"
     )
+    _queue_asher_operator_after_delta(payload)
     return payload
+
+
+def notion_cache_key(notion_url: str) -> str:
+    return hashlib.sha256(line(notion_url).encode("utf-8")).hexdigest()[:20]
+
+
+def load_cached_notion_brief(notion_url: str) -> dict | None:
+    NOTION_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    cache_path = NOTION_CACHE_DIR / f"{notion_cache_key(notion_url)}.json"
+    if not cache_path.exists():
+        return None
+    age_sec = time.time() - cache_path.stat().st_mtime
+    if age_sec > NOTION_BRIEF_CACHE_TTL_SEC:
+        return None
+    try:
+        cached = json.loads(cache_path.read_text(encoding="utf-8"))
+        if isinstance(cached, dict) and cached.get("lines"):
+            brief_log(f"Notion cache hit ({int(age_sec)}s old): {notion_url}")
+            return cached
+    except Exception:
+        return None
+    return None
+
+
+def save_cached_notion_brief(notion_url: str, notion: dict) -> None:
+    if not isinstance(notion, dict) or not notion.get("lines"):
+        return
+    NOTION_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    cache_path = NOTION_CACHE_DIR / f"{notion_cache_key(notion_url)}.json"
+    cache_path.write_text(json.dumps(notion, ensure_ascii=False), encoding="utf-8")
 
 
 def import_notion_brief(notion_url: str, email_context: str = "") -> dict:
@@ -2752,14 +3855,17 @@ def import_notion_brief(notion_url: str, email_context: str = "") -> dict:
         raise ValueError("Paste a Notion page link (notion.so, notion.site, or app.notion.com).")
     set_brief_job_stage("reading_source", "Reading source brief")
     brief_log(f"Importing Notion source {notion_url}")
-    result = subprocess.run(
-        ["node", str(NOTION_EXTRACTOR), notion_url],
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
-    notion = json.loads(result.stdout or "{}")
+    notion = load_cached_notion_brief(notion_url)
+    if not notion:
+        result = subprocess.run(
+            ["node", str(NOTION_EXTRACTOR), notion_url],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        notion = json.loads(result.stdout or "{}")
+        save_cached_notion_brief(notion_url, notion)
     payload = notion_to_brief_payload(notion, notion_url, email_context=email_context)
     return {
         "ok": True,
@@ -2827,6 +3933,9 @@ def split_draft_paragraphs(value: str) -> list[str]:
 
 
 def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
+    payload = polish_robert_drafts(
+        finalize_drafts_for_agency(apply_agency_constraints_to_payload(dict(payload)))
+    )
     blocks: list[dict] = []
 
     def push(kind: str, text_value: str = "", *, shaded: bool = False, bold: bool = False, lead_label: str = "") -> None:
@@ -2881,9 +3990,52 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
     if how_it_works_lines:
         push_section("How It Works", combine_values("How it Works / The Announcement", how_it_works_lines))
 
+    agency_lines = agency_requirement_lines(payload.get("agency_constraints") or {})
+    if not agency_lines and line(payload.get("email_context")):
+        agency_lines = agency_requirement_lines(parse_agency_constraints(line(payload.get("email_context"))))
+    if agency_lines:
+        push_section("Agency Requirements (from sender)", combine_values("Must follow", agency_lines))
+
     angles = [line(item) for item in (payload.get("angles_or_accuracy_requirements") or []) if line(item)]
     if angles:
         push_section("Potential Content Angles", combine_values("Angles to choose from", angles))
+
+    part2 = line(payload.get("part2_direction"))
+    structure_steps = [line(item) for item in (payload.get("x_post_structure") or []) if line(item)]
+    if part2 or structure_steps:
+        playbook_entries: list[tuple[str, str]] = []
+        if part2:
+            playbook_entries.extend(combine_values("Part 2: Your Own Take on Brain²", [part2]))
+        media_guidance = line(payload.get("notion_media_guidance"))
+        agency_media = bool((payload.get("agency_constraints") or {}).get("media_allowed"))
+        if media_guidance or agency_media:
+            media_lines = []
+            if agency_media:
+                media_lines.append(
+                    "Agency: media is optional. You may attach a video under 15 seconds or one image. Not required."
+                )
+            if media_guidance:
+                media_lines.append(f"Notion (recommended for reach): {media_guidance}")
+            playbook_entries.extend(combine_values("Media", media_lines))
+        if structure_steps:
+            standalone_fmt = bool((payload.get("agency_constraints") or {}).get("standalone_post"))
+            structure_note = (
+                "Client agency asked for a standalone single tweet. Use the hook and angle below. "
+                "Do not publish a multi-reply thread for this deliverable."
+                if standalone_fmt
+                else (
+                    "UNALIGNED Narrative Thread playbook: 1 main post + 2 replies only. "
+                    "The Notion steps below are folded into those 3 posts."
+                )
+            )
+            playbook_entries.extend(combine_values("Format note", [structure_note]))
+            playbook_entries.extend(
+                combine_values(
+                    "X Post Structure (from Notion, for story arc)",
+                    [f"{idx}. {step}" for idx, step in enumerate(structure_steps, start=1)],
+                )
+            )
+        push_section("Creative Playbook (from Notion brief)", playbook_entries)
 
     where_it_lives = payload.get("where_it_lives") or []
     where_lines: list[str] = []
@@ -2958,8 +4110,11 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
                 if reason:
                     summary += f". Why: {reason}"
                 push("body", summary, shaded=True)
-                if anchor:
+                standalone = bool((payload.get("agency_constraints") or {}).get("standalone_post"))
+                if anchor and not standalone:
                     push("body", anchor, shaded=True, lead_label="Anchor")
+                elif standalone:
+                    push("body", "Standalone post required. Use the live thread for language only, not as a QRT target.", shaded=True, lead_label="Note")
             keywords = [line(item) for item in (x_signal.get("keywords") or []) if line(item)]
             if keywords:
                 push("body", ", ".join(keywords[:6]), shaded=True, lead_label="Live terms")
@@ -2978,10 +4133,28 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
     if valid_drafts:
         push("spacer")
         push("section_heading", "Draft Options")
-        if len(valid_drafts) == 1:
+        standalone_fmt = bool((payload.get("agency_constraints") or {}).get("standalone_post"))
+        if standalone_fmt:
+            media_note = ""
+            if (payload.get("agency_constraints") or {}).get("media_allowed"):
+                media_note = " Media is optional: short video (under 15s) or one image if Robert has a demo screenshot."
+            elif line(payload.get("notion_media_guidance")):
+                media_note = " Notion recommends a screenshot or demo visual if Robert has one."
+            push(
+                "body",
+                "Custom X Post (standalone). Copy the tweet below. Put clickup.com/brain in a reply on X."
+                + media_note
+                + " Robert: pick ONE option in Verify. Nothing goes live until you choose.",
+                shaded=True,
+            )
+        elif len(valid_drafts) == 1:
             push("body", "Post to publish. Robert: approve it in the Verify box (or write a change on the Edit line). Nothing goes live until you do.", shaded=True)
         else:
-            push("body", "Post to publish (draft options). Robert: read the options below, then pick ONE in the Verify box. Nothing goes live until you choose.", shaded=True)
+            push(
+                "body",
+                "Narrative Thread: 1 main post + 2 replies. Robert: pick ONE option in Verify. Nothing goes live until you choose.",
+                shaded=True,
+            )
         push("blank")
         for idx, draft in enumerate(valid_drafts):
             label = line(draft.get("label"))
@@ -3649,6 +4822,170 @@ def create_manual_lead_card(card: dict) -> dict:
     return rows[0] if isinstance(rows, list) and rows else {}
 
 
+X_INTAKE_JSON = WEB_ROOT / "flow-v4" / "assets" / "x_dm_daily_intake.json"
+
+
+def normalize_open_dm_url(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    return text.split("#")[0].rstrip("/")
+
+
+def normalize_x_handle(value: Any) -> str:
+    return str(value or "").replace("@", "").strip().lower()
+
+
+def intake_row_matches_dismiss(
+    row: dict,
+    *,
+    open_dm: str = "",
+    x_handle: str = "",
+    rank: str = "",
+    contact_name: str = "",
+) -> bool:
+    row_dm = normalize_open_dm_url(row.get("openDm"))
+    if open_dm and row_dm and row_dm == open_dm:
+        return True
+    row_handle = normalize_x_handle(row.get("xUsername"))
+    if x_handle and row_handle and row_handle == x_handle:
+        return True
+    row_rank = str(row.get("rank") or "").strip()
+    if rank and row_rank and row_rank == rank:
+        return True
+    row_name = str(row.get("xName") or "").strip().lower()
+    if contact_name and row_name and row_name == str(contact_name).strip().lower():
+        return open_dm and row_dm == open_dm
+    return False
+
+
+def move_lead_stage(payload: dict) -> dict:
+    from urllib.parse import quote
+
+    list_id = str(payload.get("list_id") or payload.get("stage") or "trash").strip()
+    card_id = str(payload.get("card_id") or payload.get("id") or "").strip()
+    open_dm = normalize_open_dm_url(payload.get("open_dm") or payload.get("openDm") or payload.get("x_open_dm"))
+    if not card_id and open_dm:
+        cards = supabase_fetch_cards(
+            "select=id,list_id,x_open_dm"
+            f"&x_open_dm=eq.{quote(open_dm, safe='')}"
+            "&order=id.desc&limit=5"
+        )
+        for card in cards:
+            if normalize_open_dm_url(card.get("x_open_dm")) == open_dm:
+                card_id = str(card.get("id") or "")
+                break
+    if not card_id:
+        raise ValueError("move-lead-stage requires card_id or matching open_dm")
+    updated = supabase_patch_card(card_id, {
+        "list_id": list_id,
+        "moved_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {
+        "ok": True,
+        "card_id": card_id,
+        "list_id": list_id,
+        "open_dm": open_dm,
+        "card": updated,
+    }
+
+
+def trash_supabase_cards_for_open_dm(open_dm: str) -> dict:
+    normalized = normalize_open_dm_url(open_dm)
+    if not normalized:
+        return {"trashed_cards": 0, "card_ids": []}
+    from urllib.parse import quote
+
+    inactive = {"trash", "dead-leads", "done", "paid-out"}
+    trashed_ids: list[str] = []
+    cards = supabase_fetch_cards(
+        "select=id,list_id,x_open_dm"
+        f"&x_open_dm=eq.{quote(normalized, safe='')}"
+        "&limit=20"
+    )
+    for card in cards:
+        if normalize_open_dm_url(card.get("x_open_dm")) != normalized:
+            continue
+        if str(card.get("list_id") or "") in inactive:
+            continue
+        supabase_patch_card(str(card["id"]), {"list_id": "trash"})
+        trashed_ids.append(str(card["id"]))
+    return {"trashed_cards": len(trashed_ids), "card_ids": trashed_ids}
+
+
+def dismiss_x_intake(payload: dict) -> dict:
+    if not X_INTAKE_JSON.exists():
+        raise FileNotFoundError(f"X intake JSON missing: {X_INTAKE_JSON}")
+    rows = json.loads(X_INTAKE_JSON.read_text(encoding="utf-8"))
+    if not isinstance(rows, list):
+        raise ValueError("X intake JSON is not a list")
+    open_dm = normalize_open_dm_url(payload.get("open_dm") or payload.get("openDm"))
+    x_handle = normalize_x_handle(payload.get("x_handle") or payload.get("xHandle"))
+    rank = str(payload.get("rank") or "").strip()
+    contact_name = str(payload.get("contact_name") or payload.get("contactName") or "").strip()
+    updated = 0
+    matched_open_dms: set[str] = set()
+    for row in rows:
+        if not intake_row_matches_dismiss(
+            row,
+            open_dm=open_dm,
+            x_handle=x_handle,
+            rank=rank,
+            contact_name=contact_name,
+        ):
+            continue
+        row["newLead"] = False
+        row["userTrashed"] = True
+        row["spamBlocked"] = row.get("spamBlocked", False)
+        updated += 1
+        row_dm = normalize_open_dm_url(row.get("openDm"))
+        if row_dm:
+            matched_open_dms.add(row_dm)
+    if updated:
+        X_INTAKE_JSON.write_text(json.dumps(rows, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    card_result = {"trashed_cards": 0, "card_ids": []}
+    for dm in sorted(matched_open_dms):
+        try:
+            result = trash_supabase_cards_for_open_dm(dm)
+            card_result["trashed_cards"] += int(result.get("trashed_cards") or 0)
+            card_result["card_ids"].extend(result.get("card_ids") or [])
+        except Exception as exc:
+            card_result.setdefault("errors", []).append(str(exc))
+    if open_dm and open_dm not in matched_open_dms:
+        try:
+            result = trash_supabase_cards_for_open_dm(open_dm)
+            card_result["trashed_cards"] += int(result.get("trashed_cards") or 0)
+            card_result["card_ids"].extend(result.get("card_ids") or [])
+        except Exception as exc:
+            card_result.setdefault("errors", []).append(str(exc))
+    return {
+        "ok": True,
+        "updated": updated,
+        "intake_path": str(X_INTAKE_JSON),
+        "cards": card_result,
+    }
+
+
+def restore_x_intake(payload: dict) -> dict:
+    if not X_INTAKE_JSON.exists():
+        raise FileNotFoundError(f"X intake JSON missing: {X_INTAKE_JSON}")
+    rows = json.loads(X_INTAKE_JSON.read_text(encoding="utf-8"))
+    if not isinstance(rows, list):
+        raise ValueError("X intake JSON is not a list")
+    open_dm = normalize_open_dm_url(payload.get("open_dm") or payload.get("openDm"))
+    x_handle = normalize_x_handle(payload.get("x_handle") or payload.get("xHandle"))
+    rank = str(payload.get("rank") or "").strip()
+    updated = 0
+    for row in rows:
+        if not intake_row_matches_dismiss(row, open_dm=open_dm, x_handle=x_handle, rank=rank):
+            continue
+        row.pop("userTrashed", None)
+        updated += 1
+    if updated:
+        X_INTAKE_JSON.write_text(json.dumps(rows, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return {"ok": True, "updated": updated, "intake_path": str(X_INTAKE_JSON)}
+
+
 def manual_lead_intake(payload: dict) -> dict:
     source_label = line(payload.get("source_label")) or "Robert iMessage"
     pasted_text = line(payload.get("text"))
@@ -3708,6 +5045,10 @@ def create_brief_doc(payload: dict) -> dict:
         brief_log("Reading source brief")
         imported = import_source_brief(source_url, email_context=email_context)
         payload = imported["payload"]
+    if line(email_context) and not line(payload.get("email_context")):
+        payload["email_context"] = line(email_context)
+    payload = apply_agency_constraints_to_payload(payload)
+    payload = finalize_drafts_for_agency(payload)
     title = line(payload.get("title"))
     if not title:
         raise ValueError("Brief title is required.")
@@ -3925,9 +5266,6 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
                 send_json(self, 404, {"ok": False, "error": str(exc)})
             return
         if parsed.path == "/send-email-token":
-            if not require_api_token(self):
-                send_json(self, 401, {"ok": False, "error": "Missing or invalid brief API token."})
-                return
             token = get_send_email_token()
             if not token:
                 send_json(self, 500, {"ok": False, "error": "Send email token is not configured on this machine."})
@@ -3960,7 +5298,9 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
             "/generate-brief-doc", "/start-brief-job", "/create-calendar-hold",
             "/import-notion-brief", "/import-source-brief", "/draft-robert-handoff",
             "/send-robert-handoff", "/manual-lead-intake", "/complete", "/sync-asher-gmail", "/sync-asher-gmail-delta",
-            "/refresh-dashboard", "/x-signal-analyze", "/robert-review-decision",
+            "/sync-lead-thread", "/refresh-dashboard", "/x-signal-analyze", "/robert-review-decision",
+            "/dismiss-x-intake", "/restore-x-intake", "/run-x-spam-cleanup", "/move-lead-stage",
+            "/draft-x-dm-reply",
         ):
             send_json(self, 404, {"ok": False, "error": "Unknown endpoint."})
             return
@@ -3982,11 +5322,30 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
             if path == "/sync-asher-gmail-delta":
                 send_json(self, 200, sync_asher_gmail_delta())
                 return
+            if path == "/sync-lead-thread":
+                send_json(self, 200, sync_lead_thread(payload))
+                return
             if path == "/refresh-dashboard":
                 send_json(self, 200, refresh_dashboard(payload))
                 return
+            if path == "/move-lead-stage":
+                send_json(self, 200, move_lead_stage(payload))
+                return
+            if path == "/dismiss-x-intake":
+                send_json(self, 200, dismiss_x_intake(payload))
+                return
+            if path == "/restore-x-intake":
+                send_json(self, 200, restore_x_intake(payload))
+                return
+            if path == "/run-x-spam-cleanup":
+                send_json(self, 200, run_active_script("x_spam_cleanup.py", timeout=120))
+                return
             if path == "/x-signal-analyze":
                 send_json(self, 200, analyze_x_signal_request(payload))
+                return
+            if path == "/draft-x-dm-reply":
+                lead_payload = payload.get("lead") if isinstance(payload.get("lead"), dict) else payload
+                send_json(self, 200, draft_x_dm_reply_for_lead(lead_payload or {}))
                 return
             if path == "/generate-brief-doc":
                 result = create_brief_doc(payload)

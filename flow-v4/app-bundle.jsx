@@ -10804,7 +10804,7 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
   const [copiedDmId, setCopiedDmId] = React.useState('');
   const copyDmDraft = async (lead, e) => {
     e?.stopPropagation?.();
-    const text = String(V4BuildXDmReplyDraft(lead) || '').trim();
+    const text = String(await V4FetchXDmReplyDraft(lead) || '').trim();
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
@@ -11944,7 +11944,32 @@ function V4XLeadNeedsDmReply(lead) {
   return true;
 }
 
-function V4BuildXDmReplyDraft(lead) {
+const V4_X_DM_DRAFT_CACHE = new Map();
+
+function V4XDmDraftPayloadFromLead(lead, templateDraft) {
+  const ctx = V3ParseXDescriptionContext(lead?.rawDescription);
+  return {
+    id: lead?.id || '',
+    contactName: lead?.contactName || '',
+    xName: lead?.contactName || '',
+    xHandle: lead?.xHandle || '',
+    brand: lead?.brand || '',
+    evidence: lead?.evidence || lead?.xLastLeadMessage || ctx.lastMessage || '',
+    xLastLeadMessage: lead?.xLastLeadMessage || ctx.lastMessage || '',
+    xLastRobertMessage: lead?.xLastRobertMessage || ctx.lastRobertMessage || '',
+    xLastSender: lead?.xLastSender || '',
+    notes: lead?.notes || ctx.xSummary || '',
+    xBestNextStep: lead?.xBestNextStep || ctx.bestNextStep || lead?.nextMove?.text || '',
+    xDmMessages: Array.isArray(lead?.xDmMessages) && lead.xDmMessages.length
+      ? lead.xDmMessages
+      : (Array.isArray(ctx.dmMessages) ? ctx.dmMessages : []),
+    xOpenDm: lead?.xOpenDm || ctx.open_dm || '',
+    deliverables: lead?.deliverables || '',
+    templateDraft: templateDraft || '',
+  };
+}
+
+function V4BuildXDmReplyDraftTemplate(lead) {
   const saved = String(lead?.xDmDraft || lead?.xQuickNote || '').trim();
   if (saved.length > 24) return V3NoDashes(saved);
 
@@ -12007,6 +12032,53 @@ function V4BuildXDmReplyDraft(lead) {
     '',
     nextStep ? String(lead?.xBestNextStep || lead?.nextMove?.text || '').trim() : 'Thanks for reaching out on X.',
   ].join('\n')).trim();
+}
+
+function V4BuildXDmReplyDraft(lead) {
+  const id = String(lead?.id || '');
+  const cached = id ? V4_X_DM_DRAFT_CACHE.get(id) : null;
+  if (cached?.draft) return cached.draft;
+  return V4BuildXDmReplyDraftTemplate(lead);
+}
+
+async function V4FetchXDmReplyDraft(lead, opts = {}) {
+  const id = String(lead?.id || '');
+  const force = !!opts.force;
+  const template = V4BuildXDmReplyDraftTemplate(lead);
+  if (!id) return template;
+
+  const existing = V4_X_DM_DRAFT_CACHE.get(id);
+  if (!force && existing?.draft) return existing.draft;
+  if (!force && existing?.loading && existing?.promise) return existing.promise;
+
+  const payload = V4XDmDraftPayloadFromLead(lead, template);
+  const promise = (async () => {
+    try {
+      if (typeof V4BriefServiceFetch !== 'function') throw new Error('Brief service unavailable');
+      const res = await V4BriefServiceFetch('/draft-x-dm-reply', {
+        method: 'POST',
+        body: JSON.stringify({ lead: payload }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) throw new Error(data.error || ('Draft failed (' + res.status + ')'));
+      const draft = V3NoDashes(String(data.draft || '').trim()) || template;
+      V4_X_DM_DRAFT_CACHE.set(id, {
+        draft,
+        template,
+        source: data.source || 'local',
+        model: data.model || '',
+      });
+      window.dispatchEvent(new CustomEvent('v4:x-dm-draft-ready', { detail: { leadId: id, draft, source: data.source } }));
+      return draft;
+    } catch (err) {
+      console.warn('[ALIGNED v4] local X DM draft failed, using template:', err);
+      V4_X_DM_DRAFT_CACHE.set(id, { draft: template, template, source: 'template_fallback', error: err?.message || String(err) });
+      return template;
+    }
+  })();
+
+  V4_X_DM_DRAFT_CACHE.set(id, { loading: true, template, promise });
+  return promise;
 }
 
 function V4XLeadContextRows(lead) {
@@ -15188,6 +15260,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
   const [quickSend, setQuickSend] = React.useState({ status: '', error: '' });
   const [xDmReplyOpen, setXDmReplyOpen] = React.useState(false);
   const [xDmDraft, setXDmDraft] = React.useState('');
+  const [xDmDraftStatus, setXDmDraftStatus] = React.useState('idle');
   const [xDmCopied, setXDmCopied] = React.useState(false);
   React.useEffect(() => { setTab('thread'); }, [lead?.id]);
   React.useEffect(() => {
@@ -15195,7 +15268,9 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
     setQuickSend({ status: '', error: '' });
     setXDmReplyOpen(false);
     setXDmDraft('');
+    setXDmDraftStatus('idle');
     setXDmCopied(false);
+    if (lead?.id) V4_X_DM_DRAFT_CACHE.delete(String(lead.id));
   }, [lead?.id]);
   const isIntake = window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(lead);
   const agentLine = V4CosAgentLine(lead);
@@ -15247,15 +15322,37 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
   const needsXDmReply = V4XLeadNeedsDmReply(lead);
   const openXDmReply = () => {
     setComposeOpen(false);
-    setXDmDraft(V4BuildXDmReplyDraft(lead));
+    setXDmDraft(V4BuildXDmReplyDraftTemplate(lead));
+    setXDmDraftStatus('loading');
     setXDmReplyOpen(true);
     setXDmCopied(false);
+    V4FetchXDmReplyDraft(lead).then(draft => {
+      setXDmDraft(draft);
+      setXDmDraftStatus('ready');
+    });
   };
   React.useEffect(() => {
     if (!lead?.id || !needsXDmReply) return;
-    setXDmDraft(V4BuildXDmReplyDraft(lead));
+    let cancelled = false;
+    setXDmDraft(V4BuildXDmReplyDraftTemplate(lead));
+    setXDmDraftStatus('loading');
     setXDmReplyOpen(true);
     setXDmCopied(false);
+    V4FetchXDmReplyDraft(lead).then(draft => {
+      if (cancelled) return;
+      setXDmDraft(draft);
+      setXDmDraftStatus('ready');
+    });
+    const onReady = (e) => {
+      if (String(e?.detail?.leadId) !== String(lead.id)) return;
+      setXDmDraft(e.detail.draft);
+      setXDmDraftStatus('ready');
+    };
+    window.addEventListener('v4:x-dm-draft-ready', onReady);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('v4:x-dm-draft-ready', onReady);
+    };
   }, [lead?.id, needsXDmReply]);
   React.useEffect(() => {
     if (!lead || !composeOpen || !needsXDmReply) return;
@@ -15278,6 +15375,9 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
         <div>
           <div className="cos-operator-strip-eyebrow">X reply</div>
           <strong>DM draft — copy into X</strong>
+          {xDmDraftStatus === 'loading' ? (
+            <div className="cos-x-reply-draft-status">Drafting with local Qwen…</div>
+          ) : null}
         </div>
         <div className="cos-x-reply-draft-actions">
           <button type="button" className="cos-quick-btn is-primary" onClick={copyXDmDraft}>
@@ -15310,7 +15410,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
         </React.Fragment>
       ) : (
         <button type="button" className="cos-x-reply-draft-collapsed" onClick={openXDmReply}>
-          Draft ready — click to expand and edit before copying
+          {xDmDraftStatus === 'loading' ? 'Drafting with local Qwen…' : 'Draft ready — click to expand and edit before copying'}
         </button>
       )}
     </div>
@@ -15829,7 +15929,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
   const [copiedDmId, setCopiedDmId] = React.useState('');
   const copyCosDmDraft = async (lead, e) => {
     e?.stopPropagation?.();
-    const text = String(V4BuildXDmReplyDraft(lead) || '').trim();
+    const text = String(await V4FetchXDmReplyDraft(lead) || '').trim();
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
@@ -16526,6 +16626,8 @@ window.V4RefreshLeadFromGmail = V4RefreshLeadFromGmail;
 window.V4RefreshLeadFromX = V4RefreshLeadFromX;
 window.V4LeadThreadFreshness = V4LeadThreadFreshness;
 window.V4BuildXDmReplyDraft = V4BuildXDmReplyDraft;
+window.V4BuildXDmReplyDraftTemplate = V4BuildXDmReplyDraftTemplate;
+window.V4FetchXDmReplyDraft = V4FetchXDmReplyDraft;
 window.V4XLeadNeedsDmReply = V4XLeadNeedsDmReply;
 window.V4LeadIsTravelLead = V4LeadIsTravelLead;
 // FLOW v4 — main app shell (refined top bar + view wiring)
