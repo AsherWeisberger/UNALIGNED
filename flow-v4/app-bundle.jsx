@@ -3143,9 +3143,56 @@ function V3SubjectForLead(lead) {
   return /^re:/i.test(base) ? base : 'Re: ' + base;
 }
 
-function V3DefaultCc(sender) {
-  return V3InternalEmails(sender)
-    .join(',');
+const V3_TEAM_EMAILS = {
+  robert: 'scobleizer@gmail.com',
+  sam: 'unalignedx@gmail.com',
+  asher: 'asherunaligned@gmail.com',
+};
+
+function V3IsInternalTeamEmail(email) {
+  const normalized = String(email || '').trim().toLowerCase();
+  return normalized === V3_TEAM_EMAILS.robert
+    || normalized === V3_TEAM_EMAILS.sam
+    || normalized === V3_TEAM_EMAILS.asher
+    || normalized === 'samlevin@mac.com';
+}
+
+function V3RobertCcOptional(sender) {
+  return sender === 'asher' || sender === 'sam';
+}
+
+function V3DefaultReplyCcEmails(sender, lead, options = {}) {
+  const includeRobert = !!options.includeRobert;
+  const senderEmails = new Set(V3SenderEmails(sender).map(email => email.toLowerCase()));
+  const leadEmail = String(V3LeadReplyToEmail(lead, sender) || lead?.email || '').trim().toLowerCase();
+  const cc = [];
+
+  if (sender === 'robert') {
+    cc.push(V3_TEAM_EMAILS.asher, V3_TEAM_EMAILS.sam);
+    if (lead) {
+      for (const email of V3ThreadParticipants(lead)) {
+        const normalized = String(email || '').trim().toLowerCase();
+        if (!normalized || V3IsInternalTeamEmail(normalized) || normalized === leadEmail) continue;
+        cc.push(normalized);
+      }
+    }
+  } else if (sender === 'asher') {
+    cc.push(V3_TEAM_EMAILS.sam);
+    if (includeRobert) cc.push(V3_TEAM_EMAILS.robert);
+  } else if (sender === 'sam') {
+    cc.push(V3_TEAM_EMAILS.asher);
+    if (includeRobert) cc.push(V3_TEAM_EMAILS.robert);
+  }
+
+  return V3UniqueEmails(cc.filter(email =>
+    email &&
+    !senderEmails.has(email.toLowerCase()) &&
+    email.toLowerCase() !== leadEmail
+  ));
+}
+
+function V3DefaultCc(sender, options = {}) {
+  return V3DefaultReplyCcEmails(sender, null, options).join(',');
 }
 
 function V3XInternalEmailSet() {
@@ -3171,12 +3218,12 @@ function V3LeadExternalEmail(lead) {
 }
 
 function V3InternalEmails(excludeSender) {
-  return ['scobleizer@gmail.com', 'UnalignedX@gmail.com', 'asherunaligned@gmail.com']
+  return [V3_TEAM_EMAILS.robert, V3_TEAM_EMAILS.sam, V3_TEAM_EMAILS.asher]
     .filter(email => {
       const normalized = email.toLowerCase();
-      if (excludeSender === 'robert') return normalized !== 'scobleizer@gmail.com';
-      if (excludeSender === 'sam') return normalized !== 'unalignedx@gmail.com';
-      if (excludeSender === 'asher') return normalized !== 'asherunaligned@gmail.com';
+      if (excludeSender === 'robert') return normalized !== V3_TEAM_EMAILS.robert;
+      if (excludeSender === 'sam') return normalized !== V3_TEAM_EMAILS.sam;
+      if (excludeSender === 'asher') return normalized !== V3_TEAM_EMAILS.asher;
       return true;
     });
 }
@@ -3284,18 +3331,13 @@ function V3UniqueEmails(values) {
   });
 }
 
-function V3ReplyRecipients(lead, sender, internalOnly = false) {
+function V3ReplyRecipients(lead, sender, internalOnly = false, options = {}) {
   if (internalOnly) return { to: V3InternalEmails(sender), cc: [] };
   const senderEmails = V3SenderEmails(sender).map(email => email.toLowerCase());
   const leadEmail = V3LeadReplyToEmail(lead, sender) || String(lead?.email || '').trim();
   const leadIsSender = senderEmails.includes(leadEmail.toLowerCase());
-  const participants = V3UniqueEmails([...V3ThreadParticipants(lead), ...V3InternalEmails(sender)]);
   const to = leadEmail && !leadIsSender ? [leadEmail] : [];
-  const cc = participants.filter(email =>
-    email &&
-    email.toLowerCase() !== leadEmail.toLowerCase() &&
-    !senderEmails.includes(email.toLowerCase())
-  );
+  const cc = V3DefaultReplyCcEmails(sender, lead, options);
   return { to: V3UniqueEmails(to), cc: V3UniqueEmails(cc) };
 }
 
@@ -3927,7 +3969,7 @@ async function V3SendLeadEmail({ lead, sender, to, cc, subject, body, attachPdf 
   return data;
 }
 
-Object.assign(window, { V3SenderForUser, V3SenderName, V3SenderSignature, V3EnsureSenderSignature, V3ComposeReplyDraft, V3ResolveReplyTone, V3ReplyToneLabel, V3SubjectForLead, V3DefaultCc, V3InternalEmails, V3SenderEmails, V3IsSelfRecipient, V3SplitEmails, V3EmailsFromValue, V3ExtractEmail, V3LeadReplyToEmail, V3ThreadParticipants, V3LeadMatchesQuery, V3UniqueEmails, V3ReplyRecipients, V3ThreadMessageKey, V3PendingReplyKey, V3PendingReplyMatchesLead, V3PrunePendingReplies, V3MergePendingReplies, V3SendLeadEmail, V3InferPricingPdfPack, V3PricingPdfMeta, V3_PRICING_PDF_PACKS, V3LeadActivityTimestamp, V3LeadReceivedTimestamp, V3SortLeadsByActivity, V3NewLeadReason });
+Object.assign(window, { V3SenderForUser, V3SenderName, V3SenderSignature, V3EnsureSenderSignature, V3ComposeReplyDraft, V3ResolveReplyTone, V3ReplyToneLabel, V3SubjectForLead, V3DefaultCc, V3InternalEmails, V3SenderEmails, V3IsSelfRecipient, V3SplitEmails, V3EmailsFromValue, V3ExtractEmail, V3LeadReplyToEmail, V3ThreadParticipants, V3LeadMatchesQuery, V3UniqueEmails, V3ReplyRecipients, V3RobertCcOptional, V3_TEAM_EMAILS, V3ThreadMessageKey, V3PendingReplyKey, V3PendingReplyMatchesLead, V3PrunePendingReplies, V3MergePendingReplies, V3SendLeadEmail, V3InferPricingPdfPack, V3PricingPdfMeta, V3_PRICING_PDF_PACKS, V3LeadActivityTimestamp, V3LeadReceivedTimestamp, V3SortLeadsByActivity, V3NewLeadReason });
 
 
 // FLOW v3 — data with category labels matching UNALIGNED's INTERVIEW / COLLABORATION / PARTNERSHIP / INTRO tabs
@@ -6008,6 +6050,22 @@ function V3MailComposeExtras({ sender, attachPdf, pricingPdfPack }) {
   );
 }
 
+function V3CcRobertToggle({ sender, includeRobert, setIncludeRobert, disabled, compact = false }) {
+  if (!V3RobertCcOptional(sender)) return null;
+  const cls = compact ? 'gmail-reply-tool' : 'mail-compose-mode';
+  return (
+    <button
+      type="button"
+      className={cls + (includeRobert ? ' is-on is-active' : '')}
+      disabled={disabled}
+      onClick={() => setIncludeRobert(value => !value)}
+      title={includeRobert ? 'Robert is on CC' : 'Also CC Robert Scoble'}
+    >
+      {compact ? '+ Robert' : (<><V3Icon name="mail" w={12} /> {includeRobert ? 'CC Robert' : '+ Robert'}</>)}
+    </button>
+  );
+}
+
 function V3PricingPdfAttachControl({ attachPdf, setAttachPdf, pricingPdfPack, setPricingPdfPack, disabled, compact = false }) {
   const packLabel = V3PricingPdfMeta(pricingPdfPack).label;
   const select = (
@@ -6045,8 +6103,9 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
   const isInline = isGmail || layout === 'inline' || layout === 'dock';
   const [sender, setSender] = React.useState(() => V3SenderForUser(user));
   const [internalOnly, setInternalOnly] = React.useState(false);
+  const [ccRobert, setCcRobert] = React.useState(false);
   const draft = React.useMemo(() => V3ComposeReplyDraft(lead, sender), [lead.id, lead.draftReply?.body, lead.draftReply?.subject, lead.thread.length, lead.lastTouchAt, sender]);
-  const initialRecipients = React.useMemo(() => V3ReplyRecipients(lead, sender, internalOnly), [lead.id, sender, internalOnly]);
+  const initialRecipients = React.useMemo(() => V3ReplyRecipients(lead, sender, internalOnly, { includeRobert: ccRobert }), [lead.id, sender, internalOnly, ccRobert]);
   const [to, setTo] = React.useState(initialRecipients.to);
   const [cc, setCc] = React.useState(initialRecipients.cc);
   const [toDraft, setToDraft] = React.useState('');
@@ -6087,10 +6146,11 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
 
   React.useEffect(() => {
     const nextSender = V3SenderForUser(user);
-    const next = V3ReplyRecipients(lead, nextSender, false);
+    const next = V3ReplyRecipients(lead, nextSender, false, { includeRobert: false });
     const nextDraft = V3ComposeReplyDraft(lead, nextSender);
     setSender(nextSender);
     setInternalOnly(false);
+    setCcRobert(false);
     setTo(next.to);
     setCc(next.cc);
     setToDraft('');
@@ -6105,16 +6165,23 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
   }, [lead.id, lead.draftReply?.body, lead.draftReply?.subject, lead.thread.length, lead.lastTouchAt, user]);
 
   React.useEffect(() => {
-    const next = V3ReplyRecipients(lead, sender, internalOnly);
-    const nextDraft = V3ComposeReplyDraft(lead, sender);
+    if (sender === 'robert' && ccRobert) setCcRobert(false);
+  }, [sender, ccRobert]);
+
+  React.useEffect(() => {
+    const next = V3ReplyRecipients(lead, sender, internalOnly, { includeRobert: ccRobert });
     setTo(next.to);
     setCc(next.cc);
     setToDraft('');
     setCcDraft('');
+  }, [sender, internalOnly, ccRobert, lead.id, lead.thread.length, lead.email]);
+
+  React.useEffect(() => {
+    const nextDraft = V3ComposeReplyDraft(lead, sender);
     setBody(V3ComposeMessageOnly(nextDraft.body, sender));
     setError('');
     setSuccess('');
-  }, [sender, internalOnly, lead.id, lead.draftReply?.body, lead.draftReply?.subject, lead.thread.length, lead.lastTouchAt]);
+  }, [sender, lead.id, lead.draftReply?.body, lead.draftReply?.subject, lead.thread.length, lead.lastTouchAt]);
 
   React.useEffect(() => () => clearSuccessTimer(), []);
 
@@ -6270,6 +6337,12 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
               <span className="gmail-reply-label">To</span>
               <span className="gmail-reply-value" title={toLine}>{toLine || 'Add recipient'}</span>
             </div>
+            {ccLine ? (
+              <div className="gmail-reply-to-line">
+                <span className="gmail-reply-label">Cc</span>
+                <span className="gmail-reply-value" title={ccLine}>{ccLine}</span>
+              </div>
+            ) : null}
             <select className="gmail-reply-from" value={sender} disabled={status === 'sending'} onChange={e => setSender(e.target.value)} title="Send as">
               <option value="robert">Robert Scoble</option>
               <option value="sam">Sam Levin</option>
@@ -6309,6 +6382,7 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
             <button className={'gmail-reply-tool ' + (internalOnly ? 'is-on' : '')} type="button" disabled={status === 'sending'} onClick={() => setInternalOnly(value => !value)} title="Talk internally only">
               Internal
             </button>
+            <V3CcRobertToggle sender={sender} includeRobert={ccRobert} setIncludeRobert={setCcRobert} disabled={status === 'sending' || internalOnly} compact />
             <V3PricingPdfAttachControl
               attachPdf={attachPdf}
               setAttachPdf={setAttachPdf}
@@ -6341,6 +6415,12 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
             <span className="mail-compose-inline-label">To</span>
             <span className="mail-compose-inline-value">{toLine || 'Add recipient'}</span>
           </div>
+          {ccLine ? (
+            <div className="mail-compose-inline-to">
+              <span className="mail-compose-inline-label">Cc</span>
+              <span className="mail-compose-inline-value">{ccLine}</span>
+            </div>
+          ) : null}
           {onCollapse && (
             <button className="mail-compose-collapse" type="button" onClick={onCollapse} title="Hide composer" aria-label="Hide composer">
               <V3Icon name="x" w={12} />
@@ -6374,6 +6454,7 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
             <button className={'mail-compose-mode ' + (internalOnly ? 'is-active' : '')} type="button" disabled={status === 'sending'} onClick={() => setInternalOnly(value => !value)} title="Talk internally only">
               <V3Icon name="mail" w={12} /> Internal
             </button>
+            <V3CcRobertToggle sender={sender} includeRobert={ccRobert} setIncludeRobert={setCcRobert} disabled={status === 'sending' || internalOnly} />
             <V3PricingPdfAttachControl
               attachPdf={attachPdf}
               setAttachPdf={setAttachPdf}
@@ -6408,6 +6489,7 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
         <button className={'mail-compose-mode ' + (internalOnly ? 'is-active' : '')} type="button" disabled={status === 'sending'} onClick={() => setInternalOnly(value => !value)} title="Send only to Robert, Sam, and Asher">
           <V3Icon name="mail" w={12} /> {internalOnly ? 'Internal email chain' : 'Talk internally'}
         </button>
+        <V3CcRobertToggle sender={sender} includeRobert={ccRobert} setIncludeRobert={setCcRobert} disabled={status === 'sending' || internalOnly} />
         {onCollapse && (
           <button className="mail-compose-collapse" type="button" onClick={onCollapse} title="Hide composer" aria-label="Hide composer">
             <V3Icon name="chev_d" w={12} />
@@ -7402,9 +7484,7 @@ async function V4SendApprovedReply(lead, overrides = {}) {
   const recips = V3ReplyRecipients(lead, sender, false);
   const to = V3UniqueEmails(recips.to || []);
   if (!to.length) throw new Error('No outside recipient found. Open edit and add the lead email before sending.');
-  const cc = V3UniqueEmails([...(recips.cc || []), ...V3InternalEmails(sender)])
-    .filter(email => email.toLowerCase() !== to[0].toLowerCase())
-    .filter(email => !V3SenderEmails(sender).map(x => x.toLowerCase()).includes(email.toLowerCase()));
+  const cc = V3UniqueEmails(recips.cc || []);
   await V3SendLeadEmail({
     lead,
     sender,
@@ -7653,7 +7733,7 @@ function V4MachineRoomConsole({ leads = [], query = '', onOpenLead }) {
                   <button className="apr-btn dn" onClick={onDeny}>Deny</button>
                 </React.Fragment>
               )}
-              <span className="apr-sp">{gate === 'replies' ? (V4IsRobertHandoffApproval(lead) ? 'sends from Robert and CCs Asher and Sam' : 'sends from Asher and CCs Robert and Sam') : 'approval only for this gate'}</span>
+              <span className="apr-sp">{gate === 'replies' ? (V4IsRobertHandoffApproval(lead) ? 'sends from Robert and CCs Asher and Sam' : 'sends from Asher to the lead and CCs Sam') : 'approval only for this gate'}</span>
             </div>
           </div>
         )}
