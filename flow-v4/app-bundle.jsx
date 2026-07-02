@@ -4619,12 +4619,25 @@ for (const lead of V3_LEADS) {
   if (V3_BRIEFS[lead.id]) lead.brief = V3_BRIEFS[lead.id];
 }
 
-const V3_VISIBLE_LEADS = V3FilterVisibleLeads(V3_LEADS);
+function V3DemoLeadsEnabled() {
+  try {
+    if (/[?&]demo=1(?:&|$)/.test(String(window.location?.search || ''))) return true;
+    return window.localStorage?.getItem('v3-demo-leads') === '1';
+  } catch (e) {
+    return false;
+  }
+}
+
+const V3_VISIBLE_LEADS = V3DemoLeadsEnabled() ? V3FilterVisibleLeads(V3_LEADS) : [];
 const V3_VISIBLE_ROBERT_BRIEFS = V3FilterVisibleBriefs(V3_ROBERT_BRIEFS);
+
+function V3ActiveLeads() {
+  return Array.isArray(window.V3?.LEADS) ? window.V3.LEADS : [];
+}
 
 // Aggregates
 function v3FlowCounts() {
-  const leads = window.V3?.LEADS || V3_VISIBLE_LEADS;
+  const leads = V3ActiveLeads();
   return V3_ACTIVE_STAGE_IDS.map(s => ({
     id: s,
     name: V3_STAGE_BY_ID[s].name,
@@ -4662,7 +4675,7 @@ const V3_TASK_TYPES = {
   approve: { label: 'Approve brief',icon: 'check',   tone: 'approve' },
 };
 
-function v3DeriveTasks(user, leads = window.V3?.LEADS || V3_LEADS) {
+function v3DeriveTasks(user, leads = V3ActiveLeads()) {
   const laneUser = user === 'robert' ? 'robert' : 'asher';
   const tasks = [];
   const first = n => n.split(' ')[0];
@@ -5117,7 +5130,7 @@ async function V3PersistLeadStageRemote(lead, normalizedStage) {
   return { ok: true, card_id: newId, source: 'supabase-insert' };
 }
 
-function V3MoveLeadStage(lead, nextStage, leads = window.V3?.LEADS || V3_LEADS) {
+function V3MoveLeadStage(lead, nextStage, leads = V3ActiveLeads()) {
   const normalizedStage = V3NormalizeStage(nextStage);
   const wasTrash = ['trash', 'dead-leads'].includes(String(lead?.stage || '').toLowerCase());
   const isTrash = ['trash', 'dead-leads'].includes(normalizedStage);
@@ -5163,7 +5176,7 @@ function V3MoveLeadStage(lead, nextStage, leads = window.V3?.LEADS || V3_LEADS) 
     });
 }
 
-window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_VISIBLE_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_VISIBLE_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, CompanyOsQualifiedLead: V3CompanyOsQualifiedLead, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, NewLeadReason: V3NewLeadReason, ResolveReplyTone: V3ResolveReplyTone, ReplyToneLabel: V3ReplyToneLabel, NewLeadSourceKind: V3NewLeadSourceKind, NewLeadSourceLabel: V3NewLeadSourceLabel, NewLeadHandle: V3NewLeadHandle, NewLeadSummary: V3NewLeadSummary, NewLeadPrimaryIdentity: V3NewLeadPrimaryIdentity, LeadMatchesQuery: V3LeadMatchesQuery, PrunePendingReplies: V3PrunePendingReplies, MergePendingReplies: V3MergePendingReplies, ReloadLeads: V3ReloadLeads, XLeadRepliedViaX: V3XLeadRepliedViaX, MarkRepliedViaX: V3MarkRepliedViaX };
+window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: [], TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_VISIBLE_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, CompanyOsQualifiedLead: V3CompanyOsQualifiedLead, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, NewLeadReason: V3NewLeadReason, ResolveReplyTone: V3ResolveReplyTone, ReplyToneLabel: V3ReplyToneLabel, NewLeadSourceKind: V3NewLeadSourceKind, NewLeadSourceLabel: V3NewLeadSourceLabel, NewLeadHandle: V3NewLeadHandle, NewLeadSummary: V3NewLeadSummary, NewLeadPrimaryIdentity: V3NewLeadPrimaryIdentity, LeadMatchesQuery: V3LeadMatchesQuery, PrunePendingReplies: V3PrunePendingReplies, MergePendingReplies: V3MergePendingReplies, ReloadLeads: V3ReloadLeads, XLeadRepliedViaX: V3XLeadRepliedViaX, MarkRepliedViaX: V3MarkRepliedViaX };
 
 V3LoadPricingTiers();
 V3LoadTeamUsers();
@@ -8539,7 +8552,7 @@ function V4OrgEditModal({ gate, lead, onClose }) {
   );
 }
 
-function V4OrgansView({ leads = [], query = '', onOpenInCompanyOs }) {
+function V4OrgansView({ leads = [], query = '', onOpenInCompanyOs, onOpenNewLeads }) {
   const { health, resume, halt } = V4UseOpsHealth();
   const [modal, setModal] = React.useState(null);
   const [selectedGate, setSelectedGate] = React.useState('');
@@ -8751,6 +8764,16 @@ function V4OrgansView({ leads = [], query = '', onOpenInCompanyOs }) {
     return organState(key) === 'work' ? 'work' : 'idle';
   };
 
+  const selectOrganGate = React.useCallback((gid) => {
+    if (!gid) return;
+    setSelectedGate(gid);
+    setSelectedIndex(0);
+    window.requestAnimationFrame(() => {
+      const panel = document.querySelector('.orgx-command');
+      if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, []);
+
   const organCard = (key) => {
     const o = V4_ORG_DEF[key];
     const gid = ORG_GATE[key];
@@ -8762,7 +8785,7 @@ function V4OrgansView({ leads = [], query = '', onOpenInCompanyOs }) {
     const current = gid && gate.id === gid;
     return (
       <button type="button" className={'orgx-card orgx-' + st + (current ? ' is-selected' : '')} key={key}
-        onClick={() => { if (gid) { setSelectedGate(gid); setSelectedIndex(0); } }}>
+        onClick={() => selectOrganGate(gid)}>
         <div className="orgx-head">
           <div className="orgx-ic">{o.glyph}</div>
           <div className="orgx-id"><div className="orgx-nm">{o.name}</div><div className="orgx-ds">{o.desc}</div></div>
@@ -8788,12 +8811,13 @@ function V4OrgansView({ leads = [], query = '', onOpenInCompanyOs }) {
     const g = gid ? (gmap[gid] || { items: [] }) : null;
     const n = g ? g.items.length : 0;
     const st = cardState(key);
+    const current = gid && gate.id === gid;
     return (
-      <div className="orgx-rail-row" key={key}>
+      <button type="button" className={'orgx-rail-row' + (current ? ' is-active' : '')} key={key} onClick={() => selectOrganGate(gid)}>
         <span className="orgx-ric">{o.glyph}</span>
         <span className="orgx-rnm">{o.name}</span>
         {n > 0 ? <span className="orgx-rgate">{n}</span> : <span className={'orgx-rdot ' + st}></span>}
-      </div>
+      </button>
     );
   };
 
@@ -9022,7 +9046,11 @@ function V4OrgansView({ leads = [], query = '', onOpenInCompanyOs }) {
       <div className="orgx-body">
         <aside className="orgx-rail">
           <div className="orgx-rail-h">Organs</div>
-          <div className="orgx-rail-row orgx-src"><span className="orgx-ric">&#9993;</span><span className="orgx-rnm">Intake</span><span className="orgx-rsub">scrapers</span></div>
+          <button type="button" className="orgx-rail-row orgx-src" onClick={() => onOpenNewLeads?.()}>
+            <span className="orgx-ric">&#9993;</span>
+            <span className="orgx-rnm">Intake</span>
+            <span className="orgx-rsub">new leads</span>
+          </button>
           {V4_ORG_ORDER.map(railItem)}
           <div className="orgx-rail-foot">{totalWaiting} at the gates &middot; {V4_ORG_ORDER.length} organs</div>
         </aside>
@@ -18867,14 +18895,14 @@ function V4Onboarding({ onDismiss }) {
 
 function V4App() {
   const [, setConfigVersion] = React.useState(0);
-  const { USERS, LEADS, STAGE_BY_ID, ACTIVE_STAGE_IDS } = window.V3;
+  const { USERS, STAGE_BY_ID, ACTIVE_STAGE_IDS } = window.V3;
   const [boardState, setBoardState] = React.useState('loading');
   const [boardError, setBoardError] = React.useState('');
   const [t, setTweak] = useTweaks(V4_TWEAKS);
   const [view, setView] = React.useState(V4DefaultViewForUser(t.viewAs));
   const [openId, setOpenId] = React.useState(null);
   const [briefId, setBriefId] = React.useState(null);
-  const [leads, setLeads] = React.useState(LEADS);
+  const [leads, setLeads] = React.useState(() => V3ActiveLeads());
   const [ownerFilter, setOwnerFilter] = React.useState('all');
   const [searchByView, setSearchByView] = React.useState({
     today: '',
@@ -18948,6 +18976,8 @@ function V4App() {
     const onError = (e) => {
       setBoardState('error');
       setBoardError(e.detail?.error || 'Could not load board');
+      setLeads([]);
+      window.V3.LEADS = [];
     };
     window.addEventListener('v3:leads-loaded', onLoad);
     window.addEventListener('v3:leads-loading', onLoading);
@@ -19093,7 +19123,7 @@ function V4App() {
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
       if (e.key === '/') {
         e.preventDefault();
-        if (view === 'company-os' || view === 'new-leads') cosListSearchRef.current?.focus();
+        if (view === 'company-os') cosListSearchRef.current?.focus();
         else searchRef.current?.focus();
       }
       if (e.key === '?') { e.preventDefault(); setHelpOpen(true); }
@@ -19197,7 +19227,8 @@ function V4App() {
     { label: 'Go to Calendar', run: () => goView('calendar') },
     { label: 'Go to Briefs', run: () => goView('inbox') },
     { label: 'Go to Invoices', run: () => goView('invoices') },
-    { label: 'Go to Intake', run: () => { try { window.sessionStorage.setItem('cos-queue', 'send'); } catch (e) {} goView('company-os'); } },
+    { label: 'Go to New Leads', hint: 'Robert Gmail + X intake', run: () => goView('new-leads') },
+    { label: 'Go to Intake queue', hint: 'Company OS send tab', run: () => { try { window.sessionStorage.setItem('cos-queue', 'send'); } catch (e) {} goView('company-os'); } },
     { label: 'Go to Network', run: () => goView('leads') },
     { label: 'View as Asher', hint: 'shared lane', run: () => { setTweak('viewAs', 'asher'); setOpenId(null); } },
     { label: 'View as Sammy', hint: 'shared lane', run: () => { setTweak('viewAs', 'sammy'); setOpenId(null); } },
@@ -19240,7 +19271,7 @@ function V4App() {
                   Briefs {unreadCount > 0 && <span>{unreadCount}</span>}
                 </button>
                 <button role="menuitem" className="hd-nav-drop-item" aria-current={view === 'invoices' ? 'page' : undefined} onClick={() => goView('invoices')}>Invoices</button>
-                <button role="menuitem" className="hd-nav-drop-item" onClick={() => { try { window.sessionStorage.setItem('cos-queue', 'send'); } catch (e) {} goView('company-os'); }}>
+                <button role="menuitem" className="hd-nav-drop-item" aria-current={view === 'new-leads' ? 'page' : undefined} onClick={() => goView('new-leads')}>
                   New Leads {newLeadCount > 0 && <span>{newLeadCount}</span>}
                 </button>
                 <button role="menuitem" className="hd-nav-drop-item" aria-current={view === 'leads' ? 'page' : undefined} onClick={() => goView('leads')}>Network</button>
@@ -19328,8 +19359,8 @@ function V4App() {
         <V4SyncStatusBadge />
         {boardState === 'loading' && <span className="hd-board-state">Loading board…</span>}
         {boardState === 'error' && (
-          <button type="button" className="hd-board-state hd-board-state--err" onClick={() => window.V3?.ReloadLeads?.()}>
-            Board error — retry
+          <button type="button" className="hd-board-state hd-board-state--err" onClick={() => window.V3?.ReloadLeads?.()} title={boardError || 'Could not load leads from Supabase'}>
+            Board error — retry{boardError ? ` (${boardError})` : ''}
           </button>
         )}
 
@@ -19413,17 +19444,14 @@ function V4App() {
           <V4InvoicesView query={search} />
         )}
         {view === 'new-leads' && (
-          <V4CompanyOsView
+          <V4NewLeadsView
             leads={mergedLeads}
             query={search}
-            onQueryChange={setSearch}
-            listSearchRef={cosListSearchRef}
-            user={user}
-            initialQueue="send"
-            onOpenLead={setOpenId}
-            onNavigateView={(nextView, nextOpenId = null) => {
-              setView(nextView);
-              setOpenId(nextOpenId);
+            onOpenLead={(id) => {
+              setOpenId(id);
+              try {
+                window.sessionStorage.setItem('cos-lead-id', String(id));
+              } catch (e) {}
             }}
           />
         )}
@@ -19452,6 +19480,7 @@ function V4App() {
             <V4OrgansView
               leads={mergedLeads}
               query={search}
+              onOpenNewLeads={() => goView('new-leads')}
               onOpenInCompanyOs={(leadId) => {
                 try {
                   window.sessionStorage.setItem('cos-queue', 'send');
