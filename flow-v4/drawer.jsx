@@ -362,18 +362,24 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
   );
 
   const aiRedraft = async () => {
-    if (!window.claude?.complete) {
-      setAiDraftError('Local LLM bridge offline. Start scripts/active/local_llm_bridge.py on this Mac.');
-      return;
-    }
     setAiDrafting(true);
     setAiDraftError('');
     setError('');
-    if (window.claude?.label) setAiBridgeLabel(window.claude.label());
     try {
+      if (!V3ThreadHasLockedPrice(lead)) {
+        const quick = V3ApplyRateCardReplyDraft(lead, sender);
+        setBody(quick.body);
+        setAttachPdf(quick.attachPdf);
+        return;
+      }
+      if (!window.claude?.complete) {
+        setAiDraftError('Local LLM bridge offline. Start scripts/active/local_llm_bridge.py on this Mac.');
+        return;
+      }
+      if (window.claude?.label) setAiBridgeLabel(window.claude.label());
       const tone = draftTone || (window.V3?.ResolveReplyTone ? window.V3.ResolveReplyTone(lead) : 'direct');
       const prompt = V3BuildAiReplyPrompt({ lead, sender, subject, tone });
-      const out = await window.claude.complete(prompt, { max_tokens: 700 });
+      const out = await window.claude.complete(prompt, { max_tokens: 320, num_ctx: 4096 });
       setBody(V3FinalizeAiReplyDraft(String(out || '').trim(), lead, sender));
       setAttachPdf(true);
       if (window.claude?.label) setAiBridgeLabel(window.claude.label());

@@ -193,6 +193,7 @@
         body: JSON.stringify({
           prompt: String(prompt || ''),
           max_tokens: (options && options.max_tokens) || 800,
+          num_ctx: options && options.num_ctx,
         }),
       });
       const data = await resp.json().catch(() => ({}));
@@ -216,7 +217,7 @@
 </script>
 
 <script src="flow-v4/cube-theme-transition.js?v=20260701-liquid-1"></script>
-<script type="text/babel" src="flow-v4/app-bundle.jsx?v=20260702-ai-draft-v50"></script>
+<script type="text/babel" src="flow-v4/app-bundle.jsx?v=20260702-ai-draft-v51"></script>
 
 </body>
 </html>

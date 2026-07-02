@@ -2757,14 +2757,33 @@ function V3ThreadSenderFirstName(lead) {
   return '';
 }
 
+function V3EmailLocalPartFirstName(lead) {
+  const email = V3LeadExternalEmail(lead);
+  if (!email) return '';
+  const local = String(email.split('@')[0] || '').toLowerCase();
+  const token = local.replace(/[._+\-0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean)[0] || '';
+  if (token.length < 2) return '';
+  return token.charAt(0).toUpperCase() + token.slice(1);
+}
+
 function V3ExternalThreadFirstName(lead) {
   const contactFirst = String(lead?.contactName || '').trim().split(/\s+/)[0];
   const threadFirst = V3ThreadSenderFirstName(lead);
+  const emailFirst = V3EmailLocalPartFirstName(lead);
+  if (emailFirst && contactFirst) {
+    const c = contactFirst.toLowerCase();
+    const e = emailFirst.toLowerCase();
+    if (e.startsWith(c) && e.length > c.length) return emailFirst;
+    if (c.length <= 4 && e.length > c.length + 1) return emailFirst;
+  }
+  if (emailFirst && !contactFirst) return emailFirst;
   const contactLooksProper = contactFirst && (
     /^[A-Z][a-z]/.test(contactFirst) ||
     /[A-Z]/.test(contactFirst.slice(1))
   );
   if (contactLooksProper) return contactFirst;
+  if (threadFirst && threadFirst.toLowerCase() !== contactFirst.toLowerCase()) return threadFirst;
+  if (emailFirst) return emailFirst;
   if (threadFirst) return threadFirst;
   if (contactFirst) return contactFirst.charAt(0).toUpperCase() + contactFirst.slice(1).toLowerCase();
   return 'there';
@@ -2833,8 +2852,12 @@ function V3ThreadHasLockedPrice(lead) {
 function V3ConversationAckLine(lead) {
   const brand = String(lead?.brand || '').trim();
   const askedFor = String(lead?.operatorSummary?.asked_for || lead?.deliverables || '').trim();
-  if (askedFor && brand) return `Thanks for reaching out about ${brand} and ${askedFor}.`;
-  if (askedFor) return `Thanks for reaching out. I saw your note about ${askedFor}.`;
+  if (askedFor) {
+    const a = askedFor.toLowerCase();
+    const b = brand.toLowerCase();
+    if (brand && !a.includes(b)) return `Thanks for reaching out about ${brand}. I saw your note about ${askedFor}.`;
+    return `Thanks for reaching out. I saw your note about ${askedFor}.`;
+  }
   const summary = String(lead?.operatorSummary?.lead_summary || '').trim();
   if (summary) {
     const first = summary.split(/[.!?]/).map(s => s.trim()).find(s => s.length > 16);
@@ -2879,6 +2902,10 @@ function V3AiDraftHasProblems(body, lead) {
   if (!lockedPrice && (/\$\s*[\d,]+/.test(text) || /\b(standard rate|our rate|rate is|priced at|my rate)\b/i.test(text))) {
     return true;
   }
+  if (!lockedPrice && /\b(aligns with our|move forward with that deliverable)\b/i.test(text)) return true;
+  if (!lockedPrice && /\b(Custom X Post|Quote Repost|Retweet|Narrative Thread|Content Core|Growth Bundle|Maximum Impact)\s+tier\b/i.test(text)) {
+    return true;
+  }
   if (/\b(closest fit|best fit|would recommend|i recommend|our recommendation|based on what you described)\b/i.test(text)) return true;
   if (/\b(single text post|text post deliverable|dedicated post on your platform|full creative control on the angle)\b/i.test(text)) return true;
   if (/\bcompute budget mechanic\b/i.test(text)) return true;
@@ -2906,8 +2933,8 @@ function V3BuildAiReplyPrompt({ lead, sender, subject, tone }) {
   const askedFor = String(lead?.operatorSummary?.asked_for || lead?.deliverables || '').trim();
   const leadSummary = String(lead?.operatorSummary?.lead_summary || '').trim();
   const nextAction = String(lead?.operatorSummary?.next_action || lead?.nextMove?.text || '').trim();
-  const thread = (lead?.thread || []).slice(-6).map(m => (
-    `[${m.from || '?'}] ${m.subject || ''}\n${String(m.body || '').slice(0, 900)}`
+  const thread = (lead?.thread || []).slice(-4).map(m => (
+    `[${m.from || '?'}] ${m.subject || ''}\n${String(m.body || '').slice(0, 700)}`
   )).join('\n\n---\n\n');
   const senderName = V3SenderName(sender);
   const lockedPrice = V3ThreadHasLockedPrice(lead);
@@ -2941,9 +2968,17 @@ ${leadSummary ? `Thread summary: ${leadSummary.slice(0, 500)}` : ''}
 ${nextAction ? `Operator next action: ${nextAction}` : ''}
 
 Recent thread:
-${thread.slice(0, 4200)}
+${thread.slice(0, 2200)}
 
 Write ONLY the email body. Start with "Hi ${first},". Keep it concise. End with "Best," on its own line. Do not add a signature block.`;
+}
+
+function V3ApplyRateCardReplyDraft(lead, sender) {
+  return {
+    body: V3ComposeMessageOnly(V3SafeCommercialReplyDraft(lead, sender), sender),
+    attachPdf: true,
+    pricingPdfPack: V3InferPricingPdfPack(lead),
+  };
 }
 
 function V3FinalizeAiReplyDraft(body, lead, sender) {
@@ -6102,18 +6137,25 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
   );
 
   const aiRedraft = async () => {
-    if (!window.claude?.complete) {
-      setAiDraftError('Local LLM bridge offline. Start scripts/active/local_llm_bridge.py on this Mac.');
-      return;
-    }
     setAiDrafting(true);
     setAiDraftError('');
     setError('');
-    if (window.claude?.label) setAiBridgeLabel(window.claude.label());
     try {
+      if (!V3ThreadHasLockedPrice(lead)) {
+        const quick = V3ApplyRateCardReplyDraft(lead, sender);
+        setBody(quick.body);
+        setAttachPdf(quick.attachPdf);
+        setPricingPdfPack(quick.pricingPdfPack);
+        return;
+      }
+      if (!window.claude?.complete) {
+        setAiDraftError('Local LLM bridge offline. Start scripts/active/local_llm_bridge.py on this Mac.');
+        return;
+      }
+      if (window.claude?.label) setAiBridgeLabel(window.claude.label());
       const tone = draftTone || (window.V3?.ResolveReplyTone ? window.V3.ResolveReplyTone(lead) : 'direct');
       const prompt = V3BuildAiReplyPrompt({ lead, sender, subject, tone });
-      const out = await window.claude.complete(prompt, { max_tokens: 700 });
+      const out = await window.claude.complete(prompt, { max_tokens: 320, num_ctx: 4096 });
       setBody(V3FinalizeAiReplyDraft(String(out || '').trim(), lead, sender));
       setAttachPdf(true);
       setPricingPdfPack(V3InferPricingPdfPack(lead));

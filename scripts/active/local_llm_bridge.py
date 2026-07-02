@@ -85,8 +85,9 @@ class BridgeHandler(BaseHTTPRequestHandler):
             return
 
         max_tokens = int(body.get("max_tokens") or 800)
+        num_ctx = int(body.get("num_ctx") or (4096 if max_tokens <= 400 else 8192))
         try:
-            text = ollama_chat(prompt, max_tokens=max_tokens, temperature=0.35)
+            text = ollama_chat(prompt, max_tokens=max_tokens, num_ctx=num_ctx, temperature=0.35)
             self._json(200, {"text": text, "model": LOCAL_MODEL})
         except Exception as exc:
             self._json(502, {"error": str(exc)})
