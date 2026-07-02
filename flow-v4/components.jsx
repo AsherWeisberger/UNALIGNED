@@ -122,57 +122,32 @@ function V3Empty({ icon = 'check', title, sub }) {
   );
 }
 
-/** UNALIGNED mark — official torn-U circle asset, transparent outside */
+/** UNALIGNED mark — vermillion monogram (no PNG) */
 function V6UnalignedMark({ size = 30, className = '' }) {
-  const src = React.useMemo(() => {
-    try {
-      return new URL('flow-v4/assets/unaligned-mark.png?v=20260625-u-ref-1', window.location.href).href;
-    } catch (err) {
-      return 'flow-v4/assets/unaligned-mark.png?v=20260625-u-ref-1';
-    }
-  }, []);
+  const px = Math.max(20, Number(size) || 30);
   return (
-    <img
-      className={'v6-mark ' + className}
-      src={src}
-      width={size}
-      height={size}
-      alt=""
+    <span
+      className={'v6-mark-monogram ' + className}
+      style={{ width: px, height: px, fontSize: Math.round(px * 0.54) }}
       aria-hidden="true"
-      draggable={false}
-      decoding="async"
-    />
+    >
+      U
+    </span>
   );
 }
 
-/** Company OS header brand — icon + wordmark only (not the 760×200 lockup) */
+/** Company OS header brand — monogram + wordmark */
 function V6CompanyOsLogo({ compact = false, className = '' }) {
-  const iconSrc = React.useMemo(() => {
-    const file = 'flow-v4/assets/company-os-icon.svg?v=20260625-cos-logo-10';
-    try { return new URL(file, window.location.href).href; }
-    catch (err) { return file; }
-  }, []);
   if (compact) {
     return (
-      <img
-        className={'v6-company-os-logo v6-company-os-logo--icon ' + className}
-        src={iconSrc}
-        alt="Company OS"
-        draggable={false}
-        decoding="async"
-      />
+      <span className={'v6-mark-monogram v6-mark-monogram--nav ' + className} aria-label="Company OS">
+        U
+      </span>
     );
   }
   return (
     <span className={'v6-company-os-brand ' + className} role="img" aria-label="Company OS">
-      <img
-        className="v6-company-os-logo v6-company-os-logo--icon"
-        src={iconSrc}
-        alt=""
-        aria-hidden="true"
-        draggable={false}
-        decoding="async"
-      />
+      <span className="v6-mark-monogram v6-mark-monogram--nav" aria-hidden="true">U</span>
       <span className="v6-company-os-wordmark" aria-hidden="true">
         Company <em>OS</em>
       </span>

@@ -98,15 +98,68 @@
     setTimeout(function () { if (ov && ov.parentNode) ov.remove(); }, total);
   }
 
+  // ---- LIQUID THEME SWEEP (2026-07-01) ----------------------------------
+  // Replaces the diagonal cube flip for theme toggles. The old theme becomes
+  // a full-screen sheet that dissolves outward from the click point behind a
+  // wide feathered mask edge — a receding tide, not a pixel wipe. Driven by
+  // an animatable @property (--lqr) so the browser tweens the mask natively.
+  // CSS lives in styles.css (.liquid-tx + @property --lqr). The boot reveal
+  // below still uses the cubes.
+
+  var lastPointer = { x: null, y: null, t: 0 };
+  document.addEventListener('pointerdown', function (e) {
+    lastPointer = { x: e.clientX, y: e.clientY, t: Date.now() };
+  }, true);
+
+  function liquidSweep(apply) {
+    var reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var supported = window.CSS && CSS.registerProperty && CSS.supports('mask-image', 'radial-gradient(circle, black, transparent)');
+    if (reduced || !supported) {
+      if (typeof apply === 'function') apply();
+      return;
+    }
+    var prev = document.getElementById('liquid-tx');
+    if (prev) prev.remove();
+
+    var fromColor = getComputedStyle(document.body).backgroundColor || '#0b0a09';
+    var w = window.innerWidth, h = window.innerHeight;
+    // sweep from the toggle the user just pressed; fall back to upper center
+    var fresh = lastPointer.x != null && (Date.now() - lastPointer.t) < 1200;
+    var x = fresh ? lastPointer.x : w / 2;
+    var y = fresh ? lastPointer.y : h * 0.38;
+    var dx = Math.max(x, w - x), dy = Math.max(y, h - y);
+    var R = Math.sqrt(dx * dx + dy * dy);
+
+    var ov = document.createElement('div');
+    ov.id = 'liquid-tx';
+    ov.className = 'liquid-tx';
+    ov.style.background = fromColor;
+    ov.style.setProperty('--lqx', x + 'px');
+    ov.style.setProperty('--lqy', y + 'px');
+    document.body.appendChild(ov);
+
+    // Paint one covered frame in the OLD color, THEN switch underneath.
+    void ov.offsetWidth;
+    if (typeof apply === 'function') apply();
+
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        ov.style.setProperty('--lqr', (R + 220) + 'px');
+      });
+    });
+
+    setTimeout(function () { if (ov && ov.parentNode) ov.remove(); }, 1000);
+  }
+
   var initialized = false;
   window.cubeThemeTransition = function (apply) {
-    // First call (page load) applies silently — no intro flip.
+    // First call (page load) applies silently — no intro sweep.
     if (!initialized) {
       initialized = true;
       if (typeof apply === 'function') apply();
       return;
     }
-    runCubes({ apply: apply, mode: 'diagonal' });
+    liquidSweep(apply);
   };
 
   window.cubeBootReveal = function (apply, opts) {

@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-06-30T12:01:23.335477Z",
+  "fetched_at": "2026-07-01T12:02:29.162829Z",
   "count": 10,
   "invoices": [
     {
@@ -18,8 +18,8 @@
       "created": 1782623936,
       "due_date": 1782705599,
       "paid": false,
-      "hosted_invoice_url": "https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VbWtjYlFUM2taakpZa29iM0RJY2RWRWZ0WUd4c3hBLDE3MzM2MTY4Mw020043EU7qUu?s=ap",
-      "invoice_pdf": "https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VbWtjYlFUM2taakpZa29iM0RJY2RWRWZ0WUd4c3hBLDE3MzM2MTY4Mw020043EU7qUu/pdf?s=ap",
+      "hosted_invoice_url": "https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VbWtjYlFUM2taakpZa29iM0RJY2RWRWZ0WUd4c3hBLDE3MzQ0ODE0OQ0200091q6rUn?s=ap",
+      "invoice_pdf": "https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VbWtjYlFUM2taakpZa29iM0RJY2RWRWZ0WUd4c3hBLDE3MzQ0ODE0OQ0200091q6rUn/pdf?s=ap",
       "local_invoice_file": "",
       "local_invoice_id": "",
       "match_keys": [
@@ -45,8 +45,8 @@
       "created": 1782477226,
       "due_date": 1782532799,
       "paid": false,
-      "hosted_invoice_url": "https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VbTdCbmJnS2ZTdE5scTdYbHlDWnpuMVBMWmhqMHY5LDE3MzM2MTY4Mw0200XPTBJojD?s=ap",
-      "invoice_pdf": "https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VbTdCbmJnS2ZTdE5scTdYbHlDWnpuMVBMWmhqMHY5LDE3MzM2MTY4Mw0200XPTBJojD/pdf?s=ap",
+      "hosted_invoice_url": "https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VbTdCbmJnS2ZTdE5scTdYbHlDWnpuMVBMWmhqMHY5LDE3MzQ0ODE0OQ020001TrsAqk?s=ap",
+      "invoice_pdf": "https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VbTdCbmJnS2ZTdE5scTdYbHlDWnpuMVBMWmhqMHY5LDE3MzQ0ODE0OQ020001TrsAqk/pdf?s=ap",
       "local_invoice_file": "",
       "local_invoice_id": "",
       "match_keys": [
@@ -72,8 +72,8 @@
       "created": 1782442631,
       "due_date": 1782446399,
       "paid": false,
-      "hosted_invoice_url": "https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VbHhzMFQwRmRNSjFLRnNyUGJMR3NzcjNXSVRoQlZwLDE3MzM2MTY4Mw0200fS8LrBYy?s=ap",
-      "invoice_pdf": "https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VbHhzMFQwRmRNSjFLRnNyUGJMR3NzcjNXSVRoQlZwLDE3MzM2MTY4Mw0200fS8LrBYy/pdf?s=ap",
+      "hosted_invoice_url": "https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VbHhzMFQwRmRNSjFLRnNyUGJMR3NzcjNXSVRoQlZwLDE3MzQ0ODE0OQ0200nO4fsj5d?s=ap",
+      "invoice_pdf": "https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VbHhzMFQwRmRNSjFLRnNyUGJMR3NzcjNXSVRoQlZwLDE3MzQ0ODE0OQ0200nO4fsj5d/pdf?s=ap",
       "local_invoice_file": "",
       "local_invoice_id": "",
       "match_keys": [
@@ -99,8 +99,8 @@
       "created": 1782344012,
       "due_date": 1782359999,
       "paid": false,
-      "hosted_invoice_url": "https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VbFhOSDRVSWd4dVNDVDJuTTNhYm1ITHZZQlg0eER3LDE3MzM2MTY4Mw0200sSpRSUc3?s=ap",
-      "invoice_pdf": "https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VbFhOSDRVSWd4dVNDVDJuTTNhYm1ITHZZQlg0eER3LDE3MzM2MTY4Mw0200sSpRSUc3/pdf?s=ap",
+      "hosted_invoice_url": "https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VbFhOSDRVSWd4dVNDVDJuTTNhYm1ITHZZQlg0eER3LDE3MzQ0ODE0OQ0200cwZqfJo8?s=ap",
+      "invoice_pdf": "https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VbFhOSDRVSWd4dVNDVDJuTTNhYm1ITHZZQlg0eER3LDE3MzQ0ODE0OQ0200cwZqfJo8/pdf?s=ap",
       "local_invoice_file": "",
       "local_invoice_id": "",
       "match_keys": [
@@ -126,8 +126,8 @@
       "created": 1782310298,
       "due_date": 1782359999,
       "paid": false,
-      "hosted_invoice_url": "https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VbE9KRVBiRkgzTUE0ZTZ1eGZBRnRVa3drVkZpR3ZRLDE3MzM2MTY4Mw0200OC8tfl2U?s=ap",
-      "invoice_pdf": "https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VbE9KRVBiRkgzTUE0ZTZ1eGZBRnRVa3drVkZpR3ZRLDE3MzM2MTY4Mw0200OC8tfl2U/pdf?s=ap",
+      "hosted_invoice_url": "https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VbE9KRVBiRkgzTUE0ZTZ1eGZBRnRVa3drVkZpR3ZRLDE3MzQ0ODE0OQ0200TavyCIhR?s=ap",
+      "invoice_pdf": "https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VbE9KRVBiRkgzTUE0ZTZ1eGZBRnRVa3drVkZpR3ZRLDE3MzQ0ODE0OQ0200TavyCIhR/pdf?s=ap",
       "local_invoice_file": "",
       "local_invoice_id": "",
       "match_keys": [
@@ -153,8 +153,8 @@
       "created": 1782310077,
       "due_date": 1782359999,
       "paid": false,
-      "hosted_invoice_url": "https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VbE9GanBDWHY1TG9CMUVYcVVuekZNYVoyR3VjVGs3LDE3MzM2MTY4Mw0200duxnTCFJ?s=ap",
-      "invoice_pdf": "https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VbE9GanBDWHY1TG9CMUVYcVVuekZNYVoyR3VjVGs3LDE3MzM2MTY4Mw0200duxnTCFJ/pdf?s=ap",
+      "hosted_invoice_url": "https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VbE9GanBDWHY1TG9CMUVYcVVuekZNYVoyR3VjVGs3LDE3MzQ0ODE0OQ0200P3yOghKq?s=ap",
+      "invoice_pdf": "https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VbE9GanBDWHY1TG9CMUVYcVVuekZNYVoyR3VjVGs3LDE3MzQ0ODE0OQ0200P3yOghKq/pdf?s=ap",
       "local_invoice_file": "",
       "local_invoice_id": "",
       "match_keys": [
@@ -167,7 +167,7 @@
     {
       "id": "in_1TjsxfK0WeauAYMJJQ6boSxf",
       "number": "F058AI3B-0001",
-      "status": "open",
+      "status": "paid",
       "livemode": true,
       "dashboard_url": "https://dashboard.stripe.com/invoices/in_1TjsxfK0WeauAYMJJQ6boSxf",
       "customer_name": "Hockey Stick Growth LLC",
@@ -175,13 +175,13 @@
       "description": "First payment (1 of 2) for Unaligned x Alibaba, ACL Conference 2026, San Diego, July 5 (Inv 062026). $10,000 of $22,300 total, due on or before June 20, 2026; $12,300 balance due during the July 6 event window. PAYMENT BY WIRE ONLY: Fifth Third Bank, Samuel Levin, 2511 Poplar Street, Terre Haute, IN 47803 USA. Acct 7934845327, Routing 074908594, SWIFT FTBCUS3C. Reference: Invoice 062026.",
       "currency": "USD",
       "amount_due": 10000.0,
-      "amount_paid": 0.0,
-      "amount_remaining": 10000.0,
+      "amount_paid": 10000.0,
+      "amount_remaining": 0.0,
       "created": 1781839159,
       "due_date": 1781925731,
       "paid": false,
-      "hosted_invoice_url": "https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VakxmcEt4UUNhbENUN1FBNnZsd0xZQzNOdVdPSm9jLDE3MzM2MTY4Mw0200i9YZiqiy?s=ap",
-      "invoice_pdf": "https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VakxmcEt4UUNhbENUN1FBNnZsd0xZQzNOdVdPSm9jLDE3MzM2MTY4Mw0200i9YZiqiy/pdf?s=ap",
+      "hosted_invoice_url": "https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VakxmcEt4UUNhbENUN1FBNnZsd0xZQzNOdVdPSm9jLDE3MzQ0ODE0OQ020048DXwjZb?s=ap",
+      "invoice_pdf": "https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VakxmcEt4UUNhbENUN1FBNnZsd0xZQzNOdVdPSm9jLDE3MzQ0ODE0OQ020048DXwjZb/pdf?s=ap",
       "local_invoice_file": "",
       "local_invoice_id": "",
       "match_keys": [
@@ -207,8 +207,8 @@
       "created": 1781577304,
       "due_date": 1784606399,
       "paid": false,
-      "hosted_invoice_url": "https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaURHYmRwNmJuODJLem9yTUVWd3FOYnZHRGgwTzhmLDE3MzM2MTY4Mw02003w3tDMxK?s=ap",
-      "invoice_pdf": "https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaURHYmRwNmJuODJLem9yTUVWd3FOYnZHRGgwTzhmLDE3MzM2MTY4Mw02003w3tDMxK/pdf?s=ap",
+      "hosted_invoice_url": "https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaURHYmRwNmJuODJLem9yTUVWd3FOYnZHRGgwTzhmLDE3MzQ0ODE0OQ0200HXBCXX3v?s=ap",
+      "invoice_pdf": "https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaURHYmRwNmJuODJLem9yTUVWd3FOYnZHRGgwTzhmLDE3MzQ0ODE0OQ0200HXBCXX3v/pdf?s=ap",
       "local_invoice_file": "",
       "local_invoice_id": "",
       "match_keys": [
@@ -234,8 +234,8 @@
       "created": 1781536164,
       "due_date": 1781623027,
       "paid": false,
-      "hosted_invoice_url": "https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaTJEbTlWd3NYV3JMVGZzQ2s4OUFMM3dHM2RuVDR0LDE3MzM2MTY4Mw0200UZdYE1s2?s=ap",
-      "invoice_pdf": "https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaTJEbTlWd3NYV3JMVGZzQ2s4OUFMM3dHM2RuVDR0LDE3MzM2MTY4Mw0200UZdYE1s2/pdf?s=ap",
+      "hosted_invoice_url": "https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaTJEbTlWd3NYV3JMVGZzQ2s4OUFMM3dHM2RuVDR0LDE3MzQ0ODE0OQ0200KdOURpDm?s=ap",
+      "invoice_pdf": "https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaTJEbTlWd3NYV3JMVGZzQ2s4OUFMM3dHM2RuVDR0LDE3MzQ0ODE0OQ0200KdOURpDm/pdf?s=ap",
       "local_invoice_file": "",
       "local_invoice_id": "",
       "match_keys": [
@@ -261,8 +261,8 @@
       "created": 1781375608,
       "due_date": 1781980532,
       "paid": false,
-      "hosted_invoice_url": "https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MzM2MTY4Mw0200qyxsqEXD?s=ap",
-      "invoice_pdf": "https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MzM2MTY4Mw0200qyxsqEXD/pdf?s=ap",
+      "hosted_invoice_url": "https://invoice.stripe.com/i/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MzQ0ODE0OQ020043GSOwLZ?s=ap",
+      "invoice_pdf": "https://pay.stripe.com/invoice/acct_1ThABUK0WeauAYMJ/live_YWNjdF8xVGhBQlVLMFdlYXVBWU1KLF9VaEwzOFNaOTJUS0swT3JMYm41NVlsMmtoNmNqcFJrLDE3MzQ0ODE0OQ020043GSOwLZ/pdf?s=ap",
       "local_invoice_file": "",
       "local_invoice_id": "",
       "match_keys": [

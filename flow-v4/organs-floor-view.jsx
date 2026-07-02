@@ -1,34 +1,19 @@
 /* ============================================================================
-   ORGANS-B FLOOR VIEW — the god's-eye command floor (no side-scroll).
-   DROP-IN REPLACEMENT for V4OrgansView. Same props, same data source, same
-   board writes — just rendered as the night-floor art with click-to-pop
-   approval bubbles instead of a side-scrolling pipeline.
+   ORGANS-B FLOOR VIEW — routing dashboard (no side-scroll).
+   Organs shows machine health + gate beacons; approve/send/edit live in Company OS.
 
-   Pairs with the "UNALIGNED ORGANS FLOOR (B) SHELL" CSS in styles.css
-   (classes org-floor / org-hud / org-beacon / org-bubble / .ig) and the art
-   at flow-v4/assets/organs-floor.jpg.
+   Pairs with ORGANS FLOOR (B) CSS in styles.css and organs-floor.jpg art.
+   Concatenated into app-bundle.jsx — not loaded standalone.
 
-   DEPENDS ON bundle helpers already defined above V4OrgansView:
-     V4UseOpsHealth, V4AprComputeGates, V4AprGateAction, V4CosPatchLead,
-     V4AprMoney, V4_APR_AGENT.
-   So it MUST be concatenated into app-bundle.jsx (NOT loaded as a loose file —
-   standalone it has no React or helpers in scope).
-
-   MOUNT (one swap, fully testable):
-   - Get this function into the bundle (add to deploy.sh concat, or paste it
-     next to V4OrgansView).
-   - At  view === 'organs'  swap the component, keeping the SAME props:
+   MOUNT at view === 'organs':
         <OrgansFloorView leads={mergedLeads} query={search}
-          onOpenConsole={() => { setView('machine-room'); setOpenId(null); }} />
-   - Rebuild bundle, hard-refresh, open Organs. Beacons light over a desk for
-     every gate that has items (same gates the line view shows). Click one ->
-     bubble pops in place; Approve / Deny / Halt all write to the board live;
-     Edit jumps to the full console; Ignore flags the reply human_only and
-     pulls it from the queue.
-
-   Desk positions are first-pass — nudge GATE_DESK to match the art.
+          onOpenConsole={() => { setView('machine-room'); setOpenId(null); }}
+          onOpenInCompanyOs={(leadId, gateId) => {
+            V4OpenLeadInCompanyOs(leadId, V4CosQueueForGate(gateId), { compose: gateId === 'replies' });
+            setView('company-os');
+          }} />
    ============================================================================ */
-function OrgansFloorView({ leads = [], query = '', onOpenConsole }) {
+function OrgansFloorView({ leads = [], query = '', onOpenConsole, onOpenInCompanyOs }) {
   const { useState } = React;
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(max-width: 720px)').matches : false);
   React.useEffect(() => {
@@ -39,19 +24,18 @@ function OrgansFloorView({ leads = [], query = '', onOpenConsole }) {
     return function(){ mq.removeEventListener ? mq.removeEventListener('change', on) : mq.removeListener(on); };
   }, []);
   const { health, resume, halt } = V4UseOpsHealth();
-  const [open, setOpen] = useState(null);   // gate id whose bubble is open
-  const [idx, setIdx] = useState(0);        // which item within that gate
-  const [tick, setTick] = useState(0);      // bump to re-render after a board write
+  const [open, setOpen] = useState(null);
+  const [idx, setIdx] = useState(0);
+  const [tick, setTick] = useState(0);
 
   const gates = V4AprComputeGates(leads, query);
   const gmap = {}; gates.forEach(g => { gmap[g.id] = g; });
 
-  // desk anchor (% of stage) per gate — tune against organs-floor.jpg
   const GATE_DESK = {
-    replies:  { left: 40, top: 45 },   // Deal Desk
-    posts:    { left: 66, top: 39 },   // Calendar / Post
-    briefs:   { left: 80, top: 60 },   // Brief Maker
-    payments: { left: 57, top: 73 },   // Finance
+    replies:  { left: 40, top: 45 },
+    posts:    { left: 66, top: 39 },
+    briefs:   { left: 80, top: 60 },
+    payments: { left: 57, top: 73 },
   };
 
   const halted = !!(health && String(health.status || 'ok') !== 'ok');
@@ -71,14 +55,17 @@ function OrgansFloorView({ leads = [], query = '', onOpenConsole }) {
     || (l.agentAssessment ? String(l.agentAssessment).split(/(?<=[.!?])\s/)[0] : '')
     || l.deliverables || l.stage || '';
 
-  const act = (g, lead, kind) => {
+  const denyGate = (g, lead) => {
     const a = V4AprGateAction(g);
-    const move = kind === 'approve' ? a.approve : a.deny;
-    if (lead && move) V4CosPatchLead(lead, move.fields, move.local);
+    if (lead && a) V4CosPatchLead(lead, a.deny.fields, a.deny.local);
     setTick(t => t + 1);
   };
+  const routeToCos = (g, lead) => {
+    if (!lead || !onOpenInCompanyOs) return;
+    onOpenInCompanyOs(lead.id, g);
+    closeAll();
+  };
   const ignore = (lead) => {
-    // Not a system task: flag human_only (pulls it from the replies gate) and hand to Robert.
     if (lead) V4CosPatchLead(lead, { draft_reply_status: 'human_only' }, { draftReplyStatus: 'human_only' });
     setTick(t => t + 1);
   };
@@ -99,7 +86,7 @@ function OrgansFloorView({ leads = [], query = '', onOpenConsole }) {
         onClick={(e) => e.stopPropagation()}>
         <div className="bh">
           <span className="aib">◆ {agent}</span>
-          <span className="bt">Approval needed</span>
+          <span className="bt">Route to Company OS</span>
           {n > 1 && (
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', color: '#9a8f7e', marginLeft: '6px' }}>
               <span style={{ cursor: 'pointer' }} onClick={() => setIdx((i - 1 + n) % n)}>‹</span> {i + 1}/{n} <span style={{ cursor: 'pointer' }} onClick={() => setIdx((i + 1) % n)}>›</span>
@@ -112,13 +99,12 @@ function OrgansFloorView({ leads = [], query = '', onOpenConsole }) {
           {lead.agentTier && <span className="chip">{lead.agentTier}</span>}
           {lead.value ? <span className="chip v">{V4AprMoney(lead.value)}</span> : null}
         </div>
-        <div className="lbl">What you're approving</div>
+        <div className="lbl">What needs handling</div>
         <div className="what">{whatBody(g, lead)}</div>
         {whyLine(lead) && (<React.Fragment><div className="lbl">Why</div><div className="why">{whyLine(lead)}</div></React.Fragment>)}
         <div className="btns">
-          <span className="b ap" onClick={() => act(g, lead, 'approve')}>✓ Approve</span>
-          <span className="b gh" onClick={() => onOpenConsole && onOpenConsole()}>Edit</span>
-          <span className="b gh" onClick={() => act(g, lead, 'deny')}>Deny</span>
+          <span className="b ap" onClick={() => routeToCos(g, lead)}>→ Company OS</span>
+          {g !== 'replies' ? <span className="b gh" onClick={() => denyGate(g, lead)}>Deny</span> : null}
         </div>
         {g === 'replies' && (
           <button className="ig" onClick={() => ignore(lead)}>⊘ Not a system task — <b>hand to Robert</b></button>
@@ -127,7 +113,7 @@ function OrgansFloorView({ leads = [], query = '', onOpenConsole }) {
     );
   };
 
-  if (isMobile) return <V4OrgansView leads={leads} query={query} onOpenConsole={onOpenConsole} />;
+  if (isMobile) return <V4OrgansView leads={leads} query={query} onOpenConsole={onOpenConsole} onOpenInCompanyOs={onOpenInCompanyOs} />;
 
   return (
     <div className={'org-floor' + (halted ? ' is-halted' : '')} style={{ flex: '1 1 0', minHeight: 0 }} onClick={closeAll}>
@@ -136,7 +122,7 @@ function OrgansFloorView({ leads = [], query = '', onOpenConsole }) {
       <div className="org-hud">
         <div>
           <div className="eye">Machine Room</div>
-          <h1>Organs <i>your floor, from above</i></h1>
+          <h1>Organs <i>routing floor — handle in Company OS</i></h1>
         </div>
         <div className="gauges">
           <div className="lt"><span className="d"></span>{halted ? 'Halted' : 'Running'}</div>
@@ -164,7 +150,7 @@ function OrgansFloorView({ leads = [], query = '', onOpenConsole }) {
         <div className="org-bubble" style={{ left: '50%', top: '42%' }} onClick={(e) => e.stopPropagation()}>
           <div className="bh"><span className="bt">All clear</span></div>
           <h3>Nothing waiting on you</h3>
-          <div className="why">No pending approvals on the floor. A beacon lights over a desk the moment an agent has something for you.</div>
+          <div className="why">No gates lit. A beacon appears when an agent parks something — click it to open Company OS.</div>
         </div>
       )}
     </div>

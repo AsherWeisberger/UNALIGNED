@@ -693,54 +693,29 @@ function V3Empty({ icon = 'check', title, sub }) {
 }
 
 function V6UnalignedMark({ size = 30, className = '' }) {
-  const src = React.useMemo(() => {
-    try {
-      return new URL('flow-v4/assets/unaligned-mark.png?v=20260625-u-ref-1', window.location.href).href;
-    } catch (err) {
-      return 'flow-v4/assets/unaligned-mark.png?v=20260625-u-ref-1';
-    }
-  }, []);
+  const px = Math.max(20, Number(size) || 30);
   return (
-    <img
-      className={'v6-mark ' + className}
-      src={src}
-      width={size}
-      height={size}
-      alt=""
+    <span
+      className={'v6-mark-monogram ' + className}
+      style={{ width: px, height: px, fontSize: Math.round(px * 0.54) }}
       aria-hidden="true"
-      draggable={false}
-      decoding="async"
-    />
+    >
+      U
+    </span>
   );
 }
 
 function V6CompanyOsLogo({ compact = false, className = '' }) {
-  const iconSrc = React.useMemo(() => {
-    const file = 'flow-v4/assets/company-os-icon.svg?v=20260625-cos-logo-10';
-    try { return new URL(file, window.location.href).href; }
-    catch (err) { return file; }
-  }, []);
   if (compact) {
     return (
-      <img
-        className={'v6-company-os-logo v6-company-os-logo--icon ' + className}
-        src={iconSrc}
-        alt="Company OS"
-        draggable={false}
-        decoding="async"
-      />
+      <span className={'v6-mark-monogram v6-mark-monogram--nav ' + className} aria-label="Company OS">
+        U
+      </span>
     );
   }
   return (
     <span className={'v6-company-os-brand ' + className} role="img" aria-label="Company OS">
-      <img
-        className="v6-company-os-logo v6-company-os-logo--icon"
-        src={iconSrc}
-        alt=""
-        aria-hidden="true"
-        draggable={false}
-        decoding="async"
-      />
+      <span className="v6-mark-monogram v6-mark-monogram--nav" aria-hidden="true">U</span>
       <span className="v6-company-os-wordmark" aria-hidden="true">
         Company <em>OS</em>
       </span>
@@ -755,11 +730,6 @@ function V6CompanyOsMark(props) {
 /** Cinematic startup — Model Y-style fade into dashboard */
 function V6CompanyOsBoot({ onDone }) {
   const [phase, setPhase] = React.useState('intro');
-  const iconSrc = React.useMemo(() => {
-    const file = 'flow-v4/assets/company-os-icon.svg?v=20260625-boot-1';
-    try { return new URL(file, window.location.href).href; }
-    catch (err) { return file; }
-  }, []);
 
   React.useEffect(() => {
     document.body.classList.add('v6-booting');
@@ -794,7 +764,7 @@ function V6CompanyOsBoot({ onDone }) {
       <div className="v6-boot-vignette" />
       <div className="v6-boot-glow" />
       <div className="v6-boot-core">
-        <img className="v6-boot-icon" src={iconSrc} alt="" draggable={false} decoding="async" />
+        <div className="v6-boot-monogram" aria-hidden="true">U</div>
         <div className="v6-boot-wordmark">Company <em>OS</em></div>
         <div className="v6-boot-tagline">run the company from one place</div>
       </div>
@@ -861,17 +831,36 @@ function V3ApiToken() {
 }
 
 async function V3BootstrapApiToken() {
-  if (V3ApiToken()) return V3ApiToken();
-  const briefToken = typeof V4LoadBriefApiToken === 'function' ? V4LoadBriefApiToken() : '';
-  if (!briefToken) return '';
-  const bases = typeof V4BriefServiceCandidateUrls === 'function'
+  const existing = V3ApiToken();
+  if (existing) return existing;
+  const bases = [];
+  const host = String(window.location?.hostname || '').toLowerCase();
+  const fromHelper = typeof V4BriefServiceCandidateUrls === 'function'
     ? V4BriefServiceCandidateUrls()
     : ['https://mac-studio.tail50d3a2.ts.net', 'http://127.0.0.1:8767'];
+  if (host.includes('mac-studio.tail50d3a2.ts.net')) {
+    fromHelper.forEach((b) => {
+      const clean = String(b || '').replace(/\/$/, '');
+      if (clean && !bases.includes(clean)) bases.push(clean);
+    });
+  }
+  try {
+    const origin = String(window.location?.origin || '').replace(/\/$/, '');
+    if (origin && !bases.includes(origin)) bases.push(origin);
+  } catch (e) {}
+  fromHelper.forEach((b) => {
+    const clean = String(b || '').replace(/\/$/, '');
+    if (clean && !bases.includes(clean)) bases.push(clean);
+  });
+  const briefToken = typeof V4LoadBriefApiToken === 'function' ? V4LoadBriefApiToken() : '';
   for (const base of bases) {
     try {
-      const res = await fetch(String(base).replace(/\/$/, '') + '/send-email-token', {
+      const headers = {};
+      if (briefToken) headers.Authorization = 'Bearer ' + briefToken;
+      const res = await fetch(base + '/send-email-token', {
         method: 'GET',
-        headers: { Authorization: 'Bearer ' + briefToken },
+        headers,
+        cache: 'no-store',
       });
       if (!res.ok) continue;
       const data = await res.json();
@@ -885,15 +874,42 @@ async function V3BootstrapApiToken() {
   return '';
 }
 
-function V3EnsureApiToken() {
-  let token = V3ApiToken();
-  if (token) return token;
-  const prompted = window.prompt('Paste your UNALIGNED API token (send email + brief services)');
-  token = String(prompted || '').trim();
-  if (token) {
-    try { window.localStorage.setItem(V3_API_TOKEN_KEY, token); } catch (e) {}
+let V3_X_GATE_RULES = null;
+
+async function V3EnsureXGateRules(cacheBust) {
+  if (V3_X_GATE_RULES) return V3_X_GATE_RULES;
+  try {
+    const res = await fetch('flow-v4/assets/x_gate_rules.json?v=' + (cacheBust || Date.now()));
+    if (!res.ok) throw new Error('x_gate_rules ' + res.status);
+    const rules = await res.json();
+    if (rules?.spam_regex) {
+      V3_X_GATE_RULES = {
+        spam: new RegExp(rules.spam_regex, 'i'),
+        noise: new RegExp(rules.noise_regex, 'i'),
+        partnership: new RegExp(rules.partnership_regex, 'i'),
+        product: new RegExp(rules.product_regex, 'i'),
+      };
+    }
+  } catch (e) {
+    console.warn('[ALIGNED v4] X gate rules load failed — using embedded fallback', e);
   }
-  return token;
+  return V3_X_GATE_RULES;
+}
+
+function V3SpamRe() {
+  return V3_X_GATE_RULES?.spam || V3_X_SPAM_RE;
+}
+
+function V3NoiseRe() {
+  return V3_X_GATE_RULES?.noise || V3_X_NOISE_RE;
+}
+
+function V3PartnershipRe() {
+  return V3_X_GATE_RULES?.partnership || V3_X_PARTNERSHIP_RE;
+}
+
+function V3ProductRe() {
+  return V3_X_GATE_RULES?.product || V3_X_PRODUCT_RE;
 }
 
 async function V3LoadXDmIntakeRows(cacheBust) {
@@ -907,6 +923,59 @@ async function V3LoadXDmIntakeRows(cacheBust) {
     console.warn('Failed to load X DM intake', e);
     return [];
   }
+}
+
+async function V3LoadXDmThreadContexts(cacheBust) {
+  try {
+    const version = cacheBust || Date.now();
+    const res = await fetch('flow-v4/assets/x_dm_thread_contexts.json?v=' + version);
+    if (!res.ok) throw new Error('X thread contexts ' + res.status);
+    const rows = await res.json();
+    return Array.isArray(rows) ? rows : [];
+  } catch (e) {
+    console.warn('Failed to load X DM thread contexts', e);
+    return [];
+  }
+}
+
+function V3IndexXDmThreadContexts(rows) {
+  const byDm = new Map();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const messages = Array.isArray(row?.dmMessages) ? row.dmMessages : [];
+    if (!messages.length) continue;
+    const payload = {
+      dmMessages: messages,
+      xName: row.xName || '',
+      messageCount: row.messageCount || messages.length,
+      newestDmDate: row.newestDmDate || '',
+    };
+    const keys = [row.openDm, row.chatUrl].map(V3NormalizeOpenDmUrl).filter(Boolean);
+    for (const key of keys) byDm.set(key, payload);
+  }
+  return byDm;
+}
+
+function V3ApplyXDmThreadContext(lead, threadByDm) {
+  if (!lead || !V3IsXLeadRecord(lead) || !threadByDm || !threadByDm.size) return lead;
+  const key = V3NormalizeOpenDmUrl(lead.xOpenDm);
+  const ctx = key ? threadByDm.get(key) : null;
+  if (!ctx || !Array.isArray(ctx.dmMessages) || !ctx.dmMessages.length) return lead;
+  const merged = {
+    ...lead,
+    xDmMessages: ctx.dmMessages,
+    xMessageCount: lead.xMessageCount || ctx.messageCount || ctx.dmMessages.length,
+    contactName: V3XLeadDisplayName(lead.contactName, ctx.xName || ''),
+    brand: V3XLeadDisplayName(lead.brand, ctx.xName || lead.contactName || ''),
+  };
+  const threadHasBody = Array.isArray(merged.thread) && merged.thread.some(msg => String(msg?.body || '').trim());
+  if (!threadHasBody) merged.thread = V3BuildXThreadFromLead(merged);
+  return merged;
+}
+
+function V3MergeXDmThreadContextsIntoLeads(leads, threadRows) {
+  const threadByDm = V3IndexXDmThreadContexts(threadRows);
+  if (!threadByDm.size) return leads;
+  return (Array.isArray(leads) ? leads : []).map(lead => V3ApplyXDmThreadContext(lead, threadByDm));
 }
 
 async function V3LoadSupabaseLeads(opts = {}) {
@@ -938,6 +1007,8 @@ async function V3LoadSupabaseLeads(opts = {}) {
     if (row.title) score += 10;
     score += Math.max(updated, created) / 1e13;
     score += Number(row.id || 0) / 1e9;
+    if (String(row.list_id || '').toLowerCase() === 'trash') score -= 1e12;
+    if (['dead-leads', 'done', 'paid-out'].includes(String(row.list_id || '').toLowerCase())) score -= 5e11;
     return score;
   };
 
@@ -949,13 +1020,20 @@ async function V3LoadSupabaseLeads(opts = {}) {
     if (!prev || scoreRow(row) > scoreRow(prev)) canonical.set(key, row);
   }
 
-  const leads = V3FilterVisibleLeads([...canonical.values()].map(V3NormalizeSupabaseLead));
+  await V3EnsureXGateRules(opts?.cacheBust);
   const xRows = await V3LoadXDmIntakeRows(opts?.cacheBust);
-  leads.push(...V3FilterVisibleLeads(V3NormalizeXDmLeads(xRows, leads)));
+  const threadRows = await V3LoadXDmThreadContexts(opts?.cacheBust);
+  let leads = V3FilterVisibleLeads(
+    V3MergeXIntakeIntoLeads([...canonical.values()].map(V3NormalizeSupabaseLead), xRows)
+  );
+  leads = V3MergeXDmThreadContextsIntoLeads(leads, threadRows);
+  // Phantom xdm-* rows disabled — x_bridge + x_spam_cleanup own the X queue on Supabase.
   if (!leads.some(lead => String(lead.email || '').trim().toLowerCase() === 'jocelyn.cruz@hockeystick.io')) {
     leads.push(V3HockeystickFallbackLead());
   }
-  return V3FilterVisibleLeads(leads);
+  leads = V3ApplyTrashedCardTombstones(V3FilterVisibleLeads(leads));
+  V3PruneConfirmedTrashedTombstones(leads);
+  return leads;
 }
 
 async function V3ReloadLeads(opts = {}) {
@@ -1010,7 +1088,110 @@ function V3ParseXDescriptionContext(value) {
     repliedViaX: Boolean(payload.replied_via_x),
     xCurrentStatus: payload.x_current_status || '',
     xReplyMarkedAt: payload.x_reply_marked_at || '',
+    bestNextStep: payload.best_next_step || '',
+    xUsername: payload.x_username || '',
+    openDm: payload.open_dm || '',
+    leadScore: payload.lead_score,
+    dmMessages: Array.isArray(payload.dm_messages)
+      ? payload.dm_messages
+      : (Array.isArray(payload.x_dm_messages) ? payload.x_dm_messages : []),
   };
+}
+
+function V3XLeadDisplayName(value, fallback) {
+  const text = String(value || '').trim();
+  if (!text) return fallback || '';
+  if (/^(unknown x lead|untitled lead|x lead|unknown company)$/i.test(text)) return fallback || text;
+  return text;
+}
+
+function V3XLeadHasUsableContext(lead) {
+  if (!lead) return false;
+  const ctx = V3ParseXDescriptionContext(lead.rawDescription);
+  const text = [
+    lead.notes,
+    lead.evidence,
+    lead.xLastLeadMessage,
+    lead.xLastRobertMessage,
+    ctx.xSummary,
+    ctx.lastMessage,
+    ...(Array.isArray(lead.thread) ? lead.thread.map(msg => msg?.body) : []),
+  ].filter(Boolean).join(' ').trim();
+  return text.length >= 40;
+}
+
+function V3ApplyXContextFields(lead) {
+  if (!lead || !V3IsXLeadRecord(lead)) return lead;
+  const ctx = V3ParseXDescriptionContext(lead.rawDescription);
+  const hasCtx = Boolean(ctx.xSummary || ctx.lastMessage || ctx.lastRobertMessage);
+  if (!hasCtx) return lead;
+  const merged = {
+    ...lead,
+    notes: lead.notes || ctx.xSummary || '',
+    evidence: lead.evidence || ctx.lastMessage || lead.xLastLeadMessage || '',
+    xLastLeadMessage: lead.xLastLeadMessage || ctx.lastMessage || '',
+    xLastRobertMessage: lead.xLastRobertMessage || ctx.lastRobertMessage || '',
+    xDmMessages: Array.isArray(lead.xDmMessages) && lead.xDmMessages.length
+      ? lead.xDmMessages
+      : (Array.isArray(ctx.dmMessages) ? ctx.dmMessages : []),
+    xLastSender: lead.xLastSender || ctx.lastSender || '',
+    xCurrentStatus: lead.xCurrentStatus || ctx.xCurrentStatus || '',
+    xBestNextStep: lead.xBestNextStep || ctx.bestNextStep || '',
+    xHandle: lead.xHandle || ctx.xUsername || '',
+    xLeadScore: lead.xLeadScore || ctx.leadScore || lead.xLeadScore,
+    xOpenDm: lead.xOpenDm || ctx.openDm || lead.xOpenDm,
+    contactName: V3XLeadDisplayName(lead.contactName, ctx.xUsername || ''),
+    brand: V3XLeadDisplayName(lead.brand, lead.contactName || ctx.xUsername || ''),
+  };
+  const threadHasBody = Array.isArray(merged.thread) && merged.thread.some(msg => String(msg?.body || '').trim());
+  if (!threadHasBody) merged.thread = V3BuildXThreadFromLead(merged);
+  return V3ApplyXReplyState(merged);
+}
+
+function V3EnrichLeadFromXIntakeRow(lead, intakeRow) {
+  const intake = V3NormalizeXDmLeadRow(intakeRow);
+  const merged = { ...lead };
+  merged.contactName = V3XLeadDisplayName(lead.contactName, intake.contactName);
+  merged.brand = V3XLeadDisplayName(lead.brand, intake.brand);
+  merged.notes = String(lead.notes || intake.notes || '').trim() || intake.notes;
+  merged.evidence = String(lead.evidence || intake.evidence || lead.xLastLeadMessage || intake.xLastLeadMessage || '').trim();
+  merged.xHandle = lead.xHandle || intake.xHandle;
+  merged.xBestNextStep = lead.xBestNextStep || intake.xBestNextStep;
+  merged.xCurrentStatus = lead.xCurrentStatus || intake.xCurrentStatus;
+  merged.xLastSender = lead.xLastSender || intake.xLastSender;
+  merged.xLastRobertMessage = lead.xLastRobertMessage || intake.xLastRobertMessage;
+  merged.xLastLeadMessage = lead.xLastLeadMessage || intake.xLastLeadMessage;
+  merged.xDmMessages = Array.isArray(lead.xDmMessages) && lead.xDmMessages.length
+    ? lead.xDmMessages
+    : (Array.isArray(intake.xDmMessages) ? intake.xDmMessages : []);
+  merged.xMessageCount = lead.xMessageCount || intake.xMessageCount;
+  merged.xContactInfo = lead.xContactInfo || intake.xContactInfo;
+  merged.xLeadScore = lead.xLeadScore || intake.xLeadScore;
+    merged.email = V3LeadExternalEmail(lead) || V3LeadExternalEmail(intake) || '';
+  merged.xOpenDm = lead.xOpenDm || intake.xOpenDm;
+  if (!merged.deliverables || merged.deliverables === 'X' || merged.deliverables === 'Manual') {
+    merged.deliverables = intake.deliverables || merged.deliverables;
+  }
+  const threadHasBody = Array.isArray(merged.thread) && merged.thread.some(msg => String(msg?.body || '').trim());
+  if (!threadHasBody) merged.thread = intake.thread;
+  return V3ApplyXReplyState(merged);
+}
+
+function V3MergeXIntakeIntoLeads(leads, xRows) {
+  const intakeByDm = new Map();
+  for (const row of Array.isArray(xRows) ? xRows : []) {
+    if (V3IntakeRowIsBlocked(row)) continue;
+    const key = V3NormalizeOpenDmUrl(row.openDm);
+    if (key) intakeByDm.set(key, row);
+  }
+  return (Array.isArray(leads) ? leads : []).map(lead => {
+    if (!V3IsXLeadRecord(lead)) return lead;
+    const key = V3NormalizeOpenDmUrl(lead.xOpenDm);
+    const intake = key ? intakeByDm.get(key) : null;
+    if (intake && V3IntakeRowIsBlocked(intake)) return lead;
+    if (intake) return V3EnrichLeadFromXIntakeRow(lead, intake);
+    return V3ApplyXContextFields(lead);
+  });
 }
 
 function V3ExtractRobertPositionFromSummary(summary) {
@@ -1070,36 +1251,488 @@ function V3ApplyXReplyState(lead) {
   return next;
 }
 
+function V4XLeadPitchText(lead) {
+  return [
+    lead?.evidence,
+    lead?.xLastLeadMessage,
+    lead?.notes,
+    lead?.rawDescription,
+    lead?.summaryForTeam,
+    lead?.deliverables,
+  ].filter(Boolean).join(' ');
+}
+
+function V4XLeadNameLooksLikePerson(value, contactName = '') {
+  const v = String(value || '').trim();
+  if (!v) return true;
+  const contact = String(contactName || '').trim().toLowerCase();
+  if (contact && v.toLowerCase() === contact) return true;
+  if (/^@[A-Za-z0-9_]{2,}$/.test(v)) return true;
+  if (/^[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2}$/.test(v)) return true;
+  return false;
+}
+
+function V4XLeadPitchRef(lead) {
+  const contact = String(lead?.contactName || '').trim();
+  const brand = String(lead?.brand || '').trim();
+  const text = V4XLeadPitchText(lead);
+
+  if (/chinese robotics company/i.test(text) && /shenzhen|factory visit/i.test(text)) {
+    return 'the Shenzhen factory visit sponsorship';
+  }
+  const factory = text.match(/visit their ([^.!?\n]{3,48}?)(?:\s+factory|factory)/i);
+  if (factory) return `the ${factory[1].trim()} factory visit`;
+
+  const sponsorPitch = text.match(/a ([^.!?\n]{8,90}?) wants to sponsor/i);
+  if (sponsorPitch) {
+    const raw = sponsorPitch[1].trim();
+    if (!V4XLeadNameLooksLikePerson(raw, contact) && !/^(chinese|robotics|tech|ai)\b/i.test(raw)) return raw;
+  }
+
+  const behalf = text.match(/on behalf of ([^.!?\n,]{2,60})/i);
+  if (behalf) return behalf[1].trim();
+
+  const fromCo = text.match(/(?:I am|I'm|I’m|This is)\s+[^.!?\n]{0,40}\s+from\s+([A-Z][A-Za-z0-9&.\s]{2,40})/i);
+  if (fromCo) return fromCo[1].trim();
+
+  const campaign = text.match(/campaign:?\s*([A-Za-z0-9.&\s]{2,40})/i);
+  if (campaign) return campaign[1].trim();
+
+  const reaching = text.match(/reaching out (?:from|on behalf of)\s+([^.!?\n,]{2,60})/i);
+  if (reaching) return reaching[1].trim();
+
+  const teamAt = text.match(/from the team at ([^.!?\n@]{2,50})/i);
+  if (teamAt) return teamAt[1].trim();
+
+  const reachTeam = text.match(/reaching out(?:\s+to you)?\s+from (?:the team at )?([A-Z][^.!?\n@]{2,50})/i);
+  if (reachTeam) return reachTeam[1].trim();
+
+  if (brand && !V4XLeadNameLooksLikePerson(brand, contact)) return brand;
+
+  if (/sponsor/i.test(text)) return 'the sponsorship opportunity';
+  if (/collab/i.test(text)) return 'the collaboration opportunity';
+  return '';
+}
+
+function V4LeadIsTravelLead(lead) {
+  if (!lead) return false;
+  if (lead.travelOpportunity || lead.category === 'travel') return true;
+  const text = V4XLeadPitchText(lead).toLowerCase();
+  if (!text.trim()) return false;
+  const signals = [
+    /factory visit/,
+    /visit their/,
+    /cover(?:ing)? all expenses/,
+    /(?:pay|paid) extra compensation/,
+    /long way to travel/,
+    /sponsor(?:ing)? (?:you |robert )?to visit/,
+    /(?:invite|inviting) (?:you |robert )?to (?:visit |our |the )/,
+    /on[- ]site (?:visit|event)/,
+    /(?:fly|flying) (?:you |robert )?to/,
+    /travel to\b/,
+    /all[- ]expenses[- ]paid/,
+    /visit (?:the |their )?(?:factory|office|hq|headquarters|lab)/,
+    /(?:keynote|speaking) (?:at|in) .{0,48}(?:summit|conference|expo)/,
+  ];
+  if (signals.some(rx => rx.test(text))) return true;
+  const cities = /shenzhen|tokyo|singapore|london|paris|berlin|taipei|seoul|beijing|shanghai|hong kong|barcelona|munich|las vegas/;
+  return cities.test(text) && /visit|travel|fly|factory|summit|conference/.test(text);
+}
+
+function V4LeadTravelLabel(lead) {
+  const ref = V4XLeadPitchRef(lead);
+  if (ref) return ref.replace(/^the /i, '').replace(/^a /i, '');
+  const text = V4XLeadPitchText(lead);
+  const city = text.match(/(?:visit|travel to|fly to)\s+(?:their\s+)?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/);
+  if (city) return `${city[1]} visit`;
+  return 'Travel opportunity';
+}
+
+function V3ApplyTravelLeadMeta(lead) {
+  if (!lead || !V4LeadIsTravelLead(lead)) return lead;
+  const travelLabel = V4LeadTravelLabel(lead);
+  const deliverables = String(lead.deliverables || '').trim();
+  return {
+    ...lead,
+    category: 'travel',
+    travelOpportunity: true,
+    travelLabel,
+    deliverables: deliverables && deliverables !== 'X DM lead'
+      ? `Travel · ${deliverables}`
+      : `Travel · ${travelLabel}`,
+  };
+}
+
+function V4XNormalizeDmSender(value) {
+  const sender = String(value || '').trim().toLowerCase();
+  if (!sender) return '';
+  if (sender === 'robert' || sender.includes('robert') || sender.includes('scoble')) return 'robert';
+  return 'lead';
+}
+
+function V4XParseDmMessagesFromLead(lead) {
+  const ctx = V3ParseXDescriptionContext(lead?.rawDescription);
+  const raw = lead?.xDmMessages || ctx.dmMessages || [];
+  if (!Array.isArray(raw) || !raw.length) return [];
+  return raw.map(msg => ({
+    sender: V4XNormalizeDmSender(msg?.sender || msg?.from),
+    text: V4XIntakeCleanDm(msg?.text || msg?.body || ''),
+  })).filter(msg => msg.text);
+}
+
+function V4XThreadMessagesFromLead(lead) {
+  const parsed = V4XParseDmMessagesFromLead(lead);
+  if (parsed.length) return parsed;
+
+  const fromThread = (Array.isArray(lead?.thread) ? lead.thread : [])
+    .map(msg => ({
+      sender: V4XNormalizeDmSender(msg?.from),
+      text: V4XIntakeCleanDm(msg?.body || ''),
+    }))
+    .filter(msg => msg.text);
+  if (fromThread.length > 1) return fromThread;
+
+  const ctx = V3ParseXDescriptionContext(lead?.rawDescription);
+  const inbound = V4XIntakeCleanDm(lead?.evidence || lead?.xLastLeadMessage || ctx.lastMessage || '');
+  const robert = V4XIntakeCleanDm(
+    lead?.xLastRobertMessage
+    || ctx.lastRobertMessage
+    || V3ExtractRobertPositionFromSummary(lead?.notes || lead?.rawDescription || '')
+    || ''
+  );
+  const lastSender = V4XNormalizeDmSender(lead?.xLastSender || V3InferXReplyState(lead).xLastSender);
+  const fallback = [];
+  if (lastSender === 'robert') {
+    if (inbound) fallback.push({ sender: 'lead', text: inbound });
+    if (robert) fallback.push({ sender: 'robert', text: robert });
+  } else {
+    if (robert) fallback.push({ sender: 'robert', text: robert });
+    if (inbound) fallback.push({ sender: 'lead', text: inbound });
+  }
+  if (!fallback.length && inbound) fallback.push({ sender: 'lead', text: inbound });
+  return fallback;
+}
+
+function V4XLatestMessageBySender(lead, sender) {
+  const want = sender === 'robert' ? 'robert' : 'lead';
+  const messages = V4XThreadMessagesFromLead(lead);
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    if (messages[i].sender === want) return messages[i].text;
+  }
+  return '';
+}
+
+function V4XFindLeadMessageMatching(lead, pattern) {
+  const messages = V4XThreadMessagesFromLead(lead);
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const msg = messages[i];
+    if (msg.sender !== 'lead') continue;
+    if (pattern.test(msg.text)) return msg.text;
+  }
+  return '';
+}
+
+function V4XFindLeadSchedulingAck(lead) {
+  return V4XFindLeadMessageMatching(
+    lead,
+    /when things ease|drop me a (?:quick )?message|lock in a quick call|timing(?:'s| is) right|no worries at all|looking forward to chatting when/i
+  );
+}
+
+function V4XConversationThreadBlob(lead) {
+  return V4XThreadMessagesFromLead(lead).map(msg => msg.text).join(' ');
+}
+
+function V4XLatestInboundText(lead) {
+  const schedulingAck = V4XFindLeadSchedulingAck(lead);
+  if (schedulingAck) return schedulingAck;
+  const fromThread = V4XLatestMessageBySender(lead, 'lead');
+  if (fromThread) return fromThread;
+  const ctx = V3ParseXDescriptionContext(lead?.rawDescription);
+  return V4XIntakeCleanDm(lead?.evidence || lead?.xLastLeadMessage || ctx.lastMessage || '');
+}
+
+function V4XLatestRobertText(lead) {
+  const fromThread = V4XLatestMessageBySender(lead, 'robert');
+  if (fromThread) return fromThread;
+  const ctx = V3ParseXDescriptionContext(lead?.rawDescription);
+  return V4XIntakeCleanDm(
+    lead?.xLastRobertMessage
+    || ctx.lastRobertMessage
+    || V3ExtractRobertPositionFromSummary(lead?.notes || lead?.rawDescription || '')
+    || ''
+  );
+}
+
+function V4XConversationSnapshot(lead) {
+  const inbound = V4XLatestInboundText(lead);
+  const robert = V4XLatestRobertText(lead);
+  const state = V3InferXReplyState(lead);
+  const messages = V4XThreadMessagesFromLead(lead);
+  const latestSender = messages.length
+    ? messages[messages.length - 1].sender
+    : V4XNormalizeDmSender(lead?.xLastSender || state.xLastSender);
+  const schedulingAck = V4XFindLeadSchedulingAck(lead);
+  const lastSender = latestSender || String(lead?.xLastSender || state.xLastSender || '').trim().toLowerCase();
+  const leadSpokeLast = lastSender === 'lead'
+    || Boolean(schedulingAck && /when things ease|drop me a (?:quick )?message|lock in a quick call/i.test(schedulingAck))
+    || (lastSender !== 'robert' && Boolean(inbound) && !robert);
+  return { inbound, robert, leadSpokeLast, lastSender, schedulingAck };
+}
+
+function V4XLeadAskKindFromText(text) {
+  const blob = String(text || '').toLowerCase();
+  if (/factory|shenzhen|visit their|fly (?:you|robert)|all expenses|travel to|on[- ]site/i.test(text)) return 'travel';
+  if (/best email|email to reach|what(?:'s| is) your email|reach you (?:at|via) email/i.test(text)) return 'email_request';
+  if (/rates|pricing|budget|\$\d|how much|your fee|standard rate/i.test(text)) return 'rates';
+  if (/paid|sponsor|brand deal|ambassador|collab/i.test(text)) return 'paid_collab';
+  if (/demo|product|launch|platform|\btool\b|trial|saas/i.test(blob)) return 'product';
+  return 'general';
+}
+
+function V4XLeadInboundText(lead) {
+  return V4XLatestInboundText(lead) || V4XIntakeCleanDm(V4XLeadPitchText(lead));
+}
+
+function V4XLeadAskKind(lead) {
+  return V4XLeadAskKindFromText(V4XLatestInboundText(lead) || V4XLeadInboundText(lead));
+}
+
+function V4XConversationMode(lead) {
+  const { inbound, robert, schedulingAck } = V4XConversationSnapshot(lead);
+  const blob = `${V4XConversationThreadBlob(lead)} ${inbound} ${robert}`.toLowerCase();
+  const robertBusy = /booked|san jose|calendar|three weeks|busy|slammed|so booked/i.test(`${robert} ${blob}`);
+  const schedulingSignals = /meet up|meetup|quick call|lock in|where you(?:'re| are) located|suggest a few.*times|discuss this further/i.test(blob);
+
+  if (
+    schedulingAck
+    || (
+      /when things ease|drop me a (?:quick )?message|lock in a quick call|timing(?:'s| is) right|looking forward to chatting when/i.test(inbound)
+      && robertBusy
+    )
+  ) return 'scheduling_ack';
+
+  if (schedulingSignals || robertBusy) {
+    return 'scheduling';
+  }
+
+  if (/sounds cool|will have to try|glad you think so/i.test(blob) && !/sponsor|paid collab|budget|70%|500k/i.test(inbound)) {
+    return 'casual';
+  }
+
+  if (V4XLeadAskKindFromText(inbound) === 'travel') return 'travel';
+  return 'sponsorship_handoff';
+}
+
+function V4XThreadHasCommercialSignals(lead) {
+  const blob = `${V4XConversationThreadBlob(lead)} ${V4XLeadPitchText(lead)}`.toLowerCase();
+  return /sponsor|sponsorship|paid collab|brand deal|collaborat|partnership|\bplatform\b|\bproduct\b|\bdemo\b|\blaunch\b|your rate|\brates\b|\bpricing\b|\bbudget\b|deliverable|70%|500k|subscribers pay|ambassador|\bcampaign\b|post or demo|creative partnership/.test(blob);
+}
+
+function V4XShouldEmailHandoff(lead) {
+  const mode = V4XConversationMode(lead);
+  const commercial = V4XThreadHasCommercialSignals(lead);
+  if (mode === 'scheduling' || mode === 'scheduling_ack') return commercial;
+  if (mode === 'casual') return commercial;
+  return true;
+}
+
+function V4XRobertWarmReply(text) {
+  const line = V4XIntakeCleanDm(text).split(/[.!?\n]/)[0].trim();
+  return /^(awesome|great|yes|sounds good|love it|interested|perfect|amazing|wow|cool|nice|ok|okay|sure|let's|lets)\b/i.test(line);
+}
+
+function V4XHookIsUsable(hook, contact = '') {
+  const h = String(hook || '').trim();
+  if (!h || h.length < 4) return false;
+  if (/^(us|you|me|them|our|your)\b/i.test(h)) return false;
+  if (/^(a|an|the)\s+(remote|convenient|regular|paid)\b/i.test(h)) return false;
+  if (/^(us|you|them|our|your) on\b/i.test(h)) return false;
+  if (/\b(work schedule|regular pay|remote basis)\b/i.test(h)) return false;
+  if (V4XLeadNameLooksLikePerson(h.replace(/^the /i, ''), contact) && h.length < 24) return false;
+  return true;
+}
+
+function V4XLeadConversationHook(lead) {
+  const msg = V4XLatestInboundText(lead) || V4XLeadInboundText(lead);
+  const contact = String(lead?.contactName || '').trim();
+  if (!msg) return '';
+
+  const patterns = [
+    { re: /chinese robotics company[^.!?]*/i, pick: () => 'the Shenzhen factory visit' },
+    { re: /visit their ([^.!?]{3,48})/i, pick: (m) => `the ${m[1].trim()} visit` },
+    { re: /sponsor(?:ed)? (?:you )?to visit[^.!?]*/i, pick: () => 'the sponsored visit' },
+    { re: /(?:paid|sponsored) (?:post|collab|partnership|video)[^.!?]*/i, pick: () => 'the paid collaboration' },
+    { re: /from the team at ([^.!?\n@]{2,50})/i, pick: (m) => m[1].trim() },
+    { re: /reaching out(?:\s+to you)?\s+from (?:the team at )?([A-Z][^.!?\n@]{2,50})/i, pick: (m) => m[1].trim() },
+    { re: /on behalf of ([^.!?,]{2,55})/i, pick: (m) => m[1].trim() },
+    { re: /(?:from|at)\s+([A-Z][A-Za-z0-9&.\s-]{2,35})(?:\s+regarding|\s+about|,|\.|\s+and)/i, pick: (m) => m[1].trim() },
+    { re: /collaborat(?:e|ion) (?:on|for|around)\s+([^.!?]{4,55})/i, pick: (m) => m[1].trim() },
+    { re: /(?:launch(?:ing)?|releasing)\s+([^.!?]{4,45})/i, pick: (m) => `the ${m[1].trim()} launch` },
+    { re: /campaign (?:for|around)\s+([^.!?]{4,45})/i, pick: (m) => `the ${m[1].trim()} campaign` },
+  ];
+
+  for (const { re, pick } of patterns) {
+    const match = msg.match(re);
+    if (!match) continue;
+    const hook = String(pick(match) || '').trim();
+    if (hook && V4XHookIsUsable(hook, contact)) return hook;
+  }
+
+  const ref = V4XLeadPitchRef(lead);
+  if (ref && V4XHookIsUsable(ref, contact)) return ref;
+  return '';
+}
+
+function V4XLeadMessageBite(lead) {
+  const msg = V4XLeadInboundText(lead);
+  if (!msg) return '';
+  let text = msg
+    .replace(/^(?:hi|hey|hello|dear|yo)\s+(?:robert|scoble|there)[!,.\s]*/i, '')
+    .replace(/^robert\s+scoble\s*[,，]\s*/i, '')
+    .trim();
+  const sentence = (text.split(/(?<=[.!?])\s+/).find(s => s.trim().length >= 24) || text).trim();
+  if (sentence.length < 24) return '';
+  const bite = sentence.length > 96 ? `${sentence.slice(0, 93).trim()}…` : sentence;
+  return bite.charAt(0).toLowerCase() + bite.slice(1);
+}
+
+function V4XHandoffLine(lead) {
+  const ask = V4XLeadAskKind(lead);
+  if (ask === 'travel') {
+    return 'Email Scobleizer@gmail.com and CC AsherUnaligned@gmail.com with dates, coverage, and budget — Asher handles trip terms at UNALIGNED.';
+  }
+  if (ask === 'email_request' || ask === 'rates') {
+    return 'Scobleizer@gmail.com with AsherUnaligned@gmail.com CC is best — Asher runs client business at UNALIGNED.';
+  }
+  if (ask === 'product') {
+    return 'Happy to review properly over email: Scobleizer@gmail.com with AsherUnaligned@gmail.com CC. Asher handles client business at UNALIGNED.';
+  }
+  return 'For sponsorship details, email Scobleizer@gmail.com and CC AsherUnaligned@gmail.com — Asher handles client business at UNALIGNED.';
+}
+
+function V4XHandoffClose(lead) {
+  const ask = V4XLeadAskKind(lead);
+  if (ask === 'travel') return 'Send timing, location, and what you need from Robert when you can.';
+  if (ask === 'rates') return 'Send scope, deliverables, and budget when you can.';
+  if (ask === 'product') return 'Send a quick overview and what kind of post or demo you had in mind.';
+  return 'Send scope, timing, and budget when you can.';
+}
+
+function V4XLeadDmOpener(lead, opts = {}) {
+  const snap = V4XConversationSnapshot(lead);
+  const mode = opts.mode || V4XConversationMode(lead);
+  const { inbound, robert, leadSpokeLast } = snap;
+
+  if (mode === 'scheduling_ack' && leadSpokeLast) {
+    return 'Sounds good. I\'ll message you here when my calendar opens up and we can lock in that call.';
+  }
+  if (mode === 'scheduling_ack') {
+    return 'Perfect. Ping me when you\'re ready and we\'ll find a time.';
+  }
+  if (mode === 'scheduling') {
+    if (/booked|three weeks|slammed|so booked/i.test(robert) && /san jose/i.test(robert)) {
+      return 'Will do. I\'ll message you here when my calendar opens up and we can lock in that call.';
+    }
+    if (/where you(?:'re| are) located/i.test(inbound) && /san jose/i.test(robert)) {
+      return 'Still in South San Jose. Slammed the next few weeks, but happy to find time after that.';
+    }
+    if (leadSpokeLast && /meet up|quick call|discuss this further/i.test(inbound)) {
+      return 'A call could work. I\'m booked solid for a few weeks, then let\'s line something up.';
+    }
+    if (/when things ease|drop me a message/i.test(inbound)) {
+      return 'Will do. I\'ll reach out here when things calm down.';
+    }
+  }
+  if (mode === 'casual') {
+    if (/when things ease|drop me a message/i.test(inbound)) {
+      return 'Will do. I\'ll message you here when things calm down a bit.';
+    }
+    return 'Appreciate you keeping this going.';
+  }
+
+  const hook = V4XLeadConversationHook(lead);
+  const ask = V4XLeadAskKind(lead);
+  const lastRobert = robert;
+  const replied = !!opts.replied || V3XLeadRepliedViaX(lead);
+  const robertWarm = V4XRobertWarmReply(lastRobert);
+
+  if (replied && robertWarm) {
+    if (ask === 'travel' && hook) return `Still interested in ${hook} — let's line up details on email.`;
+    if (ask === 'email_request') return 'Yes — email is the easiest way to line this up.';
+    if (hook) return `Following up on ${hook} — email is the best next step on our side.`;
+    return 'Following up here — email is the best next step on our side.';
+  }
+
+  if (replied && lastRobert) {
+    return hook ? `Thanks for keeping this going — re ${hook}.` : 'Thanks for following up on X.';
+  }
+
+  if (ask === 'travel' && hook) return `Thanks for reaching out — ${hook} sounds interesting.`;
+  if (ask === 'paid_collab' && hook) return `Thanks for reaching out about ${hook}.`;
+  if (ask === 'product' && hook) return `Thanks for sharing ${hook} — happy to take a closer look.`;
+  if (ask === 'rates' && hook) return `Thanks for the note on ${hook}.`;
+  if (ask === 'email_request') return hook
+    ? `Thanks for reaching out about ${hook} — yes, email works best.`
+    : 'Thanks for the DM — yes, email works best on our side.';
+  if (hook) return `Thanks for reaching out about ${hook}.`;
+
+  const bite = V4XLeadMessageBite(lead);
+  if (bite && !/^(us|you|them|our|your) on\b/i.test(bite) && !/\b(remote basis|regular pay|work schedule)\b/i.test(bite)) {
+    return `Thanks for the DM — ${bite}`;
+  }
+
+  return 'Thanks for reaching out on X.';
+}
+
 function V3BuildXThreadFromLead(lead) {
   if (!lead) return [];
+  const dmMessages = V4XThreadMessagesFromLead(lead);
+  if (dmMessages.length > 1) {
+    const received = V3NormalizeDateForUi(lead.receivedAt || lead.lastTouchAt);
+    return dmMessages.map((msg, index) => ({
+      from: msg.sender === 'robert' ? 'Robert Scoble' : (lead.xHandle || lead.contactName || 'Lead'),
+      when: V3RelativeTime(index === dmMessages.length - 1 ? (lead.lastTouchAt || received) : received),
+      date: V3NormalizeDateForUi(index === dmMessages.length - 1 ? (lead.lastTouchAt || received) : received),
+      subject: msg.sender === 'robert' ? 'Reply via X' : (lead.deliverables || 'X DM lead'),
+      body: msg.text,
+      to: [],
+      cc: [],
+      replyTo: [],
+    }));
+  }
   const received = V3NormalizeDateForUi(lead.receivedAt || lead.lastTouchAt);
   const leadBody = String(lead.evidence || lead.xLastLeadMessage || '').trim();
   const summary = String(lead.notes || lead.rawDescription || '').trim();
   const robertBody = String(lead.xLastRobertMessage || V3ExtractRobertPositionFromSummary(summary) || '').trim();
+  const robertLast = V4XNormalizeDmSender(lead?.xLastSender || V3InferXReplyState(lead).xLastSender) === 'robert';
   const thread = [];
-  if (leadBody || summary) {
-    thread.push({
-      from: lead.xHandle || lead.contactName || 'Lead',
-      when: V3RelativeTime(received),
-      date: received || null,
-      subject: lead.deliverables || 'X DM lead',
-      body: leadBody || summary,
-      to: [],
-      cc: [],
-      replyTo: [],
-    });
-  }
-  if (robertBody) {
-    thread.push({
-      from: 'Robert Scoble',
-      when: V3RelativeTime(lead.xReplyMarkedAt || lead.lastTouchAt || received),
-      date: V3NormalizeDateForUi(lead.xReplyMarkedAt || lead.lastTouchAt || received),
-      subject: 'Reply via X',
-      body: robertBody,
-      to: [],
-      cc: [],
-      replyTo: [],
-    });
+  const leadMsg = {
+    from: lead.xHandle || lead.contactName || 'Lead',
+    when: V3RelativeTime(received),
+    date: received || null,
+    subject: lead.deliverables || 'X DM lead',
+    body: leadBody || summary,
+    to: [],
+    cc: [],
+    replyTo: [],
+  };
+  const robertMsg = {
+    from: 'Robert Scoble',
+    when: V3RelativeTime(lead.xReplyMarkedAt || lead.lastTouchAt || received),
+    date: V3NormalizeDateForUi(lead.xReplyMarkedAt || lead.lastTouchAt || received),
+    subject: 'Reply via X',
+    body: robertBody,
+    to: [],
+    cc: [],
+    replyTo: [],
+  };
+  if (robertLast) {
+    if (leadBody || summary) thread.push(leadMsg);
+    if (robertBody) thread.push(robertMsg);
+  } else {
+    if (robertBody) thread.push(robertMsg);
+    if (leadBody || summary) thread.push(leadMsg);
   }
   return thread;
 }
@@ -1292,8 +1925,8 @@ function V3NormalizeSupabaseLead(row) {
     rowId: row.id,
     source: leadSource,
     rawDescription: row.description || '',
-    notes: briefPayload.rich_description || briefPayload.notes || row.notes || '',
-    evidence: briefPayload.evidence || '',
+    notes: xContext.xSummary || briefPayload.rich_description || briefPayload.notes || row.notes || '',
+    evidence: xContext.lastMessage || briefPayload.evidence || '',
     suggestedStage: briefPayload.suggested_stage || row.suggested_stage || '',
     isRobertBrief,
     briefTitle: briefPayload.title || row.brief_title || row.briefTitle || '',
@@ -1337,8 +1970,11 @@ function V3NormalizeSupabaseLead(row) {
     xLastLeadMessage: xContext.lastMessage || '',
     xReplyMarkedAt: xContext.xReplyMarkedAt || '',
     xRepliedViaX: xContext.repliedViaX || false,
+    xBestNextStep: xContext.bestNextStep || '',
+    xLeadScore: xContext.leadScore != null ? Number(xContext.leadScore) : null,
   };
-  return isXCard ? V3ApplyXReplyState(normalized) : normalized;
+  const withTravel = V3ApplyTravelLeadMeta(normalized);
+  return isXCard ? V3ApplyXReplyState(withTravel) : withTravel;
 }
 
 function V3ParseDraftReply(value) {
@@ -1476,6 +2112,96 @@ const V3_BLOCKED_CONTACTS = new Set(['boardy@boardy.ai']);
 const V3_BLOCKED_DOMAINS = new Set(['boardy.ai']);
 const V3_BLOCKED_X_HANDLES = new Set(['boardy', 'boardyai', 'boardy_ai']);
 const V3_BLOCKED_IDENTITY_RE = /(^boardy\b|\bboardy\s*ai\b|\bboardy\s*boardman\b)/i;
+const V3_X_NOISE_RE = /huge fan|thanks for following|good morning|good night|how are you|any rts|retweet|impressions would be great|quote tweet while tagging|sent a post|reacted |calendar invite|linkedin|podcast guest only|just saying hi|love your work|big fan/i;
+const V3_X_PARTNERSHIP_RE = /collab|collaboration|sponsor|sponsorship|partnership|\bpartner\b|campaign|paid post|paid collab|budget|rates|pricing|brand deal|ambassador|affiliate|quote|repost|promote|promotion package/i;
+const V3_X_PRODUCT_RE = /product|platform|startup|\bdemo\b|launch|\btool\b|\bagent\b|\brobot\b|framework|software|\bapp\b|saas|\bapi\b|\bbeta\b|\btrial\b|\bpilot\b|integrat|use case|customer/i;
+const V3_X_SPAM_RE = /trading signal|profit potential|limited elite invitation|last chance:\s*\[|exclusive pass|confidential trading|elite trades daily|strategic trades daily|exact entry and exit|us\/eu traders|secure your elite status|bet[- ]channel|insider advantage|hidden trading|unlock (?:hidden|confidential) trading|only 150 spots|first 150 (?:us|spots|traders)|crypto signal|forex signal|binary option|whatsapp|contact me via whatsapp|portfolio goals|risk tolerance|one[- ]on[- ]one guidance|find stocks|traders are chasing|market is constantly changing|financial guidance|investment guidance|trading strategy|crypto trading|forex trading|onlyfans|only fans|fansly|fanvue|manyvids|chaturbate|custom vid(?:eo)?|filthiest fantasy|talk dirty|subscribe to my|preview link|nsfw|cam ?girl|adult content|explicit content|blowjob|throbbing cock|thick cum|学生妹|约炮|上门|母狗|claim your prize|maga team|maga sponsorship|your account was selected|selected to participate|randomly selected|brand new tesla car|send a dm now|tesla\/\s*maga|prize of \$\d|won a prize|you(?:'ve| have) won|lottery winner|giveaway winner|remote basis with regular pay|convenient work schedule|complete a short form|funding of \$50k|funding of \$100k|sonance:\s*calls|room:\s*wintrack|install the app from the app store|remote job opportunity|daily remuneration|remuneration:\s*\$|tiktok cross[- ]border|cross[- ]border e[- ]commerce merchants|positive review rates|enhancing the reputation and positive review|advertisement is sent by x ai|remote work available via mobile|official amazon brand|exclusive community of reviewers|brand product experience officers|free product trials and meet|click the link to join the group/i;
+
+function V3XLeadDmBodyText(row) {
+  const lastMessage = String(
+    row?.lastLeadMessage
+    || row?.evidence
+    || row?.xLastLeadMessage
+    || ''
+  ).trim();
+  if (lastMessage) return lastMessage;
+  return String(row?.summaryForTeam || row?.rawDescription || row?.notes || '').trim();
+}
+
+function V3XLeadHasCommercialSignals(text) {
+  const body = String(text || '').toLowerCase();
+  if (!body) return false;
+  return V3PartnershipRe().test(body) || V3ProductRe().test(body);
+}
+
+function V3XLeadIsNoiseOnly(text) {
+  const body = String(text || '').toLowerCase();
+  if (!body) return false;
+  return V3NoiseRe().test(body) && !V3XLeadHasCommercialSignals(body);
+}
+
+function V3IsXSpamText(...parts) {
+  const blob = parts.map(p => String(p || '')).join(' ').toLowerCase();
+  if (!blob.trim()) return false;
+  return V3SpamRe().test(blob);
+}
+
+function V3LeadAsXIntakeRow(lead) {
+  if (!lead) return null;
+  return {
+    lastLeadMessage: lead.evidence || lead.xLastLeadMessage || '',
+    summaryForTeam: lead.notes || lead.rawDescription || '',
+    xName: lead.contactName || lead.brand || '',
+    xUsername: lead.xHandle || '',
+    openDm: lead.xOpenDm || '',
+    xHandle: lead.xHandle || '',
+    contactName: lead.contactName || '',
+    brand: lead.brand || '',
+  };
+}
+
+function V4LeadLooksLikeSpam(lead) {
+  if (!lead || ['trash', 'dead-leads', 'paid-out', 'done'].includes(String(lead.stage || '').toLowerCase())) return false;
+  if (V3IsBlockedLead(lead)) return true;
+  if (!V3IsXLeadRecord(lead)) return false;
+  const row = V3LeadAsXIntakeRow(lead);
+  if (V3IsXSpamRow(row)) return true;
+  const body = V3XLeadDmBodyText(row);
+  if (!body) return false;
+  if (V3XLeadIsNoiseOnly(body)) return true;
+  if (V3IsNewLeadReview(lead) && !V3XLeadHasCommercialSignals(body)) return true;
+  return false;
+}
+
+async function V4PurgeSpamQueue(leads = window.V3?.LEADS || []) {
+  const targets = (Array.isArray(leads) ? leads : []).filter(V4LeadLooksLikeSpam);
+  for (const lead of targets) {
+    window.V3.MoveLeadStage(lead, 'trash');
+  }
+  let server = null;
+  if (typeof V4BriefServiceFetch === 'function') {
+    try {
+      const res = await V4BriefServiceFetch('/run-x-spam-cleanup', { method: 'POST', body: JSON.stringify({}) });
+      server = await res.json().catch(() => ({}));
+    } catch (err) {
+      console.warn('[ALIGNED v4] run-x-spam-cleanup failed:', err);
+    }
+  }
+  if (window.V3?.ReloadLeads) await window.V3.ReloadLeads({ cacheBust: Date.now() });
+  return { trashed: targets.length, server };
+}
+
+function V3IsXSpamRow(row) {
+  if (!row) return false;
+  const body = V3XLeadDmBodyText(row);
+  const blob = [body, row.summaryForTeam, row.xName, row.contactName, row.xHandle, row.brand].filter(Boolean).join(' ');
+  return V3IsXSpamText(blob);
+}
+
+function V3IntakeRowIsBlocked(row) {
+  if (!row) return true;
+  return !!(row.spamBlocked || row.qualifyBlocked || row.userTrashed);
+}
 
 function V3IsBlockedLead(lead) {
   if (!lead) return false;
@@ -1496,6 +2222,10 @@ function V3IsBlockedLead(lead) {
   ].filter(Boolean).join(' ');
   if (V3_BLOCKED_IDENTITY_RE.test(blob)) return true;
   if (/@boardy\.ai\b/i.test(blob) || /\bboardy@boardy\.ai\b/i.test(blob)) return true;
+  const dmBodies = Array.isArray(lead.xDmMessages)
+    ? lead.xDmMessages.map(msg => msg?.text || msg?.body || '').filter(Boolean)
+    : [];
+  if (V3IsXSpamText(blob, lead.notes, lead.evidence, lead.xLastLeadMessage, ...dmBodies)) return true;
   return false;
 }
 
@@ -1521,6 +2251,7 @@ function V3LeadIdentityKey(value) {
 
 function V3NormalizeXDmLeads(rows, existingLeads = []) {
   const list = Array.isArray(rows) ? rows : [];
+  const trashedSets = V3TrashedIntakeSets();
   const existingEmails = new Set(existingLeads.map(lead => String(lead?.email || '').trim().toLowerCase()).filter(Boolean));
   const existingDomains = new Set(
     existingLeads
@@ -1541,17 +2272,21 @@ function V3NormalizeXDmLeads(rows, existingLeads = []) {
     existingLeads.map(lead => V3NormalizeOpenDmUrl(lead?.xOpenDm)).filter(Boolean)
   );
   const qualifiedLeadType = (row) => {
+    if (V3IsXSpamRow(row)) return false;
     const type = String(row?.leadType || '').trim().toLowerCase();
-    const text = String((row?.summaryForTeam || '') + ' ' + (row?.lastLeadMessage || '')).toLowerCase();
-    const partnership = /collab|collaboration|sponsor|sponsorship|partnership|partner|campaign|paid|budget|rates|pricing|brand deal|ambassador/.test(text);
-    const product = /product|platform|startup|demo|launch|tool|agent|robot|framework|software|saas|beta|trial|pilot|integrat/.test(text);
-    if (type === 'paid / sponsorship' || type === 'product / demo') return true;
-    if (type === 'general outreach' || type === 'intro / network' || type === 'payment / admin') return partnership || product;
-    if (type === 'event / media') return partnership || product;
-    return partnership || product;
+    const body = V3XLeadDmBodyText(row);
+    if (!body) return false;
+    if (V3XLeadIsNoiseOnly(body)) return false;
+    const commercial = V3XLeadHasCommercialSignals(body);
+    if (type === 'paid / sponsorship' || type === 'product / demo') return commercial;
+    if (type === 'general outreach' || type === 'intro / network' || type === 'payment / admin') return commercial;
+    if (type === 'event / media') return commercial;
+    return commercial;
   };
   return list
-    .filter(row => row && row.newLead !== false)
+    .filter(row => row && row.newLead !== false && !row.spamBlocked && !row.qualifyBlocked && !row.userTrashed)
+    .filter(row => !V3IntakeRowIsUserTrashed(row, trashedSets))
+    .filter(row => !V3IsXSpamRow(row))
     .filter(row => qualifiedLeadType(row))
     .filter(row => !row.alreadyEmailedInRobertGmail)
     .filter(row => {
@@ -1589,15 +2324,22 @@ function V3NormalizeXDmLeads(rows, existingLeads = []) {
 
 function V3NormalizeXDmLeadRow(row) {
   const name = String(row.xName || 'Unknown X lead').trim();
+  const internal = V3XInternalEmailSet();
   const emails = String(row.contactEmails || '')
     .split(/[,\s|]+/)
     .map(item => item.trim().toLowerCase())
-    .filter(item => /@/.test(item));
+    .filter(item => /@/.test(item) && !internal.has(item));
   const email = emails[0] || '';
-  const brand = String(row.xName || '').replace(/^@/, '').trim() || V3DomainBrand(email) || 'X lead';
-  const received = V3NormalizeDateForUi(row.newestDmDate || '');
-  const summary = String(row.summaryForTeam || row.lastLeadMessage || '').trim();
   const latestLeadMessage = String(row.lastLeadMessage || '').trim();
+  const summary = String(row.summaryForTeam || row.lastLeadMessage || '').trim();
+  const brand = V4XLeadPitchRef({
+    contactName: name,
+    brand: String(row.xName || '').replace(/^@/, '').trim(),
+    evidence: latestLeadMessage,
+    notes: summary,
+    rawDescription: summary,
+  }) || String(row.xName || '').replace(/^@/, '').trim() || V3DomainBrand(email) || 'X lead';
+  const received = V3NormalizeDateForUi(row.newestDmDate || '');
   const dmLink = String(row.openDm || '').trim();
   const handle = String(row.xUsername || '').trim();
   const nextStep = String(row.bestNextStep || '').trim();
@@ -1692,8 +2434,9 @@ function V3NormalizeXDmLeadRow(row) {
     xRepliedViaX: repliedViaX,
     xEmailDraft: String(row.emailDraft || ''),
     xQuickNote: quickNote,
+    xDmMessages: Array.isArray(row.dmMessages) ? row.dmMessages : [],
   };
-  return V3ApplyXReplyState(base);
+  return V3ApplyXReplyState(V3ApplyTravelLeadMeta(base));
 }
 
 function V3TimestampForUi(value) {
@@ -1879,7 +2622,8 @@ function V3SenderSignature(sender) {
 }
 
 function V3EnsureSenderSignature(body, sender) {
-  const text = String(body || '').trim();
+  let text = String(body || '').trim();
+  text = text.replace(/(unaligned\.io\s*\|\s*x\.com\/unalignedx)\S*/gi, '$1');
   const signature = V3SenderSignature(sender);
   if (!signature) return text;
   const normText = V3NormalizeThreadText(text);
@@ -1977,10 +2721,35 @@ function V3AdaptDraftSubject(storedSubject, lead) {
   return stored;
 }
 
+function V3HasStoredReplyDraft(lead) {
+  return String(lead?.draftReply?.body || '').trim().length > 0;
+}
+
+function V3FinalizeApprovedDraftBody(body, lead, sender) {
+  const first = V3ExternalThreadFirstName(lead);
+  let text = V3StripExistingSignatures(String(body || '').trim());
+  text = V3FixDraftGreeting(text, first);
+  text = V3NoDashes(text);
+  const tone = V3ResolveReplyTone(lead);
+  if (tone === 'direct' && sender !== 'robert') {
+    text = text
+      .replace(/\bI'm looking forward to\b/gi, 'Happy to')
+      .replace(/\blooking forward to\b/gi, 'happy to');
+  }
+  if (sender === 'robert' && !/robert/i.test(text.slice(0, 120)) && tone === 'direct') {
+    text = text.replace(/\bThanks for confirming\b/gi, 'Thanks for the note');
+  }
+  return text.trim();
+}
+
 function V3AdaptDraftBodyForLead(body, lead, sender) {
   const first = V3ExternalThreadFirstName(lead);
   const brand = String(lead?.brand || '').toLowerCase();
   const raw = String(body || '').trim();
+  const hasStoredDraft = V3HasStoredReplyDraft(lead);
+  if (hasStoredDraft) {
+    return V3FinalizeApprovedDraftBody(raw, lead, sender);
+  }
   const greetingLine = raw.split('\n')[0]?.trim() || '';
   const greetingWrong = /^hi\s+/i.test(greetingLine)
     && !greetingLine.toLowerCase().includes(first.toLowerCase())
@@ -2062,11 +2831,18 @@ function V3FallbackDraftBody(lead, sender) {
   ].join('\n'));
 }
 
-function V3ComposeReplyDraft(lead, sender) {
+function V3ComposeReplyDraft(lead, sender, opts = {}) {
   const draft = lead?.draftReply && typeof lead.draftReply === 'object' ? lead.draftReply : null;
   const subject = V3AdaptDraftSubject(draft?.subject, lead);
-  const rawBody = draft?.body ? String(draft.body) : V3FallbackDraftBody(lead, sender);
-  const adapted = V3AdaptDraftBodyForLead(rawBody, lead, sender);
+  const storedBody = String(draft?.body || '').trim();
+  const approvedSend = !!opts.approvedSend;
+  if (approvedSend && !storedBody) {
+    throw new Error('No draft body to send. Open edit and write the reply first.');
+  }
+  const rawBody = storedBody || V3FallbackDraftBody(lead, sender);
+  const adapted = (storedBody || approvedSend)
+    ? V3FinalizeApprovedDraftBody(rawBody, lead, sender)
+    : V3AdaptDraftBodyForLead(rawBody, lead, sender);
   return {
     subject,
     body: V3EnsureSenderSignature(adapted, sender),
@@ -2083,6 +2859,28 @@ function V3SubjectForLead(lead) {
 function V3DefaultCc(sender) {
   return V3InternalEmails(sender)
     .join(',');
+}
+
+function V3XInternalEmailSet() {
+  return new Set([
+    'scobleizer@gmail.com',
+    'unalignedx@gmail.com',
+    'asherunaligned@gmail.com',
+    'samlevin@mac.com',
+    'asherweisberger@gmail.com',
+  ]);
+}
+
+function V3LeadExternalEmail(lead) {
+  const internal = V3XInternalEmailSet();
+  const candidates = [
+    lead?.email,
+    ...(String(lead?.xContactInfo || '').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi) || []),
+    ...String(lead?.contactEmails || lead?.xContactEmails || '').split(/[,\s|]+/),
+  ]
+    .map(item => String(item || '').trim().toLowerCase())
+    .filter(item => /@/.test(item));
+  return candidates.find(email => !internal.has(email)) || '';
 }
 
 function V3InternalEmails(excludeSender) {
@@ -2290,6 +3088,188 @@ function V3NormalizeOpenDmUrl(value) {
   const text = String(value || '').trim();
   if (!text) return '';
   return text.split('#')[0].replace(/\/+$/, '');
+}
+
+const V3_TRASHED_INTAKE_KEY = 'v3-trashed-x-intake';
+const V3_TRASHED_CARDS_KEY = 'v3-trashed-card-ids';
+
+function V3TrashedCardIdSet() {
+  try {
+    const raw = localStorage.getItem(V3_TRASHED_CARDS_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return new Set((Array.isArray(list) ? list : []).map(item => String(item)).filter(Boolean));
+  } catch (e) {
+    return new Set();
+  }
+}
+
+function V3RememberTrashedCard(lead) {
+  const id = V3SupabaseCardId(lead);
+  if (!id) return;
+  const next = [...new Set([...V3TrashedCardIdSet(), id])];
+  try { localStorage.setItem(V3_TRASHED_CARDS_KEY, JSON.stringify(next)); } catch (e) {}
+}
+
+function V3ForgetTrashedCard(lead) {
+  const id = V3SupabaseCardId(lead);
+  if (!id) return;
+  const next = [...V3TrashedCardIdSet()].filter(item => item !== id);
+  try { localStorage.setItem(V3_TRASHED_CARDS_KEY, JSON.stringify(next)); } catch (e) {}
+}
+
+function V3ApplyTrashedCardTombstones(leads) {
+  const tombstones = V3TrashedCardIdSet();
+  if (!tombstones.size) return leads;
+  return (Array.isArray(leads) ? leads : []).map(lead => {
+    const id = V3SupabaseCardId(lead);
+    if (!id || !tombstones.has(id)) return lead;
+    if (['trash', 'dead-leads'].includes(String(lead.stage || '').toLowerCase())) return lead;
+    return { ...lead, stage: 'trash' };
+  });
+}
+
+function V3PruneConfirmedTrashedTombstones(leads) {
+  const tombstones = V3TrashedCardIdSet();
+  if (!tombstones.size) return;
+  const confirmed = new Set(
+    (Array.isArray(leads) ? leads : [])
+      .filter(lead => ['trash', 'dead-leads'].includes(String(lead.stage || '').toLowerCase()))
+      .map(lead => V3SupabaseCardId(lead))
+      .filter(Boolean)
+  );
+  const next = [...tombstones].filter(id => !confirmed.has(id));
+  if (next.length === tombstones.size) return;
+  try { localStorage.setItem(V3_TRASHED_CARDS_KEY, JSON.stringify(next)); } catch (e) {}
+}
+
+function V3TrashedIntakeStore() {
+  try {
+    const raw = localStorage.getItem(V3_TRASHED_INTAKE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return {
+      openDms: Array.isArray(parsed.openDms) ? parsed.openDms : [],
+      handles: Array.isArray(parsed.handles) ? parsed.handles : [],
+      ranks: Array.isArray(parsed.ranks) ? parsed.ranks : [],
+    };
+  } catch (e) {
+    return { openDms: [], handles: [], ranks: [] };
+  }
+}
+
+function V3TrashedIntakeSets() {
+  const store = V3TrashedIntakeStore();
+  return {
+    openDms: new Set(store.openDms.map(V3NormalizeOpenDmUrl).filter(Boolean)),
+    handles: new Set(store.handles.map(item => String(item).replace(/^@/, '').trim().toLowerCase()).filter(Boolean)),
+    ranks: new Set(store.ranks.map(item => String(item).trim()).filter(Boolean)),
+  };
+}
+
+function V3IntakeRowDismissKeys(row) {
+  const keys = { openDms: [], handles: [], ranks: [] };
+  const openDm = V3NormalizeOpenDmUrl(row?.openDm || row?.xOpenDm);
+  if (openDm) keys.openDms.push(openDm);
+  const handle = String(row?.xUsername || row?.xHandle || '').replace(/^@/, '').trim().toLowerCase();
+  if (handle) keys.handles.push(handle);
+  const rank = String(row?.rank || '').trim();
+  if (rank) keys.ranks.push(rank);
+  return keys;
+}
+
+function V3LeadDismissKeys(lead) {
+  const keys = V3IntakeRowDismissKeys(lead);
+  const id = String(lead?.id || '');
+  if (id.startsWith('xdm-')) {
+    const tail = id.slice(4).trim();
+    if (tail) keys.ranks.push(tail);
+  }
+  return keys;
+}
+
+function V3PersistTrashedIntakeKeys(keys) {
+  const store = V3TrashedIntakeStore();
+  const mergeUnique = (base, extra) => [...new Set([...(base || []), ...(extra || [])].map(item => String(item).trim()).filter(Boolean))];
+  const next = {
+    openDms: mergeUnique(store.openDms, keys.openDms),
+    handles: mergeUnique(store.handles, keys.handles),
+    ranks: mergeUnique(store.ranks, keys.ranks),
+  };
+  try {
+    localStorage.setItem(V3_TRASHED_INTAKE_KEY, JSON.stringify(next));
+  } catch (e) {
+    console.warn('[ALIGNED v4] could not persist trashed intake keys:', e);
+  }
+}
+
+function V3ForgetTrashedIntakeKeys(keys) {
+  const store = V3TrashedIntakeStore();
+  const drop = (base, extra) => {
+    const remove = new Set((extra || []).map(item => String(item).trim()).filter(Boolean));
+    return (base || []).filter(item => !remove.has(String(item).trim()));
+  };
+  const next = {
+    openDms: drop(store.openDms, keys.openDms),
+    handles: drop(store.handles, keys.handles),
+    ranks: drop(store.ranks, keys.ranks),
+  };
+  try {
+    localStorage.setItem(V3_TRASHED_INTAKE_KEY, JSON.stringify(next));
+  } catch (e) {
+    console.warn('[ALIGNED v4] could not clear trashed intake keys:', e);
+  }
+}
+
+function V3DismissXIntakeForLead(lead) {
+  const keys = V3LeadDismissKeys(lead);
+  if (!keys.openDms.length && !keys.handles.length && !keys.ranks.length) return;
+  V3PersistTrashedIntakeKeys(keys);
+  if (typeof V4BriefServiceFetch !== 'function') return;
+  V4BriefServiceFetch('/dismiss-x-intake', {
+    method: 'POST',
+    body: JSON.stringify({
+      open_dm: keys.openDms[0] || '',
+      x_handle: keys.handles[0] || '',
+      rank: keys.ranks[0] || '',
+      contact_name: lead?.contactName || '',
+    }),
+  }).catch(err => console.warn('[ALIGNED v4] dismiss-x-intake failed:', err));
+}
+
+function V3RestoreXIntakeForLead(lead) {
+  const keys = V3LeadDismissKeys(lead);
+  if (!keys.openDms.length && !keys.handles.length && !keys.ranks.length) return;
+  V3ForgetTrashedIntakeKeys(keys);
+  if (typeof V4BriefServiceFetch !== 'function') return;
+  V4BriefServiceFetch('/restore-x-intake', {
+    method: 'POST',
+    body: JSON.stringify({
+      open_dm: keys.openDms[0] || '',
+      x_handle: keys.handles[0] || '',
+      rank: keys.ranks[0] || '',
+    }),
+  }).catch(err => console.warn('[ALIGNED v4] restore-x-intake failed:', err));
+}
+
+function V3SupabaseCardId(lead) {
+  const candidates = [lead?.rowId, lead?.id];
+  for (const raw of candidates) {
+    if (raw == null || raw === '') continue;
+    const text = String(raw).trim();
+    if (!/^\d+$/.test(text)) continue;
+    return text;
+  }
+  return null;
+}
+
+function V3IntakeRowIsUserTrashed(row, trashedSets) {
+  if (!row || row.userTrashed === true) return true;
+  const openDm = V3NormalizeOpenDmUrl(row.openDm);
+  if (openDm && trashedSets.openDms.has(openDm)) return true;
+  const handle = String(row.xUsername || '').replace(/^@/, '').trim().toLowerCase();
+  if (handle && trashedSets.handles.has(handle)) return true;
+  const rank = String(row.rank || '').trim();
+  if (rank && trashedSets.ranks.has(rank)) return true;
+  return false;
 }
 
 function V3FindExistingXCard(leads, openDm, intakeId) {
@@ -2571,9 +3551,10 @@ function V3MergePendingReplies(leads, pendingReplies) {
 async function V3SendLeadEmail({ lead, sender, to, cc, subject, body, attachPdf = false }) {
   let token = V3ApiToken();
   if (!token) token = await V3BootstrapApiToken();
-  if (!token) token = V3EnsureApiToken();
-  const headers = { 'Content-Type': 'application/json' };
-  if (token) headers.Authorization = 'Bearer ' + token;
+  if (!token) {
+    throw new Error('Send token could not load from your Mac. Hard refresh (Cmd+Shift+R), wait for Medic to clear "Loading send token…", then Approve & send again.');
+  }
+  const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token };
   const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail', {
     method: 'POST',
     headers,
@@ -3483,84 +4464,125 @@ async function V3LoadTeamUsers() {
   }
 }
 
+async function V3PatchSupabaseCardStage(cardId, listId, extraFields) {
+  const res = await fetch(V3_SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(cardId), {
+    method: 'PATCH',
+    headers: { ...V3_SUPABASE_HEADERS, Prefer: 'return=representation' },
+    body: JSON.stringify({ list_id: listId, ...(extraFields || {}) }),
+  });
+  if (!res.ok) throw new Error('Supabase stage patch failed (' + res.status + '): ' + (await res.text()));
+  const rows = await res.json().catch(() => []);
+  return Array.isArray(rows) && rows[0] ? rows[0] : { id: cardId, list_id: listId };
+}
+
+async function V3PersistLeadStageRemote(lead, normalizedStage) {
+  const openDm = V3NormalizeOpenDmUrl(lead?.xOpenDm);
+  const cardId = V3SupabaseCardId(lead);
+  if (typeof V4BriefServiceFetch === 'function') {
+    try {
+      const res = await V4BriefServiceFetch('/move-lead-stage', {
+        method: 'POST',
+        body: JSON.stringify({
+          card_id: cardId || '',
+          list_id: normalizedStage,
+          open_dm: openDm || '',
+          contact_name: lead?.contactName || '',
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok !== false) return data;
+    } catch (err) {
+      console.warn('[ALIGNED v4] move-lead-stage server failed, falling back:', err);
+    }
+  }
+  if (cardId) {
+    await V3PatchSupabaseCardStage(cardId, normalizedStage);
+    return { ok: true, card_id: cardId, source: 'supabase-direct' };
+  }
+  const existing = V3FindExistingXCard(window.V3?.LEADS || [], openDm, lead?.id);
+  const existingId = existing ? V3SupabaseCardId(existing) : null;
+  if (existingId) {
+    await V3PatchSupabaseCardStage(existingId, normalizedStage);
+    return { ok: true, card_id: existingId, source: 'supabase-existing' };
+  }
+  if (!openDm) throw new Error('No Supabase card id or X openDm to persist stage.');
+  const cardPayload = {
+    list_id: normalizedStage,
+    title: lead.contactName || lead.brand || 'X lead',
+    contact_name: lead.contactName || '',
+    business_name: lead.brand || lead.contactName || '',
+    lead_source: 'X',
+    x_open_dm: openDm,
+    email: lead.email || '',
+    intent: lead.deliverables || '',
+    description: JSON.stringify({
+      x_summary: lead.notes || '',
+      last_message: lead.evidence || lead.xLastLeadMessage || '',
+      last_robert_message: lead.xLastRobertMessage || V3ExtractRobertPositionFromSummary(lead.notes || '') || '',
+      last_sender: lead.xLastSender || (V3XLeadRepliedViaX(lead) ? 'Robert' : 'Lead'),
+      replied_via_x: V3XLeadRepliedViaX(lead),
+      x_current_status: lead.xCurrentStatus || '',
+      x_username: lead.xHandle || '',
+      open_dm: openDm,
+      x_reply_marked_at: lead.xReplyMarkedAt || '',
+    }),
+  };
+  const res = await fetch(V3_SUPABASE_URL + '/rest/v1/cards', {
+    method: 'POST',
+    headers: { ...V3_SUPABASE_HEADERS, Prefer: 'return=representation' },
+    body: JSON.stringify(cardPayload),
+  });
+  if (!res.ok) throw new Error('Supabase card insert failed (' + res.status + '): ' + (await res.text()));
+  const rows = await res.json();
+  const newId = Array.isArray(rows) && rows[0] ? rows[0].id : null;
+  if (!newId) throw new Error('Supabase card insert returned no id.');
+  return { ok: true, card_id: newId, source: 'supabase-insert' };
+}
+
 function V3MoveLeadStage(lead, nextStage, leads = window.V3?.LEADS || V3_LEADS) {
   const normalizedStage = V3NormalizeStage(nextStage);
+  const wasTrash = ['trash', 'dead-leads'].includes(String(lead?.stage || '').toLowerCase());
+  const isTrash = ['trash', 'dead-leads'].includes(normalizedStage);
+  if (isTrash && !wasTrash) {
+    V3DismissXIntakeForLead(lead);
+    V3RememberTrashedCard(lead);
+  }
+  if (!isTrash && wasTrash) {
+    V3RestoreXIntakeForLead(lead);
+    V3ForgetTrashedCard(lead);
+  }
+
   const updated = leads.map(item => String(item.id) === String(lead.id) ? { ...item, stage: normalizedStage } : item);
   window.V3.LEADS = updated;
   window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated } }));
 
-  // X intake rows are JSON-only. x_bridge may already have a Supabase card for
-  // the same openDm — PATCH that card instead of POSTing a duplicate.
-  const isXIntake = String(lead?.source || '').includes('x-dm-intake') || String(lead?.id || '').startsWith('xdm-');
-  if (isXIntake) {
-    const openDm = V3NormalizeOpenDmUrl(lead.xOpenDm);
-    const existing = V3FindExistingXCard(leads, openDm, lead.id);
-    const cardPayload = {
-      list_id: normalizedStage,
-      title: lead.contactName || lead.brand || 'X lead',
-      contact_name: lead.contactName || '',
-      business_name: lead.brand || lead.contactName || '',
-      lead_source: 'X',
-      x_open_dm: openDm || null,
-      email: lead.email || '',
-      intent: lead.deliverables || '',
-      description: JSON.stringify({
-        x_summary: lead.notes || '',
-        last_message: lead.evidence || lead.xLastLeadMessage || '',
-        last_robert_message: lead.xLastRobertMessage || V3ExtractRobertPositionFromSummary(lead.notes || '') || '',
-        last_sender: lead.xLastSender || (V3XLeadRepliedViaX(lead) ? 'Robert' : 'Lead'),
-        replied_via_x: V3XLeadRepliedViaX(lead),
-        x_current_status: lead.xCurrentStatus || '',
-        x_username: lead.xHandle || '',
-        open_dm: openDm || '',
-        x_reply_marked_at: lead.xReplyMarkedAt || '',
-      }),
-    };
-
-    const finalize = (cardId, sourceLabel) => {
-      const merged = (window.V3.LEADS || updated)
-        .filter(item => String(item.id) !== String(lead.id))
-        .map(item => String(item.id) === String(cardId)
-          ? { ...item, stage: normalizedStage, source: sourceLabel || item.source || 'X' }
-          : item);
+  V3PersistLeadStageRemote(lead, normalizedStage)
+    .then(result => {
+      const cardId = String(result?.card_id || V3SupabaseCardId(lead) || '');
+      if (!cardId) return;
+      const merged = (window.V3.LEADS || updated).map(item => {
+        if (String(item.id) === String(lead.id)) {
+          if (String(item.id) !== cardId) return null;
+          return { ...item, stage: normalizedStage, id: cardId, rowId: cardId };
+        }
+        if (String(item.id) === cardId) return { ...item, stage: normalizedStage };
+        return item;
+      }).filter(Boolean);
       window.V3.LEADS = merged;
       window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: merged } }));
-    };
-
-    if (existing) {
-      const cardId = existing.rowId || existing.id;
-      fetch(V3_SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(cardId), {
-        method: 'PATCH',
-        headers: { ...V3_SUPABASE_HEADERS, Prefer: 'return=minimal' },
-        body: JSON.stringify(cardPayload),
-      })
-        .then(() => finalize(cardId, existing.source || 'X'))
-        .catch(err => console.warn('[ALIGNED v4] x scope patch failed:', err));
-      return;
-    }
-
-    fetch(V3_SUPABASE_URL + '/rest/v1/cards', {
-      method: 'POST',
-      headers: { ...V3_SUPABASE_HEADERS, Prefer: 'return=representation' },
-      body: JSON.stringify(cardPayload),
+      if (isTrash) V3RememberTrashedCard({ ...lead, id: cardId, rowId: cardId });
     })
-      .then(res => res.ok ? res.json() : null)
-      .then(rows => {
-        const newId = Array.isArray(rows) && rows[0] ? rows[0].id : null;
-        if (newId == null) return;
-        finalize(newId, 'X');
-      })
-      .catch(err => console.warn('[ALIGNED v4] x scope insert failed:', err));
-    return;
-  }
-
-  const id = lead?.rowId || lead?.id;
-  if (!id) return;
-  fetch(V3_SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(id), {
-    method: 'PATCH',
-    headers: { ...V3_SUPABASE_HEADERS, Prefer: 'return=minimal' },
-    body: JSON.stringify({ list_id: normalizedStage }),
-  }).catch(err => console.warn('[ALIGNED v4] stage update failed:', err));
+    .catch(err => {
+      console.error('[ALIGNED v4] stage persist failed:', err);
+      const reverted = (window.V3.LEADS || updated).map(item =>
+        String(item.id) === String(lead.id) ? { ...item, stage: lead.stage } : item);
+      window.V3.LEADS = reverted;
+      window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: reverted } }));
+      if (isTrash && !wasTrash) V3ForgetTrashedCard(lead);
+      window.dispatchEvent(new CustomEvent('v3:stage-persist-failed', {
+        detail: { leadId: lead?.id, error: err?.message || String(err) },
+      }));
+    });
 }
 
 window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_VISIBLE_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_VISIBLE_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, CompanyOsQualifiedLead: V3CompanyOsQualifiedLead, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, NewLeadReason: V3NewLeadReason, ResolveReplyTone: V3ResolveReplyTone, ReplyToneLabel: V3ReplyToneLabel, NewLeadSourceKind: V3NewLeadSourceKind, NewLeadSourceLabel: V3NewLeadSourceLabel, NewLeadHandle: V3NewLeadHandle, NewLeadSummary: V3NewLeadSummary, NewLeadPrimaryIdentity: V3NewLeadPrimaryIdentity, LeadMatchesQuery: V3LeadMatchesQuery, PrunePendingReplies: V3PrunePendingReplies, MergePendingReplies: V3MergePendingReplies, ReloadLeads: V3ReloadLeads, XLeadRepliedViaX: V3XLeadRepliedViaX, MarkRepliedViaX: V3MarkRepliedViaX };
@@ -5832,7 +6854,8 @@ function V4AprComputeGates(leads, query) {
     String(l.draftReplyStatus || '').toLowerCase() === 'pending' &&
     l.draftReply && String(l.draftReply.body || '').trim() &&
     !V4TeamRepliedLast(l) &&
-    !l.newReplyAt).filter(matchesQ);
+    !l.newReplyAt &&
+    !(V3IsXLeadRecord(l) && !V3XLeadHasUsableContext(l))).filter(matchesQ);
   const payments = live.filter(l => String(l.stage || '').toLowerCase() === 'invoice-sent').filter(matchesQ);
   const briefs = live.filter(l =>
     String(l.briefStatus || '').toLowerCase().replace(/_/g, '-') === 'awaiting-robert').filter(matchesQ);
@@ -5844,6 +6867,26 @@ function V4AprComputeGates(leads, query) {
     { id: 'briefs', label: 'Briefs', items: sortRecent(briefs), tag: 'brief' },
     { id: 'posts', label: 'Posts', items: sortRecent(posts), tag: '' },
   ];
+}
+
+function V4CosQueueForGate(gateId) {
+  if (gateId === 'replies') return 'send';
+  if (gateId === 'payments' || gateId === 'briefs' || gateId === 'posts') return 'chase';
+  return 'watch';
+}
+
+function V4OpenLeadInCompanyOs(leadId, queueId, opts) {
+  const q = queueId || 'send';
+  try {
+    window.sessionStorage.setItem('cos-queue', q);
+    window.sessionStorage.setItem('cos-lead-id', String(leadId));
+    if (opts && opts.compose) window.sessionStorage.setItem('cos-compose', '1');
+    else window.sessionStorage.removeItem('cos-compose');
+  } catch (e) {}
+}
+if (typeof window !== 'undefined') {
+  window.V4CosQueueForGate = V4CosQueueForGate;
+  window.V4OpenLeadInCompanyOs = V4OpenLeadInCompanyOs;
 }
 
 // The board write each gate's Approve/Deny performs. Reply approvals use
@@ -5917,7 +6960,7 @@ async function V4SendApprovedReply(lead, overrides = {}) {
   const draftLead = overrides.body || overrides.subject
     ? { ...lead, draftReply: { subject: overrides.subject || lead?.draftReply?.subject || '', body: overrides.body || lead?.draftReply?.body || '' } }
     : lead;
-  const draft = V3ComposeReplyDraft(draftLead, sender);
+  const draft = V3ComposeReplyDraft(draftLead, sender, { approvedSend: true });
   const recips = V3ReplyRecipients(lead, sender, false);
   const to = V3UniqueEmails(recips.to || []);
   if (!to.length) throw new Error('No outside recipient found. Open edit and add the lead email before sending.');
@@ -6228,7 +7271,9 @@ function V4OrgApprovalBody(gate, lead) {
   if (!lead) return '';
   if (gate === 'replies') {
     const dr = lead.draftReply || {};
-    return dr.body || dr.subject || lead.lastMessage || lead.summary || '';
+    const stored = String(dr.body || '').trim();
+    if (stored) return V3FinalizeApprovedDraftBody(stored, lead, 'asher');
+    return dr.subject || lead.lastMessage || lead.summary || '';
   }
   if (gate === 'payments') return 'Invoice is out. Confirm payment proof before the work moves into the live posting lane.';
   if (gate === 'briefs') return lead.briefBody || lead.briefSummary || 'Brief is waiting for Robert sign off before this can be scheduled.';
@@ -6282,11 +7327,26 @@ function V4OrgShortEmail(value) {
 function V4OrgApprovalContext(lead) {
   const inbound = V4OrgLatestInbound(lead);
   const team = V4OrgLatestTeamTouch(lead);
-  const body = inbound ? String(inbound.body || inbound.snippet || '').trim() : '';
+  const threadBody = inbound ? String(inbound.body || inbound.snippet || '').trim() : '';
+  if (V3IsXLeadRecord(lead)) {
+    const xBody = String(
+      lead.evidence || lead.xLastLeadMessage || lead.notes || lead.xLastRobertMessage || ''
+    ).trim();
+    const handle = String(lead.xHandle || '').replace(/^@/, '').trim();
+    return {
+      inbound,
+      team,
+      body: threadBody || xBody || lead?.operatorSummary?.asked_for || '',
+      sender: handle ? ('@' + handle) : (V3XLeadDisplayName(lead.contactName, '') || lead?.email || 'X DM lead'),
+      subject: lead.deliverables || lead.brand || 'X DM',
+      when: lead.lastTouch || inbound?.when || (inbound?.date ? V3RelativeTime(inbound.date) : ''),
+      teamWhen: team?.when || (team?.date ? V3RelativeTime(team.date) : ''),
+    };
+  }
   return {
     inbound,
     team,
-    body: body || lead?.operatorSummary?.asked_for || lead?.notes || lead?.deliverables || '',
+    body: threadBody || lead?.operatorSummary?.asked_for || lead?.notes || lead?.deliverables || '',
     sender: inbound ? V4OrgShortEmail(inbound.from) : (lead?.contactName || lead?.email || 'Unknown sender'),
     subject: inbound?.subject || lead?.draftReply?.subject || lead?.briefSubject || lead?.brand || 'Conversation',
     when: inbound?.when || (inbound?.date ? V3RelativeTime(inbound.date) : ''),
@@ -6376,6 +7436,78 @@ function V4OrgApprovalConflict(lead, context) {
   return '';
 }
 
+const V4_ORG_GATE_PRIORITY = { replies: 0, payments: 1, briefs: 2, posts: 3 };
+const V4_ORG_GATE_HANDOFF_AGENT = { replies: 'Reply Operator', payments: 'Finance Loop', briefs: 'Brief Maker', posts: 'QA Runner' };
+
+function V4OrgUnifiedLine(lead, gateId) {
+  const raw = lead?.operatorSummary?.next_action
+    || lead?.recommendedAction
+    || (lead?.agentAssessment ? String(lead.agentAssessment).split(/(?<=[.!?])\s/)[0] : '')
+    || lead?.nextMove?.text
+    || '';
+  const cleaned = V4CleanDisplayText(String(raw).replace(/\s+/g, ' ').trim());
+  if (cleaned) return cleaned.length <= 120 ? cleaned : cleaned.slice(0, 117).trim() + '…';
+  return V4OrgApprovalWhy(gateId, lead);
+}
+
+function V4OrgDecisionScore(gateId, lead) {
+  let score = (4 - (V4_ORG_GATE_PRIORITY[gateId] ?? 9)) * 1000;
+  if (String(lead?.draftReplyStatus || '').toLowerCase() === 'review') score += 500;
+  if (lead?.unread || lead?.needsReply) score += 220;
+  score += Math.min(lead?.daysInStage || 0, 30) * 6;
+  score += Math.min((lead?.value || 0) / 80, 60);
+  if (gateId === 'payments') score += 180;
+  if (gateId === 'briefs' && String(lead?.briefStatus || '').includes('robert')) score += 120;
+  return score;
+}
+
+function V4OrgBuildTodayDecisions(gates) {
+  const items = [];
+  (gates || []).forEach((g) => {
+    (g.items || []).forEach((lead) => {
+      items.push({
+        gateId: g.id,
+        gateLabel: g.label,
+        lead,
+        score: V4OrgDecisionScore(g.id, lead),
+      });
+    });
+  });
+  return items.sort((a, b) => b.score - a.score);
+}
+
+function V4OrgPostApproveHandoff(lead, gateId) {
+  const agent = V4_ORG_GATE_HANDOFF_AGENT[gateId] || 'Operator';
+  let message = '';
+  const stage = String(lead?.stage || '').toLowerCase();
+
+  if (gateId === 'replies') {
+    if (['new', 'first-touch'].includes(stage) && window.V3?.MoveLeadStage) {
+      window.V3.MoveLeadStage(lead, 'engaged');
+      message = 'Sent · moved to engaged · ' + agent + ' watching for reply';
+    } else if (['rates-sent', 'negotiating', 'invoice-sent'].includes(stage)) {
+      message = 'Sent · ' + agent + ' will nudge if they go quiet';
+    } else {
+      message = 'Sent · handed back to ' + agent;
+    }
+  } else if (gateId === 'payments') {
+    message = 'Marked paid · Finance Loop closed this lane';
+  } else if (gateId === 'briefs') {
+    message = 'Brief approved · Brief Maker queued Robert handoff';
+  } else if (gateId === 'posts') {
+    message = 'Post cleared · QA Runner archived payout';
+  } else {
+    message = 'Approved · ' + agent + ' has the lane';
+  }
+
+  try {
+    window.dispatchEvent(new CustomEvent('v4:org-handoff', {
+      detail: { leadId: lead?.id, gateId, message, agent, brand: lead?.brand || 'Lead' },
+    }));
+  } catch (e) {}
+  return message;
+}
+
 function V4OrgEditModal({ gate, lead, onClose }) {
   const { useState, useEffect } = React;
   const dr = (lead && lead.draftReply) || {};
@@ -6410,6 +7542,7 @@ function V4OrgEditModal({ gate, lead, onClose }) {
         const a = V4AprGateAction(gate);
         await V4PatchLeadAsync(lead, a.approve.fields, a.approve.local);
       }
+      V4OrgPostApproveHandoff(lead, gate);
       setSendState({ status: 'sent', error: '' });
       close();
     } catch (err) {
@@ -6488,7 +7621,7 @@ function V4OrgEditModal({ gate, lead, onClose }) {
   );
 }
 
-function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
+function V4OrgansView({ leads = [], query = '', onOpenInCompanyOs }) {
   const { health, resume, halt } = V4UseOpsHealth();
   const [modal, setModal] = React.useState(null);
   const [selectedGate, setSelectedGate] = React.useState('');
@@ -6497,7 +7630,22 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
   const [xHealthLoaded, setXHealthLoaded] = React.useState(false);
   const [refreshState, setRefreshState] = React.useState({ status: 'idle', note: '', at: 0 });
   const [sendState, setSendState] = React.useState({ key: '', status: '', error: '' });
+  const [handoffToast, setHandoffToast] = React.useState(null);
+  const [sendTokenReady, setSendTokenReady] = React.useState(!!V3ApiToken());
+  const [leadSyncState, setLeadSyncState] = React.useState({ key: '', status: '', note: '' });
   const gates = V4AprComputeGates(leads, query);
+
+  const refreshSendToken = React.useCallback(() => {
+    return V3BootstrapApiToken()
+      .then((t) => { setSendTokenReady(!!t); return t; })
+      .catch(() => { setSendTokenReady(false); return ''; });
+  }, []);
+
+  React.useEffect(() => {
+    let alive = true;
+    refreshSendToken().then(() => { if (!alive) return; });
+    return () => { alive = false; };
+  }, [refreshSendToken]);
   const gmap = {}; gates.forEach(g => { gmap[g.id] = g; });
 
   const halted = !!(health && String(health.status || 'ok') !== 'ok');
@@ -6550,7 +7698,39 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
   }, []);
 
   const totalWaiting = gates.reduce((s, g) => s + g.items.length, 0);
+  const todayDecisions = React.useMemo(() => V4OrgBuildTodayDecisions(gates), [gates, totalWaiting]);
+  const todayValue = todayDecisions.reduce((s, d) => s + (d.lead.value || 0), 0);
   const pendingGate = gates.find(g => g.items.length);
+
+  const selectDecision = React.useCallback((item) => {
+    if (!item) return;
+    const g = gmap[item.gateId];
+    const idx = g ? g.items.findIndex((l) => String(l.id) === String(item.lead.id)) : -1;
+    setSelectedGate(item.gateId);
+    setSelectedIndex(idx >= 0 ? idx : 0);
+  }, [gmap]);
+
+  const advanceToNextDecision = React.useCallback((afterLead, afterGateId) => {
+    const flat = V4OrgBuildTodayDecisions(gates);
+    const curKey = (afterGateId || '') + ':' + String(afterLead?.id || '');
+    const idx = flat.findIndex((d) => (d.gateId + ':' + d.lead.id) === curKey);
+    const next = flat[idx + 1] || flat[idx - 1] || null;
+    if (next) selectDecision(next);
+    else setSelectedIndex(0);
+  }, [gates, selectDecision]);
+
+  React.useEffect(() => {
+    const onHandoff = (e) => setHandoffToast(e?.detail || null);
+    window.addEventListener('v4:org-handoff', onHandoff);
+    return () => window.removeEventListener('v4:org-handoff', onHandoff);
+  }, []);
+
+  React.useEffect(() => {
+    if (!handoffToast) return undefined;
+    const t = window.setTimeout(() => setHandoffToast(null), 5200);
+    return () => window.clearTimeout(t);
+  }, [handoffToast]);
+
   React.useEffect(() => {
     if (!selectedGate || !(gmap[selectedGate] && gmap[selectedGate].items.length)) {
       setSelectedGate(pendingGate ? pendingGate.id : '');
@@ -6573,27 +7753,46 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
       }
       setSendState({ key, status: 'sending', error: '' });
       try {
+        const token = await V3BootstrapApiToken();
+        if (!token) {
+          setSendTokenReady(false);
+          throw new Error('Send token could not load from your Mac. Click Retry below or hard refresh (Cmd+Shift+R).');
+        }
+        setSendTokenReady(true);
         await V4SendApprovedReply(selectedLead);
+        V4OrgPostApproveHandoff(selectedLead, gate.id);
         setSendState({ key, status: 'sent', error: '' });
-        setSelectedIndex(0);
+        advanceToNextDecision(selectedLead, gate.id);
       } catch (err) {
         setSendState({ key, status: 'error', error: err.message || 'Send failed' });
       }
       return;
     }
     V4CosPatchLead(selectedLead, selectedAction.approve.fields, selectedAction.approve.local);
-    setSelectedIndex(0);
+    V4OrgPostApproveHandoff(selectedLead, gate.id);
+    advanceToNextDecision(selectedLead, gate.id);
   };
   const denySelected = () => {
     if (!selectedLead || !selectedAction) return;
     V4CosPatchLead(selectedLead, selectedAction.deny.fields, selectedAction.deny.local);
-    setSelectedIndex(0);
+    advanceToNextDecision(selectedLead, gate.id);
   };
   const selectedContext = selectedLead ? V4OrgApprovalContext(selectedLead) : null;
   const selectedConflict = selectedLead ? V4OrgApprovalConflict(selectedLead, selectedContext) : '';
   const selectedSendKey = selectedLead && gate.id ? (gate.id + ':' + selectedLead.id) : '';
   const selectedSending = sendState.key === selectedSendKey && sendState.status === 'sending';
   const selectedSendError = sendState.key === selectedSendKey ? sendState.error : '';
+  const decisionIndex = selectedLead && gate.id
+    ? todayDecisions.findIndex((d) => d.gateId === gate.id && String(d.lead.id) === String(selectedLead.id))
+    : -1;
+
+  React.useEffect(() => {
+    if (!todayDecisions.length) return;
+    const curOk = selectedLead && todayDecisions.some(
+      (d) => d.gateId === gate.id && String(d.lead.id) === String(selectedLead.id)
+    );
+    if (!curOk) selectDecision(todayDecisions[0]);
+  }, [todayDecisions, selectedLead?.id, gate.id, selectDecision]);
 
   React.useEffect(() => {
     if (selectedLead && gate.id) {
@@ -6624,7 +7823,7 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
   const medic = halted ? haltReason
     : incidents[0] ? incidents[0].text
       : activeKey ? (V4_ORG_DEF[activeKey].name + ' is working a lead right now.')
-        : totalWaiting ? (totalWaiting + ' parked at the gates, waiting on you.')
+        : totalWaiting ? (todayDecisions.length + ' decision' + (todayDecisions.length === 1 ? '' : 's') + ' left · clear the strip above')
           : 'All clear. Nothing waiting, nothing in flight.';
 
   const cardState = (key) => {
@@ -6699,7 +7898,7 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
             onClick={(e) => runRefresh(e.shiftKey)}
             disabled={refreshState.status === 'syncing'}
           >
-            {refreshState.status === 'syncing' ? 'Refreshing…' : 'Refresh all'}
+            {refreshState.status === 'syncing' ? 'Syncing…' : 'Sync Gmail'}
           </button>
           <button className="orgx-halt" onClick={halted ? resume : halt}>{halted ? 'Resume' : 'Halt'}</button>
         </div>
@@ -6709,13 +7908,56 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
       <div className="orgx-medic">
         <span className="mi"><span className="pp"></span>&#9670; Medic</span>
         <span className="mw">{medic}</span>
+        {!sendTokenReady ? (
+          <span className="orgx-send-prep">
+            Loading send token from Mac…
+            <button type="button" className="orgx-send-retry" onClick={() => refreshSendToken()}>Retry</button>
+          </span>
+        ) : null}
       </div>
+
+      {todayDecisions.length > 0 ? (
+        <section className="orgx-today" aria-label="Today's decisions">
+          <div className="orgx-today-head">
+            <div>
+              <div className="orgx-today-eyebrow">Today&apos;s decisions</div>
+              <h2 className="orgx-today-title">{todayDecisions.length} left · clear these and you&apos;re done</h2>
+            </div>
+            {todayValue > 0 ? (
+              <span className="orgx-today-total">{V4AprMoney(todayValue)} in play</span>
+            ) : null}
+          </div>
+          <div className="orgx-today-list">
+            {todayDecisions.map((item, i) => {
+              const isCurrent = gate.id === item.gateId && String(selectedLead?.id) === String(item.lead.id);
+              return (
+                <button
+                  key={item.gateId + ':' + item.lead.id}
+                  type="button"
+                  className={'orgx-today-row' + (isCurrent ? ' is-current' : '')}
+                  onClick={() => selectDecision(item)}
+                >
+                  <span className="orgx-today-rank">{i + 1}</span>
+                  <span className={'orgx-today-gate is-' + item.gateId}>{item.gateLabel}</span>
+                  <span className="orgx-today-brand">{item.lead.brand || item.lead.contactName || 'Lead'}</span>
+                  {item.lead.value ? <span className="orgx-today-val">{V4AprMoney(item.lead.value)}</span> : null}
+                  <span className="orgx-today-line">{V4OrgUnifiedLine(item.lead, item.gateId)}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       <div className="orgx-command-grid">
         <section className="orgx-command">
           <div className="orgx-section-top">
             <div>
-              <div className="orgx-section-eyebrow">Waiting on Asher</div>
+              <div className="orgx-section-eyebrow">
+                {decisionIndex >= 0
+                  ? ('Decision ' + (decisionIndex + 1) + ' of ' + todayDecisions.length)
+                  : 'Waiting on Asher'}
+              </div>
               <h2>{selectedLead ? ((selectedLead.brand || 'Lead') + ' · ' + (GATE_TITLE[gate.id] || 'Approval')) : 'Nothing needs approval'}</h2>
             </div>
             <div className={'orgx-agent-chip ' + (GATE_TONE[gate.id] || '')}>{gate.id ? GATE_AGENT[gate.id] : 'Clear lane'}</div>
@@ -6737,13 +7979,19 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
                     <strong>{selectedContext?.sender || 'Unknown sender'}</strong>
                     <em>{selectedContext?.subject || 'Conversation'}</em>
                   </div>
-                  <div className="orgx-context-body">{selectedContext?.body || 'No inbound message was captured for this approval. Open the lead before approving.'}</div>
+                  <div className="orgx-context-body">
+                    {selectedContext?.body || (
+                      V3IsXLeadRecord(selectedLead) && !V3XLeadHasUsableContext(selectedLead)
+                        ? 'No X DM context on this card — the scraper context was never saved or merged. Pull X context before approving.'
+                        : 'No inbound message was captured for this approval. Open the lead before approving.'
+                    )}
+                  </div>
                 </section>
 
                 <section className="orgx-reason-card">
                   <div className="orgx-mini-head"><span>Why this needs you</span><b>{GATE_AGENT[gate.id] || 'Agent'}</b></div>
                   {selectedConflict ? <div className="orgx-conflict">{selectedConflict}</div> : null}
-                  <div className="orgx-reason-main">{V4OrgApprovalWhy(gate.id, selectedLead)}</div>
+                  <div className="orgx-reason-main">{V4OrgUnifiedLine(selectedLead, gate.id)}</div>
                   {(selectedLead.agentAssessment || selectedLead.recommendedAction) ? (
                     <div className="orgx-agent-note">
                       {selectedLead.agentAssessment || ''}
@@ -6764,12 +8012,61 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
                 </section>
               </div>
               <div className="orgx-approval-actions">
-                {selectedSendError ? <div className="orgx-send-error wide">{selectedSendError}</div> : null}
+                {leadSyncState.note && leadSyncState.key === (gate.id + ':' + selectedLead?.id) ? (
+                  <div className={'orgx-send-error wide' + (leadSyncState.status === 'ok' ? ' is-ok' : '')}>{leadSyncState.note}</div>
+                ) : null}
+                {selectedSendError ? (
+                  <div className="orgx-send-error wide">
+                    {selectedSendError}
+                    {/send token/i.test(selectedSendError) ? (
+                      <button type="button" className="orgx-send-retry" onClick={() => refreshSendToken().then((t) => { if (!t) setSendState(s => ({ ...s, error: 'Still could not reach your Mac. Hard refresh (Cmd+Shift+R).' })); })}>Retry token</button>
+                    ) : null}
+                  </div>
+                ) : null}
                 <button className="orgx-b ap" onClick={approveSelected} disabled={selectedSending || (gate.id === 'replies' && !!selectedConflict)}>{selectedSending ? 'Sending...' : (gate.id === 'replies' && selectedConflict ? 'Fix draft first' : (gate.id === 'replies' ? 'Approve & send' : 'Approve'))}</button>
                 <button className="orgx-b ed" onClick={() => setModal({ gate: gate.id, lead: selectedLead })}>Edit and inspect</button>
+                {onOpenInCompanyOs && selectedLead ? (
+                  <button className="orgx-b ed" type="button" onClick={() => onOpenInCompanyOs(selectedLead.id)}>Open thread</button>
+                ) : null}
+                {selectedLead && gate.id === 'replies' ? (
+                  <button
+                    className="orgx-b ed"
+                    type="button"
+                    disabled={leadSyncState.status === 'syncing' && leadSyncState.key === (gate.id + ':' + selectedLead.id)}
+                    onClick={async () => {
+                      const key = gate.id + ':' + selectedLead.id;
+                      const isX = V3IsXLeadRecord(selectedLead);
+                      setLeadSyncState({ key, status: 'syncing', note: '' });
+                      try {
+                        if (isX) await V4RefreshLeadFromX(selectedLead);
+                        else await V4RefreshLeadFromGmail(selectedLead);
+                        setLeadSyncState({
+                          key,
+                          status: 'ok',
+                          note: isX ? 'X context pulled' : 'Gmail refreshed',
+                        });
+                      } catch (err) {
+                        setLeadSyncState({ key, status: 'error', note: err?.message || 'Refresh failed' });
+                      }
+                      window.setTimeout(() => setLeadSyncState({ key: '', status: '', note: '' }), 4500);
+                    }}
+                  >
+                    {leadSyncState.key === (gate.id + ':' + selectedLead.id) && leadSyncState.status === 'syncing'
+                      ? 'Refreshing…'
+                      : (V3IsXLeadRecord(selectedLead) ? '↻ Pull X context' : '↻ Refresh thread')}
+                  </button>
+                ) : null}
                 <button className="orgx-b dn" onClick={denySelected}>Deny</button>
-                {gate.items.length > 1 ? (
-                  <button className="orgx-b ed" onClick={() => setSelectedIndex((selectedIndex + 1) % gate.items.length)}>Next in queue</button>
+                {todayDecisions.length > 1 ? (
+                  <button
+                    className="orgx-b ed"
+                    onClick={() => {
+                      const next = todayDecisions[(decisionIndex + 1) % todayDecisions.length];
+                      if (next) selectDecision(next);
+                    }}
+                  >
+                    Next decision
+                  </button>
                 ) : null}
               </div>
             </React.Fragment>
@@ -6816,6 +8113,12 @@ function V4OrgansView({ leads = [], query = '', onOpenConsole }) {
         </div>
       </div>
       {modal ? <V4OrgEditModal gate={modal.gate} lead={modal.lead} onClose={() => setModal(null)} /> : null}
+      {handoffToast ? (
+        <div className="orgx-handoff-toast" role="status">
+          <span className="orgx-handoff-brand">{handoffToast.brand}</span>
+          <span className="orgx-handoff-msg">{handoffToast.message}</span>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -7092,7 +8395,7 @@ function UnalignedCopilot({ leads = [] }) {
 }
 if (typeof window !== 'undefined') window.UnalignedCopilot = UnalignedCopilot;
 
-function OrgansFloorView({ leads = [], query = '', onOpenConsole }) {
+function OrgansFloorView({ leads = [], query = '', onOpenConsole, onOpenInCompanyOs }) {
   const { useState } = React;
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(max-width: 720px)').matches : false);
   React.useEffect(() => {
@@ -7135,11 +8438,15 @@ function OrgansFloorView({ leads = [], query = '', onOpenConsole }) {
     || (l.agentAssessment ? String(l.agentAssessment).split(/(?<=[.!?])\s/)[0] : '')
     || l.deliverables || l.stage || '';
 
-  const act = (g, lead, kind) => {
+  const denyGate = (g, lead) => {
     const a = V4AprGateAction(g);
-    const move = kind === 'approve' ? a.approve : a.deny;
-    if (lead && move) V4CosPatchLead(lead, move.fields, move.local);
+    if (lead && a) V4CosPatchLead(lead, a.deny.fields, a.deny.local);
     setTick(t => t + 1);
+  };
+  const routeToCos = (g, lead) => {
+    if (!lead || !onOpenInCompanyOs) return;
+    onOpenInCompanyOs(lead.id, g);
+    closeAll();
   };
   const ignore = (lead) => {
     // Not a system task: flag human_only (pulls it from the replies gate) and hand to Robert.
@@ -7163,7 +8470,7 @@ function OrgansFloorView({ leads = [], query = '', onOpenConsole }) {
         onClick={(e) => e.stopPropagation()}>
         <div className="bh">
           <span className="aib">◆ {agent}</span>
-          <span className="bt">Approval needed</span>
+          <span className="bt">Route to Company OS</span>
           {n > 1 && (
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: '9px', color: '#9a8f7e', marginLeft: '6px' }}>
               <span style={{ cursor: 'pointer' }} onClick={() => setIdx((i - 1 + n) % n)}>‹</span> {i + 1}/{n} <span style={{ cursor: 'pointer' }} onClick={() => setIdx((i + 1) % n)}>›</span>
@@ -7176,13 +8483,12 @@ function OrgansFloorView({ leads = [], query = '', onOpenConsole }) {
           {lead.agentTier && <span className="chip">{lead.agentTier}</span>}
           {lead.value ? <span className="chip v">{V4AprMoney(lead.value)}</span> : null}
         </div>
-        <div className="lbl">What you're approving</div>
+        <div className="lbl">What needs handling</div>
         <div className="what">{whatBody(g, lead)}</div>
         {whyLine(lead) && (<React.Fragment><div className="lbl">Why</div><div className="why">{whyLine(lead)}</div></React.Fragment>)}
         <div className="btns">
-          <span className="b ap" onClick={() => act(g, lead, 'approve')}>✓ Approve</span>
-          <span className="b gh" onClick={() => onOpenConsole && onOpenConsole()}>Edit</span>
-          <span className="b gh" onClick={() => act(g, lead, 'deny')}>Deny</span>
+          <span className="b ap" onClick={() => routeToCos(g, lead)}>→ Company OS</span>
+          {g !== 'replies' ? <span className="b gh" onClick={() => denyGate(g, lead)}>Deny</span> : null}
         </div>
         {g === 'replies' && (
           <button className="ig" onClick={() => ignore(lead)}>⊘ Not a system task — <b>hand to Robert</b></button>
@@ -7191,7 +8497,7 @@ function OrgansFloorView({ leads = [], query = '', onOpenConsole }) {
     );
   };
 
-  if (isMobile) return <V4OrgansView leads={leads} query={query} onOpenConsole={onOpenConsole} />;
+  if (isMobile) return <V4OrgansView leads={leads} query={query} onOpenConsole={onOpenConsole} onOpenInCompanyOs={onOpenInCompanyOs} />;
 
   return (
     <div className={'org-floor' + (halted ? ' is-halted' : '')} style={{ flex: '1 1 0', minHeight: 0 }} onClick={closeAll}>
@@ -7200,7 +8506,7 @@ function OrgansFloorView({ leads = [], query = '', onOpenConsole }) {
       <div className="org-hud">
         <div>
           <div className="eye">Machine Room</div>
-          <h1>Organs <i>your floor, from above</i></h1>
+          <h1>Organs <i>routing floor — handle in Company OS</i></h1>
         </div>
         <div className="gauges">
           <div className="lt"><span className="d"></span>{halted ? 'Halted' : 'Running'}</div>
@@ -7228,7 +8534,7 @@ function OrgansFloorView({ leads = [], query = '', onOpenConsole }) {
         <div className="org-bubble" style={{ left: '50%', top: '42%' }} onClick={(e) => e.stopPropagation()}>
           <div className="bh"><span className="bt">All clear</span></div>
           <h3>Nothing waiting on you</h3>
-          <div className="why">No pending approvals on the floor. A beacon lights over a desk the moment an agent has something for you.</div>
+          <div className="why">No gates lit. A beacon appears when an agent parks something — click it to open Company OS.</div>
         </div>
       )}
     </div>
@@ -9446,6 +10752,19 @@ function V4NewLeadWorkflowLabel(lead) {
 function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
   const q = String(query || '').trim();
   const [sourceTab, setSourceTab] = React.useState('gmail');
+  const [copiedDmId, setCopiedDmId] = React.useState('');
+  const copyDmDraft = async (lead, e) => {
+    e?.stopPropagation?.();
+    const text = String(V4BuildXDmReplyDraft(lead) || '').trim();
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedDmId(String(lead.id));
+      window.setTimeout(() => setCopiedDmId(''), 2200);
+    } catch (err) {
+      window.prompt('Copy this X DM draft:', text);
+    }
+  };
   // A lead belongs to the New Leads queue by its source, independent of stage —
   // reuse IsNewLeadReview with a forced 'new' stage so the same source rules
   // also identify trashed intake leads for the Trash bin.
@@ -9476,6 +10795,7 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
     scope: reviewLeads.filter(l => !V4NewLeadHasPricingSignal(l)).length,
     gmail: reviewLeads.filter(l => (window.V3.NewLeadSourceKind ? window.V3.NewLeadSourceKind(l) : 'gmail') === 'gmail').length,
     x: reviewLeads.filter(l => (window.V3.NewLeadSourceKind ? window.V3.NewLeadSourceKind(l) : 'gmail') === 'x').length,
+    travel: reviewLeads.filter(V4LeadIsTravelLead).length,
     trash: trashLeads.length,
   };
 
@@ -9487,6 +10807,7 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
   const visibleLeads = React.useMemo(() => {
     if (isTrashTab) return trashLeads;
     return reviewLeads.filter(lead => {
+      if (sourceTab === 'travel') return V4LeadIsTravelLead(lead);
       const kind = window.V3.NewLeadSourceKind ? window.V3.NewLeadSourceKind(lead) : 'gmail';
       return sourceTab === 'x' ? kind === 'x' : kind === 'gmail';
     });
@@ -9521,6 +10842,7 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
           <span className="invoice-stat total">{counts.pricing} route to pricing</span>
           <span className="invoice-stat total">{counts.gmail} gmail</span>
           <span className="invoice-stat total">{counts.x} x</span>
+          {counts.travel > 0 ? <span className="invoice-stat warn">{counts.travel} travel</span> : null}
           <span className="invoice-stat total">{counts.total} total</span>
         </div>
       </div>
@@ -9528,6 +10850,7 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
       <div className="new-leads-shell">
         <div className="new-leads-tabs" role="tablist" aria-label="New lead sources">
           {[
+            { key: 'travel', label: 'Travel', count: counts.travel },
             { key: 'gmail', label: 'Gmail', count: counts.gmail },
             { key: 'x', label: 'X', count: counts.x },
             { key: 'trash', label: 'Trash', count: counts.trash },
@@ -9619,13 +10942,23 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
                       <V3Icon name="reply" w={12} />
                       {kind === 'x' ? 'Review lead' : 'Open & reply'}
                     </button>
+                    {kind === 'x' && V4XLeadNeedsDmReply(lead) ? (
+                      <button
+                        type="button"
+                        className={'btn btn-sm btn-accent' + (copiedDmId === String(lead.id) ? ' is-copied' : '')}
+                        onClick={(e) => copyDmDraft(lead, e)}
+                      >
+                        <V3Icon name="reply" w={12} />
+                        {copiedDmId === String(lead.id) ? 'Copied' : 'Copy DM draft'}
+                      </button>
+                    ) : null}
                     {kind === 'x' && lead.xOpenDm ? (
                       <button type="button" className="btn btn-sm btn-ghost" onClick={() => window.open(lead.xOpenDm, '_blank', 'noopener')}>
                         <V3Icon name="network" w={12} />
                         Open DM
                       </button>
                     ) : null}
-                    {kind === 'x' && lead.email ? (
+                    {kind === 'x' && V3LeadExternalEmail(lead) ? (
                       <button type="button" className="btn btn-sm btn-ghost" onClick={() => onOpenLead?.(lead.id)}>
                         <V3Icon name="mail" w={12} />
                         Email lead
@@ -10457,6 +11790,7 @@ function V4CompanyOsDraft(lead, sender) {
 
 function V4CompanyOsFilterLead(lead, query) {
   if (!query) return true;
+  if (typeof V3LeadMatchesQuery === 'function') return V3LeadMatchesQuery(lead, query);
   const q = query.toLowerCase();
   return [lead.title, lead.contactName, lead.brand, lead.email, lead.deliverables, lead.nextMove?.text]
     .filter(Boolean)
@@ -10545,21 +11879,238 @@ function V4CompanyOsPhaseTag(lead) {
   return 'next move';
 }
 
+function V4XLeadNeedsDmReply(lead) {
+  if (!V3IsXLeadRecord(lead)) return false;
+  if (V3LeadExternalEmail(lead)) return false;
+  const state = V3InferXReplyState(lead);
+  if (state.needsXReply) return true;
+  const nextStep = String(lead?.xBestNextStep || lead?.nextMove?.text || '').toLowerCase();
+  if (
+    nextStep.includes('reply in x')
+    || nextStep.includes('review thread')
+    || nextStep.includes('move them to email')
+    || nextStep.includes('move the deal off x')
+  ) return true;
+  // No email on card yet — keep DM draft available (handoff / follow-up on X).
+  return true;
+}
+
+function V4BuildXDmReplyDraft(lead) {
+  const saved = String(lead?.xDmDraft || lead?.xQuickNote || '').trim();
+  if (saved.length > 24) return V3NoDashes(saved);
+
+  const first = V3ExternalThreadFirstName(lead);
+  const nextStep = String(lead?.xBestNextStep || lead?.nextMove?.text || '').trim().toLowerCase();
+  const replied = V3XLeadRepliedViaX(lead);
+  const externalEmail = V3LeadExternalEmail(lead);
+  const mode = V4XConversationMode(lead);
+  const needsHandoff = V4XShouldEmailHandoff(lead) && (
+    !externalEmail
+    || nextStep.includes('reply in x')
+    || nextStep.includes('move them to email')
+    || nextStep.includes('move the deal off x')
+  );
+  const greeting = first && first !== 'there' ? `Hi ${first}!` : 'Hi!';
+
+  if (!V4XShouldEmailHandoff(lead)) {
+    return V3NoDashes([
+      greeting,
+      '',
+      V4XLeadDmOpener(lead, { mode, replied }),
+    ].join('\n'));
+  }
+
+  if (replied && !externalEmail) {
+    return V3NoDashes([
+      greeting,
+      '',
+      V4XLeadDmOpener(lead, { mode, replied: true }),
+      '',
+      V4XHandoffLine(lead),
+      '',
+      V4XHandoffClose(lead),
+    ].join('\n'));
+  }
+
+  if (needsHandoff) {
+    return V3NoDashes([
+      greeting,
+      '',
+      V4XLeadDmOpener(lead, { mode, replied }),
+      '',
+      V4XHandoffLine(lead),
+      '',
+      V4XHandoffClose(lead),
+    ].join('\n'));
+  }
+
+  const operatorNext = String(lead?.operatorSummary?.next_action || '').trim();
+  if (operatorNext && operatorNext.length < 320) {
+    return V3NoDashes([
+      first && first !== 'there' ? `Hi ${first},` : 'Hi,',
+      '',
+      operatorNext,
+    ].join('\n'));
+  }
+
+  return V3NoDashes([
+    first && first !== 'there' ? `Hi ${first},` : 'Hi,',
+    '',
+    nextStep ? String(lead?.xBestNextStep || lead?.nextMove?.text || '').trim() : 'Thanks for reaching out on X.',
+  ].join('\n')).trim();
+}
+
 function V4XLeadContextRows(lead) {
   if (!lead) return [];
+  const ctx = V3ParseXDescriptionContext(lead.rawDescription);
   const rows = [];
   if (V3XLeadRepliedViaX(lead)) {
     rows.push({
       label: 'Team reply',
-      value: lead.xLastRobertMessage || 'Robert replied on X — waiting on them.',
+      value: lead.xLastRobertMessage || ctx.lastRobertMessage || 'Robert replied on X — waiting on them.',
     });
   }
-  if (lead.notes) rows.push({ label: 'Intake summary', value: lead.notes });
-  if (lead.evidence && lead.evidence !== lead.notes) rows.push({ label: 'Latest DM', value: lead.evidence });
-  if (lead.xBestNextStep) rows.push({ label: 'Best next step', value: lead.xBestNextStep });
-  if (lead.xCurrentStatus) rows.push({ label: 'Scraper status', value: lead.xCurrentStatus });
+  const summary = lead.notes || ctx.xSummary || '';
+  const latestDm = lead.evidence || lead.xLastLeadMessage || ctx.lastMessage || '';
+  if (summary) rows.push({ label: 'Intake summary', value: summary });
+  if (latestDm && latestDm !== summary) rows.push({ label: 'Latest DM', value: latestDm });
+  const nextStep = lead.xBestNextStep || ctx.bestNextStep || lead.nextMove?.text || '';
+  if (nextStep) rows.push({ label: 'Best next step', value: nextStep });
+  const status = lead.xCurrentStatus || ctx.xCurrentStatus || '';
+  if (status) rows.push({ label: 'Scraper status', value: status });
   if (lead.xContactInfo) rows.push({ label: 'Contact info', value: lead.xContactInfo });
   return rows;
+}
+
+function V4XIntakeCleanDm(text) {
+  return V4CleanDisplayText(text)
+    .replace(/\b\d{1,2}:\d{2}\s*(?:AM|PM)(?:\s+\d{1,2}:\d{2}\s*(?:AM|PM))*\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function V4XIntakeDmBody(lead) {
+  if (!lead) return '';
+  const ctx = V3ParseXDescriptionContext(lead.rawDescription);
+  let body = V4XIntakeCleanDm(lead.evidence || lead.xLastLeadMessage || ctx.lastMessage || '');
+  if (body) return body;
+  const summary = String(lead.notes || ctx.xSummary || '');
+  const fromSummary = summary.match(/Latest lead message:\s*(.+?)(?:\s+Robert['’]s latest|$)/i);
+  if (fromSummary) return V4XIntakeCleanDm(fromSummary[1]);
+  return V4XIntakeCleanDm(summary);
+}
+
+function V4XIntakeGist(lead) {
+  const pitch = V4XLeadPitchRef(lead);
+  if (pitch) {
+    const line = pitch.charAt(0).toUpperCase() + pitch.slice(1);
+    return line.endsWith('.') ? line : `${line}.`;
+  }
+  const body = V4XIntakeDmBody(lead);
+  if (!body) return '';
+  if (body.length <= 140) return body;
+  return `${body.slice(0, 137).trim()}…`;
+}
+
+function V4XIntakeNextStepShort(lead) {
+  const step = String(lead?.xBestNextStep || lead?.nextMove?.text || '').trim();
+  if (!step) return '';
+  if (/reply in x/i.test(step) && /email/i.test(step)) return 'Reply on X, then move to email';
+  if (step.length <= 56) return step;
+  return `${step.slice(0, 53).trim()}…`;
+}
+
+function V4XIntakeHandle(lead) {
+  const handle = String(lead?.xHandle || '').trim();
+  if (handle) return handle.replace(/^@/, '');
+  const info = String(lead?.xContactInfo || '').trim();
+  const match = info.match(/@([A-Za-z0-9_]{1,30})/);
+  return match ? match[1] : '';
+}
+
+function V4XIntakePanel({ lead }) {
+  const [dmOpen, setDmOpen] = React.useState(false);
+  if (!lead) return null;
+  const gist = V4XIntakeGist(lead);
+  const dm = V4XIntakeDmBody(lead);
+  const handle = V4XIntakeHandle(lead);
+  const email = V3LeadExternalEmail(lead);
+  const next = V4XIntakeNextStepShort(lead);
+  const status = String(lead.xCurrentStatus || '').trim();
+  const robertReply = V3XLeadRepliedViaX(lead)
+    ? V4XIntakeCleanDm(lead.xLastRobertMessage || '')
+    : '';
+  const dmLong = dm.length > 300;
+  const dmShow = dmOpen || !dmLong ? dm : `${dm.slice(0, 297).trim()}…`;
+  const typeLabel = V4CleanDisplayText(lead.deliverables || 'X DM');
+
+  return (
+    <div className="cos-x-intake">
+      <div className="cos-x-intake-top">
+        <div className="cos-x-intake-copy">
+          <div className="cos-x-intake-eyebrow">X intake</div>
+          <h3 className="cos-x-intake-title">{V4CleanDisplayText(lead.contactName || lead.brand || 'X lead')}</h3>
+          {gist ? <p className="cos-x-intake-gist">{gist}</p> : null}
+        </div>
+        {lead.xOpenDm ? (
+          <button className="cos-quick-btn" type="button" onClick={() => window.open(lead.xOpenDm, '_blank', 'noopener')}>
+            Open DM
+          </button>
+        ) : null}
+      </div>
+      <div className="cos-x-intake-chips">
+        {handle ? <span className="cos-x-intake-chip">@{handle}</span> : null}
+        <span className="cos-x-intake-chip">{typeLabel}</span>
+        <span className="cos-x-intake-chip">{lead.xMessageCount || 1} DM{(lead.xMessageCount || 1) === 1 ? '' : 's'}</span>
+        <span className={'cos-x-intake-chip' + (email ? ' is-good' : ' is-muted')}>{email || 'No email yet'}</span>
+      </div>
+      {dm ? (
+        <div className="cos-x-intake-quote">
+          <div className="cos-x-intake-quote-label">They said</div>
+          <p>{dmShow}</p>
+          {dmLong ? (
+            <button type="button" className="cos-x-intake-toggle" onClick={() => setDmOpen(open => !open)}>
+              {dmOpen ? 'Show less' : 'Show full message'}
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        <p className="cos-x-intake-empty">No DM text saved yet. Click <strong>↻ Pull X context</strong> above.</p>
+      )}
+      {robertReply ? (
+        <div className="cos-x-intake-robert">
+          <span className="cos-x-intake-robert-label">Robert replied</span>
+          <p>{robertReply}</p>
+        </div>
+      ) : null}
+      {next ? (
+        <div className="cos-x-intake-next">
+          <span className="cos-x-intake-next-label">Next</span>
+          <span>{next}</span>
+        </div>
+      ) : null}
+      {status ? (
+        <details className="cos-x-intake-details">
+          <summary>Scraper details</summary>
+          <span>{status}</span>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
+function V4CompanyOsLeadSourceChannel(lead) {
+  if (V3IsXLeadRecord(lead)) return 'x';
+  if (window.V3?.NewLeadSourceKind) return window.V3.NewLeadSourceKind(lead);
+  const source = String(lead?.source || '').toLowerCase();
+  if (source === 'x' || source.includes('x-dm') || source.includes('twitter_dm') || lead?.xOpenDm) return 'x';
+  return 'gmail';
+}
+
+function V4CompanyOsMatchesSourceFilter(lead, filter) {
+  const mode = String(filter || 'all').toLowerCase();
+  if (!mode || mode === 'all') return true;
+  return V4CompanyOsLeadSourceChannel(lead) === mode;
 }
 
 function V4CompanyOsMailboxOrigin(lead) {
@@ -12727,7 +14278,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                         </div>
                       ) : null}
                       <div className="brief-maker-result-actions">
-                        <button type="button" className="cos-toolkit-btn is-primary" onClick={() => onNavigateView?.('new-leads', null)}>Open New Leads</button>
+                        <button type="button" className="cos-toolkit-btn is-primary" onClick={() => { try { window.sessionStorage.setItem('cos-queue', 'send'); } catch (e) {} onNavigateView?.('company-os', null); onActivateSplit?.('send'); }}>Open Intake</button>
                       </div>
                     </div>
                   )}
@@ -12930,19 +14481,113 @@ function V6SourceClass(source) {
   return 'lead';
 }
 
-function V6RowFact(lead, item) {
-  let raw = (lead?.nextMove && lead.nextMove.text)
-    || (item?.points && item.points[0])
+function V4CosAgentLine(lead) {
+  const raw = lead?.operatorSummary?.next_action
+    || lead?.agentAssessment
+    || lead?.operatorSummary?.lead_summary
+    || lead?.nextMove?.text
+    || (window.V3.NewLeadSummary ? window.V3.NewLeadSummary(lead) : '')
     || V4CompanyOsListSnippet(lead)
     || '';
-  let cleaned = V4CleanDisplayText(raw);
-  if (cleaned.toLowerCase().includes('review drafted reply') || cleaned.length < 8) {
-    const phase = V4CompanyOsPhase(lead);
-    const val = lead?.value ? `${V4CompanyOsMoney(lead.value)} ` : '';
-    cleaned = `${phase} • ${val}${lead?.daysInStage || 0}d`.trim();
+  const cleaned = V4CleanDisplayText(String(raw).replace(/\s+/g, ' ').trim());
+  if (cleaned.length <= 110) return cleaned;
+  return cleaned.slice(0, 107).trim() + '…';
+}
+
+function V4CosIsTravelLead(lead) {
+  return V4LeadIsTravelLead(lead) && !['trash', 'dead-leads', 'paid-out'].includes(lead?.stage);
+}
+
+function V4CosIsSendLead(lead) {
+  if (!lead) return false;
+  if (V4CosIsTravelLead(lead)) return false;
+  if (window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(lead)) return false;
+  const st = String(lead.draftReplyStatus || '').toLowerCase();
+  if (lead.draftReply?.body && (st === 'review' || st === 'pending')) return true;
+  if (lead.draftReply?.body && (lead.unread || lead.needsReply)) return true;
+  if ((lead.unread || lead.needsReply) && lead.nextMove?.who) return true;
+  return false;
+}
+
+function V4CosIsChaseLead(lead) {
+  if (!lead) return false;
+  if (window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(lead)) return false;
+  if (V4CosIsSendLead(lead)) return false;
+  if (lead.followUpDue) return true;
+  if (String(lead.briefStatus || '').toLowerCase().replace(/_/g, '-') === 'awaiting-robert') return true;
+  if (['rates-sent', 'negotiating', 'invoice-sent', 'first-touch', 'engaged'].includes(lead.stage)) return true;
+  if (lead.stage === 'done') return true;
+  return false;
+}
+
+function V4CosIsWatchLead(lead) {
+  if (!lead) return false;
+  if (window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(lead)) return false;
+  if (V4CosIsSendLead(lead) || V4CosIsChaseLead(lead)) return false;
+  if (['done', 'paid-out'].includes(lead.stage)) return false;
+  return true;
+}
+
+function V4CosQueueActionLabel(lead, queueId) {
+  if (window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(lead)) return 'Triage';
+  if (queueId === 'travel') return lead?.needsReply ? 'Reply' : 'Pursue';
+  if (queueId === 'send') {
+    if (String(lead.draftReplyStatus || '').toLowerCase() === 'review') return 'Review';
+    if (lead.draftReply?.body) return 'Send';
+    return 'Reply';
   }
+  if (queueId === 'chase') {
+    if (lead.stage === 'invoice-sent') return 'Pay';
+    if (lead.stage === 'done') return 'Brief';
+    if (lead.followUpDue) return 'Nudge';
+    return 'Chase';
+  }
+  return null;
+}
+
+function V4QueueRow({ lead, queueId, isCurrent, onClick, style }) {
+  const brand = V4CleanDisplayText(lead?.brand || lead?.contactName || 'Lead');
+  const line = V4CosAgentLine(lead);
+  const action = V4CosQueueActionLabel(lead, queueId);
+  const value = lead?.value ? (typeof v3Money === 'function' ? v3Money(lead.value) : '$' + lead.value) : '';
+  const age = V3LeadActivityLabel(lead) || '';
+  const isIntake = window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(lead);
+  const needsDm = V4XLeadNeedsDmReply(lead);
+  const isTravel = V4LeadIsTravelLead(lead);
+  return (
+    <button
+      type="button"
+      className={'cos-queue-row' + (isCurrent ? ' is-current' : '') + (isIntake ? ' is-intake' : '') + (needsDm ? ' is-x-dm' : '') + (isTravel ? ' is-travel' : '')}
+      style={style}
+      onClick={onClick}
+    >
+      <div className="cos-queue-row-top">
+        <span className={'cos-queue-dot' + (lead?.unread ? '' : ' off')} />
+        <span className="cos-queue-brand">{brand}</span>
+        {value ? <span className="cos-queue-value">{value}</span> : null}
+        {isTravel ? <span className="cos-queue-action is-travel">Travel</span> : null}
+        {needsDm ? <span className="cos-queue-action is-x-dm">X DM</span> : null}
+        {action ? <span className={'cos-queue-action is-' + queueId}>{action}</span> : null}
+        {age ? <span className="cos-queue-age">{age}</span> : null}
+      </div>
+      <p className="cos-queue-line">{line}</p>
+    </button>
+  );
+}
+
+function V6RowFact(lead, item) {
+  const cleaned = V4CosAgentLine(lead) || V4CleanDisplayText((item?.points && item.points[0]) || '');
   if (cleaned.length <= 88) return cleaned;
   return cleaned.slice(0, 85).trim() + '…';
+}
+
+function V6ListRowStatus(lead) {
+  const status = String(lead?.draftReplyStatus || '').toLowerCase();
+  if (status === 'review' && lead?.draftReply?.body) return { label: 'Review', tone: 'warn' };
+  if ((status === 'pending' || lead?.draftReply?.body) && lead?.draftReply?.body) return { label: 'Draft', tone: 'good' };
+  if (lead?.unread || lead?.needsReply) return { label: 'Reply', tone: 'hot' };
+  if ((lead?.daysInStage || 0) >= 8) return { label: 'Stale', tone: 'soft' };
+  return null;
 }
 
 function V6ListRow({ lead, title, isCurrent, onClick, style }) {
@@ -12951,16 +14596,18 @@ function V6ListRow({ lead, title, isCurrent, onClick, style }) {
   const age = V3LeadActivityLabel(lead) || (lead?.daysInStage ? `${lead.daysInStage}d in stage` : '');
   const ageTitle = V3LeadActivityFull(lead) || '';
   const fact = V6RowFact(lead);
+  const badge = V6ListRowStatus(lead);
   return (
     <button
       type="button"
-      className={`v6-row${isCurrent ? ' cur' : ''}`}
+      className={`v6-row${isCurrent ? ' cur' : ''}${badge ? ' has-badge' : ''}`}
       style={style}
       onClick={onClick}
       title={ageTitle || undefined}
     >
       <span className={`v6-dot${lead?.unread ? '' : ' off'}`} />
       <span className="v6-brand-t">{brand}</span>
+      {badge ? <span className={`v6-row-badge is-${badge.tone}`}>{badge.label}</span> : null}
       {V3XLeadRepliedViaX(lead) ? <span className="v6-x-replied">X replied</span> : null}
       <span className={`v6-src ${V6SourceClass(source)}`}>{source}</span>
       <span className="v6-age" title={ageTitle || undefined}>{age}</span>
@@ -12969,10 +14616,559 @@ function V6ListRow({ lead, title, isCurrent, onClick, style }) {
   );
 }
 
-function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief, briefItem, onOpenSplits }) {
+function V4BuildCopilotFocusFromLead(lead) {
+  if (!lead) return null;
+  const context = typeof V4OrgApprovalContext === 'function' ? V4OrgApprovalContext(lead) : null;
+  const conflict = typeof V4OrgApprovalConflict === 'function' && context ? V4OrgApprovalConflict(lead, context) : '';
+  const draftBody = V4PlaintextForCopilot(lead.draftReply?.body || '');
+  return {
+    surface: 'company-os',
+    view: 'company-os',
+    gate: 'negotiate',
+    gateLabel: 'Lead co-pilot',
+    leadId: lead.id,
+    brand: lead.brand || lead.contactName || 'Lead',
+    contactName: lead.contactName || '',
+    stage: lead.stage || '',
+    email: lead.email || '',
+    source: lead.source || '',
+    xOpenDm: lead.xOpenDm || '',
+    repliedViaX: typeof V3XLeadRepliedViaX === 'function' ? V3XLeadRepliedViaX(lead) : false,
+    why: lead.agentAssessment || lead.operatorSummary?.next_action || lead.nextMove?.text || '',
+    conflict: conflict || null,
+    inbound: context ? {
+      from: context.sender,
+      subject: V4PlaintextForCopilot(context.subject),
+      when: context.when || '',
+      body: V4PlaintextForCopilot(context.body).slice(0, 2200),
+    } : null,
+    draft: {
+      subject: V4PlaintextForCopilot(lead.draftReply?.subject || ''),
+      body: draftBody.slice(0, 2800),
+      status: lead.draftReplyStatus || '',
+    },
+    agentAssessment: lead.agentAssessment || '',
+    recommendedAction: lead.recommendedAction || '',
+    nextMove: (lead.nextMove && lead.nextMove.text) || '',
+    operatorSummary: lead.operatorSummary || null,
+    value: lead.value || null,
+    thread: Array.isArray(lead.thread) ? lead.thread.slice(-5).map(m => ({
+      from: V4PlaintextForCopilot(m.from),
+      subject: V4PlaintextForCopilot(m.subject),
+      body: V4PlaintextForCopilot(m.body).slice(0, 700),
+    })) : [],
+    notes: V4PlaintextForCopilot(lead.notes || lead.operatorSummary?.lead_summary || '').slice(0, 1200),
+  };
+}
+
+function V4CosSimilarDeals(lead, allLeads, limit = 4) {
+  if (!lead) return [];
+  const pool = (Array.isArray(allLeads) ? allLeads : [])
+    .filter(l => l && String(l.id) !== String(lead.id) && !['trash', 'dead-leads'].includes(l.stage));
+  const stage = lead.stage || '';
+  const value = Number(lead.value) || 0;
+  const scored = pool.map(l => {
+    let score = 0;
+    if (l.stage === stage) score += 3;
+    const lv = Number(l.value) || 0;
+    if (value && lv && Math.abs(lv - value) / Math.max(value, lv) <= 0.5) score += 2;
+    if (l.agentTier && l.agentTier === lead.agentTier) score += 1;
+    if (l.category && l.category === lead.category) score += 1;
+    return { lead: l, score };
+  });
+  return scored.sort((a, b) => b.score - a.score || (b.lead.value || 0) - (a.lead.value || 0))
+    .slice(0, limit)
+    .map(x => x.lead);
+}
+
+function V4CosLeadIntel(lead) {
+  const summary = lead?.operatorSummary || {};
+  const analysis = lead?.operatorAnalysis || {};
+  const escalations = Array.isArray(lead?.operatorEscalation) ? lead.operatorEscalation : [];
+  const status = String(lead?.draftReplyStatus || '').toLowerCase();
+  let confidence = 35;
+  if (lead?.draftReply?.body) confidence += 22;
+  if (lead?.agentAssessment) confidence += 18;
+  if (summary.next_action) confidence += 12;
+  if (summary.quoted_rate) confidence += 8;
+  if ((lead?.thread || []).length >= 2) confidence += 8;
+  if (!escalations.length && status !== 'review') confidence += 7;
+  if (analysis.reply_type) confidence += 5;
+  confidence = Math.min(96, Math.max(18, confidence));
+  if (status === 'review') confidence = Math.min(confidence, 42);
+  if (escalations.length) confidence = Math.min(confidence, 55);
+
+  const risks = [];
+  if (status === 'review') risks.push('Scam gate flagged this thread for human review before send.');
+  escalations.forEach(item => risks.push(String(item).replace(/_/g, ' ')));
+  if ((lead?.daysInStage || 0) >= 8) risks.push(`${lead.daysInStage} days in stage with no movement.`);
+  const ctx = typeof V4OrgApprovalContext === 'function' ? V4OrgApprovalContext(lead) : null;
+  const conflict = typeof V4OrgApprovalConflict === 'function' && ctx ? V4OrgApprovalConflict(lead, ctx) : '';
+  if (conflict) risks.push(conflict);
+  if (!lead?.email && lead?.source?.toLowerCase?.().includes('x')) risks.push('No email captured yet. Confirm contact path before committing.');
+
+  const opportunities = [];
+  if (lead?.value >= 2500) opportunities.push(`Strong deal size at ${typeof v3Money === 'function' ? v3Money(lead.value) : '$' + lead.value}.`);
+  if (summary.quoted_rate) opportunities.push(`Rate on the table: ${summary.quoted_rate}.`);
+  if (summary.launch_timing) opportunities.push(`Launch window: ${summary.launch_timing}.`);
+  if (lead?.stage === 'negotiating' && lead?.draftReply) opportunities.push('Draft is ready. A clean approve and send can close the loop.');
+  if (analysis.stage === 'pricing' && !summary.quoted_rate) opportunities.push('Good moment to anchor tier and payment terms.');
+
+  return {
+    confidence,
+    risks: risks.slice(0, 5),
+    opportunities: opportunities.slice(0, 4),
+    nextStep: summary.next_action || lead?.nextMove?.text || 'Review thread and decide the next move.',
+  };
+}
+
+function V4CosWordDiff(baseline, current) {
+  const base = String(baseline || '').trim().split(/\s+/).filter(Boolean);
+  const cur = String(current || '').trim().split(/\s+/).filter(Boolean);
+  const parts = [];
+  let i = 0;
+  let j = 0;
+  while (i < base.length || j < cur.length) {
+    if (i < base.length && j < cur.length && base[i] === cur[j]) {
+      parts.push({ type: 'same', text: base[i] });
+      i += 1;
+      j += 1;
+      continue;
+    }
+    const nextInBase = j < cur.length ? base.indexOf(cur[j], i) : -1;
+    if (j < cur.length && (i >= base.length || nextInBase === -1)) {
+      parts.push({ type: 'add', text: cur[j] });
+      j += 1;
+      continue;
+    }
+    if (i < base.length) {
+      parts.push({ type: 'del', text: base[i] });
+      i += 1;
+    }
+  }
+  return parts;
+}
+
+function V4CosDiffView({ baseline, current }) {
+  const parts = React.useMemo(() => V4CosWordDiff(baseline, current), [baseline, current]);
+  const changed = parts.some(p => p.type !== 'same');
+  if (!changed) return <div className="cos-negotiate-diff cos-negotiate-diff--clean">Matches AI draft</div>;
+  return (
+    <div className="cos-negotiate-diff" aria-label="Edits vs AI draft">
+      {parts.map((p, idx) => (
+        <span key={idx} className={'cos-negotiate-diff-' + p.type}>{p.text}{' '}</span>
+      ))}
+    </div>
+  );
+}
+
+function V4LeadCopilotSidebar({ lead, leads, intel, collapsed, onToggle, onEscalate, onApprove, overlay = false }) {
+  const [chatInput, setChatInput] = React.useState('');
+  const [chatBusy, setChatBusy] = React.useState(false);
+  const [chatMsgs, setChatMsgs] = React.useState([]);
+  const scrollRef = React.useRef(null);
+  const similar = React.useMemo(() => V4CosSimilarDeals(lead, leads, 4), [lead?.id, leads]);
+  const bridge = typeof window !== 'undefined' && window.claude && window.claude.complete;
+  const label = (window.claude?.label) ? window.claude.label() : 'Mac Studio';
+
+  React.useEffect(() => {
+    setChatMsgs([]);
+    setChatInput('');
+  }, [lead?.id]);
+
+  React.useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [chatMsgs, chatBusy]);
+
+  const askCopilot = async () => {
+    const text = chatInput.trim();
+    if (!text || chatBusy) return;
+    setChatInput('');
+    setChatMsgs(m => [...m, { role: 'user', text }]);
+    if (!bridge) {
+      setChatMsgs(m => [...m, { role: 'ai', text: 'Local LLM offline. Start local_llm_bridge.py on this Mac.' }]);
+      return;
+    }
+    setChatBusy(true);
+    try {
+      const focus = V4BuildCopilotFocusFromLead(lead);
+      let blob = '';
+      try { blob = JSON.stringify(focus); } catch (e) { blob = String(focus); }
+      const prompt =
+        "You are the UNALIGNED lead co-pilot for Asher. Answer ONLY about this lead. Read-only. Never use hyphens or em dashes.\n\n" +
+        'LEAD CONTEXT:\n' + blob.slice(0, 4200) + '\n\n' +
+        'QUESTION: ' + text + '\n\nGive a short, concrete answer:';
+      const out = String(await window.claude.complete(prompt, { max_tokens: 500 }) || '').trim();
+      setChatMsgs(m => [...m, { role: 'ai', text: out || 'No answer.' }]);
+    } catch (err) {
+      setChatMsgs(m => [...m, { role: 'ai', text: 'Failed: ' + (err?.message || 'bridge error') }]);
+    } finally {
+      setChatBusy(false);
+    }
+  };
+
+  if (collapsed && !overlay) {
+    return (
+      <aside className="cos-copilot-sidebar cos-copilot-sidebar--collapsed">
+        <button type="button" className="cos-copilot-expand" onClick={onToggle} title="Open co-pilot">
+          <V3Icon name="spark" w={16} />
+        </button>
+      </aside>
+    );
+  }
+
+  return (
+    <aside className={'cos-copilot-sidebar' + (overlay ? ' cos-copilot-sidebar--overlay' : '')}>
+      <header className="cos-copilot-hd">
+        <div>
+          <div className="cos-copilot-eyebrow">Co-pilot</div>
+          <strong>{lead.brand}</strong>
+        </div>
+        <button type="button" className="hd-icon-btn" onClick={onToggle} aria-label="Collapse co-pilot">
+          <V3Icon name="chev_d" w={14} style={{ transform: 'rotate(-90deg)' }} />
+        </button>
+      </header>
+      <div className="cos-copilot-scroll" ref={scrollRef}>
+        <section className="cos-copilot-block">
+          <div className="cos-copilot-block-hd">
+            <span>Confidence</span>
+            <span className={'cos-copilot-conf is-' + (intel.confidence >= 70 ? 'high' : intel.confidence >= 45 ? 'mid' : 'low')}>{intel.confidence}%</span>
+          </div>
+          <div className="cos-copilot-conf-bar"><span style={{ width: intel.confidence + '%' }} /></div>
+        </section>
+        <section className="cos-copilot-block">
+          <div className="cos-copilot-block-hd"><span>Next step</span></div>
+          <p className="cos-copilot-copy">{intel.nextStep}</p>
+        </section>
+        {intel.risks.length > 0 && (
+          <section className="cos-copilot-block is-risk">
+            <div className="cos-copilot-block-hd"><span>Risks</span></div>
+            <ul className="cos-copilot-list">{intel.risks.map((r, i) => <li key={i}>{r}</li>)}</ul>
+          </section>
+        )}
+        {intel.opportunities.length > 0 && (
+          <section className="cos-copilot-block is-opp">
+            <div className="cos-copilot-block-hd"><span>Opportunities</span></div>
+            <ul className="cos-copilot-list">{intel.opportunities.map((o, i) => <li key={i}>{o}</li>)}</ul>
+          </section>
+        )}
+        {similar.length > 0 && (
+          <section className="cos-copilot-block">
+            <div className="cos-copilot-block-hd"><span>Similar deals</span></div>
+            <div className="cos-copilot-similar">
+              {similar.map(s => (
+                <div key={s.id} className="cos-copilot-similar-row">
+                  <strong>{s.brand}</strong>
+                  <span>{s.stage}{s.value ? ` · ${typeof v3Money === 'function' ? v3Money(s.value) : '$' + s.value}` : ''}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+        <section className="cos-copilot-block cos-copilot-chat">
+          <div className="cos-copilot-block-hd">
+            <span>Ask this lead</span>
+            <span className="cos-copilot-src">{bridge ? label : 'offline'}</span>
+          </div>
+          <div className="cos-copilot-chat-log">
+            {!chatMsgs.length && <p className="cos-copilot-chat-hint">Ask about tone, risks, or what to say next.</p>}
+            {chatMsgs.map((m, i) => <div key={i} className={'cos-copilot-chat-msg is-' + m.role}>{m.text}</div>)}
+            {chatBusy && <div className="cos-copilot-chat-msg is-ai">Thinking…</div>}
+          </div>
+          <div className="cos-copilot-chat-in">
+            <textarea
+              value={chatInput}
+              onChange={e => setChatInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askCopilot(); } }}
+              placeholder="Ask about this thread…"
+              rows={2}
+            />
+            <button type="button" onClick={askCopilot} disabled={chatBusy || !chatInput.trim()}>Ask</button>
+          </div>
+        </section>
+      </div>
+      <footer className="cos-copilot-ft">
+        <button type="button" className="cos-copilot-act" onClick={onApprove}>Approve &amp; send</button>
+        <button type="button" className="cos-copilot-act is-soft" onClick={onEscalate}>Escalate to Sam</button>
+      </footer>
+    </aside>
+  );
+}
+
+function V4LeadNegotiateWorkspace({
+  lead, user, leads, stage, isReview, reviewReason, isXLead, xContextRows,
+  operatorSummary, operatorAnalysis, operatorStatus, gmailSubject,
+  onBack, onOpenSplits, onCollapse, setTab, onAfterSend,
+}) {
+  const [sidebarOpen, setSidebarOpen] = React.useState(false);
+  const [pane, setPane] = React.useState('draft');
+  const [sender, setSender] = React.useState(() => V3SenderForUser(user));
+  const [userBody, setUserBody] = React.useState('');
+  const [aiBaseline, setAiBaseline] = React.useState('');
+  const [status, setStatus] = React.useState('draft');
+  const [error, setError] = React.useState('');
+  const [success, setSuccess] = React.useState('');
+  const intel = React.useMemo(() => V4CosLeadIntel(lead), [lead]);
+  const subject = V3SubjectForLead(lead);
+  const draft = React.useMemo(() => V3ComposeReplyDraft(lead, sender), [lead.id, lead.draftReply?.body, lead.draftReply?.subject, lead.thread?.length, lead.lastTouchAt, sender]);
+  const recipients = React.useMemo(() => V3ReplyRecipients(lead, sender, false), [lead.id, sender]);
+  const toLine = recipients.to.join(',');
+  const ccLine = recipients.cc.join(',');
+
+  React.useEffect(() => {
+    const nextSender = V3SenderForUser(user);
+    const nextDraft = V3ComposeReplyDraft(lead, nextSender);
+    setSender(nextSender);
+    setAiBaseline(nextDraft.body);
+    setUserBody(nextDraft.body);
+    setStatus('draft');
+    setError('');
+    setSuccess('');
+    setPane('draft');
+    setSidebarOpen(false);
+  }, [lead.id, lead.draftReply?.body, lead.draftReply?.subject, lead.thread?.length, lead.lastTouchAt, user]);
+
+  const contextChips = [
+    operatorSummary.quoted_rate && { label: 'Rate', value: operatorSummary.quoted_rate },
+    operatorSummary.launch_timing && { label: 'Timing', value: operatorSummary.launch_timing },
+    operatorAnalysis.reply_type && { label: 'Reply type', value: V4OperatorReplyTypeLabel(operatorAnalysis.reply_type) },
+    lead.value && { label: 'Deal', value: typeof v3Money === 'function' ? v3Money(lead.value) : '$' + lead.value },
+    operatorSummary.asked_for && { label: 'They want', value: operatorSummary.asked_for },
+  ].filter(Boolean);
+
+  const reasoning = lead.agentAssessment
+    || operatorSummary.lead_summary
+    || operatorAnalysis.reason
+    || 'No operator reasoning saved yet. Use the draft as a starting point and edit before send.';
+
+  const sendReply = async () => {
+    const msg = V3EnsureSenderSignature(userBody.trim(), sender);
+    if (!toLine.trim() || !msg) {
+      setError(!recipients.to.length ? 'Add a recipient before sending.' : 'Write a reply before sending.');
+      return;
+    }
+    setStatus('sending');
+    setError('');
+    try {
+      await V3SendLeadEmail({ lead, sender, to: toLine, cc: ccLine, subject, body: msg, attachPdf: false });
+      fetch(V3_SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(lead.id), {
+        method: 'PATCH',
+        headers: {
+          apikey: V3_SUPABASE_ANON_KEY,
+          Authorization: 'Bearer ' + V3_SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify({ draft_reply_status: 'sent', new_reply_at: null }),
+      }).catch(() => {});
+      window.dispatchEvent(new CustomEvent('v3:email-sent', { detail: { leadId: lead.id, sender, subject, body: msg, to: recipients.to, cc: recipients.cc } }));
+      setSuccess('Sent to ' + toLine);
+      setStatus('sent');
+      if (typeof onAfterSend === 'function') {
+        window.setTimeout(() => onAfterSend(lead), 900);
+      }
+    } catch (err) {
+      setStatus('error');
+      setError(err?.message || 'Send failed');
+    }
+  };
+
+  const escalate = () => {
+    V4CosPatchLead(lead, { assignee: 'sam', draft_reply_status: 'escalated' }, {
+      ownerId: 'sammy',
+      draftReplyStatus: 'escalated',
+      nextMove: { who: 'sammy', text: 'Sam reviewing escalated thread', action: 'Review' },
+    });
+    setSuccess('Escalated to Sam');
+  };
+
+  const threadMessageCount = Array.isArray(lead.thread) ? lead.thread.length : 0;
+
+  const threadPane = (
+    <div className="cos-negotiate-pane cos-negotiate-pane--thread">
+      {contextChips.length > 0 && (
+        <div className="cos-negotiate-chips">
+          {contextChips.map(chip => (
+            <div key={chip.label} className="cos-negotiate-chip">
+              <span className="cos-negotiate-chip-lbl">{chip.label}</span>
+              <span className="cos-negotiate-chip-val">{chip.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="cos-negotiate-thread-scroll">
+        {isXLead ? (
+          <div className="cos-reader-stands gmail-read-x-context">
+            <div className="cos-operator-summary">
+              {xContextRows.map(row => (
+                <div key={row.label} className="handoff-preview-row">
+                  <div className="handoff-preview-label">{row.label}</div>
+                  <div className="handoff-preview-context">{row.value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <V3GmailThread lead={lead} />
+        )}
+      </div>
+    </div>
+  );
+
+  const draftPane = (
+    <div className="cos-negotiate-pane cos-negotiate-pane--draft">
+      <div className="cos-negotiate-draft-meta">
+        <select className="cos-negotiate-from" value={sender} disabled={status === 'sending'} onChange={e => {
+          const next = e.target.value;
+          setSender(next);
+          const nextDraft = V3ComposeReplyDraft(lead, next);
+          setAiBaseline(nextDraft.body);
+          setUserBody(nextDraft.body);
+        }}>
+          <option value="robert">Robert Scoble</option>
+          <option value="sam">Sam Levin</option>
+          <option value="asher">Asher</option>
+        </select>
+        <span className="cos-negotiate-recip">To {toLine || 'add recipient'}</span>
+      </div>
+      <textarea
+        className="cos-negotiate-edit-body"
+        value={userBody}
+        disabled={status === 'sending'}
+        onChange={e => setUserBody(e.target.value)}
+        rows={16}
+      />
+      <div className="cos-negotiate-diff-wrap">
+        <div className="cos-negotiate-diff-lbl">Edits vs AI</div>
+        <V4CosDiffView baseline={aiBaseline} current={userBody} />
+      </div>
+      <div className="cos-negotiate-actions">
+        <button type="button" className="cos-negotiate-send" onClick={sendReply} disabled={status === 'sending'}>
+          {status === 'sending' ? 'Sending…' : status === 'sent' ? 'Sent' : 'Approve & send'}
+        </button>
+        <button type="button" className="cos-negotiate-reset" onClick={() => setUserBody(aiBaseline)} disabled={status === 'sending'}>
+          Reset to AI
+        </button>
+        <button type="button" className="cos-negotiate-reset" onClick={() => setPane('ai')}>
+          View AI draft
+        </button>
+      </div>
+      {(error || success) && (
+        <div className={'cos-negotiate-status ' + (error ? 'is-error' : 'is-success')}>{error || success}</div>
+      )}
+    </div>
+  );
+
+  const aiPane = (
+    <div className="cos-negotiate-pane cos-negotiate-pane--ai">
+      <pre className="cos-negotiate-ai-body">{draft.body}</pre>
+      <div className="cos-negotiate-reason">
+        <div className="cos-negotiate-reason-lbl">Why it makes sense</div>
+        <p>{reasoning}</p>
+      </div>
+      <button type="button" className="cos-negotiate-insert" onClick={() => { setUserBody(aiBaseline); setPane('draft'); }}>
+        Pull AI into your draft
+      </button>
+    </div>
+  );
+
+  return (
+    <div className="cos-negotiate-shell cos-negotiate-shell--focused">
+      <header className="gmail-read-hd cos-negotiate-hd cos-negotiate-hd--slim">
+        <button className="gmail-read-back hd-icon-btn" onClick={onBack} aria-label="Back to list" type="button">
+          <V3Icon name="chev_d" w={16} style={{ transform: 'rotate(90deg)' }} />
+        </button>
+        <div className="gmail-read-hd-main">
+          <h1 className="gmail-read-subject">{V4CleanDisplayText(lead.brand || gmailSubject)}</h1>
+          <div className="gmail-read-submeta cos-negotiate-submeta">
+            <span>{lead.contactName}</span>
+            <span className="gmail-read-sep">·</span>
+            <span style={{ color: stage.color }}>{stage.name}</span>
+            <span className={`cos-operator-status is-${operatorStatus.tone}`}>{operatorStatus.label}</span>
+          </div>
+        </div>
+        <button type="button" className="cos-negotiate-exit" onClick={onCollapse}>Exit co-pilot</button>
+        <button type="button" className={'cos-negotiate-sidebar-toggle hd-icon-btn' + (sidebarOpen ? ' is-on' : '')} onClick={() => setSidebarOpen(v => !v)} aria-label="Lead intel">
+          <V3Icon name="spark" w={16} />
+        </button>
+      </header>
+      {isReview && (
+        <div className="cos2-review-banner gmail-read-review">
+          <div className="cos2-review-banner-msg">
+            <strong>Scam gate flagged this for review</strong>
+            <span>{reviewReason}</span>
+          </div>
+        </div>
+      )}
+      <div className="cos-negotiate-tabs">
+        <button type="button" className={'cos-negotiate-tab' + (pane === 'draft' ? ' is-active' : '')} onClick={() => setPane('draft')}>Your draft</button>
+        <button type="button" className={'cos-negotiate-tab' + (pane === 'thread' ? ' is-active' : '')} onClick={() => setPane('thread')}>
+          Thread <span className="cos-negotiate-tab-cnt">{threadMessageCount}</span>
+        </button>
+        <button type="button" className={'cos-negotiate-tab' + (pane === 'ai' ? ' is-active' : '')} onClick={() => setPane('ai')}>AI reference</button>
+        <span className="cos-negotiate-tab-hint">{intel.nextStep}</span>
+      </div>
+      <div className="cos-negotiate-main">
+        {pane === 'draft' ? draftPane : null}
+        {pane === 'thread' ? threadPane : null}
+        {pane === 'ai' ? aiPane : null}
+      </div>
+      {sidebarOpen && (
+        <div className="cos-copilot-portal" role="presentation">
+          <button type="button" className="cos-copilot-scrim" aria-label="Close lead intel" onClick={() => setSidebarOpen(false)} />
+          <V4LeadCopilotSidebar
+            lead={lead}
+            leads={leads}
+            intel={intel}
+            collapsed={false}
+            overlay
+            onToggle={() => setSidebarOpen(false)}
+            onEscalate={escalate}
+            onApprove={sendReply}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief, briefItem, onOpenSplits, leads = [], onAfterSend }) {
   const { STAGE_BY_ID, USERS } = window.V3;
   const [tab, setTab] = React.useState('thread');
+  const [threadSync, setThreadSync] = React.useState({ status: 'idle', note: '' });
+  const [quickSend, setQuickSend] = React.useState({ status: '', error: '' });
+  const [xDmReplyOpen, setXDmReplyOpen] = React.useState(false);
+  const [xDmDraft, setXDmDraft] = React.useState('');
+  const [xDmCopied, setXDmCopied] = React.useState(false);
   React.useEffect(() => { setTab('thread'); }, [lead?.id]);
+  React.useEffect(() => {
+    setThreadSync({ status: 'idle', note: '' });
+    setQuickSend({ status: '', error: '' });
+    setXDmReplyOpen(false);
+    setXDmDraft('');
+    setXDmCopied(false);
+  }, [lead?.id]);
+  const isIntake = window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(lead);
+  const agentLine = V4CosAgentLine(lead);
+  React.useEffect(() => {
+    if (!lead) {
+      if (typeof V4ClearCopilotFocus === 'function') V4ClearCopilotFocus('company-os');
+      return;
+    }
+    if (typeof V4SetCopilotFocus === 'function') V4SetCopilotFocus(V4BuildCopilotFocusFromLead(lead));
+    return () => { if (typeof V4ClearCopilotFocus === 'function') V4ClearCopilotFocus('company-os'); };
+  }, [lead?.id]);
+  React.useEffect(() => {
+    if (!onAfterSend || !lead) return;
+    const onSent = (e) => {
+      if (String(e?.detail?.leadId) === String(lead.id)) {
+        setComposeOpen(false);
+        onAfterSend(lead);
+      }
+    };
+    window.addEventListener('v3:email-sent', onSent);
+    return () => window.removeEventListener('v3:email-sent', onSent);
+  }, [lead?.id, onAfterSend, setComposeOpen]);
   if (!lead) {
     return <div className="cos2-reader"><div className="cos2-reader-empty">Select a thread from the list.</div></div>;
   }
@@ -12999,9 +15195,109 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
   const compactMeta = [lead.contactRole, isXLead ? lead.xHandle : '', lead.email].filter(Boolean).join(' · ');
   const listSnippet = V4CompanyOsListSnippet(lead);
   const operatorBadgeVisible = operatorStatus.label !== 'Monitoring';
-  const xContextRows = V4XLeadContextRows(lead);
+  const needsXDmReply = V4XLeadNeedsDmReply(lead);
+  const openXDmReply = () => {
+    setComposeOpen(false);
+    setXDmDraft(V4BuildXDmReplyDraft(lead));
+    setXDmReplyOpen(true);
+    setXDmCopied(false);
+  };
+  React.useEffect(() => {
+    if (!lead?.id || !needsXDmReply) return;
+    setXDmDraft(V4BuildXDmReplyDraft(lead));
+    setXDmReplyOpen(true);
+    setXDmCopied(false);
+  }, [lead?.id, needsXDmReply]);
+  React.useEffect(() => {
+    if (!lead || !composeOpen || !needsXDmReply) return;
+    openXDmReply();
+  }, [lead?.id, composeOpen, needsXDmReply]);
+  const copyXDmDraft = async () => {
+    const text = String(xDmDraft || '').trim();
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setXDmCopied(true);
+      window.setTimeout(() => setXDmCopied(false), 2200);
+    } catch (err) {
+      window.prompt('Copy this X DM draft:', text);
+    }
+  };
+  const xDmReplySheet = needsXDmReply ? (
+    <div className="cos-x-reply-draft is-sheet">
+      <div className="cos-x-reply-draft-head">
+        <div>
+          <div className="cos-operator-strip-eyebrow">X reply</div>
+          <strong>DM draft — copy into X</strong>
+        </div>
+        <div className="cos-x-reply-draft-actions">
+          <button type="button" className="cos-quick-btn is-primary" onClick={copyXDmDraft}>
+            {xDmCopied ? 'Copied' : 'Copy draft'}
+          </button>
+          {lead.xOpenDm ? (
+            <button type="button" className="cos-quick-btn" onClick={() => window.open(lead.xOpenDm, '_blank', 'noopener')}>
+              Open DM
+            </button>
+          ) : null}
+          {xDmReplyOpen ? (
+            <button type="button" className="cos-quick-btn" onClick={() => setXDmReplyOpen(false)}>Minimize</button>
+          ) : (
+            <button type="button" className="cos-quick-btn" onClick={openXDmReply}>Expand</button>
+          )}
+        </div>
+      </div>
+      {xDmReplyOpen ? (
+        <React.Fragment>
+          <textarea
+            className="cos-x-reply-draft-body"
+            value={xDmDraft}
+            rows={7}
+            onChange={e => setXDmDraft(e.target.value)}
+            spellCheck
+          />
+          <p className="cos-x-reply-draft-hint">
+            Paste as Robert in the X DM thread. When sent, click <strong>Mark replied on X</strong> so the board stays accurate.
+          </p>
+        </React.Fragment>
+      ) : (
+        <button type="button" className="cos-x-reply-draft-collapsed" onClick={openXDmReply}>
+          Draft ready — click to expand and edit before copying
+        </button>
+      )}
+    </div>
+  ) : null;
   const moveLead = (nextStage) => window.V3.MoveLeadStage(lead, nextStage);
   const clearUnread = () => V4CosPatchLead(lead, { new_reply_at: null }, { unread: false });
+  const threadFreshness = V4LeadThreadFreshness(lead);
+  const pendingOperatorDraft = String(lead.draftReplyStatus || '').toLowerCase() === 'pending' && String(lead.draftReply?.body || '').trim();
+  const refreshThread = async () => {
+    if (!lead) return;
+    setThreadSync({
+      status: 'syncing',
+      note: isXLead ? 'Pulling DM context from X intake…' : 'Pulling this thread from Gmail…',
+    });
+    try {
+      if (isXLead) await V4RefreshLeadFromX(lead);
+      else await V4RefreshLeadFromGmail(lead);
+      setThreadSync({
+        status: 'ok',
+        note: isXLead ? 'X DM context refreshed' : 'Thread refreshed from Gmail',
+      });
+    } catch (err) {
+      setThreadSync({ status: 'error', note: err?.message || 'Refresh failed' });
+    }
+    window.setTimeout(() => setThreadSync({ status: 'idle', note: '' }), 4500);
+  };
+  const quickApproveSend = async () => {
+    setQuickSend({ status: 'sending', error: '' });
+    try {
+      await V4SendApprovedReply(lead);
+      setQuickSend({ status: 'sent', error: '' });
+      if (typeof onAfterSend === 'function') onAfterSend(lead);
+    } catch (err) {
+      setQuickSend({ status: 'error', error: err?.message || 'Send failed' });
+    }
+  };
 
   const briefSummary = isBriefSelected ? (
     <div className="brief-detail-summary">
@@ -13017,8 +15313,8 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
       <div className="cos-quick-actions">
         <div className="cos-quick-actions-group">
           <span className="cos-quick-actions-label">Quick actions</span>
-          <button className="cos-quick-btn is-primary" type="button" onClick={() => setComposeOpen(true)}>
-            {isXLead && !lead.email ? 'Prep email handoff' : (lead.draftReply ? 'Approve draft' : (replyAction ? lead.nextMove.action : 'Reply'))}
+          <button className="cos-quick-btn is-primary" type="button" onClick={() => (needsXDmReply ? openXDmReply() : setComposeOpen(true))}>
+            {needsXDmReply ? (xDmReplyOpen ? 'DM draft open' : 'Reply on X') : (lead.draftReply ? 'Approve draft' : (replyAction ? lead.nextMove.action : 'Reply'))}
           </button>
           {isXLead && lead.xOpenDm && (
             <button className="cos-quick-btn" type="button" onClick={() => window.open(lead.xOpenDm, '_blank', 'noopener')}>
@@ -13113,14 +15409,14 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
   const threadId = lead.gmailThreadId || lead.id || '';
   const threadIdShort = String(threadId).slice(-8).toUpperCase();
 
-  const showCompose = composeOpen || Boolean(lead.draftReply || lead.unread || lead.needsReply);
+  const hasDraftReady = Boolean(lead.draftReply?.body);
   const isThreadTab = tab === 'thread';
   const gmailSubject = window.V3?.V3SubjectForLead ? window.V3.V3SubjectForLead(lead) : (lead.thread?.[0]?.subject || lead.brand);
-
   const threadMessageCount = Array.isArray(lead.thread) ? lead.thread.length : 0;
+  const agentReason = lead.agentAssessment || operatorSummary.lead_summary || operatorAnalysis.reason || '';
 
   return (
-    <div className={'cos2-reader v6-reader cos2-reader--split cos2-reader--gmail' + (showCompose ? ' cos2-reader--compose-open' : '') + (isThreadTab ? ' cos2-reader--gmail-native' : '')}>
+    <div className={'cos2-reader v6-reader cos2-reader--split cos2-reader--gmail' + (composeOpen ? ' cos2-reader--compose-open' : '') + (isThreadTab ? ' cos2-reader--gmail-native' : '')}>
       {isThreadTab ? (
         <div className="gmail-read-pane">
           <header className="gmail-read-hd">
@@ -13139,15 +15435,51 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
                 <span className="gmail-read-sep">·</span>
                 <span>{threadMessageCount} {threadMessageCount === 1 ? 'message' : 'messages'}</span>
                 <span className="gmail-read-sep">·</span>
+                <span className={'gmail-read-fresh' + (threadFreshness.stale ? ' is-stale' : '')}>{threadFreshness.label}</span>
+                <span className="gmail-read-sep">·</span>
                 <span className="gmail-read-stage" style={{ color: stage.color }}>{stage.name}</span>
                 {(lead.unread || lead.needsReply) && <span className="gmail-read-action">Needs reply</span>}
                 <span className="gmail-read-links">
+                  <button type="button" className="gmail-read-link" onClick={refreshThread} disabled={threadSync.status === 'syncing'}>
+                    {threadSync.status === 'syncing'
+                      ? 'Refreshing…'
+                      : (isXLead ? '↻ Pull X context' : '↻ Refresh thread')}
+                  </button>
                   <button type="button" className="gmail-read-link" onClick={() => setTab('stands')}>Where this stands</button>
                   {lead.brief && <button type="button" className="gmail-read-link" onClick={() => setTab('brief')}>Brief</button>}
                 </span>
               </div>
+              {threadSync.note ? <div className={'gmail-read-sync-note is-' + threadSync.status}>{threadSync.note}</div> : null}
             </div>
           </header>
+          {pendingOperatorDraft && !composeOpen && !isReview && (
+            <div className="cos2-review-banner gmail-read-approve">
+              <div className="cos2-review-banner-msg">
+                <strong>Operator draft ready</strong>
+                <span>One click sends exactly what&apos;s in the draft — or open compose to edit first.</span>
+              </div>
+              <div className="cos2-review-banner-btns">
+                <button type="button" className="cos2-review-approve" onClick={quickApproveSend} disabled={quickSend.status === 'sending'}>
+                  {quickSend.status === 'sending' ? 'Sending…' : quickSend.status === 'sent' ? 'Sent' : 'Approve & send'}
+                </button>
+                <button type="button" className="cos2-review-dismiss" onClick={() => setComposeOpen(true)}>Edit first</button>
+              </div>
+              {quickSend.error ? <div className="gmail-read-sync-note is-error">{quickSend.error}</div> : null}
+            </div>
+          )}
+          {isIntake && (
+            <div className="cos-intake-bar">
+              <span>New intake from Robert pipeline</span>
+              <button type="button" className="cos-intake-accept" onClick={() => window.V3.MoveLeadStage(lead, 'first-touch')}>Accept to board</button>
+              <button type="button" className="cos-intake-trash" onClick={() => window.V3.MoveLeadStage(lead, 'trash')}>Trash</button>
+            </div>
+          )}
+          {(hasDraftReady || agentLine) && !composeOpen && (
+            <details className="cos-agent-strip">
+              <summary><span className="cos-agent-strip-lbl">Agent</span> {agentLine}</summary>
+              {agentReason && agentReason !== agentLine ? <p>{agentReason}</p> : null}
+            </details>
+          )}
           {isReview && (
             <div className="cos2-review-banner gmail-read-review">
               <div className="cos2-review-banner-msg">
@@ -13163,6 +15495,15 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
           <div className="gmail-read-scroll">
             {isXLead ? (
               <div className="cos-reader-stands gmail-read-x-context">
+                {V4LeadIsTravelLead(lead) && (
+                  <div className="cos-travel-banner">
+                    <V3Icon name="cal" w={14} />
+                    <div>
+                      <strong>Travel opportunity</strong>
+                      <span>{lead.travelLabel || V4LeadTravelLabel(lead)} — move this to email and scope trip terms fast.</span>
+                    </div>
+                  </div>
+                )}
                 {V3XLeadRepliedViaX(lead) && (
                   <div className="cos-x-replied-banner">
                     <V3Icon name="network" w={14} />
@@ -13172,60 +15513,30 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
                     </div>
                   </div>
                 )}
-                <div className="cos-operator-strip">
-                  <div className="cos-operator-strip-head">
-                    <div>
-                      <div className="cos-operator-strip-eyebrow">X intake</div>
-                      <h3>What came in from the DM scrape</h3>
-                    </div>
-                    {lead.xOpenDm ? (
-                      <button className="cos-quick-btn" type="button" onClick={() => window.open(lead.xOpenDm, '_blank', 'noopener')}>
-                        Open DM
-                      </button>
-                    ) : null}
-                  </div>
-                  <div className="cos-operator-grid">
-                    <div className="cos-operator-card">
-                      <div className="cos-operator-card-label">Source</div>
-                      <div className="cos-operator-card-value">{lead.xHandle || lead.contactName}</div>
-                    </div>
-                    <div className="cos-operator-card">
-                      <div className="cos-operator-card-label">Type</div>
-                      <div className="cos-operator-card-value">{lead.deliverables || 'X DM lead'}</div>
-                    </div>
-                    <div className="cos-operator-card">
-                      <div className="cos-operator-card-label">Message count</div>
-                      <div className="cos-operator-card-value">{lead.xMessageCount || 1} DM{lead.xMessageCount === 1 ? '' : 's'}</div>
-                    </div>
-                    <div className="cos-operator-card">
-                      <div className="cos-operator-card-label">Email captured</div>
-                      <div className="cos-operator-card-value">{lead.email || 'No email captured yet'}</div>
-                    </div>
-                  </div>
-                  <div className="cos-operator-summary">
-                    {xContextRows.map(row => (
-                      <div key={row.label} className="handoff-preview-row">
-                        <div className="handoff-preview-label">{row.label}</div>
-                        <div className="handoff-preview-context">{row.value}</div>
-                      </div>
-                    ))}
-                    {!xContextRows.length && <p>No X intake context was saved for this lead yet.</p>}
-                  </div>
-                </div>
+                <V4XIntakePanel lead={lead} />
               </div>
             ) : (
               <V3GmailThread lead={lead} />
             )}
-            <div className="gmail-reply-slot">
-              {showCompose ? (
-                <V3InlineReply lead={lead} user={user} layout="gmail" onCollapse={() => setComposeOpen(false)} />
-              ) : (
-                <button type="button" className="gmail-reply-trigger" onClick={() => setComposeOpen(true)}>
-                  <V3Icon name="reply" w={16} />
-                  <span>{isXLead && !lead.email ? `Prep handoff for ${lead.contactName.split(' ')[0]}` : `Reply${lead.draftReply ? ' — draft ready' : ''}`}</span>
-                </button>
-              )}
-            </div>
+          </div>
+          <div className={'gmail-reply-sheet' + (composeOpen || needsXDmReply ? ' is-open is-x-dm-open' : '')}>
+            {composeOpen && agentLine && (
+              <div className="cos-agent-oneline"><strong>Agent:</strong> {agentLine}</div>
+            )}
+            {composeOpen ? (
+              <V3InlineReply lead={lead} user={user} layout="gmail" onCollapse={() => setComposeOpen(false)} />
+            ) : needsXDmReply ? (
+              xDmReplySheet
+            ) : (
+              <button type="button" className={'gmail-reply-trigger' + (hasDraftReady ? ' is-draft-ready' : '')} onClick={() => setComposeOpen(true)}>
+                <V3Icon name="reply" w={16} />
+                <span>
+                  {hasDraftReady
+                    ? `Reply${isReview ? ' — review draft' : ' — draft ready'}`
+                    : 'Reply'}
+                </span>
+              </button>
+            )}
           </div>
         </div>
       ) : (
@@ -13370,20 +15681,33 @@ function AnimatedCounter({ value, className = '', format }) {
   return <span className={className} data-changing={prevRef.current !== value}>{format ? format(display) : display}</span>;
 }
 
-function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, onNavigateView }) {
+function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef, user = 'asher', onOpenLead, onNavigateView, initialQueue = '' }) {
   React.useEffect(() => {
     V4MaybeRedirectToMachineHostedApp();
   }, []);
 
-  const base = React.useMemo(() => leads
-    .filter(l => !l.isRobertBrief)
-    .filter(l => !(window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(l)))
-    .filter(l => V4CompanyOsFilterLead(l, query)), [leads, query]);
-  const live = base.filter(l => !['trash', 'dead-leads'].includes(l.stage));
-  const byRecent = (a, b) => V3LeadActivityTimestamp(b) - V3LeadActivityTimestamp(a);
+  const [sourceFilter, setSourceFilter] = React.useState(() => {
+    try { return window.localStorage.getItem('cos-source-filter') || 'all'; } catch (e) { return 'all'; }
+  });
+  React.useEffect(() => {
+    try { window.localStorage.setItem('cos-source-filter', sourceFilter); } catch (e) {}
+  }, [sourceFilter]);
 
-  // Snooze, Superhuman style — H hides a thread until tomorrow 9am.
-  // Stored per browser; snoozed threads live in their own split.
+  const cosBase = React.useMemo(() => leads
+    .filter(l => !l.isRobertBrief)
+    .filter(l => V4CompanyOsFilterLead(l, query)), [leads, query]);
+
+  const sourceCounts = React.useMemo(() => ({
+    all: cosBase.filter(l => !['trash', 'dead-leads'].includes(l.stage)).length,
+    x: cosBase.filter(l => !['trash', 'dead-leads'].includes(l.stage) && V4CompanyOsLeadSourceChannel(l) === 'x').length,
+    gmail: cosBase.filter(l => !['trash', 'dead-leads'].includes(l.stage) && V4CompanyOsLeadSourceChannel(l) === 'gmail').length,
+  }), [cosBase]);
+
+  const allCos = React.useMemo(() => cosBase
+    .filter(l => V4CompanyOsMatchesSourceFilter(l, sourceFilter)), [cosBase, sourceFilter]);
+  const byRecent = (a, b) => V3LeadActivityTimestamp(b) - V3LeadActivityTimestamp(a);
+  const liveAll = allCos.filter(l => !['trash', 'dead-leads'].includes(l.stage));
+
   const [snoozes, setSnoozes] = React.useState(() => {
     try { return JSON.parse(window.localStorage.getItem('v4-snoozes') || '{}'); } catch (e) { return {}; }
   });
@@ -13392,116 +15716,101 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   }, [snoozes]);
   const nowTs = Date.now();
   const isSnoozed = (l) => snoozes[l.id] && Date.parse(snoozes[l.id]) > nowTs;
-  const awake = live.filter(l => !isSnoozed(l));
-  const followUpItems = awake.filter(l => l.followUpDue && !l.unread).sort(byRecent);
-  const activeItems = awake.filter(l => !['done', 'paid-out', 'trash', 'dead-leads'].includes(l.stage));
-  const replyItems = activeItems.filter(l => l.unread && l.nextMove?.who).sort(V4SortActionLeads);
-  const pricingItems = activeItems.filter(l => l.stage === 'rates-sent').sort(byRecent);
-  const negoItems = activeItems.filter(l => l.stage === 'negotiating').sort(byRecent);
-  const paymentItems = activeItems.filter(l => l.stage === 'invoice-sent').sort(byRecent);
-  const briefingItems = awake.filter(l => l.stage === 'done').sort(byRecent);
-  const waitingItems = activeItems.filter(l => !l.unread && !l.nextMove?.who).sort(byRecent);
-  const closedItems = awake.filter(l => ['done', 'paid-out'].includes(l.stage)).sort(byRecent);
-  // Scam-gate flagged leads — the machine paused these for a human decision (approve & send, or dismiss)
-  const reviewItems = awake.filter(l => String(l.draftReplyStatus || '').toLowerCase() === 'review').sort(byRecent);
+  const awakeAll = liveAll.filter(l => !isSnoozed(l));
 
-  // Helper to compute total value for a list of items
-  const totalValue = (items) => items.reduce((sum, l) => sum + (l.value || 0), 0);
-
-  // Brief mode: Action now leads first, then Watch (Superhuman "Today" / prioritized inbox)
-  const briefActionLeads = activeItems
-    .filter(V4IsActionNowLead)
-    .sort(V4SortActionLeads)
-    .slice(0, 5);
-
-  const briefWatchLeads = activeItems
-    .filter(l => !l.needsReply && ['rates-sent', 'negotiating', 'first-touch', 'engaged'].includes(l.stage))
-    .sort(byRecent)
-    .slice(0, 5);
-
-  const briefItems = [...briefActionLeads, ...briefWatchLeads];
-
-  // Use the computed summaries for clean, short display in the brief list (like original brief cards)
-  const briefSummaries = React.useMemo(() => V4ComputeDailyBrief(live), [live]);
+  const intakeItems = awakeAll
+    .filter(l => window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(l))
+    .sort(byRecent);
+  const live = awakeAll.filter(l => !(window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(l)));
+  const activeItems = live.filter(l => !['done', 'paid-out'].includes(l.stage));
+  const travelItems = [...intakeItems, ...activeItems]
+    .filter(V4CosIsTravelLead)
+    .sort((a, b) => V4SortActionLeads(a, b) || byRecent(a, b));
+  const intakeNonTravel = intakeItems.filter(l => !V4CosIsTravelLead(l));
+  const sendItems = activeItems.filter(V4CosIsSendLead).sort(V4SortActionLeads);
+  const sendQueue = [...intakeNonTravel, ...sendItems];
+  const chaseItems = activeItems.filter(l => !V4CosIsTravelLead(l) && V4CosIsChaseLead(l)).sort((a, b) => (b.daysInStage || 0) - (a.daysInStage || 0) || byRecent(a, b));
+  const watchItems = activeItems.filter(l => !V4CosIsTravelLead(l) && V4CosIsWatchLead(l)).sort(byRecent);
+  const closedItems = live.filter(l => ['done', 'paid-out'].includes(l.stage)).sort(byRecent);
+  const base = allCos;
 
   const splits = [
-    {
-      id: 'review',
-      label: 'Needs review',
-      hint: 'Scam gate flagged these. Approve and send, or dismiss.',
-      section: 'Workflow',
-      hot: reviewItems.length > 0,
-      items: reviewItems
-    },
-    {
-      id: 'reply',
-      label: 'Reply now',
-      hint: 'Unread messages where you need to respond',
-      section: 'Workflow', 
-      hot: true, 
-      items: replyItems 
-    },
-    { 
-      id: 'followups',
-      label: 'Follow-ups', 
-      hint: 'Scheduled check-ins due',
-      section: 'Workflow', 
-      hot: followUpItems.length > 0, 
-      items: followUpItems 
-    },
-    { 
-      id: 'pricing',  
-      label: 'Pricing sent', 
-      hint: 'Rates proposed, awaiting reply',
-      section: 'Workflow', 
-      items: pricingItems 
-    },
-    { 
-      id: 'nego',     
-      label: 'Negotiating', 
-      hint: 'Active back-and-forth on scope or price',
-      section: 'Workflow', 
-      items: negoItems 
-    },
-    { 
-      id: 'payment',  
-      label: 'Payment chase', 
-      hint: 'Invoice sent, chasing proof or terms',
-      section: 'Workflow', 
-      items: paymentItems 
-    },
-    { 
-      id: 'briefing', 
-      label: 'Brief ready', 
-      hint: 'Deal closed, prep Robert execution',
-      section: 'Workflow', 
-      items: briefingItems 
-    },
-    { 
-      id: 'waiting',  
-      label: 'Waiting', 
-      hint: 'No outstanding move from our side',
-      section: 'Workflow', 
-      items: waitingItems 
-    },
-    { id: 'snoozed', label: 'Snoozed',         section: 'System', items: live.filter(isSnoozed).sort((a, b) => Date.parse(snoozes[a.id]) - Date.parse(snoozes[b.id])) },
-    { id: 'closed',  label: 'Done and paid',   section: 'System', items: closedItems },
-    { id: 'trash',   label: 'Trash',           section: 'System', trash: true, items: base.filter(l => ['trash', 'dead-leads'].includes(l.stage)).sort(byRecent) },
-    { id: 'brief',   label: 'Overview',        section: 'System', items: briefItems, isBrief: true },
-    { id: 'toolkit', label: 'Toolkit',         section: 'System', toolkit: true, items: V4_COMPANY_OS_TOOLKIT },
+    { id: 'travel', label: 'Travel', hint: 'Sponsored trips, factory visits, on-site events — highest value', queue: true, hot: travelItems.length > 0, items: travelItems },
+    { id: 'send', label: 'Send', hint: 'Drafts to approve, replies owed, new intake', queue: true, hot: sendQueue.length > 0, items: sendQueue },
+    { id: 'chase', label: 'Chase', hint: 'Negotiating, payment, follow ups, brief Robert', queue: true, hot: chaseItems.length > 0, items: chaseItems },
+    { id: 'watch', label: 'Watch', hint: 'Nothing urgent from our side right now', queue: true, items: watchItems },
+    { id: 'snoozed', label: 'Snoozed', section: 'More', items: liveAll.filter(isSnoozed).sort((a, b) => Date.parse(snoozes[a.id]) - Date.parse(snoozes[b.id])) },
+    { id: 'closed', label: 'Done and paid', section: 'More', items: closedItems },
+    { id: 'trash', label: 'Trash', section: 'More', trash: true, items: base.filter(l => ['trash', 'dead-leads'].includes(l.stage)).sort(byRecent) },
+    { id: 'toolkit', label: 'Toolkit', section: 'More', toolkit: true, items: V4_COMPANY_OS_TOOLKIT },
   ];
 
-  const [splitId, setSplitId] = React.useState('brief');
+  const [splitId, setSplitId] = React.useState(() => {
+    if (initialQueue) return initialQueue;
+    return travelItems.length > 0 ? 'travel' : 'send';
+  });
   const [selId, setSelId] = React.useState(null);
   const [composeOpen, setComposeOpen] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
+  const deepLinkLeadRef = React.useRef(null);
+  const deepLinkComposeRef = React.useRef(false);
+  const skipSplitResetRef = React.useRef(false);
   const [splitsOpen, setSplitsOpen] = React.useState(false);
+  const moreMenuRef = React.useRef(null);
+  const moreSplits = React.useMemo(() => splits.filter(s => !s.queue), [splits]);
+
+  React.useEffect(() => {
+    if (!splitsOpen) return;
+    const onPointerDown = (e) => {
+      if (moreMenuRef.current && moreMenuRef.current.contains(e.target)) return;
+      setSplitsOpen(false);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') setSplitsOpen(false); };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [splitsOpen]);
   const [syncStatus, setSyncStatus] = React.useState('idle');
+  const [purgeStatus, setPurgeStatus] = React.useState('idle');
+  const spamCandidates = React.useMemo(() => liveAll.filter(V4LeadLooksLikeSpam), [liveAll]);
   const [syncNote, setSyncNote] = React.useState('');
+  const [copiedDmId, setCopiedDmId] = React.useState('');
+  const copyCosDmDraft = async (lead, e) => {
+    e?.stopPropagation?.();
+    const text = String(V4BuildXDmReplyDraft(lead) || '').trim();
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedDmId(String(lead.id));
+      window.setTimeout(() => setCopiedDmId(''), 2200);
+    } catch (err) {
+      window.prompt('Copy this X DM draft:', text);
+    }
+  };
   const gmailDeltaRef = React.useRef({ running: false, last: 0 });
   const [isMobile, setIsMobile] = React.useState(() =>
     typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches
   );
+
+  const purgeSpamQueue = React.useCallback(async () => {
+    if (!spamCandidates.length) return;
+    if (!window.confirm('Trash ' + spamCandidates.length + ' spam/noise lead(s) and run server cleanup?')) return;
+    setPurgeStatus('running');
+    try {
+      const result = await V4PurgeSpamQueue(leads);
+      setSyncNote('Trashed ' + (result.trashed || 0) + ' spam lead(s)');
+      setSyncStatus('ok');
+    } catch (err) {
+      setSyncNote(err?.message || 'Spam purge failed');
+      setSyncStatus('error');
+    } finally {
+      setPurgeStatus('idle');
+      window.setTimeout(() => { setSyncStatus('idle'); setSyncNote(''); }, 4000);
+    }
+  }, [leads, spamCandidates.length]);
 
   const refreshFromGmail = React.useCallback(async (opts = {}) => {
     if (gmailDeltaRef.current.running) return;
@@ -13538,11 +15847,16 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
       if (window.V3?.ReloadLeads) await window.V3.ReloadLeads();
       const patched = Number(data.cards_updated ?? data.threads_patched ?? 0);
       const created = Number(data.new_cards_written || 0);
-      if (!quiet || patched || created) {
+      const operatorQueued = !!data.operator_queued;
+      if (!quiet || patched || created || operatorQueued) {
+        const parts = [];
+        if (created) parts.push(created + ' new');
+        if (patched) parts.push(patched + ' updated');
+        if (operatorQueued) parts.push('operator drafting');
         setSyncNote(
-          created
-            ? `Synced · ${patched} updated · ${created} new`
-            : (patched ? `Synced · ${patched} updated` : 'Synced · up to date')
+          parts.length
+            ? ('Synced · ' + parts.join(' · '))
+            : 'Synced · up to date'
         );
         setSyncStatus('ok');
       }
@@ -13590,15 +15904,28 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
   let selected = null;
   if (selId != null) {
     selected = items.find(l => String(l.id) === String(selId)) || null;
-    if (split.isBrief && (!selected || String(selected.id) !== String(selId))) {
-      selected = live.find(l => String(l.id) === String(selId)) || selected;
-    }
+    if (!selected) selected = liveAll.find(l => String(l.id) === String(selId)) || null;
   } else if (!isMobile) {
     selected = items[0] || null;
   }
 
   React.useEffect(() => {
     try {
+      const stored = window.sessionStorage.getItem('cos-queue');
+      if (stored && splits.some(s => s.id === stored)) {
+        setSplitId(stored);
+        window.sessionStorage.removeItem('cos-queue');
+      }
+      const leadId = window.sessionStorage.getItem('cos-lead-id');
+      if (leadId) {
+        deepLinkLeadRef.current = leadId;
+        skipSplitResetRef.current = true;
+        window.sessionStorage.removeItem('cos-lead-id');
+      }
+      if (window.sessionStorage.getItem('cos-compose') === '1') {
+        deepLinkComposeRef.current = true;
+        window.sessionStorage.removeItem('cos-compose');
+      }
       const current = new URL(String(window.location?.href || ''));
       const openTarget = current.searchParams.get('open');
       if (['brief-maker', 'x-signal', 'manual-lead', 'robert-handoff', 'toolkit'].includes(openTarget)) {
@@ -13607,7 +15934,27 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
     } catch (err) {}
   }, []);
 
-  React.useEffect(() => { setSelId(null); setMobileOpen(false); setComposeOpen(false); }, [splitId]);
+  React.useEffect(() => {
+    if (deepLinkLeadRef.current) {
+      const id = deepLinkLeadRef.current;
+      deepLinkLeadRef.current = null;
+      const wantCompose = deepLinkComposeRef.current;
+      deepLinkComposeRef.current = false;
+      setSelId(id);
+      if (typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches) {
+        setMobileOpen(true);
+      }
+      if (wantCompose) setComposeOpen(true);
+      return;
+    }
+    if (skipSplitResetRef.current) {
+      skipSplitResetRef.current = false;
+      return;
+    }
+    setSelId(null);
+    setMobileOpen(false);
+    setComposeOpen(false);
+  }, [splitId]);
 
   React.useEffect(() => {
     const mq = window.matchMedia('(max-width: 900px)');
@@ -13617,7 +15964,9 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
     return () => mq.removeEventListener('change', onChange);
   }, []);
 
-  React.useEffect(() => { setComposeOpen(false); }, [selected?.id]);
+  React.useEffect(() => {
+    if (!selected) setComposeOpen(false);
+  }, [selected?.id]);
 
   const moveSel = (delta) => {
     if (!items.length) return;
@@ -13669,37 +16018,56 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
       const t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (split.brief || split.toolkit) return;
-      if (e.key === 'j' || e.key === 'J' || e.key === 'ArrowDown') { e.preventDefault(); moveSel(1); }
-      if (e.key === 'k' || e.key === 'K' || e.key === 'ArrowUp')   { e.preventDefault(); moveSel(-1); }
+      if (split.toolkit) return;
+      if (split.queue) {
+        if (e.key === 'j' || e.key === 'J' || e.key === 'ArrowDown') { e.preventDefault(); moveSel(1); }
+        if (e.key === 'k' || e.key === 'K' || e.key === 'ArrowUp')   { e.preventDefault(); moveSel(-1); }
+        if (e.key === 'e' || e.key === 'E') { e.preventDefault(); archive(); }
+        if (e.key === 'h' || e.key === 'H') { e.preventDefault(); snoozeSelected(); }
+        if (e.key === 'u' || e.key === 'U') { e.preventDefault(); toggleRead(); }
+      }
       if (e.key === 'r' || e.key === 'R') { e.preventDefault(); if (selected) setComposeOpen(true); }
-      if (e.key === 'e' || e.key === 'E') { e.preventDefault(); archive(); }
-      if (e.key === 'h' || e.key === 'H') { e.preventDefault(); snoozeSelected(); }
-      if (e.key === 'u' || e.key === 'U') { e.preventDefault(); toggleRead(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  const replyCount = splits.find(s => s.id === 'reply')?.items.length || 0;
-  const reviewCount = reviewItems.length;
-  const followUpCount = splits.find(s => s.id === 'followups')?.items.length || 0;
-  const p0Count = live.filter(l => l.unread || l.stage === 'invoice-sent').length;
-  const invoicedOutstanding = live.filter(l => l.stage === 'invoice-sent').reduce((s, l) => s + (l.value || 0), 0);
-  const openPipeline = live.filter(l => !['done', 'paid-out'].includes(l.stage)).reduce((s, l) => s + (l.value || 0), 0);
+  const travelCount = travelItems.length;
+  const sendCount = sendQueue.length;
+  const chasePayTotal = chaseItems.filter(l => l.stage === 'invoice-sent').reduce((s, l) => s + (l.value || 0), 0);
+  const briefRobertCount = chaseItems.filter(l => l.stage === 'done').length;
+  const intakeCount = intakeNonTravel.length;
+  const reviewCount = live.filter(l => String(l.draftReplyStatus || '').toLowerCase() === 'review').length;
+  const openPipeline = activeItems.reduce((s, l) => s + (l.value || 0), 0);
+
+  const pulseParts = [
+    travelCount ? { text: `${travelCount} travel`, onClick: () => setSplitId('travel') } : null,
+    sendCount ? { text: `${sendCount} to send`, onClick: () => setSplitId('send') } : null,
+    chasePayTotal ? { text: `${V4CompanyOsMoney(chasePayTotal)} waiting on payment`, onClick: () => setSplitId('chase') } : null,
+    briefRobertCount ? { text: `${briefRobertCount} brief${briefRobertCount === 1 ? '' : 's'} for Robert`, onClick: () => setSplitId('chase') } : null,
+    intakeCount ? { text: `${intakeCount} new intake`, onClick: () => setSplitId('send') } : null,
+  ].filter(Boolean);
 
   const { USERS } = window.V3;
-  const briefDateLabel = new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }).toUpperCase();
+
+  const queueHints = {
+    travel: 'Sponsored travel, factory visits, and on-site opportunities. Move these first.',
+    send: 'Agent drafts and replies you owe. Read thread, edit if needed, send.',
+    chase: 'Deals in motion. Nudge, chase payment, or brief Robert.',
+    watch: 'Quiet for now. Check back when something moves.',
+  };
+  const [hintDismissed, setHintDismissed] = React.useState(() => {
+    try { return JSON.parse(window.localStorage.getItem('cos-queue-hints') || '{}'); } catch (e) { return {}; }
+  });
+  const dismissHint = (id) => {
+    const next = { ...hintDismissed, [id]: true };
+    setHintDismissed(next);
+    try { window.localStorage.setItem('cos-queue-hints', JSON.stringify(next)); } catch (e) {}
+  };
 
   const splitCountLabel = (s) => {
     if (s.toolkit) return null;
-    if (s.brief) return briefSummaries.action.length + briefSummaries.watch.length;
-    if (['payment', 'pricing', 'nego'].includes(s.id) && totalValue(s.items) > 0) {
-      return V4CompanyOsMoney(totalValue(s.items));
-    }
-    const count = s.items.length;
-    const stale = s.items.filter(l => (l.daysInStage || 0) >= 5).length;
-    return stale > 0 ? `${count} (${stale} old)` : count;
+    return s.items.length || 0;
   };
 
   const pickSplit = (id) => {
@@ -13729,29 +16097,57 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
     </React.Fragment>
   ));
 
+  const mainQueues = splits.filter(s => s.queue);
+
   return (
-    <section className={'page cos2-page' + (mobileOpen ? ' is-mobile-reader-open' : '') + (splitsOpen ? ' is-splits-open' : '')}>
+    <section className={'page cos2-page cos2-page--queue' + (mobileOpen ? ' is-mobile-reader-open' : '') + (splitsOpen ? ' is-splits-open' : '')}>
       <header className="cos2-top cos2-top--stats">
-        <button type="button" className="cos2-splits-toggle" onClick={() => setSplitsOpen(true)} aria-label="Open workflow menu">
-          <V3Icon name="compact" w={16} />
-          <span>Workflows</span>
-        </button>
         <div className="v6-client-brand" aria-label="UNALIGNED active workspace">
           <V6UnalignedMark size={28} />
           <div className="v6-wm">UNALIGNED<small>ACTIVE WORKSPACE</small></div>
         </div>
         <div className="cos2-stats">
           {reviewCount > 0 && (
-            <button type="button" className="cos2-stat cos2-stat-review" onClick={() => setSplitId('review')} title="Scam gate flagged these for you">
+            <button type="button" className="cos2-stat cos2-stat-review" onClick={() => setSplitId('send')} title="Scam gate flagged these">
               <span className="cos2-stat-lbl">To review</span>
               <span className="cos2-stat-num"><AnimatedCounter value={reviewCount} /></span>
             </button>
           )}
-          <div className="cos2-stat"><span className="cos2-stat-lbl">P0 open</span><span className="cos2-stat-num"><AnimatedCounter value={p0Count} /></span></div>
-          <div className="cos2-stat cos2-stat-accent"><span className="cos2-stat-lbl">Reply now</span><span className="cos2-stat-num"><AnimatedCounter value={replyCount} /></span></div>
-          <div className="cos2-stat"><span className="cos2-stat-lbl">Terms / pay</span><span className="cos2-stat-num cos2-stat-money"><AnimatedCounter value={invoicedOutstanding} format={v => '$' + v.toLocaleString()} /></span></div>
-          <div className="cos2-stat"><span className="cos2-stat-lbl">In play</span><span className="cos2-stat-num cos2-stat-money"><AnimatedCounter value={openPipeline} format={v => '$' + v.toLocaleString()} /></span></div>
+          {travelCount > 0 && (
+            <button type="button" className="cos2-stat cos2-stat-travel" onClick={() => setSplitId('travel')} title="Travel opportunities">
+              <span className="cos2-stat-lbl">Travel</span>
+              <span className="cos2-stat-num"><AnimatedCounter value={travelCount} /></span>
+            </button>
+          )}
+          <button type="button" className="cos2-stat cos2-stat-accent" onClick={() => setSplitId('send')} title="Send queue">
+            <span className="cos2-stat-lbl">To send</span>
+            <span className="cos2-stat-num"><AnimatedCounter value={sendCount} /></span>
+          </button>
+          <button type="button" className="cos2-stat" onClick={() => setSplitId('chase')} title="Chase queue">
+            <span className="cos2-stat-lbl">Chase</span>
+            <span className="cos2-stat-num"><AnimatedCounter value={chaseItems.length} /></span>
+          </button>
+          {chasePayTotal > 0 && (
+            <button type="button" className="cos2-stat" onClick={() => setSplitId('chase')} title="Outstanding invoices">
+              <span className="cos2-stat-lbl">Terms / pay</span>
+              <span className="cos2-stat-num cos2-stat-money"><AnimatedCounter value={chasePayTotal} format={v => V4CompanyOsMoney(v)} /></span>
+            </button>
+          )}
+          <button type="button" className="cos2-stat" onClick={() => setSplitId('watch')} title="Active pipeline value">
+            <span className="cos2-stat-lbl">In play</span>
+            <span className="cos2-stat-num cos2-stat-money"><AnimatedCounter value={openPipeline} format={v => V4CompanyOsMoney(v)} /></span>
+          </button>
         </div>
+        {pulseParts.length > 0 && (
+          <div className="cos2-pulse cos2-pulse--inline">
+            {pulseParts.map((p, i) => (
+              <React.Fragment key={p.text}>
+                {i > 0 && <span className="cos2-pulse-sep">·</span>}
+                <button type="button" className="cos2-pulse-part" onClick={p.onClick}>{p.text}</button>
+              </React.Fragment>
+            ))}
+          </div>
+        )}
         <div className="v6-spacer" />
         <div className="v6-avatars" aria-label="Team">
           {['robert', 'sammy', 'asher'].map((id) => {
@@ -13764,107 +16160,160 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
             );
           })}
         </div>
+        {spamCandidates.length > 0 ? (
+          <button
+            type="button"
+            className={'cos-refresh-btn cos2-purge-spam' + (purgeStatus === 'running' ? ' is-syncing' : '')}
+            onClick={purgeSpamQueue}
+            disabled={purgeStatus === 'running' || syncStatus === 'syncing'}
+            title="Trash all detected spam/noise in the current queue and sync intake cleanup"
+          >
+            {purgeStatus === 'running' ? 'Clearing…' : '🗑 Clear spam (' + spamCandidates.length + ')'}
+          </button>
+        ) : null}
         <button
           type="button"
           className={'cos-refresh-btn cos2-refresh' + (syncStatus === 'syncing' ? ' is-syncing' : '') + (syncStatus === 'error' ? ' is-error' : '')}
           onClick={refreshFromGmail}
-          disabled={syncStatus === 'syncing'}
-          title="Pull latest Asher Gmail into Company OS"
+          disabled={syncStatus === 'syncing' || purgeStatus === 'running'}
+          title="Sync all Gmail changes (every lead). Shift+click for full refresh."
         >
-          {syncStatus === 'syncing' ? '… Syncing' : syncStatus === 'error' ? '⚠ Sync' : '↻ Sync Gmail'}
+          {syncStatus === 'syncing' ? 'Syncing…' : syncStatus === 'error' ? 'Sync failed' : '↻ Sync Gmail'}
         </button>
         {syncNote ? <span className="cos2-sync-note">{syncNote}</span> : null}
       </header>
-      <div className={'cos2-body' + (mobileOpen ? ' is-mobile-open' : '')}>
-        <nav className="cos2-rail" aria-label="Splits">
-          {renderSplitButtons(pickSplit)}
-          <div className="dq-hints cos2-hints">
-            <span><kbd>J</kbd><kbd>K</kbd> move</span>
-            <span><kbd>R</kbd> reply</span>
-            <span><kbd>E</kbd> archive</span>
-            <span><kbd>H</kbd> snooze</span>
-            <span><kbd>U</kbd> unread</span>
-            <span><kbd>⌘K</kbd> commands</span>
-            <span><kbd>?</kbd> help</span>
-          </div>
-        </nav>
+      <div className={'cos2-body cos2-body--queue' + (mobileOpen ? ' is-mobile-open' : '')}>
         {split.toolkit ? (
           <div className="cos2-main-scroll"><V4CosToolkit onNavigateView={onNavigateView} onActivateSplit={setSplitId} /></div>
         ) : (
           <>
             <div className="cos2-list">
-              {split.isBrief && (
-                <div className="cos-daily-brief">
-                  <div className="cos-be-row">
-                    <span className="cos-eyebrow">Daily Brief</span>
-                    <span className="cos-section-date">{briefDateLabel}</span>
-                  </div>
-                  <div className="cos-brief-head">
-                    <h2 className="cos-section-title">Today&apos;s moves</h2>
-                    <div className="cos-section-sub">{briefActionLeads.length} {briefActionLeads.length === 1 ? 'lead' : 'leads'} to act on, {briefWatchLeads.length} to keep an eye on. drafts the agents prepared, waiting on your sign off.</div>
-                  </div>
+              <div className="cos-source-bar" role="tablist" aria-label="Lead source">
+                {[
+                  { id: 'all', label: 'All' },
+                  { id: 'x', label: 'X' },
+                  { id: 'gmail', label: 'Gmail' },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={sourceFilter === tab.id}
+                    className={'cos-source-pill' + (sourceFilter === tab.id ? ' is-active' : '') + (tab.id === 'x' ? ' is-x' : '') + (tab.id === 'gmail' ? ' is-gmail' : '')}
+                    onClick={() => setSourceFilter(tab.id)}
+                  >
+                    <span>{tab.label}</span>
+                    <span className="cos-source-pill-cnt">{sourceCounts[tab.id] ?? 0}</span>
+                  </button>
+                ))}
+              </div>
+              <nav className="cos-queue-bar" aria-label="Queues">
+                {mainQueues.map(q => (
+                  <button
+                    key={q.id}
+                    type="button"
+                    className={'cos-queue-pill' + (split.id === q.id ? ' is-active' : '') + (q.hot ? ' is-hot' : '')}
+                    onClick={() => pickSplit(q.id)}
+                    title={q.hint}
+                  >
+                    {q.label}
+                    <span className="cos-queue-pill-cnt">{q.items.length}</span>
+                  </button>
+                ))}
+                <div className={'cos-more-wrap' + (splitsOpen ? ' is-open' : '')} ref={moreMenuRef}>
+                  <button
+                    type="button"
+                    className={'cos-queue-pill cos-queue-pill--more' + (moreSplits.some(s => s.id === split.id) ? ' is-active' : '')}
+                    onClick={() => setSplitsOpen(open => !open)}
+                    aria-expanded={splitsOpen}
+                    aria-haspopup="menu"
+                    title="Snoozed, done, trash, toolkit"
+                  >
+                    More
+                  </button>
+                  {splitsOpen ? (
+                    <div className="cos-more-dropdown" role="menu" aria-label="More queues">
+                      {moreSplits.map(s => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          role="menuitem"
+                          className={'cos-more-item' + (s.id === split.id ? ' is-active' : '') + (s.hot ? ' is-hot' : '') + (s.toolkit ? ' is-toolkit' : '')}
+                          onClick={() => pickSplit(s.id)}
+                          title={s.hint || s.label}
+                        >
+                          <span>{s.label}</span>
+                          {s.toolkit ? (
+                            <span className="cos-more-item-meta">Tools</span>
+                          ) : (
+                            <span className="cos-more-item-cnt">{s.items?.length || 0}</span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </nav>
+              {split.queue && !hintDismissed[split.id] && queueHints[split.id] && (
+                <div className="cos-queue-hint">
+                  <span>{queueHints[split.id]}</span>
+                  <button type="button" onClick={() => dismissHint(split.id)} aria-label="Dismiss">✕</button>
                 </div>
               )}
-
+              {!split.toolkit ? (
+                <div className="cos2-list-search">
+                  <V3Icon name="search" w={12} />
+                  <input
+                    ref={listSearchRef}
+                    type="search"
+                    value={query}
+                    onChange={(e) => onQueryChange && onQueryChange(e.target.value)}
+                    placeholder={'Search ' + split.label.toLowerCase() + '…'}
+                    aria-label={'Search leads in ' + split.label}
+                  />
+                  {query ? (
+                    <button
+                      type="button"
+                      className="cos2-list-search-clear"
+                      onClick={() => onQueryChange && onQueryChange('')}
+                      aria-label="Clear search"
+                    >
+                      ✕
+                    </button>
+                  ) : (
+                    <kbd className="cos2-list-search-kbd">/</kbd>
+                  )}
+                </div>
+              ) : null}
               <div className="cos2-list-scroll v6-list-scroll">
-              {split.isBrief ? (
-                <>
-                  {briefSummaries.action.length > 0 && (
-                    <div className="cos-brief-sec">Action now &middot; {briefSummaries.action.length}</div>
-                  )}
-                  {briefSummaries.action.map((item) => {
-                    const lead = live.find(ll => String(ll.id) === String(item.id)) || {};
-                    const isCurrent = String(item.id) === String(selId);
-                    const lt = V4CompanyOsType(lead);
-                    const tag = lt === 'interview' ? 'Interview' : (lt === 'intro' ? 'Intro' : 'Deal Desk');
-                    const subject = V4CleanDisplayText(V4CompanyOsListSnippet(lead) || (item.points && item.points[0]) || '').slice(0, 170);
-                    const toText = V4CleanDisplayText((lead.nextMove && lead.nextMove.text) || (item.points && item.points[1]) || '');
-                    return (
-                      <div key={item.id} className={'cos-act-wrap' + (isCurrent ? ' is-current' : '')}>
-                        <button type="button" className="cos-brief-act" onClick={() => { setSelId(item.id); setMobileOpen(true); }}>
-                          <div className="act-row-hd">
-                            <span className="act-row-from">{lead.brand || item.title}</span>
-                            <span className="act-row-tag">&#9670; {tag}</span>
-                          </div>
-                          {subject && <div className="act-row-subject">{subject}</div>}
-                          {toText && <div className="act-row-to">{toText}</div>}
-                        </button>
-                        <button type="button" className="cos-act-trash" title="Move to trash"
-                                onClick={(e) => { e.stopPropagation(); window.V3.MoveLeadStage(lead, 'trash'); }}>
-                          <V3Icon name="trash" w={13} />
-                        </button>
-                      </div>
-                    );
-                  })}
-
-                  {briefSummaries.watch.length > 0 && (
-                    <div className="cos-brief-sec">Watching &middot; {briefSummaries.watch.length}</div>
-                  )}
-                  {briefSummaries.watch.map((item) => {
-                    const lead = live.find(ll => String(ll.id) === String(item.id)) || {};
-                    const isCurrent = String(item.id) === String(selId);
-                    const lt = V4CompanyOsType(lead);
-                    const tag = lt === 'interview' ? 'Interview' : (lt === 'intro' ? 'Intro' : 'Deal Desk');
-                    const subject = V4CleanDisplayText(V4CompanyOsListSnippet(lead) || (item.points && item.points[0]) || '').slice(0, 170);
-                    const toText = V4CleanDisplayText((lead.nextMove && lead.nextMove.text) || (item.points && item.points[1]) || '');
-                    return (
-                      <div key={item.id} className={'cos-act-wrap' + (isCurrent ? ' is-current' : '')}>
-                        <button type="button" className="cos-brief-act" onClick={() => { setSelId(item.id); setMobileOpen(true); }}>
-                          <div className="act-row-hd">
-                            <span className="act-row-from">{lead.brand || item.title}</span>
-                            <span className="act-row-tag">&#9670; {tag}</span>
-                          </div>
-                          {subject && <div className="act-row-subject">{subject}</div>}
-                          {toText && <div className="act-row-to">{toText}</div>}
-                        </button>
-                        <button type="button" className="cos-act-trash" title="Move to trash"
-                                onClick={(e) => { e.stopPropagation(); window.V3.MoveLeadStage(lead, 'trash'); }}>
-                          <V3Icon name="trash" w={13} />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </>
+              {split.queue ? (
+                items.map((l, index) => (
+                  <div key={l.id} className={'cos2-row-wrap' + (String(l.id) === String(selected?.id) ? ' is-current' : '')}>
+                    <V4QueueRow
+                      lead={l}
+                      queueId={split.id}
+                      isCurrent={String(l.id) === String(selected?.id)}
+                      style={{ animationDelay: `${0.03 + index * 0.02}s` }}
+                      onClick={() => { setSelId(l.id); setMobileOpen(true); }}
+                    />
+                    {V4XLeadNeedsDmReply(l) ? (
+                      <button
+                        type="button"
+                        className={'cos2-row-act cos2-row-act--copy is-visible' + (copiedDmId === String(l.id) ? ' is-copied' : '')}
+                        title="Copy X DM draft"
+                        onClick={(e) => copyCosDmDraft(l, e)}
+                      >
+                        {copiedDmId === String(l.id) ? '✓' : '⎘'}
+                      </button>
+                    ) : null}
+                    <button type="button"
+                            className="cos2-row-act"
+                            title="Move to trash"
+                            onClick={(e) => { e.stopPropagation(); window.V3.MoveLeadStage(l, 'trash'); }}>
+                      <V3Icon name="trash" w={13} />
+                    </button>
+                  </div>
+                ))
               ) : (
                 items.map((l, index) => (
                   <div key={l.id} className={'cos2-row-wrap' + (String(l.id) === String(selected?.id) ? ' is-current' : '')}>
@@ -13876,19 +16325,29 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
                     />
                     <button type="button"
                             className="cos2-row-act"
-                            title={split.trash ? 'Restore to board' : 'Move to trash'}
-                            aria-label={split.trash ? 'Restore lead' : 'Trash lead'}
+                            title={split.trash ? 'Restore' : 'Trash'}
                             onClick={(e) => { e.stopPropagation(); window.V3.MoveLeadStage(l, split.trash ? 'new' : 'trash'); }}>
                       <V3Icon name={split.trash ? 'reply' : 'trash'} w={13} />
                     </button>
                   </div>
                 ))
               )}
-              {items.length === 0 && !split.isBrief && (
+              {items.length === 0 && (
                 <div className="cos2-zero">
-                  <span className="cos2-zero-mark">✓</span>
-                  <strong>Inbox zero</strong>
-                  <span>Nothing in {split.label.toLowerCase()}. Breathe.</span>
+                  {query ? (
+                    <React.Fragment>
+                      <span className="cos2-zero-mark">⌕</span>
+                      <strong>No matches</strong>
+                      <span>Nothing in {split.label.toLowerCase()} for &ldquo;{query}&rdquo;.</span>
+                      <button type="button" className="cos2-list-search-clear-btn" onClick={() => onQueryChange && onQueryChange('')}>Clear search</button>
+                    </React.Fragment>
+                  ) : (
+                    <React.Fragment>
+                      <span className="cos2-zero-mark">✓</span>
+                      <strong>Inbox zero</strong>
+                      <span>Nothing in {split.label.toLowerCase()}.</span>
+                    </React.Fragment>
+                  )}
                 </div>
               )}
               </div>
@@ -13896,13 +16355,16 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
             <V4CosReader 
               key={selected ? selected.id : 'no-lead'} 
               lead={selected} 
-              user={user} 
-              isBrief={split.isBrief} 
-              briefItem={split.isBrief && selected ? (briefSummaries.action.find(i => String(i.id) === String(selected.id)) || briefSummaries.watch.find(i => String(i.id) === String(selected.id))) : null}
+              user={user}
+              leads={liveAll}
               composeOpen={composeOpen} 
               setComposeOpen={setComposeOpen}
               onBack={() => setMobileOpen(false)}
               onOpenSplits={isMobile ? () => setSplitsOpen(true) : null}
+              onAfterSend={(lead) => {
+                setComposeOpen(false);
+                advanceFrom(lead);
+              }}
             />
           </>
         )}
@@ -13932,7 +16394,91 @@ function V4CompanyOsView({ leads = [], query = '', user = 'asher', onOpenLead, o
 }
 
 window.V4CompanyOsView = V4CompanyOsView;
+function V4LeadThreadFreshness(lead) {
+  if (!lead) return { stale: false, label: '', touch: '' };
+  if (V3IsXLeadRecord(lead)) {
+    const hasCtx = V3XLeadHasUsableContext(lead);
+    const touch = lead.lastTouch || '';
+    if (!hasCtx) return { stale: true, label: 'No X DM context saved · pull from scrape', touch };
+    return { stale: false, label: touch ? `X scrape · ${touch}` : 'X intake loaded', touch };
+  }
+  const ts = V3LeadActivityTimestamp(lead);
+  if (!ts) return { stale: true, label: 'No Gmail thread synced yet', touch: '' };
+  const touch = lead.lastTouch || V3RelativeTime(new Date(ts).toISOString());
+  const ageMs = Date.now() - ts;
+  if (ageMs > 48 * 60 * 60 * 1000) {
+    return { stale: true, label: `Thread may be stale · last activity ${touch}`, touch };
+  }
+  return { stale: false, label: `Updated ${touch}`, touch };
+}
+
+async function V4RefreshLeadFromX(lead) {
+  const cardId = lead?.rowId || lead?.id;
+  if (!cardId) throw new Error('No lead id to refresh.');
+  const key = V3NormalizeOpenDmUrl(lead?.xOpenDm);
+  const xRows = await V3LoadXDmIntakeRows(Date.now());
+  const intake = xRows.find(row => V3NormalizeOpenDmUrl(row.openDm) === key);
+  if (intake) {
+    const enriched = V3EnrichLeadFromXIntakeRow(lead, intake);
+    const desc = JSON.stringify({
+      x_summary: enriched.notes || '',
+      last_message: enriched.evidence || enriched.xLastLeadMessage || '',
+      last_robert_message: enriched.xLastRobertMessage || '',
+      last_sender: enriched.xLastSender || '',
+      replied_via_x: V3XLeadRepliedViaX(enriched),
+      x_current_status: enriched.xCurrentStatus || '',
+      best_next_step: enriched.xBestNextStep || '',
+      x_username: enriched.xHandle || '',
+      open_dm: key || '',
+      lead_score: enriched.xLeadScore || null,
+      dm_messages: Array.isArray(enriched.xDmMessages) ? enriched.xDmMessages : [],
+    });
+    if (!String(cardId).startsWith('xdm-')) {
+      const res = await fetch(V3_SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(cardId), {
+        method: 'PATCH',
+        headers: { ...V3_SUPABASE_HEADERS, Prefer: 'return=minimal' },
+        body: JSON.stringify({
+          description: desc,
+          contact_name: enriched.contactName,
+          business_name: enriched.brand,
+        }),
+      });
+      if (!res.ok) throw new Error('Could not save X context to board: ' + await res.text());
+    }
+    const updated = (window.V3.LEADS || []).map(item =>
+      String(item.id) === String(lead.id) ? { ...enriched, rawDescription: desc } : item);
+    window.V3.LEADS = updated;
+    window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated } }));
+    window.dispatchEvent(new CustomEvent('v4:refresh-complete', { detail: { leadRefresh: true, cardId: String(cardId), source: 'x-intake' } }));
+    return { ok: true, source: 'x-intake' };
+  }
+  await V4RefreshAllData({ quiet: true });
+  return { ok: true, source: 'x-bridge' };
+}
+
+async function V4RefreshLeadFromGmail(lead) {
+  const cardId = lead?.rowId || lead?.id;
+  if (!cardId) throw new Error('No lead id to refresh.');
+  const res = await V4BriefServiceFetch('/sync-lead-thread', {
+    method: 'POST',
+    body: JSON.stringify({ card_id: String(cardId) }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.ok === false) throw new Error(data.error || 'Gmail refresh failed');
+  await V3ReloadLeads({ cacheBust: Date.now() });
+  window.dispatchEvent(new CustomEvent('v4:refresh-complete', { detail: { leadRefresh: true, cardId: String(cardId) } }));
+  return data;
+}
+
 window.V4RefreshAllData = V4RefreshAllData;
+window.V4PurgeSpamQueue = V4PurgeSpamQueue;
+window.V4LeadLooksLikeSpam = V4LeadLooksLikeSpam;
+window.V4RefreshLeadFromGmail = V4RefreshLeadFromGmail;
+window.V4RefreshLeadFromX = V4RefreshLeadFromX;
+window.V4LeadThreadFreshness = V4LeadThreadFreshness;
+window.V4BuildXDmReplyDraft = V4BuildXDmReplyDraft;
+window.V4XLeadNeedsDmReply = V4XLeadNeedsDmReply;
+window.V4LeadIsTravelLead = V4LeadIsTravelLead;
 // FLOW v4 — main app shell (refined top bar + view wiring)
 
 const V4_TWEAKS = /*EDITMODE-BEGIN*/{
@@ -14029,22 +16575,35 @@ function V4HelpOverlay({ open, onClose }) {
 
 function V4SyncStatusBadge() {
   const { health } = V4UseOpsHealth();
+  const [busy, setBusy] = React.useState(false);
   const scraper = String(health?.scraper_last_status || '').toLowerCase();
   const delta = String(health?.gmail_delta_status || '').toLowerCase();
   const hb = health?.heartbeat || health?.scraper_last_run || health?.gmail_delta_at;
   const ago = hb ? V3RelativeTime(hb) : '';
   let tone = 'ok';
   let label = 'Board live';
-  if (scraper === 'failed') { tone = 'err'; label = 'Gmail sync failed'; }
+  if (busy) { tone = 'busy'; label = 'Syncing Gmail…'; }
+  else if (scraper === 'failed') { tone = 'err'; label = 'Gmail sync failed'; }
   else if (scraper === 'degraded') { tone = 'warn'; label = 'Partial Gmail sync'; }
   else if (scraper === 'running') { tone = 'busy'; label = 'Syncing Gmail…'; }
   else if (delta === 'failed') { tone = 'warn'; label = 'Delta sync issue'; }
   if (ago && tone === 'ok') label = `Gmail · ${ago}`;
+  const runSync = () => {
+    if (busy || typeof V4RefreshAllData !== 'function') return;
+    setBusy(true);
+    V4RefreshAllData().catch(() => {}).finally(() => setBusy(false));
+  };
   return (
-    <div className={'hd-sync hd-sync--' + tone} title={health ? JSON.stringify({ scraper, delta, hb }) : 'Loading fleet status…'}>
+    <button
+      type="button"
+      className={'hd-sync hd-sync--' + tone + ' hd-sync-btn'}
+      title="Click to sync Gmail for all leads"
+      onClick={runSync}
+      disabled={busy}
+    >
       <span className="dot"></span>
       {label}
-    </div>
+    </button>
   );
 }
 
@@ -14061,11 +16620,11 @@ function V4Onboarding({ onDismiss }) {
     <div className="v4-onboard-scrim" style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={close}>
       <div className="v4-onboard-card" style={{ maxWidth: 420, background: 'var(--surface)', borderRadius: 16, padding: 24, border: '1px solid var(--border)' }} onClick={e => e.stopPropagation()}>
         <h2 style={{ margin: '0 0 8px', fontSize: 20 }}>Company OS is home</h2>
-        <p style={{ margin: '0 0 12px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>Reply to active deals here — not the Gmail app. The header sync badge shows real Gmail pull status.</p>
+        <p style={{ margin: '0 0 12px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>Reply to active deals here — not the Gmail app. Use <strong>↻ Refresh thread</strong> on any lead, or click the header Gmail badge to sync everything.</p>
         <ul style={{ margin: '0 0 16px', paddingLeft: 18, lineHeight: 1.6 }}>
-          <li><strong>Company OS</strong> — your Asher inbox + tools</li>
-          <li><strong>New Leads</strong> — Robert + X intake only</li>
-          <li><strong>Organs / Machine Room</strong> — approve before anything sends</li>
+          <li><strong>Company OS</strong> — read threads, refresh one lead, approve drafts</li>
+          <li><strong>Organs</strong> — today&apos;s decisions, one-click Approve &amp; send</li>
+          <li><strong>Sync Gmail</strong> — Organs top bar or header badge (all leads)</li>
         </ul>
         <button type="button" className="hd-nav-btn" onClick={close}>Got it — open Company OS</button>
       </div>
@@ -14093,12 +16652,13 @@ function V4App() {
     leads: '',
     calendar: '',
     'company-os': '',
-    'machine-room': '',
+
     organs: '',
   });
   const [toast, setToast] = React.useState(null);
   const toastTimer = React.useRef(null);
   const searchRef = React.useRef(null);
+  const cosListSearchRef = React.useRef(null);
   const organsMenuRef = React.useRef(null);
   const [organsMenuOpen, setOrgansMenuOpen] = React.useState(false);
   const [pendingReplies, setPendingReplies] = React.useState([]);
@@ -14207,7 +16767,7 @@ function V4App() {
     if (view === 'leads') return 'Search network…';
     if (view === 'board') return 'Search pipeline…';
     if (view === 'company-os') return 'Search Company OS…';
-    if (view === 'machine-room') return 'Search Machine Room…';
+
     return 'Search calendar…';
   }, [view]);
 
@@ -14217,6 +16777,10 @@ function V4App() {
     setBriefId(null);
     setView(V4DefaultViewForUser(user));
   }, [user]);
+
+  React.useEffect(() => {
+    if (view === 'machine-room') setView('organs');
+  }, [view]);
 
   const [paletteOpen, setPaletteOpen] = React.useState(false);
   const [helpOpen, setHelpOpen] = React.useState(false);
@@ -14262,7 +16826,11 @@ function V4App() {
       }
       const t = e.target;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
-      if (e.key === '/') { e.preventDefault(); searchRef.current?.focus(); }
+      if (e.key === '/') {
+        e.preventDefault();
+        if (view === 'company-os' || view === 'new-leads') cosListSearchRef.current?.focus();
+        else searchRef.current?.focus();
+      }
       if (e.key === '?') { e.preventDefault(); setHelpOpen(true); }
     };
     window.addEventListener('keydown', onKey);
@@ -14336,12 +16904,11 @@ function V4App() {
   const paletteCommands = [
     { label: 'Go to Company OS', hint: 'workspace', run: () => goView('company-os') },
     { label: 'Go to Organs', hint: 'command center', run: () => goView('organs') },
-    { label: 'Go to Machine Room', hint: 'workers', run: () => goView('machine-room') },
     { label: 'Go to Today', run: () => goView('today') },
     { label: 'Go to Calendar', run: () => goView('calendar') },
     { label: 'Go to Briefs', run: () => goView('inbox') },
     { label: 'Go to Invoices', run: () => goView('invoices') },
-    { label: 'Go to New Leads', run: () => goView('new-leads') },
+    { label: 'Go to Intake', run: () => { try { window.sessionStorage.setItem('cos-queue', 'send'); } catch (e) {} goView('company-os'); } },
     { label: 'Go to Network', run: () => goView('leads') },
     { label: 'View as Asher', hint: 'shared lane', run: () => { setTweak('viewAs', 'asher'); setOpenId(null); } },
     { label: 'View as Sammy', hint: 'shared lane', run: () => { setTweak('viewAs', 'sammy'); setOpenId(null); } },
@@ -14384,14 +16951,13 @@ function V4App() {
                   Briefs {unreadCount > 0 && <span>{unreadCount}</span>}
                 </button>
                 <button role="menuitem" className="hd-nav-drop-item" aria-current={view === 'invoices' ? 'page' : undefined} onClick={() => goView('invoices')}>Invoices</button>
-                <button role="menuitem" className="hd-nav-drop-item" aria-current={view === 'new-leads' ? 'page' : undefined} onClick={() => goView('new-leads')}>
+                <button role="menuitem" className="hd-nav-drop-item" onClick={() => { try { window.sessionStorage.setItem('cos-queue', 'send'); } catch (e) {} goView('company-os'); }}>
                   New Leads {newLeadCount > 0 && <span>{newLeadCount}</span>}
                 </button>
                 <button role="menuitem" className="hd-nav-drop-item" aria-current={view === 'leads' ? 'page' : undefined} onClick={() => goView('leads')}>Network</button>
               </div>
             )}
           </div>
-          <button className="hd-nav-btn" aria-current={view === 'machine-room' ? 'page' : undefined} onClick={() => goView('machine-room')}>Machine Room</button>
         </div>
 
         <div className="hd-search">
@@ -14525,7 +17091,19 @@ function V4App() {
           <V4InvoicesView query={search} />
         )}
         {view === 'new-leads' && (
-          <V4NewLeadsView leads={mergedLeads} query={search} onOpenLead={setOpenId} />
+          <V4CompanyOsView
+            leads={mergedLeads}
+            query={search}
+            onQueryChange={setSearch}
+            listSearchRef={cosListSearchRef}
+            user={user}
+            initialQueue="send"
+            onOpenLead={setOpenId}
+            onNavigateView={(nextView, nextOpenId = null) => {
+              setView(nextView);
+              setOpenId(nextOpenId);
+            }}
+          />
         )}
         {view === 'leads' && (
           <V4LeadsView leads={operationalLeads} query={search} openId={openId} onOpenLead={setOpenId} user={user} />
@@ -14537,6 +17115,8 @@ function V4App() {
           <V4CompanyOsView
             leads={mergedLeads}
             query={search}
+            onQueryChange={setSearch}
+            listSearchRef={cosListSearchRef}
             user={user}
             onOpenLead={setOpenId}
             onNavigateView={(nextView, nextOpenId = null) => {
@@ -14545,24 +17125,19 @@ function V4App() {
             }}
           />
         )}
-        {view === 'machine-room' && (
-          <div className="body body-machine-room" style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-            <V4MachineRoomConsole
-              leads={mergedLeads}
-              query={search}
-              onOpenLead={(id) => {
-                setView('company-os');
-                setOpenId(id);
-              }}
-            />
-          </div>
-        )}
         {view === 'organs' && (
           <div className="body body-organs" style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
             <V4OrgansView
               leads={mergedLeads}
               query={search}
-              onOpenConsole={() => { setView('machine-room'); setOpenId(null); }}
+              onOpenInCompanyOs={(leadId) => {
+                try {
+                  window.sessionStorage.setItem('cos-queue', 'send');
+                  window.sessionStorage.setItem('cos-lead-id', String(leadId));
+                } catch (e) {}
+                setView('company-os');
+                setOpenId(null);
+              }}
             />
           </div>
         )}
@@ -14593,11 +17168,6 @@ function V4App() {
           <V3Icon name="network" w={18} />
           Organs
           {(unreadCount + newLeadCount) > 0 && <span className="ft-tab-badge">{(unreadCount + newLeadCount) > 99 ? '99+' : (unreadCount + newLeadCount)}</span>}
-        </button>
-        <button className="ft-tab" aria-current={view === 'machine-room' ? 'page' : undefined}
-                onClick={() => { setView('machine-room'); setOpenId(null); }}>
-          <V3Icon name="network" w={18} />
-          Machine
         </button>
       </footer>
 
@@ -14635,7 +17205,7 @@ function V4App() {
                     onChange={v => setTweak('viewAs', v)} />
         <TweakSection label="View" />
         <TweakSelect label="Page" value={view}
-                    options={['today','board','new-leads','company-os','machine-room','leads','inbox','invoices','calendar']}
+                    options={['today','board','new-leads','company-os','organs','leads','inbox','invoices','calendar']}
                     onChange={v => { setView(v); setOpenId(null); }} />
         <TweakSection label="Appearance" />
         <TweakRadio label="Theme" value={t.theme}
