@@ -3676,39 +3676,63 @@ function V3NewLeadHandle(lead) {
   return mentions.length ? ('@' + mentions[0]) : '';
 }
 
+const V3_THREAD_QUOTE_MARKERS = [
+  /\n\s*\[recovered quoted[^\]]*\]/i,
+  /\n\s*on\b.{0,160}?\bwrote:/is,
+  /\n\s*-{2,}\s*original message\s*-{2,}/i,
+  /\n\s*from:\s.{0,80}@/i,
+  /\n\s*(?:发件人|寄件者)\s*[：:]/,
+  /<blockquote/i,
+  /<div[^>]*class="[^"]*gmail_quote/i,
+  /\n\s*[^\n]{0,80}<[^>\n]+@[^>\n]+>[^\n]{0,80}(?:写道|寫道|wrote)\s*[：:]/i,
+  /\n\s*>/,
+];
+
+function V3StripThreadQuotes(text) {
+  let out = String(text || '');
+  for (const marker of V3_THREAD_QUOTE_MARKERS) {
+    const at = out.search(marker);
+    if (at > 0) out = out.slice(0, at);
+  }
+  return out;
+}
+
+function V3FormatThreadMessageBody(body) {
+  let text = V3StripThreadQuotes(body);
+  text = text
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/?(?:div|p|span|a|b|i|u|strong|em|blockquote|ul|ol|li|table|tr|td|th|h[1-6]|img|font|hr|pre|code)\b[^>]*\/?>/gi, '\n')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&#3[49];|&quot;|&apos;/gi, "'")
+    .replace(/\r\n/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+  return text;
+}
+
+function V3ThreadMessageDedupeKey(m) {
+  const body = V3FormatThreadMessageBody(m?.body).replace(/\s+/g, ' ').trim().slice(0, 180);
+  const from = String(V3ExtractEmail(m?.from) || m?.from || '').toLowerCase();
+  const when = String(m?.date || m?.dateIso || m?.when || '');
+  return `${from}|${when}|${body}`;
+}
+
 function V3NewLeadSummary(lead) {
   const latest = Array.isArray(lead?.thread) && lead.thread.length ? lead.thread[lead.thread.length - 1] : null;
   const source = V3NewLeadSourceKind(lead);
   const raw = source === 'x'
     ? (lead?.notes || lead?.xQuickNote || lead?.evidence || latest?.body || lead?.nextMove?.text || lead?.deliverables || '')
     : (lead?.notes || latest?.body || lead?.evidence || lead?.nextMove?.text || lead?.deliverables || '');
-  let text = String(raw || '');
-  // The stored body often contains the whole thread (the lead's latest message
-  // followed by an earlier quoted reply). Truncate at the first quote marker so
-  // only the lead's message shows. Done before whitespace is collapsed so the
-  // newline-anchored markers still match.
-  const quoteMarkers = [
-    /\n\s*\[recovered quoted[^\]]*\]/i,          // pipeline artifact wrapping the quoted reply
-    /\n\s*on\b.{0,160}?\bwrote:/is,              // "On <date> <name> wrote:"
-    /\n\s*-{2,}\s*original message\s*-{2,}/i,    // "----- Original Message -----"
-    /\n\s*from:\s.{0,80}@/i,                     // quoted "From: name <email>" header block
-    /\n\s*(?:发件人|寄件者)\s*[：:]/,             // Chinese "From:" quoted header block
-    /<blockquote/i,                              // HTML quoted reply
-    /<div[^>]*class="[^"]*gmail_quote/i,         // Gmail HTML quote container
-    /\n\s*[^\n]{0,80}<[^>\n]+@[^>\n]+>[^\n]{0,80}(?:写道|寫道|wrote)\s*[：:]/i, // "Name <email> … wrote:/写道:" (any locale)
-    /\n\s*>/,                                    // leading ">" quote lines
-  ];
-  for (const marker of quoteMarkers) {
-    const at = text.search(marker);
-    if (at > 0) text = text.slice(0, at);
-  }
+  let text = V3FormatThreadMessageBody(raw);
   text = text
     .replace(/Robert['’]s latest position:\s*/gi, 'Robert: ')
     .replace(/Latest lead message:\s*/gi, '')
-    // strip HTML tags (whitelisted names so emails in <angle brackets> survive)
-    .replace(/<\/?(?:div|p|br|span|a|b|i|u|strong|em|blockquote|ul|ol|li|table|tr|td|th|h[1-6]|img|font|hr|pre|code)\b[^>]*\/?>/gi, ' ')
-    .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&#3[49];|&quot;|&apos;/gi, "'")
-    .replace(/\[[^\]]*\]/g, ' ')                 // drop any remaining bracketed artifacts
+    .replace(/\[[^\]]*\]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
   // Lead with the substance: strip an opening greeting and a closing sign-off
@@ -3836,20 +3860,25 @@ function V3MergePendingReplies(leads, pendingReplies) {
 }
 
 const V3_PRICING_PDF_CANONICAL_BASE = 'https://asherweisberger.github.io/UNALIGNED';
+const V3_PRICING_PDF_VERSION = '20260628';
 const V3_PRICING_PDF_PACKS = {
-  single: { id: 'single', label: '1× Single Tier', path: 'docs/SINGLE_TIER.pdf', filename: 'UNALIGNED SINGLE TIER PRICING 2026.pdf' },
-  duo: { id: 'duo', label: '2× Duo Bundle', path: 'docs/DUO_BUNDLE.pdf', filename: 'UNALIGNED DUO BUNDLE PRICING 2026.pdf' },
-  multi: { id: 'multi', label: '4× Multi Tier', path: 'docs/MULTI_TIER.pdf', filename: 'UNALIGNED MULTI TIER PRICING 2026.pdf' },
+  single: { id: 'single', label: '1× Single Tier', path: 'docs/SINGLE_TIER.pdf', filename: 'UNALIGNED SINGLE TIER PRICING 2026.pdf', stamp: 'Current live rate card · June 28, 2026' },
+  duo: { id: 'duo', label: '2× Duo Bundle', path: 'docs/DUO_BUNDLE.pdf', filename: 'UNALIGNED DUO BUNDLE PRICING 2026.pdf', stamp: 'Current live rate card · June 28, 2026' },
+  multi: { id: 'multi', label: '4× Multi Tier', path: 'docs/MULTI_TIER.pdf', filename: 'UNALIGNED MULTI TIER PRICING 2026.pdf', stamp: 'Current live rate card · June 28, 2026' },
 };
 
 function V3PricingPdfHref(relativePath) {
+  const clean = String(relativePath || '').replace(/^\//, '');
+  const versioned = `${clean}?v=${V3_PRICING_PDF_VERSION}`;
   if (typeof window !== 'undefined') {
     const host = window.location.hostname || '';
-    if (host.includes('unaligned-fc556') || host.includes('firebaseapp.com')) {
-      return `${V3_PRICING_PDF_CANONICAL_BASE}/${relativePath}`;
+    const origin = String(window.location.origin || '').replace(/\/$/, '');
+    if (host.includes('asherweisberger.github.io')) {
+      return `${V3_PRICING_PDF_CANONICAL_BASE}/${versioned}`;
     }
+    if (origin) return `${origin}/${versioned}`;
   }
-  return relativePath;
+  return versioned;
 }
 
 function V3InferPricingPdfPack(lead) {
@@ -3905,13 +3934,13 @@ Object.assign(window, { V3SenderForUser, V3SenderName, V3SenderSignature, V3Ensu
 
 // ─── UNALIGNED Tiers (from SINGLE TIER pricing sheet) ────────
 let V3_TIERS = {
-  1: { id: 1, price: 1195, name: 'Retweet',           short: 'RT',         items: ['1 retweet'] },
-  2: { id: 2, price: 1895, name: 'Quote Repost',      short: 'QUOTE',      items: ['1 quote repost', "Robert's original quote (≤3 sentences)"] },
-  3: { id: 3, price: 1995, name: 'Custom X Post',     short: 'CUSTOM X',   items: ['1 custom-written X post'] },
-  4: { id: 4, price: 2495, name: 'Narrative Thread',  short: 'THREAD',     items: ['1 thread (1 + 2 attached)'] },
-  5: { id: 5, price: 2995, name: 'Content Core',      short: 'CORE',       items: ['1 custom X post', '1 LinkedIn post', 'Newsletter feature'] },
-  6: { id: 6, price: 3995, name: 'Growth Bundle',     short: 'GROWTH',     items: ['1 custom X post', '1 LinkedIn post', '1 retweet', 'Newsletter feature'] },
-  7: { id: 7, price: 5995, name: 'Maximum Impact',    short: 'MAX',        items: ['2 custom X posts', '1 LinkedIn post', '2 retweets', 'Newsletter feature', 'Strategy sync'] },
+  1: { id: 1, price: 1295, name: 'Retweet',           short: 'RT',         items: ['1 retweet or repost'] },
+  2: { id: 2, price: 2195, name: 'Quote Repost',      short: 'QUOTE',      items: ['1 quote repost', "Robert's original take"] },
+  3: { id: 3, price: 2495, name: 'Custom X Post',     short: 'CUSTOM X',   items: ['1 custom-written X post'] },
+  4: { id: 4, price: 2995, name: 'Narrative Thread',  short: 'THREAD',     items: ['1 thread (main + 2 replies)'] },
+  5: { id: 5, price: 3495, name: 'Content Core',      short: 'CORE',       items: ['1 custom X post', '1 LinkedIn post', 'Newsletter feature'] },
+  6: { id: 6, price: 4495, name: 'Growth Bundle',     short: 'GROWTH',     items: ['1 custom X post', '1 LinkedIn post', '1 retweet', 'Newsletter feature'] },
+  7: { id: 7, price: 6495, name: 'Maximum Impact',    short: 'MAX',        items: ['2 custom X posts', '1 LinkedIn post', '2 retweets', 'Newsletter feature', 'Strategy sync'] },
 };
 
 const V3_DELIV_TYPES = {
@@ -5934,24 +5963,32 @@ function V3Drawer({ lead, user, queue = [], onNavigate, onClose }) {
 
 function V3PricingPdfAttachPreview({ pack }) {
   const meta = V3PricingPdfMeta(pack);
-  const shortName = meta.path.split('/').pop() || 'rate-card.pdf';
+  const previewSrc = `${meta.path}#toolbar=0&navpanes=0&view=FitH`;
   return (
-    <a
-      className="mail-compose-pdf-chip"
-      href={meta.path}
-      target="_blank"
-      rel="noreferrer"
-      title={'Preview ' + meta.filename}
-    >
-      <span className="mail-compose-pdf-icon" aria-hidden="true">
-        <V3Icon name="doc" w={22} />
-      </span>
-      <span className="mail-compose-pdf-meta">
-        <span className="mail-compose-pdf-name">{shortName}</span>
-        <span className="mail-compose-pdf-type">PDF · {meta.label}</span>
-      </span>
-      <span className="mail-compose-pdf-open">Open</span>
-    </a>
+    <div className="mail-compose-pdf-preview">
+      <a
+        className="mail-compose-pdf-chip"
+        href={meta.path}
+        target="_blank"
+        rel="noreferrer"
+        title={'Open ' + meta.filename}
+      >
+        <span className="mail-compose-pdf-icon" aria-hidden="true">
+          <V3Icon name="doc" w={22} />
+        </span>
+        <span className="mail-compose-pdf-meta">
+          <span className="mail-compose-pdf-name">{meta.filename}</span>
+          <span className="mail-compose-pdf-type">PDF · {meta.label}{meta.stamp ? ` · ${meta.stamp}` : ''}</span>
+        </span>
+        <span className="mail-compose-pdf-open">Open</span>
+      </a>
+      <iframe
+        className="mail-compose-pdf-frame"
+        src={previewSrc}
+        title={meta.filename}
+        loading="lazy"
+      />
+    </div>
   );
 }
 
@@ -6463,10 +6500,17 @@ function V3Stands({ lead }) {
 function V3GmailThread({ lead }) {
   const messages = React.useMemo(() => {
     const source = Array.isArray(lead?.thread) ? lead.thread : [];
-    return [...source].sort((a, b) =>
+    const sorted = [...source].sort((a, b) =>
       V3TimestampForUi(a.date || a.dateIso || a.timestamp || a.when) -
       V3TimestampForUi(b.date || b.dateIso || b.timestamp || b.when)
     );
+    const seen = new Set();
+    return sorted.filter((m) => {
+      const key = V3ThreadMessageDedupeKey(m);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }, [lead?.id, lead?.thread]);
   const lastIdx = Math.max(0, messages.length - 1);
   const [expanded, setExpanded] = React.useState(() => new Set([lastIdx]));
@@ -6496,7 +6540,8 @@ function V3GmailThread({ lead }) {
            m.from === 'Robert' ? 'scobleizer@gmail.com' : '');
         const dateValue = m.date || m.dateIso || m.timestamp || m.when;
         const isOpen = expanded.has(i);
-        const preview = String(m.body || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+        const displayBody = V3FormatThreadMessageBody(m.body);
+        const preview = displayBody.replace(/\s+/g, ' ').trim().slice(0, 120);
         return (
           <article key={i} className={'gmail-msg' + (isOpen ? ' is-open' : ' is-collapsed')}>
             <button type="button" className="gmail-msg-hd" onClick={() => toggle(i)} aria-expanded={isOpen}>
@@ -6522,7 +6567,7 @@ function V3GmailThread({ lead }) {
                     {m.cc?.length ? <span>cc {m.cc.join(', ')}</span> : null}
                   </div>
                 ) : null}
-                <div className="gmail-msg-text">{m.body}</div>
+                <div className="gmail-msg-text" style={{ whiteSpace: 'pre-wrap' }}>{displayBody}</div>
               </div>
             ) : null}
           </article>
