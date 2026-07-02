@@ -130,6 +130,21 @@
       margin-top: 18px; text-align: center; font-size: 12px; color: var(--muted);
       font-family: var(--sans); line-height: 1.5;
     }
+    .contact-panel {
+      overflow: hidden;
+      max-height: 0;
+      opacity: 0;
+      transform: translateY(-6px);
+      transition: max-height .28s ease, opacity .22s ease, transform .22s ease;
+      pointer-events: none;
+    }
+    .contact-panel.is-open {
+      max-height: 180px;
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+      margin-bottom: 2px;
+    }
     @media (max-width: 560px) {
       h2 { font-size: 25px; }
       .card { padding: 20px 16px; }
@@ -171,16 +186,64 @@
       { label: 'Other', value: 'other' },
     ];
 
+    const CONTACT_FIELDS = {
+      email: {
+        label: 'Email address',
+        type: 'email',
+        placeholder: 'you@company.com',
+        hint: 'This is the address we\'ll use first.',
+        autocomplete: 'email',
+      },
+      x: {
+        label: 'X handle',
+        type: 'text',
+        placeholder: '@handle',
+        hint: 'Your public handle so we can find you fast.',
+        autocomplete: 'off',
+      },
+      whatsapp: {
+        label: 'WhatsApp number',
+        type: 'tel',
+        placeholder: '+1 555 123 4567',
+        hint: 'Include country code.',
+        autocomplete: 'tel',
+      },
+      signal: {
+        label: 'Signal number',
+        type: 'tel',
+        placeholder: '+1 555 123 4567',
+        hint: 'Include country code.',
+        autocomplete: 'tel',
+      },
+      phone: {
+        label: 'Phone number',
+        type: 'tel',
+        placeholder: '+1 555 123 4567',
+        hint: 'For call or text.',
+        autocomplete: 'tel',
+      },
+      other: {
+        label: 'How should we reach you?',
+        type: 'text',
+        placeholder: 'Telegram @you, LinkedIn, Discord…',
+        hint: 'Any channel works — tell us where and how to find you.',
+        autocomplete: 'off',
+      },
+    };
+
     const state = {
       name: '',
       email: '',
-      x_handle: '',
-      whatsapp: '',
+      contact_detail: '',
       contact_preference: '',
       topic_type: '',
       message: '',
       company_website: '',
     };
+
+    let contactDetailInput = null;
+    let backupEmailWrap = null;
+    let contactPanel = null;
 
     function el(tag, attrs, children) {
       const node = document.createElement(tag);
@@ -208,7 +271,7 @@
       return field;
     }
 
-    function choiceField(key, label, options) {
+    function choiceField(key, label, options, onPick) {
       const field = el('div', { className: 'field' });
       field.appendChild(el('label', { text: label + ' *' }));
       const row = el('div', { className: 'choice' });
@@ -217,11 +280,54 @@
         btn.addEventListener('click', () => {
           state[key] = opt.value;
           row.querySelectorAll('button').forEach((b) => b.classList.toggle('is-on', b.textContent === opt.label));
+          if (typeof onPick === 'function') onPick(opt.value);
         });
         row.appendChild(btn);
       });
       field.appendChild(row);
       return field;
+    }
+
+    function syncContactDetailField(pref) {
+      if (!contactPanel || !contactDetailInput) return;
+      const config = CONTACT_FIELDS[pref];
+      if (!config) {
+        contactPanel.classList.remove('is-open');
+        return;
+      }
+      contactPanel.classList.add('is-open');
+      const label = contactPanel.querySelector('label');
+      if (label) label.textContent = config.label + ' *';
+      contactDetailInput.type = config.type;
+      contactDetailInput.placeholder = config.placeholder;
+      contactDetailInput.autocomplete = config.autocomplete || 'off';
+      const hint = contactPanel.querySelector('.hint');
+      if (hint) hint.textContent = config.hint;
+      if (backupEmailWrap) {
+        backupEmailWrap.style.display = pref === 'email' ? 'none' : '';
+      }
+      window.requestAnimationFrame(() => contactDetailInput.focus());
+    }
+
+    function contactDetailField() {
+      const panel = el('div', { className: 'contact-panel' });
+      const field = el('div', { className: 'field' });
+      field.appendChild(el('label', { text: 'Contact details *' }));
+      const input = el('input', {
+        type: 'text',
+        placeholder: '',
+        autocomplete: 'off',
+      });
+      input.addEventListener('input', () => {
+        state.contact_detail = input.value.trim();
+        if (state.contact_preference === 'email') state.email = state.contact_detail;
+      });
+      field.appendChild(input);
+      field.appendChild(el('span', { className: 'hint', text: '' }));
+      panel.appendChild(field);
+      contactPanel = panel;
+      contactDetailInput = input;
+      return panel;
     }
 
     function renderForm() {
@@ -240,16 +346,19 @@
 
       const form = el('form');
       form.appendChild(textField('name', 'Your name', { required: true, placeholder: 'First and last', autocomplete: 'name' }));
-      form.appendChild(textField('email', 'Email', { type: 'email', required: true, placeholder: 'you@company.com', autocomplete: 'email' }));
+      form.appendChild(choiceField('contact_preference', 'Best way to reach you', CONTACT_PREFS, syncContactDetailField));
+      form.appendChild(contactDetailField());
 
-      const contactRow = el('div', { className: 'grid-2' });
-      const xField = textField('x_handle', 'X account', { placeholder: '@handle', hint: 'Optional but helps us find you fast.' });
-      const waField = textField('whatsapp', 'WhatsApp', { type: 'tel', placeholder: '+1 …', hint: 'Optional.' });
-      contactRow.appendChild(xField);
-      contactRow.appendChild(waField);
-      form.appendChild(contactRow);
+      const backupEmail = textField('email', 'Backup email', {
+        type: 'email',
+        required: true,
+        placeholder: 'you@company.com',
+        autocomplete: 'email',
+        hint: 'In case we can\'t reach you on your preferred channel.',
+      });
+      backupEmailWrap = backupEmail;
+      form.appendChild(backupEmail);
 
-      form.appendChild(choiceField('contact_preference', 'Best way to reach you', CONTACT_PREFS));
       form.appendChild(choiceField('topic_type', 'What do you want to talk about?', TOPICS));
 
       const msg = el('div', { className: 'field' });
@@ -277,14 +386,25 @@
         status.textContent = '';
         submit.disabled = true;
         try {
+          const payload = {
+            name: state.name,
+            email: state.contact_preference === 'email' ? state.contact_detail : state.email,
+            contact_preference: state.contact_preference,
+            contact_detail: state.contact_detail,
+            topic_type: state.topic_type,
+            message: state.message,
+            company_website: state.company_website,
+            referrer: document.referrer || '',
+            source: 'connect_form',
+          };
+          if (state.contact_preference === 'x') payload.x_handle = state.contact_detail;
+          if (['whatsapp', 'signal', 'phone'].includes(state.contact_preference)) {
+            payload.whatsapp = state.contact_detail;
+          }
           const resp = await fetch(API, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              ...state,
-              referrer: document.referrer || '',
-              source: 'connect_form',
-            }),
+            body: JSON.stringify(payload),
           });
           const data = await resp.json().catch(() => ({}));
           if (!resp.ok || !data.ok) throw new Error(data.error || 'Submit failed');

@@ -16163,7 +16163,7 @@ async function V4CreateCollabFeedbackLink(cardId, forceNew) {
   return data;
 }
 
-const V4_DESK_INTAKE_SELECT = 'id,name,email,x_handle,whatsapp,contact_preference,topic_type,message,status,source,referrer,created_at,reviewed_at,routed_at,card_id';
+const V4_DESK_INTAKE_SELECT = 'id,name,email,x_handle,whatsapp,contact_preference,topic_type,message,status,source,referrer,responses,created_at,reviewed_at,routed_at,card_id';
 
 function V4DeskIntakeTopicLabel(value) {
   const map = {
@@ -16186,6 +16186,16 @@ function V4DeskIntakeContactLabel(value) {
     other: 'Other',
   };
   return map[String(value || '').toLowerCase()] || value || '—';
+}
+
+function V4DeskIntakeContactDetail(row) {
+  const pref = String(row?.contact_preference || '').toLowerCase();
+  const responses = row?.responses && typeof row.responses === 'object' ? row.responses : {};
+  if (responses.contact_detail) return String(responses.contact_detail);
+  if (pref === 'x' && row?.x_handle) return row.x_handle;
+  if (['whatsapp', 'signal', 'phone'].includes(pref) && row?.whatsapp) return row.whatsapp;
+  if (pref === 'email' && row?.email) return row.email;
+  return row?.x_handle || row?.whatsapp || '';
 }
 
 function V4DeskIntakeStatusTone(status) {
@@ -16336,7 +16346,9 @@ function V4CosDeskIntake() {
           <div className="cos-desk-intake-row-main">
             <strong>{row.name || 'Unknown'}</strong>
             <span className="cos-desk-intake-email">{row.email}</span>
-            {row.x_handle ? <span className="cos-desk-intake-handle">{row.x_handle}</span> : null}
+            {V4DeskIntakeContactDetail(row) ? (
+              <span className="cos-desk-intake-handle">{V4DeskIntakeContactDetail(row)}</span>
+            ) : null}
             <span className="cos-desk-intake-topic">{V4DeskIntakeTopicLabel(row.topic_type)}</span>
           </div>
           <div className="cos-desk-intake-row-meta">
@@ -16349,8 +16361,13 @@ function V4CosDeskIntake() {
           <div className="cos-desk-intake-row-body">
             {row.message ? <p className="cos-desk-intake-message">{row.message}</p> : null}
             <div className="cos-desk-intake-contact-grid">
-              {row.whatsapp ? <span>WhatsApp <strong>{row.whatsapp}</strong></span> : null}
-              <span>Reach via <strong>{V4DeskIntakeContactLabel(row.contact_preference)}</strong></span>
+              <span>Preferred <strong>{V4DeskIntakeContactLabel(row.contact_preference)}</strong></span>
+              {V4DeskIntakeContactDetail(row) ? (
+                <span>Contact <strong>{V4DeskIntakeContactDetail(row)}</strong></span>
+              ) : null}
+              {row.contact_preference !== 'email' && row.email ? (
+                <span>Backup email <strong>{row.email}</strong></span>
+              ) : null}
               {row.referrer ? <span>Referrer <strong>{row.referrer}</strong></span> : null}
             </div>
             <div className="cos-desk-intake-actions">

@@ -536,6 +536,9 @@ async function getSupabaseService() {
   const supabase_url = data.supabase_url;
   const supabase_key = data.supabase_service_key || data.supabase_service_role_key || data.supabase_key;
   if (!supabase_url || !supabase_key) throw new Error('Supabase URL/key missing on lead_ingest secret');
+  if (String(supabase_key).includes('"role":"anon"')) {
+    console.warn('lead_ingest secret uses anon key; desk intake RPC will be used as fallback');
+  }
   const sb = (path, opts = {}) => fetch(`${supabase_url}/rest/v1/${path}`, {
     ...opts,
     headers: {
@@ -759,24 +762,113 @@ function deskPhone(value) {
   return deskCleanText(value, 40).replace(/[^\d+().\-\s]/g, '').trim();
 }
 
+function deskIntakeUnavailableDetail(status, detail) {
+  const text = String(detail || '');
+  if (status >= 500 || text.includes('522') || text.includes('Connection timed out')) {
+    return 'Supabase is temporarily unreachable — try again in a few minutes';
+  }
+  if (text.includes('PGRST205') || text.includes('Could not find the table')) {
+    return 'Desk intake table is not set up yet — run ops/sql/robert_desk_intake.sql in Supabase';
+  }
+  return '';
+}
+
+async function submitDeskIntakeRow(sb, row) {
+  const rpc = await sb('rpc/robert_desk_intake_submit', {
+    method: 'POST',
+    body: JSON.stringify({ p_row: row }),
+  });
+  if (rpc.ok) {
+    const id = await rpc.json();
+    if (id) return { id };
+  } else {
+    const detail = await rpc.text();
+    const retryDirect = rpc.status >= 500
+      || detail.includes('PGRST202')
+      || detail.includes('PGRST205')
+      || detail.includes('Could not find');
+    if (!retryDirect) {
+      throw new Error(`Supabase RPC failed: ${rpc.status} ${detail.slice(0, 200)}`);
+    }
+  }
+
+  const insert = await sb('robert_desk_intake', {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify(row),
+  });
+  const raw = await insert.text();
+  let created = null;
+  try {
+    created = raw ? JSON.parse(raw) : null;
+  } catch (_) {
+    created = raw;
+  }
+  if (!insert.ok) {
+    const detail = typeof created === 'string' ? created : JSON.stringify(created);
+    const friendly = deskIntakeUnavailableDetail(insert.status, detail);
+    if (friendly) throw new Error(friendly);
+    throw new Error(`Supabase insert failed: ${insert.status} ${detail.slice(0, 200)}`);
+  }
+  const saved = Array.isArray(created) && created[0] ? created[0] : null;
+  return { id: saved?.id || null };
+}
+
+function deskContactDetail(body = {}, contactPreference = '') {
+  const raw = deskCleanText(body.contact_detail || body.contactDetail, 160);
+  if (raw) return raw;
+  if (contactPreference === 'x') return deskHandle(body.x_handle || body.xHandle);
+  if (['whatsapp', 'signal', 'phone'].includes(contactPreference)) return deskPhone(body.whatsapp);
+  return '';
+}
+
 function normalizeDeskSubmission(body = {}) {
   if (body.company_website) return { error: 'Rejected' };
   const name = deskCleanText(body.name, 120);
-  const email = deskEmail(body.email);
   const message = deskCleanText(body.message, 4000);
   const topicType = String(body.topic_type || body.topicType || '').toLowerCase();
   const contactPreference = String(body.contact_preference || body.contactPreference || '').toLowerCase();
+  const contactDetail = deskContactDetail(body, contactPreference);
+  let email = deskEmail(body.email);
+  let xHandle = '';
+  let whatsapp = '';
+
   if (!name || name.length < 2) return { error: 'Name is required' };
-  if (!email) return { error: 'A valid email is required' };
   if (!DESK_TOPIC_TYPES.has(topicType)) return { error: 'Pick what you want to talk about' };
   if (!DESK_CONTACT_PREFS.has(contactPreference)) return { error: 'Pick your preferred way to be contacted' };
+
+  if (contactPreference === 'email') {
+    email = deskEmail(contactDetail || body.email);
+    if (!email) return { error: 'Enter the email address you want us to use' };
+  } else {
+    if (!email) return { error: 'A valid backup email is required' };
+    if (contactPreference === 'x') {
+      xHandle = deskHandle(contactDetail);
+      if (!xHandle || xHandle.length < 3) return { error: 'Enter your X handle' };
+    } else if (['whatsapp', 'signal', 'phone'].includes(contactPreference)) {
+      whatsapp = deskPhone(contactDetail);
+      if (!whatsapp || whatsapp.replace(/\D/g, '').length < 7) return { error: 'Enter a valid phone number' };
+    } else if (contactPreference === 'other') {
+      if (!contactDetail || contactDetail.length < 3) return { error: 'Tell us how to reach you' };
+    }
+  }
+
   if (!message || message.length < 12) return { error: 'Tell us a bit more (at least a sentence)' };
+
+  const storedContactDetail = contactPreference === 'email'
+    ? email
+    : contactPreference === 'x'
+      ? xHandle
+      : ['whatsapp', 'signal', 'phone'].includes(contactPreference)
+        ? whatsapp
+        : contactDetail;
+
   return {
     row: {
       name,
       email,
-      x_handle: deskHandle(body.x_handle || body.xHandle),
-      whatsapp: deskPhone(body.whatsapp),
+      x_handle: xHandle,
+      whatsapp,
       contact_preference: contactPreference,
       topic_type: topicType,
       message,
@@ -786,6 +878,7 @@ function normalizeDeskSubmission(body = {}) {
       responses: {
         topic_type: topicType,
         contact_preference: contactPreference,
+        contact_detail: storedContactDetail,
         submitted_from: deskCleanText(body.source, 40) || 'connect_form',
       },
     },
@@ -810,17 +903,8 @@ exports.robertDeskIntake = functions.https.onRequest(async (req, res) => {
     if (parsed.error) return res.status(400).json({ ok: false, error: parsed.error });
 
     const sb = await getSupabaseService();
-    const insert = await sb('robert_desk_intake', {
-      method: 'POST',
-      headers: { Prefer: 'return=representation' },
-      body: JSON.stringify(parsed.row),
-    });
-    const created = await insert.json();
-    if (!insert.ok) {
-      throw new Error(`Supabase insert failed: ${insert.status} ${JSON.stringify(created).slice(0, 200)}`);
-    }
-    const row = Array.isArray(created) && created[0] ? created[0] : null;
-    return res.json({ ok: true, submitted: true, id: row?.id || null });
+    const saved = await submitDeskIntakeRow(sb, parsed.row);
+    return res.json({ ok: true, submitted: true, id: saved.id || null });
   } catch (err) {
     console.error('robertDeskIntake error:', err.message);
     return res.status(500).json({ ok: false, error: err.message });
