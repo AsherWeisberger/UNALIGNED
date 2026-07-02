@@ -2,8 +2,20 @@ const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const fs = require('fs');
 const path = require('path');
-const { google } = require('googleapis');
 const nodemailer = require('nodemailer');
+
+let db;
+function getDb() {
+  if (!db) {
+    if (!admin.apps.length) admin.initializeApp();
+    db = admin.firestore();
+  }
+  return db;
+}
+
+function getGoogle() {
+  return require('googleapis').google;
+}
 
 const PRICING_PDF_DIR = path.join(__dirname, 'pricing');
 const PRICING_PDF_PACKS = {
@@ -24,9 +36,6 @@ function loadPricingPdfAttachment(pack) {
     contentType: 'application/pdf',
   };
 }
-
-admin.initializeApp();
-const db = admin.firestore();
 
 const SENDERS = {
   robert: {
@@ -56,17 +65,17 @@ let cachedRobertAuth = null;
 async function getRobertGmailAuth() {
   if (cachedRobertAuth) return cachedRobertAuth;
 
-  const snap = await db.collection('_secrets').doc('gmail_oauth').get();
+  const snap = await getDb().collection('_secrets').doc('gmail_oauth').get();
   if (!snap.exists) throw new Error('Gmail credentials not found');
 
   const { token, refresh_token, client_id, client_secret } = snap.data();
-  const oauth2 = new google.auth.OAuth2(client_id, client_secret);
+  const oauth2 = new (getGoogle().auth.OAuth2)(client_id, client_secret);
 
   if (!token || token.length < 50) {
     console.log('Refreshing Robert access token...');
     oauth2.setCredentials({ refresh_token });
     const { credentials } = await oauth2.refreshAccessToken();
-    await db.collection('_secrets').doc('gmail_oauth').set({ token: credentials.access_token }, { merge: true });
+    await getDb().collection('_secrets').doc('gmail_oauth').set({ token: credentials.access_token }, { merge: true });
     cachedRobertAuth = oauth2;
   } else {
     oauth2.setCredentials({ access_token: token, refresh_token });
@@ -78,7 +87,7 @@ async function getRobertGmailAuth() {
 async function sendViaGmail(sender, to, subject, body, cc, attachments, threadId, replyHeaders) {
   try {
     const auth = await getRobertGmailAuth();
-    const gmail = google.gmail({ version: 'v1', auth });
+    const gmail = getGoogle().gmail({ version: 'v1', auth });
     const raw = makeMime(to, cc, subject, body, sender, attachments, replyHeaders);
     const result = await gmail.users.messages.send({
       userId: 'me',
@@ -99,7 +108,7 @@ const smtpTransporters = {};
 async function getSmtpTransporter(sender) {
   if (smtpTransporters[sender.id]) return smtpTransporters[sender.id];
 
-  const snap = await db.collection('_secrets').doc(sender.secretDoc).get();
+  const snap = await getDb().collection('_secrets').doc(sender.secretDoc).get();
   if (!snap.exists) throw new Error(`${sender.name} Gmail credentials not found`);
 
   const { email, app_password } = snap.data();
@@ -114,7 +123,7 @@ async function getSmtpTransporter(sender) {
 
 async function sendViaSmtp(sender, to, subject, body, cc, attachments, replyHeaders) {
   const t = await getSmtpTransporter(sender);
-  const snap = await db.collection('_secrets').doc(sender.secretDoc).get();
+  const snap = await getDb().collection('_secrets').doc(sender.secretDoc).get();
   const { email } = snap.data();
   const mail = {
     from: `"${sender.name}" <${email || sender.email}>`,
@@ -135,7 +144,7 @@ async function getThreadReplyHeaders(threadId) {
   if (!threadId) return {};
   try {
     const auth = await getRobertGmailAuth();
-    const gmail = google.gmail({ version: 'v1', auth });
+    const gmail = getGoogle().gmail({ version: 'v1', auth });
     const result = await gmail.users.threads.get({
       userId: 'me',
       id: threadId,
@@ -296,11 +305,11 @@ function effectiveCc(cc, sender, to) {
 
 async function verifySendEmailAuth(req) {
   const auth = String(req.headers.authorization || '');
-  const sendSnap = await db.collection('_secrets').doc('send_email').get();
+  const sendSnap = await getDb().collection('_secrets').doc('send_email').get();
   if (sendSnap.exists && sendSnap.data().token) {
     return auth === `Bearer ${sendSnap.data().token}`;
   }
-  const ingestSnap = await db.collection('_secrets').doc('lead_ingest').get();
+  const ingestSnap = await getDb().collection('_secrets').doc('lead_ingest').get();
   if (ingestSnap.exists && ingestSnap.data().token) {
     return auth === `Bearer ${ingestSnap.data().token}`;
   }
@@ -377,7 +386,7 @@ exports.ingestLead = functions.https.onRequest(async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
   try {
-    const secretSnap = await db.collection('_secrets').doc('lead_ingest').get();
+    const secretSnap = await getDb().collection('_secrets').doc('lead_ingest').get();
     if (!secretSnap.exists) return res.status(500).json({ error: 'Ingest secret not configured' });
     const { token, supabase_url, supabase_key } = secretSnap.data();
 
@@ -594,7 +603,7 @@ function inferDeliverableType(lines) {
 
 async function getSecretDoc(docIds) {
   for (const docId of docIds) {
-    const snap = await db.collection('_secrets').doc(docId).get();
+    const snap = await getDb().collection('_secrets').doc(docId).get();
     if (snap.exists) return { id: docId, data: snap.data() || {} };
   }
   return null;
@@ -610,7 +619,7 @@ async function getBriefGoogleAuth() {
   if (!refresh_token || !client_id || !client_secret) {
     throw new Error('Hosted Brief Maker Google auth is missing refresh token or client credentials.');
   }
-  const oauth2 = new google.auth.OAuth2(client_id, client_secret);
+  const oauth2 = new (getGoogle().auth.OAuth2)(client_id, client_secret);
   oauth2.setCredentials({
     access_token: token || undefined,
     refresh_token,
@@ -622,7 +631,7 @@ async function getBriefGoogleAuth() {
         access_token: credentials.access_token,
         refresh_token,
       });
-      await db.collection('_secrets').doc(secret.id).set({ token: credentials.access_token }, { merge: true });
+      await getDb().collection('_secrets').doc(secret.id).set({ token: credentials.access_token }, { merge: true });
     }
   } catch (err) {
     throw new Error(`Hosted Brief Maker Google auth refresh failed: ${err.message}`);
@@ -632,11 +641,11 @@ async function getBriefGoogleAuth() {
 }
 
 async function getDocsService() {
-  return google.docs({ version: 'v1', auth: await getBriefGoogleAuth() });
+  return getGoogle().docs({ version: 'v1', auth: await getBriefGoogleAuth() });
 }
 
 async function getCalendarService() {
-  return google.calendar({ version: 'v3', auth: await getBriefGoogleAuth() });
+  return getGoogle().calendar({ version: 'v3', auth: await getBriefGoogleAuth() });
 }
 
 async function readGoogleDocSource(sourceUrl) {
