@@ -1,7 +1,29 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
+const fs = require('fs');
+const path = require('path');
 const { google } = require('googleapis');
 const nodemailer = require('nodemailer');
+
+const PRICING_PDF_DIR = path.join(__dirname, 'pricing');
+const PRICING_PDF_PACKS = {
+  single: { file: 'SINGLE_TIER.pdf', filename: 'UNALIGNED SINGLE TIER PRICING 2026.pdf' },
+  duo: { file: 'DUO_BUNDLE.pdf', filename: 'UNALIGNED DUO BUNDLE PRICING 2026.pdf' },
+  multi: { file: 'MULTI_TIER.pdf', filename: 'UNALIGNED MULTI TIER PRICING 2026.pdf' },
+};
+
+function loadPricingPdfAttachment(pack) {
+  const meta = PRICING_PDF_PACKS[pack] || PRICING_PDF_PACKS.single;
+  const filePath = path.join(PRICING_PDF_DIR, meta.file);
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Pricing PDF missing on server: ${meta.file}`);
+  }
+  return {
+    filename: meta.filename,
+    content: fs.readFileSync(filePath),
+    contentType: 'application/pdf',
+  };
+}
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -318,27 +340,8 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
 
     let attachments = [];
     if (attachPdf) {
-      const PRICING_PDFS = {
-        single: {
-          url: 'https://unaligned-fc556.web.app/docs/SINGLE_TIER.pdf',
-          filename: 'UNALIGNED SINGLE TIER PRICING 2026.pdf',
-        },
-        duo: {
-          url: 'https://unaligned-fc556.web.app/docs/DUO_BUNDLE.pdf',
-          filename: 'UNALIGNED DUO BUNDLE PRICING 2026.pdf',
-        },
-        multi: {
-          url: 'https://unaligned-fc556.web.app/docs/MULTI_TIER.pdf',
-          filename: 'UNALIGNED MULTI TIER PRICING 2026.pdf',
-        },
-      };
       const pack = ['single', 'duo', 'multi'].includes(pricingPdfPack) ? pricingPdfPack : 'single';
-      const pdf = PRICING_PDFS[pack];
-      const pdfResp = await fetch(pdf.url);
-      if (pdfResp.ok) {
-        const pdfBuffer = Buffer.from(await pdfResp.arrayBuffer());
-        attachments = [{ filename: pdf.filename, content: pdfBuffer, contentType: 'application/pdf' }];
-      }
+      attachments = [loadPricingPdfAttachment(pack)];
     }
 
     messageId = await sendViaGmail(sender, to, subject, body, ccList, attachments, threadId, replyHeaders);

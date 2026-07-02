@@ -1,0 +1,10 @@
+.git
+**/node_modules/**
+**/.git/**
+data/**
+archive/**
+outreach/**
+scripts/**
+tests/**
+*.md
+!README.md

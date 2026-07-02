@@ -53,6 +53,19 @@
         ]
       },
       {
+        "source": "/docs/**.pdf",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "application/pdf"
+          },
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=3600"
+          }
+        ]
+      },
+      {
         "source": "/assets/docs/**.pdf",
         "headers": [
           {

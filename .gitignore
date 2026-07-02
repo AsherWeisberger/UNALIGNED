@@ -44,6 +44,10 @@ docs/*.pdf
 !docs/SINGLE_TIER.pdf
 !docs/DUO_BUNDLE.pdf
 !docs/MULTI_TIER.pdf
+functions/pricing/*.pdf
+!functions/pricing/SINGLE_TIER.pdf
+!functions/pricing/DUO_BUNDLE.pdf
+!functions/pricing/MULTI_TIER.pdf
 docs/*.html
 
 # Keep real source files tracked

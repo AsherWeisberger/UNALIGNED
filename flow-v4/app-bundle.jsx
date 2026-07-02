@@ -3604,16 +3604,17 @@ const V3_PRICING_PDF_PACKS = {
 };
 
 function V3InferPricingPdfPack(lead) {
+  const explicit = String(lead?.pricingPack || '').toLowerCase();
+  if (explicit === 'single' || explicit === 'duo' || explicit === 'multi') return explicit;
   const text = [
-    lead?.pricingPack,
     lead?.deliverables,
     lead?.notes,
     lead?.evidence,
     lead?.nextMove?.text,
     ...(Array.isArray(lead?.thread) ? lead.thread.map(m => `${m.subject || ''} ${m.body || ''}`) : []),
   ].filter(Boolean).join(' ').toLowerCase();
-  if (/\b(multi[\s-]?tier|monthly multi|monthly package|monthly placements|retainer|recurring|presence|momentum|authority|market leader|billed monthly|3[\s-]?month minimum)\b/.test(text)) return 'multi';
-  if (/\b(duo[\s-]?bundle|duo pack|two placements|2[\s×x][\s-]?pack|2-pack|two tier|book any two)\b/.test(text)) return 'duo';
+  if (/\b(multi[\s-]?tier|monthly multi|4[\s×x][\s-]?pack|four[\s-]?pack|market leader package|3[\s-]?month minimum|billed monthly)\b/.test(text)) return 'multi';
+  if (/\b(duo[\s-]?bundle|duo pack|two placements|2[\s×x][\s-]?pack|2-pack|book any two)\b/.test(text)) return 'duo';
   return 'single';
 }
 
@@ -5726,7 +5727,7 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
   const [ccDraft, setCcDraft] = React.useState('');
   const [body, setBody] = React.useState(draft.body);
   const [attachPdf, setAttachPdf] = React.useState(false);
-  const [pricingPdfPack, setPricingPdfPack] = React.useState(() => V3InferPricingPdfPack(lead));
+  const [pricingPdfPack, setPricingPdfPack] = React.useState('single');
   const [status, setStatus] = React.useState('draft');
   const [error, setError] = React.useState('');
   const [success, setSuccess] = React.useState('');
@@ -5770,7 +5771,7 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
     setCcDraft('');
     setBody(nextDraft.body);
     setAttachPdf(false);
-    setPricingPdfPack(V3InferPricingPdfPack(lead));
+    setPricingPdfPack('single');
     setStatus('draft');
     setError('');
     setSuccess('');
