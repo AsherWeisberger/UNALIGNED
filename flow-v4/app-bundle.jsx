@@ -1081,18 +1081,56 @@ function V3UseLeadDetailHydration(lead) {
   }, [lead?.id, lead?._detailHydrated, lead?.gmailThreadId, lead?.email, lead?.thread?.length]);
 }
 
+function V3FriendlySupabaseError(status, detail) {
+  const text = String(detail || '');
+  if (status === 522 || status === 523 || status === 524 || text.includes('Connection timed out')) {
+    return 'Supabase is temporarily unreachable — wait a minute and hit Board error → retry';
+  }
+  if (status === 57014 || text.includes('statement timeout')) {
+    return 'Supabase query timed out — retry in a moment';
+  }
+  if (text.includes('PGRST205') || text.includes('Could not find the table')) {
+    return 'Supabase schema missing — run the latest SQL migration';
+  }
+  const snippet = text.replace(/\s+/g, ' ').trim().slice(0, 160);
+  return snippet ? ('Supabase ' + status + ': ' + snippet) : ('Supabase ' + status);
+}
+
+async function V3FetchSupabaseJson(path, opts = {}) {
+  const attempts = Math.max(1, Number(opts.retries) || 3);
+  let lastErr = null;
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      const res = await fetch(V3_SUPABASE_URL + path, {
+        headers: opts.headers || V3_SUPABASE_HEADERS,
+      });
+      if (!res.ok) {
+        const detail = await res.text();
+        throw new Error(V3FriendlySupabaseError(res.status, detail));
+      }
+      return await res.json();
+    } catch (err) {
+      lastErr = err;
+      const msg = String(err?.message || err || '');
+      const retryable = i < attempts - 1 && (
+        msg.includes('unreachable')
+        || msg.includes('timed out')
+        || msg.includes('Failed to fetch')
+        || msg.includes('NetworkError')
+        || msg.includes('522')
+      );
+      if (!retryable) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 1200 * (i + 1)));
+    }
+  }
+  throw lastErr || new Error('Supabase load failed');
+}
+
 async function V3LoadSupabaseLeads(opts = {}) {
   const rows = [];
   for (let offset = 0; ; offset += 1000) {
-    const url = V3_SUPABASE_URL + "/rest/v1/cards?select=" + V3_SUPABASE_LIST_COLUMNS + "&order=id.desc&offset=" + offset + "&limit=1000";
-    const res = await fetch(url, {
-      headers: {
-        apikey: V3_SUPABASE_ANON_KEY,
-        Authorization: "Bearer " + V3_SUPABASE_ANON_KEY,
-      },
-    });
-    if (!res.ok) throw new Error("Supabase " + res.status + ": " + await res.text());
-    const chunk = await res.json();
+    const path = "/rest/v1/cards?select=" + V3_SUPABASE_LIST_COLUMNS + "&order=id.desc&offset=" + offset + "&limit=1000";
+    const chunk = await V3FetchSupabaseJson(path, { retries: offset === 0 ? 3 : 1 });
     if (!Array.isArray(chunk) || chunk.length === 0) break;
     rows.push(...chunk);
     if (chunk.length < 1000) break;
@@ -5337,8 +5375,9 @@ V3LoadSupabaseLeads().then(leads => {
   window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads, ok: true } }));
   V3PrefetchHotLeadDetails(leads);
 }).catch(err => {
-  console.error('Supabase load failed:', err);
-  window.dispatchEvent(new CustomEvent('v3:leads-error', { detail: { error: err?.message || 'Load failed' } }));
+  const error = err?.message || String(err || 'Load failed');
+  console.error('Supabase load failed:', error);
+  window.dispatchEvent(new CustomEvent('v3:leads-error', { detail: { error } }));
 });
 // FLOW v3 — Board view
 
@@ -16212,13 +16251,16 @@ function V4DeskIntakeStatusTone(status) {
 }
 
 async function V4LoadDeskIntake(limit = 40) {
-  const url = V3_SUPABASE_URL
-    + '/rest/v1/robert_desk_intake?select=' + V4_DESK_INTAKE_SELECT
-    + '&order=created_at.desc&limit=' + encodeURIComponent(String(limit || 40));
-  const res = await fetch(url, { headers: V3_SUPABASE_HEADERS });
-  if (!res.ok) throw new Error('Could not load desk intake (' + res.status + ')');
-  const data = await res.json();
-  return Array.isArray(data) ? data : [];
+  try {
+    const path = '/rest/v1/robert_desk_intake?select=' + V4_DESK_INTAKE_SELECT
+      + '&order=created_at.desc&limit=' + encodeURIComponent(String(limit || 40));
+    const data = await V3FetchSupabaseJson(path, { retries: 2 });
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    const msg = String(err?.message || err || '');
+    if (msg.includes('PGRST205') || msg.includes('schema missing')) return [];
+    throw new Error(msg || 'Could not load desk intake');
+  }
 }
 
 async function V4PatchDeskIntakeStatus(id, status) {
@@ -19822,5 +19864,4 @@ try {
     bootEl.style.display = 'block';
     bootEl.textContent = 'Render error: ' + (e && e.message || e);
   }
-  throw e;
 }
