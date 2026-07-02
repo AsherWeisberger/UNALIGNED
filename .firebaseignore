@@ -6,5 +6,9 @@ archive/**
 outreach/**
 scripts/**
 tests/**
+ops/**
+supabase/**
+flow-v4/assets/**
 *.md
 !README.md
+functions/**

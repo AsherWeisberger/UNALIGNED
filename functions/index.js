@@ -18,23 +18,41 @@ function getGoogle() {
 }
 
 const PRICING_PDF_DIR = path.join(__dirname, 'pricing');
+const PRICING_PDF_CANONICAL_BASE = 'https://asherweisberger.github.io/UNALIGNED';
 const PRICING_PDF_PACKS = {
-  single: { file: 'SINGLE_TIER.pdf', filename: 'UNALIGNED SINGLE TIER PRICING 2026.pdf' },
-  duo: { file: 'DUO_BUNDLE.pdf', filename: 'UNALIGNED DUO BUNDLE PRICING 2026.pdf' },
-  multi: { file: 'MULTI_TIER.pdf', filename: 'UNALIGNED MULTI TIER PRICING 2026.pdf' },
+  single: {
+    file: 'SINGLE_TIER.pdf',
+    filename: 'UNALIGNED SINGLE TIER PRICING 2026.pdf',
+    url: `${PRICING_PDF_CANONICAL_BASE}/docs/SINGLE_TIER.pdf`,
+  },
+  duo: {
+    file: 'DUO_BUNDLE.pdf',
+    filename: 'UNALIGNED DUO BUNDLE PRICING 2026.pdf',
+    url: `${PRICING_PDF_CANONICAL_BASE}/docs/DUO_BUNDLE.pdf`,
+  },
+  multi: {
+    file: 'MULTI_TIER.pdf',
+    filename: 'UNALIGNED MULTI TIER PRICING 2026.pdf',
+    url: `${PRICING_PDF_CANONICAL_BASE}/docs/MULTI_TIER.pdf`,
+  },
 };
 
-function loadPricingPdfAttachment(pack) {
+async function loadPricingPdfAttachment(pack) {
   const meta = PRICING_PDF_PACKS[pack] || PRICING_PDF_PACKS.single;
   const filePath = path.join(PRICING_PDF_DIR, meta.file);
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`Pricing PDF missing on server: ${meta.file}`);
+  if (fs.existsSync(filePath)) {
+    const local = fs.readFileSync(filePath);
+    if (local.length > 2500 && local.slice(0, 4).toString() === '%PDF') {
+      return { filename: meta.filename, content: local, contentType: 'application/pdf' };
+    }
   }
-  return {
-    filename: meta.filename,
-    content: fs.readFileSync(filePath),
-    contentType: 'application/pdf',
-  };
+  const resp = await fetch(meta.url, { headers: { 'Cache-Control': 'no-cache' } });
+  if (!resp.ok) throw new Error(`Could not load pricing PDF: ${meta.file} (${resp.status})`);
+  const content = Buffer.from(await resp.arrayBuffer());
+  if (content.length < 2500 || content.slice(0, 4).toString() !== '%PDF') {
+    throw new Error(`Pricing PDF looks invalid: ${meta.file}`);
+  }
+  return { filename: meta.filename, content, contentType: 'application/pdf' };
 }
 
 const SENDERS = {
@@ -350,7 +368,7 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
     let attachments = [];
     if (attachPdf) {
       const pack = ['single', 'duo', 'multi'].includes(pricingPdfPack) ? pricingPdfPack : 'single';
-      attachments = [loadPricingPdfAttachment(pack)];
+      attachments = [await loadPricingPdfAttachment(pack)];
     }
 
     messageId = await sendViaGmail(sender, to, subject, body, ccList, attachments, threadId, replyHeaders);

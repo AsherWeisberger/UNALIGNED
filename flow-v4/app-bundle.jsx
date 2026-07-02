@@ -3624,11 +3624,22 @@ function V3MergePendingReplies(leads, pendingReplies) {
   });
 }
 
+const V3_PRICING_PDF_CANONICAL_BASE = 'https://asherweisberger.github.io/UNALIGNED';
 const V3_PRICING_PDF_PACKS = {
   single: { id: 'single', label: '1× Single Tier', path: 'docs/SINGLE_TIER.pdf', filename: 'UNALIGNED SINGLE TIER PRICING 2026.pdf' },
   duo: { id: 'duo', label: '2× Duo Bundle', path: 'docs/DUO_BUNDLE.pdf', filename: 'UNALIGNED DUO BUNDLE PRICING 2026.pdf' },
   multi: { id: 'multi', label: '4× Multi Tier', path: 'docs/MULTI_TIER.pdf', filename: 'UNALIGNED MULTI TIER PRICING 2026.pdf' },
 };
+
+function V3PricingPdfHref(relativePath) {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname || '';
+    if (host.includes('unaligned-fc556') || host.includes('firebaseapp.com')) {
+      return `${V3_PRICING_PDF_CANONICAL_BASE}/${relativePath}`;
+    }
+  }
+  return relativePath;
+}
 
 function V3InferPricingPdfPack(lead) {
   const explicit = String(lead?.pricingPack || '').toLowerCase();
@@ -3646,7 +3657,8 @@ function V3InferPricingPdfPack(lead) {
 }
 
 function V3PricingPdfMeta(pack) {
-  return V3_PRICING_PDF_PACKS[pack] || V3_PRICING_PDF_PACKS.single;
+  const meta = V3_PRICING_PDF_PACKS[pack] || V3_PRICING_PDF_PACKS.single;
+  return { ...meta, path: V3PricingPdfHref(meta.path) };
 }
 
 async function V3SendLeadEmail({ lead, sender, to, cc, subject, body, attachPdf = false, pricingPdfPack = null }) {
