@@ -85,11 +85,18 @@ def supabase_request(method, path, data=None):
     with urllib.request.urlopen(req, timeout=30) as resp:
         return json.loads(resp.read())
 
+CARD_LIST_SELECT = (
+    "id,email,gmail_thread_id,contact_name,title,list_id,new_reply_at,original_email"
+)
+
 def load_all_cards():
-    """Load all cards from Supabase (paginated)."""
+    """Load all cards from Supabase (paginated). Omits email_thread/description — saves egress."""
     all_cards = []
     for offset in range(0, 100000, 1000):
-        result = supabase_request('GET', f'/rest/v1/cards?select=*&limit=1000&offset={offset}')
+        result = supabase_request(
+            'GET',
+            f'/rest/v1/cards?select={CARD_LIST_SELECT}&limit=1000&offset={offset}',
+        )
         if isinstance(result, list):
             all_cards.extend(result)
             if len(result) < 1000:

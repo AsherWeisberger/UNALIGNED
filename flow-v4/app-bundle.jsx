@@ -18106,7 +18106,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
   const refreshFromGmail = React.useCallback(async (opts = {}) => {
     if (gmailDeltaRef.current.running) return;
     const quiet = !!opts.quiet;
-    const minGap = quiet ? 10000 : 0;
+    const minGap = quiet ? 120000 : 0;
     const now = Date.now();
     if (minGap && now - gmailDeltaRef.current.last < minGap) return;
     gmailDeltaRef.current.running = true;
@@ -18135,11 +18135,12 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
           throw new Error(data.error || ('Full sync failed (' + res.status + ')'));
         }
       }
-      if (window.V3?.ReloadLeads) await window.V3.ReloadLeads({ quiet: true });
       const patched = Number(data.cards_updated ?? data.threads_patched ?? 0);
       const created = Number(data.new_cards_written || 0);
       const operatorQueued = !!data.operator_queued;
-      if (!quiet || patched || created || operatorQueued) {
+      const boardChanged = patched > 0 || created > 0 || operatorQueued || !!data.checkpoint_expired;
+      if (boardChanged && window.V3?.ReloadLeads) await window.V3.ReloadLeads({ quiet: true });
+      if (!quiet || boardChanged) {
         const parts = [];
         if (created) parts.push(created + ' new');
         if (patched) parts.push(patched + ' updated');
@@ -18178,7 +18179,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
       if (document.visibilityState === 'visible') refreshFromGmail({ quiet: true });
     };
     const first = window.setTimeout(tick, 2500);
-    const interval = window.setInterval(tick, 15000);
+    const interval = window.setInterval(tick, 120000);
     const onFocus = () => tick();
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', tick);
