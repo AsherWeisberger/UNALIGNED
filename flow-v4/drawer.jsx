@@ -375,6 +375,7 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
       const prompt = V3BuildAiReplyPrompt({ lead, sender, subject, tone });
       const out = await window.claude.complete(prompt, { max_tokens: 700 });
       setBody(V3FinalizeAiReplyDraft(String(out || '').trim(), lead, sender));
+      setAttachPdf(true);
       if (window.claude?.label) setAiBridgeLabel(window.claude.label());
     } catch (err) {
       setAiDraftError(err.message || 'AI draft failed');
