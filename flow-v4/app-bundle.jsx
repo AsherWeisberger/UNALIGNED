@@ -14811,8 +14811,6 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
         ))}
       </div>
 
-      <V4CosPartnerFeedback />
-
       {briefMakerOpen && (
         <div className="brief-modal-backdrop" onClick={() => setBriefMakerOpen(false)}>
           <div className="brief-maker-panel" onClick={e => e.stopPropagation()}>
@@ -15846,18 +15844,34 @@ async function V4CreateCollabFeedbackLink(cardId, forceNew) {
   return data;
 }
 
-function V4CosPartnerFeedback({ compact, onOpenLead }) {
+function V4CosPartnerFeedbackPage({ onOpenLead }) {
+  return (
+    <div className="cosov cos-partner-feedback-page">
+      <header className="cos-partner-feedback-hero">
+        <div className="cos-partner-feedback-hero-copy">
+          <span className="cos-eyebrow">Partner intelligence</span>
+          <h2 className="cos-partner-feedback-hero-title">Feedback from finished collaborations</h2>
+          <p className="cos-partner-feedback-hero-sub">
+            Every submission stays tied to brand, contact, email, and deal card — so you know how to work with them next time.
+          </p>
+        </div>
+      </header>
+      <V4CosPartnerFeedback onOpenLead={onOpenLead} />
+    </div>
+  );
+}
+
+function V4CosPartnerFeedback({ onOpenLead }) {
   const [rows, setRows] = React.useState([]);
   const [status, setStatus] = React.useState('loading');
   const [error, setError] = React.useState('');
-  const [collapsed, setCollapsed] = React.useState(Boolean(compact));
   const [expandedId, setExpandedId] = React.useState(null);
 
   const load = React.useCallback(async () => {
     setStatus('loading');
     setError('');
     try {
-      const data = await V4LoadCollabFeedback(compact ? 12 : 30);
+      const data = await V4LoadCollabFeedback(30);
       setRows(data);
       setStatus(data.length ? 'ready' : 'empty');
       setExpandedId((prev) => prev ?? (data[0]?.id ?? null));
@@ -15866,7 +15880,7 @@ function V4CosPartnerFeedback({ compact, onOpenLead }) {
       setStatus('error');
       setError(err.message || 'Could not load partner feedback');
     }
-  }, [compact]);
+  }, []);
 
   React.useEffect(() => { load(); }, [load]);
 
@@ -15875,8 +15889,6 @@ function V4CosPartnerFeedback({ compact, onOpenLead }) {
   const avgProcess = V4CosFeedbackAvg(rows, 'process_score');
   const againYes = rows.filter((row) => row.would_again === 'yes').length;
   const improveThemes = rows.map((row) => String(row.improve || '').trim()).filter(Boolean).slice(0, 3);
-
-  if (compact && status === 'empty') return null;
 
   const renderRow = (row) => {
     const open = expandedId === row.id;
@@ -15949,46 +15961,34 @@ function V4CosPartnerFeedback({ compact, onOpenLead }) {
   };
 
   return (
-    <section className={'cos-partner-fb' + (compact ? ' is-compact' : ' is-full') + (collapsed ? ' is-collapsed' : '')}>
+    <section className="cos-partner-fb is-full">
       <header className="cos-partner-fb-hd">
         <div className="cos-partner-fb-copy">
-          <span className="cos-partner-fb-eyebrow">Partner feedback</span>
+          <span className="cos-partner-fb-eyebrow">Submissions</span>
           <span className="cos-partner-fb-label">
             {status === 'empty'
-              ? 'No submissions yet — paste a link at wrap-up.'
+              ? 'No submissions yet — create a link from a closed deal card at wrap-up.'
               : status === 'error'
                 ? error
                 : `${rows.length} submission${rows.length === 1 ? '' : 's'} · avg ${avgOverall ?? '—'}/10 · NPS ${avgNps ?? '—'}`}
           </span>
         </div>
         <div className="cos-partner-fb-actions">
-          {compact ? (
-            <button
-              type="button"
-              className="cos-partner-fb-toggle"
-              onClick={() => setCollapsed((c) => !c)}
-              aria-expanded={!collapsed}
-            >
-              {collapsed ? 'Show' : 'Hide'}
-            </button>
-          ) : null}
           <button type="button" className="cos-partner-fb-refresh" onClick={load} disabled={status === 'loading'} title="Refresh partner feedback">
             {status === 'loading' ? '…' : '↻'}
           </button>
         </div>
       </header>
 
-      {status === 'ready' && !collapsed ? (
+      {status === 'ready' ? (
         <>
-          {!compact ? (
-            <div className="cos-partner-fb-stats">
-              <div className="cos-partner-fb-stat"><strong>{avgOverall ?? '—'}</strong><span>Overall</span></div>
-              <div className="cos-partner-fb-stat"><strong>{avgNps ?? '—'}</strong><span>NPS</span></div>
-              <div className="cos-partner-fb-stat"><strong>{avgProcess ?? '—'}</strong><span>Process</span></div>
-              <div className="cos-partner-fb-stat"><strong>{againYes}/{rows.length}</strong><span>Would again</span></div>
-            </div>
-          ) : null}
-          {improveThemes.length && !compact ? (
+          <div className="cos-partner-fb-stats">
+            <div className="cos-partner-fb-stat"><strong>{avgOverall ?? '—'}</strong><span>Overall</span></div>
+            <div className="cos-partner-fb-stat"><strong>{avgNps ?? '—'}</strong><span>NPS</span></div>
+            <div className="cos-partner-fb-stat"><strong>{avgProcess ?? '—'}</strong><span>Process</span></div>
+            <div className="cos-partner-fb-stat"><strong>{againYes}/{rows.length}</strong><span>Would again</span></div>
+          </div>
+          {improveThemes.length ? (
             <div className="cos-partner-fb-themes">
               <span className="cos-partner-fb-themes-lbl">Recent improve notes</span>
               {improveThemes.map((note, i) => (
@@ -15997,17 +15997,17 @@ function V4CosPartnerFeedback({ compact, onOpenLead }) {
             </div>
           ) : null}
           <div className="cos-partner-fb-list">
-            {(compact ? rows.slice(0, 5) : rows).map(renderRow)}
+            {rows.map(renderRow)}
           </div>
         </>
       ) : null}
 
-      {status === 'loading' && !collapsed ? (
+      {status === 'loading' ? (
         <div className="cos-partner-fb-empty">Loading partner feedback…</div>
       ) : null}
-      {status === 'empty' && !compact ? (
+      {status === 'empty' ? (
         <div className="cos-partner-fb-empty">
-          No partner feedback yet. Run <code>create_collab_feedback_link.py</code> at wrap-up and paste the link in your closing email.
+          No partner feedback yet. Open a closed deal → <strong>Where this stands</strong> → <strong>Create feedback link</strong>, or run <code>create_collab_feedback_link.py --from-card ID</code>.
         </div>
       ) : null}
     </section>
@@ -17316,6 +17316,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
     { id: 'closed', label: 'Done and paid', section: 'More', items: closedItems },
     { id: 'trash', label: 'Trash', section: 'More', trash: true, items: base.filter(l => ['trash', 'dead-leads'].includes(l.stage)).sort(byRecent) },
     { id: 'toolkit', label: 'Toolkit', section: 'Organs', toolkit: true, items: V4_COMPANY_OS_TOOLKIT },
+    { id: 'partner-feedback', label: 'Partner feedback', section: 'Organs', partnerFeedback: true, items: [] },
   ];
 
   const [splitId, setSplitId] = React.useState(() => {
@@ -17333,7 +17334,12 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
   const moreSplits = React.useMemo(() => splits.filter(s => !s.queue), [splits]);
 
   React.useEffect(() => {
-    window.dispatchEvent(new CustomEvent('v4:cos-surface', { detail: { toolkit: splitId === 'toolkit' } }));
+    window.dispatchEvent(new CustomEvent('v4:cos-surface', {
+      detail: {
+        toolkit: splitId === 'toolkit',
+        partnerFeedback: splitId === 'partner-feedback',
+      },
+    }));
   }, [splitId]);
 
   React.useEffect(() => {
@@ -17623,7 +17629,9 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
       }
       const current = new URL(String(window.location?.href || ''));
       const openTarget = current.searchParams.get('open');
-      if (['brief-maker', 'x-signal', 'manual-lead', 'robert-handoff', 'toolkit'].includes(openTarget)) {
+      if (openTarget === 'partner-feedback') {
+        setSplitId('partner-feedback');
+      } else if (['brief-maker', 'x-signal', 'manual-lead', 'robert-handoff', 'toolkit'].includes(openTarget)) {
         setSplitId('toolkit');
       }
     } catch (err) {}
@@ -17873,9 +17881,11 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
         </button>
         {syncNote ? <span className="cos2-sync-note">{syncNote}</span> : null}
       </header>
-      <div className={'cos2-body cos2-body--queue' + (mobileOpen ? ' is-mobile-open' : '')}>
+      <div className={'cos2-body' + (split.queue ? ' cos2-body--queue' : ' cos2-body--panel') + (mobileOpen ? ' is-mobile-open' : '')}>
         {split.toolkit ? (
           <div className="cos2-main-scroll"><V4CosToolkit onNavigateView={onNavigateView} onActivateSplit={setSplitId} /></div>
+        ) : split.partnerFeedback ? (
+          <div className="cos2-main-scroll"><V4CosPartnerFeedbackPage onOpenLead={onOpenLead} /></div>
         ) : (
           <>
             <div className="cos2-list">
@@ -17953,14 +17963,13 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
                   })}
                 </div>
               </div>
-              {!split.toolkit && split.queue ? (
+              {split.queue ? (
                 <div className="cos-active-strip-stack">
                   <V4CosActiveMissionBoard
                     snapshot={activeMissionSnapshot}
                     clearedToday={clearedToday}
                     pulse={missionPulse}
                   />
-                  <V4CosPartnerFeedback compact onOpenLead={pickActiveLead} />
                   <V4CosActiveStrip
                     leads={activeGmailLeads}
                     selectedId={selected?.id}
@@ -18399,9 +18408,13 @@ function V4App() {
   const organsMenuRef = React.useRef(null);
   const [organsMenuOpen, setOrgansMenuOpen] = React.useState(false);
   const [cosToolkitOpen, setCosToolkitOpen] = React.useState(false);
+  const [cosPartnerFeedbackOpen, setCosPartnerFeedbackOpen] = React.useState(false);
 
   React.useEffect(() => {
-    const onSurface = (e) => setCosToolkitOpen(!!e.detail?.toolkit);
+    const onSurface = (e) => {
+      setCosToolkitOpen(!!e.detail?.toolkit);
+      setCosPartnerFeedbackOpen(!!e.detail?.partnerFeedback);
+    };
     window.addEventListener('v4:cos-surface', onSurface);
     return () => window.removeEventListener('v4:cos-surface', onSurface);
   }, []);
@@ -18660,10 +18673,15 @@ function V4App() {
     setOrgansMenuOpen(false);
   };
   const organsToolViews = ['organs', 'inbox', 'invoices', 'new-leads', 'leads'];
-  const organsMenuActive = organsToolViews.includes(view) || (view === 'company-os' && cosToolkitOpen);
+  const organsMenuActive = organsToolViews.includes(view) || (view === 'company-os' && (cosToolkitOpen || cosPartnerFeedbackOpen));
   const goToOrgansToolkit = () => {
     try { window.sessionStorage.setItem('cos-queue', 'toolkit'); } catch (e) {}
     window.dispatchEvent(new CustomEvent('v4:cos-activate-split', { detail: { splitId: 'toolkit' } }));
+    goView('company-os');
+  };
+  const goToPartnerFeedback = () => {
+    try { window.sessionStorage.setItem('cos-queue', 'partner-feedback'); } catch (e) {}
+    window.dispatchEvent(new CustomEvent('v4:cos-activate-split', { detail: { splitId: 'partner-feedback' } }));
     goView('company-os');
   };
 
@@ -18671,6 +18689,7 @@ function V4App() {
     { label: 'Go to Company OS', hint: 'workspace', run: () => goView('company-os') },
     { label: 'Go to Organs', hint: 'command center', run: () => goView('organs') },
     { label: 'Go to Toolkit', hint: 'brief maker, X signal, handoffs', run: goToOrgansToolkit },
+    { label: 'Go to Partner feedback', hint: 'collaboration scores', run: goToPartnerFeedback },
     { label: 'Go to Today', run: () => goView('today') },
     { label: 'Go to Calendar', run: () => goView('calendar') },
     { label: 'Go to Briefs', run: () => goView('inbox') },
@@ -18730,6 +18749,14 @@ function V4App() {
                   onClick={goToOrgansToolkit}
                 >
                   Toolkit
+                </button>
+                <button
+                  role="menuitem"
+                  className="hd-nav-drop-item"
+                  aria-current={view === 'company-os' && cosPartnerFeedbackOpen ? 'page' : undefined}
+                  onClick={goToPartnerFeedback}
+                >
+                  Partner feedback
                 </button>
               </div>
             )}
