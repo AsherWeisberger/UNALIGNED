@@ -2666,19 +2666,45 @@ function V3SenderSignature(sender) {
     'Client Services Manager',
     'Unaligned',
     'asherunaligned@gmail.com',
-    'unaligned.io | x.com/unalignedx',
   ].join('\n');
 }
 
-function V3EnsureSenderSignature(body, sender) {
+function V3SenderSignatureFooter(sender) {
+  if (sender === 'asher') return 'unaligned.io | x.com/unalignedx';
+  return '';
+}
+
+function V3ComposeMessageOnly(body, sender) {
   let text = String(body || '').trim();
-  text = text.replace(/(unaligned\.io\s*\|\s*x\.com\/unalignedx)\S*/gi, '$1');
+  if (!text) return '';
+  const signature = V3SenderSignature(sender);
+  const sigLines = signature.split('\n').filter(Boolean);
+  const anchor = sigLines[0];
+  if (anchor) {
+    const lines = text.split('\n');
+    for (let i = lines.length - 1; i >= 0; i--) {
+      if (lines[i].trim().toLowerCase() === anchor.toLowerCase()) {
+        text = lines.slice(0, i).join('\n').trim();
+        break;
+      }
+    }
+  }
+  text = V3StripExistingSignatures(text);
+  text = text
+    .replace(/\n(?:https?:\/\/)?(?:www\.)?unaligned\.io[^\n]*/gi, '')
+    .replace(/\n(?:https?:\/\/)?x\.com\/unalignedx?[^\n]*/gi, '')
+    .replace(/\nunaligned\.io\s*\|\s*x\.com\/unalignedx[^\n]*/gi, '')
+    .replace(/\nAlignedNews\.com[^\n]*/gi, '')
+    .replace(/\nUnaligned\s*$/gim, '')
+    .trim();
+  return text;
+}
+
+function V3EnsureSenderSignature(body, sender) {
+  const text = V3ComposeMessageOnly(body, sender);
   const signature = V3SenderSignature(sender);
   if (!signature) return text;
-  const normText = V3NormalizeThreadText(text);
-  const normSig = V3NormalizeThreadText(signature);
   if (!text) return signature;
-  if (normText.includes(normSig)) return text;
   return text + '\n\n' + signature;
 }
 
@@ -2738,10 +2764,11 @@ function V3StripExistingSignatures(body) {
   const markers = [
     'Robert Scoble', 'Sam Levin', 'Asher Weisberger', 'Partnerships, UNALIGNED',
     'Client Services Manager', 'Founder, Unaligned', 'Mobile: +1-425',
+    'AlignedNews.com', 'AlignedNews', 'asherunaligned@gmail.com', 'unalignedx@gmail.com',
   ];
   for (const marker of markers) {
     const idx = text.toLowerCase().lastIndexOf(marker.toLowerCase());
-    if (idx > 40) text = text.slice(0, idx).trim();
+    if (idx > 20) text = text.slice(0, idx).trim();
   }
   return text;
 }
@@ -5682,6 +5709,45 @@ function V3Drawer({ lead, user, queue = [], onNavigate, onClose }) {
   );
 }
 
+function V3PricingPdfAttachPreview({ pack }) {
+  const meta = V3PricingPdfMeta(pack);
+  const shortName = meta.path.split('/').pop() || 'rate-card.pdf';
+  return (
+    <a
+      className="mail-compose-pdf-chip"
+      href={meta.path}
+      target="_blank"
+      rel="noreferrer"
+      title={'Preview ' + meta.filename}
+    >
+      <span className="mail-compose-pdf-icon" aria-hidden="true">
+        <V3Icon name="doc" w={22} />
+      </span>
+      <span className="mail-compose-pdf-meta">
+        <span className="mail-compose-pdf-name">{shortName}</span>
+        <span className="mail-compose-pdf-type">PDF · {meta.label}</span>
+      </span>
+      <span className="mail-compose-pdf-open">Open</span>
+    </a>
+  );
+}
+
+function V3MailComposeExtras({ sender, attachPdf, pricingPdfPack }) {
+  const sigLines = V3SenderSignature(sender).split('\n').filter(Boolean);
+  const footer = V3SenderSignatureFooter(sender);
+  return (
+    <div className="mail-compose-extras">
+      {attachPdf ? <V3PricingPdfAttachPreview pack={pricingPdfPack} /> : null}
+      <div className="mail-compose-sig-preview" aria-label="Email signature preview">
+        {sigLines.map((line, i) => (
+          <div key={line + i} className={'mail-compose-sig-line' + (line.includes('@') ? ' is-email' : '')}>{line}</div>
+        ))}
+        {footer ? <div className="mail-compose-sig-footer">{footer}</div> : null}
+      </div>
+    </div>
+  );
+}
+
 function V3PricingPdfAttachControl({ attachPdf, setAttachPdf, pricingPdfPack, setPricingPdfPack, disabled, compact = false }) {
   const packLabel = V3PricingPdfMeta(pricingPdfPack).label;
   const select = (
@@ -5725,7 +5791,7 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
   const [cc, setCc] = React.useState(initialRecipients.cc);
   const [toDraft, setToDraft] = React.useState('');
   const [ccDraft, setCcDraft] = React.useState('');
-  const [body, setBody] = React.useState(draft.body);
+  const [body, setBody] = React.useState(() => V3ComposeMessageOnly(draft.body, V3SenderForUser(user)));
   const [attachPdf, setAttachPdf] = React.useState(false);
   const [pricingPdfPack, setPricingPdfPack] = React.useState('single');
   const [status, setStatus] = React.useState('draft');
@@ -5769,7 +5835,7 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
     setCc(next.cc);
     setToDraft('');
     setCcDraft('');
-    setBody(nextDraft.body);
+    setBody(V3ComposeMessageOnly(nextDraft.body, nextSender));
     setAttachPdf(false);
     setPricingPdfPack('single');
     setStatus('draft');
@@ -5785,7 +5851,7 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
     setCc(next.cc);
     setToDraft('');
     setCcDraft('');
-    setBody(nextDraft.body);
+    setBody(V3ComposeMessageOnly(nextDraft.body, sender));
     setError('');
     setSuccess('');
   }, [sender, internalOnly, lead.id, lead.draftReply?.body, lead.draftReply?.subject, lead.thread.length, lead.lastTouchAt]);
@@ -5883,7 +5949,7 @@ ${thread.slice(0, 4200)}
 
 Write ONLY the email body. Start with "Hi ${first},". Keep it concise. End with "Best," on its own line. Do not add a signature block.`;
       const out = await window.claude.complete(prompt, { max_tokens: 700 });
-      setBody(V3EnsureSenderSignature(String(out || '').trim(), sender));
+      setBody(V3ComposeMessageOnly(String(out || '').trim(), sender));
       if (window.claude?.label) setAiBridgeLabel(window.claude.label());
     } catch (err) {
       setAiDraftError(err.message || 'AI draft failed');
@@ -5979,6 +6045,7 @@ Write ONLY the email body. Start with "Hi ${first},". Keep it concise. End with 
           placeholder=""
           rows={8}
         />
+        <V3MailComposeExtras sender={sender} attachPdf={attachPdf} pricingPdfPack={pricingPdfPack} />
         <div className="gmail-reply-bar">
           <button
             className={'gmail-reply-send ' + (status === 'sent' ? 'is-sent' : '')}
@@ -6043,6 +6110,7 @@ Write ONLY the email body. Start with "Hi ${first},". Keep it concise. End with 
             placeholder={`Reply to ${lead.contactName.split(' ')[0]}...`}
             rows={10}
           />
+          <V3MailComposeExtras sender={sender} attachPdf={attachPdf} pricingPdfPack={pricingPdfPack} />
         </div>
         <div className="mail-compose-footer mail-compose-toolbar mail-compose-toolbar--gmail">
           <button
@@ -6115,6 +6183,7 @@ Write ONLY the email body. Start with "Hi ${first},". Keep it concise. End with 
           onChange={e => setBody(e.target.value)}
           placeholder={`Reply to ${lead.contactName.split(' ')[0]}...`}
         />
+        <V3MailComposeExtras sender={sender} attachPdf={attachPdf} pricingPdfPack={pricingPdfPack} />
       </div>
       <div className="mail-compose-footer mail-compose-toolbar">
         <button

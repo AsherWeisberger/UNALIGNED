@@ -11763,6 +11763,93 @@ body[data-theme="light"] .cmdk-row.is-active {
   color: var(--text-4);
 }
 
+.mail-compose-extras {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--line-soft);
+  background: var(--surface-1);
+}
+
+.mail-compose-pdf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-2);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: inherit;
+  text-decoration: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mail-compose-pdf-chip:hover {
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(47, 95, 214, 0.08);
+}
+
+.mail-compose-pdf-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 48px;
+  border-radius: 6px;
+  background: #fff;
+  border: 1px solid var(--border-2);
+  color: #c5221f;
+  flex-shrink: 0;
+}
+
+.mail-compose-pdf-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mail-compose-pdf-name {
+  font: 600 12.5px/1.2 var(--font-body);
+  color: var(--text);
+  word-break: break-word;
+}
+
+.mail-compose-pdf-type {
+  font: 500 10.5px/1.2 var(--font-body);
+  color: var(--text-3);
+}
+
+.mail-compose-pdf-open {
+  margin-left: auto;
+  font: 600 10.5px/1 var(--font-body);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.mail-compose-sig-preview {
+  font: 400 12.5px/1.45 var(--font-body);
+  color: var(--text-2);
+}
+
+.mail-compose-sig-line.is-email {
+  color: var(--accent);
+}
+
+.mail-compose-sig-footer {
+  margin-top: 8px;
+  font: 400 12px/1.4 var(--font-body);
+  color: var(--accent);
+}
+
+.gmail-reply-box .mail-compose-extras {
+  padding: 10px 16px 12px;
+  border-top: 1px solid var(--line-soft);
+}
+
 .mail-compose-attach-wrap {
   gap: 6px;
 }
