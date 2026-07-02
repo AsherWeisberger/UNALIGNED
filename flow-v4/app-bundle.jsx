@@ -2809,13 +2809,40 @@ function V3PricingTiersForPrompt() {
   return 'LIVE RATE CARD (authoritative, only quote prices from this list):\n' + lines.join('\n');
 }
 
-function V3SanitizeAiDraftPrices(body) {
+function V3AllowedTierPrices() {
   const tiers = window.V3?.TIERS || (typeof V3_TIERS !== 'undefined' ? V3_TIERS : {});
-  const allowed = new Set(
+  return new Set(
     Object.values(tiers)
       .map(t => Number(t.price))
       .filter(n => Number.isFinite(n) && n > 0)
   );
+}
+
+function V3InferSuggestedTier(lead) {
+  const tiers = window.V3?.TIERS || (typeof V3_TIERS !== 'undefined' ? V3_TIERS : {});
+  const text = [
+    lead?.deliverables,
+    lead?.operatorSummary?.asked_for,
+    lead?.operatorSummary?.lead_summary,
+    lead?.notes,
+    ...(Array.isArray(lead?.thread) ? lead.thread.map(m => `${m.subject || ''} ${m.body || ''}`) : []),
+  ].filter(Boolean).join(' ').toLowerCase();
+  if (!text.trim()) return null;
+  if (/\b(maximum impact|strategy sync)\b/.test(text)) return tiers[7] || null;
+  if (/\b(growth bundle)\b/.test(text)) return tiers[6] || null;
+  if (/\b(content core|newsletter feature)\b/.test(text)) return tiers[5] || null;
+  if (/\b(narrative thread)\b/.test(text)) return tiers[4] || null;
+  if (/\b(quote repost|quote post|quote-post|quote dedicated|dedicated quote|paid x quote)\b/.test(text)) return tiers[2] || null;
+  if (/\b(custom x post|custom post|custom-written x)\b/.test(text)) return tiers[3] || null;
+  if (/\b(retweet|re-?tweet)\b/.test(text) && !/\bquote\b/.test(text)) return tiers[1] || null;
+  if (/\b(thread)\b/.test(text) && !/\bquote\b/.test(text)) return tiers[4] || null;
+  if (/\b(custom x|x post|text post|single post|dedicated post)\b/.test(text)) return tiers[3] || null;
+  if (/\bquote\b/.test(text)) return tiers[2] || null;
+  return null;
+}
+
+function V3SanitizeAiDraftPrices(body) {
+  const allowed = V3AllowedTierPrices();
   let text = String(body || '');
   let hadBadPrice = false;
   text = text.replace(/\$\s*([\d,]+(?:\.\d{2})?)/g, (match, numStr) => {
@@ -2824,15 +2851,121 @@ function V3SanitizeAiDraftPrices(body) {
     hadBadPrice = true;
     return '[[BAD_PRICE]]';
   });
+  text = text.replace(
+    /\b(standard rate|our rate|rate is|priced at|my rate|fee is|cost is)\b([^.\n]{0,50})\b([1-9]\d{3})\b/gi,
+    (match, label, mid, numStr) => {
+      const num = Number(numStr);
+      if (allowed.has(num)) return match;
+      hadBadPrice = true;
+      return `${label}${mid}[[BAD_PRICE]]`;
+    }
+  );
   if (!hadBadPrice) return text.trim();
   text = text
     .replace(/[^\n.!?]*\[\[BAD_PRICE\]\][^\n.!?]*[.!?]?\s*/g, '')
     .replace(/\[\[BAD_PRICE\]\]/g, '')
     .trim();
-  const fallback = 'Happy to share our rate card with tier options once I know what deliverables you have in mind.';
-  if (!text) return fallback;
-  if (!/rate card|pricing|tier/i.test(text)) return text + '\n\n' + fallback;
   return text;
+}
+
+function V3AiDraftHasProblems(body) {
+  const text = String(body || '');
+  if (!text.trim()) return true;
+  const allowed = V3AllowedTierPrices();
+  for (const match of text.matchAll(/\$\s*([\d,]+)/g)) {
+    const num = Number(String(match[1]).replace(/,/g, ''));
+    if (!allowed.has(num)) return true;
+  }
+  if (/\b(standard rate|our rate|rate is|priced at|my rate)\b[^.\n]{0,50}\b([1-9]\d{3})\b/i.test(text)) {
+    const m = text.match(/\b(standard rate|our rate|rate is|priced at|my rate)\b[^.\n]{0,50}\b([1-9]\d{3})\b/i);
+    if (m && !allowed.has(Number(m[2]))) return true;
+  }
+  if (/\b(single text post|text post deliverable|dedicated post on your platform|full creative control on the angle)\b/i.test(text)) return true;
+  if (/\bcompute budget mechanic\b/i.test(text)) return true;
+  if (/\bvalue proposition of the\b/i.test(text)) return true;
+  return false;
+}
+
+function V3SafeCommercialReplyDraft(lead, sender) {
+  const first = V3ExternalThreadFirstName(lead);
+  const brand = String(lead?.brand || 'your project').trim();
+  const tier = V3InferSuggestedTier(lead);
+  const tone = V3ResolveReplyTone(lead);
+  if (tier && Number(tier.price) > 0) {
+    const price = '$' + Number(tier.price).toLocaleString('en-US');
+    const opener = tone === 'friendship' || tone === 'long-standing'
+      ? `Thanks for reaching out about ${brand}.`
+      : `Thanks for reaching out.`;
+    return V3NoDashes([
+      `Hi ${first},`,
+      '',
+      opener,
+      '',
+      `Based on what you described, the closest fit on our side is ${tier.name} at ${price}. I can attach our rate card with the full deliverable breakdown if helpful.`,
+      '',
+      'Let me know if that works and what timing you have in mind.',
+      '',
+      'Best,',
+    ].join('\n'));
+  }
+  return V3NoDashes([
+    `Hi ${first},`,
+    '',
+    `Thanks for reaching out about ${brand}.`,
+    '',
+    'Happy to share our rate card with tier options once I know which deliverable you want (retweet, quote repost, custom X post, thread, or bundle).',
+    '',
+    'Best,',
+  ].join('\n'));
+}
+
+function V3BuildAiReplyPrompt({ lead, sender, subject, tone }) {
+  const first = V3ExternalThreadFirstName(lead);
+  const brand = lead?.brand || 'the company';
+  const askedFor = String(lead?.operatorSummary?.asked_for || lead?.deliverables || '').trim();
+  const nextAction = String(lead?.operatorSummary?.next_action || lead?.nextMove?.text || '').trim();
+  const thread = (lead?.thread || []).slice(-6).map(m => (
+    `[${m.from || '?'}] ${m.subject || ''}\n${String(m.body || '').slice(0, 900)}`
+  )).join('\n\n---\n\n');
+  const senderName = V3SenderName(sender);
+  const pricingBlock = V3PricingTiersForPrompt();
+  const suggestedTier = V3InferSuggestedTier(lead);
+  const tierHint = suggestedTier
+    ? `Likely tier match from the thread: ${suggestedTier.name} at $${Number(suggestedTier.price).toLocaleString('en-US')}. If you mention a price, use this exact tier name and amount.`
+    : 'No clear tier match yet. Do not quote a price. Offer to attach the rate card and ask which deliverable they want.';
+  return `Write an email reply for UNALIGNED sponsorship partnerships.
+
+VOICE RULES:
+- Never use hyphens or em dashes as punctuation. Use periods or commas instead.
+- Sound like a real person. No AI filler, no corporate template voice.
+- TONE: ${tone} (direct = brief business; friendship = warm rapport; long_standing = trust-based, skip cold intro)
+
+PRICING RULES:
+- NEVER invent, estimate, or round a dollar amount.
+- ONLY quote a price if it appears verbatim on the LIVE RATE CARD below.
+- Use tier names from the rate card (Retweet, Quote Repost, Custom X Post, etc.). Never say "single text post" or invent deliverable names.
+- If they ask about cost or rates and scope is unclear, say you will attach the rate card and ask what deliverables they want. Do not name a price.
+- Do not offer discounts or negotiate numbers unless the thread already locked a tier price.
+
+PRODUCT RULES:
+- Refer to their product as "${brand}" only. Do not invent technical jargon or mash up concepts from the pitch.
+- Do not paraphrase their product mechanics. Keep product references simple.
+
+${tierHint}
+
+${pricingBlock}
+
+Sender: ${senderName}
+Contact first name: ${first}
+Company / product: ${brand}
+Subject: ${subject}
+${askedFor ? `What they asked for: ${askedFor}` : ''}
+${nextAction ? `Operator next action: ${nextAction}` : ''}
+
+Recent thread:
+${thread.slice(0, 4200)}
+
+Write ONLY the email body. Start with "Hi ${first},". Keep it concise. End with "Best," on its own line. Do not add a signature block.`;
 }
 
 function V3FinalizeAiReplyDraft(body, lead, sender) {
@@ -2841,7 +2974,11 @@ function V3FinalizeAiReplyDraft(body, lead, sender) {
   text = V3FixDraftGreeting(text, first);
   text = V3SanitizeAiDraftPrices(text);
   text = V3NoDashes(text);
-  return V3ComposeMessageOnly(text, sender);
+  text = V3ComposeMessageOnly(text, sender);
+  if (V3AiDraftHasProblems(text)) {
+    return V3ComposeMessageOnly(V3SafeCommercialReplyDraft(lead, sender), sender);
+  }
+  return text;
 }
 
 function V3AdaptDraftSubject(storedSubject, lead) {
@@ -5997,39 +6134,7 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
     if (window.claude?.label) setAiBridgeLabel(window.claude.label());
     try {
       const tone = draftTone || (window.V3?.ResolveReplyTone ? window.V3.ResolveReplyTone(lead) : 'direct');
-      const first = V3ExternalThreadFirstName(lead);
-      const brand = lead.brand || 'the company';
-      const nextAction = String(lead.operatorSummary?.next_action || lead.nextMove?.text || '').trim();
-      const thread = (lead.thread || []).slice(-6).map(m => (
-        `[${m.from || '?'}] ${m.subject || ''}\n${String(m.body || '').slice(0, 900)}`
-      )).join('\n\n---\n\n');
-      const senderName = V3SenderName(sender);
-      const pricingBlock = V3PricingTiersForPrompt();
-      const prompt = `Write an email reply for UNALIGNED sponsorship partnerships.
-
-VOICE RULES:
-- Never use hyphens or em dashes as punctuation. Use periods or commas instead.
-- Sound like a real person. No AI filler, no corporate template voice.
-- TONE: ${tone} (direct = brief business; friendship = warm rapport; long_standing = trust-based, skip cold intro)
-
-PRICING RULES:
-- NEVER invent, estimate, or round a dollar amount.
-- ONLY quote a price if it appears verbatim on the LIVE RATE CARD below.
-- If they ask about cost or rates and scope is unclear, say you will attach the rate card and ask what deliverables they want. Do not name a price.
-- Do not offer discounts or negotiate numbers unless the thread already locked a tier price.
-
-${pricingBlock}
-
-Sender: ${senderName}
-Contact first name: ${first}
-Company: ${brand}
-Subject: ${subject}
-${nextAction ? `Operator next action: ${nextAction}` : ''}
-
-Recent thread:
-${thread.slice(0, 4200)}
-
-Write ONLY the email body. Start with "Hi ${first},". Keep it concise. End with "Best," on its own line. Do not add a signature block.`;
+      const prompt = V3BuildAiReplyPrompt({ lead, sender, subject, tone });
       const out = await window.claude.complete(prompt, { max_tokens: 700 });
       setBody(V3FinalizeAiReplyDraft(String(out || '').trim(), lead, sender));
       if (window.claude?.label) setAiBridgeLabel(window.claude.label());
