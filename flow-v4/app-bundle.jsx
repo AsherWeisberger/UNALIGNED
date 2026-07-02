@@ -12606,8 +12606,11 @@ function V4OpenMachineHostedBriefMaker() {
 }
 
 const V4_PUBLIC_GITHUB_PAGES = new Set([
-  '/connect.html', '/feedback.html', '/scope.html', '/connect', '/feedback', '/scope',
+  '/connect.html', '/feedback.html', '/scope.html', '/connect', '/feedback', '/scope', '/reach',
 ]);
+
+const V4_PUBLIC_FORM_BASE = 'https://asherweisberger.github.io/UNALIGNED';
+const V4_ROBERT_CONNECT_LINK = V4_PUBLIC_FORM_BASE + '/connect';
 
 function V4IsPublicGithubPage() {
   try {
@@ -16160,7 +16163,6 @@ async function V4CreateCollabFeedbackLink(cardId, forceNew) {
   return data;
 }
 
-const V4_ROBERT_CONNECT_LINK = 'https://asherweisberger.github.io/UNALIGNED/connect.html';
 const V4_DESK_INTAKE_SELECT = 'id,name,email,x_handle,whatsapp,contact_preference,topic_type,message,status,source,referrer,created_at,reviewed_at,routed_at,card_id';
 
 function V4DeskIntakeTopicLabel(value) {
@@ -16220,7 +16222,25 @@ async function V4PatchDeskIntakeStatus(id, status) {
   if (!res.ok) throw new Error('Could not update intake status');
 }
 
+function V4CopyPublicConnectLink() {
+  const [copied, setCopied] = React.useState(false);
+  const copy = React.useCallback(async () => {
+    const text = V4_ROBERT_CONNECT_LINK;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (err) {
+      window.prompt('Copy this public link:', text);
+      return;
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2400);
+  }, []);
+  return { copied, copy };
+}
+
 function V4CosDeskIntakePage() {
+  const { copied, copy } = V4CopyPublicConnectLink();
+  const onMacOps = typeof window !== 'undefined' && String(window.location.hostname || '').includes('mac-studio.tail');
   return (
     <div className="cosov cos-desk-intake-page">
       <header className="cos-desk-intake-hero">
@@ -16228,19 +16248,21 @@ function V4CosDeskIntakePage() {
           <span className="cos-eyebrow">Robert&apos;s desk</span>
           <h2 className="cos-desk-intake-hero-title">Public team intake</h2>
           <p className="cos-desk-intake-hero-sub">
-            Link Robert can post on X. Submissions land here first — triage, then route the strong fits to his desk.
+            Share the link below — not your browser URL. It opens a standalone form on GitHub Pages. Submissions post to Firebase and land here; outsiders never see the ops dashboard or your Mac.
           </p>
+          {onMacOps ? (
+            <p className="cos-desk-intake-warn">
+              You are on the private ops host. Copy the public link — do not share anything with <code>mac-studio.tail</code> in it.
+            </p>
+          ) : null}
           <div className="cos-desk-intake-link-row">
             <code className="cos-desk-intake-link">{V4_ROBERT_CONNECT_LINK}</code>
-            <button
-              type="button"
-              className="cos-desk-intake-copy"
-              onClick={() => {
-                navigator.clipboard?.writeText(V4_ROBERT_CONNECT_LINK).catch(() => {});
-              }}
-            >
-              Copy link
+            <button type="button" className="cos-desk-intake-copy" onClick={copy}>
+              {copied ? 'Copied' : 'Copy public link'}
             </button>
+            <a className="cos-desk-intake-copy" href={V4_ROBERT_CONNECT_LINK} target="_blank" rel="noopener noreferrer">
+              Preview form
+            </a>
           </div>
         </div>
       </header>

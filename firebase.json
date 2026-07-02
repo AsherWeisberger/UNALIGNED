@@ -28,6 +28,26 @@
         "destination": "/feedback.html"
       },
       {
+        "source": "/reach",
+        "destination": "/connect.html"
+      },
+      {
+        "source": "/connect",
+        "destination": "/connect.html"
+      },
+      {
+        "source": "/connect.html",
+        "destination": "/connect.html"
+      },
+      {
+        "source": "/scope",
+        "destination": "/scope.html"
+      },
+      {
+        "source": "/scope.html",
+        "destination": "/scope.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

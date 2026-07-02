@@ -1,7 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <script>
+  // Ops dashboard hosts must not be the shareable link — send visitors to the public form.
+  (function () {
+    var host = String(location.hostname || '');
+    var publicUrl = 'https://asherweisberger.github.io/UNALIGNED/connect';
+    if (host.indexOf('mac-studio.tail') >= 0) {
+      var target = publicUrl + String(location.search || '') + String(location.hash || '');
+      if (location.href.split('?')[0].split('#')[0] !== publicUrl) location.replace(target);
+    }
+  })();
+  </script>
   <meta charset="utf-8" />
+  <link rel="canonical" href="https://asherweisberger.github.io/UNALIGNED/connect" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>UNALIGNED · Reach Robert's team</title>
   <meta name="description" content="Share your idea with Robert Scoble's team. We read everything and route the best fits to Robert's desk." />

@@ -733,6 +733,431 @@ exports.createCollabFeedbackLink = functions.https.onRequest(async (req, res) =>
   }
 });
 
+const ROBERT_CONNECT_BASE = process.env.ROBERT_CONNECT_BASE
+  || 'https://asherweisberger.github.io/UNALIGNED/connect';
+
+const DESK_TOPIC_TYPES = new Set(['collaboration', 'partnership', 'sync', 'something_cool', 'other']);
+const DESK_CONTACT_PREFS = new Set(['email', 'x', 'whatsapp', 'signal', 'phone', 'other']);
+
+function deskCleanText(value, maxLen) {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, maxLen);
+}
+
+function deskEmail(value) {
+  const email = deskCleanText(value, 200).toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null;
+  return email;
+}
+
+function deskHandle(value) {
+  const raw = deskCleanText(value, 80).replace(/^@+/, '');
+  if (!raw) return '';
+  return `@${raw.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 40)}`;
+}
+
+function deskPhone(value) {
+  return deskCleanText(value, 40).replace(/[^\d+().\-\s]/g, '').trim();
+}
+
+function normalizeDeskSubmission(body = {}) {
+  if (body.company_website) return { error: 'Rejected' };
+  const name = deskCleanText(body.name, 120);
+  const email = deskEmail(body.email);
+  const message = deskCleanText(body.message, 4000);
+  const topicType = String(body.topic_type || body.topicType || '').toLowerCase();
+  const contactPreference = String(body.contact_preference || body.contactPreference || '').toLowerCase();
+  if (!name || name.length < 2) return { error: 'Name is required' };
+  if (!email) return { error: 'A valid email is required' };
+  if (!DESK_TOPIC_TYPES.has(topicType)) return { error: 'Pick what you want to talk about' };
+  if (!DESK_CONTACT_PREFS.has(contactPreference)) return { error: 'Pick your preferred way to be contacted' };
+  if (!message || message.length < 12) return { error: 'Tell us a bit more (at least a sentence)' };
+  return {
+    row: {
+      name,
+      email,
+      x_handle: deskHandle(body.x_handle || body.xHandle),
+      whatsapp: deskPhone(body.whatsapp),
+      contact_preference: contactPreference,
+      topic_type: topicType,
+      message,
+      status: 'new',
+      source: deskCleanText(body.source, 40) || 'connect_form',
+      referrer: deskCleanText(body.referrer, 500),
+      responses: {
+        topic_type: topicType,
+        contact_preference: contactPreference,
+        submitted_from: deskCleanText(body.source, 40) || 'connect_form',
+      },
+    },
+  };
+}
+
+exports.robertDeskIntake = functions.https.onRequest(async (req, res) => {
+  feedbackCors(req, res);
+  if (req.method === 'OPTIONS') return res.status(204).send('');
+  try {
+    if (req.method === 'GET') {
+      return res.json({
+        ok: true,
+        link: ROBERT_CONNECT_BASE,
+        headline: "Reach Robert's team",
+        subhead: 'Partnerships, projects, and ideas worth a look.',
+      });
+    }
+    if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'GET or POST only' });
+
+    const parsed = normalizeDeskSubmission(req.body || {});
+    if (parsed.error) return res.status(400).json({ ok: false, error: parsed.error });
+
+    const sb = await getSupabaseService();
+    const insert = await sb('robert_desk_intake', {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify(parsed.row),
+    });
+    const created = await insert.json();
+    if (!insert.ok) {
+      throw new Error(`Supabase insert failed: ${insert.status} ${JSON.stringify(created).slice(0, 200)}`);
+    }
+    const row = Array.isArray(created) && created[0] ? created[0] : null;
+    return res.json({ ok: true, submitted: true, id: row?.id || null });
+  } catch (err) {
+    console.error('robertDeskIntake error:', err.message);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+const COLLAB_SCOPE_BASE = process.env.COLLAB_SCOPE_BASE
+  || 'https://asherweisberger.github.io/UNALIGNED/scope.html';
+
+const FALLBACK_SCOPE_CATALOG = [
+  { id: 1, name: 'Retweet', price: 1295, short: 'RT', items: ['1 retweet or repost'] },
+  { id: 10, name: 'X Comment + Like', price: 1995, short: 'COMMENT', items: ['1 strategic X comment from Robert', 'Like included'] },
+  { id: 2, name: 'Quote Repost', price: 2195, short: 'QUOTE', items: ['1 quote repost', "Robert's original take (≤3 sentences)"] },
+  { id: 3, name: 'Custom X Post', price: 2495, short: 'CUSTOM X', items: ['1 custom-written X post'] },
+  { id: 4, name: 'Narrative Thread', price: 2995, short: 'THREAD', items: ['1 thread (main + 2 replies)'] },
+  { id: 5, name: 'Content Core', price: 3495, short: 'CORE', items: ['1 custom X post', '1 LinkedIn post', 'Newsletter feature'] },
+  { id: 6, name: 'Growth Bundle', price: 4495, short: 'GROWTH', items: ['1 custom X post', '1 LinkedIn post', '1 retweet', 'Newsletter feature'] },
+  { id: 7, name: 'Maximum Impact', price: 6495, short: 'MAX', items: ['2 custom X posts', '1 LinkedIn post', '2 retweets', 'Newsletter feature', 'Strategy sync'] },
+];
+
+function scopeCleanText(value, maxLen) {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, maxLen);
+}
+
+async function loadScopeCatalog(sb) {
+  try {
+    const load = await sb('pricing_tiers?select=id,name,price,short,items,sort_order,is_active&is_active=eq.true&order=sort_order.asc,id.asc', { method: 'GET' });
+    const rows = await load.json();
+    if (!load.ok || !Array.isArray(rows) || !rows.length) return FALLBACK_SCOPE_CATALOG;
+    return rows.map((row) => ({
+      id: Number(row.id),
+      name: String(row.name || '').trim(),
+      price: Number(row.price || 0),
+      short: String(row.short || '').trim(),
+      items: Array.isArray(row.items) ? row.items.map(String) : [],
+    })).filter((row) => row.id && row.name && row.price > 0);
+  } catch (err) {
+    console.warn('loadScopeCatalog:', err.message);
+    return FALLBACK_SCOPE_CATALOG;
+  }
+}
+
+async function loadScopeRow(sb, token) {
+  const rpc = await sb('rpc/collab_scope_by_token', {
+    method: 'POST',
+    body: JSON.stringify({ p_token: token }),
+  });
+  if (rpc.ok) {
+    const rows = await rpc.json();
+    if (Array.isArray(rows) && rows[0]) return rows[0];
+  }
+  const load = await sb(`collab_scope_intake?token=eq.${encodeURIComponent(token)}&select=*&limit=1`, { method: 'GET' });
+  const rows = await load.json();
+  if (!load.ok) throw new Error(`Supabase read failed: ${load.status}`);
+  return Array.isArray(rows) && rows[0] ? rows[0] : null;
+}
+
+async function submitScopeRow(sb, token, patch) {
+  const rpc = await sb('rpc/collab_scope_submit', {
+    method: 'POST',
+    body: JSON.stringify({ p_token: token, p_patch: patch }),
+  });
+  if (rpc.ok) {
+    const ok = await rpc.json();
+    if (ok === true) return;
+    if (ok === false) throw new Error('Scope link not found');
+  } else {
+    const detail = await rpc.text();
+    if (detail.includes('expired')) throw new Error('expired');
+    if (detail.includes('already_submitted')) throw new Error('already_submitted');
+  }
+  const update = await sb(`collab_scope_intake?token=eq.${encodeURIComponent(token)}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify(patch),
+  });
+  if (!update.ok) {
+    const detail = await update.text();
+    throw new Error(`Supabase update failed: ${update.status} ${detail.slice(0, 200)}`);
+  }
+}
+
+async function findPendingScopeInvite(sb, cardId) {
+  const load = await sb(
+    `collab_scope_intake?card_id=eq.${encodeURIComponent(cardId)}&status=eq.pending&select=id,token,expires_at,brand,contact_name&order=created_at.desc&limit=1`,
+    { method: 'GET' },
+  );
+  const rows = await load.json();
+  if (!load.ok) throw new Error(`Supabase read failed: ${load.status}`);
+  return Array.isArray(rows) && rows[0] ? rows[0] : null;
+}
+
+function scopeAnswersFromBody(body = {}) {
+  const answers = body.answers && typeof body.answers === 'object' ? body.answers : body;
+  const tierId = Number(answers.tier_id || answers.tierId || 0);
+  const tierName = scopeCleanText(answers.tier_name || answers.tierName, 120);
+  const tierPrice = Number(answers.tier_price || answers.tierPrice || 0);
+  const scopeDetails = scopeCleanText(answers.scope_details || answers.scopeDetails, 8000);
+  const whatPromoting = scopeCleanText(answers.what_promoting || answers.whatPromoting, 4000);
+  if (!tierId || !tierName || !(tierPrice > 0)) return { error: 'Select a valid package' };
+  if (!whatPromoting || scopeDetails.length < 20) return { error: 'Add what you are promoting and scope details' };
+  const briefSnapshot = answers.brief_snapshot && typeof answers.brief_snapshot === 'object'
+    ? answers.brief_snapshot
+    : {
+      tier_id: tierId,
+      tier_name: tierName,
+      tier_price: tierPrice,
+      tier_short: scopeCleanText(answers.tier_short || answers.tierShort, 40),
+      tier_items: Array.isArray(answers.tier_items || answers.tierItems) ? (answers.tier_items || answers.tierItems) : [],
+      what_promoting: whatPromoting,
+      narrative_angle: scopeCleanText(answers.narrative_angle || answers.narrativeAngle, 4000),
+      scope_details: scopeDetails,
+      assets_url: scopeCleanText(answers.assets_url || answers.assetsUrl, 500),
+      launch_timing: scopeCleanText(answers.launch_timing || answers.launchTiming, 300),
+      must_include: scopeCleanText(answers.must_include || answers.mustInclude, 3000),
+      must_avoid: scopeCleanText(answers.must_avoid || answers.mustAvoid, 3000),
+      additional_notes: scopeCleanText(answers.additional_notes || answers.additionalNotes, 4000),
+    };
+  return {
+    patch: {
+      status: 'submitted',
+      submitted_at: new Date().toISOString(),
+      tier_id: tierId,
+      tier_name: tierName,
+      tier_price: tierPrice,
+      tier_short: scopeCleanText(answers.tier_short || answers.tierShort, 40),
+      tier_items: Array.isArray(answers.tier_items || answers.tierItems) ? (answers.tier_items || answers.tierItems) : [],
+      what_promoting: whatPromoting,
+      narrative_angle: scopeCleanText(answers.narrative_angle || answers.narrativeAngle, 4000),
+      scope_details: scopeDetails,
+      assets_url: scopeCleanText(answers.assets_url || answers.assetsUrl, 500),
+      launch_timing: scopeCleanText(answers.launch_timing || answers.launchTiming, 300),
+      must_include: scopeCleanText(answers.must_include || answers.mustInclude, 3000),
+      must_avoid: scopeCleanText(answers.must_avoid || answers.mustAvoid, 3000),
+      additional_notes: scopeCleanText(answers.additional_notes || answers.additionalNotes, 4000),
+      brief_snapshot: briefSnapshot,
+      responses: answers,
+    },
+    briefSnapshot,
+  };
+}
+
+async function applyScopeToCard(sb, cardId, invite, parsed) {
+  if (!cardId || !parsed?.briefSnapshot) return;
+  const cardLoad = await sb(`cards?id=eq.${encodeURIComponent(cardId)}&select=id,description,estimated_value,list_id,intent&limit=1`, { method: 'GET' });
+  const cards = await cardLoad.json();
+  if (!cardLoad.ok || !Array.isArray(cards) || !cards[0]) return;
+  const card = cards[0];
+  let description = {};
+  try {
+    description = card.description ? JSON.parse(card.description) : {};
+  } catch (err) {
+    description = {};
+  }
+  const snap = parsed.briefSnapshot;
+  const tierLabel = `Tier ${snap.tier_id} · ${snap.tier_name}`;
+  const leadSummary = [
+    `${invite.brand || 'Partner'} selected ${snap.tier_name} (${snap.tier_price}) via scope form.`,
+    snap.what_promoting,
+    snap.scope_details,
+  ].filter(Boolean).join(' ');
+  description.operator_memory = {
+    ...(description.operator_memory || {}),
+    summary: {
+      ...(description.operator_memory?.summary || {}),
+      lead_summary: leadSummary.slice(0, 1200),
+      company: invite.brand || description.operator_memory?.summary?.company || '',
+      contact_name: invite.contact_name || description.operator_memory?.summary?.contact_name || '',
+      asked_for: snap.tier_name,
+      current_status: 'scope submitted — ready for brief',
+      launch_timing: snap.launch_timing || '',
+      quoted_rate: String(snap.tier_price),
+      payment_status: description.operator_memory?.summary?.payment_status || '',
+      next_action: 'Review scope form submission and draft brief or send invoice.',
+      pricing_signal: true,
+      brief_signal: true,
+    },
+    analysis: {
+      stage: card.list_id || 'engaged',
+      needs_reply: false,
+      reason: 'Collaborator submitted structured scope form with package selection.',
+      reply_type: 'scope-received',
+      safe_to_auto_send: false,
+      escalation: [],
+    },
+    scope_intake: snap,
+    updated_at: new Date().toISOString(),
+  };
+  const fields = {
+    description: JSON.stringify(description),
+    estimated_value: String(snap.tier_price),
+    intent: tierLabel,
+  };
+  if (['new'].includes(String(card.list_id || '').toLowerCase())) {
+    fields.list_id = 'first-touch';
+  }
+  await sb(`cards?id=eq.${encodeURIComponent(cardId)}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify(fields),
+  });
+}
+
+exports.createCollabScopeLink = functions.https.onRequest(async (req, res) => {
+  feedbackCors(req, res);
+  if (req.method === 'OPTIONS') return res.status(204).send('');
+  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'POST only' });
+  try {
+    const body = req.body || {};
+    const cardId = Number(body.cardId || body.card_id || 0);
+    if (!Number.isFinite(cardId) || cardId <= 0) {
+      return res.status(400).json({ ok: false, error: 'cardId is required' });
+    }
+    const sb = await getSupabaseService();
+    const cardLoad = await sb(`cards?id=eq.${encodeURIComponent(cardId)}&select=*&limit=1`, { method: 'GET' });
+    const cards = await cardLoad.json();
+    if (!cardLoad.ok) throw new Error(`Supabase card read failed: ${cardLoad.status}`);
+    const card = Array.isArray(cards) && cards[0] ? cards[0] : null;
+    if (!card) return res.status(404).json({ ok: false, error: 'Card not found' });
+
+    const forceNew = Boolean(body.forceNew || body.force_new);
+    if (!forceNew) {
+      const pending = await findPendingScopeInvite(sb, cardId);
+      if (pending?.token) {
+        return res.json({
+          ok: true,
+          existing: true,
+          link: `${COLLAB_SCOPE_BASE}?t=${pending.token}`,
+          inviteId: pending.id,
+          brand: pending.brand || '',
+          contactName: pending.contact_name || '',
+        });
+      }
+    }
+
+    const fields = feedbackInviteFromCard(card);
+    const token = require('crypto').randomBytes(18).toString('base64url');
+    const expiresAt = new Date(Date.now() + 60 * 86400000).toISOString();
+    const insert = await sb('collab_scope_intake', {
+      method: 'POST',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({
+        token,
+        ...fields,
+        status: 'pending',
+        expires_at: expiresAt,
+      }),
+    });
+    const created = await insert.json();
+    if (!insert.ok) {
+      throw new Error(`Supabase insert failed: ${insert.status} ${JSON.stringify(created).slice(0, 200)}`);
+    }
+    const row = Array.isArray(created) && created[0] ? created[0] : null;
+    return res.json({
+      ok: true,
+      existing: false,
+      link: `${COLLAB_SCOPE_BASE}?t=${token}`,
+      inviteId: row?.id || null,
+      brand: fields.brand,
+      contactName: fields.contact_name,
+      cardId,
+    });
+  } catch (err) {
+    console.error('createCollabScopeLink error:', err.message);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+exports.collabScopeIntake = functions.https.onRequest(async (req, res) => {
+  feedbackCors(req, res);
+  if (req.method === 'OPTIONS') return res.status(204).send('');
+  try {
+    const sb = await getSupabaseService();
+    const catalog = await loadScopeCatalog(sb);
+
+    if (req.method === 'GET' && !feedbackToken(req.query?.token)) {
+      return res.json({ ok: true, catalog, link: COLLAB_SCOPE_BASE });
+    }
+
+    const token = feedbackToken(req.query?.token || req.body?.token);
+    if (!token) return res.status(400).json({ ok: false, error: 'Invalid or missing token' });
+
+    const row = await loadScopeRow(sb, token);
+    if (!row) return res.status(404).json({ ok: false, error: 'Scope link not found' });
+    if (row.expires_at && Date.parse(row.expires_at) < Date.now()) {
+      return res.status(410).json({ ok: false, error: 'This scope link has expired' });
+    }
+
+    if (req.method === 'GET') {
+      return res.json({
+        ok: true,
+        catalog,
+        invite: {
+          brand: row.brand || '',
+          contactName: row.contact_name || '',
+          contactEmail: row.contact_email || '',
+          status: row.status || 'pending',
+          submittedAt: row.submitted_at || null,
+          tierName: row.tier_name || '',
+          tierPrice: row.tier_price || null,
+        },
+      });
+    }
+
+    if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'GET or POST only' });
+    if (row.status === 'submitted') {
+      return res.status(409).json({ ok: false, error: 'Scope already submitted. Thank you.' });
+    }
+
+    const parsed = scopeAnswersFromBody(req.body || {});
+    if (parsed.error) return res.status(400).json({ ok: false, error: parsed.error });
+
+    try {
+      await submitScopeRow(sb, token, parsed.patch);
+    } catch (submitErr) {
+      if (submitErr.message === 'expired') {
+        return res.status(410).json({ ok: false, error: 'This scope link has expired' });
+      }
+      if (submitErr.message === 'already_submitted') {
+        return res.status(409).json({ ok: false, error: 'Scope already submitted. Thank you.' });
+      }
+      throw submitErr;
+    }
+
+    if (row.card_id) {
+      await applyScopeToCard(sb, row.card_id, row, parsed).catch((err) => {
+        console.warn('applyScopeToCard:', err.message);
+      });
+    }
+
+    return res.json({ ok: true, submitted: true });
+  } catch (err) {
+    console.error('collabScopeIntake error:', err.message);
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 exports.collabFeedback = functions.https.onRequest(async (req, res) => {
   feedbackCors(req, res);
   if (req.method === 'OPTIONS') return res.status(204).send('');
