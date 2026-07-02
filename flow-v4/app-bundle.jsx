@@ -978,10 +978,67 @@ function V3MergeXDmThreadContextsIntoLeads(leads, threadRows) {
   return (Array.isArray(leads) ? leads : []).map(lead => V3ApplyXDmThreadContext(lead, threadByDm));
 }
 
+// Board list fetch omits email_thread/original_email — those JSON blobs timeout Postgres on ~1.2k rows.
+const V3_SUPABASE_LIST_COLUMNS = [
+  'id', 'list_id', 'title', 'contact_name', 'business_name', 'email', 'job_title', 'lead_source', 'intent',
+  'description', 'assignee', 'created_by', 'owner', 'estimated_value', 'date_received', 'date_received_iso',
+  'created_at', 'moved_at', 'updated_at', 'new_reply_at', 'draft_reply_status', 'draft_reply', 'gmail_thread_id',
+  'x_open_dm', 'website', 'agent_assessment', 'recommended_action', 'agent_tier', 'deal_state', 'deal_confidence',
+  'deal_awaiting', 'deal_evidence', 'deal_next_action', 'needs_human_read', 'ready_to_invoice', 'agreement',
+  'brief_status', 'needs_reply', 'needs_followup', 'last_inbound_at', 'sender_group', 'quality_tier', 'activity',
+  'checklist', 'due_date', 'email_id', 'labels', 'linkedin_url', 'location', 'merged_into', 'phone', 'priority',
+  'reply_hook',
+].join(',');
+
+const V3_detailHydrateInflight = new Map();
+
+async function V3FetchSupabaseCardById(cardId) {
+  const url = V3_SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(cardId) + '&select=*&limit=1';
+  const res = await fetch(url, { headers: V3_SUPABASE_HEADERS });
+  if (!res.ok) throw new Error('Supabase card ' + res.status + ': ' + await res.text());
+  const rows = await res.json();
+  return Array.isArray(rows) && rows[0] ? rows[0] : null;
+}
+
+async function V3HydrateLeadDetail(lead) {
+  const cardId = String(lead?.rowId || lead?.id || '');
+  if (!cardId || lead?._detailHydrated) return lead;
+  if (V3_detailHydrateInflight.has(cardId)) return V3_detailHydrateInflight.get(cardId);
+  const promise = (async () => {
+    const row = await V3FetchSupabaseCardById(cardId);
+    if (!row) return lead;
+    let hydrated = V3NormalizeSupabaseLead(row);
+    const threadRows = window.__v3LastXDmThreadRows;
+    if (Array.isArray(threadRows) && threadRows.length) {
+      [hydrated] = V3MergeXDmThreadContextsIntoLeads([hydrated], threadRows);
+    }
+    hydrated._detailHydrated = true;
+    const updated = (window.V3.LEADS || []).map(item =>
+      String(item.id) === String(lead.id) ? hydrated : item);
+    window.V3.LEADS = updated;
+    window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated } }));
+    return hydrated;
+  })().finally(() => V3_detailHydrateInflight.delete(cardId));
+  V3_detailHydrateInflight.set(cardId, promise);
+  return promise;
+}
+
+function V3UseLeadDetailHydration(lead) {
+  React.useEffect(() => {
+    if (!lead?.id || lead._detailHydrated) return;
+    if (!lead.gmailThreadId && !lead.email) return;
+    let cancelled = false;
+    V3HydrateLeadDetail(lead).catch(err => {
+      if (!cancelled) console.warn('[ALIGNED v4] lead detail hydrate failed:', err);
+    });
+    return () => { cancelled = true; };
+  }, [lead?.id, lead?._detailHydrated, lead?.gmailThreadId, lead?.email]);
+}
+
 async function V3LoadSupabaseLeads(opts = {}) {
   const rows = [];
   for (let offset = 0; ; offset += 1000) {
-    const url = V3_SUPABASE_URL + "/rest/v1/cards?select=*&order=id.desc&offset=" + offset + "&limit=1000";
+    const url = V3_SUPABASE_URL + "/rest/v1/cards?select=" + V3_SUPABASE_LIST_COLUMNS + "&order=id.desc&offset=" + offset + "&limit=1000";
     const res = await fetch(url, {
       headers: {
         apikey: V3_SUPABASE_ANON_KEY,
@@ -1023,6 +1080,7 @@ async function V3LoadSupabaseLeads(opts = {}) {
   await V3EnsureXGateRules(opts?.cacheBust);
   const xRows = await V3LoadXDmIntakeRows(opts?.cacheBust);
   const threadRows = await V3LoadXDmThreadContexts(opts?.cacheBust);
+  window.__v3LastXDmThreadRows = threadRows;
   let leads = V3FilterVisibleLeads(
     V3MergeXIntakeIntoLeads([...canonical.values()].map(V3NormalizeSupabaseLead), xRows)
   );
@@ -2028,6 +2086,11 @@ function V3NormalizeSupabaseLead(row) {
     xRepliedViaX: xContext.repliedViaX || false,
     xBestNextStep: xContext.bestNextStep || '',
     xLeadScore: xContext.leadScore != null ? Number(xContext.leadScore) : null,
+    _detailHydrated: Boolean(
+      (Array.isArray(row.email_thread) && row.email_thread.length) ||
+      (Array.isArray(row.original_email) && row.original_email.length) ||
+      isXCard
+    ),
   };
   const withTravel = V3ApplyTravelLeadMeta(normalized);
   return isXCard ? V3ApplyXReplyState(withTravel) : withTravel;
@@ -6031,6 +6094,7 @@ function V3Drawer({ lead, user, queue = [], onNavigate, onClose }) {
     setTab(pickInitialTab(lead));
     setComposeOpen(false);
   }, [lead?.id]);
+  V3UseLeadDetailHydration(lead);
 
   const queueIndex = queue.findIndex(l => String(l.id) === String(lead?.id));
   const goTo = React.useCallback((delta) => {
@@ -11416,6 +11480,7 @@ function fmtMsgTooltip(msg) {
 function V4Reader({ lead, user, onBack, onMoveStage }) {
   const { STAGE_BY_ID, USERS } = window.V3;
   const [replyOpen, setReplyOpen] = React.useState(false);
+  V3UseLeadDetailHydration(lead);
   const last = lead.thread[lead.thread.length - 1];
   const stage = STAGE_BY_ID[lead.stage];
   const nextOwnerName = lead.nextMove.who ? USERS[lead.nextMove.who].name : `Awaiting ${lead.contactName.split(' ')[0]}`;
