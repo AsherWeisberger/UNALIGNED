@@ -9,7 +9,7 @@ if [ -z "$branch" ]; then
 fi
 
 echo "=== Committing and pushing to GitHub Pages branch: ${branch} ==="
-git add index.html flow-v4.html aligned.html firebase.json feedback.html unaligned_logo.png favicon.ico robert-review.html flow-v4 functions
+git add index.html 404.html flow-v4.html aligned.html firebase.json feedback.html connect.html scope.html unaligned_logo.png favicon.ico robert-review.html flow-v4 functions
 if [ -d assets/docs ]; then
   git add assets/docs
 fi
@@ -18,7 +18,7 @@ git push origin "HEAD:${branch}"
 
 echo ""
 echo "=== Deploying to Firebase ==="
-firebase deploy --only hosting,functions:sendEmail,functions:collabFeedback,functions:createCollabFeedbackLink --project unaligned-fc556
+firebase deploy --only hosting,functions:sendEmail,functions:collabFeedback,functions:createCollabFeedbackLink,functions:robertDeskIntake,functions:collabScopeIntake,functions:createCollabScopeLink --project unaligned-fc556
 
 echo ""
 echo "=== Done ==="

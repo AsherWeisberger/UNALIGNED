@@ -6476,16 +6476,7 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
     setError('');
     try {
       await V3SendLeadEmail({ lead, sender, to: recipient, cc: ccLine, subject, body: msg, attachPdf, pricingPdfPack });
-      fetch(V3_SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(lead.id), {
-        method: 'PATCH',
-        headers: {
-          apikey: V3_SUPABASE_ANON_KEY,
-          Authorization: 'Bearer ' + V3_SUPABASE_ANON_KEY,
-          'Content-Type': 'application/json',
-          Prefer: 'return=minimal',
-        },
-        body: JSON.stringify({ draft_reply_status: 'sent', new_reply_at: null }),
-      }).catch(err => console.warn('[ALIGNED v4] card status update failed:', err));
+      if (!internalOnly) V4CosMarkActiveGmailCleared(lead);
       window.dispatchEvent(new CustomEvent('v3:email-sent', { detail: { leadId: lead.id, sender, subject, body: msg, to: to.slice(), cc: cc.slice(), internalOnly } }));
       setBody('');
       setError('');
@@ -6729,6 +6720,102 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
   );
 }
 
+function V3CollabScopeProfile({ lead }) {
+  const [rows, setRows] = React.useState([]);
+  const [status, setStatus] = React.useState('idle');
+  const [linkStatus, setLinkStatus] = React.useState('idle');
+  const [linkError, setLinkError] = React.useState('');
+  const [linkUrl, setLinkUrl] = React.useState('');
+  const cardId = String(lead?.id || '').trim();
+  const canLink = /^\d+$/.test(cardId);
+  const closed = ['trash', 'dead-leads', 'paid-out'].includes(lead?.stage);
+
+  React.useEffect(() => {
+    let active = true;
+    setStatus('loading');
+    V4LoadCollabScopeForLead(lead).then((data) => {
+      if (!active) return;
+      setRows(data);
+      setStatus('ready');
+    }).catch(() => {
+      if (!active) return;
+      setRows([]);
+      setStatus('ready');
+    });
+    return () => { active = false; };
+  }, [lead?.id]);
+
+  const submitted = rows.filter((row) => row.status === 'submitted');
+  const pending = rows.filter((row) => row.status === 'pending');
+  const latest = submitted[0] || null;
+
+  const createLink = async (forceNew) => {
+    if (!canLink) return;
+    setLinkStatus('working');
+    setLinkError('');
+    try {
+      const data = await V4CreateCollabScopeLink(cardId, forceNew);
+      setLinkUrl(data.link || '');
+      setLinkStatus('done');
+      if (data.link && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(data.link);
+      }
+      const refreshed = await V4LoadCollabScopeForLead(lead);
+      setRows(refreshed);
+    } catch (err) {
+      setLinkStatus('error');
+      setLinkError(err.message || 'Could not create scope link');
+    }
+  };
+
+  if (closed && !submitted.length && !pending.length && status !== 'loading') return null;
+
+  return (
+    <div className="partner-fb-profile scope-profile">
+      <div className="partner-fb-profile-hd">
+        <span className="partner-fb-profile-title">Scope form</span>
+        {latest ? (
+          <span className="partner-fb-profile-badge is-good">
+            {latest.tier_name} · {V4ScopeMoney(latest.tier_price)}
+          </span>
+        ) : pending.length ? (
+          <span className="partner-fb-profile-badge is-pending">Awaiting scope</span>
+        ) : null}
+      </div>
+
+      {!closed && canLink ? (
+        <div className="partner-fb-profile-actions">
+          <button type="button" className="partner-fb-profile-btn" onClick={() => createLink(false)} disabled={linkStatus === 'working'}>
+            {linkStatus === 'working' ? 'Creating…' : (pending.length ? 'Copy scope link' : 'Create scope link')}
+          </button>
+          {pending.length ? (
+            <button type="button" className="partner-fb-profile-btn is-ghost" onClick={() => createLink(true)} disabled={linkStatus === 'working'}>
+              New link
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {!closed && !canLink ? (
+        <p className="partner-fb-profile-note">Not on a Supabase card yet — use the script with --brand and --contact.</p>
+      ) : null}
+      {linkStatus === 'done' && linkUrl ? (
+        <p className="partner-fb-profile-note is-ok">Scope link copied. They pick package + price and fill scope in one pass.</p>
+      ) : null}
+      {linkStatus === 'error' ? (
+        <p className="partner-fb-profile-note is-error">{linkError}</p>
+      ) : null}
+
+      {latest ? (
+        <div className="partner-fb-profile-body">
+          <p className="partner-fb-profile-good"><strong>Promoting:</strong> {latest.what_promoting || '—'}</p>
+          {latest.scope_details ? <p><strong>Scope:</strong> {latest.scope_details}</p> : null}
+          {latest.launch_timing ? <p><strong>Timing:</strong> {latest.launch_timing}</p> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function V3PartnerFeedbackProfile({ lead }) {
   const [rows, setRows] = React.useState([]);
   const [status, setStatus] = React.useState('idle');
@@ -6858,6 +6945,7 @@ function V3Stands({ lead }) {
         <span className="standstrip-pulse">Step {lead.progress + 1} of {window.V3.ACTIVE_STAGE_IDS.length}</span>
       </div>
 
+      <V3CollabScopeProfile lead={lead} />
       <V3PartnerFeedbackProfile lead={lead} />
 
       {hasDealRead && (
@@ -12327,9 +12415,23 @@ function V4OpenMachineHostedBriefMaker() {
   }
 }
 
+const V4_PUBLIC_GITHUB_PAGES = new Set([
+  '/connect.html', '/feedback.html', '/scope.html', '/connect', '/feedback', '/scope',
+]);
+
+function V4IsPublicGithubPage() {
+  try {
+    const path = String(window.location.pathname || '/').replace(/^\/UNALIGNED\/?/i, '/').toLowerCase();
+    return V4_PUBLIC_GITHUB_PAGES.has(path);
+  } catch (err) {
+    return false;
+  }
+}
+
 function V4MaybeRedirectToMachineHostedApp() {
   try {
     if (!V4IsGithubHostedPage()) return false;
+    if (V4IsPublicGithubPage()) return false;
     if (/[?&]stay=github(?:&|$)/.test(String(window.location.search || ''))) return false;
     const path = String(window.location.pathname || '/').replace(/^\/UNALIGNED\/?/, '/') || '/';
     window.location.replace(V4_BRIEF_TAILSCALE_BASE_URL + path + window.location.search + window.location.hash);
@@ -15663,6 +15765,29 @@ function V4CosActiveLeadNeedsYou(lead) {
   return false;
 }
 
+function V4CosMarkActiveGmailCleared(lead) {
+  if (!lead) return;
+  const wasNeedsYou = V4CosActiveLeadNeedsYou(lead);
+  const fields = { draft_reply_status: 'sent', new_reply_at: null };
+  const localPatch = {
+    needsReply: false,
+    unread: false,
+    newReplyAt: null,
+    draftReplyStatus: 'sent',
+  };
+  if (typeof V4CosPatchLead === 'function') {
+    V4CosPatchLead(lead, fields, localPatch);
+  } else {
+    const updated = (window.V3.LEADS || []).map(item =>
+      String(item.id) === String(lead.id) ? { ...item, ...localPatch } : item);
+    window.V3.LEADS = updated;
+    window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated } }));
+  }
+  if (wasNeedsYou) {
+    window.dispatchEvent(new CustomEvent('v4:active-mission-clear', { detail: { leadId: lead.id, channel: 'gmail' } }));
+  }
+}
+
 function V4CosSortActiveLeads(a, b) {
   const needDelta = (V4CosActiveLeadNeedsYou(b) ? 1 : 0) - (V4CosActiveLeadNeedsYou(a) ? 1 : 0);
   if (needDelta) return needDelta;
@@ -15840,6 +15965,371 @@ async function V4CreateCollabFeedbackLink(cardId, forceNew) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.ok) throw new Error(data.error || 'Could not create feedback link');
   return data;
+}
+
+const V4_ROBERT_CONNECT_LINK = 'https://asherweisberger.github.io/UNALIGNED/connect.html';
+const V4_DESK_INTAKE_SELECT = 'id,name,email,x_handle,whatsapp,contact_preference,topic_type,message,status,source,referrer,created_at,reviewed_at,routed_at,card_id';
+
+function V4DeskIntakeTopicLabel(value) {
+  const map = {
+    collaboration: 'Collaboration',
+    partnership: 'Partnership',
+    sync: 'Getting in sync',
+    something_cool: 'Something cool',
+    other: 'Other',
+  };
+  return map[String(value || '').toLowerCase()] || value || '—';
+}
+
+function V4DeskIntakeContactLabel(value) {
+  const map = {
+    email: 'Email',
+    x: 'X',
+    whatsapp: 'WhatsApp',
+    signal: 'Signal',
+    phone: 'Phone',
+    other: 'Other',
+  };
+  return map[String(value || '').toLowerCase()] || value || '—';
+}
+
+function V4DeskIntakeStatusTone(status) {
+  const s = String(status || '').toLowerCase();
+  if (s === 'new') return 'hot';
+  if (s === 'routed') return 'good';
+  if (s === 'reviewed') return 'live';
+  return 'muted';
+}
+
+async function V4LoadDeskIntake(limit = 40) {
+  const url = V3_SUPABASE_URL
+    + '/rest/v1/robert_desk_intake?select=' + V4_DESK_INTAKE_SELECT
+    + '&order=created_at.desc&limit=' + encodeURIComponent(String(limit || 40));
+  const res = await fetch(url, { headers: V3_SUPABASE_HEADERS });
+  if (!res.ok) throw new Error('Could not load desk intake (' + res.status + ')');
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
+async function V4PatchDeskIntakeStatus(id, status) {
+  const patch = { status };
+  const now = new Date().toISOString();
+  if (status === 'reviewed') patch.reviewed_at = now;
+  if (status === 'routed') {
+    patch.reviewed_at = now;
+    patch.routed_at = now;
+  }
+  const res = await fetch(V3_SUPABASE_URL + '/rest/v1/robert_desk_intake?id=eq.' + encodeURIComponent(id), {
+    method: 'PATCH',
+    headers: { ...V3_SUPABASE_HEADERS, Prefer: 'return=minimal' },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error('Could not update intake status');
+}
+
+function V4CosDeskIntakePage() {
+  return (
+    <div className="cosov cos-desk-intake-page">
+      <header className="cos-desk-intake-hero">
+        <div className="cos-desk-intake-hero-copy">
+          <span className="cos-eyebrow">Robert&apos;s desk</span>
+          <h2 className="cos-desk-intake-hero-title">Public team intake</h2>
+          <p className="cos-desk-intake-hero-sub">
+            Link Robert can post on X. Submissions land here first — triage, then route the strong fits to his desk.
+          </p>
+          <div className="cos-desk-intake-link-row">
+            <code className="cos-desk-intake-link">{V4_ROBERT_CONNECT_LINK}</code>
+            <button
+              type="button"
+              className="cos-desk-intake-copy"
+              onClick={() => {
+                navigator.clipboard?.writeText(V4_ROBERT_CONNECT_LINK).catch(() => {});
+              }}
+            >
+              Copy link
+            </button>
+          </div>
+        </div>
+      </header>
+      <V4CosDeskIntake />
+    </div>
+  );
+}
+
+function V4CosDeskIntake() {
+  const [rows, setRows] = React.useState([]);
+  const [status, setStatus] = React.useState('loading');
+  const [error, setError] = React.useState('');
+  const [expandedId, setExpandedId] = React.useState(null);
+  const [busyId, setBusyId] = React.useState(null);
+
+  const load = React.useCallback(async () => {
+    setStatus('loading');
+    setError('');
+    try {
+      const data = await V4LoadDeskIntake(40);
+      setRows(data);
+      setStatus(data.length ? 'ready' : 'empty');
+      setExpandedId((prev) => prev ?? (data.find((row) => row.status === 'new')?.id ?? data[0]?.id ?? null));
+    } catch (err) {
+      setRows([]);
+      setStatus('error');
+      setError(err.message || 'Could not load desk intake');
+    }
+  }, []);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  const setRowStatus = async (row, nextStatus) => {
+    if (!row?.id || busyId) return;
+    setBusyId(row.id);
+    try {
+      await V4PatchDeskIntakeStatus(row.id, nextStatus);
+      setRows((curr) => curr.map((item) => (
+        String(item.id) === String(row.id)
+          ? {
+            ...item,
+            status: nextStatus,
+            reviewed_at: nextStatus === 'reviewed' || nextStatus === 'routed' ? new Date().toISOString() : item.reviewed_at,
+            routed_at: nextStatus === 'routed' ? new Date().toISOString() : item.routed_at,
+          }
+          : item
+      )));
+    } catch (err) {
+      setError(err.message || 'Update failed');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const newCount = rows.filter((row) => row.status === 'new').length;
+  const routedCount = rows.filter((row) => row.status === 'routed').length;
+
+  const renderRow = (row) => {
+    const open = expandedId === row.id;
+    const when = row.created_at
+      ? (typeof V3RelativeTime === 'function' ? V3RelativeTime(row.created_at) : row.created_at.slice(0, 10))
+      : '—';
+    return (
+      <article key={row.id} className={'cos-desk-intake-row' + (open ? ' is-open' : '') + (row.status === 'new' ? ' is-new' : '')}>
+        <button
+          type="button"
+          className="cos-desk-intake-row-hd"
+          onClick={() => setExpandedId(open ? null : row.id)}
+          aria-expanded={open}
+        >
+          <div className="cos-desk-intake-row-main">
+            <strong>{row.name || 'Unknown'}</strong>
+            <span className="cos-desk-intake-email">{row.email}</span>
+            {row.x_handle ? <span className="cos-desk-intake-handle">{row.x_handle}</span> : null}
+            <span className="cos-desk-intake-topic">{V4DeskIntakeTopicLabel(row.topic_type)}</span>
+          </div>
+          <div className="cos-desk-intake-row-meta">
+            <span className={'cos-desk-intake-pill is-' + V4DeskIntakeStatusTone(row.status)}>{row.status || 'new'}</span>
+            <span className="cos-desk-intake-pref">{V4DeskIntakeContactLabel(row.contact_preference)}</span>
+          </div>
+          <span className="cos-desk-intake-when">{when}</span>
+        </button>
+        {open ? (
+          <div className="cos-desk-intake-row-body">
+            {row.message ? <p className="cos-desk-intake-message">{row.message}</p> : null}
+            <div className="cos-desk-intake-contact-grid">
+              {row.whatsapp ? <span>WhatsApp <strong>{row.whatsapp}</strong></span> : null}
+              <span>Reach via <strong>{V4DeskIntakeContactLabel(row.contact_preference)}</strong></span>
+              {row.referrer ? <span>Referrer <strong>{row.referrer}</strong></span> : null}
+            </div>
+            <div className="cos-desk-intake-actions">
+              {row.status === 'new' ? (
+                <button type="button" disabled={busyId === row.id} onClick={() => setRowStatus(row, 'reviewed')}>Mark reviewed</button>
+              ) : null}
+              {row.status !== 'routed' ? (
+                <button type="button" className="is-primary" disabled={busyId === row.id} onClick={() => setRowStatus(row, 'routed')}>Route to Robert&apos;s desk</button>
+              ) : null}
+              {row.status !== 'archived' ? (
+                <button type="button" disabled={busyId === row.id} onClick={() => setRowStatus(row, 'archived')}>Archive</button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+      </article>
+    );
+  };
+
+  return (
+    <section className="cos-desk-intake is-full">
+      <header className="cos-desk-intake-hd">
+        <div className="cos-desk-intake-copy">
+          <span className="cos-desk-intake-eyebrow">Submissions</span>
+          <span className="cos-desk-intake-label">
+            {status === 'empty'
+              ? 'No public submissions yet — post the connect link on X.'
+              : status === 'error'
+                ? error
+                : `${rows.length} total · ${newCount} new · ${routedCount} on Robert's desk`}
+          </span>
+        </div>
+        <button type="button" className="cos-desk-intake-refresh" onClick={load} disabled={status === 'loading'} title="Refresh desk intake">
+          {status === 'loading' ? '…' : '↻'}
+        </button>
+      </header>
+
+      {status === 'ready' ? (
+        <div className="cos-desk-intake-list">{rows.map(renderRow)}</div>
+      ) : null}
+      {status === 'loading' ? <div className="cos-desk-intake-empty">Loading desk intake…</div> : null}
+      {status === 'empty' ? (
+        <div className="cos-desk-intake-empty">
+          Post <code>{V4_ROBERT_CONNECT_LINK}</code> on Robert&apos;s X — or run <code>print_robert_connect_link.py</code> for tweet copy.
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+const V4_CREATE_COLLAB_SCOPE_API = 'https://us-central1-unaligned-fc556.cloudfunctions.net/createCollabScopeLink';
+const V4_COLLAB_SCOPE_SELECT = 'id,brand,contact_name,contact_email,contact_handle,status,tier_id,tier_name,tier_price,tier_short,tier_items,what_promoting,narrative_angle,scope_details,assets_url,launch_timing,must_include,must_avoid,additional_notes,brief_snapshot,submitted_at,created_at,card_id';
+
+async function V4LoadCollabScope(limit = 40) {
+  const url = V3_SUPABASE_URL
+    + '/rest/v1/collab_scope_intake?select=' + V4_COLLAB_SCOPE_SELECT
+    + '&status=eq.submitted&order=submitted_at.desc&limit=' + encodeURIComponent(String(limit || 40));
+  const res = await fetch(url, { headers: V3_SUPABASE_HEADERS });
+  if (!res.ok) throw new Error('Could not load scope submissions (' + res.status + ')');
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
+async function V4LoadCollabScopeForLead(lead) {
+  const cardId = String(lead?.id || '').trim();
+  if (!/^\d+$/.test(cardId)) return [];
+  const url = V3_SUPABASE_URL
+    + '/rest/v1/collab_scope_intake?select=' + V4_COLLAB_SCOPE_SELECT
+    + '&card_id=eq.' + cardId
+    + '&order=submitted_at.desc.nullslast,created_at.desc&limit=10';
+  const res = await fetch(url, { headers: V3_SUPABASE_HEADERS });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
+async function V4CreateCollabScopeLink(cardId, forceNew) {
+  const res = await fetch(V4_CREATE_COLLAB_SCOPE_API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cardId: Number(cardId), forceNew: Boolean(forceNew) }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.ok) throw new Error(data.error || 'Could not create scope link');
+  return data;
+}
+
+function V4ScopeMoney(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? '$' + n.toLocaleString('en-US') : '—';
+}
+
+function V4CosScopeIntakePage({ onOpenLead }) {
+  return (
+    <div className="cosov cos-scope-intake-page">
+      <header className="cos-scope-intake-hero">
+        <div className="cos-scope-intake-hero-copy">
+          <span className="cos-eyebrow">Scope intelligence</span>
+          <h2 className="cos-scope-intake-hero-title">Package picks + scope of work</h2>
+          <p className="cos-scope-intake-hero-sub">
+            Collaborators choose tier and price, then fill scope — structured brief input without AI guesswork.
+          </p>
+        </div>
+      </header>
+      <V4CosScopeIntake onOpenLead={onOpenLead} />
+    </div>
+  );
+}
+
+function V4CosScopeIntake({ onOpenLead }) {
+  const [rows, setRows] = React.useState([]);
+  const [status, setStatus] = React.useState('loading');
+  const [error, setError] = React.useState('');
+  const [expandedId, setExpandedId] = React.useState(null);
+
+  const load = React.useCallback(async () => {
+    setStatus('loading');
+    setError('');
+    try {
+      const data = await V4LoadCollabScope(40);
+      setRows(data);
+      setStatus(data.length ? 'ready' : 'empty');
+      setExpandedId((prev) => prev ?? (data[0]?.id ?? null));
+    } catch (err) {
+      setRows([]);
+      setStatus('error');
+      setError(err.message || 'Could not load scope submissions');
+    }
+  }, []);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  const renderRow = (row) => {
+    const open = expandedId === row.id;
+    const when = row.submitted_at
+      ? (typeof V3RelativeTime === 'function' ? V3RelativeTime(row.submitted_at) : row.submitted_at.slice(0, 10))
+      : '—';
+    return (
+      <article key={row.id} className={'cos-scope-intake-row' + (open ? ' is-open' : '')}>
+        <button type="button" className="cos-scope-intake-row-hd" onClick={() => setExpandedId(open ? null : row.id)} aria-expanded={open}>
+          <div className="cos-scope-intake-row-main">
+            <strong>{row.brand || 'Partner'}</strong>
+            <span>{row.contact_name || ''}</span>
+            <span className="cos-scope-intake-tier">{row.tier_name} · {V4ScopeMoney(row.tier_price)}</span>
+          </div>
+          <span className="cos-scope-intake-when">{when}</span>
+        </button>
+        {open ? (
+          <div className="cos-scope-intake-row-body">
+            {row.what_promoting ? <p><strong>Promoting:</strong> {row.what_promoting}</p> : null}
+            {row.scope_details ? <p><strong>Scope:</strong> {row.scope_details}</p> : null}
+            {row.narrative_angle ? <p><strong>Angle:</strong> {row.narrative_angle}</p> : null}
+            {row.launch_timing ? <p><strong>Timing:</strong> {row.launch_timing}</p> : null}
+            {row.assets_url ? <p><strong>Assets:</strong> {row.assets_url}</p> : null}
+            {row.must_include ? <p><strong>Must include:</strong> {row.must_include}</p> : null}
+            {row.must_avoid ? <p><strong>Must avoid:</strong> {row.must_avoid}</p> : null}
+            {Array.isArray(row.tier_items) && row.tier_items.length ? (
+              <p><strong>Package:</strong> {row.tier_items.join(' · ')}</p>
+            ) : null}
+            {row.card_id && onOpenLead ? (
+              <button type="button" className="cos-scope-intake-open-card" onClick={() => onOpenLead(row.card_id)}>
+                Open deal card
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </article>
+    );
+  };
+
+  return (
+    <section className="cos-scope-intake is-full">
+      <header className="cos-scope-intake-hd">
+        <div className="cos-scope-intake-copy">
+          <span className="cos-scope-intake-eyebrow">Submissions</span>
+          <span className="cos-scope-intake-label">
+            {status === 'empty'
+              ? 'No scope forms yet — create a link from an active deal card.'
+              : status === 'error' ? error : `${rows.length} scoped submission${rows.length === 1 ? '' : 's'}`}
+          </span>
+        </div>
+        <button type="button" className="cos-scope-intake-refresh" onClick={load} disabled={status === 'loading'} title="Refresh scope submissions">
+          {status === 'loading' ? '…' : '↻'}
+        </button>
+      </header>
+      {status === 'ready' ? <div className="cos-scope-intake-list">{rows.map(renderRow)}</div> : null}
+      {status === 'loading' ? <div className="cos-scope-intake-empty">Loading scope submissions…</div> : null}
+      {status === 'empty' ? (
+        <div className="cos-scope-intake-empty">
+          Open a deal → <strong>Where this stands</strong> → <strong>Create scope link</strong>, or run <code>create_collab_scope_link.py --from-card ID</code>.
+        </div>
+      ) : null}
+    </section>
+  );
 }
 
 function V4CosPartnerFeedbackPage({ onOpenLead }) {
@@ -16472,16 +16962,7 @@ function V4LeadNegotiateWorkspace({
     setError('');
     try {
       await V3SendLeadEmail({ lead, sender, to: toLine, cc: ccLine, subject, body: msg, attachPdf: false });
-      fetch(V3_SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(lead.id), {
-        method: 'PATCH',
-        headers: {
-          apikey: V3_SUPABASE_ANON_KEY,
-          Authorization: 'Bearer ' + V3_SUPABASE_ANON_KEY,
-          'Content-Type': 'application/json',
-          Prefer: 'return=minimal',
-        },
-        body: JSON.stringify({ draft_reply_status: 'sent', new_reply_at: null }),
-      }).catch(() => {});
+      V4CosMarkActiveGmailCleared(lead);
       window.dispatchEvent(new CustomEvent('v3:email-sent', { detail: { leadId: lead.id, sender, subject, body: msg, to: recipients.to, cc: recipients.cc } }));
       setSuccess('Sent to ' + toLine);
       setStatus('sent');
@@ -17315,6 +17796,8 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
     { id: 'trash', label: 'Trash', section: 'More', trash: true, items: base.filter(l => ['trash', 'dead-leads'].includes(l.stage)).sort(byRecent) },
     { id: 'toolkit', label: 'Toolkit', section: 'Organs', toolkit: true, items: V4_COMPANY_OS_TOOLKIT },
     { id: 'partner-feedback', label: 'Partner feedback', section: 'Organs', partnerFeedback: true, items: [] },
+    { id: 'desk-intake', label: "Robert's desk", section: 'Organs', deskIntake: true, items: [] },
+    { id: 'scope-intake', label: 'Scope forms', section: 'Organs', scopeIntake: true, items: [] },
   ];
 
   const [splitId, setSplitId] = React.useState(() => {
@@ -17336,6 +17819,8 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
       detail: {
         toolkit: splitId === 'toolkit',
         partnerFeedback: splitId === 'partner-feedback',
+        deskIntake: splitId === 'desk-intake',
+        scopeIntake: splitId === 'scope-intake',
       },
     }));
   }, [splitId]);
@@ -17884,6 +18369,10 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
           <div className="cos2-main-scroll"><V4CosToolkit onNavigateView={onNavigateView} onActivateSplit={setSplitId} /></div>
         ) : split.partnerFeedback ? (
           <div className="cos2-main-scroll"><V4CosPartnerFeedbackPage onOpenLead={onOpenLead} /></div>
+        ) : split.deskIntake ? (
+          <div className="cos2-main-scroll"><V4CosDeskIntakePage /></div>
+        ) : split.scopeIntake ? (
+          <div className="cos2-main-scroll"><V4CosScopeIntakePage onOpenLead={onOpenLead} /></div>
         ) : (
           <>
             <div className="cos2-list">
@@ -18407,11 +18896,15 @@ function V4App() {
   const [organsMenuOpen, setOrgansMenuOpen] = React.useState(false);
   const [cosToolkitOpen, setCosToolkitOpen] = React.useState(false);
   const [cosPartnerFeedbackOpen, setCosPartnerFeedbackOpen] = React.useState(false);
+  const [cosDeskIntakeOpen, setCosDeskIntakeOpen] = React.useState(false);
+  const [cosScopeIntakeOpen, setCosScopeIntakeOpen] = React.useState(false);
 
   React.useEffect(() => {
     const onSurface = (e) => {
       setCosToolkitOpen(!!e.detail?.toolkit);
       setCosPartnerFeedbackOpen(!!e.detail?.partnerFeedback);
+      setCosDeskIntakeOpen(!!e.detail?.deskIntake);
+      setCosScopeIntakeOpen(!!e.detail?.scopeIntake);
     };
     window.addEventListener('v4:cos-surface', onSurface);
     return () => window.removeEventListener('v4:cos-surface', onSurface);
@@ -18671,7 +19164,7 @@ function V4App() {
     setOrgansMenuOpen(false);
   };
   const organsToolViews = ['organs', 'inbox', 'invoices', 'new-leads', 'leads'];
-  const organsMenuActive = organsToolViews.includes(view) || (view === 'company-os' && (cosToolkitOpen || cosPartnerFeedbackOpen));
+  const organsMenuActive = organsToolViews.includes(view) || (view === 'company-os' && (cosToolkitOpen || cosPartnerFeedbackOpen || cosDeskIntakeOpen || cosScopeIntakeOpen));
   const goToOrgansToolkit = () => {
     try { window.sessionStorage.setItem('cos-queue', 'toolkit'); } catch (e) {}
     window.dispatchEvent(new CustomEvent('v4:cos-activate-split', { detail: { splitId: 'toolkit' } }));
@@ -18682,12 +19175,24 @@ function V4App() {
     window.dispatchEvent(new CustomEvent('v4:cos-activate-split', { detail: { splitId: 'partner-feedback' } }));
     goView('company-os');
   };
+  const goToDeskIntake = () => {
+    try { window.sessionStorage.setItem('cos-queue', 'desk-intake'); } catch (e) {}
+    window.dispatchEvent(new CustomEvent('v4:cos-activate-split', { detail: { splitId: 'desk-intake' } }));
+    goView('company-os');
+  };
+  const goToScopeIntake = () => {
+    try { window.sessionStorage.setItem('cos-queue', 'scope-intake'); } catch (e) {}
+    window.dispatchEvent(new CustomEvent('v4:cos-activate-split', { detail: { splitId: 'scope-intake' } }));
+    goView('company-os');
+  };
 
   const paletteCommands = [
     { label: 'Go to Company OS', hint: 'workspace', run: () => goView('company-os') },
     { label: 'Go to Organs', hint: 'command center', run: () => goView('organs') },
     { label: 'Go to Toolkit', hint: 'brief maker, X signal, handoffs', run: goToOrgansToolkit },
     { label: 'Go to Partner feedback', hint: 'collaboration scores', run: goToPartnerFeedback },
+    { label: "Go to Robert's desk", hint: 'public connect intake', run: goToDeskIntake },
+    { label: 'Go to Scope forms', hint: 'package + scope submissions', run: goToScopeIntake },
     { label: 'Go to Today', run: () => goView('today') },
     { label: 'Go to Calendar', run: () => goView('calendar') },
     { label: 'Go to Briefs', run: () => goView('inbox') },
@@ -18755,6 +19260,22 @@ function V4App() {
                   onClick={goToPartnerFeedback}
                 >
                   Partner feedback
+                </button>
+                <button
+                  role="menuitem"
+                  className="hd-nav-drop-item"
+                  aria-current={view === 'company-os' && cosDeskIntakeOpen ? 'page' : undefined}
+                  onClick={goToDeskIntake}
+                >
+                  Robert&apos;s desk
+                </button>
+                <button
+                  role="menuitem"
+                  className="hd-nav-drop-item"
+                  aria-current={view === 'company-os' && cosScopeIntakeOpen ? 'page' : undefined}
+                  onClick={goToScopeIntake}
+                >
+                  Scope forms
                 </button>
               </div>
             )}

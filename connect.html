@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>UNALIGNED · Reach Robert's team</title>
+  <meta name="description" content="Share your idea with Robert Scoble's team. We read everything and route the best fits to Robert's desk." />
+  <link rel="icon" href="favicon.ico" />
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --card: #fff;
+      --text: #12151c;
+      --muted: #5a6272;
+      --line: #e2ddd3;
+      --accent: #1f4fd6;
+      --accent-soft: #e7efff;
+      --warm: #9a3412;
+      --warm-soft: #fff4ed;
+      --radius: 18px;
+      --font: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      --sans: "Hanken Grotesk", system-ui, -apple-system, sans-serif;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font);
+      color: var(--text);
+      background:
+        radial-gradient(1100px 480px at 0% -5%, #dce8ff 0%, transparent 58%),
+        radial-gradient(800px 360px at 100% 0%, #fde8d8 0%, transparent 52%),
+        var(--bg);
+      padding: 28px 16px 56px;
+    }
+    .wrap { max-width: 660px; margin: 0 auto; }
+    .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+    .mark {
+      width: 44px; height: 44px; border-radius: 13px;
+      background: linear-gradient(135deg, #1f4fd6, #6d28d9);
+      color: #fff; display: grid; place-items: center;
+      font: 700 14px/1 var(--mono); letter-spacing: .08em;
+    }
+    .brand h1 { margin: 0; font-size: 17px; letter-spacing: .14em; text-transform: uppercase; }
+    .brand p { margin: 2px 0 0; font-size: 13px; color: var(--muted); font-family: var(--sans); }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 26px 24px 24px;
+      box-shadow: 0 20px 44px rgba(18, 21, 28, .07);
+    }
+    .eyebrow {
+      font: 700 10px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 8px;
+    }
+    h2 { margin: 0 0 10px; font-size: 30px; line-height: 1.12; }
+    .lead {
+      margin: 0 0 8px; color: var(--muted); font-size: 15px; line-height: 1.55;
+      font-family: var(--sans);
+    }
+    .promise {
+      margin: 0 0 22px; padding: 12px 14px; border-radius: 12px;
+      background: var(--warm-soft); border: 1px solid #fed7aa;
+      font-family: var(--sans); font-size: 13px; line-height: 1.5; color: #7c2d12;
+    }
+    .field { margin-bottom: 16px; }
+    .field label {
+      display: block; font-size: 14px; font-weight: 600; margin-bottom: 7px;
+      font-family: var(--sans);
+    }
+    .hint { display: block; font-size: 12px; color: var(--muted); margin-top: 6px; font-family: var(--sans); }
+    input[type="text"], input[type="email"], input[type="tel"] {
+      width: 100%; border: 1px solid var(--line); border-radius: 12px;
+      padding: 11px 13px; font: 500 14px/1.4 var(--sans); background: #fff;
+    }
+    input:focus, textarea:focus {
+      outline: 2px solid color-mix(in oklab, var(--accent) 35%, white);
+      border-color: var(--accent);
+    }
+    textarea {
+      width: 100%; min-height: 110px; resize: vertical;
+      border: 1px solid var(--line); border-radius: 12px;
+      padding: 12px 14px; font: 500 14px/1.45 var(--sans); background: #fff;
+    }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .choice { display: flex; flex-wrap: wrap; gap: 8px; }
+    .choice button {
+      border: 1px solid var(--line); background: #fff; border-radius: 999px;
+      min-height: 38px; padding: 0 14px; font: 600 12px/1 var(--sans);
+      cursor: pointer; transition: background .15s, border-color .15s, transform .12s;
+    }
+    .choice button:hover { border-color: var(--accent); }
+    .choice button.is-on {
+      background: var(--accent-soft);
+      border-color: color-mix(in oklab, var(--accent) 40%, var(--line));
+      color: var(--accent);
+      transform: translateY(-1px);
+    }
+    .hp { position: absolute; left: -9999px; opacity: 0; pointer-events: none; }
+    .submit {
+      margin-top: 6px; width: 100%; border: 0; border-radius: 12px; min-height: 48px;
+      background: var(--accent); color: #fff;
+      font: 700 13px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase;
+      cursor: pointer;
+    }
+    .submit:disabled { opacity: .55; cursor: default; }
+    .status {
+      margin-top: 14px; padding: 12px 14px; border-radius: 12px; font-size: 14px;
+      font-family: var(--sans); display: none;
+    }
+    .status.is-error { display: block; background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+    .status.is-ok { display: block; background: #ecfdf5; color: #15803d; border: 1px solid #bbf7d0; }
+    .thanks { text-align: center; padding: 30px 8px; }
+    .thanks h2 { font-size: 32px; }
+    .foot {
+      margin-top: 18px; text-align: center; font-size: 12px; color: var(--muted);
+      font-family: var(--sans); line-height: 1.5;
+    }
+    @media (max-width: 560px) {
+      h2 { font-size: 25px; }
+      .card { padding: 20px 16px; }
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <div class="mark">UN</div>
+      <div>
+        <h1>UNALIGNED</h1>
+        <p>Robert Scoble · team intake</p>
+      </div>
+    </div>
+    <div class="card" id="app">
+      <p class="lead" style="color:var(--muted)">Loading…</p>
+    </div>
+    <p class="foot">Every note is read by the UNALIGNED team. Strong fits get a direct line to Robert's desk.</p>
+  </div>
+  <script>
+    const API = 'https://us-central1-unaligned-fc556.cloudfunctions.net/robertDeskIntake';
+
+    const TOPICS = [
+      { label: 'A collaboration idea', value: 'collaboration' },
+      { label: 'A partnership', value: 'partnership' },
+      { label: 'Getting in sync on something', value: 'sync' },
+      { label: 'Something cool I came across', value: 'something_cool' },
+      { label: 'Something else', value: 'other' },
+    ];
+
+    const CONTACT_PREFS = [
+      { label: 'Email', value: 'email' },
+      { label: 'X / Twitter', value: 'x' },
+      { label: 'WhatsApp', value: 'whatsapp' },
+      { label: 'Signal', value: 'signal' },
+      { label: 'Phone / text', value: 'phone' },
+      { label: 'Other', value: 'other' },
+    ];
+
+    const state = {
+      name: '',
+      email: '',
+      x_handle: '',
+      whatsapp: '',
+      contact_preference: '',
+      topic_type: '',
+      message: '',
+      company_website: '',
+    };
+
+    function el(tag, attrs, children) {
+      const node = document.createElement(tag);
+      if (attrs) Object.entries(attrs).forEach(([k, v]) => {
+        if (k === 'className') node.className = v;
+        else if (k === 'text') node.textContent = v;
+        else if (k.startsWith('on')) node.addEventListener(k.slice(2).toLowerCase(), v);
+        else node.setAttribute(k, v);
+      });
+      (children || []).forEach((c) => node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c));
+      return node;
+    }
+
+    function textField(key, label, opts = {}) {
+      const field = el('div', { className: 'field' });
+      field.appendChild(el('label', { text: label + (opts.required ? ' *' : '') }));
+      const input = el('input', {
+        type: opts.type || 'text',
+        placeholder: opts.placeholder || '',
+        autocomplete: opts.autocomplete || 'off',
+      });
+      input.addEventListener('input', () => { state[key] = input.value.trim(); });
+      field.appendChild(input);
+      if (opts.hint) field.appendChild(el('span', { className: 'hint', text: opts.hint }));
+      return field;
+    }
+
+    function choiceField(key, label, options) {
+      const field = el('div', { className: 'field' });
+      field.appendChild(el('label', { text: label + ' *' }));
+      const row = el('div', { className: 'choice' });
+      options.forEach((opt) => {
+        const btn = el('button', { type: 'button', text: opt.label });
+        btn.addEventListener('click', () => {
+          state[key] = opt.value;
+          row.querySelectorAll('button').forEach((b) => b.classList.toggle('is-on', b.textContent === opt.label));
+        });
+        row.appendChild(btn);
+      });
+      field.appendChild(row);
+      return field;
+    }
+
+    function renderForm() {
+      const app = document.getElementById('app');
+      app.innerHTML = '';
+      app.appendChild(el('div', { className: 'eyebrow', text: "Robert's desk" }));
+      app.appendChild(el('h2', { text: "Reach Robert's team" }));
+      app.appendChild(el('p', {
+        className: 'lead',
+        text: "Partnerships, projects, and ideas worth a look — share how to reach you and what you want to explore. We filter everything; the best fits land on Robert's desk.",
+      }));
+      app.appendChild(el('p', {
+        className: 'promise',
+        text: "This isn't a sales form. It's a direct line to the people who work with Robert every day.",
+      }));
+
+      const form = el('form');
+      form.appendChild(textField('name', 'Your name', { required: true, placeholder: 'First and last', autocomplete: 'name' }));
+      form.appendChild(textField('email', 'Email', { type: 'email', required: true, placeholder: 'you@company.com', autocomplete: 'email' }));
+
+      const contactRow = el('div', { className: 'grid-2' });
+      const xField = textField('x_handle', 'X account', { placeholder: '@handle', hint: 'Optional but helps us find you fast.' });
+      const waField = textField('whatsapp', 'WhatsApp', { type: 'tel', placeholder: '+1 …', hint: 'Optional.' });
+      contactRow.appendChild(xField);
+      contactRow.appendChild(waField);
+      form.appendChild(contactRow);
+
+      form.appendChild(choiceField('contact_preference', 'Best way to reach you', CONTACT_PREFS));
+      form.appendChild(choiceField('topic_type', 'What do you want to talk about?', TOPICS));
+
+      const msg = el('div', { className: 'field' });
+      msg.appendChild(el('label', { text: 'Tell us a bit more *' }));
+      const msgTa = el('textarea', { placeholder: 'What are you building, proposing, or excited about? A few sentences is plenty.' });
+      msgTa.addEventListener('input', () => { state.message = msgTa.value; });
+      msg.appendChild(msgTa);
+      msg.appendChild(el('span', { className: 'hint', text: 'Enough context for the team to know if it belongs on Robert\'s desk.' }));
+      form.appendChild(msg);
+
+      const hp = el('div', { className: 'hp' });
+      const hpInput = el('input', { type: 'text', name: 'company_website', tabindex: '-1', autocomplete: 'off' });
+      hpInput.addEventListener('input', () => { state.company_website = hpInput.value; });
+      hp.appendChild(hpInput);
+      form.appendChild(hp);
+
+      const status = el('div', { className: 'status', id: 'status' });
+      const submit = el('button', { className: 'submit', type: 'submit', text: 'Send to the team' });
+      form.appendChild(submit);
+      form.appendChild(status);
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        status.className = 'status';
+        status.textContent = '';
+        submit.disabled = true;
+        try {
+          const resp = await fetch(API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...state,
+              referrer: document.referrer || '',
+              source: 'connect_form',
+            }),
+          });
+          const data = await resp.json().catch(() => ({}));
+          if (!resp.ok || !data.ok) throw new Error(data.error || 'Submit failed');
+          renderThanks();
+        } catch (err) {
+          status.className = 'status is-error';
+          status.textContent = err.message || 'Something went wrong. Try again or email asherunaligned@gmail.com.';
+          submit.disabled = false;
+        }
+      });
+
+      app.appendChild(form);
+    }
+
+    function renderThanks() {
+      const app = document.getElementById('app');
+      app.innerHTML = '';
+      const box = el('div', { className: 'thanks' });
+      box.appendChild(el('div', { className: 'eyebrow', text: 'Received' }));
+      box.appendChild(el('h2', { text: 'Got it.' }));
+      box.appendChild(el('p', {
+        className: 'lead',
+        text: "The team will read this and reach out on your preferred channel if it's a fit. Thanks for taking the time.",
+      }));
+      app.appendChild(box);
+    }
+
+    async function boot() {
+      try {
+        const resp = await fetch(API, { method: 'GET' });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.ok) throw new Error(data.error || 'Form unavailable');
+        renderForm();
+      } catch (err) {
+        renderForm();
+      }
+    }
+
+    boot();
+  </script>
+</body>
+</html>
