@@ -6,10 +6,16 @@
   <title>UNALIGNED · Page not found</title>
   <script>
   (function () {
+    var host = String(location.hostname || '').toLowerCase();
+    var isCustom = host === 'agentdashboard.cloud' || host === 'www.agentdashboard.cloud';
     var path = String(location.pathname || '/').replace(/\/$/, '') || '/';
     var base = /^\/UNALIGNED(\/|$)/i.test(location.pathname || '/') ? '/UNALIGNED' : '';
     if (path === '/connect' || path === '/UNALIGNED/connect') {
       location.replace(base + '/connect/' + location.search + location.hash);
+      return;
+    }
+    if (isCustom) {
+      location.replace('/connect/' + location.search + location.hash);
     }
   })();
   </script>

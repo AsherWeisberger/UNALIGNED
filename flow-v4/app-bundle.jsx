@@ -1,5 +1,6 @@
-// Pages-hosted guard: public forms stay on GitHub Pages; ops dashboard redirects to Mac.
+// Pages-hosted guard: custom domain → public forms only; github.io → Mac ops host.
 const V4_EARLY_PAGES_HOSTS = new Set(['asherweisberger.github.io', 'agentdashboard.cloud', 'www.agentdashboard.cloud']);
+const V4_EARLY_CUSTOM_DOMAIN_HOSTS = new Set(['agentdashboard.cloud', 'www.agentdashboard.cloud']);
 const V4_EARLY_PUBLIC_PATHS = new Set([
   '/connect.html', '/feedback.html', '/scope.html', '/connect', '/feedback', '/scope', '/reach',
 ]);
@@ -20,10 +21,20 @@ function V4EarlyIsPublicRoute() {
   }
 }
 
+function V4EarlyShouldRedirectToConnect() {
+  try {
+    const host = String(window.location?.hostname || '').toLowerCase();
+    if (!V4_EARLY_CUSTOM_DOMAIN_HOSTS.has(host)) return false;
+    return !V4EarlyIsPublicRoute();
+  } catch (err) {
+    return false;
+  }
+}
+
 function V4EarlyShouldRedirectToMac() {
   try {
     const host = String(window.location?.hostname || '').toLowerCase();
-    if (!V4_EARLY_PAGES_HOSTS.has(host)) return false;
+    if (host !== 'asherweisberger.github.io') return false;
     if (/[?&]stay=github(?:&|$)/.test(String(window.location.search || ''))) return false;
     return !V4EarlyIsPublicRoute();
   } catch (err) {
@@ -31,14 +42,20 @@ function V4EarlyShouldRedirectToMac() {
   }
 }
 
-function V4EarlyRedirectToMac() {
-  if (!V4EarlyShouldRedirectToMac()) return false;
-  const path = String(window.location.pathname || '/').replace(/^\/UNALIGNED\/?/i, '/') || '/';
-  window.location.replace('https://mac-studio.tail50d3a2.ts.net' + path + window.location.search + window.location.hash);
-  return true;
+function V4EarlyRedirectAtBoot() {
+  if (V4EarlyShouldRedirectToConnect()) {
+    window.location.replace('/connect/' + window.location.search + window.location.hash);
+    return true;
+  }
+  if (V4EarlyShouldRedirectToMac()) {
+    const path = String(window.location.pathname || '/').replace(/^\/UNALIGNED\/?/i, '/') || '/';
+    window.location.replace('https://mac-studio.tail50d3a2.ts.net' + path + window.location.search + window.location.hash);
+    return true;
+  }
+  return false;
 }
 
-V4EarlyRedirectToMac();
+V4EarlyRedirectAtBoot();
 
 // tweaks-panel.jsx
 // Reusable Tweaks shell + form-control helpers.
@@ -5615,7 +5632,7 @@ function V3MoveLeadStage(lead, nextStage, leads = V3ActiveLeads()) {
 
 window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: [], TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_VISIBLE_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, CompanyOsQualifiedLead: V3CompanyOsQualifiedLead, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, NewLeadReason: V3NewLeadReason, ResolveReplyTone: V3ResolveReplyTone, ReplyToneLabel: V3ReplyToneLabel, NewLeadSourceKind: V3NewLeadSourceKind, NewLeadSourceLabel: V3NewLeadSourceLabel, NewLeadHandle: V3NewLeadHandle, NewLeadSummary: V3NewLeadSummary, NewLeadPrimaryIdentity: V3NewLeadPrimaryIdentity, LeadMatchesQuery: V3LeadMatchesQuery, PrunePendingReplies: V3PrunePendingReplies, MergePendingReplies: V3MergePendingReplies, ReloadLeads: V3ReloadLeads, XLeadRepliedViaX: V3XLeadRepliedViaX, MarkRepliedViaX: V3MarkRepliedViaX };
 
-if (!V4EarlyShouldRedirectToMac() && !V4EarlyIsPublicRoute()) {
+if (!V4EarlyShouldRedirectToConnect() && !V4EarlyShouldRedirectToMac() && !V4EarlyIsPublicRoute()) {
   V3LoadPricingTiers();
   V3LoadTeamUsers();
 
@@ -12933,7 +12950,7 @@ function V4IsPublicGithubPage() {
 }
 
 function V4MaybeRedirectToMachineHostedApp() {
-  return V4EarlyRedirectToMac();
+  return V4EarlyRedirectAtBoot();
 }
 
 function V4IsLocalBriefPage() {

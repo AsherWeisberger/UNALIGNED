@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>
+// Ops shell must not run on the public custom domain (or github.io without ?stay=github).
+(function () {
+  var host = String(location.hostname || '').toLowerCase();
+  var isCustom = host === 'agentdashboard.cloud' || host === 'www.agentdashboard.cloud';
+  if (isCustom) {
+    location.replace('/connect/' + location.search + location.hash);
+    return;
+  }
+  if (host === 'asherweisberger.github.io' && !/[?&]stay=github(?:&|$)/.test(location.search)) {
+    var path = String(location.pathname || '/').replace(/^\/UNALIGNED\/?/i, '/') || '/';
+    location.replace('https://mac-studio.tail50d3a2.ts.net' + path + location.search + location.hash);
+  }
+})();
+</script>
+<script>
+// Preload send token from the Mac before React boots — no paste prompt on Approve & send.
+(function () {
+  var KEY = 'v4_api_token';
+  try { if (localStorage.getItem(KEY)) return; } catch (e) {}
+  var host = String(location.hostname || '').toLowerCase();
+  var onPages = host === 'asherweisberger.github.io' || host === 'agentdashboard.cloud' || host === 'www.agentdashboard.cloud';
+  if (onPages && !/[?&]stay=github(?:&|$)/.test(location.search)) return;
+  var bases = [location.origin, 'https://mac-studio.tail50d3a2.ts.net', 'http://127.0.0.1:8767'];
+  var seen = {};
+  function tryNext(i) {
+    if (i >= bases.length) return;
+    var base = String(bases[i] || '').replace(/\/$/, '');
+    if (!base || seen[base]) return tryNext(i + 1);
+    seen[base] = 1;
+    fetch(base + '/send-email-token', { method: 'GET', cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        var t = d && d.token ? String(d.token).trim() : '';
+        if (t) { try { localStorage.setItem(KEY, t); } catch (e) {} return; }
+        tryNext(i + 1);
+      })
+      .catch(function () { tryNext(i + 1); });
+  }
+  tryNext(0);
+})();
+</script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>UNALIGNED — Operating System</title>
+
+<link rel="icon" href="favicon.ico" sizes="any" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&family=Press+Start+2P&display=swap" rel="stylesheet" />
+
+<link rel="stylesheet" href="flow-v4/styles.css?v=20260702-board-cache-v91" />
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body data-theme="light">
+
+<template id="__bundler_thumbnail">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <rect width="200" height="200" fill="#faf9f5"></rect>
+  <rect x="20" y="20" width="160" height="160" rx="20" fill="#15171c"></rect>
+  <text x="100" y="114" text-anchor="middle" fill="#faf9f5" font-family="Inter Tight, system-ui, sans-serif" font-size="28" font-weight="700" letter-spacing="2">UNALIGNED</text>
+  <text x="100" y="138" text-anchor="middle" fill="#1f8a5b" font-family="JetBrains Mono, monospace" font-size="12" letter-spacing="3">OPS</text>
+</svg>
+</template>
+
+<div id="root"></div>
+<div id="boot-status" style="display:none;position:fixed;inset:24px;z-index:99999;padding:18px 20px;border-radius:12px;background:#fff7ed;color:#7c2d12;border:1px solid #fdba74;font:14px/1.5 -apple-system,BlinkMacSystemFont,Inter,sans-serif;box-shadow:0 18px 50px rgba(0,0,0,.15);overflow:auto;white-space:pre-wrap"></div>
+
+<script>
+(() => {
+  const bootState = { errors: [] };
+  const bootEl = document.getElementById('boot-status');
+  const showBootMessage = (message) => {
+    if (!bootEl) return;
+    bootEl.style.display = 'block';
+    bootEl.textContent = message;
+  };
+
+  window.__alignedBootOk = false;
+  window.__alignedBootMarkReady = () => {
+    window.__alignedBootOk = true;
+    if (bootEl) bootEl.style.display = 'none';
+  };
+
+  window.addEventListener('error', (event) => {
+    const msg = event?.message || 'Unknown startup error';
+    const src = event?.filename ? '\n' + event.filename : '';
+    const line = event?.lineno ? ':' + event.lineno : '';
+    const col = event?.colno ? ':' + event.colno : '';
+    const detail = event?.error?.stack || '';
+    bootState.errors.push(msg + src + line + col + (detail ? '\n' + detail : ''));
+    showBootMessage('UNALIGNED dashboard hit a startup error.\n\n' + bootState.errors.join('\n\n'));
+  });
+
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = event?.reason;
+    const msg = typeof reason === 'string'
+      ? reason
+      : (reason && reason.message) || 'Unhandled promise rejection';
+    bootState.errors.push(msg);
+    showBootMessage('UNALIGNED dashboard hit a startup error.\n\n' + bootState.errors.join('\n\n'));
+  });
+
+  window.setTimeout(() => {
+    if (!window.__alignedBootOk && !(bootState.errors || []).length) {
+      showBootMessage('UNALIGNED dashboard did not finish loading. One of the scripts is not completing startup.\n\n(This can happen on first load because Babel is transpiling ~10k lines of JSX in the browser. Try hard refresh or wait a bit longer.)');
+    }
+  }, 15000);
+})();
+</script>
+
+<script>
+// Local Qwen on Mac Studio — same-origin on mac-studio.tail; localhost uses direct bridge.
+(function () {
+  const TAILSCALE_BASE = 'https://mac-studio.tail50d3a2.ts.net';
+  const LOCAL_BRIDGE = 'http://127.0.0.1:8787';
+  const LOCAL_BRIEF = 'http://127.0.0.1:8767';
+  const LLM_TIMEOUT_MS = 120000;
+
+  function isLocalPage() {
+    const host = String(window.location.hostname || '');
+    return window.location.protocol === 'file:' || host === 'localhost' || host === '127.0.0.1';
+  }
+
+  function isMachineHosted() {
+    return String(window.location.hostname || '').includes('mac-studio.tail');
+  }
+
+  function bridgeCandidates() {
+    if (window.__LOCAL_LLM_BRIDGE__) return [window.__LOCAL_LLM_BRIDGE__];
+    if (isMachineHosted()) return [window.location.origin];
+    if (!isLocalPage()) return [TAILSCALE_BASE];
+    return [LOCAL_BRIDGE, LOCAL_BRIEF, TAILSCALE_BASE];
+  }
+
+  async function fetchWithTimeout(url, options) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), LLM_TIMEOUT_MS);
+    try {
+      return await fetch(url, { ...options, signal: ctrl.signal });
+    } catch (err) {
+      if (err && err.name === 'AbortError') {
+        throw new Error('Timed out after ' + Math.round(LLM_TIMEOUT_MS / 1000) + 's. Qwen may still be running — try again.');
+      }
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async function bridgeFetch(path, options) {
+    const candidates = bridgeCandidates();
+    let lastErr = null;
+    for (const base of candidates) {
+      const url = base + path;
+      try {
+        const sameOrigin = isMachineHosted() && base === window.location.origin;
+        const resp = await fetchWithTimeout(url, {
+          ...options,
+          mode: sameOrigin ? 'same-origin' : 'cors',
+          credentials: 'omit',
+        });
+        window.claude.activeBase = base;
+        return { resp, base };
+      } catch (err) {
+        lastErr = err;
+        console.warn('[local-llm] fetch failed for', url, err && err.message ? err.message : err);
+      }
+    }
+    const target = candidates[0] || TAILSCALE_BASE;
+    const hint = isMachineHosted()
+      ? 'Mac Studio LLM unreachable at ' + target + path + '. Keep Ollama running and the brief service on port 8767.'
+      : isLocalPage()
+        ? 'Start scripts/active/local_llm_bridge.py or the brief server on this Mac.'
+        : 'Open https://mac-studio.tail50d3a2.ts.net/ops.html for Draft with AI.';
+    const detail = lastErr && lastErr.message ? ' (' + lastErr.message + ')' : '';
+    throw new Error(hint + detail);
+  }
+
+  window.claude = {
+    activeBase: null,
+    bridgeCandidates,
+    label() {
+      if (isMachineHosted()) return 'Mac Studio';
+      const base = window.claude.activeBase || bridgeCandidates()[0] || '';
+      if (base.includes('mac-studio')) return 'Mac Studio';
+      if (base.includes('127.0.0.1') || base.includes('localhost')) return 'This Mac';
+      return 'Local LLM';
+    },
+    async complete(prompt, options) {
+      const { resp, base } = await bridgeFetch('/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: String(prompt || ''),
+          max_tokens: (options && options.max_tokens) || 800,
+          num_ctx: options && options.num_ctx,
+        }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        throw new Error(data.error || data.message || ('Local LLM failed (' + resp.status + ')'));
+      }
+      return String(data.text || '').trim();
+    },
+    async health() {
+      try {
+        const { resp } = await bridgeFetch('/llm-health', { method: 'GET' });
+        if (resp.ok) return resp.json();
+        const fallback = await bridgeFetch('/health', { method: 'GET' });
+        return fallback.resp.ok ? fallback.resp.json() : null;
+      } catch (err) {
+        return null;
+      }
+    },
+  };
+})();
+</script>
+
+<script src="flow-v4/cube-theme-transition.js?v=20260701-liquid-1"></script>
+<script type="text/babel" src="flow-v4/app-bundle.jsx?v=20260702-board-cache-v91"></script>
+
+</body>
+</html>
