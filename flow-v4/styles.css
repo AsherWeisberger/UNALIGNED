@@ -18583,8 +18583,8 @@ body[data-theme="dark"] .cos2-body--queue .cos2-rail{display:none}
   body[data-theme="light"] .cos2-page--queue .cos2-list{width:100%;flex:1 1 auto;min-width:0}
 }
 
-/* Active board + strips — mobile pass */
-@media (max-width:640px){
+/* Active board + strips — tablet + phone (iPad portrait lands here at 768–820px) */
+@media (max-width:900px){
   /* Structure: ONE continuous feed. The list column itself is the only
      scroller — board, active strips, search, and replies flow as a single
      scroll so each section gets the full screen. Section headers and the

@@ -52,11 +52,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&family=Press+Start+2P&display=swap" rel="stylesheet" />
 
-<link rel="stylesheet" href="flow-v4/styles.css?v=20260703-desk-brief-link-v94" />
+<link rel="stylesheet" href="flow-v4/styles.css?v=20260703-ipad-fast-v96" />
 
-<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
-<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
 </head>
 <body data-theme="light">
 
@@ -107,11 +106,28 @@
     showBootMessage('UNALIGNED dashboard hit a startup error.\n\n' + bootState.errors.join('\n\n'));
   });
 
+  const bootIsTouch = typeof window !== 'undefined' && (
+    ('ontouchstart' in window) || (navigator.maxTouchPoints > 0)
+  );
+  const bootUsesBabel = /[?&]dev=1(?:&|$)/.test(String(location.search || ''));
+  const bootTimeoutMs = bootUsesBabel ? (bootIsTouch ? 120000 : 45000) : (bootIsTouch ? 45000 : 20000);
+
+  if (bootIsTouch && bootUsesBabel) {
+    window.setTimeout(() => {
+      if (!window.__alignedBootOk && !(bootState.errors || []).length) {
+        showBootMessage('Loading on tablet…\n\nFirst visit compiles the dashboard in Safari (can take 1–2 minutes). Keep this tab open.\n\nTip: reload without ?dev=1 to use the precompiled bundle (much faster).');
+      }
+    }, 8000);
+  }
+
   window.setTimeout(() => {
     if (!window.__alignedBootOk && !(bootState.errors || []).length) {
-      showBootMessage('UNALIGNED dashboard did not finish loading. One of the scripts is not completing startup.\n\n(This can happen on first load because Babel is transpiling ~10k lines of JSX in the browser. Try hard refresh or wait a bit longer.)');
+      const hint = bootUsesBabel
+        ? 'Babel is still compiling the dashboard in your browser. Hard refresh and wait, or open without ?dev=1 for the fast bundle.'
+        : 'Check your connection to the Mac Studio (Tailscale Funnel must be on). Try agentdashboard.cloud/ops';
+      showBootMessage('UNALIGNED dashboard did not finish loading.\n\n' + hint);
     }
-  }, 15000);
+  }, bootTimeoutMs);
 })();
 </script>
 
@@ -224,7 +240,38 @@
 </script>
 
 <script src="flow-v4/cube-theme-transition.js?v=20260701-liquid-1"></script>
-<script type="text/babel" src="flow-v4/app-bundle.jsx?v=20260703-team-ops-link-v95"></script>
+<script>
+(function () {
+  var dev = /[?&]dev=1(?:&|$)/.test(String(location.search || ''));
+  var v = '20260703-ipad-fast-v96';
+  if (dev) {
+    var babel = document.createElement('script');
+    babel.src = 'https://unpkg.com/@babel/standalone@7.29.0/babel.min.js';
+    babel.crossOrigin = 'anonymous';
+    babel.onload = function () {
+      var s = document.createElement('script');
+      s.type = 'text/babel';
+      s.src = 'flow-v4/app-bundle.jsx?v=' + v;
+      document.body.appendChild(s);
+    };
+    document.body.appendChild(babel);
+    return;
+  }
+  var s = document.createElement('script');
+  s.src = 'flow-v4/app-bundle.js?v=' + v;
+  s.onerror = function () {
+    var fallback = document.createElement('script');
+    fallback.type = 'text/babel';
+    fallback.src = 'flow-v4/app-bundle.jsx?v=' + v;
+    var babel = document.createElement('script');
+    babel.src = 'https://unpkg.com/@babel/standalone@7.29.0/babel.min.js';
+    babel.crossOrigin = 'anonymous';
+    babel.onload = function () { document.body.appendChild(fallback); };
+    document.body.appendChild(babel);
+  };
+  document.body.appendChild(s);
+})();
+</script>
 
 </body>
 </html>
