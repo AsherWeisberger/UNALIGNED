@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Rewrite _site/index.html to use precompiled JS instead of in-browser Babel.
+"""Rewrite _site/ops.html to use precompiled JS instead of in-browser Babel.
 
 Run after compiling the .jsx sources to .js (see .github/workflows/deploy-pages.yml).
-The repo's own index.html is untouched — local dev still uses Babel standalone.
+The repo's own ops.html is untouched — local dev still uses Babel standalone.
 
 - swaps React development UMD builds for production ones
 - drops the @babel/standalone script tag entirely
@@ -14,8 +14,11 @@ import sys
 from pathlib import Path
 
 site = Path(sys.argv[1] if len(sys.argv) > 1 else "_site")
-index = site / "index.html"
-html = index.read_text()
+ops = site / "ops.html"
+if not ops.is_file():
+    sys.exit("build_site.py: ops.html not found — dashboard shell moved out of index.html")
+
+html = ops.read_text()
 
 html = html.replace("react.development.js", "react.production.min.js")
 html = html.replace("react-dom.development.js", "react-dom.production.min.js")
@@ -29,12 +32,12 @@ compiled = re.sub(
     html,
 )
 if compiled == html:
-    sys.exit("build_site.py: no text/babel script tags found — index.html format changed?")
+    sys.exit("build_site.py: no text/babel script tags found — ops.html format changed?")
 html = compiled
 
 leftover = [l for l in html.splitlines() if "text/babel" in l or ".jsx" in l]
 if leftover:
     sys.exit(f"build_site.py: unrewritten jsx references remain: {leftover}")
 
-index.write_text(html)
-print("build_site.py: index.html rewritten for precompiled bundle")
+ops.write_text(html)
+print("build_site.py: ops.html rewritten for precompiled bundle")
