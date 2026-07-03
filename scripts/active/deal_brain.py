@@ -155,16 +155,40 @@ Return ONE strict JSON object, no markdown:
  "confidence":"high|medium|low"}"""
 
 
+BOOTSTRAP_SYSTEM = """You are the UNALIGNED Deal Brain bootstrapper. Read one sales/sponsorship
+email thread and DIAGNOSE the deal into a structured state file. Be strict and literal.
+Only record what the thread actually shows. Quote-level accuracy matters: if a rate,
+date, or scope was never explicitly accepted, do not mark it agreed.
+
+UNALIGNED context: Robert Scoble sponsorships. Tiers run $995 to $5,995. Payment is
+always collected before work goes live. Deliverables are things like retweets, quote
+reposts, custom X posts, threads, interviews, event coverage.
+
+Return ONE strict JSON object, no markdown:
+{"title":"short deal title",
+ "counterparty":{"agency":"...","contacts":["emails seen"],"end_brand":"brand being promoted or null"},
+ "agreement":{"signed":true|false,
+   "scope":"what was explicitly agreed, or 'Nothing agreed yet' ",
+   "total_usd":number|null,
+   "payments":[{"label":"...","amount":number,"due":"...","status":"paid|pending|failed|unknown"}]},
+ "scope_boundary":"one paragraph: the boundary future asks get checked against. If unsigned: 'No commitments until signed. Rates per pricing floors, payment upfront.'",
+ "deliverables":[{"id":"d1","title":"...","status":"...","notes":"..."}],
+ "open_items":[{"owed_by":"us|them","item":"...","since":"YYYY-MM-DD"}],
+ "confidential":["anything flagged internal/confidential in thread"],
+ "stage_read":"new|engaged|rates-sent|negotiating|invoice-sent|done|paid-out",
+ "evidence":["2-4 exact quotes that anchor the agreement/scope read"],
+ "confidence":"high|medium|low"}"""
+
 OLLAMA_CHAT_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434/api/chat")
 
 
-def llm_json(user: str) -> dict | None:
+def llm_json(user: str, system: str = SYSTEM) -> dict | None:
     """Native Ollama chat with format=json + think off — the same proven path as
     local_llm.ollama_chat (the OpenAI-compat endpoint leaks reasoning into content)."""
     try:
         r = requests.post(OLLAMA_CHAT_URL, json={
             "model": LOCAL_MODEL_NAME,
-            "messages": [{"role": "system", "content": SYSTEM},
+            "messages": [{"role": "system", "content": system},
                          {"role": "user", "content": user}],
             "stream": False,
             "think": False,
@@ -312,13 +336,84 @@ def run_deal(state_file: Path, dry_run: bool) -> int:
     return 0
 
 
+def bootstrap_deal(deal_id: str, thread_ids: list[str], force: bool) -> int:
+    """Have the AI diagnose a thread into a new deal_state file. The result is
+    marked verified:false — a human reviews it once, then the loop owns it."""
+    out_file = STATE_DIR / f"{deal_id}.json"
+    if out_file.exists() and not force:
+        print(f"refusing to overwrite existing {out_file} (use --force)")
+        return 1
+
+    msgs: list[dict] = []
+    for tid in thread_ids:
+        msgs.extend(fetch_thread(tid))
+    if not msgs:
+        print("no messages fetched — check thread ids / tokens")
+        return 1
+    msgs.sort(key=lambda m: m["ts_ms"])
+    print(f"— bootstrapping {deal_id} from {len(msgs)} messages")
+
+    # Diagnose in chunks so long threads fit the local context window; each pass
+    # refines the previous state (the same read-then-diff idea, applied to history).
+    CHUNK, BODY_CAP = 18, 1200
+    state_guess: dict | None = None
+    for i in range(0, len(msgs), CHUNK):
+        chunk = msgs[i:i + CHUNK]
+        rendered = "\n\n".join(f"[{m['date']}] {m['sender']}:\n{m['body'][:BODY_CAP]}" for m in chunk)
+        user = ""
+        if state_guess:
+            user += ("CURRENT STATE (from earlier messages — refine it, keep what still "
+                     "holds, update what changed):\n" + json.dumps(state_guess, indent=1) + "\n\n")
+        user += f"THREAD MESSAGES {i + 1}-{i + len(chunk)} of {len(msgs)} (oldest first):\n{rendered}"
+        result = llm_json(user, system=BOOTSTRAP_SYSTEM)
+        if result:
+            state_guess = result
+            print(f"  pass {i // CHUNK + 1}: ok (confidence {result.get('confidence')})")
+        else:
+            print(f"  pass {i // CHUNK + 1}: llm failed, keeping previous state")
+    if not state_guess:
+        print("bootstrap failed — no usable LLM output")
+        return 1
+
+    state = {
+        "deal_id": deal_id,
+        "verified": False,
+        "bootstrap_note": "AI-diagnosed from thread. REVIEW before trusting: agreement, totals, scope_boundary.",
+        **state_guess,
+        "gmail_thread_ids": thread_ids,
+        "log": [{"date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                 "event": "bootstrapped by deal_brain from thread history"}],
+        "last_processed": "",
+    }
+    STATE_DIR.mkdir(exist_ok=True)
+    out_file.write_text(json.dumps(state, indent=2))
+    print(f"  wrote {out_file}")
+    print("  REVIEW IT — check agreement/scope/payments, then set \"verified\": true.")
+    ev = state_guess.get("evidence") or []
+    if ev:
+        print("  evidence the AI anchored on:")
+        for q in ev[:4]:
+            print(f"    · {q}")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--deal", help="deal id (deal_state/<id>.json)")
     ap.add_argument("--all", action="store_true")
     ap.add_argument("--list", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--bootstrap", action="store_true",
+                    help="AI-diagnose a thread into a new deal_state file")
+    ap.add_argument("--threads", help="comma-separated gmail thread ids (for --bootstrap)")
+    ap.add_argument("--force", action="store_true", help="overwrite existing state on bootstrap")
     args = ap.parse_args()
+
+    if args.bootstrap:
+        if not args.deal or not args.threads:
+            print("usage: --bootstrap --deal <id> --threads tid1[,tid2]")
+            return 1
+        return bootstrap_deal(args.deal, [t.strip() for t in args.threads.split(",") if t.strip()], args.force)
 
     STATE_DIR.mkdir(exist_ok=True)
     files = sorted(STATE_DIR.glob("*.json"))
