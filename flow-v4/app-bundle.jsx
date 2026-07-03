@@ -5610,8 +5610,214 @@ async function V3PersistLeadStageRemote(lead, normalizedStage) {
   return { ok: true, card_id: newId, source: 'supabase-insert' };
 }
 
-function V3MoveLeadStage(lead, nextStage, leads = V3ActiveLeads()) {
+// ── Undo stack: reversible dashboard actions + delayed email send ──────────────
+const V4_UNDO_LOG_KEY = 'v4-action-log';
+const V4_UNDO_STACK_MAX = 12;
+const V4_UNDO_BAR_MS = 12000;
+const V4_EMAIL_SEND_DELAY_MS = 5000;
+
+const v4UndoStack = [];
+let v4UndoBarTimer = null;
+let v4PendingEmailSend = null;
+
+function V4UndoLeadLabel(lead) {
+  return String(lead?.brand || lead?.contactName || lead?.email || lead?.id || 'Lead').trim();
+}
+
+function V4UndoPersistLog(entry) {
+  try {
+    const prior = JSON.parse(window.localStorage.getItem(V4_UNDO_LOG_KEY) || '[]');
+    const list = Array.isArray(prior) ? prior : [];
+    list.unshift(entry);
+    window.localStorage.setItem(V4_UNDO_LOG_KEY, JSON.stringify(list.slice(0, 40)));
+  } catch (e) {}
+}
+
+function V4UndoReadLog() {
+  try {
+    const raw = JSON.parse(window.localStorage.getItem(V4_UNDO_LOG_KEY) || '[]');
+    return Array.isArray(raw) ? raw : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function V4UndoStageLabel(stage) {
+  const map = {
+    trash: 'Trash',
+    new: 'New',
+    'first-touch': 'Scoped',
+    engaged: 'Engaged',
+    'rates-sent': 'Rates sent',
+    negotiating: 'Negotiating',
+    'invoice-sent': 'Invoice sent',
+    done: 'Brief',
+    'paid-out': 'Closed',
+  };
+  return map[String(stage || '').toLowerCase()] || stage || 'stage';
+}
+
+function V4UndoPush({ label, detail, undo, leadId, leadBrand, action }) {
+  if (typeof undo !== 'function') return;
+  const item = {
+    id: 'undo-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+    label: String(label || 'Action'),
+    detail: String(detail || ''),
+    at: new Date().toISOString(),
+    undo,
+  };
+  v4UndoStack.unshift(item);
+  if (v4UndoStack.length > V4_UNDO_STACK_MAX) v4UndoStack.length = V4_UNDO_STACK_MAX;
+  V4UndoPersistLog({
+    id: item.id,
+    label: item.label,
+    detail: item.detail,
+    at: item.at,
+    leadId: leadId || null,
+    leadBrand: leadBrand || null,
+    action: action || 'unknown',
+    reversible: true,
+  });
+  if (v4UndoBarTimer) window.clearTimeout(v4UndoBarTimer);
+  v4UndoBarTimer = window.setTimeout(() => {
+    window.dispatchEvent(new CustomEvent('v4:undo-bar', { detail: { item: null } }));
+    v4UndoBarTimer = null;
+  }, V4_UNDO_BAR_MS);
+  window.dispatchEvent(new CustomEvent('v4:undo-bar', { detail: { item } }));
+}
+
+function V4UndoExecute() {
+  const item = v4UndoStack.shift();
+  if (!item || typeof item.undo !== 'function') return false;
+  try {
+    item.undo();
+    V4UndoPersistLog({
+      id: item.id,
+      label: 'Undid: ' + item.label,
+      detail: item.detail || '',
+      at: new Date().toISOString(),
+      action: 'undo',
+      reversible: false,
+    });
+  } catch (err) {
+    console.warn('[UNALIGNED] undo failed:', err);
+    window.dispatchEvent(new CustomEvent('v4:undo-bar', {
+      detail: { item: { label: 'Undo failed — refresh the board', detail: err?.message || String(err) } },
+    }));
+    return false;
+  }
+  const next = v4UndoStack[0] || null;
+  window.dispatchEvent(new CustomEvent('v4:undo-bar', { detail: { item: next } }));
+  return true;
+}
+
+function V4CancelPendingEmailSend() {
+  if (!v4PendingEmailSend) return false;
+  if (v4PendingEmailSend.timer) window.clearTimeout(v4PendingEmailSend.timer);
+  const label = v4PendingEmailSend.label || 'Email send';
+  v4PendingEmailSend.reject?.(new Error('Send cancelled'));
+  v4PendingEmailSend = null;
+  window.dispatchEvent(new CustomEvent('v4:email-send-scheduled', { detail: null }));
+  window.dispatchEvent(new CustomEvent('v4:undo-bar', {
+    detail: { item: { label: 'Send cancelled', detail: label } },
+  }));
+  if (v4UndoBarTimer) window.clearTimeout(v4UndoBarTimer);
+  v4UndoBarTimer = window.setTimeout(() => {
+    window.dispatchEvent(new CustomEvent('v4:undo-bar', { detail: { item: null } }));
+    v4UndoBarTimer = null;
+  }, 4000);
+  return true;
+}
+
+function V4UndoBar() {
+  const [item, setItem] = React.useState(null);
+  const [emailPending, setEmailPending] = React.useState(null);
+  const [logOpen, setLogOpen] = React.useState(false);
+  const [log, setLog] = React.useState(() => V4UndoReadLog());
+
+  React.useEffect(() => {
+    const onBar = (e) => setItem(e.detail?.item || null);
+    const onEmail = (e) => setEmailPending(e.detail || null);
+    const onKey = (e) => {
+      if (!(e.metaKey || e.ctrlKey) || String(e.key || '').toLowerCase() !== 'z') return;
+      const t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      e.preventDefault();
+      if (emailPending?.cancel) emailPending.cancel();
+      else V4UndoExecute();
+    };
+    window.addEventListener('v4:undo-bar', onBar);
+    window.addEventListener('v4:email-send-scheduled', onEmail);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('v4:undo-bar', onBar);
+      window.removeEventListener('v4:email-send-scheduled', onEmail);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [emailPending]);
+
+  const refreshLog = () => setLog(V4UndoReadLog());
+
+  if (!item && !emailPending && !logOpen) return null;
+
+  return (
+    <div className="v4-undo-layer" role="status" aria-live="polite">
+      {emailPending ? (
+        <div className="v4-undo-bar is-email">
+          <div className="v4-undo-copy">
+            <strong>{emailPending.label || 'Sending email…'}</strong>
+            <span>{emailPending.secondsLeft != null ? `Sending in ${emailPending.secondsLeft}s` : 'Sending…'}</span>
+          </div>
+          <button type="button" className="v4-undo-btn" onClick={() => emailPending.cancel?.()}>Undo send</button>
+        </div>
+      ) : null}
+      {item && !emailPending ? (
+        <div className="v4-undo-bar">
+          <div className="v4-undo-copy">
+            <strong>{item.label}</strong>
+            {item.detail ? <span>{item.detail}</span> : null}
+          </div>
+          <button type="button" className="v4-undo-btn" onClick={() => V4UndoExecute()}>Undo</button>
+          <button type="button" className="v4-undo-link" onClick={() => { refreshLog(); setLogOpen(true); }}>Recent</button>
+        </div>
+      ) : null}
+      {logOpen ? (
+        <div className="v4-undo-log">
+          <header className="v4-undo-log-hd">
+            <strong>Recent actions</strong>
+            <button type="button" className="v4-undo-link" onClick={() => setLogOpen(false)}>Close</button>
+          </header>
+          <ul className="v4-undo-log-list">
+            {log.slice(0, 12).map((row) => (
+              <li key={row.id + String(row.at)}>
+                <span className="v4-undo-log-label">{row.label}</span>
+                {row.leadBrand ? <span className="v4-undo-log-brand">{row.leadBrand}</span> : null}
+                <time className="v4-undo-log-when">{row.at ? new Date(row.at).toLocaleTimeString() : ''}</time>
+              </li>
+            ))}
+          </ul>
+          <p className="v4-undo-log-hint">Press ⌘Z to undo the last reversible action. Check Trash or Snoozed if a thread vanished from Active Gmail.</p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function V3MoveLeadStage(lead, nextStage, leads = V3ActiveLeads(), opts = {}) {
   const normalizedStage = V3NormalizeStage(nextStage);
+  const prevStage = String(lead?.stage || '').toLowerCase();
+  if (!opts.skipUndo && prevStage && prevStage !== normalizedStage) {
+    const snapshot = { ...lead };
+    const leadId = lead?.id;
+    V4UndoPush({
+      label: `${V4UndoLeadLabel(lead)} → ${V4UndoStageLabel(normalizedStage)}`,
+      detail: `Was ${V4UndoStageLabel(prevStage)}`,
+      leadId,
+      leadBrand: V4UndoLeadLabel(lead),
+      action: 'stage',
+      undo: () => V3MoveLeadStage(snapshot, prevStage, V3ActiveLeads(), { skipUndo: true }),
+    });
+  }
   const wasTrash = ['trash', 'dead-leads'].includes(String(lead?.stage || '').toLowerCase());
   const isTrash = ['trash', 'dead-leads'].includes(normalizedStage);
   if (isTrash && !wasTrash) {
@@ -8363,7 +8569,7 @@ function V4IsRobertHandoffApproval(lead) {
   return source.includes('robert imessage') || String(draft.kind || '').toLowerCase() === 'manual';
 }
 
-async function V4SendApprovedReply(lead, overrides = {}) {
+async function V4SendApprovedReplyNow(lead, overrides = {}) {
   if (!lead) throw new Error('No lead selected.');
   if (V4IsRobertHandoffApproval(lead)) {
     const draft = overrides.body || overrides.subject
@@ -8408,6 +8614,42 @@ async function V4SendApprovedReply(lead, overrides = {}) {
     detail: { leadId: lead.id, sender, subject: draft.subject, body: draft.body, to, cc },
   }));
   return { to, cc, subject: draft.subject };
+}
+
+async function V4SendApprovedReply(lead, overrides = {}) {
+  if (overrides.immediate || overrides._skipUndoDelay) {
+    return V4SendApprovedReplyNow(lead, overrides);
+  }
+  if (v4PendingEmailSend?.timer) {
+    window.clearTimeout(v4PendingEmailSend.timer);
+    v4PendingEmailSend.reject?.(new Error('Replaced by a new send'));
+  }
+  const label = `Email to ${V4UndoLeadLabel(lead)}`;
+  let secondsLeft = Math.ceil(V4_EMAIL_SEND_DELAY_MS / 1000);
+  const tick = () => {
+    window.dispatchEvent(new CustomEvent('v4:email-send-scheduled', {
+      detail: { label, secondsLeft, cancel: V4CancelPendingEmailSend },
+    }));
+  };
+  tick();
+  const countdown = window.setInterval(() => {
+    secondsLeft -= 1;
+    if (secondsLeft <= 0) window.clearInterval(countdown);
+    else tick();
+  }, 1000);
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(async () => {
+      window.clearInterval(countdown);
+      v4PendingEmailSend = null;
+      window.dispatchEvent(new CustomEvent('v4:email-send-scheduled', { detail: null }));
+      try {
+        resolve(await V4SendApprovedReplyNow(lead, overrides));
+      } catch (err) {
+        reject(err);
+      }
+    }, V4_EMAIL_SEND_DELAY_MS);
+    v4PendingEmailSend = { timer, reject, label };
+  });
 }
 
 // Shared ops_health binding: polls the singleton row, exposes resume() + halt().
@@ -14311,9 +14553,32 @@ async function V4RefreshAllData(opts = {}) {
   }
 }
 
-function V4CosPatchLead(lead, fields, localPatch) {
+function V4CosPatchLead(lead, fields, localPatch, opts = {}) {
   const id = lead?.rowId || lead?.id;
   if (!id) return;
+  if (!opts.skipUndo && fields && typeof fields === 'object') {
+    const prevRemote = {};
+    const prevLocal = {};
+    Object.keys(fields).forEach((key) => {
+      const camel = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+      prevRemote[key] = lead[key] ?? lead[camel];
+    });
+    if (localPatch && typeof localPatch === 'object') {
+      Object.keys(localPatch).forEach((key) => { prevLocal[key] = lead[key]; });
+    }
+    const snapshot = { ...lead };
+    V4UndoPush({
+      label: `Updated ${V4UndoLeadLabel(lead)}`,
+      detail: Object.keys(fields).join(', '),
+      leadId: lead.id,
+      leadBrand: V4UndoLeadLabel(lead),
+      action: 'patch',
+      undo: () => {
+        const current = (window.V3.LEADS || []).find((item) => String(item.id) === String(snapshot.id)) || snapshot;
+        V4CosPatchLead(current, prevRemote, prevLocal, { skipUndo: true });
+      },
+    });
+  }
   fetch(V3SupabaseRequestUrl('/rest/v1/cards?id=eq.' + encodeURIComponent(id)), {
     method: 'PATCH',
     headers: V3SupabaseRequestHeaders({ Prefer: 'return=minimal' }),
@@ -18786,31 +19051,82 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
   };
   const archive = () => {
     if (!selected) return;
+    const snap = selected;
     advanceFrom(selected);
-    window.V3.MoveLeadStage(selected, 'trash');
+    window.V3.MoveLeadStage(snap, 'trash');
   };
   // H — snooze until tomorrow 9am (or wake it from the Snoozed split)
   const snoozeSelected = () => {
     if (!selected) return;
+    const snap = selected;
+    const leadId = snap.id;
+    const prevUntil = snoozes[leadId] || null;
     advanceFrom(selected);
     if (split.id === 'snoozed') {
-      setSnoozes(s => { const copy = { ...s }; delete copy[selected.id]; return copy; });
+      setSnoozes(s => { const copy = { ...s }; delete copy[leadId]; return copy; });
+      V4UndoPush({
+        label: `Unsnoozed ${V4UndoLeadLabel(snap)}`,
+        detail: 'Back on the board',
+        leadId,
+        leadBrand: V4UndoLeadLabel(snap),
+        action: 'snooze',
+        undo: () => setSnoozes(s => ({ ...s, [leadId]: prevUntil })),
+      });
     } else {
       const until = new Date();
       until.setDate(until.getDate() + 1);
       until.setHours(9, 0, 0, 0);
-      setSnoozes(s => ({ ...s, [selected.id]: until.toISOString() }));
+      const iso = until.toISOString();
+      setSnoozes(s => ({ ...s, [leadId]: iso }));
+      V4UndoPush({
+        label: `Snoozed ${V4UndoLeadLabel(snap)}`,
+        detail: 'Until tomorrow 9am — check More → Snoozed',
+        leadId,
+        leadBrand: V4UndoLeadLabel(snap),
+        action: 'snooze',
+        undo: () => setSnoozes(s => {
+          const copy = { ...s };
+          if (prevUntil) copy[leadId] = prevUntil;
+          else delete copy[leadId];
+          return copy;
+        }),
+      });
     }
   };
   // U — toggle read state, backed by new_reply_at in Supabase
   const toggleRead = () => {
     if (!selected) return;
+    const snap = selected;
     if (selected.unread) {
-      V4CosPatchLead(selected, { new_reply_at: null }, { unread: false });
+      V4CosPatchLead(snap, { new_reply_at: null }, { unread: false, newReplyAt: null });
     } else {
       const ts = new Date().toISOString();
-      V4CosPatchLead(selected, { new_reply_at: ts }, { unread: true });
+      V4CosPatchLead(snap, { new_reply_at: ts }, { unread: true, newReplyAt: ts });
     }
+  };
+  const toggleActiveGmailCollapsed = () => {
+    setActiveGmailCollapsed((was) => {
+      const next = !was;
+      V4UndoPush({
+        label: next ? 'Collapsed Active Gmail' : 'Expanded Active Gmail',
+        detail: next ? 'Threads hidden — not deleted' : 'Threads visible again',
+        action: 'ui',
+        undo: () => setActiveGmailCollapsed(was),
+      });
+      return next;
+    });
+  };
+  const toggleActiveXCollapsed = () => {
+    setActiveXCollapsed((was) => {
+      const next = !was;
+      V4UndoPush({
+        label: next ? 'Collapsed Active X' : 'Expanded Active X',
+        detail: next ? 'Threads hidden — not deleted' : 'Threads visible again',
+        action: 'ui',
+        undo: () => setActiveXCollapsed(was),
+      });
+      return next;
+    });
   };
 
   React.useEffect(() => {
@@ -19085,7 +19401,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
                     selectedId={selected?.id}
                     onPick={pickActiveLead}
                     collapsed={activeGmailCollapsed}
-                    onToggle={() => setActiveGmailCollapsed(c => !c)}
+                    onToggle={toggleActiveGmailCollapsed}
                     eyebrow="Active Gmail"
                     subtitle="3-day threads · negotiating · in conversation"
                     ariaLabel="Active Gmail conversations"
@@ -19096,7 +19412,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
                     selectedId={selected?.id}
                     onPick={pickActiveLead}
                     collapsed={activeXCollapsed}
-                    onToggle={() => setActiveXCollapsed(c => !c)}
+                    onToggle={toggleActiveXCollapsed}
                     eyebrow="Active X"
                     subtitle="DM replies · waiting on them · 3 days"
                     ariaLabel="Active X conversations"
@@ -20150,6 +20466,7 @@ function V4App() {
       <V4HelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
       <V4Onboarding onDismiss={() => setView('company-os')} />
       <UnalignedCopilot leads={mergedLeads} />
+      <V4UndoBar />
 
       {/* Brief viewer modal */}
       {briefId && (

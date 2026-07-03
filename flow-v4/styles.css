@@ -18583,6 +18583,118 @@ body[data-theme="dark"] .cos2-body--queue .cos2-rail{display:none}
   body[data-theme="light"] .cos2-page--queue .cos2-list{width:100%;flex:1 1 auto;min-width:0}
 }
 
+/* Undo bar — reversible actions + delayed email send */
+.v4-undo-layer {
+  position: fixed;
+  left: 50%;
+  bottom: 72px;
+  transform: translateX(-50%);
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: min(520px, calc(100vw - 24px));
+  pointer-events: none;
+}
+.v4-undo-bar,
+.v4-undo-log {
+  pointer-events: auto;
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface-0, #fff) 92%, #111);
+  box-shadow: 0 18px 50px rgba(15, 18, 28, 0.18);
+}
+.v4-undo-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+}
+.v4-undo-bar.is-email {
+  border-color: color-mix(in srgb, var(--accent, #1d9bf0) 35%, var(--line));
+}
+.v4-undo-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.v4-undo-copy strong {
+  font: 600 13px/1.3 var(--font-body, system-ui, sans-serif);
+  color: var(--text, #111);
+}
+.v4-undo-copy span {
+  font: 500 11.5px/1.35 var(--font-body, system-ui, sans-serif);
+  color: var(--text-3, #667);
+}
+.v4-undo-btn {
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font: 700 12px/1 var(--font-body, system-ui, sans-serif);
+  background: var(--text, #111);
+  color: var(--surface-0, #fff);
+  cursor: pointer;
+}
+.v4-undo-btn:hover { opacity: 0.92; }
+.v4-undo-link {
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  font: 600 11px/1 var(--font-mono, monospace);
+  color: var(--text-3, #667);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.v4-undo-log {
+  padding: 12px 14px 10px;
+  max-height: 280px;
+  overflow: auto;
+}
+.v4-undo-log-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.v4-undo-log-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.v4-undo-log-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 10px;
+  font: 500 12px/1.35 var(--font-body, system-ui, sans-serif);
+}
+.v4-undo-log-label { color: var(--text, #111); }
+.v4-undo-log-brand {
+  grid-column: 1;
+  color: var(--text-3, #667);
+  font-size: 11px;
+}
+.v4-undo-log-when {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  font: 500 10px/1 var(--font-mono, monospace);
+  color: var(--text-3, #667);
+  white-space: nowrap;
+}
+.v4-undo-log-hint {
+  margin: 10px 0 0;
+  font: 500 11px/1.45 var(--font-body, system-ui, sans-serif);
+  color: var(--text-3, #667);
+}
+
 /* Active board + strips — tablet + phone (iPad portrait lands here at 768–820px) */
 @media (max-width:900px){
   /* Structure: ONE continuous feed. The list column itself is the only
