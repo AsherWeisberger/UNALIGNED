@@ -5,8 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>UNALIGNED</title>
 <script>
-// agentdashboard.cloud = public forms only (never ops, never Mac URL).
-// github.io legacy → Mac ops host unless ?stay=github (then ops.html).
+// agentdashboard.cloud = public forms only. Dashboard is Mac/Tailscale only (ops.html).
 (function () {
   var MAC_OPS = 'https://mac-studio.tail50d3a2.ts.net';
   var PUBLIC = {
@@ -19,24 +18,32 @@
     return p || '/';
   }
   function isPublic(path) { return !!PUBLIC[norm(path)]; }
+  function isMacOpsHost(host) {
+    return host.indexOf('mac-studio.tail') >= 0 || host === 'localhost' || host === '127.0.0.1';
+  }
   var host = String(location.hostname || '').toLowerCase();
   var isCustom = host === 'agentdashboard.cloud' || host === 'www.agentdashboard.cloud';
   var isGithub = host === 'asherweisberger.github.io';
   var stayGithub = /[?&]stay=github(?:&|$)/.test(location.search);
+  var path = String(location.pathname || '/');
+  var publicPath = isPublic(path);
 
   if (isCustom) {
-    if (!isPublic(location.pathname)) {
-      location.replace('/connect/' + location.search + location.hash);
-    }
+    if (!publicPath) location.replace('/connect/' + location.search + location.hash);
     return;
   }
-  if (isGithub && !stayGithub && !isPublic(location.pathname)) {
-    var path = String(location.pathname || '/').replace(/^\/UNALIGNED\/?/i, '/') || '/';
-    location.replace(MAC_OPS + path + location.search + location.hash);
+  if (isGithub && !stayGithub && !publicPath) {
+    var macPath = String(path || '/').replace(/^\/UNALIGNED\/?/i, '/') || '/';
+    location.replace(MAC_OPS + macPath + location.search + location.hash);
     return;
   }
-  var prefix = isGithub ? '/UNALIGNED' : '';
-  location.replace(prefix + '/ops.html' + location.search + location.hash);
+  if (isMacOpsHost(host) && !publicPath) {
+    location.replace('/ops.html' + location.search + location.hash);
+    return;
+  }
+  if (!publicPath) {
+    location.replace('/connect/' + location.search + location.hash);
+  }
 })();
 </script>
 </head>
