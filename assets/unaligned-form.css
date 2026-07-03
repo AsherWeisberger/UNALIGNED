@@ -88,12 +88,14 @@ html { background: var(--ua-bg); }
   height: auto;
   position: relative;
   z-index: 2;
-  /* transparent PNG: glow follows the letter shapes, no box */
+  /* embossed letters: light top rim + dark bottom rim = raised depth,
+     soft cast shadow for lift, gentle glow so they come off the black */
   filter:
-    drop-shadow(0 0 7px rgba(255, 255, 255, 0.5))
-    drop-shadow(0 0 20px rgba(255, 255, 255, 0.3))
-    drop-shadow(0 0 44px rgba(255, 255, 255, 0.15));
-  opacity: 0.98;
+    drop-shadow(0 -1px 0 rgba(255, 255, 255, 0.6))
+    drop-shadow(0 1px 0 rgba(0, 0, 0, 0.92))
+    drop-shadow(0 5px 12px rgba(0, 0, 0, 0.85))
+    drop-shadow(0 0 16px rgba(255, 255, 255, 0.16));
+  opacity: 1;
   animation: ua-logo-breathe 6s ease-in-out infinite;
 }
 
