@@ -14,6 +14,10 @@
       location.replace(base + '/connect/' + location.search + location.hash);
       return;
     }
+    if (path === '/ops' || path === '/UNALIGNED/ops') {
+      location.replace(base + '/ops/' + location.search + location.hash);
+      return;
+    }
     if (isCustom) {
       location.replace('/connect/' + location.search + location.hash);
     }

@@ -178,7 +178,7 @@
       ? 'Mac Studio LLM unreachable at ' + target + path + '. Keep Ollama running and the brief service on port 8767.'
       : isLocalPage()
         ? 'Start scripts/active/local_llm_bridge.py or the brief server on this Mac.'
-        : 'Open https://mac-studio.tail50d3a2.ts.net/ops.html for Draft with AI.';
+        : 'Open https://agentdashboard.cloud/ops for Draft with AI.';
     const detail = lastErr && lastErr.message ? ' (' + lastErr.message + ')' : '';
     throw new Error(hint + detail);
   }
@@ -224,7 +224,7 @@
 </script>
 
 <script src="flow-v4/cube-theme-transition.js?v=20260701-liquid-1"></script>
-<script type="text/babel" src="flow-v4/app-bundle.jsx?v=20260703-desk-brief-link-v94"></script>
+<script type="text/babel" src="flow-v4/app-bundle.jsx?v=20260703-team-ops-link-v95"></script>
 
 </body>
 </html>

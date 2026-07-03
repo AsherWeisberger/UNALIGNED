@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>UNALIGNED · Opening dashboard</title>
+  <script>
+  // Team bookmark: agentdashboard.cloud/ops → Mac Studio dashboard (Tailscale Funnel).
+  (function () {
+    var MAC_OPS = 'https://mac-studio.tail50d3a2.ts.net';
+    var target = MAC_OPS + '/ops.html' + location.search + location.hash;
+    location.replace(target);
+  })();
+  </script>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font: 500 15px/1.5 system-ui, sans-serif;
+      color: #e4e4e7;
+      background: #09090b;
+      padding: 24px;
+    }
+    a { color: #93c5fd; }
+  </style>
+</head>
+<body>
+  <p>Opening UNALIGNED dashboard…</p>
+  <p><a id="fallback" href="#">Click here</a> if you are not redirected.</p>
+  <script>
+    document.getElementById('fallback').href =
+      'https://mac-studio.tail50d3a2.ts.net/ops.html' + location.search + location.hash;
+  </script>
+</body>
+</html>

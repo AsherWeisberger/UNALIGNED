@@ -12968,6 +12968,7 @@ const V4_PUBLIC_GITHUB_PAGES = new Set([
 
 const V4_PUBLIC_FORM_BASE = 'https://asherweisberger.github.io/UNALIGNED';
 const V4_PUBLIC_CONNECT_URL = 'https://agentdashboard.cloud/connect';
+const V4_TEAM_OPS_LINK = 'https://agentdashboard.cloud/ops';
 
 function V4PublicFormBase() {
   return typeof V4PublicSiteBase === 'function' ? V4PublicSiteBase() : V4_PUBLIC_FORM_BASE;
@@ -16618,11 +16619,11 @@ function V4CosDeskIntakePage() {
           <span className="cos-eyebrow">Robert&apos;s desk</span>
           <h2 className="cos-desk-intake-hero-title">Public team intake</h2>
           <p className="cos-desk-intake-hero-sub">
-            Share the link below — not your browser URL. It opens the public form at <strong>agentdashboard.cloud/connect</strong>. Submissions post to Firebase and land here. The root domain redirects private ops traffic to your Mac; only <code>/connect</code> stays public on Pages.
+            Public intake: <strong>agentdashboard.cloud/connect</strong> (share on X). Team dashboard bookmark: <strong>agentdashboard.cloud/ops</strong> — opens this board on the Mac. Do not share the <code>mac-studio.tail</code> URL.
           </p>
           {onMacOps ? (
             <p className="cos-desk-intake-warn">
-              You are on the private ops host. Copy the public link — do not share anything with <code>mac-studio.tail</code> in it.
+              Bookmark <code>{V4_TEAM_OPS_LINK}</code> for next time instead of this long Tailscale URL.
             </p>
           ) : null}
           <div className="cos-desk-intake-link-row">
