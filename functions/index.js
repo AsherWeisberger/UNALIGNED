@@ -764,6 +764,19 @@ function deskPhone(value) {
   return deskCleanText(value, 40).replace(/[^\d+().\-\s]/g, '').trim();
 }
 
+function deskUrl(value) {
+  let raw = deskCleanText(value, 500);
+  if (!raw) return '';
+  if (!/^https?:\/\//i.test(raw)) raw = `https://${raw}`;
+  try {
+    const parsed = new URL(raw);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return '';
+    return parsed.toString().slice(0, 500);
+  } catch (_) {
+    return '';
+  }
+}
+
 function deskIntakeUnavailableDetail(status, detail) {
   const text = String(detail || '');
   if (status >= 500 || text.includes('522') || text.includes('Connection timed out')) {
@@ -862,6 +875,10 @@ function normalizeDeskSubmission(body = {}) {
 
   if (!message || message.length < 12) return { error: 'Tell us a bit more (at least a sentence)' };
 
+  const briefLinkRaw = deskCleanText(body.brief_link || body.briefLink || body.brief_url || body.briefUrl, 500);
+  const briefLink = briefLinkRaw ? deskUrl(briefLinkRaw) : '';
+  if (briefLinkRaw && !briefLink) return { error: 'Enter a valid brief link (http or https)' };
+
   const storedContactDetail = contactPreference === 'email'
     ? email
     : contactPreference === 'x'
@@ -889,6 +906,7 @@ function normalizeDeskSubmission(body = {}) {
         company,
         first_name: firstName,
         last_name: lastName,
+        brief_link: briefLink,
         submitted_from: deskCleanText(body.source, 40) || 'connect_form',
       },
     },

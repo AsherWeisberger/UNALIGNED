@@ -17,7 +17,7 @@
   <link rel="canonical" href="https://agentdashboard.cloud/connect" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>UNALIGNED · Reach Robert's team</title>
-  <!-- form build: 20260702-agentdashboard-connect-v1 -->
+  <!-- form build: 20260703-agentdashboard-connect-brief-link-v1 -->
   <meta name="description" content="Share your idea with Robert Scoble's team. We read everything and route the best fits to Robert's desk." />
   <!-- Open Graph / link preview (solid black card) -->
   <meta property="og:type" content="website" />
@@ -129,6 +129,7 @@
       contact_detail: '',
       contact_preference: '',
       topic_type: '',
+      brief_link: '',
       message: '',
       company_website: '',
     };
@@ -263,6 +264,13 @@
 
       form.appendChild(choiceField('topic_type', 'What do you want to talk about?', TOPICS));
 
+      form.appendChild(textField('brief_link', 'Brief link', {
+        type: 'url',
+        placeholder: 'https://notion.so/… or docs.google.com/…',
+        hint: 'Optional — for collaborations, sponsorships, or partnerships. Paste a link to your brief, deck, or one-pager.',
+        autocomplete: 'off',
+      }));
+
       const msg = el('div', { className: 'field' });
       msg.appendChild(el('label', { text: 'Tell us a bit more *' }));
       const msgTa = el('textarea', { placeholder: 'What are you building, proposing, or excited about? A few sentences is plenty.' });
@@ -288,6 +296,9 @@
         status.textContent = '';
         submit.disabled = true;
         try {
+          if (state.brief_link && !/^https?:\/\/.+/i.test(state.brief_link)) {
+            throw new Error('Brief link must start with http:// or https://');
+          }
           const payload = {
             company: state.company,
             first_name: state.first_name,
@@ -297,6 +308,7 @@
             contact_preference: state.contact_preference,
             contact_detail: state.contact_detail,
             topic_type: state.topic_type,
+            brief_link: state.brief_link,
             message: state.message,
             company_website: state.company_website,
             referrer: document.referrer || '',

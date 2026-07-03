@@ -5491,6 +5491,28 @@ a.cos-desk-intake-copy:hover {
   padding: 0 14px 14px;
   border-top: 1px solid var(--line);
 }
+.cos-desk-intake-brief-pill {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+.cos-desk-intake-brief-link {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--muted);
+  word-break: break-all;
+}
+.cos-desk-intake-brief-link a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 .cos-desk-intake-message {
   margin: 12px 0;
   font: 500 13px/1.55 var(--font-body);
@@ -13554,7 +13576,7 @@ body[data-theme="light"] .cos2-split.is-active .cos2-split-cnt {
 }
 
 body[data-theme="light"] .cos2-list {
-  width: 340px;
+  width: 368px;
   flex-shrink: 0;
   border-right: 1px solid var(--line);
   background: var(--surface-0);
@@ -14824,6 +14846,85 @@ body[data-theme="light"] .gmail-msg-text {
   word-break: break-word;
   max-width: none;
   width: 100%;
+}
+
+.gmail-msg-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(60, 64, 67, 0.18);
+}
+
+.gmail-msg-attach {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(60, 64, 67, 0.16);
+  background: rgba(60, 64, 67, 0.04);
+  color: inherit;
+  text-decoration: none;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.gmail-msg-attach.is-pricing {
+  border-color: rgba(47, 95, 214, 0.28);
+  background: rgba(47, 95, 214, 0.06);
+}
+
+.gmail-msg-attach-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 280px;
+}
+
+.gmail-msg-attach-meta {
+  color: rgba(60, 64, 67, 0.72);
+  white-space: nowrap;
+}
+
+.gmail-msg-attach-open {
+  margin-left: 2px;
+  font-weight: 600;
+  color: #2f5fd6;
+}
+
+.gmail-msg-attach-gmail {
+  font-size: 12px;
+  font-weight: 600;
+  color: #2f5fd6;
+  text-decoration: none;
+}
+
+body[data-theme="dark"] .gmail-msg-attachments {
+  border-top-color: rgba(255, 255, 255, 0.12);
+}
+
+body[data-theme="dark"] .gmail-msg-attach {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+body[data-theme="dark"] .gmail-msg-attach.is-pricing {
+  border-color: rgba(122, 162, 255, 0.35);
+  background: rgba(122, 162, 255, 0.08);
+}
+
+body[data-theme="dark"] .gmail-msg-attach-meta {
+  color: var(--text-3);
+}
+
+body[data-theme="dark"] .gmail-msg-attach-open,
+body[data-theme="dark"] .gmail-msg-attach-gmail {
+  color: #7aa2ff;
 }
 
 body[data-theme="light"] .gmail-reply-slot {
@@ -16205,7 +16306,7 @@ body[data-theme="dark"] .cos2-split::before { content: none; }
 body[data-theme="dark"] .cos2-split.is-active::before { content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0; }
 body[data-theme="dark"] .cos2-split.is-active { font-weight: 450; }
 body[data-theme="dark"] .cos2-split-cnt { font-family: var(--font-mono); font-size: 11px; padding: 0; border-radius: 0; }
-body[data-theme="dark"] .cos2-list { width: 340px; flex-shrink: 0; display: flex; flex-direction: column; overflow: hidden; }
+body[data-theme="dark"] .cos2-list { width: 368px; flex-shrink: 0; display: flex; flex-direction: column; overflow: hidden; }
 body[data-theme="dark"] .v6-list-head,
 body[data-theme="dark"] .brief-mode-header { padding: 20px 20px 18px; display: flex; flex-direction: column; align-items: stretch; margin: 0; gap: 14px; }
 body[data-theme="dark"] .brief-mode-eyebrow { font-size: 10px; letter-spacing: 0.18em; font-family: var(--font-mono); text-transform: uppercase; }
@@ -17919,7 +18020,7 @@ body[data-theme="light"] .cos2-body--panel{display:flex;min-height:0;flex:1}
 body[data-theme="light"] .cos2-body--panel .cos2-main-scroll{flex:1;min-height:0;overflow:auto;padding:12px 16px 24px}
 body[data-theme="dark"] .cos2-body--panel{display:flex;min-height:0;flex:1}
 body[data-theme="dark"] .cos2-body--panel .cos2-main-scroll{flex:1;min-height:0;overflow:auto;padding:12px 16px 24px}
-body[data-theme="light"] .cos2-page--queue .cos2-list{width:320px;flex-shrink:0}
+body[data-theme="light"] .cos2-page--queue .cos2-list{width:368px;flex-shrink:0}
 .cos2-top--pulse{align-items:center;gap:16px;padding:12px 20px}
 .cos2-pulse{flex:1;min-width:0;display:flex;align-items:center;flex-wrap:wrap;gap:4px;font-size:14px;color:var(--text-2)}
 .cos2-pulse-part{border:0;background:transparent;padding:0;color:inherit;font:inherit;font-weight:600;cursor:pointer;text-decoration:underline;text-decoration-color:transparent}
@@ -17929,22 +18030,48 @@ body[data-theme="light"] .cos2-page--queue .cos2-list{width:320px;flex-shrink:0}
 .cos2-pulse--inline{flex:0 1 auto;min-width:0;max-width:280px;font-size:12px}
 .cos2-top--stats .cos2-pulse--inline{margin-left:4px;padding-left:12px;border-left:1px solid var(--line)}
 .cos-list-toolbar{
-  display:flex;flex-direction:column;align-items:stretch;gap:8px;
-  padding:10px 12px;border-bottom:1px solid var(--line);flex-shrink:0;
-  overflow:visible;
+  display:flex;flex-direction:column;align-items:stretch;gap:0;
+  padding:16px 16px 14px;border-bottom:1px solid var(--line);flex-shrink:0;
+  overflow:visible;background:var(--surface-0);
 }
+.cos-list-toolbar-section--queues{
+  padding-bottom:14px;margin-bottom:14px;
+  border-bottom:1px solid color-mix(in srgb,var(--line) 85%,transparent);
+}
+.cos-list-toolbar-section--source{width:100%}
 .cos-queue-toolbar-row{
-  display:flex;align-items:center;gap:6px;min-width:0;overflow:visible;
+  display:flex;align-items:flex-start;gap:10px;min-width:0;overflow:visible;
 }
-.cos-list-toolbar .cos-source-seg{margin-left:0;align-self:flex-start}
+.cos-list-toolbar .cos-source-seg{margin-left:0;align-self:stretch;width:100%}
 .cos-list-toolbar .cos-queue-bar{
-  flex:1;min-width:0;padding:0;border:0;gap:6px;
-  display:flex;flex-wrap:nowrap;overflow-x:auto;overflow-y:visible;
-  scrollbar-width:none;-webkit-overflow-scrolling:touch;
+  flex:1;min-width:0;padding:0;border:0;gap:8px;
+  display:flex;flex-wrap:wrap;overflow:visible;
 }
-.cos-list-toolbar .cos-queue-bar::-webkit-scrollbar{display:none}
-.cos-list-toolbar .cos-queue-pill{flex-shrink:0;padding:6px 10px;font-size:11px}
-.cos-list-toolbar .cos-more-wrap{margin-left:0;flex-shrink:0}
+.cos-list-toolbar .cos-queue-pill{
+  flex-shrink:0;padding:9px 14px;font-size:12px;gap:8px;min-height:38px;
+  border-radius:12px;
+}
+.cos-list-toolbar .cos-queue-pill-label{line-height:1.1}
+.cos-list-toolbar .cos-queue-pill-cnt{
+  font-size:11px;font-weight:700;line-height:1;
+  padding:3px 8px;border-radius:999px;
+  background:color-mix(in srgb,var(--text-3) 14%,transparent);
+  opacity:1;font-variant-numeric:tabular-nums;
+}
+.cos-list-toolbar .cos-queue-pill.is-active .cos-queue-pill-cnt{
+  background:color-mix(in srgb,var(--accent) 20%,transparent);
+  color:var(--accent-deep,var(--accent));
+}
+.cos-list-toolbar .cos-source-seg-btn{
+  flex:1;justify-content:center;min-height:36px;padding:0 12px;gap:7px;
+  font-size:11px;letter-spacing:.07em;border-radius:8px;
+}
+.cos-list-toolbar .cos-source-seg-cnt{
+  font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;
+  background:color-mix(in srgb,currentColor 12%,transparent);opacity:1;
+}
+.cos-list-toolbar .cos-more-wrap{margin-left:0;flex-shrink:0;align-self:flex-start}
+.cos-list-toolbar .cos-queue-pill--more{min-width:64px;justify-content:center}
 .cos-active-strip-stack{
   flex-shrink:0;display:flex;flex-direction:column;
   border-bottom:1px solid var(--line);
@@ -18282,7 +18409,7 @@ body[data-theme="light"] .cos2-page--queue .cos2-list{width:320px;flex-shrink:0}
 .cos-list-section-hd[data-section='stale-intake']{color:var(--text-3)}
 .cos-source-seg{
   display:inline-flex;align-items:stretch;flex-shrink:0;
-  padding:2px;border-radius:8px;
+  padding:3px;border-radius:10px;
   border:1px solid var(--line);background:var(--surface-1);
 }
 .cos-source-seg-btn{
@@ -18529,18 +18656,20 @@ body[data-theme="dark"] .cos2-body--queue .cos2-rail{display:none}
   .cos2-top.cos2-top--stats .cos2-stat-lbl{font-size:8.5px;letter-spacing:.12em;white-space:nowrap}
   .cos2-top.cos2-top--stats .cos2-stat-num{font-size:18px}
 
-  /* Queue pills (Send / Chase / Watch / More) — same fade + snap treatment */
+  /* Queue pills — horizontal scroll only on narrow screens */
   .cos-list-toolbar .cos-queue-bar{
-    padding-right:24px;
+    flex-wrap:nowrap;overflow-x:auto;overflow-y:visible;
+    padding-right:20px;scrollbar-width:none;
     scroll-snap-type:x proximity;
     -webkit-mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 22px),transparent 100%);
     mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 22px),transparent 100%);
   }
-  .cos-list-toolbar .cos-queue-pill{scroll-snap-align:start;min-height:30px}
+  .cos-list-toolbar .cos-queue-bar::-webkit-scrollbar{display:none}
+  .cos-list-toolbar .cos-queue-pill{scroll-snap-align:start;min-height:36px}
 
   /* Source tabs (ALL / X / GMAIL) — full-width segmented control */
   .cos-list-toolbar .cos-source-seg{align-self:stretch;display:flex}
-  .cos-list-toolbar .cos-source-seg-btn{flex:1;justify-content:center;min-height:28px}
+  .cos-list-toolbar .cos-source-seg-btn{flex:1;justify-content:center;min-height:34px}
 
   /* Search row — drop the desktop "/" shortcut hint */
   .cos2-list-search-kbd{display:none}

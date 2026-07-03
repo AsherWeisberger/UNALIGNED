@@ -16540,6 +16540,11 @@ function V4DeskIntakeCompany(row) {
   return String(responses.company || '').trim();
 }
 
+function V4DeskIntakeBriefLink(row) {
+  const responses = row?.responses && typeof row.responses === 'object' ? row.responses : {};
+  return String(responses.brief_link || responses.briefLink || responses.brief_url || responses.briefUrl || '').trim();
+}
+
 function V4DeskIntakeContactDetail(row) {
   const pref = String(row?.contact_preference || '').toLowerCase();
   const responses = row?.responses && typeof row.responses === 'object' ? row.responses : {};
@@ -16708,6 +16713,9 @@ function V4CosDeskIntake() {
               <span className="cos-desk-intake-handle">{V4DeskIntakeContactDetail(row)}</span>
             ) : null}
             <span className="cos-desk-intake-topic">{V4DeskIntakeTopicLabel(row.topic_type)}</span>
+            {V4DeskIntakeBriefLink(row) ? (
+              <span className="cos-desk-intake-brief-pill">Brief</span>
+            ) : null}
           </div>
           <div className="cos-desk-intake-row-meta">
             <span className={'cos-desk-intake-pill is-' + V4DeskIntakeStatusTone(row.status)}>{row.status || 'new'}</span>
@@ -16718,6 +16726,14 @@ function V4CosDeskIntake() {
         {open ? (
           <div className="cos-desk-intake-row-body">
             {row.message ? <p className="cos-desk-intake-message">{row.message}</p> : null}
+            {V4DeskIntakeBriefLink(row) ? (
+              <p className="cos-desk-intake-brief-link">
+                Brief{' '}
+                <a href={V4DeskIntakeBriefLink(row)} target="_blank" rel="noopener noreferrer">
+                  {V4DeskIntakeBriefLink(row)}
+                </a>
+              </p>
+            ) : null}
             <div className="cos-desk-intake-contact-grid">
               {V4DeskIntakeCompany(row) ? (
                 <span>Company <strong>{V4DeskIntakeCompany(row)}</strong></span>
