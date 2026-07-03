@@ -832,10 +832,22 @@ function V6CompanyOsBoot({ onDone }) {
 }
 
 function V4AppRoot() {
-  const skipBoot = React.useMemo(() => /[?&]nosplash(?:=1)?(?:&|$)/.test(window.location.search), []);
+  const skipBoot = React.useMemo(() => {
+    if (/[?&]nosplash(?:=1)?(?:&|$)/.test(window.location.search)) return true;
+    try { return window.sessionStorage.getItem('v6_boot_done') === '1'; } catch (e) { return false; }
+  }, []);
   const [ready, setReady] = React.useState(skipBoot);
 
-  const finishBoot = React.useCallback(() => setReady(true), []);
+  const finishBoot = React.useCallback(() => {
+    try { window.sessionStorage.setItem('v6_boot_done', '1'); } catch (e) {}
+    setReady(true);
+  }, []);
+
+  React.useEffect(() => {
+    const skip = () => finishBoot();
+    window.addEventListener('v4:skip-boot', skip);
+    return () => window.removeEventListener('v4:skip-boot', skip);
+  }, [finishBoot]);
 
   return (
     <>
@@ -4646,10 +4658,16 @@ const V3_STAGES = [
   { id: 'negotiating', name: 'Negotiating',  color: 'var(--st-nego)',    short: 'NEGOTIATING' },
   { id: 'invoice-sent',name: 'Payment / terms', color: 'var(--st-invoice)', short: 'PAYMENT / TERMS' },
   { id: 'trash',       name: 'Trash',        color: 'var(--text-4)',     short: 'TRASH' },
+  { id: 'dead-leads',  name: 'Dead leads',   color: 'var(--text-4)',     short: 'DEAD' },
   { id: 'done',        name: 'Brief / calendar', color: 'var(--st-booked)',  short: 'BRIEF / CALENDAR' },
   { id: 'paid-out',    name: 'Closed',       color: 'var(--st-paid)',    short: 'CLOSED' },
 ];
 const V3_STAGE_BY_ID = Object.fromEntries(V3_STAGES.map(s => [s.id, s]));
+
+function V3StageDef(stageId) {
+  const id = String(stageId || 'new').toLowerCase();
+  return V3_STAGE_BY_ID[id] || V3_STAGE_BY_ID.new;
+}
 const V3_ACTIVE_STAGE_IDS = ['new','first-touch','engaged','rates-sent','negotiating','invoice-sent','done','paid-out'];
 const V3_BOARD_STAGE_IDS = ['new','first-touch','engaged','rates-sent','negotiating','invoice-sent','trash','done','paid-out'];
 const V3_TRASH_STAGE_IDS = ['trash', 'dead-leads'];
@@ -5862,7 +5880,7 @@ function V3MoveLeadStage(lead, nextStage, leads = V3ActiveLeads(), opts = {}) {
     });
 }
 
-window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: [], TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_VISIBLE_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, CompanyOsQualifiedLead: V3CompanyOsQualifiedLead, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, NewLeadReason: V3NewLeadReason, ResolveReplyTone: V3ResolveReplyTone, ReplyToneLabel: V3ReplyToneLabel, NewLeadSourceKind: V3NewLeadSourceKind, NewLeadSourceLabel: V3NewLeadSourceLabel, NewLeadHandle: V3NewLeadHandle, NewLeadSummary: V3NewLeadSummary, NewLeadPrimaryIdentity: V3NewLeadPrimaryIdentity, LeadMatchesQuery: V3LeadMatchesQuery, PrunePendingReplies: V3PrunePendingReplies, MergePendingReplies: V3MergePendingReplies, ReloadLeads: V3ReloadLeads, XLeadRepliedViaX: V3XLeadRepliedViaX, MarkRepliedViaX: V3MarkRepliedViaX };
+window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, StageDef: V3StageDef, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: [], TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_VISIBLE_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, CompanyOsQualifiedLead: V3CompanyOsQualifiedLead, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, NewLeadReason: V3NewLeadReason, ResolveReplyTone: V3ResolveReplyTone, ReplyToneLabel: V3ReplyToneLabel, NewLeadSourceKind: V3NewLeadSourceKind, NewLeadSourceLabel: V3NewLeadSourceLabel, NewLeadHandle: V3NewLeadHandle, NewLeadSummary: V3NewLeadSummary, NewLeadPrimaryIdentity: V3NewLeadPrimaryIdentity, LeadMatchesQuery: V3LeadMatchesQuery, PrunePendingReplies: V3PrunePendingReplies, MergePendingReplies: V3MergePendingReplies, ReloadLeads: V3ReloadLeads, XLeadRepliedViaX: V3XLeadRepliedViaX, MarkRepliedViaX: V3MarkRepliedViaX };
 
 if (!V4EarlyShouldRedirectToConnect() && !V4EarlyShouldRedirectToMac() && !V4EarlyIsPublicRoute()) {
   V3LoadPricingTiers();
@@ -7528,7 +7546,7 @@ function V3PartnerFeedbackProfile({ lead }) {
   const [linkUrl, setLinkUrl] = React.useState('');
   const cardId = String(lead?.id || '').trim();
   const canLink = /^\d+$/.test(cardId);
-  const showWrapUp = ['done', 'paid-out'].includes(lead?.stage);
+  const showWrapUp = ['invoice-sent', 'done', 'paid-out'].includes(lead?.stage);
 
   React.useEffect(() => {
     let active = true;
@@ -7598,8 +7616,16 @@ function V3PartnerFeedbackProfile({ lead }) {
       {showWrapUp && !canLink ? (
         <p className="partner-fb-profile-note">This lead is not on a Supabase card yet, so feedback cannot auto-link. Use the script with --brand and --contact.</p>
       ) : null}
+      {pending.length && !linkUrl ? (
+        <p className="partner-fb-profile-link">
+          <code>{V4FeedbackInviteUrl(pending[0]?.token)}</code>
+        </p>
+      ) : null}
       {linkStatus === 'done' && linkUrl ? (
-        <p className="partner-fb-profile-note is-ok">Link copied. Paste at the end of your wrap-up email.</p>
+        <>
+          <p className="partner-fb-profile-link"><code>{linkUrl}</code></p>
+          <p className="partner-fb-profile-note is-ok">Link copied. Paste at the end of your wrap-up email.</p>
+        </>
       ) : null}
       {linkStatus === 'error' ? (
         <p className="partner-fb-profile-note is-error">{linkError}</p>
@@ -11772,7 +11798,8 @@ function NowCard({ task, user, onOpenLead, onToggle, completed, now, fadeMs }) {
   const { TASK_TYPES, STAGE_BY_ID, USERS } = window.V3;
   const t = TASK_TYPES[task.type] || { label: task.type, icon: 'doc', tone: 'reply' };
   const lead = task.lead;
-  const stage = STAGE_BY_ID[lead.stage];
+  if (!lead) return null;
+  const stage = STAGE_BY_ID[lead.stage] || { color: 'var(--text-3)', short: lead.stage || '—' };
   const isCompleted = !!completed[task.id];
   const ageMs = isCompleted ? (now - completed[task.id]) : 0;
   const fadeFrac = Math.min(1, ageMs / fadeMs);
@@ -11828,7 +11855,7 @@ function NowCard({ task, user, onOpenLead, onToggle, completed, now, fadeMs }) {
           )}
           {(() => {
             const last = lead.thread && lead.thread[lead.thread.length - 1];
-            const snippet = last && (last.body || last.subject || '');
+            const snippet = last ? String(last.body || last.subject || '') : '';
             const clean = snippet.replace(/\s+/g, ' ').trim().slice(0, 90);
             const stamp = last && window.V3.GmailTime.list(last.date || last.when);
             const stampTip = last && window.V3.GmailTime.tooltip(last.date || last.when);
@@ -11836,7 +11863,7 @@ function NowCard({ task, user, onOpenLead, onToggle, completed, now, fadeMs }) {
             return (
               <span className="now-card-snippet">
                 {stamp && <span className="now-card-snippet-time" title={stampTip}>{stamp}</span>}
-                <span className="now-card-snippet-text">"{clean}{snippet.length > 90 ? '…' : ''}"</span>
+                <span className="now-card-snippet-text">"{clean}{snippet.replace(/\s+/g, ' ').trim().length > 90 ? '…' : ''}"</span>
               </span>
             );
           })()}
@@ -13210,6 +13237,7 @@ const V4_PUBLIC_GITHUB_PAGES = new Set([
 
 const V4_PUBLIC_FORM_BASE = 'https://asherweisberger.github.io/UNALIGNED';
 const V4_PUBLIC_CONNECT_URL = 'https://agentdashboard.cloud/connect';
+const V4_PUBLIC_FEEDBACK_URL = 'https://agentdashboard.cloud/feedback';
 const V4_TEAM_OPS_LINK = 'https://agentdashboard.cloud/ops';
 
 function V4PublicFormBase() {
@@ -13217,6 +13245,7 @@ function V4PublicFormBase() {
 }
 
 const V4_ROBERT_CONNECT_LINK = V4_PUBLIC_CONNECT_URL;
+const V4_PARTNER_FEEDBACK_LINK = V4_PUBLIC_FEEDBACK_URL;
 
 function V4IsPublicGithubPage() {
   return V4EarlyIsPublicRoute();
@@ -14032,6 +14061,66 @@ function senderShortLabel(sender) {
   return map[sender] || 'Asher';
 }
 
+const V4_BRIEF_DELIVERABLE_OPTIONS = [
+  { id: '', label: 'Auto-detect from source', internal: '' },
+  { id: 'repost', label: 'Repost / QRT (quote)', internal: 'Quote repost' },
+  { id: 'quote', label: 'Quote Repost (QRT)', internal: 'Quote repost' },
+  { id: 'retweet', label: 'Retweet only', internal: 'Retweet' },
+  { id: 'custom-x', label: 'Custom X Post', internal: 'Custom post' },
+  { id: 'thread', label: 'Narrative Thread', internal: 'Dedicated thread' },
+  { id: 'linkedin', label: 'LinkedIn Post', internal: 'LinkedIn post' },
+  { id: 'amplification', label: 'Amplification X', internal: 'Amplification X' },
+  { id: 'founder-video', label: 'Founder Video Post', internal: 'Founder Video Post' },
+  { id: 'x-space', label: 'X Space (live)', internal: 'X Space (live)' },
+  { id: 'interview', label: 'Interview', internal: 'Interview' },
+];
+
+function V4BriefDeliverableInternal(deliverableId) {
+  const id = String(deliverableId || '').trim();
+  const hit = V4_BRIEF_DELIVERABLE_OPTIONS.find(item => item.id === id);
+  return hit?.internal || '';
+}
+
+function V4BriefDeliverableIdFromInternal(internalValue) {
+  const normalized = String(internalValue || '').trim().toLowerCase();
+  if (!normalized) return '';
+  const hit = V4_BRIEF_DELIVERABLE_OPTIONS.find(item => (
+    item.internal && item.internal.toLowerCase() === normalized
+  ));
+  if (hit) return hit.id;
+  if (/quote|qrt|repost/.test(normalized)) return 'repost';
+  if (/retweet/.test(normalized)) return 'retweet';
+  if (/thread/.test(normalized)) return 'thread';
+  if (/linkedin/.test(normalized)) return 'linkedin';
+  if (/custom/.test(normalized)) return 'custom-x';
+  if (/amplification/.test(normalized)) return 'amplification';
+  if (/founder video/.test(normalized)) return 'founder-video';
+  if (/x space|space \(live\)/.test(normalized)) return 'x-space';
+  if (/interview/.test(normalized)) return 'interview';
+  return '';
+}
+
+function V4BriefDeliverableFromLead(lead) {
+  const blob = [
+    lead?.deliverables,
+    lead?.brief?.tier,
+    lead?.tier_name,
+    lead?.tier_short,
+    lead?.operatorSummary?.asked_for,
+  ].filter(Boolean).join(' ').toLowerCase();
+  if (!blob) return '';
+  if (/quote|qrt|\brepost\b/.test(blob)) return 'repost';
+  if (/\bretweet\b/.test(blob) && !/quote|qrt|repost/.test(blob)) return 'retweet';
+  if (/narrative thread|dedicated thread|\bthread\b/.test(blob)) return 'thread';
+  if (/custom x|custom post/.test(blob)) return 'custom-x';
+  if (/linkedin/.test(blob)) return 'linkedin';
+  if (/founder video/.test(blob)) return 'founder-video';
+  if (/x space/.test(blob)) return 'x-space';
+  if (/interview/.test(blob)) return 'interview';
+  if (/amplification/.test(blob)) return 'amplification';
+  return '';
+}
+
 function V4BriefMakerDefaultState() {
   return {
     title: '',
@@ -14054,6 +14143,7 @@ function V4BriefMakerDefaultState() {
     source_url: '',
     notion_url: '',
     email_context: '',
+    deliverable_type: '',
     calendar_title: '',
     calendar_mode: 'all_day',
     calendar_date: '',
@@ -14108,6 +14198,11 @@ function V4BriefMakerConfig(form) {
   if (form.source_url) payload.source_url = String(form.source_url).trim();
   if (form.notion_url) payload.notion_url = String(form.notion_url).trim();
   if (form.email_context) payload.email_context = String(form.email_context).trim();
+  const deliverableInternal = V4BriefDeliverableInternal(form.deliverable_type);
+  if (deliverableInternal) {
+    payload.deliverable_type = deliverableInternal;
+    payload.deliverable_type_locked = true;
+  }
   if (form.calendar_title) payload.calendar_title = String(form.calendar_title).trim();
   if (form.calendar_mode) payload.calendar_mode = String(form.calendar_mode).trim();
   if (form.calendar_date) payload.calendar_date = String(form.calendar_date).trim();
@@ -15297,6 +15392,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
       source_url: sourceUrl || curr.source_url,
       notion_url: sourceUrl || curr.notion_url,
       email_context: payload.email_context || curr.email_context,
+      deliverable_type: curr.deliverable_type || V4BriefDeliverableIdFromInternal(payload.deliverable_type) || curr.deliverable_type,
       calendar_title: payload.calendar_title || curr.calendar_title || payload.title || curr.title,
       calendar_mode: payload.calendar_mode || curr.calendar_mode || inferredMode,
       calendar_date: payload.calendar_date || curr.calendar_date || inferredCalendar?.calendar_date || '',
@@ -15352,7 +15448,12 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
     try {
       const res = await V4BriefServiceFetch('/import-source-brief', {
         method: 'POST',
-        body: JSON.stringify({ source_url: sourceUrl, email_context: briefForm.email_context || '' }),
+        body: JSON.stringify({
+          source_url: sourceUrl,
+          email_context: briefForm.email_context || '',
+          deliverable_type: V4BriefDeliverableInternal(briefForm.deliverable_type) || '',
+          deliverable_type_locked: Boolean(V4BriefDeliverableInternal(briefForm.deliverable_type)),
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || 'Notion import failed.');
@@ -15411,10 +15512,13 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
       setBriefJobStage('queued');
       setBriefJobStageDetail('Saved to your brief machine. Build is queued now.');
       const blankCalendar = V4InferCalendarFieldsFromGoLive('');
+      const selectedDeliverable = V4BriefDeliverableInternal(briefForm.deliverable_type) || '';
       const requestConfig = {
         source_url: sourceUrl,
         notion_url: sourceUrl,
         email_context: briefForm.email_context || '',
+        deliverable_type: selectedDeliverable,
+        deliverable_type_locked: Boolean(selectedDeliverable),
         calendar_title: briefForm.calendar_title || '',
         calendar_mode: briefForm.calendar_mode || 'all_day',
         calendar_date: briefForm.calendar_date || blankCalendar?.calendar_date || '',
@@ -15490,6 +15594,12 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
       if (V4IsGithubHostedPage() && V4ShouldUseMachineHostedBriefFlow()) {
         V4OpenMachineHostedBriefMaker();
         return;
+      }
+      if (action.lead) {
+        const inferredDeliverable = V4BriefDeliverableFromLead(action.lead);
+        if (inferredDeliverable) {
+          setBriefForm(curr => ({ ...curr, deliverable_type: inferredDeliverable }));
+        }
       }
       setBriefMakerOpen(true);
       return;
@@ -15751,17 +15861,29 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                     />
                   </label>
                   <label className="brief-maker-field brief-maker-field-wide">
-                    <span>Last sender email context (optional)</span>
+                    <span>Deliverable type</span>
+                    <select
+                      className="brief-maker-input"
+                      value={briefForm.deliverable_type || ''}
+                      onChange={e => updateBriefField('deliverable_type', e.target.value)}
+                    >
+                      {V4_BRIEF_DELIVERABLE_OPTIONS.map(option => (
+                        <option key={option.id || 'auto'} value={option.id}>{option.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="brief-maker-field brief-maker-field-wide">
+                    <span>AM email context (optional)</span>
                     <textarea
                       className="brief-maker-input"
                       value={briefForm.email_context || ''}
                       onChange={e => updateBriefField('email_context', e.target.value)}
-                      placeholder="Paste the last email from the person sending the brief so Brief Maker can pick up tone, asks, timing, and constraints"
+                      placeholder="Paste the last email from the client AM — even when it's to you, not Robert. Brief Maker extracts deliverable signals, anchor links, timing, and talking points to build Robert's brief."
                       rows={6}
                     />
                   </label>
                   <div className="brief-maker-source-note">
-                    Paste one link. Add the last sender email if you want extra context. Brief Maker will read it and build the Google Doc on Robert's account.
+                    Pick the deliverable if you already know it. Paste the AM email when you have it — Brief Maker reads it for intelligence (QRT link, go-live, angles), not as copy to paste into Robert's drafts.
                   </div>
                   <div className="brief-maker-source-actions">
                     <button type="button" className="cos-toolkit-btn is-primary" onClick={buildBriefFromSource}>
@@ -16765,15 +16887,85 @@ async function V4LoadCollabFeedbackForLead(lead) {
   return Array.isArray(data) ? data : [];
 }
 
-async function V4CreateCollabFeedbackLink(cardId, forceNew) {
+async function V4PostCollabFeedbackLink(body) {
+  const payload = JSON.stringify(body || {});
+  let macError = '';
+  try {
+    const macRes = await V4BriefServiceFetch('/create-collab-feedback-link', { method: 'POST', body: payload });
+    const macData = await macRes.json().catch(() => ({}));
+    if (macRes.ok && macData.ok) return macData;
+    if (macRes.status === 404) {
+      macError = '';
+    } else if (macRes.status === 401) {
+      throw new Error(macData.error || 'Brief API token rejected. Hard refresh (Cmd+Shift+R) and try again.');
+    } else {
+      macError = String(macData.error || `Mac feedback service error (${macRes.status})`);
+      throw new Error(macError);
+    }
+  } catch (err) {
+    if (macError) throw err;
+    if (err?.message && !/Could not reach|brief machine/i.test(err.message)) throw err;
+  }
+
   const res = await fetch(V4_CREATE_COLLAB_FEEDBACK_API, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ cardId: Number(cardId), forceNew: Boolean(forceNew) }),
+    body: payload,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.ok) throw new Error(data.error || 'Could not create feedback link');
+  if (!res.ok || !data.ok) {
+    const detail = String(data.error || '');
+    if (/401/.test(detail) || /card read failed/i.test(detail) || /read failed/i.test(detail) || /insert failed/i.test(detail)) {
+      throw new Error(
+        'Firebase cannot write feedback links (Supabase 401). '
+        + 'Use the dashboard from your Mac Studio with the brief server running, '
+        + 'or update Firebase _secrets/lead_ingest with the Supabase service_role key.'
+      );
+    }
+    throw new Error(detail || 'Could not create feedback link');
+  }
   return data;
+}
+
+async function V4CreateCollabFeedbackLink(cardId, forceNew) {
+  return V4PostCollabFeedbackLink({ cardId: Number(cardId), forceNew: Boolean(forceNew) });
+}
+
+async function V4CreateManualCollabFeedbackLink(fields, forceNew) {
+  return V4PostCollabFeedbackLink({
+    brand: String(fields?.brand || '').trim(),
+    contactName: String(fields?.contactName || '').trim(),
+    contactEmail: String(fields?.contactEmail || '').trim(),
+    forceNew: Boolean(forceNew),
+  });
+}
+
+function V4FeedbackInviteUrl(token) {
+  const raw = String(token || '').trim();
+  if (!raw) return '';
+  return V4_PUBLIC_FEEDBACK_URL + '?t=' + encodeURIComponent(raw);
+}
+
+async function V4LoadPendingCollabFeedback(limit = 24) {
+  const url = V3_SUPABASE_URL
+    + '/rest/v1/collab_feedback?select=id,brand,contact_name,token,expires_at,card_id,created_at'
+    + '&status=eq.pending'
+    + '&order=created_at.desc&limit=' + encodeURIComponent(String(limit || 24));
+  const res = await fetch(url, { headers: V3_SUPABASE_HEADERS });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
+function V4ClosedDealsForFeedback(leads) {
+  return (leads || [])
+    .filter((lead) => ['invoice-sent', 'done', 'paid-out'].includes(String(lead?.stage || '').toLowerCase()))
+    .filter((lead) => /^\d+$/.test(String(lead?.id || '').trim()))
+    .sort((a, b) => {
+      const aTs = Date.parse(a?.lastTouchAt || a?.updated_at || '') || 0;
+      const bTs = Date.parse(b?.lastTouchAt || b?.updated_at || '') || 0;
+      return bTs - aTs;
+    });
 }
 
 const V4_DESK_INTAKE_SELECT = 'id,name,email,x_handle,whatsapp,contact_preference,topic_type,message,status,source,referrer,responses,created_at,reviewed_at,routed_at,card_id';
@@ -17207,6 +17399,215 @@ function V4CosScopeIntake({ onOpenLead }) {
   );
 }
 
+function V4CosPartnerFeedbackLinkPanel({ onOpenLead }) {
+  const leads = window.V3?.LEADS || [];
+  const closedDeals = React.useMemo(() => V4ClosedDealsForFeedback(leads), [leads]);
+  const [pending, setPending] = React.useState([]);
+  const [selectedId, setSelectedId] = React.useState('');
+  const [manualBrand, setManualBrand] = React.useState('');
+  const [manualContact, setManualContact] = React.useState('');
+  const [manualEmail, setManualEmail] = React.useState('');
+  const [linkStatus, setLinkStatus] = React.useState('idle');
+  const [linkError, setLinkError] = React.useState('');
+  const [linkUrl, setLinkUrl] = React.useState('');
+  const [linkNote, setLinkNote] = React.useState('');
+  const [copied, setCopied] = React.useState(false);
+
+  React.useEffect(() => {
+    let active = true;
+    V4LoadPendingCollabFeedback(24).then((rows) => {
+      if (!active) return;
+      setPending(rows);
+    }).catch(() => {
+      if (!active) return;
+      setPending([]);
+    });
+    return () => { active = false; };
+  }, [linkStatus]);
+
+  React.useEffect(() => {
+    if (selectedId) return;
+    const first = closedDeals[0];
+    if (first?.id) setSelectedId(String(first.id));
+  }, [closedDeals, selectedId]);
+
+  const copyText = React.useCallback(async (text) => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (err) {
+      window.prompt('Copy this feedback link:', text);
+      return;
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2400);
+  }, []);
+
+  const applyLinkResult = async (data, nextUrl) => {
+    setLinkUrl(nextUrl || '');
+    setLinkStatus('done');
+    if (data?.existing) {
+      setLinkNote('Reused existing pending link for this partner — not a duplicate send.');
+    } else if (data?.alreadySubmitted) {
+      setLinkNote('This partner already submitted feedback before. New link created only because you asked for a fresh one.');
+    } else {
+      setLinkNote('New private link created for this partner.');
+    }
+    if (nextUrl) await copyText(nextUrl);
+    const refreshed = await V4LoadPendingCollabFeedback(24);
+    setPending(refreshed);
+  };
+
+  const createLink = async (forceNew) => {
+    if (!selectedId) return;
+    setLinkStatus('working');
+    setLinkError('');
+    setLinkNote('');
+    try {
+      const data = await V4CreateCollabFeedbackLink(selectedId, forceNew);
+      const nextUrl = data.link || V4FeedbackInviteUrl(data.token);
+      await applyLinkResult(data, nextUrl);
+    } catch (err) {
+      setLinkStatus('error');
+      setLinkError(err.message || 'Could not create feedback link');
+    }
+  };
+
+  const createManualLink = async (forceNew) => {
+    if (!manualBrand.trim() || !manualContact.trim()) return;
+    setLinkStatus('working');
+    setLinkError('');
+    setLinkNote('');
+    try {
+      const data = await V4CreateManualCollabFeedbackLink({
+        brand: manualBrand,
+        contactName: manualContact,
+        contactEmail: manualEmail,
+      }, forceNew);
+      const nextUrl = data.link || V4FeedbackInviteUrl(data.token);
+      await applyLinkResult(data, nextUrl);
+    } catch (err) {
+      setLinkStatus('error');
+      setLinkError(err.message || 'Could not create feedback link');
+    }
+  };
+
+  const selectedDeal = closedDeals.find((lead) => String(lead.id) === String(selectedId)) || null;
+  const selectedPending = pending.find((row) => String(row.card_id) === String(selectedId)) || null;
+  const displayLink = linkUrl || V4FeedbackInviteUrl(selectedPending?.token);
+
+  return (
+    <div className="cos-partner-feedback-link-panel">
+      <p className="cos-partner-feedback-hero-sub">
+        There is no one-size-fits-all public link. Each partner needs a private URL: <strong>agentdashboard.cloud/feedback?t=…</strong>
+      </p>
+      <div className="cos-desk-intake-link-row">
+        <code className="cos-desk-intake-link">{displayLink || (V4_PUBLIC_FEEDBACK_URL + '?t=…')}</code>
+        {displayLink ? (
+          <button type="button" className="cos-desk-intake-copy" onClick={() => copyText(displayLink)}>
+            {copied ? 'Copied' : 'Copy link'}
+          </button>
+        ) : null}
+        {displayLink ? (
+          <a className="cos-desk-intake-copy" href={displayLink} target="_blank" rel="noopener noreferrer">
+            Preview form
+          </a>
+        ) : null}
+      </div>
+      <div className="cos-partner-feedback-link-maker">
+        <label className="cos-partner-feedback-link-label">
+          <span>Closed deal</span>
+          <select value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
+            <option value="">Select a closed deal…</option>
+            {closedDeals.map((lead) => (
+              <option key={lead.id} value={lead.id}>
+                {lead.brand || 'Partner'} · {lead.contactName || 'contact'} · #{lead.id}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          className="cos-desk-intake-copy"
+          onClick={() => createLink(Boolean(selectedPending))}
+          disabled={!selectedId || linkStatus === 'working'}
+        >
+          {linkStatus === 'working' ? 'Creating…' : (selectedPending ? 'Copy feedback link' : 'Create feedback link')}
+        </button>
+        {selectedPending ? (
+          <button type="button" className="cos-desk-intake-copy is-ghost" onClick={() => createLink(true)} disabled={linkStatus === 'working'}>
+            New link
+          </button>
+        ) : null}
+        {selectedDeal && onOpenLead ? (
+          <button type="button" className="cos-desk-intake-copy is-ghost" onClick={() => onOpenLead(selectedDeal.id)}>
+            Open card
+          </button>
+        ) : null}
+      </div>
+      <div className="cos-partner-feedback-manual">
+        <span className="cos-partner-feedback-pending-lbl">Manual link (no board card)</span>
+        <div className="cos-partner-feedback-link-maker">
+          <label className="cos-partner-feedback-link-label">
+            <span>Brand</span>
+            <input value={manualBrand} onChange={(e) => setManualBrand(e.target.value)} placeholder="Raft" />
+          </label>
+          <label className="cos-partner-feedback-link-label">
+            <span>Contact</span>
+            <input value={manualContact} onChange={(e) => setManualContact(e.target.value)} placeholder="Maya" />
+          </label>
+          <label className="cos-partner-feedback-link-label">
+            <span>Email (for dedup)</span>
+            <input value={manualEmail} onChange={(e) => setManualEmail(e.target.value)} placeholder="maya@company.com" />
+          </label>
+          <button
+            type="button"
+            className="cos-desk-intake-copy"
+            onClick={() => createManualLink(false)}
+            disabled={!manualBrand.trim() || !manualContact.trim() || linkStatus === 'working'}
+          >
+            {linkStatus === 'working' ? 'Creating…' : 'Create manual link'}
+          </button>
+        </div>
+        <p className="cos-partner-feedback-link-note">Add email so the system can spot an existing pending link for the same person and avoid double-sending.</p>
+      </div>
+      {linkStatus === 'error' ? <p className="cos-partner-feedback-link-error">{linkError}</p> : null}
+      {linkStatus === 'done' ? (
+        <>
+          <p className="cos-partner-feedback-link-ok">Link copied — paste at the end of your wrap-up email.</p>
+          {linkNote ? <p className="cos-partner-feedback-link-note">{linkNote}</p> : null}
+        </>
+      ) : null}
+      {!closedDeals.length ? (
+        <p className="cos-partner-feedback-link-note">No wrap-up deals on the board yet (needs stage Brief/calendar, Closed, or Payment/terms + numeric card id). Use manual link above or <code>create_collab_feedback_link.py --brand X --contact Y</code>.</p>
+      ) : null}
+      {pending.length ? (
+        <div className="cos-partner-feedback-pending">
+          <span className="cos-partner-feedback-pending-lbl">Awaiting response ({pending.length}) — already sent, not submitted yet</span>
+          {pending.slice(0, 8).map((row) => (
+            <div key={row.id} className="cos-partner-feedback-pending-row">
+              <span>
+                {row.brand || 'Partner'}
+                {row.contact_name ? ` · ${row.contact_name}` : ''}
+                {row.contact_email ? ` · ${row.contact_email}` : ''}
+                {row.card_id ? ` · card #${row.card_id}` : ''}
+              </span>
+              <button type="button" className="cos-desk-intake-copy is-ghost" onClick={() => copyText(V4FeedbackInviteUrl(row.token))}>
+                Copy
+              </button>
+              {row.card_id && onOpenLead ? (
+                <button type="button" className="cos-desk-intake-copy is-ghost" onClick={() => onOpenLead(row.card_id)}>
+                  Card
+                </button>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function V4CosPartnerFeedbackPage({ onOpenLead }) {
   return (
     <div className="cosov cos-partner-feedback-page">
@@ -17217,6 +17618,7 @@ function V4CosPartnerFeedbackPage({ onOpenLead }) {
           <p className="cos-partner-feedback-hero-sub">
             Every submission stays tied to brand, contact, email, and deal card — so you know how to work with them next time.
           </p>
+          <V4CosPartnerFeedbackLinkPanel onOpenLead={onOpenLead} />
         </div>
       </header>
       <V4CosPartnerFeedback onOpenLead={onOpenLead} />
@@ -18055,7 +18457,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
   }
 
   const isBriefSelected = isBrief && briefItem;
-  const stage = STAGE_BY_ID[lead.stage];
+  const stage = V3StageDef(lead.stage);
   const nextOwner = lead.nextMove?.who ? USERS[lead.nextMove.who] : null;
   const isMine = window.V3.MoveIsMineForProfile(lead, user);
   const isThem = !lead.nextMove?.who && !['paid-out'].includes(lead.stage);
@@ -19659,8 +20061,22 @@ const V4_TWEAKS = /*EDITMODE-BEGIN*/{
   "view": "company-os"
 }/*EDITMODE-END*/;
 
+const V4_VALID_VIEWS = ['today', 'board', 'new-leads', 'company-os', 'organs', 'leads', 'inbox', 'invoices', 'calendar'];
+
 function V4DefaultViewForUser(user) {
-  return 'company-os';
+  return user === 'asher' ? 'today' : 'company-os';
+}
+
+function V4InitialView(user) {
+  try {
+    const saved = window.sessionStorage.getItem('v4_view');
+    if (saved && V4_VALID_VIEWS.includes(saved)) return saved;
+  } catch (e) {}
+  return V4DefaultViewForUser(user);
+}
+
+function V4PersistView(id) {
+  try { window.sessionStorage.setItem('v4_view', id); } catch (e) {}
 }
 
 // ── Command palette (⌘K) — Superhuman style ────────────────
@@ -19745,6 +20161,424 @@ function V4HelpOverlay({ open, onClose }) {
   );
 }
 
+const V4_WEATHER_CODE_LABELS = {
+  0: 'Clear', 1: 'Mostly clear', 2: 'Partly cloudy', 3: 'Overcast',
+  45: 'Foggy', 48: 'Foggy', 51: 'Drizzle', 53: 'Drizzle', 55: 'Drizzle',
+  61: 'Rain', 63: 'Rain', 65: 'Heavy rain', 71: 'Snow', 73: 'Snow', 75: 'Heavy snow',
+  80: 'Showers', 81: 'Showers', 82: 'Heavy showers', 95: 'Thunderstorm', 96: 'Thunderstorm', 99: 'Thunderstorm',
+};
+
+function V4WeatherCodeLabel(code) {
+  return V4_WEATHER_CODE_LABELS[Number(code)] || 'Weather';
+}
+
+function V4FormatLocalClockTime(date, timeZone) {
+  try {
+    return date.toLocaleTimeString('en-US', {
+      timeZone,
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch (e) {
+    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  }
+}
+
+function V4BrowserTimezone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch (e) {
+    return 'UTC';
+  }
+}
+
+async function V4FetchWithTimeout(url, options, ms) {
+  const timeout = Number(ms) || 8000;
+  const ctrl = new AbortController();
+  const timer = window.setTimeout(() => ctrl.abort(), timeout);
+  try {
+    return await fetch(url, { ...(options || {}), signal: ctrl.signal, cache: 'no-store' });
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+function V4OpsServiceBases() {
+  const bases = [];
+  try {
+    const origin = String(window.location?.origin || '').replace(/\/$/, '');
+    if (origin) bases.push(origin);
+  } catch (e) {}
+  const host = String(window.location?.hostname || '').toLowerCase();
+  if (!host.includes('127.0.0.1') && !host.includes('localhost')) {
+    bases.push('https://mac-studio.tail50d3a2.ts.net');
+  }
+  bases.push('http://127.0.0.1:8767');
+  return [...new Set(bases.filter(Boolean))];
+}
+
+function V4ParseIpLocation(data) {
+  if (!data || typeof data !== 'object') return null;
+  const lat = Number(data.latitude ?? data.lat);
+  const lon = Number(data.longitude ?? data.lon ?? data.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  return {
+    lat,
+    lon,
+    city: String(data.city || '').trim(),
+    region: String(data.region_code || data.region || data.region_name || '').trim(),
+    timezone: String(data.timezone || data.time_zone?.id || '').trim(),
+    source: 'ip',
+  };
+}
+
+async function V4ResolveViewerLocation() {
+  if (typeof navigator !== 'undefined' && navigator.geolocation) {
+    try {
+      const pos = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: false,
+          timeout: 5000,
+          maximumAge: 30 * 60 * 1000,
+        });
+      });
+      const lat = Number(pos.coords.latitude);
+      const lon = Number(pos.coords.longitude);
+      if (Number.isFinite(lat) && Number.isFinite(lon)) {
+        return { lat, lon, source: 'device' };
+      }
+    } catch (e) {}
+  }
+
+  const ipEndpoints = [
+    'https://ipwho.is/',
+    'https://ipapi.co/json/',
+  ];
+  for (const endpoint of ipEndpoints) {
+    try {
+      const res = await V4FetchWithTimeout(endpoint, {}, 6000);
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (data?.success === false || data?.error) continue;
+      const parsed = V4ParseIpLocation(data);
+      if (parsed) return parsed;
+    } catch (e) {}
+  }
+
+  for (const base of V4OpsServiceBases()) {
+    try {
+      const res = await V4FetchWithTimeout(base + '/god-mode/location', {}, 5000);
+      if (!res.ok) continue;
+      const data = await res.json();
+      const parsed = V4ParseIpLocation(data);
+      if (parsed) return { ...parsed, source: 'mac-ip' };
+    } catch (e) {}
+  }
+
+  return {
+    lat: 40.71,
+    lon: -74.01,
+    city: 'New York',
+    region: 'NY',
+    timezone: V4BrowserTimezone(),
+    source: 'fallback',
+  };
+}
+
+async function V4ReverseGeocodeCity(lat, lon) {
+  try {
+    const res = await V4FetchWithTimeout(
+      `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${lat}&longitude=${lon}&count=1&language=en&format=json`,
+      {},
+      5000,
+    );
+    if (!res.ok) return '';
+    const data = await res.json();
+    const hit = Array.isArray(data?.results) ? data.results[0] : null;
+    return String(hit?.name || hit?.admin1 || '').trim();
+  } catch (e) {
+    return '';
+  }
+}
+
+function V4WttrWeatherLabel(cur) {
+  const desc = cur?.weatherDesc?.[0]?.value || cur?.lang_en?.[0]?.value || cur?.weatherCode;
+  return String(desc || 'Weather').trim();
+}
+
+function V4NormalizeLocalWeatherPayload(data) {
+  if (!data || typeof data !== 'object') return null;
+  const cur = data.current || data.current_condition?.[0] || data;
+  const temp = Number(cur.temperature_2m ?? cur.temp_F ?? cur.temp);
+  const code = cur.weather_code ?? cur.weatherCode;
+  const label = V4WeatherCodeLabel(code);
+  const wttrLabel = V4WttrWeatherLabel(cur);
+  return {
+    timezone: String(data.timezone || V4BrowserTimezone()),
+    current: {
+      temperature_2m: Number.isFinite(temp) ? temp : null,
+      weather_code: code,
+      weather_label: wttrLabel && wttrLabel !== String(code) ? wttrLabel : label,
+    },
+  };
+}
+
+async function V4FetchLocalWeather(lat, lon) {
+  const q = `latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}`;
+  for (const base of V4OpsServiceBases()) {
+    try {
+      const res = await V4FetchWithTimeout(`${base}/god-mode/local-weather?${q}`, {}, 9000);
+      if (!res.ok) continue;
+      const data = await res.json();
+      const normalized = V4NormalizeLocalWeatherPayload(data);
+      if (normalized?.current?.temperature_2m != null) return normalized;
+    } catch (e) {}
+  }
+
+  try {
+    const res = await V4FetchWithTimeout(
+      `https://wttr.in/${lat},${lon}?format=j1`,
+      { headers: { Accept: 'application/json', 'User-Agent': 'UNALIGNED-Ops/1.0' } },
+      9000,
+    );
+    if (!res.ok) throw new Error('weather lookup failed');
+    const row = await res.json();
+    const cur = row?.current_condition?.[0] || {};
+    return V4NormalizeLocalWeatherPayload({
+      timezone: V4BrowserTimezone(),
+      current: {
+        temp_F: cur.temp_F,
+        weatherCode: cur.weatherCode,
+        weatherDesc: cur.weatherDesc,
+      },
+    });
+  } catch (e) {
+    throw new Error('weather lookup failed');
+  }
+}
+
+class V4GodModeErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  componentDidCatch(error) {
+    console.error('[god-mode] crashed', error);
+    try { document.body.classList.remove('v4-godmode-open'); } catch (e) {}
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="v4-godmode" role="alert">
+          <div className="v4-godmode-backdrop" onClick={this.props.onClose} />
+          <div className="v4-godmode-shell v4-godmode-error-card">
+            <strong>God mode hit an error</strong>
+            <p>{String(this.state.error?.message || this.state.error)}</p>
+            <button type="button" className="v4-godmode-close v4-godmode-error-close" onClick={this.props.onClose}>Close</button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+function V4LoadGodModeModule() {
+  if (window.__godModeModulePromise) return window.__godModeModulePromise;
+  window.__godModeModulePromise = new Promise((resolve, reject) => {
+    if (typeof window.V4GodModeEarth === 'function') {
+      resolve(window.V4GodModeEarth);
+      return;
+    }
+    const s = document.createElement('script');
+    s.src = 'flow-v4/god-mode-earth.js?v=20260703-godmode-v11';
+    s.async = true;
+    s.onload = () => {
+      if (typeof window.V4GodModeEarth === 'function') resolve(window.V4GodModeEarth);
+      else reject(new Error('God mode module loaded but V4GodModeEarth missing'));
+    };
+    s.onerror = () => reject(new Error('God mode script failed to load'));
+    document.head.appendChild(s);
+  });
+  return window.__godModeModulePromise;
+}
+
+function V4GodModeGate({ open, layer, viewer, onClose, onLayerChange }) {
+  const [Earth, setEarth] = React.useState(null);
+  const [loadError, setLoadError] = React.useState('');
+
+  React.useEffect(() => {
+    if (!open) return undefined;
+    let cancelled = false;
+    setLoadError('');
+    V4LoadGodModeModule()
+      .then((Cmp) => { if (!cancelled) setEarth(() => Cmp); })
+      .catch((e) => { if (!cancelled) setLoadError(String(e?.message || e)); });
+    return () => { cancelled = true; };
+  }, [open]);
+
+  if (!open) return null;
+
+  if (loadError) {
+    return (
+      <div className="v4-godmode" role="alert">
+        <div className="v4-godmode-backdrop" onClick={onClose} />
+        <div className="v4-godmode-shell v4-godmode-error-card">
+          <strong>God mode unavailable</strong>
+          <p>{loadError}</p>
+          <button type="button" className="v4-godmode-close v4-godmode-error-close" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!Earth) {
+    return (
+      <div className="v4-godmode" role="status" aria-live="polite">
+        <div className="v4-godmode-backdrop" />
+        <div className="v4-godmode-loading" style={{ position: 'fixed', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', zIndex: 2 }}>
+          Loading god mode…
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <V4GodModeErrorBoundary onClose={onClose}>
+      <Earth open={open} layer={layer} viewer={viewer} onClose={onClose} onLayerChange={onLayerChange} />
+    </V4GodModeErrorBoundary>
+  );
+}
+
+function V4LocalWeatherClock({ onOpenGodMode }) {
+  const bootTz = V4BrowserTimezone();
+  const [state, setState] = React.useState({
+    status: 'loading',
+    time: V4FormatLocalClockTime(new Date(), bootTz),
+    city: '',
+    temp: null,
+    weather: '',
+    timezone: bootTz,
+    lat: null,
+    lon: null,
+  });
+  const timezoneRef = React.useRef(bootTz);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    let tickId = null;
+
+    const startClock = (timeZone) => {
+      const tz = String(timeZone || V4BrowserTimezone());
+      timezoneRef.current = tz;
+      const tick = () => {
+        if (cancelled) return;
+        const time = V4FormatLocalClockTime(new Date(), tz);
+        setState((prev) => (prev.time === time ? prev : { ...prev, time, timezone: tz }));
+      };
+      tick();
+      tickId = window.setInterval(tick, 30000);
+    };
+
+    startClock(bootTz);
+
+    (async () => {
+      try {
+        const loc = await V4ResolveViewerLocation();
+        if (cancelled) return;
+        let city = String(loc.city || '').trim();
+        if (!city) city = await V4ReverseGeocodeCity(loc.lat, loc.lon);
+        const place = [city, loc.region].filter(Boolean).join(', ');
+        const timezone = String(loc.timezone || bootTz);
+        setState((prev) => ({
+          ...prev,
+          status: 'loading',
+          city: place,
+          timezone,
+          lat: loc.lat,
+          lon: loc.lon,
+        }));
+        if (timezone !== timezoneRef.current) startClock(timezone);
+
+        const weather = await V4FetchLocalWeather(loc.lat, loc.lon);
+        const weatherTz = String(weather?.timezone || timezone);
+        const temp = weather?.current?.temperature_2m;
+        const weatherLabel = String(
+          weather?.current?.weather_label || V4WeatherCodeLabel(weather?.current?.weather_code) || '',
+        ).trim();
+        if (cancelled) return;
+        setState((prev) => ({
+          ...prev,
+          status: 'ready',
+          time: V4FormatLocalClockTime(new Date(), weatherTz),
+          city: place || prev.city,
+          temp: Number.isFinite(Number(temp)) ? Math.round(Number(temp)) : null,
+          weather: weatherLabel,
+          timezone: weatherTz,
+          lat: loc.lat,
+          lon: loc.lon,
+        }));
+        if (weatherTz !== timezoneRef.current) startClock(weatherTz);
+      } catch (e) {
+        if (cancelled) return;
+        setState((prev) => ({ ...prev, status: 'time-only' }));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (tickId) window.clearInterval(tickId);
+    };
+  }, []);
+
+  const title = state.city
+    ? `${state.city} · ${state.weather || 'Local time'}${state.temp != null ? ` · ${state.temp}°F` : ''}`
+    : 'Your local time';
+
+  const openGodMode = () => {
+    if (typeof onOpenGodMode === 'function') {
+      onOpenGodMode({
+        layer: 'weather',
+        city: state.city,
+        lat: state.lat,
+        lng: state.lon,
+        lon: state.lon,
+        temp: state.temp,
+        weather: state.weather,
+        timezone: state.timezone,
+      });
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      className={'hd-local-clock hd-local-clock-btn' + (state.status === 'loading' ? ' is-loading' : '')}
+      title={title + ' · Open god mode'}
+      aria-live="polite"
+      aria-label={state.status === 'loading' ? 'Loading local time and weather' : title + '. Open god mode earth view.'}
+      onClick={openGodMode}
+    >
+      <span className="hd-local-clock-time">{state.time || '—'}</span>
+      <span className="hd-local-clock-meta">
+        {state.city
+          ? <span className="hd-local-clock-place">{state.city}</span>
+          : (state.status === 'loading' ? <span className="hd-local-clock-place">Locating…</span> : null)}
+        <span className="hd-local-clock-weather">
+          {state.weather && <span className="hd-local-clock-weather-label">{state.weather}</span>}
+          <span className="hd-local-clock-temp">
+            {state.temp != null ? `${state.temp}°` : (state.status === 'loading' ? '···' : '—')}
+          </span>
+        </span>
+      </span>
+    </button>
+  );
+}
+
 function V4SyncStatusBadge() {
   const { health } = V4UseOpsHealth();
   const [busy, setBusy] = React.useState(false);
@@ -19779,14 +20613,13 @@ function V4SyncStatusBadge() {
   );
 }
 
-function V4Onboarding({ onDismiss }) {
+function V4Onboarding({ view }) {
   const seen = (() => { try { return localStorage.getItem('v4_onboarding_done') === '1'; } catch (e) { return true; } })();
   const [open, setOpen] = React.useState(!seen);
-  if (!open) return null;
+  if (!open || view !== 'company-os') return null;
   const close = () => {
     try { localStorage.setItem('v4_onboarding_done', '1'); } catch (e) {}
     setOpen(false);
-    onDismiss?.();
   };
   return (
     <div className="v4-onboard-scrim" style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={close}>
@@ -19798,7 +20631,7 @@ function V4Onboarding({ onDismiss }) {
           <li><strong>Organs</strong> — approvals, Briefs, Invoices, and <strong>Toolkit</strong> (brief maker, X signal)</li>
           <li><strong>Sync Gmail</strong> — Organs top bar or header badge (all leads)</li>
         </ul>
-        <button type="button" className="hd-nav-btn" onClick={close}>Got it — open Company OS</button>
+        <button type="button" className="hd-nav-btn" onClick={close}>Got it</button>
       </div>
     </div>
   );
@@ -19810,7 +20643,7 @@ function V4App() {
   const [boardState, setBoardState] = React.useState('loading');
   const [boardError, setBoardError] = React.useState('');
   const [t, setTweak] = useTweaks(V4_TWEAKS);
-  const [view, setView] = React.useState(V4DefaultViewForUser(t.viewAs));
+  const [view, setView] = React.useState(() => V4InitialView(t.viewAs));
   const [openId, setOpenId] = React.useState(null);
   const [briefId, setBriefId] = React.useState(null);
   const [leads, setLeads] = React.useState(() => V3ActiveLeads());
@@ -19837,6 +20670,9 @@ function V4App() {
   const [cosPartnerFeedbackOpen, setCosPartnerFeedbackOpen] = React.useState(false);
   const [cosDeskIntakeOpen, setCosDeskIntakeOpen] = React.useState(false);
   const [cosScopeIntakeOpen, setCosScopeIntakeOpen] = React.useState(false);
+  const [godModeOpen, setGodModeOpen] = React.useState(false);
+  const [godModeLayer, setGodModeLayer] = React.useState('weather');
+  const [godModeViewer, setGodModeViewer] = React.useState({});
 
   React.useEffect(() => {
     const onSurface = (e) => {
@@ -19992,7 +20828,9 @@ function V4App() {
     setOwnerFilter('all');
     setOpenId(null);
     setBriefId(null);
-    setView(V4DefaultViewForUser(user));
+    const nextView = V4DefaultViewForUser(user);
+    setView(nextView);
+    V4PersistView(nextView);
   }, [user]);
 
   React.useEffect(() => {
@@ -20006,7 +20844,9 @@ function V4App() {
 
   const switchUser = React.useCallback((id) => {
     setTweak('viewAs', id);
-    setView(V4DefaultViewForUser(id));
+    const nextView = V4DefaultViewForUser(id);
+    setView(nextView);
+    V4PersistView(nextView);
     setOpenId(null);
     setBriefId(null);
     setUserMenuOpen(false);
@@ -20112,6 +20952,8 @@ function V4App() {
   const inboxLabel = user === 'robert' ? 'Brief' : 'Inbox';
   const goView = (id) => {
     setView(id);
+    V4PersistView(id);
+    try { window.dispatchEvent(new CustomEvent('v4:skip-boot')); } catch (e) {}
     if (id !== 'inbox' && id !== 'leads') setOpenId(null);
     setOrgansMenuOpen(false);
   };
@@ -20306,6 +21148,13 @@ function V4App() {
         </button>
 
         <div className="hd-right">
+          <V4LocalWeatherClock
+            onOpenGodMode={(detail) => {
+              setGodModeViewer(detail || {});
+              setGodModeLayer(String(detail?.layer || 'weather'));
+              setGodModeOpen(true);
+            }}
+          />
           <button className="hd-icon-btn" title="Notifications"><V3Icon name="bell" /></button>
         </div>
       </header>
@@ -20432,22 +21281,22 @@ function V4App() {
         <span>Synced · {operationalLeads.length} cards · {operationalLeads.filter(l => !['paid-out'].includes(l.stage)).length} active · {newLeadCount} new leads</span>
         <span className="right">{me.name} ({me.role}) · UNALIGNED Ops</span>
         <button className="ft-tab" aria-current={view === 'today' ? 'page' : undefined}
-                onClick={() => { setView('today'); setOpenId(null); }}>
+                onClick={() => goView('today')}>
           <V3Icon name="diamond" w={18} />
           Today
         </button>
         <button className="ft-tab" aria-current={view === 'calendar' ? 'page' : undefined}
-                onClick={() => { setView('calendar'); setOpenId(null); }}>
+                onClick={() => goView('calendar')}>
           <V3Icon name="cal" w={18} />
           Calendar
         </button>
         <button className="ft-tab" aria-current={view === 'company-os' ? 'page' : undefined}
-                onClick={() => { setView('company-os'); setOpenId(null); }}>
+                onClick={() => goView('company-os')}>
           <V3Icon name="diamond" w={18} />
           OS
         </button>
         <button className="ft-tab" aria-current={organsMenuActive ? 'page' : undefined}
-                onClick={() => { setView('organs'); setOpenId(null); }}>
+                onClick={() => goView('organs')}>
           <V3Icon name="network" w={18} />
           Organs
           {(unreadCount + newLeadCount) > 0 && <span className="ft-tab-badge">{(unreadCount + newLeadCount) > 99 ? '99+' : (unreadCount + newLeadCount)}</span>}
@@ -20464,9 +21313,19 @@ function V4App() {
                         leads={mergedLeads.filter(l => !l.isRobertBrief)}
                         onOpenLead={(id) => setOpenId(id)} />
       <V4HelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
-      <V4Onboarding onDismiss={() => setView('company-os')} />
+      <V4Onboarding view={view} />
       <UnalignedCopilot leads={mergedLeads} />
       <V4UndoBar />
+
+      {godModeOpen && (
+        <V4GodModeGate
+          open={godModeOpen}
+          layer={godModeLayer}
+          viewer={godModeViewer}
+          onClose={() => setGodModeOpen(false)}
+          onLayerChange={setGodModeLayer}
+        />
+      )}
 
       {/* Brief viewer modal */}
       {briefId && (
