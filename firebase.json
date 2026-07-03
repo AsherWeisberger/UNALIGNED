@@ -16,16 +16,44 @@
     "ignore": [
       "firebase.json",
       "**/.*",
-      "**/node_modules/**"
+      "**/.git/**",
+      "**/.venv/**",
+      "**/node_modules/**",
+      "**/__pycache__/**",
+      "data/**",
+      "archive/**",
+      "outreach/**",
+      "scripts/**",
+      "tests/**",
+      "ops/**",
+      "supabase/**",
+      "functions/**",
+      "docs/**",
+      "pages/**",
+      "*.py",
+      "*.pyc",
+      "*.md",
+      "*.sh",
+      "*.mjs",
+      "*.log",
+      "*.txt",
+      "*.pdf",
+      "deploy.sh",
+      "firebase-debug.log",
+      "vite.config.mjs",
+      "babel.config.json",
+      "public-index.html",
+      "machine-room.html",
+      "approval-console.html"
     ],
     "rewrites": [
       {
         "source": "/feedback",
-        "destination": "/feedback.html"
+        "destination": "/feedback/index.html"
       },
       {
         "source": "/feedback.html",
-        "destination": "/feedback.html"
+        "destination": "/feedback/index.html"
       },
       {
         "source": "/reach",

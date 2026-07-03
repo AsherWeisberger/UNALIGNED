@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>
+  (function () {
+    var host = String(location.hostname || '');
+    var publicUrl = 'https://agentdashboard.cloud/feedback';
+    if (host.indexOf('mac-studio.tail') >= 0) {
+      var target = publicUrl + String(location.search || '') + String(location.hash || '');
+      var here = location.href.split('?')[0].split('#')[0].replace(/\/$/, '');
+      if (here !== publicUrl && here !== publicUrl + '/') location.replace(target);
+    }
+  })();
+  </script>
+  <meta charset="utf-8" />
+  <link rel="canonical" href="https://agentdashboard.cloud/feedback" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>UNALIGNED · Partner feedback</title>
+  <meta name="description" content="Two minutes of feedback on your UNALIGNED collaboration. Your answers help us tighten the process for the next partner." />
+  <meta name="theme-color" content="#000000" />
+  <meta name="color-scheme" content="dark" />
+  <!-- Open Graph / link preview (solid black square card — match connect / iMessage) -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="UNALIGNED" />
+  <meta property="og:url" content="https://agentdashboard.cloud/feedback/" />
+  <meta property="og:title" content="UNALIGNED" />
+  <meta property="og:description" content="Partner feedback" />
+  <meta property="og:image" content="https://agentdashboard.cloud/assets/unaligned-og-feedback.jpg?v=20260703" />
+  <meta property="og:image:secure_url" content="https://agentdashboard.cloud/assets/unaligned-og-feedback.jpg?v=20260703" />
+  <meta property="og:image:type" content="image/jpeg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="1200" />
+  <meta property="og:image:alt" content="UNALIGNED — Partner feedback" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="UNALIGNED" />
+  <meta name="twitter:description" content="Partner feedback" />
+  <meta name="twitter:image" content="https://agentdashboard.cloud/assets/unaligned-og-feedback.jpg?v=20260703" />
+  <link rel="icon" href="../favicon.ico" />
+  <link rel="stylesheet" href="../assets/unaligned-form.css?v=20260703-feedback-light-v1" />
+</head>
+<body class="ua-form-page ua-form-feedback">
+  <div class="ua-scene">
+    <div class="ua-grain" aria-hidden="true"></div>
+    <div class="ua-vignette" aria-hidden="true"></div>
+    <div class="ua-wrap">
+      <header class="ua-hero">
+        <div class="ua-logo-frame">
+          <img src="../assets/unaligned-form-logo.png" alt="UNALIGNED" class="ua-logo" width="800" height="199" />
+          <div class="ua-logo-glow" aria-hidden="true"></div>
+        </div>
+        <p class="ua-tagline">Partner feedback</p>
+      </header>
+      <div class="ua-card" id="app">
+        <p class="loading">Loading your feedback form…</p>
+      </div>
+      <p class="ua-foot">Private link for your collaboration. Answers go straight to the UNALIGNED team.</p>
+    </div>
+  </div>
+  <script>
+    const API = 'https://us-central1-unaligned-fc556.cloudfunctions.net/collabFeedback';
+    const params = new URLSearchParams(location.search);
+    const token = (params.get('t') || params.get('token') || '').trim();
+
+    const state = {
+      overall_score: null,
+      process_score: null,
+      robert_score: null,
+      communication_score: null,
+      nps: null,
+      would_again: null,
+      went_well: '',
+      improve: '',
+      public_ok: false,
+      testimonial: '',
+    };
+
+    function el(tag, attrs, children) {
+      const node = document.createElement(tag);
+      if (attrs) Object.entries(attrs).forEach(([k, v]) => {
+        if (k === 'className') node.className = v;
+        else if (k === 'text') node.textContent = v;
+        else if (k.startsWith('on')) node.addEventListener(k.slice(2).toLowerCase(), v);
+        else node.setAttribute(k, v);
+      });
+      (children || []).forEach((c) => node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c));
+      return node;
+    }
+
+    function scaleField(key, label, min, max) {
+      const field = el('div', { className: 'field' });
+      field.appendChild(el('label', { text: label }));
+      const row = el('div', { className: 'scale' });
+      for (let i = min; i <= max; i += 1) {
+        const btn = el('button', { type: 'button', text: String(i) });
+        btn.addEventListener('click', () => {
+          state[key] = i;
+          row.querySelectorAll('button').forEach((b) => b.classList.toggle('is-on', Number(b.textContent) === i));
+        });
+        row.appendChild(btn);
+      }
+      field.appendChild(row);
+      return field;
+    }
+
+    function choiceField(key, label, options) {
+      const field = el('div', { className: 'field' });
+      field.appendChild(el('label', { text: label }));
+      const row = el('div', { className: 'choice' });
+      options.forEach((opt) => {
+        const btn = el('button', { type: 'button', text: opt.label });
+        btn.addEventListener('click', () => {
+          state[key] = opt.value;
+          row.querySelectorAll('button').forEach((b) => b.classList.toggle('is-on', b.textContent === opt.label));
+        });
+        row.appendChild(btn);
+      });
+      field.appendChild(row);
+      return field;
+    }
+
+    function renderForm(invite) {
+      const app = document.getElementById('app');
+      app.innerHTML = '';
+      app.appendChild(el('div', { className: 'eyebrow', text: invite.brand || 'Partnership' }));
+      app.appendChild(el('h2', { text: `How did we do${invite.contactName ? ', ' + invite.contactName.split(' ')[0] : ''}?` }));
+      app.appendChild(el('p', {
+        className: 'lead',
+        text: 'Two minutes. Your answers go straight to our team and help us tighten the process for the next partner.',
+      }));
+      app.appendChild(el('p', {
+        className: 'promise',
+        text: 'Be blunt on the improve question — we use it to upgrade how we run collaborations, not to argue.',
+      }));
+
+      const form = el('form');
+      form.appendChild(scaleField('overall_score', 'Overall experience', 1, 10));
+      form.appendChild(scaleField('process_score', 'How smooth was the process (first contact to post)?', 1, 10));
+      form.appendChild(scaleField('robert_score', "Robert's content met our expectations", 1, 10));
+      form.appendChild(scaleField('communication_score', 'Communication with the UNALIGNED team', 1, 10));
+      form.appendChild(scaleField('nps', 'How likely are you to recommend UNALIGNED? (0 = not at all, 10 = absolutely)', 0, 10));
+      form.appendChild(choiceField('would_again', 'Would you work with us again?', [
+        { label: 'Yes', value: 'yes' },
+        { label: 'Maybe', value: 'maybe' },
+        { label: 'No', value: 'no' },
+      ]));
+
+      const well = el('div', { className: 'field' });
+      well.appendChild(el('label', { text: 'What went well?' }));
+      const wellTa = el('textarea', { placeholder: 'Optional but gold for us.' });
+      wellTa.addEventListener('input', () => { state.went_well = wellTa.value; });
+      well.appendChild(wellTa);
+      form.appendChild(well);
+
+      const imp = el('div', { className: 'field' });
+      imp.appendChild(el('label', { text: 'What should we improve?' }));
+      const impTa = el('textarea', { placeholder: 'Be blunt. We use this to upgrade the system.' });
+      impTa.addEventListener('input', () => { state.improve = impTa.value; });
+      imp.appendChild(impTa);
+      form.appendChild(imp);
+
+      const pub = el('div', { className: 'field check' });
+      const pubCb = el('input', { type: 'checkbox' });
+      pubCb.addEventListener('change', () => { state.public_ok = pubCb.checked; });
+      pub.appendChild(pubCb);
+      pub.appendChild(el('span', { text: 'You may use a quote from me publicly (website, deck, etc.)' }));
+      form.appendChild(pub);
+
+      const quote = el('div', { className: 'field' });
+      quote.appendChild(el('label', { text: 'Optional testimonial quote' }));
+      const quoteTa = el('textarea', { placeholder: 'One sentence we can share if you checked the box above.' });
+      quoteTa.addEventListener('input', () => { state.testimonial = quoteTa.value; });
+      quote.appendChild(quoteTa);
+      form.appendChild(quote);
+
+      const status = el('div', { className: 'status', id: 'status' });
+      const submit = el('button', { className: 'submit', type: 'submit', text: 'Send feedback' });
+      form.appendChild(submit);
+      form.appendChild(status);
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        status.className = 'status';
+        status.textContent = '';
+        submit.disabled = true;
+        try {
+          const resp = await fetch(API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token, answers: state }),
+          });
+          const data = await resp.json().catch(() => ({}));
+          if (!resp.ok || !data.ok) throw new Error(data.error || 'Submit failed');
+          renderThanks(invite);
+        } catch (err) {
+          status.className = 'status is-error';
+          status.textContent = err.message || 'Something went wrong. Email asherunaligned@gmail.com and we will fix it.';
+          submit.disabled = false;
+        }
+      });
+
+      app.appendChild(form);
+    }
+
+    function renderThanks(invite) {
+      const app = document.getElementById('app');
+      app.innerHTML = '';
+      const box = el('div', { className: 'thanks' });
+      box.appendChild(el('div', { className: 'eyebrow', text: 'Received' }));
+      box.appendChild(el('h2', { text: 'Thank you.' }));
+      box.appendChild(el('p', {
+        className: 'lead',
+        text: 'This goes into how we run the next collaboration. If anything urgent comes up, reply on your existing thread with Asher.',
+      }));
+      app.appendChild(box);
+    }
+
+    function renderError(message) {
+      const app = document.getElementById('app');
+      app.innerHTML = '';
+      app.appendChild(el('div', { className: 'status is-error', text: message }));
+    }
+
+    async function boot() {
+      if (!token) return renderError('Missing feedback link. Ask your UNALIGNED contact for the full URL (it includes a private token).');
+      try {
+        const resp = await fetch(`${API}?token=${encodeURIComponent(token)}`);
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.ok) throw new Error(data.error || 'Could not load feedback form');
+        if (data.invite?.status === 'submitted') return renderThanks(data.invite);
+        renderForm(data.invite || {});
+      } catch (err) {
+        renderError(err.message || 'Could not load feedback form');
+      }
+    }
+
+    boot();
+  </script>
+</body>
+</html>
