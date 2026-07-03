@@ -2,8 +2,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
 
 :root {
-  --ua-bg: #030303;
+  --ua-bg: #000000;
   --ua-bg-elevated: #0a0a0a;
+  --ua-blue: #1d9bf0;
+  --ua-blue-ring: rgba(29, 155, 240, 0.30);
   --ua-card: rgba(12, 12, 14, 0.72);
   --ua-text: #f4f4f5;
   --ua-muted: #9ca3af;
@@ -114,28 +116,14 @@ html { background: var(--ua-bg); }
 
 .ua-card {
   position: relative;
-  border-radius: var(--ua-radius);
-  padding: 28px 26px 26px;
-  background:
-    linear-gradient(165deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.015) 18%, transparent 42%),
-    var(--ua-card);
-  border: 1px solid var(--ua-line);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    inset 0 -18px 36px rgba(0, 0, 0, 0.45),
-    0 28px 80px rgba(0, 0, 0, 0.62);
-  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  padding: 26px 24px 24px;
+  background: #000;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4), 0 24px 60px rgba(0, 0, 0, 0.55);
 }
 
-.ua-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.06), transparent 38%, transparent 72%, rgba(255, 255, 255, 0.03));
-  opacity: 0.7;
-}
+.ua-card::before { content: none; }
 
 .ua-card > * { position: relative; z-index: 1; }
 
@@ -198,16 +186,13 @@ input[type="url"],
 input[type="date"],
 textarea {
   width: 100%;
-  border: 1px solid var(--ua-line);
-  border-radius: 14px;
-  padding: 12px 14px;
-  font: 500 14px/1.45 var(--ua-sans);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  padding: 13px 15px;
+  font: 400 15px/1.45 var(--ua-sans);
   color: var(--ua-text);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.18)),
-    rgba(0, 0, 0, 0.35);
-  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.35);
-  transition: border-color 0.18s, box-shadow 0.18s, background 0.18s;
+  background: #000;
+  transition: border-color 0.16s, box-shadow 0.16s;
 }
 
 textarea {
@@ -221,14 +206,9 @@ textarea::placeholder { color: #6b7280; }
 input:focus,
 textarea:focus {
   outline: none;
-  border-color: var(--ua-line-strong);
-  box-shadow:
-    inset 0 2px 8px rgba(0, 0, 0, 0.35),
-    0 0 0 3px rgba(255, 255, 255, 0.06),
-    0 0 28px rgba(255, 255, 255, 0.04);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.22)),
-    rgba(0, 0, 0, 0.42);
+  border-color: var(--ua-blue);
+  box-shadow: 0 0 0 3px var(--ua-blue-ring);
+  background: #000;
 }
 
 .grid-2 {
@@ -265,41 +245,32 @@ textarea:focus {
 
 .choice button.is-on,
 .scale button.is-on {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.34);
-  color: #fff;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 8px 24px rgba(0, 0, 0, 0.35);
+  background: #fff;
+  border-color: #fff;
+  color: #000;
+  transform: none;
 }
 
 .submit, .btn-primary {
-  margin-top: 8px;
+  margin-top: 10px;
   width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  border-radius: 14px;
-  min-height: 50px;
-  background: linear-gradient(180deg, #ffffff 0%, #e4e4e7 100%);
-  color: #09090b;
-  font: 700 12px/1 var(--ua-mono);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  border: none;
+  border-radius: 999px;
+  min-height: 52px;
+  background: #fff;
+  color: #000;
+  font: 700 15px/1 var(--ua-sans);
+  letter-spacing: 0.01em;
+  text-transform: none;
   cursor: pointer;
-  box-shadow:
-    0 14px 40px rgba(255, 255, 255, 0.08),
-    0 2px 0 rgba(255, 255, 255, 0.35) inset;
-  transition: transform 0.14s, box-shadow 0.14s, filter 0.14s;
+  transition: transform 0.14s, filter 0.14s;
 }
 
 .btn-primary { width: auto; flex: 1; }
 
 .submit:hover:not(:disabled),
 .btn-primary:hover:not(:disabled) {
-  transform: translateY(-2px);
-  filter: brightness(1.03);
-  box-shadow:
-    0 18px 48px rgba(255, 255, 255, 0.12),
-    0 2px 0 rgba(255, 255, 255, 0.45) inset;
+  background: #e6e6e6;
 }
 
 .submit:disabled,
