@@ -4774,8 +4774,45 @@ def supabase_rest_headers() -> dict:
     }
 
 
+SUPABASE_REST_BASE = "https://hbnpwphxjurvtydezwgh.supabase.co"
+SUPABASE_PROXY_PREFIXES = (
+    "/rest/v1/cards",
+    "/rest/v1/robert_desk_intake",
+    "/rest/v1/pricing_tiers",
+    "/rest/v1/team_users",
+    "/rest/v1/ops_health",
+)
+
+
+def supabase_proxy_allowed(rest_path: str) -> bool:
+    path_only = str(rest_path or "").split("?", 1)[0]
+    return any(path_only.startswith(prefix) for prefix in SUPABASE_PROXY_PREFIXES)
+
+
+def supabase_proxy_forward(method: str, rest_path: str, body: bytes | None = None, prefer: str = "") -> tuple[int, str]:
+    if not supabase_proxy_allowed(rest_path):
+        return 403, json.dumps({"ok": False, "error": "Supabase path not allowed."})
+    rest_path = str(rest_path or "")
+    if not rest_path.startswith("/"):
+        rest_path = "/" + rest_path
+    url = SUPABASE_REST_BASE + rest_path
+    headers = supabase_rest_headers()
+    if prefer:
+        headers["Prefer"] = prefer
+    req = request.Request(url, data=body, headers=headers, method=method.upper())
+    try:
+        with request.urlopen(req, timeout=30) as response:
+            raw = response.read().decode("utf-8", errors="replace")
+            return int(response.status), raw
+    except error.HTTPError as exc:
+        raw = exc.read().decode("utf-8", errors="replace")
+        return int(exc.code), raw
+    except Exception as exc:
+        return 502, json.dumps({"ok": False, "error": str(exc)})
+
+
 def supabase_fetch_cards(query: str) -> list:
-    url = f"https://hbnpwphxjurvtydezwgh.supabase.co/rest/v1/cards?{query}"
+    url = f"{SUPABASE_REST_BASE}/rest/v1/cards?{query}"
     req = request.Request(url, headers=supabase_rest_headers(), method="GET")
     with request.urlopen(req, timeout=25) as response:
         rows = json.loads(response.read().decode("utf-8") or "[]")
@@ -5325,6 +5362,29 @@ def complete_local_llm(payload: dict) -> dict:
     return {"text": text, "model": LOCAL_MODEL, "backend": backend_label()}
 
 
+def _handle_supabase_proxy(handler: BaseHTTPRequestHandler, method: str) -> None:
+    if not require_api_token(handler):
+        send_json(handler, 401, {"ok": False, "error": "Missing or invalid brief API token."})
+        return
+    parsed = urlparse(handler.path or "/")
+    query = parse_qs(parsed.query or "")
+    rest_path = line((query.get("path") or [""])[0])
+    if not rest_path:
+        send_json(handler, 400, {"ok": False, "error": "Missing Supabase path."})
+        return
+    prefer = line(handler.headers.get("Prefer"))
+    length = int(handler.headers.get("Content-Length", "0") or "0")
+    body = handler.rfile.read(length) if length > 0 else None
+    status, raw = supabase_proxy_forward(method, rest_path, body=body, prefer=prefer)
+    handler.send_response(status)
+    handler.send_header("Content-Type", "application/json")
+    handler.send_header("Cache-Control", "no-store")
+    payload = raw.encode("utf-8")
+    handler.send_header("Content-Length", str(len(payload)))
+    handler.end_headers()
+    handler.wfile.write(payload)
+
+
 class DocsBriefHandler(BaseHTTPRequestHandler):
     def do_HEAD(self) -> None:
         parsed = urlparse(self.path or "/")
@@ -5404,6 +5464,9 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
                 return
             send_json(self, 200, {"ok": True, "token": token})
             return
+        if parsed.path == "/supabase-proxy":
+            _handle_supabase_proxy(self, "GET")
+            return
         if parsed.path == "/robert-review-queue":
             query = parse_qs(parsed.query or "")
             token = line((query.get("token") or [""])[0])
@@ -5423,9 +5486,18 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
         except BrokenPipeError:
             pass
 
+    def do_PATCH(self) -> None:
+        if urlparse(self.path or "/").path == "/supabase-proxy":
+            _handle_supabase_proxy(self, "PATCH")
+            return
+        send_json(self, 405, {"ok": False, "error": "PATCH not supported for this path."})
+
     def do_POST(self) -> None:
         parsed = urlparse(self.path or "/")
         path = parsed.path
+        if path == "/supabase-proxy":
+            _handle_supabase_proxy(self, "POST")
+            return
         if path not in (
             "/generate-brief-doc", "/start-brief-job", "/create-calendar-hold",
             "/import-notion-brief", "/import-source-brief", "/draft-robert-handoff",

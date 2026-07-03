@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>UNALIGNED</title>
+<script>
+// Public Pages router — forms only. No ops dashboard, no private hostnames.
+(function () {
+  var PUBLIC = {
+    '/connect.html': 1, '/feedback.html': 1, '/scope.html': 1,
+    '/connect': 1, '/feedback': 1, '/scope': 1, '/reach': 1
+  };
+  function norm(path) {
+    var p = String(path || '/').replace(/^\/UNALIGNED\/?/i, '/').toLowerCase();
+    if (p.length > 1 && p.charAt(p.length - 1) === '/') p = p.slice(0, -1);
+    return p || '/';
+  }
+  if (!PUBLIC[norm(location.pathname)]) {
+    location.replace('/connect/' + location.search + location.hash);
+  }
+})();
+</script>
+</head>
+<body>
+<p style="margin:0;padding:24px;font:500 15px/1.5 system-ui,sans-serif;color:#5a6272">Redirecting…</p>
+</body>
+</html>

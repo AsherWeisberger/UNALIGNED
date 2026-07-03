@@ -1091,8 +1091,8 @@ function V3MergeReloadedLeads(incoming, previous) {
 }
 
 async function V3FetchSupabaseCardById(cardId) {
-  const url = V3_SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(cardId) + '&select=*&limit=1';
-  const res = await fetch(url, { headers: V3_SUPABASE_HEADERS });
+  const url = V3SupabaseRequestUrl('/rest/v1/cards?id=eq.' + encodeURIComponent(cardId) + '&select=*&limit=1');
+  const res = await fetch(url, { headers: V3SupabaseRequestHeaders() });
   if (!res.ok) throw new Error('Supabase card ' + res.status + ': ' + await res.text());
   const rows = await res.json();
   return Array.isArray(rows) && rows[0] ? rows[0] : null;
@@ -1229,8 +1229,8 @@ async function V3FetchSupabaseJson(path, opts = {}) {
     try {
       const ctrl = new AbortController();
       const timer = window.setTimeout(() => ctrl.abort(), timeoutMs);
-      const res = await fetch(V3_SUPABASE_URL + path, {
-        headers: opts.headers || V3_SUPABASE_HEADERS,
+      const res = await fetch(V3SupabaseRequestUrl(path), {
+        headers: V3SupabaseRequestHeaders(opts.headers),
         signal: ctrl.signal,
       });
       window.clearTimeout(timer);
@@ -5438,6 +5438,32 @@ const V3_SUPABASE_HEADERS = {
   'Content-Type': 'application/json',
 };
 
+function V3IsMachineOpsHost() {
+  try {
+    const host = String(window.location?.hostname || '').toLowerCase();
+    return host.includes('mac-studio.tail') || host === '127.0.0.1' || host === 'localhost';
+  } catch (err) {
+    return false;
+  }
+}
+
+function V3SupabaseRequestUrl(restPath) {
+  const path = String(restPath || '');
+  const normalized = path.startsWith('/') ? path : '/' + path;
+  if (V3IsMachineOpsHost()) {
+    return String(window.location.origin || '').replace(/\/$/, '')
+      + '/supabase-proxy?path=' + encodeURIComponent(normalized);
+  }
+  return V3_SUPABASE_URL + normalized;
+}
+
+function V3SupabaseRequestHeaders(extra = {}) {
+  if (V3IsMachineOpsHost()) {
+    return { 'Content-Type': 'application/json', ...extra };
+  }
+  return { ...V3_SUPABASE_HEADERS, ...extra };
+}
+
 function V3RefreshConfigGlobals() {
   if (!window.V3) return;
   window.V3.USERS = V3_USERS;
@@ -5450,8 +5476,8 @@ function V3RefreshConfigGlobals() {
 async function V3LoadPricingTiers() {
   try {
     const res = await fetch(
-      V3_SUPABASE_URL + '/rest/v1/pricing_tiers?select=id,name,price,short,items,sort_order,is_active&order=sort_order.asc,id.asc',
-      { headers: V3_SUPABASE_HEADERS }
+      V3SupabaseRequestUrl('/rest/v1/pricing_tiers?select=id,name,price,short,items,sort_order,is_active&order=sort_order.asc,id.asc'),
+      { headers: V3SupabaseRequestHeaders() }
     );
     if (!res.ok) throw new Error('pricing_tiers ' + res.status);
     const rows = await res.json();
@@ -5481,8 +5507,8 @@ async function V3LoadPricingTiers() {
 async function V3LoadTeamUsers() {
   try {
     const res = await fetch(
-      V3_SUPABASE_URL + '/rest/v1/team_users?select=id,name,role,color,initials,lane,is_active,sort_order&is_active=eq.true&order=sort_order.asc,name.asc',
-      { headers: V3_SUPABASE_HEADERS }
+      V3SupabaseRequestUrl('/rest/v1/team_users?select=id,name,role,color,initials,lane,is_active,sort_order&is_active=eq.true&order=sort_order.asc,name.asc'),
+      { headers: V3SupabaseRequestHeaders() }
     );
     if (!res.ok) throw new Error('team_users ' + res.status);
     const rows = await res.json();
@@ -5510,9 +5536,9 @@ async function V3LoadTeamUsers() {
 }
 
 async function V3PatchSupabaseCardStage(cardId, listId, extraFields) {
-  const res = await fetch(V3_SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(cardId), {
+  const res = await fetch(V3SupabaseRequestUrl('/rest/v1/cards?id=eq.' + encodeURIComponent(cardId)), {
     method: 'PATCH',
-    headers: { ...V3_SUPABASE_HEADERS, Prefer: 'return=representation' },
+    headers: V3SupabaseRequestHeaders({ Prefer: 'return=representation' }),
     body: JSON.stringify({ list_id: listId, ...(extraFields || {}) }),
   });
   if (!res.ok) throw new Error('Supabase stage patch failed (' + res.status + '): ' + (await res.text()));
@@ -5572,9 +5598,9 @@ async function V3PersistLeadStageRemote(lead, normalizedStage) {
       x_reply_marked_at: lead.xReplyMarkedAt || '',
     }),
   };
-  const res = await fetch(V3_SUPABASE_URL + '/rest/v1/cards', {
+  const res = await fetch(V3SupabaseRequestUrl('/rest/v1/cards'), {
     method: 'POST',
-    headers: { ...V3_SUPABASE_HEADERS, Prefer: 'return=representation' },
+    headers: V3SupabaseRequestHeaders({ Prefer: 'return=representation' }),
     body: JSON.stringify(cardPayload),
   });
   if (!res.ok) throw new Error('Supabase card insert failed (' + res.status + '): ' + (await res.text()));
@@ -8319,14 +8345,9 @@ function V4AprGateAction(g) {
 async function V4PatchLeadAsync(lead, fields, localPatch) {
   const id = lead?.rowId || lead?.id;
   if (!id) return;
-  const res = await fetch(V3_SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(id), {
+  const res = await fetch(V3SupabaseRequestUrl('/rest/v1/cards?id=eq.' + encodeURIComponent(id)), {
     method: 'PATCH',
-    headers: {
-      apikey: V3_SUPABASE_ANON_KEY,
-      Authorization: 'Bearer ' + V3_SUPABASE_ANON_KEY,
-      'Content-Type': 'application/json',
-      Prefer: 'return=minimal',
-    },
+    headers: V3SupabaseRequestHeaders({ Prefer: 'return=minimal' }),
     body: JSON.stringify(fields),
   });
   if (!res.ok) throw new Error('Board update failed: ' + await res.text());
@@ -8396,8 +8417,8 @@ function V4UseOpsHealth() {
   React.useEffect(() => {
     let alive = true;
     const load = () => {
-      fetch(V3_SUPABASE_URL + '/rest/v1/ops_health?id=eq.1&limit=1', {
-        headers: { apikey: V3_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + V3_SUPABASE_ANON_KEY },
+      fetch(V3SupabaseRequestUrl('/rest/v1/ops_health?id=eq.1&limit=1'), {
+        headers: V3SupabaseRequestHeaders(),
       }).then(r => r.ok ? r.json() : []).then(rows => { if (alive) setHealth((rows && rows[0]) || null); })
         .catch(() => {});
     };
@@ -8409,10 +8430,9 @@ function V4UseOpsHealth() {
     return () => { alive = false; clearInterval(t); window.removeEventListener('v4:refresh-complete', onRefresh); };
   }, []);
   const write = (fields, optimistic) => {
-    fetch(V3_SUPABASE_URL + '/rest/v1/ops_health?id=eq.1', {
+    fetch(V3SupabaseRequestUrl('/rest/v1/ops_health?id=eq.1'), {
       method: 'PATCH',
-      headers: { apikey: V3_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + V3_SUPABASE_ANON_KEY,
-        'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      headers: V3SupabaseRequestHeaders({ Prefer: 'return=minimal' }),
       body: JSON.stringify(fields),
     }).then(() => setHealth(h => ({ ...(h || {}), ...optimistic }))).catch(() => {});
   };
@@ -14283,14 +14303,9 @@ async function V4RefreshAllData(opts = {}) {
 function V4CosPatchLead(lead, fields, localPatch) {
   const id = lead?.rowId || lead?.id;
   if (!id) return;
-  fetch(V3_SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(id), {
+  fetch(V3SupabaseRequestUrl('/rest/v1/cards?id=eq.' + encodeURIComponent(id)), {
     method: 'PATCH',
-    headers: {
-      apikey: V3_SUPABASE_ANON_KEY,
-      Authorization: 'Bearer ' + V3_SUPABASE_ANON_KEY,
-      'Content-Type': 'application/json',
-      Prefer: 'return=minimal',
-    },
+    headers: V3SupabaseRequestHeaders({ Prefer: 'return=minimal' }),
     body: JSON.stringify(fields),
   }).catch(err => console.warn('[ALIGNED v4] lead patch failed:', err));
   const updated = (window.V3.LEADS || []).map(item =>
@@ -16554,9 +16569,9 @@ async function V4PatchDeskIntakeStatus(id, status) {
     patch.reviewed_at = now;
     patch.routed_at = now;
   }
-  const res = await fetch(V3_SUPABASE_URL + '/rest/v1/robert_desk_intake?id=eq.' + encodeURIComponent(id), {
+  const res = await fetch(V3SupabaseRequestUrl('/rest/v1/robert_desk_intake?id=eq.' + encodeURIComponent(id)), {
     method: 'PATCH',
-    headers: { ...V3_SUPABASE_HEADERS, Prefer: 'return=minimal' },
+    headers: V3SupabaseRequestHeaders({ Prefer: 'return=minimal' }),
     body: JSON.stringify(patch),
   });
   if (!res.ok) throw new Error('Could not update intake status');
@@ -19246,9 +19261,9 @@ async function V4RefreshLeadFromX(lead) {
       dm_messages: Array.isArray(enriched.xDmMessages) ? enriched.xDmMessages : [],
     });
     if (!String(cardId).startsWith('xdm-')) {
-      const res = await fetch(V3_SUPABASE_URL + '/rest/v1/cards?id=eq.' + encodeURIComponent(cardId), {
+      const res = await fetch(V3SupabaseRequestUrl('/rest/v1/cards?id=eq.' + encodeURIComponent(cardId)), {
         method: 'PATCH',
-        headers: { ...V3_SUPABASE_HEADERS, Prefer: 'return=minimal' },
+        headers: V3SupabaseRequestHeaders({ Prefer: 'return=minimal' }),
         body: JSON.stringify({
           description: desc,
           contact_name: enriched.contactName,

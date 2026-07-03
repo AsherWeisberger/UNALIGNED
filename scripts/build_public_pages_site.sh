@@ -24,8 +24,8 @@ copy_if "$ROOT/favicon.ico"
 copy_if "$ROOT/unaligned_logo.png"
 rsync -a "$ROOT/assets/" "$SITE/assets/"
 
-# Router only — redirects custom domain to /connect/, never loads dashboard on Pages.
-cp "$ROOT/index.html" "$SITE/index.html"
+# Public router only — no private hostnames in shipped HTML.
+cp "$ROOT/public-index.html" "$SITE/index.html"
 
 if [[ -f "$SITE/CNAME" ]]; then
   echo "Public Pages site → $(cat "$SITE/CNAME")"
