@@ -766,11 +766,22 @@ def _footer(
     return f" {joined}" if joined else ""
 
 
+def _robert_voice_helpers():
+    try:
+        from robert_voice import robert_opener, score_robert_authenticity, strip_non_robert_phrases
+    except ImportError:
+        return None, None, None
+    return robert_opener, score_robert_authenticity, strip_non_robert_phrases
+
+
 def _sanitize_draft(text: str) -> str:
     """Strip botty sponsorship phrasing. Robert's voice is direct, not template Twitter."""
+    _, _, strip_non_robert = _robert_voice_helpers()
     out = (text or "").strip()
     for phrase in PARTNERSHIP_BANNED_PHRASES:
         out = re.sub(re.escape(phrase), "", out, flags=re.I)
+    if strip_non_robert:
+        out = strip_non_robert(out)
     out = re.sub(r"\s+", " ", out)
     out = re.sub(r"\s+([,.])", r"\1", out)
     out = re.sub(r":\s*:", ":", out)
@@ -830,13 +841,19 @@ def _reach_score_draft(
     draft: dict[str, Any],
     *,
     terms: list[str],
+    standalone_post: bool = False,
 ) -> dict[str, Any]:
     """Score how well a draft stacks waves: attach + engagement + live terms in line 1."""
     score = REACH_ANGLE_BASE.get(str(draft.get("angle") or ""), 12)
     wave_stack: list[str] = []
 
     angle = draft.get("angle")
-    if angle in ("qrt_reaction", "brand_moment"):
+    if standalone_post:
+        if draft.get("anchor"):
+            wave_stack.append("thread reference")
+        else:
+            wave_stack.append("standalone original")
+    elif angle in ("qrt_reaction", "brand_moment"):
         wave_stack.append("wave 2 on wave 1 (QRT)")
     elif draft.get("anchor"):
         wave_stack.append("thread reference")
@@ -895,6 +912,7 @@ def _compose_partnership_drafts(
     must_tag: str | None,
     link: str | None,
     client_hashtags: str | None,
+    standalone_post: bool = False,
 ) -> tuple[list[dict[str, str]], list[str]]:
     terms = keywords.get("suggested_keywords") or []
     live_tag_list = keywords.get("suggested_hashtags") or []
@@ -907,34 +925,56 @@ def _compose_partnership_drafts(
         return top_posts[idx] if idx < len(top_posts) else None
 
     brand_hook = _hook_fragment(brand_posts[0] if brand_posts else None)
+    robert_opener_fn, score_voice_fn, _ = _robert_voice_helpers()
 
     candidates: list[dict[str, str]] = []
 
     p0 = post_at(0)
     if p0:
         hook = _hook_fragment(p0)
-        candidates.append(
-            {
-                "label": "Option A — QRT this thread",
-                "angle": "qrt_reaction",
-                "anchor": p0.get("url", ""),
-                "anchor_eng": p0.get("engagement", 0),
-                "_must_tag": must_tag,
-                "text": _algo_open(
-                    term_at(0, topic),
-                    (
-                        f"{hook} …I'd QRT this and tie in {brand}."
-                        f"{_footer(must_tag=must_tag, link=link, client_hashtags=client_hashtags, live_tags=live_tag_list, draft_idx=0)}"
-                    ),
-                ).strip(),
-            }
-        )
+        if standalone_post:
+            candidates.append(
+                {
+                    "label": "Option A. Standalone hot take",
+                    "angle": "listicle_pushback",
+                    "anchor": "",
+                    "anchor_eng": p0.get("engagement", 0),
+                    "_must_tag": must_tag,
+                    "text": _algo_open(
+                        term_at(0, topic),
+                        (
+                            (robert_opener_fn(variant=0, brand=brand, topic=term_at(0, topic), hook=term_at(0, topic))
+                             if robert_opener_fn else
+                             f"Everyone is sharing {term_at(0, topic)} tool lists right now. Lists are fine. Workflow context is still the gap.")
+                            + f" {brand} is where teams already work."
+                            f"{_footer(must_tag=must_tag, link=link, client_hashtags=client_hashtags, live_tags=live_tag_list, draft_idx=0)}"
+                        ),
+                    ).strip(),
+                }
+            )
+        else:
+            candidates.append(
+                {
+                    "label": "Option A. QRT this thread",
+                    "angle": "qrt_reaction",
+                    "anchor": p0.get("url", ""),
+                    "anchor_eng": p0.get("engagement", 0),
+                    "_must_tag": must_tag,
+                    "text": _algo_open(
+                        term_at(0, topic),
+                        (
+                            f"{hook} …I'd QRT this and tie in {brand}."
+                            f"{_footer(must_tag=must_tag, link=link, client_hashtags=client_hashtags, live_tags=live_tag_list, draft_idx=0)}"
+                        ),
+                    ).strip(),
+                }
+            )
 
     p1 = post_at(1)
     if p1:
         candidates.append(
             {
-                "label": "Option B — Workflow angle",
+                "label": "Option B. Workflow angle",
                 "angle": "contrarian",
                 "anchor": p1.get("url", ""),
                 "anchor_eng": p1.get("engagement", 0),
@@ -953,26 +993,28 @@ def _compose_partnership_drafts(
     p2 = post_at(2)
     candidates.append(
         {
-            "label": "Option C — After testing it",
+            "label": "Option C. After testing it",
             "angle": "field_demo",
             "anchor": p2.get("url", "") if p2 else "",
             "anchor_eng": (p2 or {}).get("engagement", 0),
             "_must_tag": must_tag,
-            "text": _algo_open(
-                term_at(2, topic),
-                (
-                    f"Tested a stack of {term_at(2, topic)} tools this month. "
-                    f"{brand} stayed on the list after one afternoon with a real team."
-                    f"{_footer(must_tag=must_tag, link=link, client_hashtags=client_hashtags, live_tags=live_tag_list, draft_idx=2)}"
-                ),
-            ).strip(),
+                    "text": _algo_open(
+                        term_at(2, topic),
+                        (
+                            (robert_opener_fn(variant=2, brand=brand, topic=term_at(2, topic), artifact="workflow")
+                             if robert_opener_fn else
+                             f"Tested a stack of {term_at(2, topic)} tools this month.")
+                            + f" {brand} stayed on the list after one afternoon with a real team."
+                            f"{_footer(must_tag=must_tag, link=link, client_hashtags=client_hashtags, live_tags=live_tag_list, draft_idx=2)}"
+                        ),
+                    ).strip(),
         }
     )
 
-    if brand_hook:
+    if brand_hook and not standalone_post:
         candidates.append(
             {
-                "label": "Option D — QRT their post",
+                "label": "Option D. QRT their post",
                 "angle": "brand_moment",
                 "anchor": (brand_posts[0].get("url", "") if brand_posts else ""),
                 "anchor_eng": (brand_posts[0].get("engagement", 0) if brand_posts else 0),
@@ -990,7 +1032,7 @@ def _compose_partnership_drafts(
     p3 = post_at(3)
     candidates.append(
         {
-            "label": "Option E — Chat box vs embedded",
+            "label": "Option E. Chat box vs embedded",
             "angle": "question",
             "anchor": p3.get("url", "") if p3 else "",
             "anchor_eng": (p3 or {}).get("engagement", 0),
@@ -1010,7 +1052,7 @@ def _compose_partnership_drafts(
     if p4 and re.search(r"\d", _hook_fragment(p4)):
         candidates.append(
             {
-                "label": "Option F — Beyond the list",
+                "label": "Option F. Beyond the list",
                 "angle": "listicle_pushback",
                 "anchor": p4.get("url", ""),
                 "anchor_eng": p4.get("engagement", 0),
@@ -1051,24 +1093,50 @@ def _compose_partnership_drafts(
 
     for draft in selected[:3]:
         draft["text"] = _sanitize_draft(draft.get("text", ""))
-        _reach_score_draft(draft, terms=terms)
+        if score_voice_fn:
+            voice = score_voice_fn(draft.get("text", ""))
+            draft["robert_voice_score"] = voice.get("score")
+            draft["robert_voice_tier"] = voice.get("tier")
+            draft["robert_tonality"] = voice.get("tonality")
+        _reach_score_draft(draft, terms=terms, standalone_post=standalone_post)
+        if standalone_post:
+            draft["anchor"] = ""
+            reason = str(draft.get("reach_reason") or "").strip()
+            if reason:
+                draft["reach_reason"] = reason.replace("wave 2 on wave 1 (QRT)", "live thread context (standalone)")
         draft.pop("_must_tag", None)
 
     selected[:3] = sorted(selected[:3], key=lambda d: d.get("reach_score", 0), reverse=True)
 
     for idx, draft in enumerate(selected[:3], start=1):
         label = draft.get("label", "Draft")
-        rest = label.split("—", 1)[-1].strip() if "—" in label else label
+        for sep in ("—", " – ", " - ", ". "):
+            if sep in label:
+                rest = label.split(sep, 1)[-1].strip()
+                break
+        else:
+            rest = label
         suffix = " (Recommended)" if idx == 1 else ""
-        draft["label"] = f"Option {idx} — {rest}{suffix}"
+        draft["label"] = f"Option {idx}. {rest}{suffix}"
 
-    differentiation = [
-        "Each option anchors a different live thread or angle (QRT, contrarian, field demo, brand moment, question).",
-        "No shared opener across options — if two drafts start the same way, rewrite one.",
-        "Rotate hashtags: one tag per draft max when using live signal tags.",
-        "Never reuse banned partnership boilerplate (see anti_template_phrases).",
-        f"Variation history tracks {len(history)} recent openers across campaigns to reduce copy/paste feel.",
-    ]
+    differentiation = (
+        [
+            "Agency requires standalone posts only. Use live threads for language, not as QRT targets.",
+            "Each option is an original Robert POV (hot take, workflow angle, field demo, question).",
+            "No shared opener across options — if two drafts start the same way, rewrite one.",
+            "Rotate hashtags: one tag per draft max when using live signal tags.",
+            "Never reuse banned partnership boilerplate (see anti_template_phrases).",
+            f"Variation history tracks {len(history)} recent openers across campaigns to reduce copy/paste feel.",
+        ]
+        if standalone_post
+        else [
+            "Each option anchors a different live thread or angle (QRT, contrarian, field demo, brand moment, question).",
+            "No shared opener across options — if two drafts start the same way, rewrite one.",
+            "Rotate hashtags: one tag per draft max when using live signal tags.",
+            "Never reuse banned partnership boilerplate (see anti_template_phrases).",
+            f"Variation history tracks {len(history)} recent openers across campaigns to reduce copy/paste feel.",
+        ]
+    )
 
     new_openers = [d["text"][:72] for d in selected[:3]]
     _save_variation_history(new_openers)
@@ -1085,6 +1153,7 @@ def partnership_intel(
     link: str | None = None,
     hashtags: str | None = None,
     max_results: int = 25,
+    standalone_post: bool = False,
 ) -> dict[str, Any]:
     handle_norm = normalize_handle(handle) if handle else ""
     tag_handle = must_tag.lstrip("@") if must_tag and must_tag.startswith("@") else (must_tag or "")
@@ -1137,6 +1206,7 @@ def partnership_intel(
         must_tag=must_tag,
         link=link,
         client_hashtags=hashtags,
+        standalone_post=standalone_post,
     )
 
     algo_playbook = build_algo_playbook(
@@ -1148,6 +1218,21 @@ def partnership_intel(
 
     wording_rules = list(algo_playbook.get("steps") or [])
     wording_rules.extend(algo_playbook.get("dont") or [])
+
+    voice_profile_summary: dict[str, Any] = {}
+    try:
+        from robert_voice import load_voice_profile, voice_prompt_block
+
+        vp = load_voice_profile()
+        voice_profile_summary = {
+            "generated_at": vp.get("generated_at"),
+            "top_tonalities": [
+                t.get("label") for t in (vp.get("tonalities") or [])[:4]
+            ],
+            "prompt_block": voice_prompt_block(max_rules=6, max_examples=3),
+        }
+    except Exception:
+        voice_profile_summary = {}
 
     return {
         "mode": "partnership",
@@ -1167,6 +1252,7 @@ def partnership_intel(
         "anti_template_phrases": list(PARTNERSHIP_BANNED_PHRASES),
         "algo_playbook": algo_playbook,
         "draft_posts": drafts,
+        "robert_voice_profile": voice_profile_summary,
         "headline": (
             f"Sponsored post wording for {brand}: lead with "
             f"{', '.join((keywords.get('suggested_keywords') or [])[:3]) or topic} — "
@@ -1435,6 +1521,12 @@ def enrich_brief_config(config: dict[str, Any]) -> dict[str, Any]:
             if not any(k in step.lower() for k in ("qrt", "quote tweet", "first line", "hashtag", "reply to comments"))
         ]
 
+    try:
+        from reach_outcomes import new_brief_id
+        enriched["brief_id"] = enriched.get("brief_id") or new_brief_id()
+    except ImportError:
+        enriched["brief_id"] = enriched.get("brief_id") or "local"
+
     return enriched
 
 
@@ -1479,6 +1571,149 @@ def score_existing_drafts_with_signal(
     return scored
 
 
+def _count_hashtags(text: str) -> int:
+    return len(re.findall(r"#\w+", text or ""))
+
+
+def _detect_post_intent(text: str) -> str:
+    lower = (text or "").lower()
+    if "qrt" in lower or "quote tweet" in lower or "x.com/" in lower:
+        return "qrt"
+    if lower.strip().startswith("@"):
+        return "reply"
+    return "original"
+
+
+def score_post_text(
+    client: XClient,
+    text: str,
+    *,
+    topic: str | None = None,
+    brand: str | None = None,
+    must_tag: str | None = None,
+    max_results: int = 20,
+) -> dict[str, Any]:
+    """Score arbitrary draft copy against live X signal. Returns reach score + improvements."""
+    draft = (text or "").strip()
+    if not draft:
+        raise RuntimeError("Empty post text")
+
+    search_topic = (topic or brand or " ".join(re.findall(r"[A-Za-z]{4,}", draft)[:4]) or "AI tech").strip()
+    query = build_search_query_from_question(search_topic)
+    payload = client.search_recent(query, max_results=max_results)
+    users = index_users(payload)
+    tweets = payload.get("data") or []
+    top_posts = summarize_tweets(tweets, users, limit=6)
+    keywords = keyword_pack(tweets)
+    terms = keywords.get("suggested_keywords") or []
+
+    intent = _detect_post_intent(draft)
+    best_attach = top_posts[0] if top_posts else None
+    scored: dict[str, Any] = {
+        "angle": "qrt_reaction" if intent == "qrt" else "field_demo",
+        "anchor": best_attach.get("url", "") if best_attach and intent != "original" else "",
+        "anchor_eng": best_attach.get("engagement", 0) if best_attach else 0,
+        "text": draft,
+        "_must_tag": must_tag,
+    }
+    if intent == "original" and best_attach:
+        scored["angle"] = "field_demo"
+        scored["anchor"] = ""
+        scored["anchor_eng"] = 0
+    _reach_score_draft(scored, terms=terms)
+    scored.pop("_must_tag", None)
+
+    improvements: list[str] = []
+    botty = [p for p in PARTNERSHIP_BANNED_PHRASES if p in draft.lower()]
+    if botty:
+        improvements.append(f"Remove botty phrasing: {', '.join(botty[:3])}")
+
+    first_line = draft.split("\n")[0][:120]
+    term_hit = next((t for t in terms[:4] if t.lower() in first_line.lower()), "")
+    if not term_hit and terms:
+        term_count = (keywords.get("terms") or [{}])[0].get("count", "several")
+        improvements.append(f"Work '{terms[0]}' into the first line — it's live in {term_count} posts right now.")
+    elif term_hit:
+        improvements.append(f"Good: '{term_hit}' is already in line 1.")
+
+    tag_count = _count_hashtags(draft)
+    if tag_count > 3:
+        improvements.append(f"Cut hashtags ({tag_count} found). Client-required only, 1–2 max.")
+    elif tag_count == 0 and keywords.get("suggested_hashtags"):
+        improvements.append("Hashtags optional — only add client-required tags at the end.")
+
+    if intent == "original" and best_attach and best_attach.get("engagement", 0) >= 15:
+        improvements.insert(
+            0,
+            f"QRT this thread instead of a cold original: {best_attach['url']} ({best_attach['engagement']} eng)",
+        )
+    elif intent == "qrt":
+        improvements.insert(0, "Attach format looks right (QRT/reference). Keep Robert's take short on top.")
+
+    if must_tag and must_tag.lower() not in draft.lower():
+        improvements.append(f"Add required tag at the end: {must_tag}")
+    elif must_tag and draft.lower().find(must_tag.lower()) < len(draft) * 0.5:
+        improvements.append(f"Move {must_tag} closer to the end of the post.")
+
+    improvements.append("Reply to comments for 30 minutes after posting.")
+
+    rewrite_hint = ""
+    if terms and not term_hit:
+        rewrite_hint = _algo_open(terms[0], first_line.split(".")[0] + ".")
+    elif best_attach and intent == "original":
+        hook = _hook_fragment(best_attach)
+        rewrite_hint = _algo_open(terms[0] if terms else search_topic, f"{hook} …I'd QRT this.")
+
+    return {
+        "mode": "score",
+        "generated_at": utc_now_iso(),
+        "input_text": draft,
+        "topic_searched": search_topic,
+        "search_query": query,
+        "reach_score": scored.get("reach_score"),
+        "reach_tier": scored.get("reach_tier"),
+        "reach_reason": scored.get("reach_reason"),
+        "wave_stack": scored.get("wave_stack"),
+        "live_keywords": terms,
+        "live_hashtags": keywords.get("suggested_hashtags") or [],
+        "best_attach": best_attach,
+        "improvements": improvements,
+        "rewrite_hint": rewrite_hint,
+        "intent_detected": intent,
+    }
+
+
+def render_score_markdown(brief: dict[str, Any]) -> str:
+    lines = [
+        "# Post Reach Score",
+        "",
+        f"**Generated:** {brief.get('generated_at', '')}",
+        f"**Reach:** {brief.get('reach_score')}/100 ({brief.get('reach_tier', '')})",
+        f"**Wave stack:** {brief.get('reach_reason', '')}",
+        "",
+        "## Your draft",
+        brief.get("input_text", ""),
+        "",
+        "## Live terms in play",
+        ", ".join(brief.get("live_keywords") or []) or "—",
+        "",
+        "## How to improve",
+    ]
+    for item in brief.get("improvements") or []:
+        lines.append(f"- {item}")
+    if brief.get("rewrite_hint"):
+        lines.extend(["", "## Stronger first line", brief["rewrite_hint"]])
+    attach = brief.get("best_attach")
+    if attach:
+        lines.extend([
+            "",
+            "## Best thread to stack",
+            f"- [{attach.get('engagement')} eng] @{attach.get('username')}: {attach.get('text', '')[:180]}",
+            f"  {attach.get('url', '')}",
+        ])
+    return "\n".join(lines) + "\n"
+
+
 def analyze_partnership_signal(
     *,
     brand: str,
@@ -1489,6 +1724,7 @@ def analyze_partnership_signal(
     hashtags: str | None = None,
     drafts: list[dict[str, Any]] | None = None,
     max_results: int = 25,
+    standalone_post: bool = False,
 ) -> dict[str, Any]:
     client = XClient()
     signal = partnership_intel(
@@ -1500,6 +1736,7 @@ def analyze_partnership_signal(
         link=link,
         hashtags=hashtags,
         max_results=max_results,
+        standalone_post=standalone_post,
     )
     if drafts:
         signal["scored_existing_drafts"] = score_existing_drafts_with_signal(
@@ -1549,6 +1786,14 @@ def main() -> int:
     partner_p.add_argument("--hashtags", help="Required hashtags string")
     partner_p.add_argument("-n", "--max-results", type=int, default=25, help="Search sample size")
     partner_p.add_argument("--json", action="store_true", help="Print JSON only")
+
+    score_p = sub.add_parser("score", help="Score any draft post against live X signal")
+    score_p.add_argument("text", help="Draft post text to score")
+    score_p.add_argument("--topic", help="Topic to search on X")
+    score_p.add_argument("--brand", help="Brand name for context")
+    score_p.add_argument("--tag", dest="must_tag", help="Required @mention")
+    score_p.add_argument("-n", "--max-results", type=int, default=20)
+    score_p.add_argument("--json", action="store_true")
 
     sub.add_parser("auth-check", help="Verify OAuth token and /users/me")
 
@@ -1614,6 +1859,24 @@ def main() -> int:
             md = render_partnership_markdown(brief)
             slug = re.sub(r"[^a-z0-9]+", "-", args.brand.lower())[:30].strip("-") or "partner"
             path = save_brief(brief, md, stem=f"partnership-{slug}")
+            if args.json:
+                print(json.dumps(brief, indent=2, ensure_ascii=False))
+            else:
+                print(md)
+                print(f"Saved: {path}")
+            return 0
+
+        if args.command == "score":
+            brief = score_post_text(
+                client,
+                args.text,
+                topic=args.topic,
+                brand=args.brand,
+                must_tag=args.must_tag,
+                max_results=args.max_results,
+            )
+            md = render_score_markdown(brief)
+            path = save_brief(brief, md, stem="score")
             if args.json:
                 print(json.dumps(brief, indent=2, ensure_ascii=False))
             else:

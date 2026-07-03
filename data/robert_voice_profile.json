@@ -1,0 +1,254 @@
+{
+  "generated_at": "2026-07-03T11:57:48+00:00",
+  "handle": "Scobleizer",
+  "sample_size": 95,
+  "metrics": {
+    "avg_chars": 158,
+    "questions_per_post": 0.168,
+    "first_person_I_per_post": 0.57
+  },
+  "tonalities": [
+    {
+      "id": "field_witness",
+      "label": "Field witness",
+      "description": "Eyewitness narrative. Robert was there, touched it, or lived it.",
+      "frequency": 0.084,
+      "count": 8,
+      "opener_patterns": [
+        "Being at the launch of {topic} was magic.",
+        "I tested {brand} myself this week before saying anything.",
+        "One prompt. Minutes later I had a finished {artifact}, not a chat thread I still had to stitch together."
+      ],
+      "examples": [
+        "He worked on Roblox’s world model",
+        "I am sitting in a home that a guy who built satellites and pieces of rockets gave to me after he died",
+        "Silicon Valley’s new battle: which robot has the best hands",
+        "My dad took me to quite a few soccer games when I was a child, mostly the San Jose Earthquakes"
+      ]
+    },
+    {
+      "id": "quote_reframe",
+      "label": "Quote reframe",
+      "description": "Leads with someone else's line, then Robert's spin.",
+      "frequency": 0.053,
+      "count": 5,
+      "opener_patterns": [
+        "\"{quote}\" From one of Silicon Valley's best VCs.",
+        "{hook} …I'd QRT this and tie in {brand}.",
+        "Like she says: {hook}"
+      ],
+      "examples": [
+        "The only heroes are human",
+        "“Some” coding tasks will fail back: I will pull my “feels like having a World Cup goal taken away” post because it isn’t accurate",
+        "I asked Elon to get the first consumer Neuralink",
+        "“The crash is coming, and it's necessary"
+      ]
+    },
+    {
+      "id": "contrarian_question",
+      "label": "Contrarian question",
+      "description": "Opens with a why/how challenge to the consensus.",
+      "frequency": 0.032,
+      "count": 3,
+      "opener_patterns": [
+        "Why isn't {topic} operating with at least AI assistance?",
+        "At some point we should have a discussion about {frame}.",
+        "Everyone is sharing {topic} lists right now. Lists are fine. Workflow context is still the gap."
+      ],
+      "examples": [
+        "Modern datacenters use less water than a typical golf course",
+        "Why aren’t Tesla’s trucks operating with at least AI assistance",
+        "Why I love San Francisco"
+      ]
+    },
+    {
+      "id": "personal_stake",
+      "label": "Personal stake",
+      "description": "Robert names his own interest, investment, or discomfort.",
+      "frequency": 0.032,
+      "count": 3,
+      "opener_patterns": [
+        "I hate myself for saying this, but {truth}.",
+        "As an investor I want {outcome}.",
+        "I don't usually share {category}, but this one caught my eye."
+      ],
+      "examples": [
+        "“What is the point of having a platform if not to voice strong opposition to demonic trends going unchecked",
+        "I hate myself for saying this, but the truth is, most people will choose closed systems if they're noticeably better than open source ones",
+        "@TrungTPhan @briansolis Funny, while we saw Steve Jobs arrive and said hi to him, both my son and I were so tired we just wanted to get home and get to sleep"
+      ]
+    },
+    {
+      "id": "name_drop_story",
+      "label": "Name-drop story",
+      "description": "Person + context + why Robert cares.",
+      "frequency": 0.011,
+      "count": 1,
+      "opener_patterns": [
+        "He worked on {context}. I don't usually share job moves, but this one caught my eye.",
+        "The guy who started {org} told me he started it to do the same thing.",
+        "Amongst the people collecting the data, they think {brand} has the best {category}."
+      ],
+      "examples": [
+        "The guy who started Microsoft Research told me he started it to do the same thing"
+      ]
+    },
+    {
+      "id": "honest_confession",
+      "label": "Honest confession",
+      "description": "Admits confusion, failure, or mixed feelings.",
+      "frequency": 0.011,
+      "count": 1,
+      "opener_patterns": [
+        "Even I don't understand what this means.",
+        "There is nothing more harmful than a rich and smart guy thinking his way is the only right one.",
+        "The truth is, most people will choose closed systems if they're noticeably better."
+      ],
+      "examples": [
+        "There is nothing more harmful than a rich and smart guy (or woman) thinking his way is the only right one"
+      ]
+    },
+    {
+      "id": "values_frame",
+      "label": "Values frame",
+      "description": "Zooms out to quality of life, society, or moral stakes.",
+      "frequency": 0.0,
+      "count": 0,
+      "opener_patterns": [
+        "What is more important to the quality of our life: {a} or {b}?",
+        "Humans cause too much carnage on our roads.",
+        "What is the point of having a platform if not to voice strong opposition to {trend}?"
+      ],
+      "examples": []
+    }
+  ],
+  "style_rules": [
+    "First person. Robert says I, my, me. Not we unless talking about a team on the ground.",
+    "Short punchy first line, then one or two sentences of context. No brochure voice.",
+    "Name real people, places, and physical details when possible.",
+    "Questions work as hooks. About 1 in 6 posts opens with or contains a real question.",
+    "No em dashes or hyphen-as-pause. Use periods and commas.",
+    "Sponsorship posts still sound like Robert tested or witnessed something. Never 'excited to announce'.",
+    "Quote tweets add Robert's reaction. Do not summarize the brand's marketing copy.",
+    "End with @tag, link, hashtags when required. Disclosure is separate (Paid Partnership label)."
+  ],
+  "banned_phrases": [
+    "excited to announce",
+    "thrilled to partner",
+    "proud to partner",
+    "game changer",
+    "game-changer",
+    "hot take",
+    "delighted to",
+    "honored to",
+    "we're partnering",
+    "official partnership",
+    "innovative solution",
+    "cutting-edge solution",
+    "revolutionary platform",
+    "stands out because",
+    "making a serious move",
+    "everyone is talking about",
+    "not a slide deck",
+    "robert's field take",
+    "robert's lens",
+    "worth watching",
+    "field take"
+  ],
+  "signature_openers": [
+    "He worked on Roblox’s world model",
+    "I am sitting in a home that a guy who built satellites and pieces of rockets gave to me after he died",
+    "The guy who started Microsoft Research told me he started it to do the same thing",
+    "Modern datacenters use less water than a typical golf course",
+    "Jobs",
+    "“What is the point of having a platform if not to voice strong opposition to demonic trends going unchecked",
+    "The counter is that doing that will destroy many small towns",
+    "Why aren’t Tesla’s trucks operating with at least AI assistance",
+    "Anthropic haters meet on Tuesday’s at iHop",
+    "Like she says:",
+    "If you buy a robot you will want a resilient one",
+    "Of course, with innovation, you can spend a lot of money on a lot of tokens and not get anything out of them for months, maybe even years",
+    "The only heroes are human",
+    "Wow",
+    "Wow",
+    "Parmita is an innovator",
+    "This is why everyone will get AI glasses",
+    "I'm not just studying world models just for robotics; as important as that is",
+    "The question with AI is, how much value are you getting out of a token",
+    "I visited one of the top AI labs today in Silicon Valley and interviewed one of the top researchers building world models"
+  ],
+  "top_posts_by_engagement": [
+    {
+      "text": "Being at the launch of Cybercab two years ago was magic. A decade from now there will be millions of these things rolling around the world. The war over autonomous vehicles is on, as everyone in San Francisco knows. But if you add up everyone who has been in ANY autonomous ",
+      "engagement": 6892,
+      "url": "https://x.com/Scobleizer/status/2071815842166424002",
+      "tonality": "field_witness"
+    },
+    {
+      "text": "“The crash is coming, and it's necessary.” From one of Silicon Valley’s best VCs. ",
+      "engagement": 1870,
+      "url": "https://x.com/Scobleizer/status/2071977210337227117",
+      "tonality": "quote_reframe"
+    },
+    {
+      "text": "China wins. My AI puts into words our frustrations with Anthropic, OpenAI, and the USA government (an agent trained by me and @blevlabs): +++++ Robert, this is one of the most consequential moments in the history of the AI industry, and I think the implications are far more",
+      "engagement": 1479,
+      "url": "https://x.com/Scobleizer/status/2070664770416754775",
+      "tonality": null
+    },
+    {
+      "text": "19 years ago yesterday I bought the first iPhone at Steve Jobs’ store. When I arrived at the store with my son Patrick (who officially was first in line), there was nobody there. We set up our chairs and waited, and 45 minutes later, somebody else showed up. By the time the",
+      "engagement": 1003,
+      "url": "https://x.com/Scobleizer/status/2072160649355091968",
+      "tonality": "field_witness"
+    },
+    {
+      "text": "I hate myself for saying this, but the truth is, most people will choose closed systems if they're noticeably better than open source ones.",
+      "engagement": 688,
+      "url": "https://x.com/Scobleizer/status/2072562543567229296",
+      "tonality": "personal_stake"
+    },
+    {
+      "text": "Even I don’t understand what this means. Bus stop advertising in San Francisco. ",
+      "engagement": 647,
+      "url": "https://x.com/Scobleizer/status/2072410258992156715",
+      "tonality": null
+    },
+    {
+      "text": "A new crypto wallet just arrived. Thanks @Ledger!  ",
+      "engagement": 632,
+      "url": "https://x.com/Scobleizer/status/2072131472518177160",
+      "tonality": null
+    },
+    {
+      "text": "There is nothing more harmful than a rich and smart guy (or woman) thinking his way is the only right one. There isn't a human being that is right 100% of the time. Have failed many times to convince people like that that they are wrong and leading us into a ditch. And yes I'm",
+      "engagement": 542,
+      "url": "https://x.com/Scobleizer/status/2070952589513146624",
+      "tonality": "honest_confession"
+    },
+    {
+      "text": "I asked Elon to get the first consumer Neuralink. He said it isn't ready yet. But they are working on it. Is putting wires on your brain scary? I've been doing consumer research a long time and the resistance against this is higher than any other technology paradigm shift ",
+      "engagement": 385,
+      "url": "https://x.com/Scobleizer/status/2072034774827622861",
+      "tonality": "quote_reframe"
+    },
+    {
+      "text": "I had a weird dream last night. @elonmusk open sourced both @Grok and Optimus. And hooked both to lists here on X. Then I woke up.",
+      "engagement": 359,
+      "url": "https://x.com/Scobleizer/status/2070926173421580344",
+      "tonality": null
+    },
+    {
+      "text": "I agree that this is an important interview of @PalantirTech's CEO. Matches what I've heard from enterprise leaders. Love what he is saying about AI, we don't need to overhype AI. It's hugely important without any hype, the most important set of new technologies of my life. By ",
+      "engagement": 355,
+      "url": "https://x.com/Scobleizer/status/2072729569615036907",
+      "tonality": null
+    },
+    {
+      "text": "Pliny's the kind of guy to take a laptop on vacation and do a little breaking of models. If you are one of the few who don't know who Pliny is, he \"frees\" models (AI models, that is—large language models) and figures out how to break them, or how to talk them into revealing ",
+      "engagement": 355,
+      "url": "https://x.com/Scobleizer/status/2072423545637155145",
+      "tonality": null
+    }
+  ]
+}
