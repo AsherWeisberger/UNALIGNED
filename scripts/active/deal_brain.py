@@ -183,6 +183,34 @@ def llm_json(user: str) -> dict | None:
         return None
 
 
+def no_hyphens(text: str | None) -> str:
+    """Hard-enforce the voice rule: no hyphens or dashes in outgoing copy.
+    Em/en dashes become sentence breaks; word hyphens become spaces
+    ('on-site' -> 'on site'). URLs and email addresses are left untouched."""
+    if not text:
+        return text or ""
+    text = re.sub(r"\s*[—–]\s*", ". ", str(text))  # em/en dash, eat surrounding space
+    text = re.sub(r"\s+-\s+", ". ", text)  # standalone " - "
+    out = []
+    for token in re.split(r"(\s+)", text):  # keep whitespace as-is
+        if "-" in token and not ("://" in token or "@" in token
+                                 or token.lower().startswith(("http", "www."))):
+            token = token.replace("-", " ")
+        out.append(token)
+    return "".join(out)
+
+
+def harden_draft(result: dict | None) -> None:
+    """Apply the no-hyphen rule mechanically to the outward-facing draft."""
+    if not result:
+        return
+    d = result.get("draft")
+    if isinstance(d, dict):
+        for k in ("subject", "body"):
+            if d.get(k):
+                d[k] = no_hyphens(d[k])
+
+
 # ── core loop ───────────────────────────────────────────────────────────────
 def compact_state(state: dict) -> dict:
     """State as the model sees it (drop bulky history, keep ground truth)."""
@@ -236,6 +264,7 @@ def run_deal(state_file: Path, dry_run: bool) -> int:
     )
 
     result = llm_json(user)
+    harden_draft(result)
     ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -258,7 +287,7 @@ def run_deal(state_file: Path, dry_run: bool) -> int:
             lines += ["", "## ⏰ Deadlines"] + [f"- {p}" for p in result["deadline_alerts"]]
         d = result.get("draft") if result.get("draft_needed") else None
         if d:
-            lines += ["", "## Send-ready draft", f"To: {d.get('to')}", f"Cc: {d.get('cc')}",
+            lines += ["", "## Send ready draft", f"To: {d.get('to')}", f"Cc: {d.get('cc')}",
                       f"Subject: {d.get('subject')}", "", d.get("body", "")]
         if result.get("questions_for_human"):
             lines += ["", "## Questions for you"] + [f"- {q}" for q in result["questions_for_human"]]
