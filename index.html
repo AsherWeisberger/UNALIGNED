@@ -2,15 +2,26 @@
 <html lang="en">
 <head>
 <script>
-// Legacy github.io URL → Mac-hosted ops app (agentdashboard.cloud stays on Pages).
+// GitHub Pages hosts: public forms only. Ops dashboard → Mac (Tailscale).
 (function () {
+  var MAC_OPS = 'https://mac-studio.tail50d3a2.ts.net';
+  var PUBLIC = {
+    '/connect.html': 1, '/feedback.html': 1, '/scope.html': 1,
+    '/connect': 1, '/feedback': 1, '/scope': 1, '/reach': 1
+  };
+  function norm(path) {
+    var p = String(path || '/').replace(/^\/UNALIGNED\/?/i, '/').toLowerCase();
+    if (p.length > 1 && p.charAt(p.length - 1) === '/') p = p.slice(0, -1);
+    return p || '/';
+  }
+  function isPublic(path) { return !!PUBLIC[norm(path)]; }
   var host = String(location.hostname || '').toLowerCase();
-  if (host !== 'asherweisberger.github.io') return;
+  var onPages = host === 'asherweisberger.github.io' || host === 'agentdashboard.cloud' || host === 'www.agentdashboard.cloud';
+  if (!onPages) return;
   if (/[?&]stay=github(?:&|$)/.test(location.search)) return;
-  var path = String(location.pathname || '/').replace(/^\/UNALIGNED\/?/i, '/').toLowerCase();
-  var publicPaths = ['/connect.html', '/feedback.html', '/scope.html', '/connect', '/feedback', '/scope', '/reach'];
-  if (publicPaths.indexOf(path) >= 0) return;
-  location.replace('https://mac-studio.tail50d3a2.ts.net' + path + location.search + location.hash);
+  if (isPublic(location.pathname)) return;
+  var path = String(location.pathname || '/').replace(/^\/UNALIGNED\/?/i, '/') || '/';
+  location.replace(MAC_OPS + path + location.search + location.hash);
 })();
 </script>
 <script>
@@ -18,6 +29,9 @@
 (function () {
   var KEY = 'v4_api_token';
   try { if (localStorage.getItem(KEY)) return; } catch (e) {}
+  var host = String(location.hostname || '').toLowerCase();
+  var onPages = host === 'asherweisberger.github.io' || host === 'agentdashboard.cloud' || host === 'www.agentdashboard.cloud';
+  if (onPages && !/[?&]stay=github(?:&|$)/.test(location.search)) return;
   var bases = [location.origin, 'https://mac-studio.tail50d3a2.ts.net', 'http://127.0.0.1:8767'];
   var seen = {};
   function tryNext(i) {
@@ -47,7 +61,7 @@
 <!-- Inter, Inter Tight, Space Grotesk removed 2026-07-01: fallback-only in font stacks, never rendered. Press Start 2P stays (easter egg). -->
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&family=Press+Start+2P&display=swap" rel="stylesheet" />
 
-<link rel="stylesheet" href="flow-v4/styles.css?v=20260702-board-cache-v89" />
+<link rel="stylesheet" href="flow-v4/styles.css?v=20260702-board-cache-v90" />
 
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
@@ -219,7 +233,7 @@
 </script>
 
 <script src="flow-v4/cube-theme-transition.js?v=20260701-liquid-1"></script>
-<script type="text/babel" src="flow-v4/app-bundle.jsx?v=20260702-board-cache-v89"></script>
+<script type="text/babel" src="flow-v4/app-bundle.jsx?v=20260702-board-cache-v90"></script>
 
 </body>
 </html>

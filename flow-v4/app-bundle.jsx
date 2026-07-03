@@ -1,3 +1,44 @@
+// Pages-hosted guard: public forms stay on GitHub Pages; ops dashboard redirects to Mac.
+const V4_EARLY_PAGES_HOSTS = new Set(['asherweisberger.github.io', 'agentdashboard.cloud', 'www.agentdashboard.cloud']);
+const V4_EARLY_PUBLIC_PATHS = new Set([
+  '/connect.html', '/feedback.html', '/scope.html', '/connect', '/feedback', '/scope', '/reach',
+]);
+
+function V4EarlyNormalizePath(path) {
+  let p = String(path || '/').replace(/^\/UNALIGNED\/?/i, '/').toLowerCase();
+  if (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1);
+  return p || '/';
+}
+
+function V4EarlyIsPublicRoute() {
+  try {
+    const host = String(window.location?.hostname || '').toLowerCase();
+    if (!V4_EARLY_PAGES_HOSTS.has(host)) return false;
+    return V4_EARLY_PUBLIC_PATHS.has(V4EarlyNormalizePath(window.location.pathname));
+  } catch (err) {
+    return false;
+  }
+}
+
+function V4EarlyShouldRedirectToMac() {
+  try {
+    const host = String(window.location?.hostname || '').toLowerCase();
+    if (!V4_EARLY_PAGES_HOSTS.has(host)) return false;
+    if (/[?&]stay=github(?:&|$)/.test(String(window.location.search || ''))) return false;
+    return !V4EarlyIsPublicRoute();
+  } catch (err) {
+    return false;
+  }
+}
+
+function V4EarlyRedirectToMac() {
+  if (!V4EarlyShouldRedirectToMac()) return false;
+  const path = String(window.location.pathname || '/').replace(/^\/UNALIGNED\/?/i, '/') || '/';
+  window.location.replace('https://mac-studio.tail50d3a2.ts.net' + path + window.location.search + window.location.hash);
+  return true;
+}
+
+V4EarlyRedirectToMac();
 
 // tweaks-panel.jsx
 // Reusable Tweaks shell + form-control helpers.
@@ -5574,13 +5615,15 @@ function V3MoveLeadStage(lead, nextStage, leads = V3ActiveLeads()) {
 
 window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: [], TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_VISIBLE_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, CompanyOsQualifiedLead: V3CompanyOsQualifiedLead, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, NewLeadReason: V3NewLeadReason, ResolveReplyTone: V3ResolveReplyTone, ReplyToneLabel: V3ReplyToneLabel, NewLeadSourceKind: V3NewLeadSourceKind, NewLeadSourceLabel: V3NewLeadSourceLabel, NewLeadHandle: V3NewLeadHandle, NewLeadSummary: V3NewLeadSummary, NewLeadPrimaryIdentity: V3NewLeadPrimaryIdentity, LeadMatchesQuery: V3LeadMatchesQuery, PrunePendingReplies: V3PrunePendingReplies, MergePendingReplies: V3MergePendingReplies, ReloadLeads: V3ReloadLeads, XLeadRepliedViaX: V3XLeadRepliedViaX, MarkRepliedViaX: V3MarkRepliedViaX };
 
-V3LoadPricingTiers();
-V3LoadTeamUsers();
+if (!V4EarlyShouldRedirectToMac() && !V4EarlyIsPublicRoute()) {
+  V3LoadPricingTiers();
+  V3LoadTeamUsers();
 
-window.dispatchEvent(new CustomEvent('v3:leads-loading'));
-V3LoadSupabaseLeads()
-  .then((leads) => V3PublishBoardLoaded(leads, { ok: true }))
-  .catch((err) => V3PublishBoardLoadFailed(err));
+  window.dispatchEvent(new CustomEvent('v3:leads-loading'));
+  V3LoadSupabaseLeads()
+    .then((leads) => V3PublishBoardLoaded(leads, { ok: true }))
+    .catch((err) => V3PublishBoardLoadFailed(err));
+}
 // FLOW v3 — Board view
 
 function V3BoardView({ leads, openId, onOpen, user, ownerFilter, setOwnerFilter }) {
@@ -12886,25 +12929,11 @@ function V4PublicFormBase() {
 const V4_ROBERT_CONNECT_LINK = V4_PUBLIC_CONNECT_URL;
 
 function V4IsPublicGithubPage() {
-  try {
-    const path = String(window.location.pathname || '/').replace(/^\/UNALIGNED\/?/i, '/').toLowerCase();
-    return V4_PUBLIC_GITHUB_PAGES.has(path);
-  } catch (err) {
-    return false;
-  }
+  return V4EarlyIsPublicRoute();
 }
 
 function V4MaybeRedirectToMachineHostedApp() {
-  try {
-    if (!V4IsGithubHostedPage()) return false;
-    if (V4IsPublicGithubPage()) return false;
-    if (/[?&]stay=github(?:&|$)/.test(String(window.location.search || ''))) return false;
-    const path = String(window.location.pathname || '/').replace(/^\/UNALIGNED\/?/, '/') || '/';
-    window.location.replace(V4_BRIEF_TAILSCALE_BASE_URL + path + window.location.search + window.location.hash);
-    return true;
-  } catch (err) {
-    return false;
-  }
+  return V4EarlyRedirectToMac();
 }
 
 function V4IsLocalBriefPage() {
@@ -16542,7 +16571,7 @@ function V4CosDeskIntakePage() {
           <span className="cos-eyebrow">Robert&apos;s desk</span>
           <h2 className="cos-desk-intake-hero-title">Public team intake</h2>
           <p className="cos-desk-intake-hero-sub">
-            Share the link below — not your browser URL. It opens the public form at <strong>agentdashboard.cloud</strong>. Submissions post to Firebase and land here; outsiders never see the ops dashboard or your Mac.
+            Share the link below — not your browser URL. It opens the public form at <strong>agentdashboard.cloud/connect</strong>. Submissions post to Firebase and land here. The root domain redirects private ops traffic to your Mac; only <code>/connect</code> stays public on Pages.
           </p>
           {onMacOps ? (
             <p className="cos-desk-intake-warn">
