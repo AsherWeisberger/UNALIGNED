@@ -15,6 +15,7 @@ copy_if() {
 }
 
 rsync -a "$ROOT/connect/" "$SITE/connect/"
+rsync -a "$ROOT/feedback/" "$SITE/feedback/"
 mkdir -p "$SITE/ops"
 cp "$ROOT/pages/team-ops-redirect.html" "$SITE/ops/index.html"
 copy_if "$ROOT/connect.html"
