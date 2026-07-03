@@ -12877,11 +12877,13 @@ const V4_PUBLIC_GITHUB_PAGES = new Set([
 ]);
 
 const V4_PUBLIC_FORM_BASE = 'https://asherweisberger.github.io/UNALIGNED';
-const V4_ROBERT_CONNECT_LINK = V4_PUBLIC_FORM_BASE + '/connect';
+const V4_PUBLIC_CONNECT_URL = 'https://agentdashboard.cloud/connect';
 
 function V4PublicFormBase() {
   return typeof V4PublicSiteBase === 'function' ? V4PublicSiteBase() : V4_PUBLIC_FORM_BASE;
 }
+
+const V4_ROBERT_CONNECT_LINK = V4_PUBLIC_CONNECT_URL;
 
 function V4IsPublicGithubPage() {
   try {
@@ -16540,7 +16542,7 @@ function V4CosDeskIntakePage() {
           <span className="cos-eyebrow">Robert&apos;s desk</span>
           <h2 className="cos-desk-intake-hero-title">Public team intake</h2>
           <p className="cos-desk-intake-hero-sub">
-            Share the link below — not your browser URL. It opens a standalone form on GitHub Pages. Submissions post to Firebase and land here; outsiders never see the ops dashboard or your Mac.
+            Share the link below — not your browser URL. It opens the public form at <strong>agentdashboard.cloud</strong>. Submissions post to Firebase and land here; outsiders never see the ops dashboard or your Mac.
           </p>
           {onMacOps ? (
             <p className="cos-desk-intake-warn">

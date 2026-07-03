@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script>
+  // Ops dashboard hosts must not be the shareable link — send visitors to the public form.
+  (function () {
+    var host = String(location.hostname || '');
+    var publicUrl = 'https://agentdashboard.cloud/connect';
+    if (host.indexOf('mac-studio.tail') >= 0) {
+      var target = publicUrl + String(location.search || '') + String(location.hash || '');
+      var here = location.href.split('?')[0].split('#')[0].replace(/\/$/, '');
+      if (here !== publicUrl && here !== publicUrl + '/') location.replace(target);
+    }
+  })();
+  </script>
+  <meta charset="utf-8" />
+  <link rel="canonical" href="https://agentdashboard.cloud/connect" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>UNALIGNED · Reach Robert's team</title>
+  <!-- form build: 20260702-agentdashboard-connect-v1 -->
+  <meta name="description" content="Share your idea with Robert Scoble's team. We read everything and route the best fits to Robert's desk." />
+  <link rel="icon" href="../favicon.ico" />
+  <link rel="stylesheet" href="../assets/unaligned-form.css?v=20260702-cinematic-v1" />
+</head>
+<body class="ua-form-page ua-form-connect">
+  <div class="ua-scene">
+    <div class="ua-grain" aria-hidden="true"></div>
+    <div class="ua-vignette" aria-hidden="true"></div>
+    <div class="ua-wrap">
+      <header class="ua-hero">
+        <div class="ua-logo-frame">
+          <img src="../assets/unaligned-form-logo.jpg" alt="UNALIGNED" class="ua-logo" width="800" height="199" />
+          <div class="ua-logo-glow" aria-hidden="true"></div>
+        </div>
+        <p class="ua-tagline">Robert Scoble · team intake</p>
+      </header>
+      <div class="ua-card" id="app">
+        <p class="lead">Loading…</p>
+      </div>
+      <p class="ua-foot">Every note is read by the UNALIGNED team. Strong fits get a direct line to Robert's desk.</p>
+    </div>
+  </div>
+  <script>
+    const API = 'https://us-central1-unaligned-fc556.cloudfunctions.net/robertDeskIntake';
+
+    const TOPICS = [
+      { label: 'A collaboration idea', value: 'collaboration' },
+      { label: 'A partnership', value: 'partnership' },
+      { label: 'Getting in sync on something', value: 'sync' },
+      { label: 'Something cool I came across', value: 'something_cool' },
+      { label: 'Something else', value: 'other' },
+    ];
+
+    const CONTACT_PREFS = [
+      { label: 'Email', value: 'email' },
+      { label: 'X / Twitter', value: 'x' },
+      { label: 'WhatsApp', value: 'whatsapp' },
+      { label: 'Signal', value: 'signal' },
+      { label: 'Phone / text', value: 'phone' },
+      { label: 'Other', value: 'other' },
+    ];
+
+    const CONTACT_FIELDS = {
+      email: {
+        label: 'Email address',
+        type: 'email',
+        placeholder: 'you@company.com',
+        hint: 'This is the address we\'ll use first.',
+        autocomplete: 'email',
+      },
+      x: {
+        label: 'X handle',
+        type: 'text',
+        placeholder: '@handle',
+        hint: 'Your public handle so we can find you fast.',
+        autocomplete: 'off',
+      },
+      whatsapp: {
+        label: 'WhatsApp number',
+        type: 'tel',
+        placeholder: '+1 555 123 4567',
+        hint: 'Include country code.',
+        autocomplete: 'tel',
+      },
+      signal: {
+        label: 'Signal number',
+        type: 'tel',
+        placeholder: '+1 555 123 4567',
+        hint: 'Include country code.',
+        autocomplete: 'tel',
+      },
+      phone: {
+        label: 'Phone number',
+        type: 'tel',
+        placeholder: '+1 555 123 4567',
+        hint: 'For call or text.',
+        autocomplete: 'tel',
+      },
+      other: {
+        label: 'How should we reach you?',
+        type: 'text',
+        placeholder: 'Telegram @you, LinkedIn, Discord…',
+        hint: 'Any channel works — tell us where and how to find you.',
+        autocomplete: 'off',
+      },
+    };
+
+    const state = {
+      company: '',
+      first_name: '',
+      last_name: '',
+      email: '',
+      contact_detail: '',
+      contact_preference: '',
+      topic_type: '',
+      message: '',
+      company_website: '',
+    };
+
+    let contactDetailInput = null;
+    let backupEmailWrap = null;
+    let contactPanel = null;
+
+    function el(tag, attrs, children) {
+      const node = document.createElement(tag);
+      if (attrs) Object.entries(attrs).forEach(([k, v]) => {
+        if (k === 'className') node.className = v;
+        else if (k === 'text') node.textContent = v;
+        else if (k.startsWith('on')) node.addEventListener(k.slice(2).toLowerCase(), v);
+        else node.setAttribute(k, v);
+      });
+      (children || []).forEach((c) => node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c));
+      return node;
+    }
+
+    function textField(key, label, opts = {}) {
+      const field = el('div', { className: 'field' });
+      field.appendChild(el('label', { text: label + (opts.required ? ' *' : '') }));
+      const input = el('input', {
+        type: opts.type || 'text',
+        placeholder: opts.placeholder || '',
+        autocomplete: opts.autocomplete || 'off',
+      });
+      input.addEventListener('input', () => { state[key] = input.value.trim(); });
+      field.appendChild(input);
+      if (opts.hint) field.appendChild(el('span', { className: 'hint', text: opts.hint }));
+      return field;
+    }
+
+    function choiceField(key, label, options, onPick) {
+      const field = el('div', { className: 'field' });
+      field.appendChild(el('label', { text: label + ' *' }));
+      const row = el('div', { className: 'choice' });
+      options.forEach((opt) => {
+        const btn = el('button', { type: 'button', text: opt.label });
+        btn.addEventListener('click', () => {
+          state[key] = opt.value;
+          row.querySelectorAll('button').forEach((b) => b.classList.toggle('is-on', b.textContent === opt.label));
+          if (typeof onPick === 'function') onPick(opt.value);
+        });
+        row.appendChild(btn);
+      });
+      field.appendChild(row);
+      return field;
+    }
+
+    function syncContactDetailField(pref) {
+      if (!contactPanel || !contactDetailInput) return;
+      const config = CONTACT_FIELDS[pref];
+      if (!config) {
+        contactPanel.classList.remove('is-open');
+        return;
+      }
+      contactPanel.classList.add('is-open');
+      const label = contactPanel.querySelector('label');
+      if (label) label.textContent = config.label + ' *';
+      contactDetailInput.type = config.type;
+      contactDetailInput.placeholder = config.placeholder;
+      contactDetailInput.autocomplete = config.autocomplete || 'off';
+      const hint = contactPanel.querySelector('.hint');
+      if (hint) hint.textContent = config.hint;
+      if (backupEmailWrap) {
+        backupEmailWrap.style.display = pref === 'email' ? 'none' : '';
+      }
+      window.requestAnimationFrame(() => contactDetailInput.focus());
+    }
+
+    function contactDetailField() {
+      const panel = el('div', { className: 'contact-panel' });
+      const field = el('div', { className: 'field' });
+      field.appendChild(el('label', { text: 'Contact details *' }));
+      const input = el('input', {
+        type: 'text',
+        placeholder: '',
+        autocomplete: 'off',
+      });
+      input.addEventListener('input', () => {
+        state.contact_detail = input.value.trim();
+        if (state.contact_preference === 'email') state.email = state.contact_detail;
+      });
+      field.appendChild(input);
+      field.appendChild(el('span', { className: 'hint', text: '' }));
+      panel.appendChild(field);
+      contactPanel = panel;
+      contactDetailInput = input;
+      return panel;
+    }
+
+    function renderForm() {
+      const app = document.getElementById('app');
+      app.innerHTML = '';
+      app.appendChild(el('div', { className: 'eyebrow', text: "Robert's desk" }));
+      app.appendChild(el('h2', { text: "Reach Robert's team" }));
+      app.appendChild(el('p', {
+        className: 'lead',
+        text: "Partnerships, projects, and ideas worth a look — share how to reach you and what you want to explore. We filter everything; the best fits land on Robert's desk.",
+      }));
+      app.appendChild(el('p', {
+        className: 'promise',
+        text: "This isn't a sales form. It's a direct line to the people who work with Robert every day.",
+      }));
+
+      const form = el('form');
+      form.appendChild(textField('company', 'Company', {
+        placeholder: 'Unaligned',
+        autocomplete: 'organization',
+        hint: 'Optional if you\'re reaching out solo.',
+      }));
+
+      const nameRow = el('div', { className: 'grid-2' });
+      nameRow.appendChild(textField('first_name', 'First name', { required: true, placeholder: 'Jane', autocomplete: 'given-name' }));
+      nameRow.appendChild(textField('last_name', 'Last name', { required: true, placeholder: 'Doe', autocomplete: 'family-name' }));
+      form.appendChild(nameRow);
+
+      form.appendChild(choiceField('contact_preference', 'Best way to reach you', CONTACT_PREFS, syncContactDetailField));
+      form.appendChild(contactDetailField());
+
+      const backupEmail = textField('email', 'Backup email', {
+        type: 'email',
+        required: true,
+        placeholder: 'you@company.com',
+        autocomplete: 'email',
+        hint: 'In case we can\'t reach you on your preferred channel.',
+      });
+      backupEmailWrap = backupEmail;
+      form.appendChild(backupEmail);
+
+      form.appendChild(choiceField('topic_type', 'What do you want to talk about?', TOPICS));
+
+      const msg = el('div', { className: 'field' });
+      msg.appendChild(el('label', { text: 'Tell us a bit more *' }));
+      const msgTa = el('textarea', { placeholder: 'What are you building, proposing, or excited about? A few sentences is plenty.' });
+      msgTa.addEventListener('input', () => { state.message = msgTa.value; });
+      msg.appendChild(msgTa);
+      msg.appendChild(el('span', { className: 'hint', text: 'Enough context for the team to know if it belongs on Robert\'s desk.' }));
+      form.appendChild(msg);
+
+      const hp = el('div', { className: 'hp' });
+      const hpInput = el('input', { type: 'text', name: 'company_website', tabindex: '-1', autocomplete: 'off' });
+      hpInput.addEventListener('input', () => { state.company_website = hpInput.value; });
+      hp.appendChild(hpInput);
+      form.appendChild(hp);
+
+      const status = el('div', { className: 'status', id: 'status' });
+      const submit = el('button', { className: 'submit', type: 'submit', text: 'Send to the team' });
+      form.appendChild(submit);
+      form.appendChild(status);
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        status.className = 'status';
+        status.textContent = '';
+        submit.disabled = true;
+        try {
+          const payload = {
+            company: state.company,
+            first_name: state.first_name,
+            last_name: state.last_name,
+            name: [state.first_name, state.last_name].filter(Boolean).join(' ').trim(),
+            email: state.contact_preference === 'email' ? state.contact_detail : state.email,
+            contact_preference: state.contact_preference,
+            contact_detail: state.contact_detail,
+            topic_type: state.topic_type,
+            message: state.message,
+            company_website: state.company_website,
+            referrer: document.referrer || '',
+            source: 'connect_form',
+          };
+          if (state.contact_preference === 'x') payload.x_handle = state.contact_detail;
+          if (['whatsapp', 'signal', 'phone'].includes(state.contact_preference)) {
+            payload.whatsapp = state.contact_detail;
+          }
+          const resp = await fetch(API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const data = await resp.json().catch(() => ({}));
+          if (!resp.ok || !data.ok) throw new Error(data.error || 'Submit failed');
+          renderThanks();
+        } catch (err) {
+          status.className = 'status is-error';
+          status.textContent = err.message || 'Something went wrong. Try again or email asherunaligned@gmail.com.';
+          submit.disabled = false;
+        }
+      });
+
+      app.appendChild(form);
+    }
+
+    function renderThanks() {
+      const app = document.getElementById('app');
+      app.innerHTML = '';
+      const box = el('div', { className: 'thanks' });
+      box.appendChild(el('div', { className: 'eyebrow', text: 'Received' }));
+      box.appendChild(el('h2', { text: 'Got it.' }));
+      box.appendChild(el('p', {
+        className: 'lead',
+        text: "The team will read this and reach out on your preferred channel if it's a fit. Thanks for taking the time.",
+      }));
+      app.appendChild(box);
+    }
+
+    async function boot() {
+      try {
+        const resp = await fetch(API, { method: 'GET' });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.ok) throw new Error(data.error || 'Form unavailable');
+        renderForm();
+      } catch (err) {
+        renderForm();
+      }
+    }
+
+    boot();
+  </script>
+</body>
+</html>

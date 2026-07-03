@@ -7,7 +7,7 @@ import os
 
 CONNECT_BASE = os.environ.get(
     "ROBERT_CONNECT_BASE",
-    "https://asherweisberger.github.io/UNALIGNED/connect",
+    "https://agentdashboard.cloud/connect",
 )
 
 TWEET_OPTIONS = [

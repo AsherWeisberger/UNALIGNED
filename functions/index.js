@@ -739,7 +739,7 @@ exports.createCollabFeedbackLink = functions.https.onRequest(async (req, res) =>
 });
 
 const ROBERT_CONNECT_BASE = process.env.ROBERT_CONNECT_BASE
-  || 'https://asherweisberger.github.io/UNALIGNED/connect';
+  || 'https://agentdashboard.cloud/connect';
 
 const DESK_TOPIC_TYPES = new Set(['collaboration', 'partnership', 'sync', 'something_cool', 'other']);
 const DESK_CONTACT_PREFS = new Set(['email', 'x', 'whatsapp', 'signal', 'phone', 'other']);
