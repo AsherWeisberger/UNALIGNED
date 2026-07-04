@@ -5421,10 +5421,129 @@ def _feedback_link_response(*, fields: dict, token: str, invite_id, existing: bo
     }
 
 
-def god_mode_upstream_json(url: str) -> dict:
+def god_mode_upstream_json(url: str, timeout: int = 25) -> dict:
     req = request.Request(url, headers={"User-Agent": "UNALIGNED-GodMode/1.0", "Accept": "application/json"})
-    with request.urlopen(req, timeout=25) as response:
+    with request.urlopen(req, timeout=timeout) as response:
         return json.loads(response.read().decode("utf-8") or "{}")
+
+
+_GOD_MODE_CACHE: dict[str, dict[str, Any]] = {}
+_GOD_MODE_CACHE_LOCK = threading.Lock()
+
+
+def god_mode_cache_get(key: str, ttl_sec: float) -> Any | None:
+    with _GOD_MODE_CACHE_LOCK:
+        row = _GOD_MODE_CACHE.get(key)
+        if not row:
+            return None
+        if time.time() - row["ts"] > ttl_sec:
+            return None
+        return row["value"]
+
+
+def god_mode_cache_set(key: str, value: Any) -> None:
+    with _GOD_MODE_CACHE_LOCK:
+        _GOD_MODE_CACHE[key] = {"ts": time.time(), "value": value}
+
+
+def god_mode_adsb_row_to_state(ac: dict) -> list | None:
+    if not isinstance(ac, dict):
+        return None
+    lat = ac.get("lat")
+    lon = ac.get("lon")
+    if lat is None or lon is None:
+        return None
+    try:
+        lat_f = float(lat)
+        lon_f = float(lon)
+    except (TypeError, ValueError):
+        return None
+    if lat_f < -90 or lat_f > 90 or lon_f < -180 or lon_f > 180:
+        return None
+    alt_ft = ac.get("alt_baro")
+    if alt_ft is None:
+        alt_ft = ac.get("alt_geom")
+    alt_m = None
+    if alt_ft is not None and str(alt_ft).strip().lower() not in {"", "ground"}:
+        try:
+            alt_m = float(alt_ft) * 0.3048
+        except (TypeError, ValueError):
+            alt_m = None
+    gs = ac.get("gs")
+    vel_ms = None
+    if gs is not None:
+        try:
+            vel_ms = float(gs) * 0.514444
+        except (TypeError, ValueError):
+            vel_ms = None
+    track = ac.get("track")
+    track_f = None
+    if track is not None:
+        try:
+            track_f = float(track)
+        except (TypeError, ValueError):
+            track_f = None
+    now = int(time.time())
+    return [
+        str(ac.get("hex") or "").strip(),
+        str(ac.get("flight") or "").strip(),
+        "",
+        now,
+        now,
+        lon_f,
+        lat_f,
+        alt_m,
+        False,
+        vel_ms,
+        track_f,
+    ]
+
+
+GOD_MODE_FLIGHT_HUBS: list[tuple[float, float]] = [
+    (40.71, -74.01), (34.05, -118.24), (51.51, -0.13), (35.68, 139.69),
+    (-33.87, 151.21), (25.20, 55.27),
+]
+
+
+def god_mode_fetch_adsb_hub(lat: float, lng: float) -> list[list]:
+    url = f"https://api.airplanes.live/v2/point/{lat}/{lng}/200"
+    try:
+        data = god_mode_upstream_json(url, timeout=12)
+    except Exception:
+        return []
+    rows = data.get("ac") if isinstance(data, dict) else []
+    if not isinstance(rows, list):
+        return []
+    out: list[list] = []
+    for ac in rows:
+        state = god_mode_adsb_row_to_state(ac if isinstance(ac, dict) else {})
+        if state:
+            out.append(state)
+    return out
+
+
+def god_mode_fetch_adsb_states() -> list[list]:
+    from concurrent.futures import ThreadPoolExecutor, wait
+
+    merged: list[list] = []
+    seen: set[str] = set()
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futures = [pool.submit(god_mode_fetch_adsb_hub, lat, lng) for lat, lng in GOD_MODE_FLIGHT_HUBS]
+        done, pending = wait(futures, timeout=16)
+        for fut in pending:
+            fut.cancel()
+        for fut in done:
+            try:
+                rows = fut.result(timeout=0.1)
+            except Exception:
+                rows = []
+            for state in rows or []:
+                key = str(state[0] or state[1] or "").strip()
+                if not key or key in seen:
+                    continue
+                seen.add(key)
+                merged.append(state)
+    return merged
 
 
 GOD_MODE_WEATHER_CITIES: list[tuple[str, float, float]] = [
@@ -5476,18 +5595,27 @@ def god_mode_weather_city(name: str, lat: float, lng: float) -> dict | None:
 
 
 def god_mode_weather_payload() -> dict:
+    cached = god_mode_cache_get("weather", 600)
+    if cached:
+        return cached
+
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     cities: list[dict] = []
-    with ThreadPoolExecutor(max_workers=5) as pool:
+    with ThreadPoolExecutor(max_workers=8) as pool:
         futures = [pool.submit(god_mode_weather_city, name, lat, lng) for name, lat, lng in GOD_MODE_WEATHER_CITIES]
         for fut in as_completed(futures):
             row = fut.result()
             if row:
                 cities.append(row)
     if not cities:
+        stale = god_mode_cache_get("weather", 3600)
+        if stale:
+            return stale
         raise RuntimeError("weather grid failed")
-    return {"ok": True, "cities": cities}
+    payload = {"ok": True, "cities": cities}
+    god_mode_cache_set("weather", payload)
+    return payload
 
 
 def god_mode_local_weather_payload(lat: float, lng: float) -> dict:
@@ -5528,8 +5656,41 @@ def god_mode_location_payload() -> dict:
 
 
 def god_mode_flights_payload() -> dict:
-    data = god_mode_upstream_json("https://opensky-network.org/api/states/all")
-    return {"ok": True, "states": data.get("states") if isinstance(data, dict) else []}
+    cached = god_mode_cache_get("flights", 45)
+    if cached:
+        return cached
+
+    states: list[list] = []
+    source = "opensky"
+    try:
+        data = god_mode_upstream_json("https://opensky-network.org/api/states/all", timeout=20)
+        states = data.get("states") if isinstance(data, dict) else []
+        if not isinstance(states, list):
+            states = []
+    except Exception:
+        states = []
+
+    if not states:
+        states = god_mode_fetch_adsb_states()
+        source = "adsb" if states else "none"
+
+    if not states:
+        stale_payload = god_mode_cache_get("flights", 900)
+        if stale_payload:
+            stale_payload = dict(stale_payload)
+            stale_payload["stale"] = True
+            return stale_payload
+        return {"ok": True, "states": [], "stale": True, "source": "none"}
+
+    payload = {
+        "ok": True,
+        "states": states,
+        "stale": False,
+        "source": source,
+        "count": len(states),
+    }
+    god_mode_cache_set("flights", payload)
+    return payload
 
 
 def god_mode_satellites_payload() -> dict:

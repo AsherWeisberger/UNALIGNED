@@ -1,6 +1,6 @@
 /**
  * God Mode Earth — 3D globe with live weather, flights, satellites, and launches.
- * Loads globe.gl on demand (local vendor copy first, then CDNs). Optional MapLibre for street mode.
+ * Loads globe.gl on demand (local vendor copy first, then CDNs). Esri satellite tiles on deep zoom.
  */
 (function (global) {
   'use strict';
@@ -13,10 +13,7 @@
     'https://cdn.jsdelivr.net/npm/globe.gl@2.46.1/dist/globe.gl.min.js',
     'https://unpkg.com/globe.gl@2.46.1/dist/globe.gl.min.js',
   ];
-  const MAPLIBRE_SCRIPT = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js';
-  const MAPLIBRE_STYLE_HREF = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css';
   let globeLibPromise = null;
-  let mapLibPromise = null;
 
   const EARTH_IMG = 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
   const BUMP_IMG = 'https://unpkg.com/three-globe/example/img/earth-topology.png';
@@ -37,46 +34,16 @@
   ];
   const SAT_TILE_URL = (x, y, l) =>
     `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${l}/${y}/${x}`;
-  const STREET_MODE_ALT = 0.62;
-  const STREET_MAP_STYLE = {
-    version: 8,
-    sources: {
-      'esri-imagery': {
-        type: 'raster',
-        tiles: [
-          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        ],
-        tileSize: 256,
-        maxzoom: 19,
-        attribution: 'Esri, Maxar, Earthstar Geographics',
-      },
-      'esri-labels': {
-        type: 'raster',
-        tiles: [
-          'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
-        ],
-        tileSize: 256,
-        maxzoom: 19,
-      },
-      'esri-transport': {
-        type: 'raster',
-        tiles: [
-          'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',
-        ],
-        tileSize: 256,
-        maxzoom: 19,
-      },
-    },
-    layers: [
-      { id: 'esri-imagery', type: 'raster', source: 'esri-imagery' },
-      { id: 'esri-transport', type: 'raster', source: 'esri-transport', paint: { 'raster-opacity': 0.82 } },
-      { id: 'esri-labels', type: 'raster', source: 'esri-labels', paint: { 'raster-opacity': 0.92 } },
-    ],
-  };
+  const SAT_DETAIL_ALT = 0.62;
   const MAX_FLIGHT_POINTS = 400;
   const FLIGHT_POINT_SIZE = 0.009;
   const FLIGHT_POINT_ALT = 0.002;
-  const FETCH_TIMEOUT_MS = 14000;
+  const FETCH_TIMEOUT_MS = 18000;
+  const WEATHER_PROXY_TIMEOUT_MS = 50000;
+  const FLIGHT_HUBS = [
+    [40.71, -74.01], [34.05, -118.24], [51.51, -0.13], [35.68, 139.69],
+    [-33.87, 151.21], [25.20, 55.27],
+  ];
 
   const WEATHER_CITIES = [
     ['New York', 40.71, -74.01], ['Los Angeles', 34.05, -118.24], ['Chicago', 41.88, -87.63],
@@ -139,16 +106,6 @@
     });
   }
 
-  function ensureMapLibreCss() {
-    if (document.getElementById('godmode-maplibre-css')) return;
-    const link = document.createElement('link');
-    link.id = 'godmode-maplibre-css';
-    link.rel = 'stylesheet';
-    link.href = MAPLIBRE_STYLE_HREF;
-    link.crossOrigin = 'anonymous';
-    document.head.appendChild(link);
-  }
-
   function resolveGlobeFactory() {
     const g = global.Globe || global.window?.Globe;
     if (typeof g === 'function') return g;
@@ -180,19 +137,6 @@
     return globeLibPromise;
   }
 
-  async function ensureMapLibreLibrary() {
-    if (global.maplibregl) return global.maplibregl;
-    if (!mapLibPromise) {
-      mapLibPromise = (async () => {
-        ensureMapLibreCss();
-        await loadExternalScript(MAPLIBRE_SCRIPT, 'maplibre');
-        if (!global.maplibregl) throw new Error('maplibre-gl missing after load');
-        return global.maplibregl;
-      })();
-    }
-    return mapLibPromise;
-  }
-
   function initGlobeInstance(GlobeFactory, el) {
     try {
       return GlobeFactory()(el);
@@ -203,10 +147,6 @@
         throw e1;
       }
     }
-  }
-
-  function resolveMapLibre() {
-    return global.maplibregl || null;
   }
 
   function tempColor(f) {
@@ -311,12 +251,12 @@
     return [...new Set(bases.filter(Boolean))];
   }
 
-  async function fetchGodModeProxy(path) {
+  async function fetchGodModeProxy(path, ms) {
     const bases = godModeServiceBases();
     let lastErr = null;
     for (const base of bases) {
       try {
-        const res = await fetchWithTimeout(base + path);
+        const res = await fetchWithTimeout(base + path, {}, ms || FETCH_TIMEOUT_MS);
         if (!res.ok) {
           lastErr = new Error('proxy ' + res.status);
           continue;
@@ -409,36 +349,100 @@
     return el.cloneNode(true);
   }
 
+  function flightRowFromCoords(lat, lng, altM, vel, heading, callsign, country, key) {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+    const altKm = Number.isFinite(altM) ? Math.max(0.002, altM / 100000) : 0.01;
+    const cs = String(callsign || '').trim();
+    const cc = String(country || '').trim();
+    return {
+      lat,
+      lng,
+      alt: Math.min(altKm, 0.35),
+      heading: Number.isFinite(heading) ? heading : 0,
+      label: cs || cc || 'Flight',
+      callsign: cs,
+      country: cc,
+      type: 'flight',
+      key: String(key || cs || `${lat},${lng}`),
+      altitudeFt: Number.isFinite(altM) ? Math.round(altM * 3.281) : null,
+      speedKts: Number.isFinite(vel) ? Math.round(vel * 1.944) : null,
+    };
+  }
+
   function parseFlightStates(states) {
     const out = [];
     const rows = Array.isArray(states) ? states : [];
     for (let i = 0; i < rows.length && out.length < 1400; i++) {
       const s = rows[i];
       if (!Array.isArray(s) || s.length < 11) continue;
-      const lat = Number(s[6]);
-      const lng = Number(s[5]);
-      const altM = Number(s[7]);
-      const vel = Number(s[9]);
-      const heading = Number(s[10]);
-      const callsign = String(s[1] || '').trim();
-      const country = String(s[2] || '').trim();
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
-      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) continue;
-      const altKm = Number.isFinite(altM) ? Math.max(0.002, altM / 100000) : 0.01;
-      out.push({
-        lat,
-        lng,
-        alt: Math.min(altKm, 0.35),
-        heading: Number.isFinite(heading) ? heading : 0,
-        label: callsign || country || 'Flight',
-        callsign,
-        country,
-        type: 'flight',
-        altitudeFt: Number.isFinite(altM) ? Math.round(altM * 3.281) : null,
-        speedKts: Number.isFinite(vel) ? Math.round(vel * 1.944) : null,
-      });
+      const row = flightRowFromCoords(
+        Number(s[6]),
+        Number(s[5]),
+        Number(s[7]),
+        Number(s[9]),
+        Number(s[10]),
+        s[1],
+        s[2],
+        s[0]
+      );
+      if (row) out.push(row);
     }
     return out;
+  }
+
+  function parseAdsbAircraft(rows) {
+    const out = [];
+    const seen = new Set();
+    const list = Array.isArray(rows) ? rows : [];
+    for (let i = 0; i < list.length && out.length < 1400; i++) {
+      const ac = list[i];
+      if (!ac || typeof ac !== 'object') continue;
+      const lat = Number(ac.lat);
+      const lng = Number(ac.lon ?? ac.lng);
+      const altRaw = ac.alt_baro ?? ac.alt_geom;
+      const altNum = Number(altRaw);
+      const altM = Number.isFinite(altNum) ? altNum * 0.3048 : null;
+      const gs = Number(ac.gs);
+      const vel = Number.isFinite(gs) ? gs * 0.514444 : null;
+      const key = String(ac.hex || ac.flight || '').trim();
+      if (key && seen.has(key)) continue;
+      const row = flightRowFromCoords(lat, lng, altM, vel, Number(ac.track), ac.flight, '', key);
+      if (row) {
+        if (key) seen.add(key);
+        out.push(row);
+      }
+    }
+    return out;
+  }
+
+  async function fetchAdsbHubFlights(lat, lng) {
+    const res = await fetchWithTimeout(
+      `https://api.airplanes.live/v2/point/${lat}/${lng}/200`,
+      { headers: { Accept: 'application/json', 'User-Agent': 'UNALIGNED-GodMode/1.0' } },
+      16000
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return parseAdsbAircraft(data?.ac);
+  }
+
+  async function fetchAdsbFlightsMerged() {
+    const batches = await Promise.allSettled(
+      FLIGHT_HUBS.map(([lat, lng]) => fetchAdsbHubFlights(lat, lng))
+    );
+    const merged = [];
+    const seen = new Set();
+    batches.forEach((batch) => {
+      if (batch.status !== 'fulfilled') return;
+      (batch.value || []).forEach((row) => {
+        const key = row.key || row.callsign || `${row.lat},${row.lng}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        merged.push(row);
+      });
+    });
+    return merged;
   }
 
   async function fetchWeatherCity(name, lat, lng) {
@@ -489,7 +493,7 @@
 
   async function fetchWeatherGrid() {
     try {
-      const data = await fetchGodModeProxy('/god-mode/weather');
+      const data = await fetchGodModeProxy('/god-mode/weather', WEATHER_PROXY_TIMEOUT_MS);
       if (data?.ok && Array.isArray(data.cities) && data.cities.length) {
         return data.cities.map(mapWeatherRow).filter((row) => row.name && Number.isFinite(row.lat));
       }
@@ -497,15 +501,17 @@
       console.warn('[god-mode] Mac weather proxy failed, trying browser', e);
     }
     const out = [];
-    const batchSize = 8;
-    for (let i = 0; i < WEATHER_CITIES.length; i += batchSize) {
-      const batch = WEATHER_CITIES.slice(i, i + batchSize);
+    const batchSize = 6;
+    const cities = WEATHER_CITIES.slice(0, 18);
+    for (let i = 0; i < cities.length; i += batchSize) {
+      const batch = cities.slice(i, i + batchSize);
       const rows = await Promise.allSettled(
         batch.map(([name, lat, lng]) => fetchWeatherCity(name, lat, lng))
       );
       rows.forEach((row) => {
         if (row.status === 'fulfilled') out.push(row.value);
       });
+      if (out.length >= 12) break;
     }
     if (!out.length) throw new Error('weather grid failed');
     return out;
@@ -513,20 +519,24 @@
 
   async function fetchFlights() {
     try {
-      const data = await fetchGodModeProxy('/god-mode/flights');
+      const data = await fetchGodModeProxy('/god-mode/flights', 22000);
       if (data?.ok) {
         const rows = parseFlightStates(data.states);
         if (rows.length) return rows;
       }
     } catch (e) {
-      console.warn('[god-mode] Mac flights proxy failed, trying OpenSky', e);
+      console.warn('[god-mode] Mac flights proxy failed, trying live ADS-B', e);
     }
-    const res = await fetchWithTimeout('https://opensky-network.org/api/states/all');
-    if (!res.ok) throw new Error('flights failed (' + res.status + ')');
-    const data = await res.json();
-    const rows = parseFlightStates(data?.states);
-    if (!rows.length) throw new Error('no aircraft returned');
-    return rows;
+    try {
+      const res = await fetchWithTimeout('https://opensky-network.org/api/states/all', {}, 12000);
+      if (res.ok) {
+        const data = await res.json();
+        const rows = parseFlightStates(data?.states);
+        if (rows.length) return rows;
+      }
+    } catch (e) {}
+    const adsbRows = await fetchAdsbFlightsMerged();
+    return adsbRows;
   }
 
   async function fetchIss() {
@@ -628,8 +638,6 @@
 
     const globeRef = React.useRef(null);
     const globeInstRef = React.useRef(null);
-    const streetRef = React.useRef(null);
-    const streetMapRef = React.useRef(null);
     const radarTimerRef = React.useRef(null);
     const radarMeshRef = React.useRef(null);
     const cloudMeshRef = React.useRef(null);
@@ -644,11 +652,11 @@
     const weatherModeRef = React.useRef('temp');
     const radarGlobeUrlRef = React.useRef('');
     const cloudSpinRef = React.useRef(null);
-    const streetModeRef = React.useRef(false);
 
     const [layer, setLayer] = React.useState(activeLayer);
     const [weatherMode, setWeatherMode] = React.useState('temp');
-    const [loading, setLoading] = React.useState(true);
+    const [globeReady, setGlobeReady] = React.useState(false);
+    const [feedsLoading, setFeedsLoading] = React.useState(true);
     const [errors, setErrors] = React.useState({});
     const [weather, setWeather] = React.useState([]);
     const [flights, setFlights] = React.useState([]);
@@ -656,7 +664,6 @@
     const [launches, setLaunches] = React.useState({ markers: [], list: [] });
     const [radar, setRadar] = React.useState(null);
     const [radarTileUrl, setRadarTileUrl] = React.useState('');
-    const [streetMode, setStreetMode] = React.useState(false);
     const [zoomLabel, setZoomLabel] = React.useState('Orbital view');
     const [stats, setStats] = React.useState({ flights: 0, sats: 0, launches: 0, cities: 0 });
     const [selected, setSelected] = React.useState(null);
@@ -696,77 +703,27 @@
       const w = Math.max(320, el.clientWidth || el.offsetWidth || 0);
       const h = Math.max(320, el.clientHeight || el.offsetHeight || 0);
       if (w > 0 && h > 0) globe.width(w).height(h);
-      if (streetMapRef.current) streetMapRef.current.resize();
     }, []);
 
-    const ensureStreetMap = React.useCallback(async (lng, lat) => {
-      const container = streetRef.current;
-      if (!container || streetMapRef.current) return;
-      try {
-        const MapLibre = await ensureMapLibreLibrary();
-        streetMapRef.current = new MapLibre.Map({
-          container,
-          style: STREET_MAP_STYLE,
-          center: [Number(lng) || 0, Number(lat) || 20],
-          zoom: 15,
-          pitch: 0,
-          bearing: 0,
-          maxPitch: 0,
-          antialias: true,
-          attributionControl: false,
-        });
-        streetMapRef.current.on('load', () => resizeGlobe());
-      } catch (e) {
-        console.warn('[god-mode] MapLibre unavailable', e);
-      }
-    }, [resizeGlobe]);
-
-    const syncStreetMode = React.useCallback((globe) => {
+    const syncZoomLabel = React.useCallback((globe) => {
       if (!globe) return;
       try {
-      const pov = globe.pointOfView();
-      const alt = Number(pov?.altitude);
-      const lat = Number(pov?.lat);
-      const lng = Number(pov?.lng);
-      const active = Number.isFinite(alt) && alt < STREET_MODE_ALT;
-      const wasActive = streetModeRef.current;
-      streetModeRef.current = active;
-      setStreetMode(active);
-      if (wasActive !== active) applyLayersRef.current();
-      if (alt >= 2.4) setZoomLabel('Orbital view');
-      else if (alt >= 1.2) setZoomLabel('Continental view');
-      else if (alt >= STREET_MODE_ALT) setZoomLabel('Satellite imagery · scroll to zoom closer');
-      else setZoomLabel('Street detail · satellite imagery');
-      if (active) {
-        ensureStreetMap(lng, lat);
-        const map = streetMapRef.current;
-        if (map) {
-          const zoom = Math.min(19, Math.max(12, 19 - alt * 16));
-          map.jumpTo({ center: [lng, lat], zoom, pitch: 0, bearing: 0 });
-        }
-      }
+        const pov = globe.pointOfView();
+        const alt = Number(pov?.altitude);
+        if (alt >= 2.4) setZoomLabel('Orbital view');
+        else if (alt >= 1.2) setZoomLabel('Continental view');
+        else if (alt >= SAT_DETAIL_ALT) setZoomLabel('Satellite imagery · scroll to zoom closer');
+        else setZoomLabel('Ground detail · Esri satellite tiles');
       } catch (e) {
-        console.warn('[god-mode] street sync failed', e);
+        console.warn('[god-mode] zoom label sync failed', e);
       }
-    }, [ensureStreetMap]);
+    }, []);
 
     const applyGlobeLayers = React.useCallback(() => {
       const globe = globeInstRef.current;
       if (!globe) return;
       setLayerError('');
       try {
-        if (streetModeRef.current) {
-          globe
-            .hexBinPointsData([])
-            .labelsData([])
-            .pointsData([])
-            .arcsData([])
-            .htmlElementsData([])
-            .ringsData([]);
-          if (radarMeshRef.current) radarMeshRef.current.visible = false;
-          if (cloudMeshRef.current) cloudMeshRef.current.visible = false;
-          return;
-        }
         const showWeather = layer === 'all' || layer === 'weather';
         const showFlights = layer === 'all' || layer === 'flights';
         const showSats = layer === 'all' || layer === 'satellites';
@@ -935,7 +892,7 @@
     }, [layer, weather, flights, satellites, launches, viewer, weatherMode]);
 
     applyLayersRef.current = applyGlobeLayers;
-    syncStreetRef.current = syncStreetMode;
+    syncStreetRef.current = syncZoomLabel;
     resizeRef.current = resizeGlobe;
 
     const applyRadarGlobeTexture = React.useCallback((url) => {
@@ -1037,8 +994,6 @@
             .globeImageUrl(EARTH_IMG)
             .bumpImageUrl(BUMP_IMG)
             .backgroundImageUrl(SKY_IMG)
-            .globeTileEngineUrl(SAT_TILE_URL)
-            .globeTileEngineMaxLevel(18)
             .showAtmosphere(true)
             .atmosphereColor('lightskyblue')
             .atmosphereAltitude(0.18)
@@ -1046,6 +1001,11 @@
             .onPointHover((pt) => {
               if (globeRef.current) globeRef.current.style.cursor = pt ? 'pointer' : 'grab';
             });
+          try {
+            globe.globeTileEngineUrl(SAT_TILE_URL).globeTileEngineMaxLevel(18);
+          } catch (e) {
+            console.warn('[god-mode] satellite tile engine unavailable', e);
+          }
           globe.controls().autoRotate = true;
           globe.controls().autoRotateSpeed = 0.35;
           globe.controls().enableDamping = true;
@@ -1054,6 +1014,7 @@
           globe.pointOfView({ lat: Number(v.lat) || 28, lng: viewerLng(v) || -20, altitude: 2.2 }, 0);
           globeInstRef.current = globe;
           setupWeatherShells(globe);
+          if (!cancelled) setGlobeReady(true);
 
           onControls = () => syncStreetRef.current(globe);
           globe.controls().addEventListener('change', onControls);
@@ -1094,10 +1055,6 @@
         if (globe && onControls) {
           try { globe.controls().removeEventListener('change', onControls); } catch (e) {}
         }
-        if (streetMapRef.current) {
-          streetMapRef.current.remove();
-          streetMapRef.current = null;
-        }
         if (cloudSpinRef.current) window.cancelAnimationFrame(cloudSpinRef.current);
         cloudSpinRef.current = null;
         if (radarMeshRef.current?.material?.map?.dispose) {
@@ -1107,6 +1064,7 @@
         cloudMeshRef.current = null;
         radarGlobeUrlRef.current = '';
         globeInstRef.current = null;
+        setGlobeReady(false);
         if (globeRef.current) globeRef.current.innerHTML = '';
       };
     }, [open]);
@@ -1176,7 +1134,7 @@
       }
 
       async function loadAll() {
-        setLoading(true);
+        setFeedsLoading(true);
         setErrors({});
         await Promise.all([
           loadFeed('weather', fetchWeatherGrid, (v) => {
@@ -1199,7 +1157,7 @@
             if (v) setRadar(v);
           }),
         ]);
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setFeedsLoading(false);
       }
 
       loadAll();
@@ -1302,14 +1260,14 @@
           ),
           React.createElement(
             'div',
-            { className: 'v4-godmode-stage' + (streetMode ? ' is-street-mode' : '') },
-            loading && React.createElement('div', { className: 'v4-godmode-loading' }, 'Pulling live planetary data…'),
-            !loading && stats.cities === 0 && stats.flights === 0 && Object.keys(errors).length > 0
-              && React.createElement('div', { className: 'v4-godmode-loading v4-godmode-loading-warn' }, 'Some feeds failed — check errors below'),
+            { className: 'v4-godmode-stage' },
+            !globeReady && !globeError && React.createElement('div', { className: 'v4-godmode-loading' }, 'Starting 3D globe…'),
+            feedsLoading && globeReady && React.createElement('div', { className: 'v4-godmode-loading v4-godmode-loading-inline' }, 'Syncing live feeds…'),
+            !feedsLoading && stats.cities === 0 && stats.flights === 0 && Object.keys(errors).length > 0
+              && React.createElement('div', { className: 'v4-godmode-loading v4-godmode-loading-warn' }, 'Some feeds failed — globe still works'),
             globeError && React.createElement('div', { className: 'v4-godmode-globe-error' }, globeError),
             React.createElement('div', { className: 'v4-godmode-zoom-chip' }, zoomLabel),
-            React.createElement('div', { ref: globeRef, className: 'v4-godmode-globe' + (streetMode ? ' is-faded' : '') }),
-            React.createElement('div', { ref: streetRef, className: 'v4-godmode-street' + (streetMode ? ' is-active' : '') }),
+            React.createElement('div', { ref: globeRef, className: 'v4-godmode-globe' }),
             showWeatherHud && React.createElement(
               'div',
               { className: 'v4-godmode-weather-hud is-visible' },
@@ -1454,7 +1412,7 @@
               React.Fragment,
               null,
               React.createElement('div', { className: 'v4-godmode-panel-head' }, 'Live air traffic'),
-              React.createElement('p', { className: 'v4-godmode-panel-note' }, `Tracking ${stats.flights.toLocaleString()} aircraft via OpenSky. Refreshes every 20s.`),
+              React.createElement('p', { className: 'v4-godmode-panel-note' }, `Tracking ${stats.flights.toLocaleString()} aircraft via Mac proxy + ADS-B fallback. Refreshes every 20s.`),
               React.createElement('div', { className: 'v4-godmode-flight-hint' }, `Showing up to ${MAX_FLIGHT_POINTS.toLocaleString()} aircraft as lightweight points. Click any dot for callsign + altitude.`)
             ),
             panelLayer === 'satellites' && React.createElement(
