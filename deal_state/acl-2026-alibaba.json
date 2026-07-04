@@ -26,7 +26,8 @@
     "19e70331cf22ab36",
     "19f136f5597896eb",
     "19f16cfef2fd5e88",
-    "19f2af67e0e7cef8"
+    "19f2af67e0e7cef8",
+    "19f2e6ebafb71069"
   ],
   "agreement": {
     "signed": true,
@@ -199,5 +200,18 @@
       "event": "Shuonan (Alibaba) intro: booth = Grand Hall, Hyatt lobby floor, opens 8:30 AM. Shuonan busy July 5 morning; on-site contact = Nicki (yangjianmin@kastone.com.cn, 702-927-9219)"
     }
   ],
-  "last_processed": "2026-06-30T04:27:04+00:00"
+  "last_processed": "2026-06-30T04:27:04+00:00",
+  "discovery_keywords": [
+    "ACL",
+    "CVPR",
+    "Alibaba",
+    "Qoder",
+    "Qwen Cloud",
+    "HSCodeComp",
+    "Tongyi",
+    "12,300",
+    "booth",
+    "exhibitor"
+  ],
+  "discovery_candidates": []
 }

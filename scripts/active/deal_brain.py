@@ -130,6 +130,97 @@ def fetch_thread(tid: str) -> list[dict]:
     return []
 
 
+# ── thread auto-discovery ───────────────────────────────────────────────────
+# The brain reads the thread ids in the deal state. Counterparties keep forking
+# NEW threads (a reply from a different address, a fresh subject). Discovery
+# finds every thread involving the deal's EXTERNAL participants so nothing is
+# missed. It searches only on counterparty/end-brand addresses, never our own,
+# so it stays scoped to this deal.
+_EMAIL_RE = re.compile(r"[\w.+-]+@[\w.-]+\.\w+")
+
+
+def external_participants(state: dict) -> list[str]:
+    ours = {e.lower() for e in ([state.get("our_side", {}).get("sender")] +
+                                (state.get("our_side", {}).get("cc") or [])) if e}
+    ours |= {"asherunaligned@gmail.com", "scobleizer@gmail.com", "samlevin@mac.com",
+             "unalignedx@gmail.com", "tradecryptonite@gmail.com"}
+    emails: set[str] = set()
+    cp = state.get("counterparty", {}) or {}
+    for field in ("contacts", "end_brand_contacts"):
+        for item in cp.get(field, []) or []:
+            emails.update(m.lower() for m in _EMAIL_RE.findall(str(item)))
+    emails.update(m.lower() for m in _EMAIL_RE.findall(str(cp.get("billing", "") or "")))
+    return sorted(emails - ours)
+
+
+def discover_threads(state: dict, lookback_days: int = 120) -> list[str]:
+    """Find new threads for THIS deal. Requires the deal to define
+    discovery_keywords so shared agency contacts (a broker who runs many deals)
+    do not pull unrelated threads in. A thread must match a participant AND a
+    topic keyword. No keywords defined = discovery off (safe default)."""
+    parts = external_participants(state)
+    kws = state.get("discovery_keywords") or []
+    if not parts or not kws:
+        return []
+    who = " OR ".join(f"from:{p} OR to:{p} OR cc:{p}" for p in parts)
+    topic = " OR ".join(f'"{k}"' if " " in k else k for k in kws)
+    q = f"({who}) ({topic}) newer_than:{lookback_days}d"
+
+    def norm_subj(s: str) -> str:
+        s = re.sub(r"(?i)^\s*(re|fwd|回复|答复)\s*[:：]\s*", "", str(s or "")).strip()
+        return re.sub(r"\s+", " ", s).lower()
+
+    # subjects we already track (Gmail thread ids differ per mailbox, so dedup by subject)
+    tracked_subjects: set[str] = set()
+    for tid in state.get("gmail_thread_ids", []):
+        for path in GMAIL_TOKEN_FILES:
+            tok = gmail_token(path)
+            if not tok:
+                continue
+            try:
+                r = requests.get(f"https://gmail.googleapis.com/gmail/v1/users/me/threads/{tid}",
+                                 headers={"Authorization": "Bearer " + tok},
+                                 params={"format": "metadata", "metadataHeaders": "Subject"}, timeout=20)
+                if r.status_code < 400 and r.json().get("messages"):
+                    h = {x["name"].lower(): x["value"] for x in r.json()["messages"][0].get("payload", {}).get("headers", [])}
+                    tracked_subjects.add(norm_subj(h.get("subject", "")))
+                    break
+            except Exception:  # noqa: BLE001
+                continue
+
+    candidates: list[dict] = []
+    seen_subj: set[str] = set(tracked_subjects)
+    for path in GMAIL_TOKEN_FILES:
+        tok = gmail_token(path)
+        if not tok:
+            continue
+        try:
+            r = requests.get("https://gmail.googleapis.com/gmail/v1/users/me/threads",
+                             headers={"Authorization": "Bearer " + tok},
+                             params={"q": q, "maxResults": "40"}, timeout=30)
+            if r.status_code >= 400:
+                continue
+            for t in r.json().get("threads", []) or []:
+                tid = t["id"]
+                if tid in state.get("gmail_thread_ids", []):
+                    continue
+                mr = requests.get(f"https://gmail.googleapis.com/gmail/v1/users/me/threads/{tid}",
+                                  headers={"Authorization": "Bearer " + tok},
+                                  params={"format": "metadata", "metadataHeaders": "Subject"}, timeout=20)
+                if mr.status_code >= 400 or not mr.json().get("messages"):
+                    continue
+                h = {x["name"].lower(): x["value"] for x in mr.json()["messages"][-1].get("payload", {}).get("headers", [])}
+                subj = h.get("subject", "(no subject)")
+                ns = norm_subj(subj)
+                if ns in seen_subj:
+                    continue
+                seen_subj.add(ns)
+                candidates.append({"thread_id": tid, "subject": subj})
+        except Exception:  # noqa: BLE001
+            continue
+    return candidates
+
+
 # ── LLM ─────────────────────────────────────────────────────────────────────
 SYSTEM = """You are the UNALIGNED Deal Brain. You run one loop for a sponsorship deal:
 read the DEAL STATE (ground truth from the signed agreement) and the NEW MESSAGES,
@@ -250,6 +341,14 @@ def run_deal(state_file: Path, dry_run: bool) -> int:
     deal_id = state.get("deal_id", state_file.stem)
     print(f"— deal: {deal_id}")
 
+    # Surface (do NOT auto-merge) any forked/untracked thread that matches this
+    # deal's participants AND topic keywords. Human confirms before it is tracked.
+    candidates = discover_threads(state)
+    if candidates:
+        print(f"  {len(candidates)} candidate thread(s) to review (not yet tracked):")
+        for c in candidates:
+            print(f"    · {c['thread_id']}  {c['subject']}")
+
     msgs: list[dict] = []
     for tid in state.get("gmail_thread_ids", []):
         msgs.extend(fetch_thread(tid))
@@ -325,6 +424,8 @@ def run_deal(state_file: Path, dry_run: bool) -> int:
     if not dry_run and msgs:
         newest = datetime.fromtimestamp(msgs[-1]["ts_ms"] / 1000, tz=timezone.utc)
         state["last_processed"] = newest.isoformat()
+        if candidates:
+            state["discovery_candidates"] = candidates  # for the human / UI to confirm
         if result and result.get("status_summary"):
             state.setdefault("log", []).append({
                 "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
@@ -407,7 +508,38 @@ def main() -> int:
                     help="AI-diagnose a thread into a new deal_state file")
     ap.add_argument("--threads", help="comma-separated gmail thread ids (for --bootstrap)")
     ap.add_argument("--force", action="store_true", help="overwrite existing state on bootstrap")
+    ap.add_argument("--discover", action="store_true",
+                    help="list candidate threads for a deal (participant + keyword gated)")
+    ap.add_argument("--add-thread", help="add a confirmed thread id to the deal's tracked list")
     args = ap.parse_args()
+
+    if args.add_thread:
+        if not args.deal:
+            print("usage: --add-thread <tid> --deal <id>"); return 1
+        f = STATE_DIR / f"{args.deal}.json"
+        st = json.loads(f.read_text())
+        if args.add_thread not in st.get("gmail_thread_ids", []):
+            st.setdefault("gmail_thread_ids", []).append(args.add_thread)
+            st["discovery_candidates"] = [c for c in st.get("discovery_candidates", [])
+                                          if c.get("thread_id") != args.add_thread]
+            f.write_text(json.dumps(st, indent=2))
+            print(f"added {args.add_thread} to {args.deal}")
+        else:
+            print("already tracked")
+        return 0
+
+    if args.discover:
+        if not args.deal:
+            print("usage: --discover --deal <id>"); return 1
+        st = json.loads((STATE_DIR / f"{args.deal}.json").read_text())
+        cands = discover_threads(st)
+        if not cands:
+            print("no new candidate threads (all tracked, or no discovery_keywords set)")
+        else:
+            print(f"{len(cands)} candidate thread(s) — confirm with --add-thread <tid>:")
+            for c in cands:
+                print(f"  {c['thread_id']}  {c['subject']}")
+        return 0
 
     if args.bootstrap:
         if not args.deal or not args.threads:
