@@ -38,7 +38,41 @@
   const SAT_TILE_URL = (x, y, l) =>
     `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${l}/${y}/${x}`;
   const STREET_MODE_ALT = 0.62;
-  const OPENFREEMAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
+  const STREET_MAP_STYLE = {
+    version: 8,
+    sources: {
+      'esri-imagery': {
+        type: 'raster',
+        tiles: [
+          'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        ],
+        tileSize: 256,
+        maxzoom: 19,
+        attribution: 'Esri, Maxar, Earthstar Geographics',
+      },
+      'esri-labels': {
+        type: 'raster',
+        tiles: [
+          'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+        ],
+        tileSize: 256,
+        maxzoom: 19,
+      },
+      'esri-transport': {
+        type: 'raster',
+        tiles: [
+          'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',
+        ],
+        tileSize: 256,
+        maxzoom: 19,
+      },
+    },
+    layers: [
+      { id: 'esri-imagery', type: 'raster', source: 'esri-imagery' },
+      { id: 'esri-transport', type: 'raster', source: 'esri-transport', paint: { 'raster-opacity': 0.82 } },
+      { id: 'esri-labels', type: 'raster', source: 'esri-labels', paint: { 'raster-opacity': 0.92 } },
+    ],
+  };
   const MAX_FLIGHT_POINTS = 400;
   const FLIGHT_POINT_SIZE = 0.009;
   const FLIGHT_POINT_ALT = 0.002;
@@ -478,9 +512,19 @@
   }
 
   async function fetchFlights() {
-    const data = await fetchGodModeProxy('/god-mode/flights');
-    if (!data?.ok) throw new Error(data?.error || 'flight proxy failed');
-    const rows = parseFlightStates(data.states);
+    try {
+      const data = await fetchGodModeProxy('/god-mode/flights');
+      if (data?.ok) {
+        const rows = parseFlightStates(data.states);
+        if (rows.length) return rows;
+      }
+    } catch (e) {
+      console.warn('[god-mode] Mac flights proxy failed, trying OpenSky', e);
+    }
+    const res = await fetchWithTimeout('https://opensky-network.org/api/states/all');
+    if (!res.ok) throw new Error('flights failed (' + res.status + ')');
+    const data = await res.json();
+    const rows = parseFlightStates(data?.states);
     if (!rows.length) throw new Error('no aircraft returned');
     return rows;
   }
@@ -600,6 +644,7 @@
     const weatherModeRef = React.useRef('temp');
     const radarGlobeUrlRef = React.useRef('');
     const cloudSpinRef = React.useRef(null);
+    const streetModeRef = React.useRef(false);
 
     const [layer, setLayer] = React.useState(activeLayer);
     const [weatherMode, setWeatherMode] = React.useState('temp');
@@ -661,11 +706,12 @@
         const MapLibre = await ensureMapLibreLibrary();
         streetMapRef.current = new MapLibre.Map({
           container,
-          style: OPENFREEMAP_STYLE,
+          style: STREET_MAP_STYLE,
           center: [Number(lng) || 0, Number(lat) || 20],
-          zoom: 14,
-          pitch: 58,
+          zoom: 15,
+          pitch: 0,
           bearing: 0,
+          maxPitch: 0,
           antialias: true,
           attributionControl: false,
         });
@@ -683,20 +729,20 @@
       const lat = Number(pov?.lat);
       const lng = Number(pov?.lng);
       const active = Number.isFinite(alt) && alt < STREET_MODE_ALT;
+      const wasActive = streetModeRef.current;
+      streetModeRef.current = active;
       setStreetMode(active);
+      if (wasActive !== active) applyLayersRef.current();
       if (alt >= 2.4) setZoomLabel('Orbital view');
       else if (alt >= 1.2) setZoomLabel('Continental view');
       else if (alt >= STREET_MODE_ALT) setZoomLabel('Satellite imagery · scroll to zoom closer');
-      else setZoomLabel('Street detail · 3D buildings');
+      else setZoomLabel('Street detail · satellite imagery');
       if (active) {
         ensureStreetMap(lng, lat);
         const map = streetMapRef.current;
         if (map) {
-          const zoom = Math.min(18, Math.max(11, 18 - alt * 14));
-          const ctrl = globe.controls();
-          const az = Number(ctrl?.azimuthalAngle ?? ctrl?.getAzimuthalAngle?.() ?? 0);
-          const bearing = (az * 180) / Math.PI;
-          map.jumpTo({ center: [lng, lat], zoom, pitch: 62, bearing });
+          const zoom = Math.min(19, Math.max(12, 19 - alt * 16));
+          map.jumpTo({ center: [lng, lat], zoom, pitch: 0, bearing: 0 });
         }
       }
       } catch (e) {
@@ -709,6 +755,18 @@
       if (!globe) return;
       setLayerError('');
       try {
+        if (streetModeRef.current) {
+          globe
+            .hexBinPointsData([])
+            .labelsData([])
+            .pointsData([])
+            .arcsData([])
+            .htmlElementsData([])
+            .ringsData([]);
+          if (radarMeshRef.current) radarMeshRef.current.visible = false;
+          if (cloudMeshRef.current) cloudMeshRef.current.visible = false;
+          return;
+        }
         const showWeather = layer === 'all' || layer === 'weather';
         const showFlights = layer === 'all' || layer === 'flights';
         const showSats = layer === 'all' || layer === 'satellites';
@@ -979,6 +1037,8 @@
             .globeImageUrl(EARTH_IMG)
             .bumpImageUrl(BUMP_IMG)
             .backgroundImageUrl(SKY_IMG)
+            .globeTileEngineUrl(SAT_TILE_URL)
+            .globeTileEngineMaxLevel(18)
             .showAtmosphere(true)
             .atmosphereColor('lightskyblue')
             .atmosphereAltitude(0.18)
