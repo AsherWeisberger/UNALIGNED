@@ -1531,11 +1531,15 @@ function V3InferXReplyState(lead) {
     lead.xLastRobertMessage || ctx.lastRobertMessage || V3ExtractRobertPositionFromSummary(lead.notes || lead.rawDescription || ctx.xSummary) || ''
   ).trim();
   const xReplyMarkedAt = String(lead.xReplyMarkedAt || ctx.xReplyMarkedAt || '').trim();
-  let repliedViaX = lead.xRepliedViaX === true || ctx.repliedViaX || Boolean(xReplyMarkedAt);
-  if (status.includes('robert was last')) repliedViaX = true;
-  if (xLastSender.toLowerCase() === 'robert') repliedViaX = true;
-  if (status.includes('lead waiting') || status.includes('send - lead')) repliedViaX = false;
-  const needsXReply = !repliedViaX || status.includes('lead waiting') || xLastSender.toLowerCase() === 'lead';
+  const explicitlyMarked = lead.xRepliedViaX === true || ctx.repliedViaX || Boolean(xReplyMarkedAt);
+  let repliedViaX = explicitlyMarked;
+  if (!explicitlyMarked) {
+    if (status.includes('robert was last')) repliedViaX = true;
+    if (xLastSender.toLowerCase() === 'robert') repliedViaX = true;
+    if (status.includes('lead waiting') || status.includes('send - lead')) repliedViaX = false;
+  }
+  const needsXReply = !repliedViaX
+    || (!explicitlyMarked && (status.includes('lead waiting') || xLastSender.toLowerCase() === 'lead'));
   return { repliedViaX, needsXReply, xLastRobertMessage, xLastSender, xReplyMarkedAt };
 }
 
@@ -2116,12 +2120,14 @@ function V3MarkRepliedViaX(lead) {
     last_robert_message: replyBody,
     last_sender: 'Robert',
     replied_via_x: true,
-    x_current_status: lead.xCurrentStatus || 'WAIT - Robert was last',
+    x_current_status: 'WAIT - Robert was last',
     x_reply_marked_at: markedAt,
     open_dm: lead.xOpenDm || ctx.open_dm || '',
   };
+  const desc = JSON.stringify(merged);
   window.dispatchEvent(new CustomEvent('v4:active-mission-clear', { detail: { leadId: lead.id, channel: 'x' } }));
-  const localPatch = {
+  const localPatch = V3ApplyXReplyState({
+    ...lead,
     xRepliedViaX: true,
     xLastSender: 'Robert',
     xLastRobertMessage: replyBody,
@@ -2129,20 +2135,36 @@ function V3MarkRepliedViaX(lead) {
     xCurrentStatus: merged.x_current_status,
     needsReply: false,
     unread: false,
+    rawDescription: desc,
     nextMove: {
       who: null,
       text: `Replied via X — waiting on ${String(lead.contactName || 'them').split(' ')[0]}`,
       action: '',
     },
-    thread: V3BuildXThreadFromLead({ ...lead, ...localPatch, xLastRobertMessage: replyBody, xReplyMarkedAt: markedAt }),
-  };
+    thread: V3BuildXThreadFromLead({
+      ...lead,
+      xLastRobertMessage: replyBody,
+      xReplyMarkedAt: markedAt,
+      xLastSender: 'Robert',
+      rawDescription: desc,
+    }),
+  });
   if (typeof V4CosPatchLead === 'function') {
-    V4CosPatchLead(lead, { description: JSON.stringify(merged) }, localPatch);
-    return;
+    V4CosPatchLead(lead, { description: desc }, localPatch);
+  } else {
+    const updated = (window.V3.LEADS || []).map(item => String(item.id) === String(lead.id) ? { ...item, ...localPatch } : item);
+    window.V3.LEADS = updated;
+    window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated } }));
   }
-  const updated = (window.V3.LEADS || []).map(item => String(item.id) === String(lead.id) ? { ...item, ...localPatch, rawDescription: JSON.stringify(merged) } : item);
-  window.V3.LEADS = updated;
-  window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated } }));
+  if (typeof V4UndoPush === 'function') {
+    V4UndoPush({
+      label: `Marked ${typeof V4UndoLeadLabel === 'function' ? V4UndoLeadLabel(lead) : (lead.brand || lead.contactName || 'lead')} replied on X`,
+      detail: 'Saved to board — waiting on them',
+      action: 'x-replied',
+      leadId: lead.id,
+      leadBrand: lead.brand || lead.contactName || '',
+    });
+  }
 }
 
 function V3ParseOperatorMemory(value) {
