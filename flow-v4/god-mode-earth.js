@@ -21,6 +21,20 @@
   const EARTH_IMG = 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
   const BUMP_IMG = 'https://unpkg.com/three-globe/example/img/earth-topology.png';
   const SKY_IMG = 'https://unpkg.com/three-globe/example/img/night-sky.png';
+  const CLOUDS_IMG = 'https://unpkg.com/three-globe/example/img/earth-clouds.png';
+  const TEMP_LEGEND = [
+    { label: '95°+ hot', color: '#ff3b30' },
+    { label: '82° warm', color: '#ff9500' },
+    { label: '68° mild', color: '#ffd60a' },
+    { label: '50° cool', color: '#34c759' },
+    { label: '32° cold', color: '#5ac8fa' },
+    { label: 'freezing', color: '#5e5ce6' },
+  ];
+  const WEATHER_MODES = [
+    { id: 'temp', label: 'Temperature', glyph: '◐', hint: 'Colored heat map + city temps. Warmer = red, colder = blue.' },
+    { id: 'precip', label: 'Rain', glyph: '☔', hint: 'Live rain radar on the globe. Green/yellow/red = light to heavy rain.' },
+    { id: 'wind', label: 'Wind', glyph: '〰', hint: 'Arrows show wind direction and speed at each city.' },
+  ];
   const SAT_TILE_URL = (x, y, l) =>
     `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${l}/${y}/${x}`;
   const STREET_MODE_ALT = 0.62;
@@ -170,6 +184,57 @@
     if (t >= 50) return '#34c759';
     if (t >= 32) return '#5ac8fa';
     return '#5e5ce6';
+  }
+
+  function weatherGlyph(code) {
+    const c = Number(code);
+    if (c === 113) return '☀';
+    if (c === 116 || c === 119) return '⛅';
+    if (c === 122 || c === 143 || c === 248 || c === 260) return '☁';
+    if ([176, 263, 266, 281, 284, 293, 296, 299, 302, 305, 308, 311, 314, 353, 356, 359].includes(c)) return '🌧';
+    if ([179, 182, 185, 227, 230, 323, 326, 329, 332, 335, 338, 350, 362, 365, 368, 371, 374, 377].includes(c)) return '❄';
+    if ([200, 386, 389].includes(c)) return '⛈';
+    if (c === 185 || c === 284) return '🌨';
+    return '◌';
+  }
+
+  function weatherConditionLabel(code, fallback) {
+    const labels = {
+      113: 'Clear', 116: 'Partly cloudy', 119: 'Cloudy', 122: 'Overcast',
+      143: 'Mist', 176: 'Patchy rain', 200: 'Thunderstorm', 227: 'Blowing snow',
+      230: 'Blizzard', 248: 'Fog', 260: 'Freezing fog', 263: 'Light drizzle',
+      266: 'Drizzle', 281: 'Freezing drizzle', 284: 'Heavy drizzle', 293: 'Light rain',
+      296: 'Rain', 299: 'Moderate rain', 302: 'Heavy rain', 305: 'Heavy rain',
+      308: 'Heavy rain', 311: 'Freezing rain', 314: 'Heavy freezing rain',
+      323: 'Light snow', 326: 'Snow', 329: 'Heavy snow', 332: 'Light snow showers',
+      335: 'Snow showers', 338: 'Heavy snow showers', 350: 'Hail', 353: 'Light showers',
+      356: 'Showers', 359: 'Heavy showers', 362: 'Sleet showers', 365: 'Sleet showers',
+      368: 'Sleet', 371: 'Heavy sleet showers', 374: 'Sleet showers', 377: 'Heavy sleet',
+      386: 'Thunder showers', 389: 'Heavy thunder showers',
+    };
+    return labels[Number(code)] || String(fallback || 'Weather').trim() || 'Weather';
+  }
+
+  function windCompass(deg) {
+    const d = Number(deg);
+    if (!Number.isFinite(d)) return '';
+    const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    return dirs[Math.round(d / 45) % 8];
+  }
+
+  function windArcEnd(lat, lng, deg, speed) {
+    const d = Number(deg);
+    const spd = Number(speed);
+    if (!Number.isFinite(d) || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return { lat, lng };
+    }
+    const len = Math.min(6, Math.max(1.2, (Number.isFinite(spd) ? spd : 8) / 6));
+    const rad = (d * Math.PI) / 180;
+    const cosLat = Math.max(0.2, Math.cos((lat * Math.PI) / 180));
+    return {
+      lat: lat + len * Math.cos(rad) * 0.55,
+      lng: lng + (len * Math.sin(rad)) / cosLat,
+    };
   }
 
   function fmtLaunchWhen(iso) {
@@ -351,27 +416,39 @@
     const temp = Number(cur.temp_F);
     const wind = Number(cur.windspeedMiles);
     const code = Number(cur.weatherCode);
-    return mapWeatherRow({ name, lat, lng, temp, wind, code });
+    const windDeg = Number(cur.winddirDegree);
+    const condition = cur?.weatherDesc?.[0]?.value || '';
+    return mapWeatherRow({ name, lat, lng, temp, wind, code, wind_deg: windDeg, wind_dir: cur.winddir16Point, condition });
   }
 
   function mapWeatherRow(row) {
     const temp = Number(row?.temp);
     const wind = Number(row?.wind);
     const code = Number(row?.code);
+    const windDeg = Number(row?.wind_deg);
     const name = String(row?.name || '').trim();
     const lat = Number(row?.lat);
     const lng = Number(row?.lng);
+    const condition = weatherConditionLabel(code, row?.condition);
+    const glyph = weatherGlyph(code);
+    const tempRounded = Number.isFinite(temp) ? Math.round(temp) : null;
     return {
       name,
       lat,
       lng,
-      temp: Number.isFinite(temp) ? Math.round(temp) : null,
+      temp: tempRounded,
       wind: Number.isFinite(wind) ? Math.round(wind) : null,
+      windDeg: Number.isFinite(windDeg) ? windDeg : null,
+      windCompass: windCompass(windDeg) || String(row?.wind_dir || '').trim(),
       code,
+      condition,
+      glyph,
       color: tempColor(temp),
-      text: Number.isFinite(temp) ? `${Math.round(temp)}°` : '—',
-      labelSize: 0.42,
-      alt: 0.008,
+      text: tempRounded != null ? `${glyph} ${tempRounded}°` : glyph,
+      label: `${name} · ${condition}${tempRounded != null ? ` · ${tempRounded}°F` : ''}`,
+      labelSize: 0.58,
+      alt: 0.012,
+      weight: Number.isFinite(temp) ? temp : 50,
       type: 'weather',
     };
   }
@@ -511,16 +588,21 @@
     const streetMapRef = React.useRef(null);
     const radarTimerRef = React.useRef(null);
     const radarMeshRef = React.useRef(null);
+    const cloudMeshRef = React.useRef(null);
     const radarTextureLoaderRef = React.useRef(null);
+    const cloudTextureLoaderRef = React.useRef(null);
     const radarBusyRef = React.useRef(false);
     const applyLayersRef = React.useRef(() => {});
     const syncStreetRef = React.useRef(() => {});
     const resizeRef = React.useRef(() => {});
     const viewerRef = React.useRef(viewer);
     const layerRef = React.useRef(activeLayer);
+    const weatherModeRef = React.useRef('temp');
     const radarGlobeUrlRef = React.useRef('');
+    const cloudSpinRef = React.useRef(null);
 
     const [layer, setLayer] = React.useState(activeLayer);
+    const [weatherMode, setWeatherMode] = React.useState('temp');
     const [loading, setLoading] = React.useState(true);
     const [errors, setErrors] = React.useState({});
     const [weather, setWeather] = React.useState([]);
@@ -632,15 +714,33 @@
         const showSats = layer === 'all' || layer === 'satellites';
         const showLaunches = layer === 'all' || layer === 'launches';
 
+        const mode = weatherModeRef.current || 'temp';
         const flightPoints = showFlights && flights.length ? flightPointsForGlobe(flights) : [];
         const labelRows = [];
+        const windArcs = [];
         if (showWeather) {
-          labelRows.push(...weather.map((w) => ({
-            ...w,
-            text: w.text || (w.temp != null ? `${w.temp}°` : '—'),
-            label: `${w.name} · ${w.temp != null ? w.temp + '°F' : '—'}`,
-            labelSize: w.labelSize || 0.42,
-          })));
+          weather.forEach((w) => {
+            labelRows.push({
+              ...w,
+              text: w.text || (w.temp != null ? `${w.glyph || ''} ${w.temp}°` : (w.glyph || '◌')),
+              label: w.label || `${w.name} · ${w.condition || 'Weather'}`,
+              labelSize: w.labelSize || 0.58,
+              color: w.color || tempColor(w.temp),
+            });
+            if (mode === 'wind' && Number.isFinite(w.windDeg)) {
+              const end = windArcEnd(w.lat, w.lng, w.windDeg, w.wind);
+              windArcs.push({
+                startLat: w.lat,
+                startLng: w.lng,
+                endLat: end.lat,
+                endLng: end.lng,
+                color: 'rgba(100, 210, 255, 0.82)',
+                stroke: Math.min(1.1, Math.max(0.35, (Number(w.wind) || 8) / 18)),
+                label: `${w.name} · ${w.wind || 0} mph ${w.windCompass || ''}`.trim(),
+                type: 'wind',
+              });
+            }
+          });
         }
         if (showSats) {
           labelRows.push(...satellites.map((s) => ({
@@ -672,11 +772,55 @@
           .labelText((d) => String(d.text || d.label || ''))
           .labelSize('labelSize')
           .labelColor('color')
-          .labelDotRadius(0.14)
+          .labelDotRadius(showWeather ? 0.22 : 0.14)
           .labelIncludeDot(true)
           .labelDotOrientation('bottom')
           .labelsTransitionDuration(0)
-          .onLabelClick((pt) => setSelected(pt || null));
+          .onLabelClick((pt) => {
+            const pick = pt || null;
+            setSelected(pick);
+            if (pick && globe && Number.isFinite(pick.lat) && Number.isFinite(pick.lng)) {
+              globe.pointOfView({ lat: pick.lat, lng: pick.lng, altitude: 1.35 }, 1100);
+            }
+          });
+
+        if (showWeather && mode === 'temp' && weather.length) {
+          globe
+            .hexBinPointsData(weather)
+            .hexBinPointLat('lat')
+            .hexBinPointLng('lng')
+            .hexBinPointWeight('weight')
+            .hexBinResolution(3.2)
+            .hexBinMerge(true)
+            .hexBinTopAltitude(0.04)
+            .hexBinColor((bin) => {
+              const pts = bin.points || [];
+              if (!pts.length) return 'rgba(90,90,90,0.2)';
+              const avg = pts.reduce((s, p) => s + Number(p.weight || p.temp || 50), 0) / pts.length;
+              return tempColor(avg);
+            });
+        } else {
+          globe.hexBinPointsData([]);
+        }
+
+        if (showWeather && mode === 'wind' && windArcs.length) {
+          globe
+            .arcsData(windArcs)
+            .arcStartLat('startLat')
+            .arcStartLng('startLng')
+            .arcEndLat('endLat')
+            .arcEndLng('endLng')
+            .arcColor('color')
+            .arcStroke('stroke')
+            .arcAltitude(0.12)
+            .arcDashLength(0.45)
+            .arcDashGap(0.2)
+            .arcDashAnimateTime(1800)
+            .arcsTransitionDuration(0)
+            .onArcClick((pt) => setSelected(pt || null));
+        } else {
+          globe.arcsData([]);
+        }
 
         const manyFlights = flightPoints.length > 120;
         globe
@@ -720,14 +864,17 @@
 
         layerRef.current = layer;
         if (radarMeshRef.current) {
-          radarMeshRef.current.visible = showWeather && !!radarGlobeUrlRef.current;
+          radarMeshRef.current.visible = showWeather && mode === 'precip' && !!radarGlobeUrlRef.current;
+        }
+        if (cloudMeshRef.current) {
+          cloudMeshRef.current.visible = showWeather && mode !== 'precip';
         }
       } catch (e) {
         const msg = String(e?.message || e || 'layer render failed');
         setLayerError(msg);
         console.error('[god-mode] layer apply failed', e);
       }
-    }, [layer, weather, flights, satellites, launches, viewer]);
+    }, [layer, weather, flights, satellites, launches, viewer, weatherMode]);
 
     applyLayersRef.current = applyGlobeLayers;
     syncStreetRef.current = syncStreetMode;
@@ -752,23 +899,51 @@
       const mesh = radarMeshRef.current;
       if (!mesh) return;
       const showWeather = layerRef.current === 'all' || layerRef.current === 'weather';
-      mesh.visible = showWeather && !!radarGlobeUrlRef.current;
+      const mode = weatherModeRef.current || 'temp';
+      mesh.visible = showWeather && mode === 'precip' && !!radarGlobeUrlRef.current;
+      if (cloudMeshRef.current) {
+        cloudMeshRef.current.visible = showWeather && mode !== 'precip';
+      }
     }, []);
 
-    const setupRadarShell = React.useCallback((globe) => {
+    React.useEffect(() => {
+      weatherModeRef.current = weatherMode;
+      syncRadarOverlayVisibility();
+      applyLayersRef.current();
+    }, [weatherMode, syncRadarOverlayVisibility]);
+
+    const setupWeatherShells = React.useCallback((globe) => {
       const THREE = resolveThree();
       if (!globe || !THREE) return;
       try {
         globe
-          .customLayerData([{ id: 'radar-shell' }])
-          .customThreeObject(() => {
-            const radius = globe.getGlobeRadius() * 1.012;
+          .customLayerData([{ id: 'cloud-shell' }, { id: 'radar-shell' }])
+          .customThreeObject((d) => {
+            const radius = globe.getGlobeRadius() * (d.id === 'cloud-shell' ? 1.016 : 1.012);
             const geometry = new THREE.SphereGeometry(radius, 72, 36);
+            if (d.id === 'cloud-shell') {
+              const material = new THREE.MeshPhongMaterial({
+                transparent: true,
+                opacity: 0.2,
+                depthWrite: false,
+              });
+              const mesh = new THREE.Mesh(geometry, material);
+              mesh.renderOrder = 1;
+              mesh.visible = false;
+              cloudMeshRef.current = mesh;
+              if (!cloudTextureLoaderRef.current) cloudTextureLoaderRef.current = new THREE.TextureLoader();
+              cloudTextureLoaderRef.current.load(CLOUDS_IMG, (tex) => {
+                if (!cloudMeshRef.current) return;
+                cloudMeshRef.current.material.map = tex;
+                cloudMeshRef.current.material.needsUpdate = true;
+              });
+              return mesh;
+            }
             const material = new THREE.MeshBasicMaterial({
               transparent: true,
-              opacity: 0.82,
+              opacity: 0.72,
               depthWrite: false,
-              blending: THREE.NormalBlending,
+              blending: THREE.AdditiveBlending,
             });
             const mesh = new THREE.Mesh(geometry, material);
             mesh.renderOrder = 2;
@@ -777,7 +952,7 @@
             return mesh;
           });
       } catch (e) {
-        console.warn('[god-mode] radar shell unavailable', e);
+        console.warn('[god-mode] weather shells unavailable', e);
       }
     }, []);
 
@@ -818,10 +993,18 @@
           globe.controls().maxDistance = 520;
           globe.pointOfView({ lat: Number(v.lat) || 28, lng: viewerLng(v) || -20, altitude: 2.2 }, 0);
           globeInstRef.current = globe;
-          setupRadarShell(globe);
+          setupWeatherShells(globe);
 
           onControls = () => syncStreetRef.current(globe);
           globe.controls().addEventListener('change', onControls);
+
+          const spinClouds = () => {
+            if (cloudMeshRef.current && cloudMeshRef.current.visible) {
+              cloudMeshRef.current.rotation.y += 0.00035;
+            }
+            cloudSpinRef.current = window.requestAnimationFrame(spinClouds);
+          };
+          cloudSpinRef.current = window.requestAnimationFrame(spinClouds);
 
           window.requestAnimationFrame(() => {
             resizeRef.current();
@@ -855,10 +1038,13 @@
           streetMapRef.current.remove();
           streetMapRef.current = null;
         }
+        if (cloudSpinRef.current) window.cancelAnimationFrame(cloudSpinRef.current);
+        cloudSpinRef.current = null;
         if (radarMeshRef.current?.material?.map?.dispose) {
           try { radarMeshRef.current.material.map.dispose(); } catch (e) {}
         }
         radarMeshRef.current = null;
+        cloudMeshRef.current = null;
         radarGlobeUrlRef.current = '';
         globeInstRef.current = null;
         if (globeRef.current) globeRef.current.innerHTML = '';
@@ -988,11 +1174,20 @@
       syncRadarOverlayVisibility();
     }
 
+    function pickWeatherMode(id) {
+      setWeatherMode(id);
+      weatherModeRef.current = id;
+      setSelected(null);
+      syncRadarOverlayVisibility();
+      applyLayersRef.current();
+    }
+
     if (!open) return null;
 
     const panelLayer = layer === 'all' ? 'weather' : layer;
     const launchList = launches.list || [];
-    const showRadarHud = (layer === 'all' || layer === 'weather') && radarTileUrl;
+    const showWeatherHud = layer === 'all' || layer === 'weather';
+    const activeWeatherMode = WEATHER_MODES.find((m) => m.id === weatherMode) || WEATHER_MODES[0];
 
     return React.createElement(
       'div',
@@ -1055,16 +1250,39 @@
             React.createElement('div', { className: 'v4-godmode-zoom-chip' }, zoomLabel),
             React.createElement('div', { ref: globeRef, className: 'v4-godmode-globe' + (streetMode ? ' is-faded' : '') }),
             React.createElement('div', { ref: streetRef, className: 'v4-godmode-street' + (streetMode ? ' is-active' : '') }),
-            showRadarHud && React.createElement(
+            showWeatherHud && React.createElement(
               'div',
-              { className: 'v4-godmode-radar-strip is-visible' },
-              React.createElement('span', { className: 'v4-godmode-radar-label' }, 'Live precipitation radar'),
-              React.createElement('img', {
-                className: 'v4-godmode-radar-img',
-                src: radarTileUrl,
-                alt: 'Global precipitation radar',
-                title: 'RainViewer precipitation radar',
-              })
+              { className: 'v4-godmode-weather-hud is-visible' },
+              React.createElement('span', { className: 'v4-godmode-weather-hud-title' }, activeWeatherMode.label),
+              React.createElement('span', { className: 'v4-godmode-weather-hud-hint' }, activeWeatherMode.hint),
+              weatherMode === 'temp' && React.createElement(
+                'div',
+                { className: 'v4-godmode-weather-hud-legend' },
+                TEMP_LEGEND.map((row) =>
+                  React.createElement('span', { key: row.label, className: 'v4-godmode-legend-item' },
+                    React.createElement('i', { style: { background: row.color } }),
+                    row.label
+                  )
+                )
+              ),
+              weatherMode === 'precip' && React.createElement(
+                'div',
+                { className: 'v4-godmode-weather-hud-legend' },
+                ['Light rain', 'Moderate', 'Heavy'].map((label, i) =>
+                  React.createElement('span', { key: label, className: 'v4-godmode-legend-item' },
+                    React.createElement('i', { style: { background: ['#34c759', '#ffd60a', '#ff3b30'][i] } }),
+                    label
+                  )
+                )
+              ),
+              weatherMode === 'wind' && React.createElement(
+                'div',
+                { className: 'v4-godmode-weather-hud-legend' },
+                React.createElement('span', { className: 'v4-godmode-legend-item' },
+                  React.createElement('i', { style: { background: '#64d2ff' } }),
+                  'Longer arrows = faster wind'
+                )
+              )
             ),
             selected && React.createElement(
               'div',
@@ -1074,7 +1292,12 @@
                 selected.altitudeFt != null ? `${selected.altitudeFt.toLocaleString()} ft` : '',
                 selected.speedKts != null ? ` · ${selected.speedKts} kts` : ''
               ),
-              selected.type === 'weather' && selected.wind != null && React.createElement('div', null, `Wind ${selected.wind} mph`),
+              selected.type === 'weather' && React.createElement('div', null,
+                selected.condition || 'Weather',
+                selected.temp != null ? ` · ${selected.temp}°F` : '',
+                selected.wind != null ? ` · Wind ${selected.wind} mph ${selected.windCompass || ''}` : ''
+              ),
+              selected.type === 'wind' && React.createElement('div', null, selected.label || 'Wind flow'),
               selected.type === 'launch' && selected.when && React.createElement('div', null, fmtLaunchWhen(selected.when))
             )
           ),
@@ -1120,24 +1343,49 @@
             panelLayer === 'weather' && React.createElement(
               React.Fragment,
               null,
-              React.createElement('div', { className: 'v4-godmode-panel-head' }, 'Global weather mesh'),
-              React.createElement('p', { className: 'v4-godmode-panel-note' }, 'Animated precipitation radar draped on the globe + city temperature nodes. Scroll in for satellite tiles, then 3D buildings.'),
-              React.createElement('div', { className: 'v4-godmode-legend' },
-                ['95°+', '82°', '68°', '50°', '32°', 'Cold'].map((label, i) => {
-                  const colors = ['#ff3b30', '#ff9500', '#ffd60a', '#34c759', '#5ac8fa', '#5e5ce6'];
-                  return React.createElement('span', { key: label, className: 'v4-godmode-legend-item' },
-                    React.createElement('i', { style: { background: colors[i] } }),
-                    label
-                  );
-                })
+              React.createElement('div', { className: 'v4-godmode-panel-head' }, 'Planetary weather'),
+              React.createElement('p', { className: 'v4-godmode-panel-note' }, 'Bilawal-style god mode: pick a view, read the legend, click any city on the globe.'),
+              React.createElement(
+                'div',
+                { className: 'v4-godmode-weather-modes' },
+                WEATHER_MODES.map((row) =>
+                  React.createElement(
+                    'button',
+                    {
+                      key: row.id,
+                      type: 'button',
+                      className: 'v4-godmode-weather-mode' + (weatherMode === row.id ? ' is-active' : ''),
+                      onClick: () => pickWeatherMode(row.id),
+                    },
+                    React.createElement('span', { className: 'v4-godmode-weather-mode-glyph' }, row.glyph),
+                    React.createElement('span', null, row.label)
+                  )
+                )
               ),
               React.createElement(
                 'div',
                 { className: 'v4-godmode-weather-list' },
-                weather.slice(0, 12).map((w) =>
-                  React.createElement('div', { key: w.name, className: 'v4-godmode-weather-row' },
-                    React.createElement('span', null, w.name),
-                    React.createElement('strong', null, w.temp != null ? `${w.temp}°F` : '—')
+                weather.map((w) =>
+                  React.createElement(
+                    'button',
+                    {
+                      key: w.name,
+                      type: 'button',
+                      className: 'v4-godmode-weather-row v4-godmode-weather-row-btn',
+                      onClick: () => {
+                        const g = globeInstRef.current;
+                        if (g && Number.isFinite(w.lat) && Number.isFinite(w.lng)) {
+                          g.pointOfView({ lat: w.lat, lng: w.lng, altitude: 1.35 }, 1100);
+                          setSelected(w);
+                        }
+                      },
+                    },
+                    React.createElement('span', { className: 'v4-godmode-weather-row-city' },
+                      React.createElement('i', { className: 'v4-godmode-weather-glyph', style: { color: w.color } }, w.glyph || '◌'),
+                      w.name
+                    ),
+                    React.createElement('strong', null, w.temp != null ? `${w.temp}°F` : '—'),
+                    React.createElement('em', null, w.condition || '')
                   )
                 )
               )

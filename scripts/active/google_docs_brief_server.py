@@ -5458,12 +5458,19 @@ def god_mode_weather_city(name: str, lat: float, lng: float) -> dict | None:
     wind = cur.get("windspeedMiles")
     temp_i = round(float(temp)) if temp is not None else None
     wind_i = round(float(wind)) if wind is not None else None
+    wind_deg = cur.get("winddirDegree")
+    wind_dir = cur.get("winddir16Point")
+    desc = cur.get("weatherDesc")
+    condition = desc[0].get("value") if isinstance(desc, list) and desc else ""
     return {
         "name": name,
         "lat": lat,
         "lng": lng,
         "temp": temp_i,
         "wind": wind_i,
+        "wind_deg": round(float(wind_deg)) if wind_deg is not None else None,
+        "wind_dir": str(wind_dir or "").strip(),
+        "condition": str(condition or "").strip(),
         "code": cur.get("weatherCode"),
     }
 

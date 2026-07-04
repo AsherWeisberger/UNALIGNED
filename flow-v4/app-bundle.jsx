@@ -19458,7 +19458,15 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
   };
 
   const split = splits.find(s => s.id === splitId) || splits[0];
-  const items = split.items || [];
+  // Global search: a query searches the whole board, not just the open queue.
+  const items = React.useMemo(() => {
+    const base = split.items || [];
+    if (!query) return base;
+    const seen = new Set(base.map(l => String(l.id)));
+    const match = (window.V3 && window.V3.LeadMatchesQuery) ? window.V3.LeadMatchesQuery : null;
+    const extra = match ? (liveAll || []).filter(l => !seen.has(String(l.id)) && match(l, query)) : [];
+    return base.concat(extra);
+  }, [split.items, query, liveAll]);
   const listSections = React.useMemo(() => {
     if (!split.queue || query) return [{ id: 'all', label: null, hint: null, items }];
     if (split.id === 'send') return V4CosBuildSendQueueSections(items);
@@ -20010,7 +20018,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
                     <React.Fragment>
                       <span className="cos2-zero-mark">⌕</span>
                       <strong>No matches</strong>
-                      <span>Nothing in {split.label.toLowerCase()} for &ldquo;{query}&rdquo;.</span>
+                      <span>No matches anywhere in Company OS for &ldquo;{query}&rdquo;.</span>
                       <button type="button" className="cos2-list-search-clear-btn" onClick={() => onQueryChange && onQueryChange('')}>Clear search</button>
                     </React.Fragment>
                   ) : (
@@ -20495,7 +20503,7 @@ function V4LoadGodModeModule() {
       return;
     }
     const s = document.createElement('script');
-    s.src = 'flow-v4/god-mode-earth.js?v=20260704-godmode-v12';
+    s.src = 'flow-v4/god-mode-earth.js?v=20260704-godmode-v13';
     s.async = true;
     s.onload = () => {
       if (typeof window.V4GodModeEarth === 'function') resolve(window.V4GodModeEarth);
