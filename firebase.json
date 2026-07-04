@@ -61,7 +61,7 @@
       },
       {
         "source": "/connect",
-        "destination": "/connect.html"
+        "destination": "/connect/index.html"
       },
       {
         "source": "/connect.html",
