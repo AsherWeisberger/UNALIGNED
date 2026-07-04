@@ -1576,7 +1576,7 @@ body.v4-godmode-open { overflow: hidden; }
   position: absolute;
   left: 14px;
   bottom: 14px;
-  z-index: 2;
+  z-index: 4;
   max-width: min(320px, 80%);
   padding: 10px 12px;
   border-radius: 12px;
@@ -1586,6 +1586,130 @@ body.v4-godmode-open { overflow: hidden; }
   font: 500 12px/1.35 var(--font-body, system-ui);
 }
 .v4-godmode-pin strong { display: block; margin-bottom: 4px; font-size: 13px; }
+.v4-godmode-pin-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 9px;
+}
+.v4-godmode-pin-actions button,
+.v4-godmode-pin-actions a {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 9px;
+  border: 1px solid rgba(100, 210, 255, 0.32);
+  background: rgba(100, 210, 255, 0.12);
+  color: #f5f7ff;
+  text-decoration: none;
+  font: 750 10px/1 var(--font-body, system-ui);
+  cursor: pointer;
+}
+.v4-godmode-pin-actions button:hover,
+.v4-godmode-pin-actions a:hover {
+  background: rgba(100, 210, 255, 0.2);
+  border-color: rgba(100, 210, 255, 0.55);
+}
+.v4-godmode-ground {
+  position: absolute;
+  top: 58px;
+  right: 14px;
+  z-index: 5;
+  width: min(410px, calc(100% - 28px));
+  max-height: calc(100% - 92px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid rgba(100, 210, 255, 0.3);
+  background:
+    radial-gradient(circle at 18% 0%, rgba(100, 210, 255, 0.18), transparent 36%),
+    rgba(5, 9, 17, 0.94);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.56), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: #f5f7ff;
+  backdrop-filter: blur(18px) saturate(1.15);
+}
+.v4-godmode-ground-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 13px 11px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.v4-godmode-ground-kicker {
+  display: block;
+  color: rgba(100, 210, 255, 0.86);
+  font: 800 9px/1 var(--font-mono, monospace);
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+}
+.v4-godmode-ground-head strong {
+  display: block;
+  margin-top: 6px;
+  color: #ffffff;
+  font: 800 15px/1.1 var(--font-display, system-ui);
+}
+.v4-godmode-ground-head em {
+  display: block;
+  margin-top: 5px;
+  color: rgba(235, 240, 255, 0.58);
+  font: 700 10px/1 var(--font-mono, monospace);
+  font-style: normal;
+}
+.v4-godmode-ground-head button {
+  appearance: none;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.88);
+  font: 700 18px/1 var(--font-body, system-ui);
+  cursor: pointer;
+}
+.v4-godmode-ground-head button:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.v4-godmode-ground-frame {
+  width: 100%;
+  height: 258px;
+  min-height: 210px;
+  border: 0;
+  background: #0a0e16;
+  filter: saturate(0.92) contrast(1.05);
+}
+.v4-godmode-ground-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 11px;
+}
+.v4-godmode-ground-actions a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  border-radius: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  background: rgba(255, 255, 255, 0.055);
+  color: #f5f7ff;
+  text-decoration: none;
+  font: 800 11px/1 var(--font-body, system-ui);
+}
+.v4-godmode-ground-actions a:hover {
+  border-color: rgba(100, 210, 255, 0.48);
+  background: rgba(100, 210, 255, 0.13);
+}
+.v4-godmode-ground-note {
+  margin: 0;
+  padding: 0 13px 13px;
+  color: rgba(235, 240, 255, 0.58);
+  font: 550 10.5px/1.42 var(--font-body, system-ui);
+}
 .v4-godmode-panel {
   border-left: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(0, 0, 0, 0.22);

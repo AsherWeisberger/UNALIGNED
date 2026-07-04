@@ -1441,7 +1441,7 @@
         setLayerError(msg);
         console.error('[god-mode] layer apply failed', e);
       }
-    }, [layer, weather, flights, satellites, launches, earthEvents, viewer, weatherMode, issTrail, updateRocketOverlay, updateFlightOverlay]);
+    }, [layer, weather, flights, satellites, launches, earthEvents, viewer, weatherMode, issTrail, updateRocketOverlay, updateFlightOverlay, inspectPoint]);
 
     applyLayersRef.current = applyGlobeLayers;
     syncStreetRef.current = syncZoomLabel;
