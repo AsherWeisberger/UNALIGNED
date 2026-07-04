@@ -116,6 +116,7 @@ fi
 /opt/homebrew/bin/python3 scripts/active/trash_gmail_from_supabase.py || true
 
 if [ "${LIVE_X_ENABLED:-1}" = "1" ]; then
+  /opt/homebrew/bin/python3 scripts/active/export_x_gate_rules.py >> "$LIVE_X_LOG" 2>&1 || true
   echo "Starting live X inbox pass."
   /opt/homebrew/bin/python3 scripts/active/live_x_inbox_daily_scrape.py \
     --rebuild-intake \
@@ -127,6 +128,8 @@ if [ "${LIVE_X_ENABLED:-1}" = "1" ]; then
   echo "Live X inbox pass complete."
   /opt/homebrew/bin/python3 scripts/active/x_bridge.py >> "$LIVE_X_LOG" 2>&1 || true
   echo "X bridge sync complete."
+  /opt/homebrew/bin/python3 scripts/active/x_spam_cleanup.py >> "$LIVE_X_LOG" 2>&1 || true
+  echo "X spam cleanup complete."
   if [ "${X_API_SHADOW_ENABLED:-0}" = "1" ]; then
     echo "Starting X API shadow lane."
     /opt/homebrew/bin/python3 scripts/active/x_api_dm_shadow_scrape.py \
@@ -147,6 +150,10 @@ if [ "${ROBERT_HANDOFF_ENABLED:-0}" = "1" ]; then
     || true
   echo "Robert handoff operator complete."
 fi
+
+echo "Starting deal brain sync."
+/opt/homebrew/bin/python3 scripts/active/deal_brain_sync.py --limit "${DEAL_BRAIN_SYNC_LIMIT:-40}" || true
+echo "Deal brain sync complete."
 
 date +"%Y/%m/%d" > "$HOME/.config/google-credentials/scraper_v4_last_run.txt"
 
