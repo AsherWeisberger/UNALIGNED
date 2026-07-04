@@ -76,6 +76,14 @@
         "destination": "/scope.html"
       },
       {
+        "source": "/ops",
+        "destination": "/team-ops-redirect.html"
+      },
+      {
+        "source": "/ops/",
+        "destination": "/team-ops-redirect.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
