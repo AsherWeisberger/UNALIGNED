@@ -237,6 +237,46 @@
     return `${base}${path}/512/${z}/${x}/${y}/2/1_0.png`;
   }
 
+  function loadRadarImage(url) {
+    return new Promise((resolve) => {
+      if (!url) {
+        resolve(null);
+        return;
+      }
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+  }
+
+  async function buildRadarTileComposite(host, frame, zoom, cols, rows) {
+    const tile = 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = tile * cols;
+    canvas.height = tile * rows;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return '';
+    ctx.fillStyle = '#061018';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const jobs = [];
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        jobs.push((async () => {
+          const img = await loadRadarImage(buildRadarFrameUrl(host, frame, zoom, x, y));
+          if (img) ctx.drawImage(img, x * tile, y * tile, tile, tile);
+        })());
+      }
+    }
+    await Promise.all(jobs);
+    return canvas.toDataURL('image/png');
+  }
+
+  function resolveThree() {
+    return global.THREE || global.window?.THREE || null;
+  }
+
   function viewerLng(viewer) {
     const raw = viewer?.lng ?? viewer?.lon;
     return Number(raw);
@@ -470,6 +510,15 @@
     const streetRef = React.useRef(null);
     const streetMapRef = React.useRef(null);
     const radarTimerRef = React.useRef(null);
+    const radarMeshRef = React.useRef(null);
+    const radarTextureLoaderRef = React.useRef(null);
+    const radarBusyRef = React.useRef(false);
+    const applyLayersRef = React.useRef(() => {});
+    const syncStreetRef = React.useRef(() => {});
+    const resizeRef = React.useRef(() => {});
+    const viewerRef = React.useRef(viewer);
+    const layerRef = React.useRef(activeLayer);
+    const radarGlobeUrlRef = React.useRef('');
 
     const [layer, setLayer] = React.useState(activeLayer);
     const [loading, setLoading] = React.useState(true);
@@ -489,7 +538,12 @@
 
     React.useEffect(() => {
       setLayer(activeLayer);
+      layerRef.current = activeLayer;
     }, [activeLayer]);
+
+    React.useEffect(() => {
+      viewerRef.current = viewer;
+    }, [viewer]);
 
     React.useEffect(() => {
       if (!open) return undefined;
@@ -663,6 +717,11 @@
           .ringPropagationSpeed(2.2)
           .ringRepeatPeriod(1200)
           .ringColor(() => 'rgba(255,69,58,0.55)');
+
+        layerRef.current = layer;
+        if (radarMeshRef.current) {
+          radarMeshRef.current.visible = showWeather && !!radarGlobeUrlRef.current;
+        }
       } catch (e) {
         const msg = String(e?.message || e || 'layer render failed');
         setLayerError(msg);
@@ -670,11 +729,64 @@
       }
     }, [layer, weather, flights, satellites, launches, viewer]);
 
+    applyLayersRef.current = applyGlobeLayers;
+    syncStreetRef.current = syncStreetMode;
+    resizeRef.current = resizeGlobe;
+
+    const applyRadarGlobeTexture = React.useCallback((url) => {
+      const mesh = radarMeshRef.current;
+      const THREE = resolveThree();
+      if (!mesh || !THREE || !url) return;
+      if (!radarTextureLoaderRef.current) radarTextureLoaderRef.current = new THREE.TextureLoader();
+      radarTextureLoaderRef.current.load(url, (tex) => {
+        if (!radarMeshRef.current) return;
+        const old = radarMeshRef.current.material?.map;
+        if (old && old.dispose) old.dispose();
+        tex.anisotropy = 4;
+        radarMeshRef.current.material.map = tex;
+        radarMeshRef.current.material.needsUpdate = true;
+      });
+    }, []);
+
+    const syncRadarOverlayVisibility = React.useCallback(() => {
+      const mesh = radarMeshRef.current;
+      if (!mesh) return;
+      const showWeather = layerRef.current === 'all' || layerRef.current === 'weather';
+      mesh.visible = showWeather && !!radarGlobeUrlRef.current;
+    }, []);
+
+    const setupRadarShell = React.useCallback((globe) => {
+      const THREE = resolveThree();
+      if (!globe || !THREE) return;
+      try {
+        globe
+          .customLayerData([{ id: 'radar-shell' }])
+          .customThreeObject(() => {
+            const radius = globe.getGlobeRadius() * 1.012;
+            const geometry = new THREE.SphereGeometry(radius, 72, 36);
+            const material = new THREE.MeshBasicMaterial({
+              transparent: true,
+              opacity: 0.82,
+              depthWrite: false,
+              blending: THREE.NormalBlending,
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.renderOrder = 2;
+            mesh.visible = false;
+            radarMeshRef.current = mesh;
+            return mesh;
+          });
+      } catch (e) {
+        console.warn('[god-mode] radar shell unavailable', e);
+      }
+    }, []);
+
     React.useEffect(() => {
       if (!open) return undefined;
       let cancelled = false;
-      let globe = null;
       let resizeObs = null;
+      let globe = null;
+      let onControls = null;
 
       const mountGlobe = async () => {
         if (cancelled) return;
@@ -682,42 +794,47 @@
           window.requestAnimationFrame(mountGlobe);
           return;
         }
+        if (globeInstRef.current) return;
         setGlobeError('');
         try {
           const GlobeFactory = await ensureGlobeLibrary();
-          if (cancelled || !globeRef.current) return;
+          if (cancelled || !globeRef.current || globeInstRef.current) return;
+          const v = viewerRef.current || {};
           globe = initGlobeInstance(GlobeFactory, globeRef.current)
-          .globeImageUrl(EARTH_IMG)
-          .bumpImageUrl(BUMP_IMG)
-          .backgroundImageUrl(SKY_IMG)
-          .showAtmosphere(true)
-          .atmosphereColor('lightskyblue')
-          .atmosphereAltitude(0.18)
-          .pointLabel('label')
-          .onPointHover((pt) => {
-            if (globeRef.current) globeRef.current.style.cursor = pt ? 'pointer' : 'grab';
+            .globeImageUrl(EARTH_IMG)
+            .bumpImageUrl(BUMP_IMG)
+            .backgroundImageUrl(SKY_IMG)
+            .showAtmosphere(true)
+            .atmosphereColor('lightskyblue')
+            .atmosphereAltitude(0.18)
+            .pointLabel('label')
+            .onPointHover((pt) => {
+              if (globeRef.current) globeRef.current.style.cursor = pt ? 'pointer' : 'grab';
+            });
+          globe.controls().autoRotate = true;
+          globe.controls().autoRotateSpeed = 0.35;
+          globe.controls().enableDamping = true;
+          globe.controls().minDistance = 101;
+          globe.controls().maxDistance = 520;
+          globe.pointOfView({ lat: Number(v.lat) || 28, lng: viewerLng(v) || -20, altitude: 2.2 }, 0);
+          globeInstRef.current = globe;
+          setupRadarShell(globe);
+
+          onControls = () => syncStreetRef.current(globe);
+          globe.controls().addEventListener('change', onControls);
+
+          window.requestAnimationFrame(() => {
+            resizeRef.current();
+            applyLayersRef.current();
+            syncStreetRef.current(globe);
+            if (radarGlobeUrlRef.current) applyRadarGlobeTexture(radarGlobeUrlRef.current);
+            syncRadarOverlayVisibility();
           });
-        globe.controls().autoRotate = true;
-        globe.controls().autoRotateSpeed = 0.35;
-        globe.controls().enableDamping = true;
-        globe.controls().minDistance = 101;
-        globe.controls().maxDistance = 520;
-        globe.pointOfView({ lat: Number(viewer.lat) || 28, lng: viewerLng(viewer) || -20, altitude: 2.2 }, 0);
-        globeInstRef.current = globe;
-
-        const onControls = () => syncStreetMode(globe);
-        globe.controls().addEventListener('change', onControls);
-
-        window.requestAnimationFrame(() => {
-          resizeGlobe();
-          applyGlobeLayers();
-          syncStreetMode(globe);
-        });
-        if (typeof ResizeObserver !== 'undefined') {
-          resizeObs = new ResizeObserver(() => resizeGlobe());
-          resizeObs.observe(globeRef.current);
-        }
-        window.addEventListener('resize', resizeGlobe);
+          if (typeof ResizeObserver !== 'undefined') {
+            resizeObs = new ResizeObserver(() => resizeRef.current());
+            resizeObs.observe(globeRef.current);
+          }
+          window.addEventListener('resize', resizeRef.current);
         } catch (e) {
           if (!cancelled) {
             setGlobeError('3D globe failed to load: ' + (e?.message || 'unknown error') + '. Hard refresh (Cmd+Shift+R).');
@@ -729,20 +846,24 @@
 
       return () => {
         cancelled = true;
-        window.removeEventListener('resize', resizeGlobe);
+        window.removeEventListener('resize', resizeRef.current);
         if (resizeObs) resizeObs.disconnect();
-        if (radarTimerRef.current) {
-          clearInterval(radarTimerRef.current);
-          radarTimerRef.current = null;
+        if (globe && onControls) {
+          try { globe.controls().removeEventListener('change', onControls); } catch (e) {}
         }
         if (streetMapRef.current) {
           streetMapRef.current.remove();
           streetMapRef.current = null;
         }
+        if (radarMeshRef.current?.material?.map?.dispose) {
+          try { radarMeshRef.current.material.map.dispose(); } catch (e) {}
+        }
+        radarMeshRef.current = null;
+        radarGlobeUrlRef.current = '';
         globeInstRef.current = null;
         if (globeRef.current) globeRef.current.innerHTML = '';
       };
-    }, [open, viewer.lat, viewer.lng, viewer.lon, resizeGlobe, applyGlobeLayers, syncStreetMode]);
+    }, [open]);
 
     React.useEffect(() => {
       if (!open) return;
@@ -752,21 +873,40 @@
     React.useEffect(() => {
       if (!open || !radar?.frames?.length) return undefined;
       let idx = radar.frames.length - 1;
-      const tick = () => {
-        const frame = radar.frames[idx];
-        const url = buildRadarFrameUrl(radar.host, frame, 0, 0, 0);
-        if (url) setRadarTileUrl(url);
-        idx = (idx + 1) % radar.frames.length;
+      let cancelled = false;
+
+      const tick = async () => {
+        if (cancelled || radarBusyRef.current) return;
+        radarBusyRef.current = true;
+        try {
+          const frame = radar.frames[idx];
+          const globeUrl = buildRadarFrameUrl(radar.host, frame, 0, 0, 0);
+          const stripUrl = await buildRadarTileComposite(radar.host, frame, 1, 2, 2);
+          if (cancelled) return;
+          if (globeUrl) {
+            radarGlobeUrlRef.current = globeUrl;
+            applyRadarGlobeTexture(globeUrl);
+            syncRadarOverlayVisibility();
+          }
+          if (stripUrl) setRadarTileUrl(stripUrl);
+          idx = (idx + 1) % radar.frames.length;
+        } catch (e) {
+          console.warn('[god-mode] radar frame failed', e);
+        } finally {
+          radarBusyRef.current = false;
+        }
       };
+
       tick();
-      radarTimerRef.current = window.setInterval(tick, 900);
+      radarTimerRef.current = window.setInterval(tick, 1200);
       return () => {
+        cancelled = true;
         if (radarTimerRef.current) {
           clearInterval(radarTimerRef.current);
           radarTimerRef.current = null;
         }
       };
-    }, [open, radar]);
+    }, [open, radar, applyRadarGlobeTexture, syncRadarOverlayVisibility]);
 
     React.useEffect(() => {
       if (!open) return undefined;
@@ -842,8 +982,10 @@
     function pickLayer(id) {
       setLayerError('');
       setLayer(id);
+      layerRef.current = id;
       onLayerChange?.(id);
       setSelected(null);
+      syncRadarOverlayVisibility();
     }
 
     if (!open) return null;

@@ -20395,7 +20395,7 @@ function V4LoadGodModeModule() {
       return;
     }
     const s = document.createElement('script');
-    s.src = 'flow-v4/god-mode-earth.js?v=20260703-godmode-v11';
+    s.src = 'flow-v4/god-mode-earth.js?v=20260704-godmode-v12';
     s.async = true;
     s.onload = () => {
       if (typeof window.V4GodModeEarth === 'function') resolve(window.V4GodModeEarth);
