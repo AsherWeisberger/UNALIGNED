@@ -8975,10 +8975,10 @@
   },
   {
     "rank": 0,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
-    "changedSincePriorScrape": true,
-    "newestDmDate": "2026-07-02",
+    "changedSincePriorScrape": false,
+    "newestDmDate": "2026-07-03",
     "leadScore": 0,
     "xName": "Alex Hammer",
     "xUsername": "",
@@ -8989,14 +8989,14 @@
     "leadType": "Intro / Network",
     "currentStatus": "",
     "alreadyEmailedInRobertGmail": false,
-    "summaryForTeam": "Alex Hammer is asking for an intro or broader connection. Latest lead message: I know that you know a lot of the top investors, but how well do you know them? Can you negotiate for us the best terms so that we are selecting our investors rather than them selecting us, as we are the first startup in the world to (in process) solve the AI… Robert’s latest position: Do you know when the meetings are set up for? It's not a thing I usually do, but I'm intrigued and honored. 9:26 PM 9:26 PM",
-    "lastLeadMessage": "I know that you know a lot of the top investors, but how well do you know them? Can you negotiate for us the best terms so that we are selecting our investors rather than them selecting us, as we are the first startup in the world to (in process) solve the AI backlash. I am willing to pay top Advisor $$ if the value is there. 10:54 AM 10:54 AM",
-    "lastSender": "Lead",
-    "lastRobertMessage": "Do you know when the meetings are set up for? It's not a thing I usually do, but I'm intrigued and honored. 9:26 PM 9:26 PM",
-    "repliedViaX": false,
-    "bestNextStep": "Reply in X once to move them to email with Robert + Asher + Sammy.",
-    "recommendedOwner": "Robert / Asher",
-    "messageCount": 8,
+    "summaryForTeam": "Alex Hammer is asking for an intro or broader connection. Latest lead message: What helps me is that I am independently wealthy, so I don't have to accept any investor I don't want. I set up a system where I can control all the variables which are important to me. 4:57 PM 4:57 PM Robert’s latest position: Not that well usually 2:09 AM 2:09 AM",
+    "lastLeadMessage": "What helps me is that I am independently wealthy, so I don't have to accept any investor I don't want. I set up a system where I can control all the variables which are important to me. 4:57 PM 4:57 PM",
+    "lastSender": "Robert",
+    "lastRobertMessage": "Not that well usually 2:09 AM 2:09 AM",
+    "repliedViaX": true,
+    "bestNextStep": "Review thread manually before sending anything new.",
+    "recommendedOwner": "Asher",
+    "messageCount": 10,
     "dmMessages": [
       {
         "sender": "Lead",
@@ -9029,14 +9029,24 @@
       {
         "sender": "Lead",
         "text": "I know that you know a lot of the top investors, but how well do you know them? Can you negotiate for us the best terms so that we are selecting our investors rather than them selecting us, as we are the first startup in the world to (in process) solve the AI backlash. I am willing to pay top Advisor $$ if the value is there.\n10:54 AM\n10:54 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "What helps me is that I am independently wealthy, so I don't have to accept any investor I don't want.\n\nI set up a system where I can control all the variables which are important to me.\n4:57 PM\n4:57 PM"
+      },
+      {
+        "sender": "Robert",
+        "text": "Not that well usually\n2:09 AM\n2:09 AM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 0,
     "newLead": false,
     "seenInPriorScrape": true,
-    "changedSincePriorScrape": true,
+    "changedSincePriorScrape": false,
     "newestDmDate": "2026-07-02",
     "leadScore": 0,
     "xName": "Alexander Swai",
@@ -9134,7 +9144,7 @@
     "rank": 0,
     "newLead": false,
     "seenInPriorScrape": true,
-    "changedSincePriorScrape": true,
+    "changedSincePriorScrape": false,
     "newestDmDate": "2026-07-01",
     "leadScore": 0,
     "xName": "Andrew 🇮🇪",
@@ -9330,7 +9340,7 @@
     "rank": 0,
     "newLead": true,
     "seenInPriorScrape": true,
-    "changedSincePriorScrape": true,
+    "changedSincePriorScrape": false,
     "newestDmDate": "2026-07-01",
     "leadScore": 0,
     "xName": "Ark Baltser",
@@ -9652,8 +9662,8 @@
   {
     "rank": 0,
     "newLead": false,
-    "seenInPriorScrape": false,
-    "changedSincePriorScrape": true,
+    "seenInPriorScrape": true,
+    "changedSincePriorScrape": false,
     "newestDmDate": "2026-07-01",
     "leadScore": 0,
     "xName": "Asi Meskin",
@@ -9801,8 +9811,8 @@
   {
     "rank": 0,
     "newLead": false,
-    "seenInPriorScrape": false,
-    "changedSincePriorScrape": true,
+    "seenInPriorScrape": true,
+    "changedSincePriorScrape": false,
     "newestDmDate": "2026-07-01",
     "leadScore": 0,
     "xName": "Ben Cera",
@@ -12197,66 +12207,74 @@
     "rank": 0,
     "newLead": false,
     "seenInPriorScrape": true,
-    "changedSincePriorScrape": false,
-    "newestDmDate": "2026-06-15",
+    "changedSincePriorScrape": true,
+    "newestDmDate": "2026-07-03",
     "leadScore": 0,
     "xName": "Jaiyen Shetty",
     "xUsername": "",
     "openDm": "https://x.com/i/chat/13348-2028916572199477248",
-    "contactInfo": "Handle: @alexisohanian, @3farmatebots, @776foundation, @oxncgen, @garrytan",
+    "contactInfo": "",
     "contactEmails": "",
     "contactPhones": "",
     "leadType": "Intro / Network",
     "currentStatus": "",
     "alreadyEmailedInRobertGmail": false,
-    "summaryForTeam": "Jaiyen Shetty is asking for an intro or broader connection around AI to help people. Latest lead message: Hey Robert. It was great meeting you. I just wanted to take you up on your help with connecting with ag-tech investor. That would be awesome! I would also love if you could connect us to any other warm connections for investors that you think would be intrest… Robert’s latest position: Show more",
-    "lastLeadMessage": "Hey Robert. It was great meeting you. I just wanted to take you up on your help with connecting with ag-tech investor. That would be awesome! I would also love if you could connect us to any other warm connections for investors that you think would be intrested. Excited to meet on July 3rd! 4:33 PM 4:33 PM",
+    "summaryForTeam": "Jaiyen Shetty is asking for an intro or broader connection. Latest lead message: Maybe there is a way to ride the pch after Fresno? 1:16 AM 1:16 AM Robert’s latest position: I am gonna go the scenic route. Sorry. Let’s talk when I get back 2:19 PM 2:19 PM",
+    "lastLeadMessage": "Maybe there is a way to ride the pch after Fresno? 1:16 AM 1:16 AM",
     "lastSender": "Robert",
-    "lastRobertMessage": "Show more",
+    "lastRobertMessage": "I am gonna go the scenic route. Sorry. Let’s talk when I get back 2:19 PM 2:19 PM",
     "repliedViaX": true,
     "bestNextStep": "Review thread manually before sending anything new.",
     "recommendedOwner": "Asher",
-    "messageCount": 10,
+    "messageCount": 14,
     "dmMessages": [
       {
         "sender": "Robert",
-        "text": "That would be awesome!\n2:14 PM\n2:14 PM"
+        "text": "You gonna sell the data to Figure, Tesla, Xpeng?"
+      },
+      {
+        "sender": "Robert",
+        "text": ":-)"
+      },
+      {
+        "sender": "Robert",
+        "text": "Or John Deere?\n1:07 AM\n1:07 AM"
       },
       {
         "sender": "Lead",
-        "text": "Great. When are you free this week? Super flexible on my end!\n2:17 PM\n2:17 PM"
+        "text": "Exactly\n1:08 AM\n1:08 AM"
       },
       {
         "sender": "Robert",
-        "text": "Friday is mostly open. This week is nuts.\n5:17 PM\n5:17 PM"
+        "text": "Silicon Valley was farms when I was a kid. Learned a lot about it before they disappeared."
+      },
+      {
+        "sender": "Robert",
+        "text": "I really want to go PCH but would be better for my sons to meet you\n1:10 AM\n1:10 AM"
       },
       {
         "sender": "Lead",
-        "text": "Ha I get it. I am open Friday as well so any time you are free, we could chat then!\n5:20 PM\n5:20 PM"
-      },
-      {
-        "sender": "Robert",
-        "text": "Yeah! Want to send me a calendar invite? scobleizer@gmail.com\n5:25 PM\n5:25 PM"
+        "text": "Ag side: John Deere, Kubota, Carbon Robotics. Big picture: Nvidia, Physical Intelligence, Skild. The labs are already paying for real world data and nobody has outdoor farm manipulation footage so that’s kinda of our idea.\n1:15 AM\n1:15 AM"
       },
       {
         "sender": "Lead",
-        "text": "Great! Sending an invite at 1:00 PM on Friday.\n5:31 PM\n5:31 PM"
-      },
-      {
-        "sender": "Robert",
-        "text": "Awesome!\n12:18 AM\n12:18 AM"
+        "text": "We have emailed a bunch of potential customers for our data so we will see"
       },
       {
         "sender": "Lead",
-        "text": "Hey Robert. It was great meeting you. I just wanted to take you up on your help with connecting with ag-tech investor. That would be awesome! I would also love if you could connect us to any other warm connections for investors that you think would be intrested. Excited to meet on July 3rd!\n4:33 PM\n4:33 PM"
+        "text": "Wow that’s actually cool I didn’t know that"
+      },
+      {
+        "sender": "Lead",
+        "text": "Maybe there is a way to ride the pch after Fresno?\n1:16 AM\n1:16 AM"
       },
       {
         "sender": "Robert",
-        "text": "Here's what my AI gave me:\n\nHere's what I found scanning the AI Investors list for farming, agriculture, and farm robotics signals:\n\n🌾 AI Investors with Farm/Agtech Interest\n\nTIER 1 — Active Advocates (Strong Signal)\n\n@alexisohanian — Alexis Ohanian, 776 Foundation\nThe clearest lead. He literally funded @3farmatebots — autonomous robots that plant, spray, weed, and monitor crops. His post: \"Farming has a global labor crisis and @776foundation climate fellow @oxncgen is building the fix — autonomous robots... Real hardware, real fields.\" (April 2026). He also personally grows corn and mangos on his own farm and posts about it regularly. This is personal + professional interest.\n\n@garrytan — Garry Tan, President of Y Combinator\nVery strong signal. He posted with 175 likes: \"Everybody eats. Improving our food supply and safer more efficient agriculture is one of the most direct ways for AI to help people.\" YC has also formally launched AI for Low-Pesticide Agriculture as a new funding ca…\nShow more\n10:32 PM"
+        "text": "I don’t think I would get there at a reasonable hour if I did that\n2:04 AM\n2:04 AM"
       },
       {
         "sender": "Robert",
-        "text": "Show more"
+        "text": "I am gonna go the scenic route. Sorry. Let’s talk when I get back\n2:19 PM\n2:19 PM"
       }
     ],
     "spamBlocked": false,
@@ -12909,6 +12927,65 @@
   },
   {
     "rank": 0,
+    "newLead": true,
+    "seenInPriorScrape": true,
+    "changedSincePriorScrape": false,
+    "newestDmDate": "2026-07-03",
+    "leadScore": 0,
+    "xName": "kym coffey",
+    "xUsername": "",
+    "openDm": "https://x.com/i/chat/13348-21270906",
+    "contactInfo": "",
+    "contactEmails": "",
+    "contactPhones": "",
+    "leadType": "Payment / Admin",
+    "currentStatus": "",
+    "alreadyEmailedInRobertGmail": false,
+    "summaryForTeam": "kym coffey is handling payment or invoice follow-up. Latest lead message: Yo! Have you had conversations with Brett Balint-McNee regarding it's data product and Silicon Valley? I am suspicious 4:18 PM 4:18 PM Robert’s latest position: Yeah. I am a bit too. They have a few patents. Behave like a patent troll. Turned me off of them. 2:08 AM 2:08 AM",
+    "lastLeadMessage": "Yo! Have you had conversations with Brett Balint-McNee regarding it's data product and Silicon Valley? I am suspicious 4:18 PM 4:18 PM",
+    "lastSender": "Robert",
+    "lastRobertMessage": "Yeah. I am a bit too. They have a few patents. Behave like a patent troll. Turned me off of them. 2:08 AM 2:08 AM",
+    "repliedViaX": true,
+    "bestNextStep": "Review thread manually before sending anything new.",
+    "recommendedOwner": "Asher",
+    "messageCount": 8,
+    "dmMessages": [
+      {
+        "sender": "Lead",
+        "text": "Howdy Robert! Did you get random message from me somewhere? I sent one to you and Brian last Friday and don't see it now.... strange, I hope it didn't send it publicly! 😲\n5:03 PM\n5:03 PM"
+      },
+      {
+        "sender": "Robert",
+        "text": "Nope\n2:31 AM\n2:31 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Dude! WTF is going on with peopel in AI spaces? I stay away because it feels like weird comments are directed at me. Last year, I sent Sharon a ceast and decist letter after I asked 4 times for the Stripe link by email, as she had sent by DM to update my credit card info. Also, our co-office address had changed, thus my subscription payment to her mag didn't process. She refused to give me access to my Stripe link and while I was busy working full time, while working at night on Metadata Society, I was not interested in displaying my work in public. Also, I've been a service provider in enterprise DAM  (strategy and implementation) for 15 years prior to pivoting into AI, so my path in AI and reputation professionally means, I can't be sitting in Spaces all day anymore, as I once had 2023-2024. Anyways, none of these people know me, yet it seems I was completely isolated and disrespected, while simply minding my own business.  Sorry to dump, but also thank you for defending me after the…\nShow more\n2:24 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Show more"
+      },
+      {
+        "sender": "Robert",
+        "text": "Sorry to hear all this.\n11:54 AM\n11:54 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Thx, sorry to unload. I meant to say  ceast and disist \"data privacy\"\n2:01 PM\n2:01 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Yo! Have you had conversations with Brett Balint-McNee regarding it's data product and Silicon Valley? I am suspicious\n4:18 PM\n4:18 PM"
+      },
+      {
+        "sender": "Robert",
+        "text": "Yeah. I am a bit too. They have a few patents. Behave like a patent troll. Turned me off of them.\n2:08 AM\n2:08 AM"
+      }
+    ]
+  },
+  {
+    "rank": 0,
     "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
@@ -13496,7 +13573,7 @@
     "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": true,
-    "newestDmDate": "2026-07-02",
+    "newestDmDate": "2026-07-04",
     "leadScore": 0,
     "xName": "Michael Finberg",
     "xUsername": "",
@@ -13507,31 +13584,15 @@
     "leadType": "Paid / Sponsorship",
     "currentStatus": "",
     "alreadyEmailedInRobertGmail": false,
-    "summaryForTeam": "Michael Finberg is pitching a paid collaboration or sponsorship. Latest lead message: AI on YT is getting better. This video explains how America and China pulled off economic miracles after WW2 and at the end of Maoist China. Both systems are running into a wall as other countries scramble to create hybrid models. Alas, the global stressors t…",
-    "lastLeadMessage": "AI on YT is getting better. This video explains how America and China pulled off economic miracles after WW2 and at the end of Maoist China. Both systems are running into a wall as other countries scramble to create hybrid models. Alas, the global stressors that interest me like AI, climate, demographic collapse, and nuclear proliferation are not mentioned much. Nobody's perfect. This channel in other videos also explains how the bamboo curtain of the overseas Chinese dominate SE Asia's economi…",
+    "summaryForTeam": "Michael Finberg is pitching a paid collaboration or sponsorship around Zone Park. It fits only 3. Latest lead message: Off to India, Thailand, and Laos for vacation. See ya. 9:57 AM 9:57 AM",
+    "lastLeadMessage": "Off to India, Thailand, and Laos for vacation. See ya. 9:57 AM 9:57 AM",
     "lastSender": "Lead",
     "lastRobertMessage": "",
     "repliedViaX": false,
     "bestNextStep": "Reply in X once to move them to email with Robert + Asher + Sammy.",
     "recommendedOwner": "Robert / Asher",
-    "messageCount": 6,
+    "messageCount": 8,
     "dmMessages": [
-      {
-        "sender": "Lead",
-        "text": "AI cognitive augmentation interests me more that AI automation. Especially accelerated augmentation. interdisciplinary/compression is my holy grail.\n11:16 AM\n11:16 AM"
-      },
-      {
-        "sender": "Lead",
-        "text": "so much for supply chains.\n10:50 PM\n10:50 PM"
-      },
-      {
-        "sender": "Lead",
-        "text": "Try to imagine. How little I care about wha big media is doing.\n3:15 AM\n3:15 AM"
-      },
-      {
-        "sender": "Lead",
-        "text": "I love fucking with the Times."
-      },
       {
         "sender": "Lead",
         "text": "Your comment has been approved!\nThank you for sharing your thoughts with The New York Times community.\nmichael | San Diego\nWe have ten years before the AI bubbles pop. A ten year economic depression will then arrive that will make the 1930's look like a carnival picnic. If we survive that war also may loom. The twin brother of economic depression. Oh, I forgot climate change, demographic collapse and, nuclear proliferation could also be a problem. DUCK!\n3:03 AM\n3:03 AM"
@@ -13539,6 +13600,30 @@
       {
         "sender": "Lead",
         "text": "AI on YT is getting better.\n\nThis video explains how America and China pulled off economic miracles after WW2 and at the end of Maoist China.\n\nBoth systems are running into a wall as other countries scramble to create hybrid models.\n\nAlas, the global stressors that interest me like AI, climate, demographic collapse, and nuclear proliferation are not mentioned much.\n\nNobody's perfect.\n\nThis channel in other videos also explains how the bamboo curtain of the overseas Chinese dominate SE Asia's economies.\n\nHow Mao hated them, Deng embraced them.\n\nPlus if you want to be a billionaire in China you need a red hat and a white glove.\n\nGet a CCP sponsor.\n\nyoutube.com/watch?v=ummm-FABP3w&si=qhfoEApmDWmt4bmF\n1:22 AM\n1:22 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Really interesting image. I made with AI. The long and siloed incubation phases of the internet and AI and how they're converging today. I'm taking advantage of this critical crossroads and maneuvering  through and around it.\n12:47 PM\n12:47 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "You can see the big personalities of each incubation phase. I also did this for the incubation phases of nuclear power.\n12:48 PM\n12:48 PM"
+      },
+      {
+        "sender": "Lead",
+        "text": "We're definitely living in a new investor universe. AI made mincemeat of investor offers I got. I dumped all the e-mail correspondence into the bot hopper and the results were stunning. Total mismatches. I gave the investors the boot immediately. I also know the right investor profile for Zone Park. It fits only 3% of potential investors. The playing field has been leveled. Time and pain are miraculously reduced. Any potential investor now has my bot watching and analyzing every word they utter.\n12:29 AM\n12:29 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "I also know where to look for the right investor. The bot showed the way, but I had ot ask the right questions."
+      },
+      {
+        "sender": "Lead",
+        "text": "Y Combinator can go eat shit.\n12:30 AM\n12:30 AM"
+      },
+      {
+        "sender": "Lead",
+        "text": "Off to India, Thailand, and Laos for vacation. See ya.\n9:57 AM\n9:57 AM"
       }
     ],
     "spamBlocked": false,
@@ -14623,7 +14708,7 @@
     "rank": 0,
     "newLead": false,
     "seenInPriorScrape": true,
-    "changedSincePriorScrape": true,
+    "changedSincePriorScrape": false,
     "newestDmDate": "2026-07-02",
     "leadScore": 0,
     "xName": "Qorden.ai",
@@ -14695,7 +14780,7 @@
     "rank": 0,
     "newLead": false,
     "seenInPriorScrape": true,
-    "changedSincePriorScrape": true,
+    "changedSincePriorScrape": false,
     "newestDmDate": "2026-07-01",
     "leadScore": 0,
     "xName": "Rohan Arun",
@@ -15768,7 +15853,7 @@
     "rank": 0,
     "newLead": false,
     "seenInPriorScrape": true,
-    "changedSincePriorScrape": true,
+    "changedSincePriorScrape": false,
     "newestDmDate": "2026-07-01",
     "leadScore": 0,
     "xName": "stash",
@@ -15916,7 +16001,7 @@
     "rank": 0,
     "newLead": false,
     "seenInPriorScrape": true,
-    "changedSincePriorScrape": true,
+    "changedSincePriorScrape": false,
     "newestDmDate": "2026-07-02",
     "leadScore": 0,
     "xName": "Tesana - Make games with AI",
@@ -16438,7 +16523,7 @@
     "rank": 0,
     "newLead": true,
     "seenInPriorScrape": true,
-    "changedSincePriorScrape": true,
+    "changedSincePriorScrape": false,
     "newestDmDate": "2026-07-01",
     "leadScore": 0,
     "xName": "WallStreetBets",
@@ -16598,8 +16683,8 @@
   {
     "rank": 0,
     "newLead": false,
-    "seenInPriorScrape": false,
-    "changedSincePriorScrape": true,
+    "seenInPriorScrape": true,
+    "changedSincePriorScrape": false,
     "newestDmDate": "2026-07-02",
     "leadScore": 0,
     "xName": "Zach Magley",
@@ -16904,7 +16989,7 @@
     "rank": 0,
     "newLead": true,
     "seenInPriorScrape": true,
-    "changedSincePriorScrape": true,
+    "changedSincePriorScrape": false,
     "newestDmDate": "2026-07-02",
     "leadScore": 0,
     "xName": "🌎🕊️🧑‍🤝‍🧑🇺🇸 Greg Mozart 🚫💣🧨📢",

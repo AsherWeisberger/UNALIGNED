@@ -200,7 +200,10 @@ function V3NormalizeSupabaseLead(row) {
   const stage = closedStage;
   const daysInStage = V3DaysSince(row.moved_at || received);
   const followUpDue = V3LeadFollowUpDue(row, thread, stage, activityDays);
-  const needsReply = Boolean(row.new_reply_at) || row.draft_reply_status === 'pending' || stage === 'new' || followUpDue;
+  const pendingDraft = String(row.draft_reply_status || '').toLowerCase() === 'pending';
+  const latestMsg = thread.length ? thread[thread.length - 1] : null;
+  const teamRepliedLast = latestMsg && V3IsTeamParticipant(latestMsg.from);
+  const needsReply = Boolean(row.new_reply_at) || (pendingDraft && !teamRepliedLast) || stage === 'new' || followUpDue;
   const ownerId = V3NormalizeOwner(row.assignee || row.created_by);
   const value = V3ParseMoney(row.estimated_value);
   const category = V3CategoryFromRow(row);

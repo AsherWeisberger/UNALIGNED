@@ -531,17 +531,18 @@ function feedbackCors(req, res) {
   res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
 }
 
-async function getSupabaseService() {
-  const secretSnap = await getDb().collection('_secrets').doc('lead_ingest').get();
-  if (!secretSnap.exists) throw new Error('Supabase service secret not configured');
-  const data = secretSnap.data();
-  const supabase_url = data.supabase_url;
-  const supabase_key = data.supabase_service_key || data.supabase_service_role_key || data.supabase_key;
-  if (!supabase_url || !supabase_key) throw new Error('Supabase URL/key missing on lead_ingest secret');
-  if (String(supabase_key).includes('"role":"anon"')) {
-    console.warn('lead_ingest secret uses anon key; desk intake RPC will be used as fallback');
+function makeSupabaseClient(supabase_url, supabase_key) {
+  if (!supabase_url || !supabase_key) {
+    throw new Error('Supabase URL/key missing');
   }
-  const sb = (path, opts = {}) => fetch(`${supabase_url}/rest/v1/${path}`, {
+  if (String(supabase_key).includes('"role":"anon"')) {
+    throw new Error(
+      'Supabase anon key cannot create feedback links. '
+      + 'Set supabase_service_role_key on Firestore _secrets/lead_ingest '
+      + 'or configure SUPABASE_SERVICE_ROLE_KEY on Firebase Functions.'
+    );
+  }
+  return (path, opts = {}) => fetch(`${supabase_url}/rest/v1/${path}`, {
     ...opts,
     headers: {
       apikey: supabase_key,
@@ -550,7 +551,21 @@ async function getSupabaseService() {
       ...(opts.headers || {}),
     },
   });
-  return sb;
+}
+
+async function getSupabaseService() {
+  const envUrl = String(process.env.SUPABASE_URL || '').trim();
+  const envKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
+  if (envUrl && envKey) {
+    return makeSupabaseClient(envUrl, envKey);
+  }
+
+  const secretSnap = await getDb().collection('_secrets').doc('lead_ingest').get();
+  if (!secretSnap.exists) throw new Error('Supabase service secret not configured');
+  const data = secretSnap.data() || {};
+  const supabase_url = data.supabase_url || envUrl || 'https://hbnpwphxjurvtydezwgh.supabase.co';
+  const supabase_key = data.supabase_service_key || data.supabase_service_role_key || data.supabase_key;
+  return makeSupabaseClient(supabase_url, supabase_key);
 }
 
 function feedbackToken(value) {
@@ -616,7 +631,7 @@ async function submitFeedbackRow(sb, token, patch) {
 }
 
 const COLLAB_FEEDBACK_BASE = process.env.COLLAB_FEEDBACK_BASE
-  || 'https://asherweisberger.github.io/UNALIGNED/feedback.html';
+  || 'https://agentdashboard.cloud/feedback';
 
 function feedbackTierFromIntent(intent) {
   const match = String(intent || '').match(/tier\s*(\d+)/i);
@@ -664,9 +679,40 @@ function feedbackInviteFromCard(card) {
 
 async function findPendingFeedbackInvite(sb, cardId) {
   const load = await sb(
-    `collab_feedback?card_id=eq.${encodeURIComponent(cardId)}&status=eq.pending&select=id,token,expires_at,brand,contact_name&order=created_at.desc&limit=1`,
+    `collab_feedback?card_id=eq.${encodeURIComponent(cardId)}&status=eq.pending&select=id,token,expires_at,brand,contact_name,contact_email&order=created_at.desc&limit=1`,
     { method: 'GET' },
   );
+  const rows = await load.json();
+  if (!load.ok) throw new Error(`Supabase read failed: ${load.status}`);
+  return Array.isArray(rows) && rows[0] ? rows[0] : null;
+}
+
+async function findPendingFeedbackInviteManual(sb, fields) {
+  const brand = String(fields.brand || '').trim();
+  const email = String(fields.contact_email || '').trim().toLowerCase();
+  if (!brand || !email) return null;
+  const load = await sb(
+    `collab_feedback?brand=eq.${encodeURIComponent(brand)}&contact_email=eq.${encodeURIComponent(email)}&status=eq.pending&select=id,token,expires_at,brand,contact_name,contact_email&order=created_at.desc&limit=1`,
+    { method: 'GET' },
+  );
+  const rows = await load.json();
+  if (!load.ok) throw new Error(`Supabase read failed: ${load.status}`);
+  return Array.isArray(rows) && rows[0] ? rows[0] : null;
+}
+
+async function findSubmittedFeedbackInvite(sb, fields) {
+  const cardId = Number(fields.card_id || 0);
+  const email = String(fields.contact_email || '').trim().toLowerCase();
+  const brand = String(fields.brand || '').trim();
+  let query = 'collab_feedback?status=eq.submitted&select=id,submitted_at,brand,contact_name,contact_email,overall_score,nps&order=submitted_at.desc&limit=1';
+  if (Number.isFinite(cardId) && cardId > 0) {
+    query = `collab_feedback?card_id=eq.${encodeURIComponent(cardId)}&status=eq.submitted&select=id,submitted_at,brand,contact_name,contact_email,overall_score,nps&order=submitted_at.desc&limit=1`;
+  } else if (brand && email) {
+    query = `collab_feedback?brand=eq.${encodeURIComponent(brand)}&contact_email=eq.${encodeURIComponent(email)}&status=eq.submitted&select=id,submitted_at,brand,contact_name,contact_email,overall_score,nps&order=submitted_at.desc&limit=1`;
+  } else {
+    return null;
+  }
+  const load = await sb(query, { method: 'GET' });
   const rows = await load.json();
   if (!load.ok) throw new Error(`Supabase read failed: ${load.status}`);
   return Array.isArray(rows) && rows[0] ? rows[0] : null;
@@ -679,33 +725,72 @@ exports.createCollabFeedbackLink = functions.https.onRequest(async (req, res) =>
   try {
     const body = req.body || {};
     const cardId = Number(body.cardId || body.card_id || 0);
-    if (!Number.isFinite(cardId) || cardId <= 0) {
-      return res.status(400).json({ ok: false, error: 'cardId is required' });
-    }
-
-    const sb = await getSupabaseService();
-    const cardLoad = await sb(`cards?id=eq.${encodeURIComponent(cardId)}&select=*&limit=1`, { method: 'GET' });
-    const cards = await cardLoad.json();
-    if (!cardLoad.ok) throw new Error(`Supabase card read failed: ${cardLoad.status}`);
-    const card = Array.isArray(cards) && cards[0] ? cards[0] : null;
-    if (!card) return res.status(404).json({ ok: false, error: 'Card not found' });
-
     const forceNew = Boolean(body.forceNew || body.force_new);
-    if (!forceNew) {
-      const pending = await findPendingFeedbackInvite(sb, cardId);
-      if (pending?.token) {
-        return res.json({
-          ok: true,
-          existing: true,
-          link: `${COLLAB_FEEDBACK_BASE}?t=${pending.token}`,
-          inviteId: pending.id,
-          brand: pending.brand || '',
-          contactName: pending.contact_name || '',
-        });
+    const sb = await getSupabaseService();
+    let fields = null;
+
+    if (Number.isFinite(cardId) && cardId > 0) {
+      const cardLoad = await sb(`cards?id=eq.${encodeURIComponent(cardId)}&select=*&limit=1`, { method: 'GET' });
+      const cards = await cardLoad.json();
+      if (!cardLoad.ok) throw new Error(`Supabase card read failed: ${cardLoad.status}`);
+      const card = Array.isArray(cards) && cards[0] ? cards[0] : null;
+      if (!card) return res.status(404).json({ ok: false, error: 'Card not found' });
+      fields = feedbackInviteFromCard(card);
+
+      if (!forceNew) {
+        const pending = await findPendingFeedbackInvite(sb, cardId);
+        if (pending?.token) {
+          const submitted = await findSubmittedFeedbackInvite(sb, fields);
+          return res.json({
+            ok: true,
+            existing: true,
+            alreadySubmitted: Boolean(submitted),
+            link: `${COLLAB_FEEDBACK_BASE}?t=${pending.token}`,
+            inviteId: pending.id,
+            brand: pending.brand || '',
+            contactName: pending.contact_name || '',
+            contactEmail: pending.contact_email || '',
+            submittedAt: submitted?.submitted_at || null,
+          });
+        }
+      }
+    } else {
+      const brand = String(body.brand || '').trim();
+      const contactName = String(body.contactName || body.contact_name || '').trim();
+      const contactEmail = String(body.contactEmail || body.contact_email || '').trim().toLowerCase() || null;
+      if (!brand) return res.status(400).json({ ok: false, error: 'brand is required for a manual link' });
+      if (!contactName) return res.status(400).json({ ok: false, error: 'contact name is required for a manual link' });
+      fields = {
+        brand,
+        contact_name: contactName,
+        contact_email: contactEmail,
+        contact_handle: String(body.contactHandle || body.contact_handle || '').trim(),
+        deliverable: String(body.deliverable || '').trim(),
+        tier: String(body.tier || '').trim(),
+        thread_key: String(body.threadKey || body.thread_key || '').trim(),
+        source_channel: String(body.sourceChannel || body.source_channel || '').trim(),
+      };
+
+      if (!forceNew) {
+        const pending = await findPendingFeedbackInviteManual(sb, fields);
+        if (pending?.token) {
+          const submitted = await findSubmittedFeedbackInvite(sb, fields);
+          return res.json({
+            ok: true,
+            existing: true,
+            alreadySubmitted: Boolean(submitted),
+            link: `${COLLAB_FEEDBACK_BASE}?t=${pending.token}`,
+            inviteId: pending.id,
+            brand: pending.brand || '',
+            contactName: pending.contact_name || '',
+            contactEmail: pending.contact_email || '',
+            submittedAt: submitted?.submitted_at || null,
+          });
+        }
       }
     }
 
-    const fields = feedbackInviteFromCard(card);
+    const submitted = await findSubmittedFeedbackInvite(sb, fields);
     const token = require('crypto').randomBytes(18).toString('base64url');
     const expiresAt = new Date(Date.now() + 90 * 86400000).toISOString();
     const insert = await sb('collab_feedback', {
@@ -726,11 +811,14 @@ exports.createCollabFeedbackLink = functions.https.onRequest(async (req, res) =>
     return res.json({
       ok: true,
       existing: false,
+      alreadySubmitted: Boolean(submitted),
       link: `${COLLAB_FEEDBACK_BASE}?t=${token}`,
       inviteId: row?.id || null,
       brand: fields.brand,
       contactName: fields.contact_name,
-      cardId,
+      contactEmail: fields.contact_email || '',
+      cardId: fields.card_id || null,
+      submittedAt: submitted?.submitted_at || null,
     });
   } catch (err) {
     console.error('createCollabFeedbackLink error:', err.message);

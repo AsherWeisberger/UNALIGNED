@@ -461,6 +461,42 @@
     return Number(raw);
   }
 
+  function cleanGroundName(item) {
+    const raw = item?.label || item?.name || item?.callsign || item?.title || item?.provider || 'Ground point';
+    return String(raw).replace(/\s+·\s+.*/, '').trim() || 'Ground point';
+  }
+
+  function coordLabel(lat, lng) {
+    const a = Number(lat);
+    const b = Number(lng);
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return 'Coordinates unavailable';
+    return `${a.toFixed(4)}, ${b.toFixed(4)}`;
+  }
+
+  function osmEmbedUrl(lat, lng) {
+    const a = Number(lat);
+    const b = Number(lng);
+    const dLat = 0.014;
+    const dLng = 0.02;
+    return `https://www.openstreetmap.org/export/embed.html?bbox=${b - dLng}%2C${a - dLat}%2C${b + dLng}%2C${a + dLat}&layer=mapnik&marker=${a}%2C${b}`;
+  }
+
+  function groundLinks(lat, lng) {
+    const a = Number(lat);
+    const b = Number(lng);
+    const q = `${a},${b}`;
+    return {
+      streetView: `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${encodeURIComponent(q)}`,
+      googleMaps: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`,
+      osm: `https://www.openstreetmap.org/?mlat=${a}&mlon=${b}#map=16/${a}/${b}`,
+      panoramax: `https://api.panoramax.xyz/#focus=map&map=17/${a}/${b}`,
+    };
+  }
+
+  function isGroundable(item) {
+    return item && Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lng));
+  }
+
   function flightPointsForGlobe(rows) {
     return rows.slice(0, MAX_FLIGHT_POINTS).map((f) => ({
       ...f,
@@ -1054,6 +1090,7 @@
     const [zoomLabel, setZoomLabel] = React.useState('Orbital view');
     const [stats, setStats] = React.useState({ flights: 0, sats: 0, launches: 0, cities: 0, events: 0 });
     const [selected, setSelected] = React.useState(null);
+    const [groundTarget, setGroundTarget] = React.useState(null);
     const [globeError, setGlobeError] = React.useState('');
     const [layerError, setLayerError] = React.useState('');
 
@@ -1103,6 +1140,22 @@
         else setZoomLabel('Ground detail · Esri satellite tiles');
       } catch (e) {
         console.warn('[god-mode] zoom label sync failed', e);
+      }
+    }, []);
+
+    const inspectPoint = React.useCallback((item, altitude, duration) => {
+      const pick = item || null;
+      setSelected(pick);
+      if (isGroundable(pick)) {
+        setGroundTarget(pick);
+        const g = globeInstRef.current;
+        if (g) {
+          g.pointOfView({
+            lat: Number(pick.lat),
+            lng: Number(pick.lng),
+            altitude: Number(altitude) || 1.35,
+          }, Number(duration) || 1000);
+        }
       }
     }, []);
 
@@ -1249,11 +1302,7 @@
           .labelDotOrientation('bottom')
           .labelsTransitionDuration(0)
           .onLabelClick((pt) => {
-            const pick = pt || null;
-            setSelected(pick);
-            if (pick && globe && Number.isFinite(pick.lat) && Number.isFinite(pick.lng)) {
-              globe.pointOfView({ lat: pick.lat, lng: pick.lng, altitude: 1.35 }, 1100);
-            }
+            inspectPoint(pt || null, 1.35, 1100);
           });
 
         if (showWeather && !deepZoom && mode === 'temp' && weather.length) {
@@ -1291,7 +1340,7 @@
             .arcDashGap(0.2)
             .arcDashAnimateTime(1800)
             .arcsTransitionDuration(0)
-            .onArcClick((pt) => setSelected(pt || null));
+            .onArcClick((pt) => inspectPoint(pt || null, 1.35, 1000));
         } else {
           globe.arcsData([]);
         }
@@ -1308,7 +1357,7 @@
           .pointResolution(3)
           .pointsMerge(false)
           .pointsTransitionDuration(0)
-          .onPointClick((pt) => setSelected(pt || null));
+          .onPointClick((pt) => inspectPoint(pt || null, 1.35, 900));
 
         globe
           .pathsData(showSats && issTrail.length ? issTrail : [])
@@ -1337,9 +1386,7 @@
               el.title = `${m.callsign || m.label || 'Flight'}${m.altitudeFt ? ` · ${m.altitudeFt.toLocaleString()} ft` : ''}`;
               el.__godMarker = m;
               el.addEventListener('click', () => {
-                setSelected(m);
-                const g2 = globeInstRef.current;
-                if (g2) g2.pointOfView({ lat: m.lat, lng: m.lng, altitude: 1.35 }, 900);
+                inspectPoint(m, 1.35, 900);
               });
               flightOverlay.appendChild(el);
             });
@@ -1361,9 +1408,7 @@
               el.title = m.label || m.name || 'Launch';
               el.__godMarker = m;
               el.addEventListener('click', () => {
-                setSelected(m);
-                const g2 = globeInstRef.current;
-                if (g2) g2.pointOfView({ lat: m.lat, lng: m.lng, altitude: 1.4 }, 1100);
+                inspectPoint(m, 1.4, 1100);
               });
               overlay.appendChild(el);
             });
@@ -1786,6 +1831,7 @@
       layerRef.current = id;
       onLayerChange?.(id);
       setSelected(null);
+      setGroundTarget(null);
       syncRadarOverlayVisibility();
     }
 
@@ -1793,6 +1839,7 @@
       setWeatherMode(id);
       weatherModeRef.current = id;
       setSelected(null);
+      setGroundTarget(null);
       syncRadarOverlayVisibility();
       applyLayersRef.current();
     }
@@ -1803,6 +1850,11 @@
     const launchList = launches.list || [];
     const showWeatherHud = layer === 'all' || layer === 'weather';
     const activeWeatherMode = WEATHER_MODES.find((m) => m.id === weatherMode) || WEATHER_MODES[0];
+    const groundLat = groundTarget ? Number(groundTarget.lat) : NaN;
+    const groundLng = groundTarget ? Number(groundTarget.lng) : NaN;
+    const showGround = Number.isFinite(groundLat) && Number.isFinite(groundLng);
+    const groundName = showGround ? cleanGroundName(groundTarget) : '';
+    const groundActionLinks = showGround ? groundLinks(groundLat, groundLng) : {};
 
     return React.createElement(
       'div',
@@ -1879,6 +1931,41 @@
               },
             }, '⟲ Zoom out'),
             React.createElement('div', { ref: globeRef, className: 'v4-godmode-globe' }),
+            showGround && React.createElement(
+              'div',
+              { className: 'v4-godmode-ground' },
+              React.createElement(
+                'div',
+                { className: 'v4-godmode-ground-head' },
+                React.createElement(
+                  'div',
+                  null,
+                  React.createElement('span', { className: 'v4-godmode-ground-kicker' }, 'Ground mode'),
+                  React.createElement('strong', null, groundName),
+                  React.createElement('em', null, coordLabel(groundLat, groundLng))
+                ),
+                React.createElement('button', {
+                  type: 'button',
+                  onClick: () => setGroundTarget(null),
+                  'aria-label': 'Close ground mode',
+                }, '×')
+              ),
+              React.createElement('iframe', {
+                className: 'v4-godmode-ground-frame',
+                src: osmEmbedUrl(groundLat, groundLng),
+                title: `${groundName} ground map`,
+                loading: 'lazy',
+              }),
+              React.createElement(
+                'div',
+                { className: 'v4-godmode-ground-actions' },
+                React.createElement('a', { href: groundActionLinks.streetView, target: '_blank', rel: 'noreferrer' }, 'Street View'),
+                React.createElement('a', { href: groundActionLinks.googleMaps, target: '_blank', rel: 'noreferrer' }, 'Google Maps'),
+                React.createElement('a', { href: groundActionLinks.osm, target: '_blank', rel: 'noreferrer' }, 'OpenStreetMap'),
+                React.createElement('a', { href: groundActionLinks.panoramax, target: '_blank', rel: 'noreferrer' }, 'Panoramax')
+              ),
+              React.createElement('p', { className: 'v4-godmode-ground-note' }, 'Real embedded Street View requires a Google or Mapillary key. Until that is connected, this opens the live street imagery source directly.')
+            ),
             React.createElement('div', {
               ref: flightOverlayRef,
               className: 'v4-godmode-flight-overlay',
@@ -1942,7 +2029,17 @@
                 selected.date ? ` · ${fmtLaunchWhen(selected.date)}` : ''
               ),
               selected.type === 'wind' && React.createElement('div', null, selected.label || 'Wind flow'),
-              selected.type === 'launch' && selected.when && React.createElement('div', null, fmtLaunchWhen(selected.when))
+              selected.type === 'launch' && selected.when && React.createElement('div', null, fmtLaunchWhen(selected.when)),
+              isGroundable(selected) && React.createElement(
+                'div',
+                { className: 'v4-godmode-pin-actions' },
+                React.createElement('button', { type: 'button', onClick: () => setGroundTarget(selected) }, 'Ground'),
+                React.createElement('a', {
+                  href: groundLinks(Number(selected.lat), Number(selected.lng)).streetView,
+                  target: '_blank',
+                  rel: 'noreferrer',
+                }, 'Street View')
+              )
             )
           ),
           React.createElement(
@@ -1977,11 +2074,7 @@
                       type: 'button',
                       className: 'v4-godmode-launch-card',
                       onClick: () => {
-                        const g = globeInstRef.current;
-                        if (g && Number.isFinite(item.lat) && Number.isFinite(item.lng)) {
-                          g.pointOfView({ lat: item.lat, lng: item.lng, altitude: 1.6 }, 1200);
-                          setSelected({ ...item, type: 'launch', label: item.name });
-                        }
+                        inspectPoint({ ...item, type: 'launch', label: item.name }, 1.6, 1200);
                       },
                     },
                     item.image && React.createElement('img', { className: 'v4-godmode-launch-img', src: item.image, alt: '' }),
@@ -2013,11 +2106,7 @@
                       type: 'button',
                       className: 'v4-godmode-event-card',
                       onClick: () => {
-                        const g = globeInstRef.current;
-                        if (g && Number.isFinite(ev.lat) && Number.isFinite(ev.lng)) {
-                          g.pointOfView({ lat: ev.lat, lng: ev.lng, altitude: 1.45 }, 1000);
-                          setSelected(ev);
-                        }
+                        inspectPoint(ev, 1.45, 1000);
                       },
                     },
                     React.createElement('span', { className: 'v4-godmode-event-dot', style: { background: ev.color } }),
@@ -2062,11 +2151,7 @@
                       type: 'button',
                       className: 'v4-godmode-weather-row v4-godmode-weather-row-btn',
                       onClick: () => {
-                        const g = globeInstRef.current;
-                        if (g && Number.isFinite(w.lat) && Number.isFinite(w.lng)) {
-                          g.pointOfView({ lat: w.lat, lng: w.lng, altitude: 1.35 }, 1100);
-                          setSelected(w);
-                        }
+                        inspectPoint(w, 1.35, 1100);
                       },
                     },
                     React.createElement('span', { className: 'v4-godmode-weather-row-city' },
