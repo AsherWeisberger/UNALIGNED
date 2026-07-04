@@ -5706,6 +5706,63 @@ def god_mode_satellites_payload() -> dict:
     return {"ok": True, "satellites": satellites}
 
 
+def god_mode_events_payload() -> dict:
+    cached = god_mode_cache_get("events", 600)
+    if cached:
+        return cached
+    source = "NASA EONET"
+    events: list[dict] = []
+    try:
+        data = god_mode_upstream_json("https://eonet.gsfc.nasa.gov/api/v3/events?status=open&limit=70&days=30", timeout=15)
+        raw_events = data.get("events") if isinstance(data, dict) else []
+        if isinstance(raw_events, list):
+            events = raw_events[:70]
+    except Exception:
+        events = []
+
+    if not events:
+        source = "GDACS"
+        data = god_mode_upstream_json("https://www.gdacs.org/gdacsapi/api/Events/geteventlist/EVENTS4APP", timeout=15)
+        features = data.get("features") if isinstance(data, dict) else []
+        if not isinstance(features, list):
+            features = []
+        category_map = {
+            "EQ": "Earthquakes",
+            "TC": "Severe Storms",
+            "FL": "Floods",
+            "VO": "Volcanoes",
+            "WF": "Wildfires",
+            "DR": "Drought",
+        }
+        for feat in features[:70]:
+            props = feat.get("properties") if isinstance(feat, dict) else {}
+            geom = feat.get("geometry") if isinstance(feat, dict) else {}
+            coords = geom.get("coordinates") if isinstance(geom, dict) else None
+            if not isinstance(coords, list) or len(coords) < 2:
+                bbox = feat.get("bbox") if isinstance(feat, dict) else None
+                coords = bbox[:2] if isinstance(bbox, list) and len(bbox) >= 2 else None
+            if not isinstance(coords, list) or len(coords) < 2:
+                continue
+            event_type = str((props or {}).get("eventtype") or "Event").strip()
+            title = str((props or {}).get("name") or (props or {}).get("description") or "GDACS event").strip()
+            events.append({
+                "id": f"gdacs-{event_type}-{(props or {}).get('eventid', '')}-{(props or {}).get('episodeid', '')}",
+                "title": title,
+                "categories": [{"title": category_map.get(event_type, event_type)}],
+                "sources": [{"id": "GDACS", "title": "GDACS"}],
+                "geometry": [{
+                    "date": (props or {}).get("fromdate") or (props or {}).get("datemodified") or "",
+                    "type": "Point",
+                    "coordinates": coords[:2],
+                }],
+                "updated": (props or {}).get("datemodified") or "",
+            })
+
+    payload = {"ok": True, "events": events[:70], "source": source}
+    god_mode_cache_set("events", payload)
+    return payload
+
+
 def create_collab_feedback_link_request(payload: dict) -> dict:
     """Create a private partner feedback URL using the Mac's Supabase service role."""
     load_unaligned_ops_env()
@@ -6457,6 +6514,12 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
         if parsed.path == "/god-mode/weather":
             try:
                 send_json(self, 200, god_mode_weather_payload())
+            except Exception as exc:
+                send_json(self, 502, {"ok": False, "error": str(exc)})
+            return
+        if parsed.path == "/god-mode/events":
+            try:
+                send_json(self, 200, god_mode_events_payload())
             except Exception as exc:
                 send_json(self, 502, {"ok": False, "error": str(exc)})
             return

@@ -18,7 +18,9 @@
   const EARTH_IMG = 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
   const BUMP_IMG = 'https://unpkg.com/three-globe/example/img/earth-topology.png';
   const SKY_IMG = 'https://unpkg.com/three-globe/example/img/night-sky.png';
-  const CLOUDS_IMG = 'https://unpkg.com/three-globe/example/img/earth-clouds.png';
+  // Local copy — the old unpkg .../img/earth-clouds.png URL 404s.
+  const CLOUDS_IMG = assetUrl('flow-v4/assets/earth-clouds.png');
+  const WATER_IMG = 'https://unpkg.com/three-globe/example/img/earth-water.png';
   const TEMP_LEGEND = [
     { label: '95°+ hot', color: '#ff3b30' },
     { label: '82° warm', color: '#ff9500' },
@@ -35,11 +37,20 @@
   const SAT_TILE_URL = (x, y, l) =>
     `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${l}/${y}/${x}`;
   const SAT_DETAIL_ALT = 0.62;
-  const MAX_FLIGHT_POINTS = 400;
-  const FLIGHT_POINT_SIZE = 0.009;
+  // Level 15 ≈ 4m/px — plenty of ground detail. Higher levels flood the GPU
+  // with tile textures during pan/rotate and kill the WebGL context.
+  const SAT_TILE_MAX_LEVEL = 15;
+  const AUTOROTATE_PAUSE_ALT = 1.15;
+  const AUTOROTATE_RESUME_ALT = 1.6;
+  const MAX_FLIGHT_POINTS = 300;
+  const FLIGHT_POINT_SIZE = 0.011;
   const FLIGHT_POINT_ALT = 0.002;
   const FETCH_TIMEOUT_MS = 18000;
-  const WEATHER_PROXY_TIMEOUT_MS = 50000;
+  const WEATHER_PROXY_TIMEOUT_MS = 8000;
+  const LAUNCH_CACHE_KEY = 'v4-godmode-launch-cache-v1';
+  const EONET_CACHE_KEY = 'v4-godmode-eonet-cache-v1';
+  const LAUNCH_CACHE_TTL_MS = 25 * 60 * 1000;
+  const EONET_CACHE_TTL_MS = 10 * 60 * 1000;
   const FLIGHT_HUBS = [
     [40.71, -74.01], [34.05, -118.24], [51.51, -0.13], [35.68, 139.69],
     [-33.87, 151.21], [25.20, 55.27],
@@ -65,12 +76,14 @@
   const LAYERS = [
     { id: 'all', label: 'God mode', glyph: '◉' },
     { id: 'weather', label: 'Weather', glyph: '☁' },
+    { id: 'events', label: 'Events', glyph: '⚡' },
     { id: 'flights', label: 'Flights', glyph: '✈' },
     { id: 'satellites', label: 'Satellites', glyph: '◎' },
     { id: 'launches', label: 'Launches', glyph: '▲' },
   ];
 
   let rocketElementProto = null;
+  let planeElementProto = null;
 
   function assetUrl(path) {
     try {
@@ -160,6 +173,19 @@
     return '#5e5ce6';
   }
 
+  function colorWithAlpha(color, alpha) {
+    const a = Math.max(0, Math.min(1, Number(alpha) || 0.65));
+    const hex = String(color || '').trim();
+    if (/^#[0-9a-f]{6}$/i.test(hex)) {
+      const n = parseInt(hex.slice(1), 16);
+      const r = (n >> 16) & 255;
+      const g = (n >> 8) & 255;
+      const b = n & 255;
+      return `rgba(${r},${g},${b},${a})`;
+    }
+    return hex || `rgba(140,140,140,${a})`;
+  }
+
   function weatherGlyph(code) {
     const c = Number(code);
     if (c === 113) return '☀';
@@ -187,6 +213,42 @@
       386: 'Thunder showers', 389: 'Heavy thunder showers',
     };
     return labels[Number(code)] || String(fallback || 'Weather').trim() || 'Weather';
+  }
+
+  // Open-Meteo uses WMO weather codes (0–99), unlike wttr.in's WWO codes.
+  function wmoGlyph(code) {
+    const c = Number(code);
+    if (c === 0) return '☀';
+    if (c === 1 || c === 2) return '⛅';
+    if (c === 3) return '☁';
+    if (c === 45 || c === 48) return '☁';
+    if ((c >= 51 && c <= 67) || (c >= 80 && c <= 82)) return '🌧';
+    if ((c >= 71 && c <= 77) || c === 85 || c === 86) return '❄';
+    if (c >= 95) return '⛈';
+    return '◌';
+  }
+
+  function wmoLabel(code) {
+    const c = Number(code);
+    const labels = {
+      0: 'Clear', 1: 'Mostly clear', 2: 'Partly cloudy', 3: 'Overcast',
+      45: 'Fog', 48: 'Freezing fog', 51: 'Light drizzle', 53: 'Drizzle',
+      55: 'Heavy drizzle', 56: 'Freezing drizzle', 57: 'Freezing drizzle',
+      61: 'Light rain', 63: 'Rain', 65: 'Heavy rain', 66: 'Freezing rain',
+      67: 'Freezing rain', 71: 'Light snow', 73: 'Snow', 75: 'Heavy snow',
+      77: 'Snow grains', 80: 'Light showers', 81: 'Showers', 82: 'Heavy showers',
+      85: 'Snow showers', 86: 'Snow showers', 95: 'Thunderstorm',
+      96: 'Thunderstorm + hail', 99: 'Thunderstorm + hail',
+    };
+    return labels[c] || 'Weather';
+  }
+
+  function flightAltColor(altitudeFt) {
+    const ft = Number(altitudeFt);
+    if (!Number.isFinite(ft)) return 'rgba(255,214,10,0.92)';
+    if (ft >= 30000) return 'rgba(100,210,255,0.92)';
+    if (ft >= 15000) return 'rgba(255,214,10,0.92)';
+    return 'rgba(255,159,10,0.92)';
   }
 
   function windCompass(deg) {
@@ -290,30 +352,108 @@
     });
   }
 
-  async function buildRadarTileComposite(host, frame, zoom, cols, rows) {
+  // RainViewer tiles are Web-Mercator; the globe texture is equirectangular.
+  // Stitch the z1 2x2 world composite, then remap rows so rain lands on the
+  // correct latitudes instead of drifting toward the poles.
+  async function buildRadarEquirectCanvas(host, frame) {
     const tile = 512;
-    const canvas = document.createElement('canvas');
-    canvas.width = tile * cols;
-    canvas.height = tile * rows;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return '';
-    ctx.fillStyle = '#061018';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const merc = document.createElement('canvas');
+    merc.width = tile * 2;
+    merc.height = tile * 2;
+    const mctx = merc.getContext('2d');
+    if (!mctx) return null;
+    let drew = 0;
     const jobs = [];
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
+    for (let y = 0; y < 2; y++) {
+      for (let x = 0; x < 2; x++) {
         jobs.push((async () => {
-          const img = await loadRadarImage(buildRadarFrameUrl(host, frame, zoom, x, y));
-          if (img) ctx.drawImage(img, x * tile, y * tile, tile, tile);
+          const img = await loadRadarImage(buildRadarFrameUrl(host, frame, 1, x, y));
+          if (img) {
+            mctx.drawImage(img, x * tile, y * tile, tile, tile);
+            drew++;
+          }
         })());
       }
     }
     await Promise.all(jobs);
-    return canvas.toDataURL('image/png');
+    if (!drew) return null;
+
+    const out = document.createElement('canvas');
+    out.width = 1024;
+    out.height = 512;
+    const octx = out.getContext('2d');
+    if (!octx) return null;
+    const MAX_LAT = 85.0511;
+    for (let row = 0; row < out.height; row++) {
+      const lat = 90 - ((row + 0.5) / out.height) * 180;
+      if (lat > MAX_LAT || lat < -MAX_LAT) continue;
+      const phi = (lat * Math.PI) / 180;
+      const mercY = 0.5 - Math.log(Math.tan(Math.PI / 4 + phi / 2)) / (2 * Math.PI);
+      const srcY = mercY * merc.height;
+      octx.drawImage(merc, 0, srcY, merc.width, 1, 0, row, out.width, 1);
+    }
+    return out;
   }
 
-  function resolveThree() {
-    return global.THREE || global.window?.THREE || null;
+  // window.THREE is never loaded on this site — the globe.gl bundle keeps its
+  // copy private. Instead of constructing meshes we clone live scene objects.
+  function findGlobeMesh(globe) {
+    let found = null;
+    try {
+      const mat = globe.globeMaterial();
+      globe.scene().traverse((o) => {
+        if (!found && o.isMesh && o.material === mat) found = o;
+      });
+    } catch (e) {}
+    return found;
+  }
+
+  function makeShellFromGlobe(base, scale, mutateMaterial) {
+    const mesh = base.clone(false);
+    mesh.geometry = base.geometry;
+    // material.clone() crashes in this vendor build (copies a null color
+    // field), so build a fresh instance of the same material class.
+    const mat = new base.material.constructor();
+    mat.transparent = true;
+    mat.depthWrite = false;
+    mutateMaterial(mat);
+    mesh.material = mat;
+    mesh.scale.setScalar(scale);
+    mesh.visible = false;
+    base.parent.add(mesh);
+    return mesh;
+  }
+
+  // Manual world→screen projection. The vendored build's getScreenCoords and
+  // camera.projectionMatrix are broken (NaN aspect), but the view matrix is
+  // sound, so we apply our own perspective transform.
+  function projectToScreen(globe, lat, lng, alt, w, h) {
+    if (!(w > 0) || !(h > 0)) return null;
+    let p = null;
+    let cam = null;
+    try {
+      p = globe.getCoords(lat, lng, alt);
+      cam = globe.camera();
+    } catch (e) {
+      return null;
+    }
+    const mv = cam?.matrixWorldInverse?.elements;
+    if (!p || !mv) return null;
+    const vx = mv[0] * p.x + mv[4] * p.y + mv[8] * p.z + mv[12];
+    const vy = mv[1] * p.x + mv[5] * p.y + mv[9] * p.z + mv[13];
+    const vz = mv[2] * p.x + mv[6] * p.y + mv[10] * p.z + mv[14];
+    if (vz >= 0) return null;
+    const f = 1 / Math.tan(((Number(cam.fov) || 50) * Math.PI) / 360);
+    const x = (((f / (w / h)) * (vx / -vz)) + 1) / 2 * w;
+    const y = (1 - f * (vy / -vz)) / 2 * h;
+    return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+  }
+
+  function angularDistanceDeg(lat1, lng1, lat2, lng2) {
+    const r = Math.PI / 180;
+    const a = Math.sin(lat1 * r) * Math.sin(lat2 * r)
+      + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.cos((lng2 - lng1) * r);
+    return Math.acos(Math.min(1, Math.max(-1, a))) / r;
   }
 
   function viewerLng(viewer) {
@@ -326,27 +466,49 @@
       ...f,
       size: FLIGHT_POINT_SIZE,
       alt: FLIGHT_POINT_ALT,
-      color: 'rgba(255,214,10,0.92)',
+      color: flightAltColor(f.altitudeFt),
       label: f.label || f.callsign || 'Flight',
     }));
   }
 
   function buildRocketElement() {
     if (rocketElementProto) return rocketElementProto.cloneNode(true);
-    const el = document.createElement('div');
+    const el = document.createElement('button');
+    el.type = 'button';
     el.className = 'v4-god-rocket-marker';
     el.innerHTML = [
-      '<div class="v4-god-rocket-stack">',
-      '  <div class="v4-god-rocket-nose"></div>',
-      '  <div class="v4-god-rocket-body"></div>',
-      '  <div class="v4-god-rocket-fin v4-god-rocket-fin-l"></div>',
-      '  <div class="v4-god-rocket-fin v4-god-rocket-fin-r"></div>',
-      '  <div class="v4-god-rocket-flame"></div>',
-      '  <div class="v4-god-rocket-blast"></div>',
+      '<div class="v4-god-rocket-pad">',
+      '  <span class="v4-god-rocket-icon">▲</span>',
+      '  <span class="v4-god-rocket-pulse"></span>',
       '</div>',
     ].join('');
     rocketElementProto = el;
     return el.cloneNode(true);
+  }
+
+  function buildPlaneElement() {
+    if (planeElementProto) return planeElementProto.cloneNode(true);
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.className = 'v4-god-plane-marker';
+    el.innerHTML = [
+      '<svg viewBox="0 0 24 24" aria-hidden="true">',
+      '  <path d="M12 2.3 15.1 11l6.6 2.1v2.1l-5.8-.5 1.9 5.1-1.7 1-4.1-4.3-4.1 4.3-1.7-1 1.9-5.1-5.8.5v-2.1L8.9 11 12 2.3Z" fill="currentColor"/>',
+      '</svg>',
+    ].join('');
+    planeElementProto = el;
+    return el.cloneNode(true);
+  }
+
+  function markerHorizonVisible(globe, marker, marginDeg) {
+    let pov = null;
+    try { pov = globe.pointOfView(); } catch (e) { return false; }
+    const povLat = Number(pov?.lat);
+    const povLng = Number(pov?.lng);
+    const alt = Number(pov?.altitude);
+    if (!Number.isFinite(povLat) || !Number.isFinite(povLng)) return false;
+    const horizonDeg = (Math.acos(1 / (1 + Math.max(0.05, Number.isFinite(alt) ? alt : 2.2))) * 180) / Math.PI;
+    return angularDistanceDeg(povLat, povLng, marker.lat, marker.lng) <= horizonDeg - (Number(marginDeg) || 2);
   }
 
   function flightRowFromCoords(lat, lng, altM, vel, heading, callsign, country, key) {
@@ -427,36 +589,58 @@
     return parseAdsbAircraft(data?.ac);
   }
 
+  // Sequential with a gap — airplanes.live allows ~1 request/second, so
+  // firing all hubs in parallel gets most of them rate-limited.
   async function fetchAdsbFlightsMerged() {
-    const batches = await Promise.allSettled(
-      FLIGHT_HUBS.map(([lat, lng]) => fetchAdsbHubFlights(lat, lng))
-    );
     const merged = [];
     const seen = new Set();
-    batches.forEach((batch) => {
-      if (batch.status !== 'fulfilled') return;
-      (batch.value || []).forEach((row) => {
-        const key = row.key || row.callsign || `${row.lat},${row.lng}`;
-        if (seen.has(key)) return;
-        seen.add(key);
-        merged.push(row);
-      });
-    });
+    for (let i = 0; i < FLIGHT_HUBS.length; i++) {
+      const [lat, lng] = FLIGHT_HUBS[i];
+      try {
+        const rows = await fetchAdsbHubFlights(lat, lng);
+        rows.forEach((row) => {
+          const key = row.key || row.callsign || `${row.lat},${row.lng}`;
+          if (seen.has(key)) return;
+          seen.add(key);
+          merged.push(row);
+        });
+      } catch (e) {}
+      if (i < FLIGHT_HUBS.length - 1) await new Promise((r) => setTimeout(r, 350));
+    }
     return merged;
   }
 
-  async function fetchWeatherCity(name, lat, lng) {
-    const url = `https://wttr.in/${lat},${lng}?format=j1`;
-    const res = await fetchWithTimeout(url, { headers: { Accept: 'application/json', 'User-Agent': 'UNALIGNED-GodMode/1.0' } });
-    if (!res.ok) throw new Error('weather failed for ' + name);
-    const row = await res.json();
-    const cur = row?.current_condition?.[0] || {};
-    const temp = Number(cur.temp_F);
-    const wind = Number(cur.windspeedMiles);
-    const code = Number(cur.weatherCode);
-    const windDeg = Number(cur.winddirDegree);
-    const condition = cur?.weatherDesc?.[0]?.value || '';
-    return mapWeatherRow({ name, lat, lng, temp, wind, code, wind_deg: windDeg, wind_dir: cur.winddir16Point, condition });
+  async function fetchOpenMeteoGrid() {
+    const lats = WEATHER_CITIES.map((c) => c[1]).join(',');
+    const lngs = WEATHER_CITIES.map((c) => c[2]).join(',');
+    const url = 'https://api.open-meteo.com/v1/forecast'
+      + `?latitude=${lats}&longitude=${lngs}`
+      + '&current=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m'
+      + '&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=UTC';
+    const res = await fetchWithTimeout(url, { headers: { Accept: 'application/json' } }, 12000);
+    if (!res.ok) throw new Error('open-meteo ' + res.status);
+    const data = await res.json();
+    const rows = Array.isArray(data) ? data : [data];
+    const out = [];
+    rows.forEach((row, i) => {
+      const city = WEATHER_CITIES[i];
+      if (!city) return;
+      const cur = row?.current || {};
+      const code = Number(cur.weather_code);
+      out.push(mapWeatherRow({
+        name: city[0],
+        lat: city[1],
+        lng: city[2],
+        temp: cur.temperature_2m,
+        wind: cur.wind_speed_10m,
+        wind_deg: cur.wind_direction_10m,
+        code,
+        conditionLabel: wmoLabel(code),
+        glyphOverride: wmoGlyph(code),
+      }));
+    });
+    if (!out.length) throw new Error('open-meteo empty');
+    return out;
   }
 
   function mapWeatherRow(row) {
@@ -467,8 +651,8 @@
     const name = String(row?.name || '').trim();
     const lat = Number(row?.lat);
     const lng = Number(row?.lng);
-    const condition = weatherConditionLabel(code, row?.condition);
-    const glyph = weatherGlyph(code);
+    const condition = String(row?.conditionLabel || '').trim() || weatherConditionLabel(code, row?.condition);
+    const glyph = String(row?.glyphOverride || '').trim() || weatherGlyph(code);
     const tempRounded = Number.isFinite(temp) ? Math.round(temp) : null;
     return {
       name,
@@ -482,7 +666,9 @@
       condition,
       glyph,
       color: tempColor(temp),
-      text: tempRounded != null ? `${glyph} ${tempRounded}°` : glyph,
+      // Globe labels are numeric only — the 3D text font has no emoji glyphs
+      // (they render as "?"). Glyphs stay in the HTML side panel.
+      text: tempRounded != null ? `${tempRounded}°` : name,
       label: `${name} · ${condition}${tempRounded != null ? ` · ${tempRounded}°F` : ''}`,
       labelSize: 0.58,
       alt: 0.012,
@@ -493,50 +679,34 @@
 
   async function fetchWeatherGrid() {
     try {
-      const data = await fetchGodModeProxy('/god-mode/weather', WEATHER_PROXY_TIMEOUT_MS);
-      if (data?.ok && Array.isArray(data.cities) && data.cities.length) {
-        return data.cities.map(mapWeatherRow).filter((row) => row.name && Number.isFinite(row.lat));
-      }
+      return await fetchOpenMeteoGrid();
     } catch (e) {
-      console.warn('[god-mode] Mac weather proxy failed, trying browser', e);
+      console.warn('[god-mode] open-meteo failed, trying Mac proxy', e);
     }
-    const out = [];
-    const batchSize = 6;
-    const cities = WEATHER_CITIES.slice(0, 18);
-    for (let i = 0; i < cities.length; i += batchSize) {
-      const batch = cities.slice(i, i + batchSize);
-      const rows = await Promise.allSettled(
-        batch.map(([name, lat, lng]) => fetchWeatherCity(name, lat, lng))
-      );
-      rows.forEach((row) => {
-        if (row.status === 'fulfilled') out.push(row.value);
-      });
-      if (out.length >= 12) break;
+    const data = await fetchGodModeProxy('/god-mode/weather', WEATHER_PROXY_TIMEOUT_MS);
+    if (data?.ok && Array.isArray(data.cities) && data.cities.length) {
+      return data.cities.map(mapWeatherRow).filter((row) => row.name && Number.isFinite(row.lat));
     }
-    if (!out.length) throw new Error('weather grid failed');
-    return out;
+    throw new Error('weather grid failed');
   }
 
   async function fetchFlights() {
     try {
-      const data = await fetchGodModeProxy('/god-mode/flights', 22000);
+      const data = await fetchGodModeProxy('/god-mode/flights', 15000);
       if (data?.ok) {
         const rows = parseFlightStates(data.states);
         if (rows.length) return rows;
       }
     } catch (e) {
-      console.warn('[god-mode] Mac flights proxy failed, trying live ADS-B', e);
+      console.warn('[god-mode] Mac flight proxy failed, trying browser ADS-B', e);
     }
     try {
-      const res = await fetchWithTimeout('https://opensky-network.org/api/states/all', {}, 12000);
-      if (res.ok) {
-        const data = await res.json();
-        const rows = parseFlightStates(data?.states);
-        if (rows.length) return rows;
-      }
-    } catch (e) {}
-    const adsbRows = await fetchAdsbFlightsMerged();
-    return adsbRows;
+      const rows = await fetchAdsbFlightsMerged();
+      if (rows.length) return rows;
+    } catch (e) {
+      console.warn('[god-mode] live ADS-B failed', e);
+    }
+    throw new Error('no live flight data');
   }
 
   async function fetchIss() {
@@ -581,10 +751,41 @@
     }).filter((row) => Number.isFinite(row.lat) && Number.isFinite(row.lng));
   }
 
+  function readLaunchCache() {
+    try {
+      const raw = JSON.parse(window.localStorage.getItem(LAUNCH_CACHE_KEY) || 'null');
+      if (raw && Array.isArray(raw.markers) && Array.isArray(raw.list)) return raw;
+    } catch (e) {}
+    return null;
+  }
+
+  function writeLaunchCache(payload) {
+    try {
+      window.localStorage.setItem(LAUNCH_CACHE_KEY, JSON.stringify({ ...payload, savedAt: Date.now() }));
+    } catch (e) {}
+  }
+
+  // Launch Library allows ~15 calls/hour — serve from cache and only refetch
+  // when stale, otherwise the feed rate-limits itself into permanent failure.
   async function fetchLaunches() {
-    const url = 'https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=24&mode=detailed';
+    const cached = readLaunchCache();
+    if (cached && Date.now() - Number(cached.savedAt || 0) < LAUNCH_CACHE_TTL_MS) {
+      return { markers: cached.markers, list: cached.list };
+    }
+    try {
+      const fresh = await fetchLaunchesLive();
+      writeLaunchCache(fresh);
+      return fresh;
+    } catch (e) {
+      if (cached) return { markers: cached.markers, list: cached.list };
+      throw e;
+    }
+  }
+
+  async function fetchLaunchesLive() {
+    const url = 'https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=12&mode=detailed';
     const res = await fetchWithTimeout(url);
-    if (!res.ok) throw new Error('launches failed');
+    if (!res.ok) throw new Error('launches ' + res.status);
     const data = await res.json();
     const rows = Array.isArray(data?.results) ? data.results : [];
     const markers = [];
@@ -617,6 +818,187 @@
     return { markers, list };
   }
 
+  function readEventCache() {
+    try {
+      const raw = JSON.parse(window.localStorage.getItem(EONET_CACHE_KEY) || 'null');
+      if (raw && Array.isArray(raw.events)) return raw;
+    } catch (e) {}
+    return null;
+  }
+
+  function writeEventCache(payload) {
+    try {
+      window.localStorage.setItem(EONET_CACHE_KEY, JSON.stringify({ ...payload, savedAt: Date.now() }));
+    } catch (e) {}
+  }
+
+  function eventGlyph(category) {
+    const c = String(category || '').toLowerCase();
+    if (c.includes('wildfire') || c.includes('fire')) return 'FIRE';
+    if (c.includes('earthquake')) return 'QUAKE';
+    if (c.includes('storm') || c.includes('cyclone')) return 'STORM';
+    if (c.includes('volcano')) return 'VOLC';
+    if (c.includes('ice')) return 'ICE';
+    if (c.includes('dust') || c.includes('haze')) return 'DUST';
+    if (c.includes('flood')) return 'FLOOD';
+    if (c.includes('landslide')) return 'SLIDE';
+    return 'EVENT';
+  }
+
+  function eventColor(category) {
+    const c = String(category || '').toLowerCase();
+    if (c.includes('wildfire') || c.includes('fire')) return '#ff453a';
+    if (c.includes('earthquake')) return '#bf5af2';
+    if (c.includes('storm') || c.includes('cyclone')) return '#64d2ff';
+    if (c.includes('volcano')) return '#ff9f0a';
+    if (c.includes('ice')) return '#5ac8fa';
+    if (c.includes('dust') || c.includes('haze')) return '#ffd60a';
+    if (c.includes('flood')) return '#30d158';
+    return '#bf5af2';
+  }
+
+  function eventCoordFromGeometry(geometry) {
+    const g = Array.isArray(geometry) && geometry.length ? geometry[geometry.length - 1] : null;
+    const coords = g?.coordinates;
+    if (!Array.isArray(coords)) return null;
+    if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+      return { lng: Number(coords[0]), lat: Number(coords[1]), date: g.date };
+    }
+    const walk = (node) => {
+      if (!Array.isArray(node)) return null;
+      if (typeof node[0] === 'number' && typeof node[1] === 'number') return node;
+      for (const child of node) {
+        const found = walk(child);
+        if (found) return found;
+      }
+      return null;
+    };
+    const first = walk(coords);
+    return first ? { lng: Number(first[0]), lat: Number(first[1]), date: g.date } : null;
+  }
+
+  function parseEonetEvents(rows) {
+    const list = Array.isArray(rows) ? rows : [];
+    return list.map((ev) => {
+      const coord = eventCoordFromGeometry(ev?.geometry);
+      if (!coord || !Number.isFinite(coord.lat) || !Number.isFinite(coord.lng)) return null;
+      const category = String((ev?.categories || [])[0]?.title || 'Natural event');
+      const title = String(ev?.title || 'Earth event').trim();
+      const source = String((ev?.sources || [])[0]?.id || (ev?.sources || [])[0]?.title || 'NASA EONET').trim();
+      return {
+        id: String(ev?.id || title),
+        name: title,
+        label: `${category} · ${title}`,
+        category,
+        source,
+        lat: coord.lat,
+        lng: coord.lng,
+        date: coord.date || ev?.updated || ev?.closed || '',
+        color: eventColor(category),
+        text: eventGlyph(category),
+        labelSize: 0.42,
+        alt: 0.014,
+        type: 'event',
+      };
+    }).filter(Boolean).slice(0, 70);
+  }
+
+  function parseGdacsEvents(features) {
+    const categoryMap = {
+      EQ: 'Earthquakes',
+      TC: 'Severe Storms',
+      FL: 'Floods',
+      VO: 'Volcanoes',
+      WF: 'Wildfires',
+      DR: 'Drought',
+    };
+    const list = Array.isArray(features) ? features : [];
+    return list.map((feat) => {
+      const props = feat?.properties || {};
+      const coords = Array.isArray(feat?.geometry?.coordinates)
+        ? feat.geometry.coordinates
+        : (Array.isArray(feat?.bbox) ? feat.bbox.slice(0, 2) : null);
+      if (!Array.isArray(coords) || coords.length < 2) return null;
+      const lng = Number(coords[0]);
+      const lat = Number(coords[1]);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+      const eventType = String(props.eventtype || 'Event').trim();
+      const category = categoryMap[eventType] || eventType;
+      const name = String(props.name || props.description || 'GDACS event').trim();
+      return {
+        id: `gdacs-${eventType}-${props.eventid || name}-${props.episodeid || ''}`,
+        name,
+        label: `${category} · ${name}`,
+        category,
+        source: 'GDACS',
+        lat,
+        lng,
+        date: props.fromdate || props.datemodified || '',
+        color: eventColor(category),
+        text: eventGlyph(category),
+        labelSize: 0.42,
+        alt: 0.014,
+        type: 'event',
+      };
+    }).filter(Boolean).slice(0, 70);
+  }
+
+  async function fetchEarthEvents() {
+    const cached = readEventCache();
+    if (cached && Date.now() - Number(cached.savedAt || 0) < EONET_CACHE_TTL_MS) {
+      return cached.events;
+    }
+    try {
+      const res = await fetchWithTimeout('https://www.gdacs.org/gdacsapi/api/Events/geteventlist/EVENTS4APP', {}, 12000);
+      if (res.ok) {
+        const data = await res.json();
+        const events = parseGdacsEvents(data?.features);
+        if (events.length) {
+          writeEventCache({ events });
+          return events;
+        }
+      }
+    } catch (gdacsErr) {}
+    try {
+      const res = await fetchWithTimeout('https://eonet.gsfc.nasa.gov/api/v3/events?status=open&limit=70&days=30', {}, 12000);
+      if (!res.ok) throw new Error('eonet ' + res.status);
+      const data = await res.json();
+      const events = parseEonetEvents(data?.events);
+      if (!events.length) throw new Error('eonet empty');
+      writeEventCache({ events });
+      return events;
+    } catch (e) {
+      try {
+        const data = await fetchGodModeProxy('/god-mode/events', 12000);
+        const events = parseEonetEvents(data?.events);
+        if (events.length) {
+          writeEventCache({ events });
+          return events;
+        }
+      } catch (proxyErr) {}
+      if (cached?.events?.length) return cached.events;
+      throw e;
+    }
+  }
+
+  // One full ISS orbit (~92 min) as 10 sampled points → drawn as a path ring.
+  async function fetchIssTrail() {
+    const now = Math.floor(Date.now() / 1000);
+    const stamps = [];
+    for (let i = 0; i < 10; i++) stamps.push(now - 2760 + Math.round(i * 613));
+    const res = await fetchWithTimeout(
+      `https://api.wheretheiss.at/v1/satellites/25544/positions?timestamps=${stamps.join(',')}&units=kilometers`,
+      {},
+      12000
+    );
+    if (!res.ok) throw new Error('iss trail ' + res.status);
+    const rows = await res.json();
+    const pts = (Array.isArray(rows) ? rows : [])
+      .map((r) => [Number(r.latitude), Number(r.longitude), 0.05])
+      .filter((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]));
+    return pts.length >= 4 ? [pts] : [];
+  }
+
   async function fetchRadarMeta() {
     const res = await fetchWithTimeout('https://api.rainviewer.com/public/weather-maps.json');
     if (!res.ok) return null;
@@ -641,8 +1023,10 @@
     const radarTimerRef = React.useRef(null);
     const radarMeshRef = React.useRef(null);
     const cloudMeshRef = React.useRef(null);
-    const radarTextureLoaderRef = React.useRef(null);
-    const cloudTextureLoaderRef = React.useRef(null);
+    const radarTexCacheRef = React.useRef(null);
+    const texProtoRef = React.useRef(null);
+    const rocketOverlayRef = React.useRef(null);
+    const flightOverlayRef = React.useRef(null);
     const radarBusyRef = React.useRef(false);
     const applyLayersRef = React.useRef(() => {});
     const syncStreetRef = React.useRef(() => {});
@@ -650,6 +1034,7 @@
     const viewerRef = React.useRef(viewer);
     const layerRef = React.useRef(activeLayer);
     const weatherModeRef = React.useRef('temp');
+    const deepZoomRef = React.useRef(false);
     const radarGlobeUrlRef = React.useRef('');
     const cloudSpinRef = React.useRef(null);
 
@@ -662,10 +1047,12 @@
     const [flights, setFlights] = React.useState([]);
     const [satellites, setSatellites] = React.useState([]);
     const [launches, setLaunches] = React.useState({ markers: [], list: [] });
+    const [earthEvents, setEarthEvents] = React.useState([]);
     const [radar, setRadar] = React.useState(null);
-    const [radarTileUrl, setRadarTileUrl] = React.useState('');
+    const [issTrail, setIssTrail] = React.useState([]);
+    const [canReset, setCanReset] = React.useState(false);
     const [zoomLabel, setZoomLabel] = React.useState('Orbital view');
-    const [stats, setStats] = React.useState({ flights: 0, sats: 0, launches: 0, cities: 0 });
+    const [stats, setStats] = React.useState({ flights: 0, sats: 0, launches: 0, cities: 0, events: 0 });
     const [selected, setSelected] = React.useState(null);
     const [globeError, setGlobeError] = React.useState('');
     const [layerError, setLayerError] = React.useState('');
@@ -719,25 +1106,78 @@
       }
     }, []);
 
+    const updateRocketOverlay = React.useCallback(() => {
+      const overlay = rocketOverlayRef.current;
+      const globe = globeInstRef.current;
+      if (!overlay || !globe || !overlay.childElementCount) return;
+      for (let i = 0; i < overlay.children.length; i++) {
+        const el = overlay.children[i];
+        const m = el.__godMarker;
+        if (!m) continue;
+        if (!markerHorizonVisible(globe, m, 2)) {
+          if (el.style.display !== 'none') el.style.display = 'none';
+          continue;
+        }
+        const c = projectToScreen(globe, m.lat, m.lng, 0.006, overlay.clientWidth, overlay.clientHeight);
+        if (!c) {
+          if (el.style.display !== 'none') el.style.display = 'none';
+          continue;
+        }
+        if (el.style.display === 'none') el.style.display = '';
+        el.style.left = c.x + 'px';
+        el.style.top = c.y + 'px';
+      }
+    }, []);
+
+    const updateFlightOverlay = React.useCallback(() => {
+      const overlay = flightOverlayRef.current;
+      const globe = globeInstRef.current;
+      if (!overlay || !globe || !overlay.childElementCount) return;
+      for (let i = 0; i < overlay.children.length; i++) {
+        const el = overlay.children[i];
+        const m = el.__godMarker;
+        if (!m) continue;
+        if (!markerHorizonVisible(globe, m, 3)) {
+          if (el.style.display !== 'none') el.style.display = 'none';
+          continue;
+        }
+        const c = projectToScreen(globe, m.lat, m.lng, 0.018, overlay.clientWidth, overlay.clientHeight);
+        if (!c) {
+          if (el.style.display !== 'none') el.style.display = 'none';
+          continue;
+        }
+        if (el.style.display === 'none') el.style.display = '';
+        el.style.left = c.x + 'px';
+        el.style.top = c.y + 'px';
+        el.style.color = flightAltColor(m.altitudeFt);
+        const heading = Number(m.heading);
+        el.style.setProperty('--flight-heading', `${Number.isFinite(heading) ? heading : 0}deg`);
+      }
+    }, []);
+
     const applyGlobeLayers = React.useCallback(() => {
       const globe = globeInstRef.current;
       if (!globe) return;
       setLayerError('');
       try {
         const showWeather = layer === 'all' || layer === 'weather';
+        const showEvents = layer === 'all' || layer === 'events';
         const showFlights = layer === 'all' || layer === 'flights';
         const showSats = layer === 'all' || layer === 'satellites';
         const showLaunches = layer === 'all' || layer === 'launches';
 
         const mode = weatherModeRef.current || 'temp';
+        // At ground detail the weather labels/hex towers just block the
+        // satellite imagery — hide them until the user zooms back out.
+        const deepZoom = deepZoomRef.current;
         const flightPoints = showFlights && flights.length ? flightPointsForGlobe(flights) : [];
         const labelRows = [];
         const windArcs = [];
-        if (showWeather) {
+        if (showWeather && !deepZoom) {
           weather.forEach((w) => {
             labelRows.push({
               ...w,
-              text: w.text || (w.temp != null ? `${w.glyph || ''} ${w.temp}°` : (w.glyph || '◌')),
+              text: w.text || (w.temp != null ? `${w.temp}°` : w.name),
               label: w.label || `${w.name} · ${w.condition || 'Weather'}`,
               labelSize: w.labelSize || 0.58,
               color: w.color || tempColor(w.temp),
@@ -764,14 +1204,31 @@
             labelSize: s.labelSize || 0.55,
           })));
         }
+        if (showEvents && !deepZoom) {
+          labelRows.push(...earthEvents.map((ev) => ({
+            ...ev,
+            text: ev.text || 'EVENT',
+            labelSize: ev.labelSize || 0.42,
+            color: ev.color || '#bf5af2',
+          })));
+        }
+        if (showLaunches && !deepZoom) {
+          labelRows.push(...launches.markers.map((m) => ({
+            ...m,
+            text: '▲',
+            labelSize: 0.52,
+            color: '#ff453a',
+            alt: 0.007,
+          })));
+        }
         const viewerLat = Number(viewer.lat);
         const viewerLon = viewerLng(viewer);
-        if (Number.isFinite(viewerLat) && Number.isFinite(viewerLon)) {
+        if (!deepZoom && Number.isFinite(viewerLat) && Number.isFinite(viewerLon)) {
           labelRows.push({
             lat: viewerLat,
             lng: viewerLon,
             alt: 0.008,
-            text: '●',
+            text: 'YOU',
             labelSize: 0.5,
             color: '#30d158',
             label: viewer.city ? `You · ${viewer.city}` : 'You',
@@ -799,26 +1256,28 @@
             }
           });
 
-        if (showWeather && mode === 'temp' && weather.length) {
+        if (showWeather && !deepZoom && mode === 'temp' && weather.length) {
+          const binTempColor = (bin) => {
+            const pts = bin?.points || [];
+            if (!pts.length) return 'rgba(90,90,90,0.2)';
+            const avg = pts.reduce((s, p) => s + Number(p.weight || p.temp || 50), 0) / pts.length;
+            return colorWithAlpha(tempColor(avg), 0.65); // keep land readable
+          };
           globe
             .hexBinPointsData(weather)
             .hexBinPointLat('lat')
             .hexBinPointLng('lng')
             .hexBinPointWeight('weight')
-            .hexBinResolution(3.2)
+            .hexBinResolution(3)
             .hexBinMerge(true)
-            .hexBinTopAltitude(0.04)
-            .hexBinColor((bin) => {
-              const pts = bin.points || [];
-              if (!pts.length) return 'rgba(90,90,90,0.2)';
-              const avg = pts.reduce((s, p) => s + Number(p.weight || p.temp || 50), 0) / pts.length;
-              return tempColor(avg);
-            });
+            .hexAltitude(0.012)
+            .hexTopColor(binTempColor)
+            .hexSideColor(binTempColor);
         } else {
           globe.hexBinPointsData([]);
         }
 
-        if (showWeather && mode === 'wind' && windArcs.length) {
+        if (showWeather && !deepZoom && mode === 'wind' && windArcs.length) {
           globe
             .arcsData(windArcs)
             .arcStartLat('startLat')
@@ -827,7 +1286,7 @@
             .arcEndLng('endLng')
             .arcColor('color')
             .arcStroke('stroke')
-            .arcAltitude(0.12)
+            .arcAltitude(0.05)
             .arcDashLength(0.45)
             .arcDashGap(0.2)
             .arcDashAnimateTime(1800)
@@ -837,7 +1296,8 @@
           globe.arcsData([]);
         }
 
-        const manyFlights = flightPoints.length > 120;
+        // Never merge — merged point geometry kills per-point click detection,
+        // and the panel promises clickable aircraft. Capped at MAX_FLIGHT_POINTS.
         globe
           .pointsData(flightPoints)
           .pointLat('lat')
@@ -846,68 +1306,107 @@
           .pointRadius('size')
           .pointColor('color')
           .pointResolution(3)
-          .pointsMerge(manyFlights)
+          .pointsMerge(false)
           .pointsTransitionDuration(0)
           .onPointClick((pt) => setSelected(pt || null));
 
+        globe
+          .pathsData(showSats && issTrail.length ? issTrail : [])
+          .pathPointLat((p) => p[0])
+          .pathPointLng((p) => p[1])
+          .pathPointAlt((p) => p[2])
+          .pathColor(() => 'rgba(100,210,255,0.55)')
+          .pathStroke(1.4)
+          .pathTransitionDuration(0);
+
         globe.objectsData([]);
 
-        if (showLaunches && launches.markers.length) {
-          globe
-            .htmlElementsData(launches.markers)
-            .htmlLat('lat')
-            .htmlLng('lng')
-            .htmlAltitude('alt')
-            .htmlElement(() => buildRocketElement())
-            .htmlElementVisibilityModifier((el, isVisible) => {
-              el.style.display = isVisible ? '' : 'none';
-            })
-            .htmlTransitionDuration(0);
-        } else {
-          globe.htmlElementsData([]);
+        // Rockets live in our own screen-space overlay — the vendored globe.gl
+        // build never attaches htmlElementsData nodes to the DOM.
+        const flightOverlay = flightOverlayRef.current;
+        if (flightOverlay) {
+          flightOverlay.innerHTML = '';
+          if (showFlights) {
+            flightPoints.slice(0, 220).forEach((m) => {
+              const el = buildPlaneElement();
+              el.style.position = 'absolute';
+              el.style.transform = 'translate(-50%, -50%) rotate(var(--flight-heading, 0deg))';
+              el.style.display = 'none';
+              el.style.pointerEvents = 'auto';
+              el.style.cursor = 'pointer';
+              el.title = `${m.callsign || m.label || 'Flight'}${m.altitudeFt ? ` · ${m.altitudeFt.toLocaleString()} ft` : ''}`;
+              el.__godMarker = m;
+              el.addEventListener('click', () => {
+                setSelected(m);
+                const g2 = globeInstRef.current;
+                if (g2) g2.pointOfView({ lat: m.lat, lng: m.lng, altitude: 1.35 }, 900);
+              });
+              flightOverlay.appendChild(el);
+            });
+          }
+          updateFlightOverlay();
+        }
+
+        const overlay = rocketOverlayRef.current;
+        if (overlay) {
+          overlay.innerHTML = '';
+          if (showLaunches) {
+            launches.markers.forEach((m) => {
+              const el = buildRocketElement();
+              el.style.position = 'absolute';
+              el.style.transform = 'translate(-50%, -50%)';
+              el.style.display = 'none';
+              el.style.pointerEvents = 'auto';
+              el.style.cursor = 'pointer';
+              el.title = m.label || m.name || 'Launch';
+              el.__godMarker = m;
+              el.addEventListener('click', () => {
+                setSelected(m);
+                const g2 = globeInstRef.current;
+                if (g2) g2.pointOfView({ lat: m.lat, lng: m.lng, altitude: 1.4 }, 1100);
+              });
+              overlay.appendChild(el);
+            });
+          }
+          updateRocketOverlay();
         }
 
         globe
-          .ringsData(showLaunches ? launches.markers : [])
+          .ringsData([
+            ...(showLaunches ? launches.markers.map((m) => ({ ...m, ringColor: 'rgba(255,69,58,0.55)', ringRadius: 3.5, ringSpeed: 2.2 })) : []),
+            ...(showEvents ? earthEvents.map((m) => ({ ...m, ringColor: colorWithAlpha(m.color || '#bf5af2', 0.55), ringRadius: 2.2, ringSpeed: 1.4 })) : []),
+          ])
           .ringLat('lat')
           .ringLng('lng')
           .ringAltitude(0.002)
-          .ringMaxRadius(3.5)
-          .ringPropagationSpeed(2.2)
+          .ringMaxRadius((d) => d.ringRadius || 2.4)
+          .ringPropagationSpeed((d) => d.ringSpeed || 1.4)
           .ringRepeatPeriod(1200)
-          .ringColor(() => 'rgba(255,69,58,0.55)');
+          .ringColor((d) => d.ringColor || 'rgba(191,90,242,0.55)');
 
         layerRef.current = layer;
         if (radarMeshRef.current) {
-          radarMeshRef.current.visible = showWeather && mode === 'precip' && !!radarGlobeUrlRef.current;
+          radarMeshRef.current.visible = showWeather && !deepZoom && mode === 'precip' && !!radarGlobeUrlRef.current;
         }
         if (cloudMeshRef.current) {
-          cloudMeshRef.current.visible = showWeather && mode !== 'precip';
+          cloudMeshRef.current.visible = showWeather && !deepZoom && mode !== 'precip' && !!cloudMeshRef.current.material.map;
         }
       } catch (e) {
         const msg = String(e?.message || e || 'layer render failed');
         setLayerError(msg);
         console.error('[god-mode] layer apply failed', e);
       }
-    }, [layer, weather, flights, satellites, launches, viewer, weatherMode]);
+    }, [layer, weather, flights, satellites, launches, earthEvents, viewer, weatherMode, issTrail, updateRocketOverlay, updateFlightOverlay]);
 
     applyLayersRef.current = applyGlobeLayers;
     syncStreetRef.current = syncZoomLabel;
     resizeRef.current = resizeGlobe;
 
-    const applyRadarGlobeTexture = React.useCallback((url) => {
+    const applyRadarTexture = React.useCallback((tex) => {
       const mesh = radarMeshRef.current;
-      const THREE = resolveThree();
-      if (!mesh || !THREE || !url) return;
-      if (!radarTextureLoaderRef.current) radarTextureLoaderRef.current = new THREE.TextureLoader();
-      radarTextureLoaderRef.current.load(url, (tex) => {
-        if (!radarMeshRef.current) return;
-        const old = radarMeshRef.current.material?.map;
-        if (old && old.dispose) old.dispose();
-        tex.anisotropy = 4;
-        radarMeshRef.current.material.map = tex;
-        radarMeshRef.current.material.needsUpdate = true;
-      });
+      if (!mesh || !tex) return;
+      mesh.material.map = tex;
+      mesh.material.needsUpdate = true;
     }, []);
 
     const syncRadarOverlayVisibility = React.useCallback(() => {
@@ -915,9 +1414,9 @@
       if (!mesh) return;
       const showWeather = layerRef.current === 'all' || layerRef.current === 'weather';
       const mode = weatherModeRef.current || 'temp';
-      mesh.visible = showWeather && mode === 'precip' && !!radarGlobeUrlRef.current;
+      mesh.visible = showWeather && !deepZoomRef.current && mode === 'precip' && !!radarGlobeUrlRef.current;
       if (cloudMeshRef.current) {
-        cloudMeshRef.current.visible = showWeather && mode !== 'precip';
+        cloudMeshRef.current.visible = showWeather && !deepZoomRef.current && mode !== 'precip' && !!cloudMeshRef.current.material.map;
       }
     }, []);
 
@@ -927,49 +1426,74 @@
       applyLayersRef.current();
     }, [weatherMode, syncRadarOverlayVisibility]);
 
+    // Builds the cloud + radar shells by cloning the live globe mesh once its
+    // earth texture has loaded (the clone gives us mesh/material/texture
+    // classes without needing a global THREE).
     const setupWeatherShells = React.useCallback((globe) => {
-      const THREE = resolveThree();
-      if (!globe || !THREE) return;
-      try {
-        globe
-          .customLayerData([{ id: 'cloud-shell' }, { id: 'radar-shell' }])
-          .customThreeObject((d) => {
-            const radius = globe.getGlobeRadius() * (d.id === 'cloud-shell' ? 1.016 : 1.012);
-            const geometry = new THREE.SphereGeometry(radius, 72, 36);
-            if (d.id === 'cloud-shell') {
-              const material = new THREE.MeshPhongMaterial({
-                transparent: true,
-                opacity: 0.2,
-                depthWrite: false,
-              });
-              const mesh = new THREE.Mesh(geometry, material);
-              mesh.renderOrder = 1;
-              mesh.visible = false;
-              cloudMeshRef.current = mesh;
-              if (!cloudTextureLoaderRef.current) cloudTextureLoaderRef.current = new THREE.TextureLoader();
-              cloudTextureLoaderRef.current.load(CLOUDS_IMG, (tex) => {
-                if (!cloudMeshRef.current) return;
-                cloudMeshRef.current.material.map = tex;
-                cloudMeshRef.current.material.needsUpdate = true;
-              });
-              return mesh;
-            }
-            const material = new THREE.MeshBasicMaterial({
-              transparent: true,
-              opacity: 0.72,
-              depthWrite: false,
-              blending: THREE.AdditiveBlending,
-            });
-            const mesh = new THREE.Mesh(geometry, material);
-            mesh.renderOrder = 2;
-            mesh.visible = false;
-            radarMeshRef.current = mesh;
-            return mesh;
+      let tries = 0;
+      const attempt = () => {
+        if (!globeInstRef.current || globeInstRef.current !== globe || cloudMeshRef.current) return;
+        const base = findGlobeMesh(globe);
+        const baseMap = base?.material?.map;
+        if (!base || !base.parent || !baseMap || !baseMap.image) {
+          if (++tries < 60) window.setTimeout(attempt, 400);
+          return;
+        }
+        try {
+          texProtoRef.current = baseMap;
+
+          const cloud = makeShellFromGlobe(base, 1.015, (mat) => {
+            mat.opacity = 0.4;
           });
-      } catch (e) {
-        console.warn('[god-mode] weather shells unavailable', e);
-      }
-    }, []);
+          cloud.renderOrder = 1;
+          cloudMeshRef.current = cloud;
+          const cloudImg = new Image();
+          cloudImg.crossOrigin = 'anonymous';
+          cloudImg.onload = () => {
+            if (cloudMeshRef.current !== cloud) return;
+            const tex = baseMap.clone();
+            tex.image = cloudImg;
+            tex.needsUpdate = true;
+            cloud.material.map = tex;
+            cloud.material.needsUpdate = true;
+            syncRadarOverlayVisibility();
+          };
+          cloudImg.src = CLOUDS_IMG;
+
+          const radarShell = makeShellFromGlobe(base, 1.011, (mat) => {
+            mat.opacity = 0.85;
+            mat.blending = 2; // THREE.AdditiveBlending
+            if ('shininess' in mat) mat.shininess = 0;
+          });
+          radarShell.renderOrder = 2;
+          radarMeshRef.current = radarShell;
+
+          // Ocean specular sheen on the base globe while we're here.
+          const waterImg = new Image();
+          waterImg.crossOrigin = 'anonymous';
+          waterImg.onload = () => {
+            try {
+              const mat = globe.globeMaterial();
+              if (!mat || !mat.specular) return;
+              const tex = baseMap.clone();
+              tex.image = waterImg;
+              tex.needsUpdate = true;
+              mat.specularMap = tex;
+              mat.specular.set('#2e4a6b');
+              mat.shininess = 12;
+              mat.needsUpdate = true;
+            } catch (e) {}
+          };
+          waterImg.src = WATER_IMG;
+
+          syncRadarOverlayVisibility();
+          applyLayersRef.current();
+        } catch (e) {
+          console.warn('[god-mode] weather shells unavailable', e);
+        }
+      };
+      attempt();
+    }, [syncRadarOverlayVisibility]);
 
     React.useEffect(() => {
       if (!open) return undefined;
@@ -1002,7 +1526,7 @@
               if (globeRef.current) globeRef.current.style.cursor = pt ? 'pointer' : 'grab';
             });
           try {
-            globe.globeTileEngineUrl(SAT_TILE_URL).globeTileEngineMaxLevel(18);
+            globe.globeTileEngineUrl(SAT_TILE_URL).globeTileEngineMaxLevel(SAT_TILE_MAX_LEVEL);
           } catch (e) {
             console.warn('[god-mode] satellite tile engine unavailable', e);
           }
@@ -1013,25 +1537,61 @@
           globe.controls().maxDistance = 520;
           globe.pointOfView({ lat: Number(v.lat) || 28, lng: viewerLng(v) || -20, altitude: 2.2 }, 0);
           globeInstRef.current = globe;
+          global.__V4GodGlobe = globe;
+          try {
+            const renderer = globe.renderer?.();
+            if (renderer) {
+              renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+              renderer.domElement.addEventListener('webglcontextlost', (ev) => {
+                ev.preventDefault();
+                setGlobeError('Graphics memory ran out — close and reopen god mode.');
+              });
+            }
+          } catch (e) {}
           setupWeatherShells(globe);
           if (!cancelled) setGlobeReady(true);
 
-          onControls = () => syncStreetRef.current(globe);
+          // Throttled by timestamp (not rAF — background tabs starve rAF).
+          // Pauses auto-rotate on deep zoom so the tile engine isn't fed a
+          // moving camera forever (the old freeze).
+          let lastControlsWork = 0;
+          onControls = () => {
+            const now = Date.now();
+            if (now - lastControlsWork < 80) return;
+            lastControlsWork = now;
+            if (!globeInstRef.current) return;
+            syncStreetRef.current(globe);
+            try {
+              const alt = Number(globe.pointOfView()?.altitude);
+              if (Number.isFinite(alt)) {
+                const controls = globe.controls();
+                if (alt < AUTOROTATE_PAUSE_ALT && controls.autoRotate) controls.autoRotate = false;
+                else if (alt > AUTOROTATE_RESUME_ALT && !controls.autoRotate) controls.autoRotate = true;
+                setCanReset(alt < AUTOROTATE_RESUME_ALT);
+                const deep = alt < SAT_DETAIL_ALT;
+                if (deep !== deepZoomRef.current) {
+                  deepZoomRef.current = deep;
+                  applyLayersRef.current();
+                }
+              }
+            } catch (e) {}
+          };
           globe.controls().addEventListener('change', onControls);
 
-          const spinClouds = () => {
+          const frameTick = () => {
             if (cloudMeshRef.current && cloudMeshRef.current.visible) {
               cloudMeshRef.current.rotation.y += 0.00035;
             }
-            cloudSpinRef.current = window.requestAnimationFrame(spinClouds);
+            updateRocketOverlay();
+            updateFlightOverlay();
+            cloudSpinRef.current = window.requestAnimationFrame(frameTick);
           };
-          cloudSpinRef.current = window.requestAnimationFrame(spinClouds);
+          cloudSpinRef.current = window.requestAnimationFrame(frameTick);
 
           window.requestAnimationFrame(() => {
             resizeRef.current();
             applyLayersRef.current();
             syncStreetRef.current(globe);
-            if (radarGlobeUrlRef.current) applyRadarGlobeTexture(radarGlobeUrlRef.current);
             syncRadarOverlayVisibility();
           });
           if (typeof ResizeObserver !== 'undefined') {
@@ -1057,15 +1617,21 @@
         }
         if (cloudSpinRef.current) window.cancelAnimationFrame(cloudSpinRef.current);
         cloudSpinRef.current = null;
-        if (radarMeshRef.current?.material?.map?.dispose) {
-          try { radarMeshRef.current.material.map.dispose(); } catch (e) {}
+        if (radarTexCacheRef.current) {
+          radarTexCacheRef.current.forEach((tex) => {
+            try { tex.dispose(); } catch (e) {}
+          });
+          radarTexCacheRef.current.clear();
         }
         radarMeshRef.current = null;
         cloudMeshRef.current = null;
+        texProtoRef.current = null;
         radarGlobeUrlRef.current = '';
         globeInstRef.current = null;
         setGlobeReady(false);
         if (globeRef.current) globeRef.current.innerHTML = '';
+        if (rocketOverlayRef.current) rocketOverlayRef.current.innerHTML = '';
+        if (flightOverlayRef.current) flightOverlayRef.current.innerHTML = '';
       };
     }, [open]);
 
@@ -1081,18 +1647,31 @@
 
       const tick = async () => {
         if (cancelled || radarBusyRef.current) return;
+        // Only animate while the rain view is actually on screen.
+        const showWeather = layerRef.current === 'all' || layerRef.current === 'weather';
+        if (!showWeather || weatherModeRef.current !== 'precip') return;
+        if (!radarMeshRef.current || !texProtoRef.current) return;
         radarBusyRef.current = true;
         try {
           const frame = radar.frames[idx];
-          const globeUrl = buildRadarFrameUrl(radar.host, frame, 0, 0, 0);
-          const stripUrl = await buildRadarTileComposite(radar.host, frame, 1, 2, 2);
-          if (cancelled) return;
-          if (globeUrl) {
-            radarGlobeUrlRef.current = globeUrl;
-            applyRadarGlobeTexture(globeUrl);
+          const key = String(frame?.path || idx);
+          if (!radarTexCacheRef.current) radarTexCacheRef.current = new Map();
+          let tex = radarTexCacheRef.current.get(key);
+          if (!tex) {
+            const canvas = await buildRadarEquirectCanvas(radar.host, frame);
+            if (cancelled) return;
+            if (canvas && texProtoRef.current) {
+              tex = texProtoRef.current.clone();
+              tex.image = canvas;
+              tex.needsUpdate = true;
+              radarTexCacheRef.current.set(key, tex);
+            }
+          }
+          if (tex) {
+            radarGlobeUrlRef.current = key;
+            applyRadarTexture(tex);
             syncRadarOverlayVisibility();
           }
-          if (stripUrl) setRadarTileUrl(stripUrl);
           idx = (idx + 1) % radar.frames.length;
         } catch (e) {
           console.warn('[god-mode] radar frame failed', e);
@@ -1102,7 +1681,7 @@
       };
 
       tick();
-      radarTimerRef.current = window.setInterval(tick, 1200);
+      radarTimerRef.current = window.setInterval(tick, 1500);
       return () => {
         cancelled = true;
         if (radarTimerRef.current) {
@@ -1110,7 +1689,7 @@
           radarTimerRef.current = null;
         }
       };
-    }, [open, radar, applyRadarGlobeTexture, syncRadarOverlayVisibility]);
+    }, [open, radar, applyRadarTexture, syncRadarOverlayVisibility]);
 
     React.useEffect(() => {
       if (!open) return undefined;
@@ -1141,6 +1720,10 @@
             setWeather(v);
             setStats((s) => ({ ...s, cities: v.length }));
           }),
+          loadFeed('events', fetchEarthEvents, (v) => {
+            setEarthEvents(v);
+            setStats((s) => ({ ...s, events: v.length }));
+          }),
           loadFeed('flights', fetchFlights, (v) => {
             setFlights(v);
             setStats((s) => ({ ...s, flights: v.length }));
@@ -1149,6 +1732,7 @@
             setSatellites(v);
             setStats((s) => ({ ...s, sats: v.length }));
           }),
+          fetchIssTrail().then((t) => { if (!cancelled) setIssTrail(t); }).catch(() => {}),
           loadFeed('launches', fetchLaunches, (v) => {
             setLaunches(v);
             setStats((s) => ({ ...s, launches: v.list.length }));
@@ -1169,9 +1753,20 @@
       }, 8000);
       const launchTimer = setInterval(() => {
         fetchLaunches().then((rows) => { if (!cancelled) setLaunches(rows); }).catch(() => {});
-      }, 300000);
+      }, 1800000);
+      const eventTimer = setInterval(() => {
+        fetchEarthEvents().then((rows) => {
+          if (!cancelled) {
+            setEarthEvents(rows);
+            setStats((s) => ({ ...s, events: rows.length }));
+          }
+        }).catch(() => {});
+      }, 600000);
       const radarTimer = setInterval(() => {
         fetchRadarMeta().then((meta) => { if (!cancelled && meta) setRadar(meta); }).catch(() => {});
+      }, 300000);
+      const trailTimer = setInterval(() => {
+        fetchIssTrail().then((t) => { if (!cancelled) setIssTrail(t); }).catch(() => {});
       }, 300000);
 
       return () => {
@@ -1179,7 +1774,9 @@
         clearInterval(flightTimer);
         clearInterval(issTimer);
         clearInterval(launchTimer);
+        clearInterval(eventTimer);
         clearInterval(radarTimer);
+        clearInterval(trailTimer);
       };
     }, [open]);
 
@@ -1202,7 +1799,7 @@
 
     if (!open) return null;
 
-    const panelLayer = layer === 'all' ? 'weather' : layer;
+    const panelLayer = layer;
     const launchList = launches.list || [];
     const showWeatherHud = layer === 'all' || layer === 'weather';
     const activeWeatherMode = WEATHER_MODES.find((m) => m.id === weatherMode) || WEATHER_MODES[0];
@@ -1226,6 +1823,7 @@
             'div',
             { className: 'v4-godmode-stats' },
             React.createElement('span', null, `${stats.flights.toLocaleString()} flights`),
+            React.createElement('span', null, `${stats.events} earth events`),
             React.createElement('span', null, `${stats.sats} in orbit track`),
             React.createElement('span', null, `${stats.launches} upcoming launches`),
             React.createElement('span', null, `${stats.cities} weather nodes`)
@@ -1267,7 +1865,30 @@
               && React.createElement('div', { className: 'v4-godmode-loading v4-godmode-loading-warn' }, 'Some feeds failed — globe still works'),
             globeError && React.createElement('div', { className: 'v4-godmode-globe-error' }, globeError),
             React.createElement('div', { className: 'v4-godmode-zoom-chip' }, zoomLabel),
+            canReset && React.createElement('button', {
+              type: 'button',
+              className: 'v4-godmode-zoom-chip',
+              style: { left: 'auto', right: 12, transform: 'none', pointerEvents: 'auto', cursor: 'pointer' },
+              onClick: () => {
+                const g = globeInstRef.current;
+                if (!g) return;
+                const v = viewerRef.current || {};
+                g.pointOfView({ lat: Number(v.lat) || 28, lng: viewerLng(v) || -20, altitude: 2.2 }, 900);
+                try { g.controls().autoRotate = true; } catch (e) {}
+                setCanReset(false);
+              },
+            }, '⟲ Zoom out'),
             React.createElement('div', { ref: globeRef, className: 'v4-godmode-globe' }),
+            React.createElement('div', {
+              ref: flightOverlayRef,
+              className: 'v4-godmode-flight-overlay',
+              style: { position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 2 },
+            }),
+            React.createElement('div', {
+              ref: rocketOverlayRef,
+              className: 'v4-godmode-rocket-overlay',
+              style: { position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 2 },
+            }),
             showWeatherHud && React.createElement(
               'div',
               { className: 'v4-godmode-weather-hud is-visible' },
@@ -1315,6 +1936,11 @@
                 selected.temp != null ? ` · ${selected.temp}°F` : '',
                 selected.wind != null ? ` · Wind ${selected.wind} mph ${selected.windCompass || ''}` : ''
               ),
+              selected.type === 'event' && React.createElement('div', null,
+                selected.category || 'Earth event',
+                selected.source ? ` · ${selected.source}` : '',
+                selected.date ? ` · ${fmtLaunchWhen(selected.date)}` : ''
+              ),
               selected.type === 'wind' && React.createElement('div', null, selected.label || 'Wind flow'),
               selected.type === 'launch' && selected.when && React.createElement('div', null, fmtLaunchWhen(selected.when))
             )
@@ -1322,6 +1948,18 @@
           React.createElement(
             'aside',
             { className: 'v4-godmode-panel' },
+            panelLayer === 'all' && React.createElement(
+              React.Fragment,
+              null,
+              React.createElement('div', { className: 'v4-godmode-panel-head' }, 'Planetary operations'),
+              React.createElement('p', { className: 'v4-godmode-panel-note' }, 'All live layers are active: weather, natural events, air traffic, ISS orbit, and launch pads. Click any marker on the globe to inspect it.'),
+              React.createElement('div', { className: 'v4-godmode-ops-grid' },
+                React.createElement('div', null, React.createElement('strong', null, stats.flights.toLocaleString()), React.createElement('span', null, 'Aircraft')),
+                React.createElement('div', null, React.createElement('strong', null, stats.events), React.createElement('span', null, 'Earth events')),
+                React.createElement('div', null, React.createElement('strong', null, stats.launches), React.createElement('span', null, 'Launches')),
+                React.createElement('div', null, React.createElement('strong', null, stats.cities), React.createElement('span', null, 'Weather nodes'))
+              )
+            ),
             (panelLayer === 'launches' || panelLayer === 'all') && React.createElement(
               React.Fragment,
               null,
@@ -1358,11 +1996,44 @@
                 )
               )
             ),
+            panelLayer === 'events' && React.createElement(
+              React.Fragment,
+              null,
+              React.createElement('div', { className: 'v4-godmode-panel-head' }, 'Earth events'),
+              React.createElement('p', { className: 'v4-godmode-panel-note' }, 'NASA EONET open events from the last 30 days. These are real-world event markers, not decoration.'),
+              React.createElement(
+                'div',
+                { className: 'v4-godmode-event-list' },
+                earthEvents.length === 0 && React.createElement('div', { className: 'v4-godmode-empty' }, 'No event data yet'),
+                earthEvents.map((ev) =>
+                  React.createElement(
+                    'button',
+                    {
+                      key: ev.id,
+                      type: 'button',
+                      className: 'v4-godmode-event-card',
+                      onClick: () => {
+                        const g = globeInstRef.current;
+                        if (g && Number.isFinite(ev.lat) && Number.isFinite(ev.lng)) {
+                          g.pointOfView({ lat: ev.lat, lng: ev.lng, altitude: 1.45 }, 1000);
+                          setSelected(ev);
+                        }
+                      },
+                    },
+                    React.createElement('span', { className: 'v4-godmode-event-dot', style: { background: ev.color } }),
+                    React.createElement('span', { className: 'v4-godmode-event-copy' },
+                      React.createElement('strong', null, ev.name),
+                      React.createElement('em', null, `${ev.category || 'Event'} · ${ev.source || 'NASA EONET'}`)
+                    )
+                  )
+                )
+              )
+            ),
             panelLayer === 'weather' && React.createElement(
               React.Fragment,
               null,
               React.createElement('div', { className: 'v4-godmode-panel-head' }, 'Planetary weather'),
-              React.createElement('p', { className: 'v4-godmode-panel-note' }, 'Bilawal-style god mode: pick a view, read the legend, click any city on the globe.'),
+              React.createElement('p', { className: 'v4-godmode-panel-note' }, 'Live conditions for 42 cities worldwide. Pick a view, read the legend, click any city on the globe.'),
               React.createElement(
                 'div',
                 { className: 'v4-godmode-weather-modes' },
@@ -1412,14 +2083,14 @@
               React.Fragment,
               null,
               React.createElement('div', { className: 'v4-godmode-panel-head' }, 'Live air traffic'),
-              React.createElement('p', { className: 'v4-godmode-panel-note' }, `Tracking ${stats.flights.toLocaleString()} aircraft via Mac proxy + ADS-B fallback. Refreshes every 20s.`),
-              React.createElement('div', { className: 'v4-godmode-flight-hint' }, `Showing up to ${MAX_FLIGHT_POINTS.toLocaleString()} aircraft as lightweight points. Click any dot for callsign + altitude.`)
+              React.createElement('p', { className: 'v4-godmode-panel-note' }, `Tracking ${stats.flights.toLocaleString()} aircraft live from the ADS-B network. Refreshes every 20s.`),
+              React.createElement('div', { className: 'v4-godmode-flight-hint' }, `Showing up to ${MAX_FLIGHT_POINTS.toLocaleString()} aircraft with heading-shaped markers. Cyan = cruising above 30k ft, yellow = mid, orange = low. Click any aircraft for callsign + altitude.`)
             ),
             panelLayer === 'satellites' && React.createElement(
               React.Fragment,
               null,
               React.createElement('div', { className: 'v4-godmode-panel-head' }, 'Satellite tracking'),
-              React.createElement('p', { className: 'v4-godmode-panel-note' }, 'ISS live position (cyan). Full constellation mesh coming next — Starlink, GPS, weather sats.'),
+              React.createElement('p', { className: 'v4-godmode-panel-note' }, 'ISS live position with its full orbit ring (cyan). Position updates every 8 seconds.'),
               satellites.map((s) => {
                 const lat = Number(s.lat);
                 const lng = Number(s.lng);
