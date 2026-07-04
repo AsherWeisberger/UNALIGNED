@@ -1,70 +1,203 @@
 {
   "deal_id": "acl-2026-alibaba",
-  "title": "ACL Conference 2026 — Alibaba Cloud via Hockey Stick Growth",
+  "title": "ACL Conference 2026 \u2014 Alibaba Cloud via Hockey Stick Growth",
   "counterparty": {
     "agency": "Hockey Stick Growth LLC",
-    "billing": "billing@hockeystick.io — 3827 S Carson St, #118, Carson City, NV 89701",
+    "billing": "billing@hockeystick.io \u2014 3827 S Carson St, #118, Carson City, NV 89701",
     "contacts": [
       "annika.wang@hockeystick.io",
       "c@hockeystick.io"
     ],
     "end_brand": "Alibaba Cloud",
-    "end_brand_contacts": ["zsn118640@alibaba-inc.com"]
+    "end_brand_contacts": [
+      "zsn118640@alibaba-inc.com (Shuonan, on-site video lead)",
+      "yangjianmin@kastone.com.cn (Nicki, on-site contact, 702-927-9219)"
+    ]
   },
   "our_side": {
     "sender": "asherunaligned@gmail.com",
-    "cc": ["scobleizer@gmail.com", "samlevin@mac.com"],
+    "cc": [
+      "scobleizer@gmail.com",
+      "samlevin@mac.com"
+    ],
     "talent": "Robert Scoble"
   },
-  "gmail_thread_ids": ["19e70331cf22ab36", "19f136f5597896eb"],
+  "gmail_thread_ids": [
+    "19e70331cf22ab36",
+    "19f136f5597896eb",
+    "19f16cfef2fd5e88",
+    "19f2af67e0e7cef8"
+  ],
   "agreement": {
     "signed": true,
     "scope": "One full day of on-site coverage at ACL 2026, San Diego, July 5. 8 pieces of content (videos 30s-3min + companion text posts). RAW footage delivered to Alibaba, they edit. Live audio stream from booth. Newsletter ad included. Client approval required before anything publishes.",
     "total_usd": 22300,
     "line_items": [
-      {"item": "ACL 2026 on-site coverage", "amount": 20000},
-      {"item": "Travel and hotel", "amount": 1000},
-      {"item": "ACL ticket", "amount": 1300}
+      {
+        "item": "ACL 2026 on-site coverage",
+        "amount": 20000
+      },
+      {
+        "item": "Travel and hotel",
+        "amount": 1000
+      },
+      {
+        "item": "ACL ticket",
+        "amount": 1300
+      }
     ],
     "payments": [
-      {"label": "first payment", "amount": 10000, "due": "2026-06-20", "status": "paid", "method": "wire to Fifth Third (Samuel Levin)", "invoice": "062026"},
-      {"label": "balance", "amount": 12300, "due": "during event window July 6", "status": "pending"}
+      {
+        "label": "first payment",
+        "amount": 10000,
+        "due": "2026-06-20",
+        "status": "paid",
+        "method": "wire to Fifth Third (Samuel Levin)",
+        "invoice": "062026"
+      },
+      {
+        "label": "balance",
+        "amount": 12300,
+        "due": "during event window July 6",
+        "status": "pending"
+      }
     ]
   },
   "scope_boundary": "ALL deliverables happen on-site July 5. No separate interview days (July 6/7 was declined). The Qwen Cloud online interview (done June 28) was absorbed as one of the 8 videos as goodwill; that absorption is precedent-sensitive, do not absorb more. Robert is never scripted, outlines only. Tickets are ours, non-refundable, per signed agreement.",
   "deliverables": [
-    {"id": "v1", "title": "Qoder Work product piece", "status": "outline_approved", "notes": "NOT a standalone interview; interviewee face never frontal; demo footage primary"},
-    {"id": "v2", "title": "Qoder (flagship)", "status": "outline_approved", "notes": "most footage/depth; online interview status unsettled after July 6/7 declined"},
-    {"id": "v3", "title": "Qwen Cloud", "status": "interview_recorded_2026-06-28", "notes": "raw video delivered by client for review; name/positioning/differentiators/features must be explicit"},
-    {"id": "v4", "title": "HSCodeComp paper spotlight", "status": "outline_approved", "notes": "author interview July 5 1:00-1:30 PM PDT CONFIRMED. CONFIDENTIAL: possible Best Paper, confirm with author on-camera, get ceremony assets if it wins"},
-    {"id": "v5", "title": "Research overview", "status": "outline_approved", "notes": "paper count phrased as estimate"},
-    {"id": "v6", "title": "Booth walkthrough", "status": "outline_approved", "notes": "Robert first-person POV + audience vox-pops incl. open-source Qwen popularity"},
-    {"id": "v7", "title": "Booth experience", "status": "outline_approved", "notes": "attendee reactions + random interviews"},
-    {"id": "v8", "title": "Wrap-up", "status": "outline_approved", "notes": "montage; no revisions requested"}
+    {
+      "id": "v1",
+      "title": "Qoder Work product piece",
+      "status": "outline_approved",
+      "notes": "NOT a standalone interview; interviewee face never frontal; demo footage primary"
+    },
+    {
+      "id": "v2",
+      "title": "Qoder (flagship)",
+      "status": "outline_approved",
+      "notes": "most footage/depth; online interview status unsettled after July 6/7 declined"
+    },
+    {
+      "id": "v3",
+      "title": "Qwen Cloud",
+      "status": "interview_recorded_2026-06-28",
+      "notes": "raw video delivered by client for review; name/positioning/differentiators/features must be explicit"
+    },
+    {
+      "id": "v4",
+      "title": "HSCodeComp paper spotlight",
+      "status": "outline_approved",
+      "notes": "author interview July 5 1:00-1:30 PM PDT CONFIRMED. CONFIDENTIAL: possible Best Paper, confirm with author on-camera, get ceremony assets if it wins"
+    },
+    {
+      "id": "v5",
+      "title": "Research overview",
+      "status": "outline_approved",
+      "notes": "paper count phrased as estimate"
+    },
+    {
+      "id": "v6",
+      "title": "Booth walkthrough",
+      "status": "outline_approved",
+      "notes": "Robert first-person POV + audience vox-pops incl. open-source Qwen popularity"
+    },
+    {
+      "id": "v7",
+      "title": "Booth experience",
+      "status": "outline_approved",
+      "notes": "attendee reactions + random interviews"
+    },
+    {
+      "id": "v8",
+      "title": "Wrap-up",
+      "status": "outline_approved",
+      "notes": "montage; no revisions requested"
+    }
   ],
   "schedule": [
-    {"when": "2026-07-05 13:00-13:30 PDT", "what": "Paper author interview (HSCodeComp)", "status": "confirmed"},
-    {"when": "2026-07-05 13:30-14:00 PDT", "what": "Qoder Work product capture", "status": "confirmed"},
-    {"when": "2026-07-05 TBD", "what": "Qoder interview (we require it on July 5, they proposed July 6/7 online)", "status": "contested"}
+    {
+      "when": "2026-07-05 13:00-13:30 PDT",
+      "what": "Paper author interview (HSCodeComp)",
+      "status": "confirmed"
+    },
+    {
+      "when": "2026-07-05 13:30-14:00 PDT",
+      "what": "Qoder Work product capture",
+      "status": "confirmed"
+    },
+    {
+      "when": "2026-07-05 TBD",
+      "what": "Qoder interview (we require it on July 5, they proposed July 6/7 online)",
+      "status": "contested"
+    }
   ],
   "open_items": [
-    {"owed_by": "them", "item": "Booth doc access approval (DingTalk) or files by email; paper list for the overview count", "since": "2026-06-26"},
-    {"owed_by": "them", "item": "Explicit confirmation Qwen online interview counts as 1 of the 8", "since": "2026-06-27"},
-    {"owed_by": "them", "item": "Resolution on Qoder interview after we held July-5-only", "since": "2026-06-30"},
-    {"owed_by": "them", "item": "Balance payment $12,300 during event window July 6", "since": "2026-06-20"},
-    {"owed_by": "us", "item": "Deliver 8 videos raw footage after July 5; route all content through Alibaba approval before posting", "since": "2026-07-02"}
+    {
+      "owed_by": "them",
+      "item": "Booth doc access approval (DingTalk) or files by email; paper list for the overview count",
+      "since": "2026-06-26"
+    },
+    {
+      "owed_by": "them",
+      "item": "Explicit confirmation Qwen online interview counts as 1 of the 8",
+      "since": "2026-06-27"
+    },
+    {
+      "owed_by": "them",
+      "item": "Resolution on Qoder interview after we held July-5-only",
+      "since": "2026-06-30"
+    },
+    {
+      "owed_by": "them",
+      "item": "Balance payment $12,300 during event window July 6",
+      "since": "2026-06-20"
+    },
+    {
+      "owed_by": "us",
+      "item": "Deliver 8 videos raw footage after July 5; route all content through Alibaba approval before posting",
+      "since": "2026-07-02"
+    }
   ],
   "confidential": [
-    "HSCodeComp potential Best Paper Award — internal only, never external until confirmed"
+    "HSCodeComp potential Best Paper Award \u2014 internal only, never external until confirmed"
   ],
   "log": [
-    {"date": "2026-05-30", "event": "Agreement signed both sides (8 pieces added per Annika)"},
-    {"date": "2026-06-16", "event": "Invoice 062026 corrected to Hockey Stick Growth LLC; Stripe link + wire dual path"},
-    {"date": "2026-06-24", "event": "Payment failed via Stripe/Plaid; Sam pushed wire"},
-    {"date": "2026-06-28", "event": "Qwen Cloud online interview recorded (6PM PST / June 29 9AM China)"},
-    {"date": "2026-06-30", "event": "$10K wire confirmed received. Qoder/QoderWork split requested; July 6/7 online Qoder proposed by them"},
-    {"date": "2026-06-30", "event": "We held scope: all interviews July 5 only"},
-    {"date": "2026-07-02", "event": "Alibaba approved revised 8-video outline; 'continue content preparation'"}
+    {
+      "date": "2026-05-30",
+      "event": "Agreement signed both sides (8 pieces added per Annika)"
+    },
+    {
+      "date": "2026-06-16",
+      "event": "Invoice 062026 corrected to Hockey Stick Growth LLC; Stripe link + wire dual path"
+    },
+    {
+      "date": "2026-06-24",
+      "event": "Payment failed via Stripe/Plaid; Sam pushed wire"
+    },
+    {
+      "date": "2026-06-28",
+      "event": "Qwen Cloud online interview recorded (6PM PST / June 29 9AM China)"
+    },
+    {
+      "date": "2026-06-30",
+      "event": "$10K wire confirmed received. Qoder/QoderWork split requested; July 6/7 online Qoder proposed by them"
+    },
+    {
+      "date": "2026-06-30",
+      "event": "We held scope: all interviews July 5 only"
+    },
+    {
+      "date": "2026-07-02",
+      "event": "Alibaba approved revised 8-video outline; 'continue content preparation'"
+    },
+    {
+      "date": "2026-07-04",
+      "event": "deal_brain: The counterparty has formally requested a scope change by splitting the Qoder coverage into an on-site segment (Qoder Work) and a new online segment (Qoder) scheduled for July 6 or 7. This directly violates the signed agreement's 'scope_boundary' which explicitly states 'No separate interview days ("
+    },
+    {
+      "date": "2026-07-04",
+      "event": "Shuonan (Alibaba) intro: booth = Grand Hall, Hyatt lobby floor, opens 8:30 AM. Shuonan busy July 5 morning; on-site contact = Nicki (yangjianmin@kastone.com.cn, 702-927-9219)"
+    }
   ],
-  "last_processed": ""
+  "last_processed": "2026-06-30T04:27:04+00:00"
 }
