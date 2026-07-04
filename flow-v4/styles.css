@@ -19858,3 +19858,35 @@ body[data-theme="dark"] .cos-x-reply-draft {
 @media (prefers-reduced-motion: reduce) {
   .liquid-tx { display: none; }
 }
+
+/* ── Deal Brain panel (Phase 1) ─────────────────────────────────────────── */
+.cos-brain { margin: 10px 14px 4px; border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; background: rgba(8,10,14,0.65); overflow: hidden; }
+.cos-brain-hd { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; background: transparent; border: none; cursor: pointer; }
+.cos-brain-title { font: 700 10px/1 var(--mono, ui-monospace); letter-spacing: 0.18em; color: #8ab4ff; }
+.cos-brain-conf { font: 600 10px/1 var(--mono, ui-monospace); color: rgba(255,255,255,0.35); text-transform: uppercase; }
+.cos-brain-chev { margin-left: auto; color: rgba(255,255,255,0.4); font-size: 14px; }
+.cos-brain-body { padding: 0 12px 12px; }
+.cos-brain-summary { margin: 2px 0 10px; font-size: 12.5px; line-height: 1.55; color: rgba(255,255,255,0.82); }
+.cos-brain-asks { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.cos-brain-ask { display: flex; align-items: flex-start; gap: 8px; }
+.cos-brain-chip { flex: none; font: 700 9px/1 var(--mono, ui-monospace); letter-spacing: 0.08em; padding: 4px 7px; border-radius: 999px; }
+.cos-brain-chip--in { background: rgba(52,199,89,0.16); color: #6de08f; }
+.cos-brain-chip--out { background: rgba(255,69,58,0.16); color: #ff8a80; }
+.cos-brain-chip--you { background: rgba(255,214,10,0.14); color: #ffd60a; }
+.cos-brain-ask-text { font-size: 12px; line-height: 1.45; color: rgba(255,255,255,0.75); }
+.cos-brain-line { font-size: 11.5px; line-height: 1.5; color: rgba(255,255,255,0.62); margin-bottom: 6px; }
+.cos-brain-line strong { color: rgba(255,255,255,0.85); }
+.cos-brain-line--alert strong { color: #ff8a80; }
+.cos-brain-draftrow { display: flex; gap: 8px; margin-top: 10px; }
+.cos-brain-btn { border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.05); color: #e6e6e6; border-radius: 999px; padding: 7px 14px; font: 600 11.5px/1 var(--sans, system-ui); cursor: pointer; }
+.cos-brain-btn--primary { background: #fff; color: #000; border-color: #fff; }
+.cos-brain-btn:hover { filter: brightness(1.1); }
+.cos-brain-signal { display: flex; align-items: center; gap: 8px; padding: 8px 12px; font-size: 12px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.cos-brain-signal-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.cos-brain-signal--go { color: #6de08f; background: rgba(52,199,89,0.08); }
+.cos-brain-signal--warn { color: #ffd60a; background: rgba(255,214,10,0.07); }
+.cos-brain-signal--bad { color: #ff8a80; background: rgba(255,69,58,0.08); }
+.cos-brain-signal--info { color: #8ab4ff; background: rgba(64,156,255,0.07); }
+.cos-brain-signal-label { font-weight: 700; }
+.cos-brain-signal-why { color: rgba(255,255,255,0.55); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cos-brain-signal-btn { margin-left: auto; flex: none; border: none; border-radius: 999px; padding: 6px 12px; font: 700 11px/1 var(--sans, system-ui); background: #fff; color: #000; cursor: pointer; }

@@ -18411,6 +18411,104 @@ function V4LeadNegotiateWorkspace({
   );
 }
 
+// ── Deal Brain panel (Phase 1) ──────────────────────────────────────────────
+// Reads the local deal-brain server (:8788). Renders NOTHING when the server is
+// off or has no read for this card, so it is zero-footprint by default.
+const V4_DEAL_BRAIN_URL = 'http://127.0.0.1:8788';
+
+const V4_BRAIN_SIGNALS = {
+  brief_materials_received: { label: 'Brief materials arrived', tone: 'go', action: 'brief' },
+  launch_live: { label: 'Launch is LIVE — action window open', tone: 'go', action: null },
+  payment_receipt_claimed: { label: 'They say payment was sent', tone: 'info', action: null },
+  payment_problem: { label: 'Payment problem', tone: 'bad', action: null },
+  scheduling_request: { label: 'They proposed times', tone: 'info', action: null },
+  scope_change_request: { label: 'Scope change requested', tone: 'warn', action: null },
+  approval_received: { label: 'They approved our content', tone: 'go', action: null },
+};
+
+function V4DealBrainPanel({ lead, setComposeOpen, onOpenSplits }) {
+  const [read, setRead] = React.useState(null);
+  const [open, setOpen] = React.useState(true);
+  const [copied, setCopied] = React.useState(false);
+
+  React.useEffect(() => {
+    let alive = true;
+    setRead(null);
+    if (!lead?.id) return undefined;
+    fetch(`${V4_DEAL_BRAIN_URL}/brain/${encodeURIComponent(lead.id)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (alive && data?.read) setRead(data.read); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [lead?.id]);
+
+  if (!read) return null;
+  const asks = Array.isArray(read.their_asks) ? read.their_asks : [];
+  const signals = (Array.isArray(read.flow_signals) ? read.flow_signals : [])
+    .map((s) => ({ ...s, meta: V4_BRAIN_SIGNALS[s.signal] }))
+    .filter((s) => s.meta);
+  const draft = read.draft_needed && read.draft ? read.draft : null;
+  const chip = (c) => (c === 'OUT_OF_SCOPE' ? 'out' : c === 'NEEDS_HUMAN' ? 'you' : 'in');
+  const chipLabel = (c) => (c === 'OUT_OF_SCOPE' ? 'OUT OF SCOPE' : c === 'NEEDS_HUMAN' ? 'NEEDS YOU' : 'IN SCOPE');
+  const copyDraft = () => {
+    try {
+      navigator.clipboard.writeText(draft.body || '');
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch (err) { /* clipboard unavailable */ }
+  };
+
+  return (
+    <div className="cos-brain">
+      {signals.map((s, i) => (
+        <div key={i} className={'cos-brain-signal cos-brain-signal--' + s.meta.tone}>
+          <span className="cos-brain-signal-dot" />
+          <span className="cos-brain-signal-label">{s.meta.label}</span>
+          <span className="cos-brain-signal-why">{s.why}</span>
+          {s.meta.action === 'brief' && onOpenSplits && (
+            <button type="button" className="cos-brain-signal-btn" onClick={onOpenSplits}>Start Brief Maker</button>
+          )}
+        </div>
+      ))}
+      <button type="button" className="cos-brain-hd" onClick={() => setOpen(!open)}>
+        <span className="cos-brain-title">DEAL BRAIN</span>
+        <span className="cos-brain-conf">{read.confidence || ''}</span>
+        <span className="cos-brain-chev">{open ? '−' : '+'}</span>
+      </button>
+      {open && (
+        <div className="cos-brain-body">
+          {read.status_summary && <p className="cos-brain-summary">{read.status_summary}</p>}
+          {asks.length > 0 && (
+            <div className="cos-brain-asks">
+              {asks.map((a, i) => (
+                <div key={i} className="cos-brain-ask">
+                  <span className={'cos-brain-chip cos-brain-chip--' + chip(a.classification)}>{chipLabel(a.classification)}</span>
+                  <span className="cos-brain-ask-text">{a.ask}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {Array.isArray(read.ignored_points) && read.ignored_points.length > 0 && (
+            <div className="cos-brain-line"><strong>Unconfirmed:</strong> {read.ignored_points.join(' · ')}</div>
+          )}
+          {Array.isArray(read.deadline_alerts) && read.deadline_alerts.length > 0 && (
+            <div className="cos-brain-line cos-brain-line--alert"><strong>Deadlines:</strong> {read.deadline_alerts.join(' · ')}</div>
+          )}
+          {Array.isArray(read.questions_for_human) && read.questions_for_human.length > 0 && (
+            <div className="cos-brain-line"><strong>Needs your call:</strong> {read.questions_for_human.join(' · ')}</div>
+          )}
+          {draft && (
+            <div className="cos-brain-draftrow">
+              <button type="button" className="cos-brain-btn cos-brain-btn--primary" onClick={() => setComposeOpen && setComposeOpen(true)}>Reply now</button>
+              <button type="button" className="cos-brain-btn" onClick={copyDraft}>{copied ? 'Copied' : 'Copy brain draft'}</button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief, briefItem, onOpenSplits, leads = [], onAfterSend }) {
   const { STAGE_BY_ID, USERS } = window.V3;
   const [tab, setTab] = React.useState('thread');
@@ -18814,6 +18912,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
               </div>
             </div>
           )}
+          <V4DealBrainPanel lead={lead} setComposeOpen={setComposeOpen} onOpenSplits={onOpenSplits} />
           <div className="gmail-read-scroll">
             {isXLead ? (
               <div className="cos-reader-stands gmail-read-x-context">
@@ -18934,6 +19033,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
               </div>
             </div>
           )}
+          <V4DealBrainPanel lead={lead} setComposeOpen={setComposeOpen} onOpenSplits={onOpenSplits} />
           <div className="cos2-reader-workspace cos2-reader-workspace--gmail">
             <div className="cos2-reader-pane cos2-reader-pane--thread">
               <div className="drawer-tabs">
