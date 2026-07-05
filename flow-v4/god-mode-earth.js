@@ -24,6 +24,26 @@
   }
   patchWebGLShaderPrecision();
 
+  // Three.js also assumes getParameter(VERSION) is a string (Q.indexOf("WebGL")).
+  function patchWebGLGetParameter() {
+    [global.WebGLRenderingContext, global.WebGL2RenderingContext].filter(Boolean).forEach((Ctx) => {
+      const proto = Ctx && Ctx.prototype;
+      const orig = proto && proto.getParameter;
+      if (!orig || orig.__godModeParamPatched) return;
+      proto.getParameter = function godModeGetParameter(pname) {
+        const val = orig.call(this, pname);
+        if (val != null) return val;
+        if (pname === this.VERSION) return 'WebGL 1.0';
+        if (pname === this.SHADING_LANGUAGE_VERSION) return 'WebGL GLSL ES 1.0';
+        if (pname === this.RENDERER) return 'WebKit WebGL';
+        if (pname === this.VENDOR) return 'WebKit';
+        return val;
+      };
+      proto.getParameter.__godModeParamPatched = true;
+    });
+  }
+  patchWebGLGetParameter();
+
   function probeWebGLSupport() {
     try {
       const canvas = document.createElement('canvas');
@@ -184,50 +204,24 @@
     return globeLibPromise;
   }
 
-  function chainGlobeFactory(GlobeFactory, el, opts) {
-    const config = {
-      rendererConfig: (opts && opts.rendererConfig) || {},
-      useWebGPU: !!(opts && opts.useWebGPU),
+  function initGlobeInstance(GlobeFactory, el) {
+    const safeRenderer = {
+      antialias: false,
+      alpha: true,
+      powerPreference: 'default',
+      failIfMajorPerformanceCaveat: false,
     };
-    const tries = [
-      () => new GlobeFactory(el, config),
-      () => GlobeFactory(config)(el),
+    const attempts = [
       () => GlobeFactory()(el),
       () => new GlobeFactory(el),
+      () => new GlobeFactory(el, { rendererConfig: safeRenderer }),
+      () => GlobeFactory({ rendererConfig: safeRenderer })(el),
     ];
-    let lastErr = null;
-    for (let i = 0; i < tries.length; i++) {
-      try {
-        const inst = tries[i]();
-        if (inst) return inst;
-      } catch (e) {
-        lastErr = e;
-      }
-    }
-    throw lastErr || new Error('Globe factory returned nothing');
-  }
-
-  function initGlobeInstance(GlobeFactory, el) {
-    const attempts = [
-      {},
-      { rendererConfig: { antialias: false, powerPreference: 'default', failIfMajorPerformanceCaveat: false } },
-    ];
-    const probe = probeWebGLSupport();
-    if (probe.ok && probe.canvas && probe.gl) {
-      attempts.push({
-        rendererConfig: {
-          canvas: probe.canvas,
-          context: probe.gl,
-          antialias: false,
-          powerPreference: 'default',
-          failIfMajorPerformanceCaveat: false,
-        },
-      });
-    }
     let lastErr = null;
     for (let i = 0; i < attempts.length; i++) {
       try {
-        return chainGlobeFactory(GlobeFactory, el, attempts[i]);
+        const inst = attempts[i]();
+        if (inst) return inst;
       } catch (e) {
         lastErr = e;
         console.warn('[god-mode] globe init attempt ' + (i + 1) + ' failed', e);
