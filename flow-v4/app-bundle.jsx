@@ -18460,6 +18460,212 @@ const V4_BRAIN_SIGNALS = {
   approval_received: { label: 'They approved our content', tone: 'go', action: null },
 };
 
+// ── Persistent deal action bar: durable Brief/Invoice buttons anchored to the
+// thread content, so they stay put for any deal (active or done) whose emails
+// carry a brief or invoice info. Independent of the transient brain signal.
+const V4_BRIEF_HINTS = [
+  'brief', 'media kit', 'press kit', 'deliverable', 'talking point', 'talking points',
+  'campaign asset', 'launch date', 'go live', 'going live', 'key message', 'product launch',
+  'one pager', 'one-pager', 'call to action', 'narrative angle', 'launch timing',
+  'what we are promoting', 'what we’re promoting', 'must include', 'must avoid', 'draft copy',
+];
+const V4_INVOICE_HINTS = [
+  'invoice', 'bill to', 'billing address', 'billing info', 'billing details', 'billing contact',
+  'w-9', 'w9', 'remittance', 'net 30', 'net-30', 'net 15', 'purchase order', 'po number',
+  'po#', 'tax id', 'accounts payable', 'payment terms', 'please invoice', 'send an invoice',
+  'send us an invoice', 'routing number', 'registered address', 'company registration',
+];
+
+function V4DealThreadText(lead) {
+  const t = Array.isArray(lead?.thread) ? lead.thread : [];
+  return t.map((m) => `${m?.subject || ''} ${m?.body || ''}`).join(' \n ').toLowerCase();
+}
+function V4DealThreadHasAttachment(lead) {
+  const t = Array.isArray(lead?.thread) ? lead.thread : [];
+  return t.some((m) => Array.isArray(m?.attachments) && m.attachments.length > 0);
+}
+function V4DealBriefDocUrl(lead) {
+  const links = Array.isArray(lead?.briefLinks) ? lead.briefLinks : [];
+  for (const l of links) {
+    const u = String((l && (l.url || l.href)) || l || '');
+    if (/docs\.google\.com|drive\.google\.com/.test(u)) return u;
+  }
+  return '';
+}
+// Pull brief-source links the counterparty sent (Notion / Google Doc / Drive /
+// Dropbox / Figma / Coda, or any URL with "brief" in it) out of the thread.
+function V4DealBriefSourceLinks(lead) {
+  const t = Array.isArray(lead?.thread) ? lead.thread : [];
+  const blob = t.map((m) => `${m?.subject || ''} ${m?.body || ''}`).join(' \n ');
+  const urls = blob.match(/https?:\/\/[^\s"'<>)]+/g) || [];
+  const seen = new Set();
+  const out = [];
+  for (const raw of urls) {
+    const u = raw.replace(/[.,);\]]+$/, '');
+    if (seen.has(u)) continue;
+    if (/notion\.(com|so|site)|docs\.google\.com|drive\.google\.com|dropbox\.com|figma\.com|coda\.io|\/brief/i.test(u)) {
+      seen.add(u);
+      out.push(u);
+    }
+  }
+  return out;
+}
+function V4DealBriefLinkLabel(url) {
+  const u = String(url || '').toLowerCase();
+  if (u.includes('notion.')) return 'Notion brief';
+  if (u.includes('docs.google')) return 'Google Doc brief';
+  if (u.includes('drive.google')) return 'Drive brief';
+  if (u.includes('dropbox')) return 'Dropbox brief';
+  if (u.includes('figma')) return 'Figma brief';
+  if (u.includes('coda.io')) return 'Coda brief';
+  return 'Brief link';
+}
+function V4DealHasBrief(lead, text) {
+  if (V4DealBriefDocUrl(lead)) return true;
+  const status = String(lead?.briefStatus || '').toLowerCase();
+  if (status && status !== 'ready' && status !== 'none') return true;
+  if (V4_BRIEF_HINTS.some((h) => text.includes(h))) return true;
+  return V4DealThreadHasAttachment(lead) && /(brief|kit|deliver|launch|asset|campaign)/.test(text);
+}
+function V4DealHasInvoiceInfo(lead, text) {
+  if (lead?.readyToInvoice === true || lead?.ready_to_invoice === true) return true;
+  return V4_INVOICE_HINTS.some((h) => text.includes(h));
+}
+
+function V4DealActionBar({ lead, onOpenSplits }) {
+  const [invOpen, setInvOpen] = React.useState(false);
+  const [invForm, setInvForm] = React.useState(null);
+  const [invStatus, setInvStatus] = React.useState('idle');
+  const [invError, setInvError] = React.useState('');
+  const [invResult, setInvResult] = React.useState(null);
+  const [briefCopied, setBriefCopied] = React.useState(false);
+
+  React.useEffect(() => {
+    setInvOpen(false); setInvForm(null); setInvStatus('idle'); setInvError(''); setInvResult(null);
+    setBriefCopied(false);
+  }, [lead?.id]);
+
+  if (!lead) return null;
+  const text = V4DealThreadText(lead);
+  const briefLinks = V4DealBriefSourceLinks(lead);
+  const briefLink = briefLinks[0] || V4DealBriefDocUrl(lead) || '';
+  const hasBrief = !!briefLink || V4DealHasBrief(lead, text);
+  const hasInvoice = V4DealHasInvoiceInfo(lead, text);
+  if (!hasBrief && !hasInvoice) return null;
+
+  const copyBriefLink = async () => {
+    if (!briefLink) return;
+    try { await navigator.clipboard.writeText(briefLink); setBriefCopied(true); setTimeout(() => setBriefCopied(false), 1800); } catch (err) { /* clipboard unavailable */ }
+  };
+
+  const setInv = (k, v) => setInvForm((f) => ({ ...(f || {}), [k]: v }));
+  const openInvoice = () => {
+    setInvResult(null); setInvError(''); setInvStatus('idle');
+    setInvForm({
+      company: lead.company || lead.businessName || lead.brand || '',
+      name: lead.contactName || '',
+      email: lead.email || '',
+      address: '',
+      campaign: lead.brand || lead.company || lead.businessName || '',
+      deliverables: lead.deliverables || '',
+      amount: '',
+      payment_details: '',
+      subject: 'Invoice',
+      body: 'Hi,\n\nPlease find the invoice attached for the agreed scope. Let me know if anything needs adjusting and we will get it turned around.\n\nThanks',
+    });
+    setInvOpen(true);
+  };
+  const generateInvoiceDraft = async () => {
+    if (!invForm) return;
+    const amount = parseFloat(String(invForm.amount).replace(/[^0-9.]/g, ''));
+    if (!invForm.company.trim()) { setInvError('Company is required.'); setInvStatus('error'); return; }
+    if (!invForm.deliverables.trim()) { setInvError('Deliverables are required.'); setInvStatus('error'); return; }
+    if (!(amount > 0)) { setInvError('Enter a valid amount.'); setInvStatus('error'); return; }
+    setInvStatus('working'); setInvError('');
+    try {
+      const payload = {
+        company: invForm.company.trim(), name: invForm.name.trim(), email: invForm.email.trim(),
+        address: invForm.address.trim(), campaign: invForm.campaign.trim(),
+        deliverables: invForm.deliverables.trim(), amount, payment_details: invForm.payment_details.trim(),
+        to: invForm.email.trim(), subject: invForm.subject, body: invForm.body,
+        threadId: lead.gmailThreadId || '', sender: 'asher',
+      };
+      const res = await fetch('http://127.0.0.1:8766/invoice-to-draft', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data.error || 'Could not create the reply draft.');
+      setInvResult(data); setInvStatus('done');
+    } catch (err) {
+      setInvError((err && err.message) || 'Invoice server unreachable. Start brief_action_server.py on this Mac.');
+      setInvStatus('error');
+    }
+  };
+
+  return (
+    <div className="cos-dealbar">
+      <div className="cos-dealbar-row">
+        <span className="cos-dealbar-eyebrow">DEAL ACTIONS</span>
+        {hasBrief && (
+          <span className="cos-dealbar-group">
+            {briefLink ? (
+              <>
+                <a className="cos-dealbar-btn cos-dealbar-btn--primary" href={briefLink} target="_blank" rel="noreferrer">Open brief</a>
+                <button type="button" className="cos-dealbar-btn" onClick={copyBriefLink}>{briefCopied ? 'Copied ✓' : 'Copy link'}</button>
+                <span className="cos-dealbar-made" title={briefLink}>{V4DealBriefLinkLabel(briefLink)}{briefLinks.length > 1 ? ' +' + (briefLinks.length - 1) : ''}</span>
+              </>
+            ) : (
+              <span className="cos-dealbar-made">Brief mentioned — no link found in thread</span>
+            )}
+          </span>
+        )}
+        {hasInvoice && (
+          <span className="cos-dealbar-group">
+            <button type="button" className={'cos-dealbar-btn' + (hasBrief ? '' : ' cos-dealbar-btn--primary') + (invOpen ? ' is-active' : '')} onClick={() => (invOpen ? setInvOpen(false) : openInvoice())}>
+              {invOpen ? 'Close invoice' : 'Create invoice'}
+            </button>
+            {invResult && <span className="cos-dealbar-made">Draft ready ✓</span>}
+          </span>
+        )}
+      </div>
+      {invOpen && invForm && (
+        <div className="cos-brain-invoice">
+          <div className="cos-brain-invoice-hd">Create invoice → attach to reply draft</div>
+          <label className="cos-brain-invoice-field">Company
+            <input value={invForm.company} onChange={(e) => setInv('company', e.target.value)} /></label>
+          <label className="cos-brain-invoice-field">Contact name
+            <input value={invForm.name} onChange={(e) => setInv('name', e.target.value)} /></label>
+          <label className="cos-brain-invoice-field">Billing email
+            <input value={invForm.email} onChange={(e) => setInv('email', e.target.value)} /></label>
+          <label className="cos-brain-invoice-field">Billing address
+            <input value={invForm.address} onChange={(e) => setInv('address', e.target.value)} /></label>
+          <label className="cos-brain-invoice-field">Campaign / product
+            <input value={invForm.campaign} onChange={(e) => setInv('campaign', e.target.value)} /></label>
+          <label className="cos-brain-invoice-field">Deliverables (use | between lines)
+            <textarea rows={2} value={invForm.deliverables} onChange={(e) => setInv('deliverables', e.target.value)} /></label>
+          <label className="cos-brain-invoice-field">Amount (USD)
+            <input inputMode="decimal" value={invForm.amount} onChange={(e) => setInv('amount', e.target.value)} /></label>
+          <label className="cos-brain-invoice-field">Payment details (blank = Sam wire default)
+            <textarea rows={2} value={invForm.payment_details} onChange={(e) => setInv('payment_details', e.target.value)} /></label>
+          <div className="cos-brain-invoice-actions">
+            <button type="button" className="cos-brain-btn cos-brain-btn--primary" disabled={invStatus === 'working'} onClick={generateInvoiceDraft}>
+              {invStatus === 'working' ? 'Working…' : 'Create + attach reply draft'}
+            </button>
+            <button type="button" className="cos-brain-btn" onClick={() => setInvOpen(false)}>Cancel</button>
+          </div>
+          {invError && <div className="cos-brain-invoice-msg cos-brain-invoice-msg--err">{invError}</div>}
+          {invResult && (
+            <div className="cos-brain-invoice-msg cos-brain-invoice-msg--ok">
+              Reply draft created with {invResult.filename} attached (draft only, nothing sent).{' '}
+              <a href={invResult.draft_url || 'https://mail.google.com/mail/u/0/#drafts'} target="_blank" rel="noreferrer">Open in Gmail Drafts</a>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function V4DealBrainPanel({ lead, setComposeOpen, onOpenSplits }) {
   const [read, setRead] = React.useState(null);
   const [open, setOpen] = React.useState(true);
@@ -18500,7 +18706,7 @@ function V4DealBrainPanel({ lead, setComposeOpen, onOpenSplits }) {
           <span className="cos-brain-signal-label">{s.meta.label}</span>
           <span className="cos-brain-signal-why">{s.why}</span>
           {s.meta.action === 'brief' && onOpenSplits && (
-            <button type="button" className="cos-brain-signal-btn" onClick={onOpenSplits}>Start Brief Maker</button>
+            <button type="button" className="cos-brain-signal-btn" onClick={onOpenSplits}>Make brief</button>
           )}
         </div>
       ))}
@@ -18946,6 +19152,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
               </div>
             </div>
           )}
+          <V4DealActionBar lead={lead} onOpenSplits={onOpenSplits} />
           <V4DealBrainPanel lead={lead} setComposeOpen={setComposeOpen} onOpenSplits={onOpenSplits} />
           <div className="gmail-read-scroll">
             {isXLead ? (
@@ -19067,6 +19274,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
               </div>
             </div>
           )}
+          <V4DealActionBar lead={lead} onOpenSplits={onOpenSplits} />
           <V4DealBrainPanel lead={lead} setComposeOpen={setComposeOpen} onOpenSplits={onOpenSplits} />
           <div className="cos2-reader-workspace cos2-reader-workspace--gmail">
             <div className="cos2-reader-pane cos2-reader-pane--thread">
@@ -20537,7 +20745,7 @@ function V4LoadGodModeModule() {
       return;
     }
     const s = document.createElement('script');
-    s.src = 'flow-v4/god-mode-earth.js?v=20260704-godmode-v17';
+    s.src = 'flow-v4/god-mode-earth.js?v=20260704-godmode-v18';
     s.async = true;
     s.onload = () => {
       if (typeof window.V4GodModeEarth === 'function') resolve(window.V4GodModeEarth);

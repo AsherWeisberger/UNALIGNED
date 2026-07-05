@@ -8,6 +8,40 @@
   const React = global.React;
   if (!React) return;
 
+  // Safari/WebKit often returns null from getShaderPrecisionFormat(HIGH_FLOAT).
+  // Three.js (inside globe.gl) then crashes on `.precision` unless we patch first.
+  const WEBGL_PRECISION_FALLBACK = { rangeMin: 127, rangeMax: 127, precision: 23 };
+  function patchWebGLShaderPrecision() {
+    [global.WebGLRenderingContext, global.WebGL2RenderingContext].filter(Boolean).forEach((Ctx) => {
+      const proto = Ctx && Ctx.prototype;
+      const orig = proto && proto.getShaderPrecisionFormat;
+      if (!orig || orig.__godModePatched) return;
+      proto.getShaderPrecisionFormat = function godModeGetShaderPrecisionFormat(shaderType, precisionType) {
+        return orig.call(this, shaderType, precisionType) || WEBGL_PRECISION_FALLBACK;
+      };
+      proto.getShaderPrecisionFormat.__godModePatched = true;
+    });
+  }
+  patchWebGLShaderPrecision();
+
+  function probeWebGLSupport() {
+    try {
+      const canvas = document.createElement('canvas');
+      const attrs = { antialias: false, failIfMajorPerformanceCaveat: false, powerPreference: 'default' };
+      const gl = canvas.getContext('webgl2', attrs)
+        || canvas.getContext('webgl', attrs)
+        || canvas.getContext('experimental-webgl', attrs);
+      if (!gl) return { ok: false, reason: 'WebGL is off or unavailable in this browser.' };
+      const fmt = gl.getShaderPrecisionFormat(gl.VERTEX_SHADER, gl.HIGH_FLOAT);
+      if (!fmt || !Number.isFinite(fmt.precision)) {
+        return { ok: false, reason: 'This browser WebGL shader precision is unsupported.' };
+      }
+      return { ok: true, canvas, gl, attrs };
+    } catch (e) {
+      return { ok: false, reason: e?.message || 'WebGL probe failed' };
+    }
+  }
+
   const GLOBE_SCRIPT_CANDIDATES = [
     () => new URL('flow-v4/vendor/globe.gl.min.js', global.location.href).href,
     'https://cdn.jsdelivr.net/npm/globe.gl@2.46.1/dist/globe.gl.min.js',
@@ -150,16 +184,69 @@
     return globeLibPromise;
   }
 
-  function initGlobeInstance(GlobeFactory, el) {
-    try {
-      return GlobeFactory()(el);
-    } catch (e1) {
+  function chainGlobeFactory(GlobeFactory, el, opts) {
+    const config = {
+      rendererConfig: (opts && opts.rendererConfig) || {},
+      useWebGPU: !!(opts && opts.useWebGPU),
+    };
+    const tries = [
+      () => new GlobeFactory(el, config),
+      () => GlobeFactory(config)(el),
+      () => GlobeFactory()(el),
+      () => new GlobeFactory(el),
+    ];
+    let lastErr = null;
+    for (let i = 0; i < tries.length; i++) {
       try {
-        return new GlobeFactory(el);
-      } catch (e2) {
-        throw e1;
+        const inst = tries[i]();
+        if (inst) return inst;
+      } catch (e) {
+        lastErr = e;
       }
     }
+    throw lastErr || new Error('Globe factory returned nothing');
+  }
+
+  function initGlobeInstance(GlobeFactory, el) {
+    const attempts = [
+      {},
+      { rendererConfig: { antialias: false, powerPreference: 'default', failIfMajorPerformanceCaveat: false } },
+    ];
+    const probe = probeWebGLSupport();
+    if (probe.ok && probe.canvas && probe.gl) {
+      attempts.push({
+        rendererConfig: {
+          canvas: probe.canvas,
+          context: probe.gl,
+          antialias: false,
+          powerPreference: 'default',
+          failIfMajorPerformanceCaveat: false,
+        },
+      });
+    }
+    let lastErr = null;
+    for (let i = 0; i < attempts.length; i++) {
+      try {
+        return chainGlobeFactory(GlobeFactory, el, attempts[i]);
+      } catch (e) {
+        lastErr = e;
+        console.warn('[god-mode] globe init attempt ' + (i + 1) + ' failed', e);
+      }
+    }
+    throw lastErr || new Error('globe.gl init failed');
+  }
+
+  function disposeGlobeInstance(globe) {
+    if (!globe) return;
+    try { globe.pauseAnimation?.(); } catch (e) {}
+    try {
+      const renderer = globe.renderer?.();
+      if (renderer) {
+        renderer.dispose?.();
+        renderer.forceContextLoss?.();
+      }
+    } catch (e) {}
+    try { globe._destructor?.(); } catch (e) {}
   }
 
   function tempColor(f) {
@@ -1555,6 +1642,11 @@
         }
         if (globeInstRef.current) return;
         setGlobeError('');
+        const webgl = probeWebGLSupport();
+        if (!webgl.ok) {
+          setGlobeError('3D globe needs WebGL: ' + (webgl.reason || 'unavailable') + '. Enable hardware graphics or try another browser.');
+          return;
+        }
         try {
           const GlobeFactory = await ensureGlobeLibrary();
           if (cancelled || !globeRef.current || globeInstRef.current) return;
@@ -1672,6 +1764,8 @@
         cloudMeshRef.current = null;
         texProtoRef.current = null;
         radarGlobeUrlRef.current = '';
+        disposeGlobeInstance(globeInstRef.current);
+        if (global.__V4GodGlobe === globeInstRef.current) global.__V4GodGlobe = null;
         globeInstRef.current = null;
         setGlobeReady(false);
         if (globeRef.current) globeRef.current.innerHTML = '';
