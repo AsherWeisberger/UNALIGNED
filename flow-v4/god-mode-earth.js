@@ -8,41 +8,87 @@
   const React = global.React;
   if (!React) return;
 
-  // Safari/WebKit often returns null from getShaderPrecisionFormat(HIGH_FLOAT).
-  // Three.js (inside globe.gl) then crashes on `.precision` unless we patch first.
+  // WebKit/Safari returns null from several WebGL queries; Three.js assumes strings/arrays.
   const WEBGL_PRECISION_FALLBACK = { rangeMin: 127, rangeMax: 127, precision: 23 };
-  function patchWebGLShaderPrecision() {
-    [global.WebGLRenderingContext, global.WebGL2RenderingContext].filter(Boolean).forEach((Ctx) => {
-      const proto = Ctx && Ctx.prototype;
-      const orig = proto && proto.getShaderPrecisionFormat;
-      if (!orig || orig.__godModePatched) return;
-      proto.getShaderPrecisionFormat = function godModeGetShaderPrecisionFormat(shaderType, precisionType) {
-        return orig.call(this, shaderType, precisionType) || WEBGL_PRECISION_FALLBACK;
-      };
-      proto.getShaderPrecisionFormat.__godModePatched = true;
-    });
-  }
-  patchWebGLShaderPrecision();
+  const WEBGL_CONTEXT_DEFAULTS = {
+    alpha: true,
+    antialias: false,
+    depth: true,
+    failIfMajorPerformanceCaveat: false,
+    powerPreference: 'default',
+    premultipliedAlpha: true,
+    preserveDrawingBuffer: false,
+    stencil: false,
+  };
 
-  // Three.js also assumes getParameter(VERSION) is a string (Q.indexOf("WebGL")).
-  function patchWebGLGetParameter() {
+  function isWebKitBrowser() {
+    const ua = String(global.navigator?.userAgent || '');
+    return /AppleWebKit/i.test(ua) && !/Chrome|Chromium|Edg\//i.test(ua);
+  }
+
+  function patchWebGLForThree() {
     [global.WebGLRenderingContext, global.WebGL2RenderingContext].filter(Boolean).forEach((Ctx) => {
       const proto = Ctx && Ctx.prototype;
-      const orig = proto && proto.getParameter;
-      if (!orig || orig.__godModeParamPatched) return;
-      proto.getParameter = function godModeGetParameter(pname) {
-        const val = orig.call(this, pname);
-        if (val != null) return val;
-        if (pname === this.VERSION) return 'WebGL 1.0';
-        if (pname === this.SHADING_LANGUAGE_VERSION) return 'WebGL GLSL ES 1.0';
-        if (pname === this.RENDERER) return 'WebKit WebGL';
-        if (pname === this.VENDOR) return 'WebKit';
-        return val;
-      };
-      proto.getParameter.__godModeParamPatched = true;
+      if (!proto) return;
+
+      const origPrecision = proto.getShaderPrecisionFormat;
+      if (origPrecision && !origPrecision.__godModePatched) {
+        proto.getShaderPrecisionFormat = function godModeGetShaderPrecisionFormat(shaderType, precisionType) {
+          return origPrecision.call(this, shaderType, precisionType) || WEBGL_PRECISION_FALLBACK;
+        };
+        proto.getShaderPrecisionFormat.__godModePatched = true;
+      }
+
+      const origParam = proto.getParameter;
+      if (origParam && !origParam.__godModeParamPatched) {
+        proto.getParameter = function godModeGetParameter(pname) {
+          const val = origParam.call(this, pname);
+          if (val != null) return val;
+          if (pname === this.VERSION) return 'WebGL 1.0';
+          if (pname === this.SHADING_LANGUAGE_VERSION) return 'WebGL GLSL ES 1.0';
+          if (pname === this.RENDERER) return 'WebKit WebGL';
+          if (pname === this.VENDOR) return 'WebKit';
+          if (pname === this.MAX_COMBINED_TEXTURE_IMAGE_UNITS) return 8;
+          if (pname === this.MAX_TEXTURE_IMAGE_UNITS) return 8;
+          if (pname === this.MAX_TEXTURE_SIZE) return 4096;
+          if (pname === this.MAX_CUBE_MAP_TEXTURE_SIZE) return 4096;
+          if (pname === this.MAX_VERTEX_ATTRIBS) return 16;
+          return val;
+        };
+        proto.getParameter.__godModeParamPatched = true;
+      }
+
+      const origExt = proto.getSupportedExtensions;
+      if (origExt && !origExt.__godModeExtPatched) {
+        proto.getSupportedExtensions = function godModeGetSupportedExtensions() {
+          return origExt.call(this) || [];
+        };
+        proto.getSupportedExtensions.__godModeExtPatched = true;
+      }
+
+      const origAttrs = proto.getContextAttributes;
+      if (origAttrs && !origAttrs.__godModeAttrPatched) {
+        proto.getContextAttributes = function godModeGetContextAttributes() {
+          return origAttrs.call(this) || WEBGL_CONTEXT_DEFAULTS;
+        };
+        proto.getContextAttributes.__godModeAttrPatched = true;
+      }
     });
+
+    const canvasProto = global.HTMLCanvasElement && global.HTMLCanvasElement.prototype;
+    const origGetContext = canvasProto && canvasProto.getContext;
+    if (origGetContext && !origGetContext.__godModeCtxPatched && isWebKitBrowser()) {
+      canvasProto.getContext = function godModeGetContext(type, attrs) {
+        if (type === 'webgl2') {
+          return origGetContext.call(this, 'webgl', attrs)
+            || origGetContext.call(this, 'experimental-webgl', attrs);
+        }
+        return origGetContext.call(this, type, attrs);
+      };
+      canvasProto.getContext.__godModeCtxPatched = true;
+    }
   }
-  patchWebGLGetParameter();
+  patchWebGLForThree();
 
   function probeWebGLSupport() {
     try {
@@ -64,8 +110,8 @@
 
   const GLOBE_SCRIPT_CANDIDATES = [
     () => new URL('flow-v4/vendor/globe.gl.min.js', global.location.href).href,
-    'https://cdn.jsdelivr.net/npm/globe.gl@2.46.1/dist/globe.gl.min.js',
-    'https://unpkg.com/globe.gl@2.46.1/dist/globe.gl.min.js',
+    'https://cdn.jsdelivr.net/npm/globe.gl@2.35.0/dist/globe.gl.min.js',
+    'https://unpkg.com/globe.gl@2.35.0/dist/globe.gl.min.js',
   ];
   let globeLibPromise = null;
 
@@ -180,11 +226,33 @@
     return null;
   }
 
+  function waitForGlobeContainer(el, timeoutMs) {
+    const limit = Number(timeoutMs) || 4000;
+    const start = Date.now();
+    return new Promise((resolve, reject) => {
+      const tick = () => {
+        if (!el || !el.isConnected) {
+          if (Date.now() - start > limit) reject(new Error('Globe mount element detached'));
+          else global.requestAnimationFrame(tick);
+          return;
+        }
+        const w = Math.max(el.clientWidth || 0, el.offsetWidth || 0);
+        const h = Math.max(el.clientHeight || 0, el.offsetHeight || 0);
+        if (w >= 120 && h >= 120) return resolve({ w, h });
+        if (Date.now() - start > limit) reject(new Error('Globe container has no size yet'));
+        else global.requestAnimationFrame(tick);
+      };
+      tick();
+    });
+  }
+
   async function ensureGlobeLibrary() {
+    patchWebGLForThree();
     const ready = resolveGlobeFactory();
     if (ready) return ready;
     if (!globeLibPromise) {
       globeLibPromise = (async () => {
+        patchWebGLForThree();
         const errors = [];
         for (let i = 0; i < GLOBE_SCRIPT_CANDIDATES.length; i++) {
           const candidate = GLOBE_SCRIPT_CANDIDATES[i];
@@ -205,21 +273,27 @@
   }
 
   function initGlobeInstance(GlobeFactory, el) {
-    const safeRenderer = {
-      antialias: false,
-      alpha: true,
-      powerPreference: 'default',
-      failIfMajorPerformanceCaveat: false,
+    const globeOpts = {
+      rendererConfig: {
+        antialias: false,
+        alpha: true,
+        powerPreference: 'default',
+        failIfMajorPerformanceCaveat: false,
+      },
+      animateIn: false,
+      waitForGlobeReady: true,
+      useWebGPU: false,
     };
     const attempts = [
+      () => new GlobeFactory(el, globeOpts),
+      () => GlobeFactory(globeOpts)(el),
       () => GlobeFactory()(el),
       () => new GlobeFactory(el),
-      () => new GlobeFactory(el, { rendererConfig: safeRenderer }),
-      () => GlobeFactory({ rendererConfig: safeRenderer })(el),
     ];
     let lastErr = null;
     for (let i = 0; i < attempts.length; i++) {
       try {
+        if (el) el.innerHTML = '';
         const inst = attempts[i]();
         if (inst) return inst;
       } catch (e) {
@@ -1642,6 +1716,8 @@
           return;
         }
         try {
+          await waitForGlobeContainer(globeRef.current);
+          if (cancelled || !globeRef.current || globeInstRef.current) return;
           const GlobeFactory = await ensureGlobeLibrary();
           if (cancelled || !globeRef.current || globeInstRef.current) return;
           const v = viewerRef.current || {};

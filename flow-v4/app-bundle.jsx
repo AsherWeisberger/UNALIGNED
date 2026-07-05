@@ -14982,6 +14982,9 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
   const [docStatus, setDocStatus] = React.useState('idle');
   const [docError, setDocError] = React.useState('');
   const [docResult, setDocResult] = React.useState(null);
+  // Card this brief run is for (handed off from a deal's "Make brief"); lets us
+  // persist the generated doc link back to that deal so its bar shows "made ✓".
+  const briefTargetCardIdRef = React.useRef(null);
   const [notionStatus, setNotionStatus] = React.useState('idle');
   const [notionError, setNotionError] = React.useState('');
   const [calendarStatus, setCalendarStatus] = React.useState('idle');
@@ -15070,7 +15073,37 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
         setManualLeadOpen(true);
       }
     } catch (err) {}
+    // Consume a pending brief source handed off from a deal's "Make brief" button:
+    // prefill the source link and open the brief maker straight away.
+    try {
+      const pending = window.__uaPendingBriefSource;
+      if (pending !== undefined && pending !== null) {
+        window.__uaPendingBriefSource = undefined;
+        const link = String(pending || '');
+        if (link) {
+          setBriefForm((curr) => ({ ...curr, source_url: link, notion_url: link }));
+        }
+        setBriefMakerOpen(true);
+      }
+      const pendingCard = window.__uaPendingBriefCardId;
+      if (pendingCard !== undefined && pendingCard !== null) {
+        window.__uaPendingBriefCardId = undefined;
+        briefTargetCardIdRef.current = String(pendingCard || '') || null;
+      }
+    } catch (err) {}
   }, []);
+
+  // When a brief doc is produced for a specific deal, remember the link locally so
+  // that deal's action bar can show "Brief made ✓ / Edit doc" on future visits.
+  React.useEffect(() => {
+    const url = docResult && (docResult.url || docResult.doc_url);
+    const cid = briefTargetCardIdRef.current;
+    if (url && cid) {
+      try {
+        window.localStorage.setItem('ua_brief_doc_' + cid, JSON.stringify({ url: String(url), at: Date.now() }));
+      } catch (err) {}
+    }
+  }, [docResult]);
 
   React.useEffect(() => {
     if (briefDebugStage) {
@@ -18510,6 +18543,14 @@ function V4DealBriefSourceLinks(lead) {
   }
   return out;
 }
+function V4DealMadeBriefDoc(lead) {
+  try {
+    const raw = window.localStorage.getItem('ua_brief_doc_' + String(lead?.id || ''));
+    if (!raw) return '';
+    const parsed = JSON.parse(raw);
+    return String(parsed && parsed.url ? parsed.url : '');
+  } catch (err) { return ''; }
+}
 function V4DealBriefLinkLabel(url) {
   const u = String(url || '').toLowerCase();
   if (u.includes('notion.')) return 'Notion brief';
@@ -18539,23 +18580,76 @@ function V4DealActionBar({ lead, onOpenSplits }) {
   const [invError, setInvError] = React.useState('');
   const [invResult, setInvResult] = React.useState(null);
   const [briefCopied, setBriefCopied] = React.useState(false);
+  const [briefBusy, setBriefBusy] = React.useState(false);
+  const [briefStage, setBriefStage] = React.useState('');
+  const [briefGenError, setBriefGenError] = React.useState('');
+  const [briefResultUrl, setBriefResultUrl] = React.useState('');
+  const aliveRef = React.useRef(true);
+  React.useEffect(() => { aliveRef.current = true; return () => { aliveRef.current = false; }; }, []);
 
   React.useEffect(() => {
     setInvOpen(false); setInvForm(null); setInvStatus('idle'); setInvError(''); setInvResult(null);
-    setBriefCopied(false);
+    setBriefCopied(false); setBriefBusy(false); setBriefStage(''); setBriefGenError(''); setBriefResultUrl('');
   }, [lead?.id]);
 
   if (!lead) return null;
   const text = V4DealThreadText(lead);
   const briefLinks = V4DealBriefSourceLinks(lead);
   const briefLink = briefLinks[0] || V4DealBriefDocUrl(lead) || '';
-  const hasBrief = !!briefLink || V4DealHasBrief(lead, text);
+  const madeDoc = briefResultUrl || V4DealMadeBriefDoc(lead);
+  const hasBrief = !!briefLink || !!madeDoc || V4DealHasBrief(lead, text);
   const hasInvoice = V4DealHasInvoiceInfo(lead, text);
   if (!hasBrief && !hasInvoice) return null;
 
   const copyBriefLink = async () => {
     if (!briefLink) return;
     try { await navigator.clipboard.writeText(briefLink); setBriefCopied(true); setTimeout(() => setBriefCopied(false), 1800); } catch (err) { /* clipboard unavailable */ }
+  };
+  // Build Robert's brief doc in the background, right here on the email screen —
+  // no navigation. Uses the same brief machine the Brief Maker tool does.
+  const makeBrief = async () => {
+    if (briefBusy) return;
+    if (!briefLink) { setBriefGenError('No brief link found in this thread to build from. Open the Brief Maker to build one manually.'); return; }
+    try { navigator.clipboard.writeText(briefLink); } catch (err) { /* ignore */ }
+    setBriefGenError(''); setBriefResultUrl(''); setBriefBusy(true); setBriefStage('Queued on your brief machine…');
+    try {
+      const jobRes = await V4BriefServiceFetch('/start-brief-job', {
+        method: 'POST',
+        body: JSON.stringify({
+          source_url: briefLink, notion_url: briefLink, email_context: '',
+          deliverable_type: '', deliverable_type_locked: false,
+          calendar_title: '', calendar_mode: 'all_day', calendar_date: '', calendar_start: '', calendar_end: '',
+        }),
+      });
+      const jobData = await jobRes.json();
+      if (!jobRes.ok || !jobData.ok) throw new Error(jobData.error || 'Brief build failed.');
+      const jobId = (jobData.job || {}).id;
+      if (!jobId) throw new Error('Brief job did not start.');
+      const started = Date.now();
+      while (aliveRef.current && Date.now() - started < 360000) {
+        await new Promise((r) => setTimeout(r, 2500));
+        if (!aliveRef.current) return;
+        let job;
+        try {
+          const res = await V4BriefServiceFetch('/brief-job-status?job_id=' + encodeURIComponent(jobId), { method: 'GET' });
+          const data = await res.json();
+          if (!res.ok || !data.ok) throw new Error(data.error || 'Could not load brief job.');
+          job = data.job || {};
+        } catch (err) { continue; }
+        if (!aliveRef.current) return;
+        if (job.stage_detail || job.stage) setBriefStage(job.stage_detail || job.stage);
+        if (job.status === 'done') {
+          const url = (job.result || {}).url || '';
+          if (url) { try { window.localStorage.setItem('ua_brief_doc_' + String(lead.id || ''), JSON.stringify({ url, at: Date.now() })); } catch (e) { /* ignore */ } }
+          setBriefResultUrl(url); setBriefBusy(false); setBriefStage('');
+          return;
+        }
+        if (job.status === 'error') throw new Error(job.error || 'Brief build failed.');
+      }
+      if (aliveRef.current) { setBriefBusy(false); setBriefStage(''); setBriefGenError('Brief build timed out. Check the brief machine on your Mac.'); }
+    } catch (err) {
+      if (aliveRef.current) { setBriefBusy(false); setBriefStage(''); setBriefGenError((err && err.message) || 'Brief build failed. Is the brief machine running?'); }
+    }
   };
 
   const setInv = (k, v) => setInvForm((f) => ({ ...(f || {}), [k]: v }));
@@ -18608,15 +18702,17 @@ function V4DealActionBar({ lead, onOpenSplits }) {
         <span className="cos-dealbar-eyebrow">DEAL ACTIONS</span>
         {hasBrief && (
           <span className="cos-dealbar-group">
-            {briefLink ? (
-              <>
-                <a className="cos-dealbar-btn cos-dealbar-btn--primary" href={briefLink} target="_blank" rel="noreferrer">Open brief</a>
-                <button type="button" className="cos-dealbar-btn" onClick={copyBriefLink}>{briefCopied ? 'Copied ✓' : 'Copy link'}</button>
-                <span className="cos-dealbar-made" title={briefLink}>{V4DealBriefLinkLabel(briefLink)}{briefLinks.length > 1 ? ' +' + (briefLinks.length - 1) : ''}</span>
-              </>
-            ) : (
-              <span className="cos-dealbar-made">Brief mentioned — no link found in thread</span>
-            )}
+            <button type="button" className="cos-dealbar-btn cos-dealbar-btn--primary" disabled={briefBusy} onClick={makeBrief} title={madeDoc ? 'Rebuild Robert’s brief doc from the client link' : 'Build Robert’s brief doc from the client link, right here'}>{briefBusy ? 'Building…' : madeDoc ? 'Refresh brief' : 'Make brief'}</button>
+            {madeDoc && <a className="cos-dealbar-btn" href={madeDoc} target="_blank" rel="noreferrer">Edit doc</a>}
+            {briefLink && <a className="cos-dealbar-btn" href={briefLink} target="_blank" rel="noreferrer">Open brief</a>}
+            {briefLink && <button type="button" className="cos-dealbar-btn" onClick={copyBriefLink}>{briefCopied ? 'Copied ✓' : 'Copy link'}</button>}
+            {briefBusy
+              ? <span className="cos-dealbar-made">{briefStage || 'Building brief…'}</span>
+              : madeDoc
+                ? <span className="cos-dealbar-made">Brief made ✓</span>
+                : briefLink
+                  ? <span className="cos-dealbar-made" title={briefLink}>{V4DealBriefLinkLabel(briefLink)}{briefLinks.length > 1 ? ' +' + (briefLinks.length - 1) : ''}</span>
+                  : <span className="cos-dealbar-made">Brief mentioned — no link found in thread</span>}
           </span>
         )}
         {hasInvoice && (
@@ -18628,6 +18724,15 @@ function V4DealActionBar({ lead, onOpenSplits }) {
           </span>
         )}
       </div>
+      {briefGenError && (
+        <div className="cos-brain-invoice-msg cos-brain-invoice-msg--err" style={{ margin: '0 12px 12px' }}>{briefGenError}</div>
+      )}
+      {briefResultUrl && (
+        <div className="cos-brain-invoice-msg cos-brain-invoice-msg--ok" style={{ margin: '0 12px 12px' }}>
+          Robert’s brief doc is ready.{' '}
+          <a href={briefResultUrl} target="_blank" rel="noreferrer">Open the Google Doc</a>
+        </div>
+      )}
       {invOpen && invForm && (
         <div className="cos-brain-invoice">
           <div className="cos-brain-invoice-hd">Create invoice → attach to reply draft</div>
@@ -20745,7 +20850,7 @@ function V4LoadGodModeModule() {
       return;
     }
     const s = document.createElement('script');
-    s.src = 'flow-v4/god-mode-earth.js?v=20260704-godmode-v19';
+    s.src = 'flow-v4/god-mode-earth.js?v=20260705-godmode-v20';
     s.async = true;
     s.onload = () => {
       if (typeof window.V4GodModeEarth === 'function') resolve(window.V4GodModeEarth);
