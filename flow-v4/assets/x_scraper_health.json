@@ -1,11 +1,11 @@
 {
-  "ran_at": "2026-07-04T11:19:53",
-  "stop_reason": "outside_recent_window:2026-07-02",
-  "stop_signature": "https://x.com/i/chat/13348-1682127524963426304|The Humanoid Hub|2d|woh, watching now",
-  "inspected": 27,
-  "relevant_count": 3,
-  "new_threads": 3,
-  "ok": true,
+  "ran_at": "2026-07-06T10:24:35",
+  "stop_reason": "stalled_after_scroll",
+  "stop_signature": null,
+  "inspected": 0,
+  "relevant_count": 0,
+  "new_threads": 0,
+  "ok": false,
   "source": "live_x_inbox_daily_scrape.py",
   "note": "This powers the ORGANS X watcher health card."
 }
