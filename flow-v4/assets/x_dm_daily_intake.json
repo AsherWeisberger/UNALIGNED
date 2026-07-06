@@ -87,7 +87,7 @@
   },
   {
     "rank": 7,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-05-19",
@@ -154,7 +154,9 @@
         "sender": "Robert",
         "text": "Yeah! When works for you?\n4:40 PM\n4:40 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 8,
@@ -220,7 +222,7 @@
   },
   {
     "rank": 13,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-02-27",
@@ -247,7 +249,9 @@
         "sender": "Lead",
         "text": "Hi Robert,\n\nThis is Rachel from GenAI Assembling, we met at the GMI launch in SF last month 😊\n\nWe’re hosting a hands-on AI Agent workshop with Mulerun on March 25 in the South Bay (30–50 curated non-tech professionals building real use cases), and I’d love to invite you to join if available.\n\nWe’d love for you to experience the product firsthand during the workshop and share your perspective with your audience. If you’re open to that, could you let me know your availability and your standard collaboration rate for this type of partnership?\n\nHappy to send over a short proposal with more details : )\n2:58 PM\n2:58 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 14,
@@ -1007,7 +1011,7 @@
   },
   {
     "rank": 41,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-04-01",
@@ -1034,7 +1038,9 @@
         "sender": "Lead",
         "text": "Hi Robert,\n\nThis is Annabel — I run a growth agency helping AI products scale on X and other platforms. 【 Your content around practical AI tools and product usage makes your audience a good match for this launch. 】\n I'd love to put a new product on your radar: a cloud phone built for OpenClaw — giving AI agents an always-on mobile environment to run apps, automate tasks, and interact with the mobile ecosystem 24/7, no physical device needed.\n\nHere's the exciting part —Next week we're about to launch and handpicking a tiny group of top creators for exclusive early access before it goes public. 🚀 You'd be among the very first to try it and share your genuine take with your audience. We're only extending this to creators we truly believe in — and you're one of them.\n\nBeyond this launch, we work with multiple AI products planning long-term partnerships with consistent campaigns. I'd love to build a stable, preferential partnership with you across all of them.\n\nDrop me a line here or on WhatsApp: [+1(515)4518184] — would love to chat! 🙌\n11:24 PM\n11:24 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 42,
@@ -1346,7 +1352,7 @@
   },
   {
     "rank": 55,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-01-19",
@@ -1373,7 +1379,9 @@
         "sender": "Lead",
         "text": "Hi,\n\nAs the top voice in AI, we’d love to invite you to be part of Launch & Fund Your Startup – AI Meets Robotics, a $1M+ premier Robotics x AI event in San Francisco, bringing together top founders, builders, and investors for a highly curated build-to-pitch startup challenge.\n\nWe’d be honored to feature you as a speaker, judge, or mentor – either online or in person during the SF on-site days (Feb 14–15 at the MindsDB office).\n\nDetails: t.co/shWrLQHwtF\nWould love to explore featuring you in this edition. If you’re open to that proposal, I’ll follow up with all the details.\n\nBest,\nJoanna Slupczewska\nHead of Marketing,\n5:34 AM\n5:34 AM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 57,
@@ -1529,7 +1537,7 @@
   },
   {
     "rank": 61,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2025-05-31",
@@ -1588,11 +1596,13 @@
         "sender": "Lead",
         "text": "Man alive I haven't been wowed by anything ai for ages. And then noscroll comes along. I admit I have zero experience of OpenClaw (just Hermes Agent) but noscroll is so dang friendly and wow it just seems to remember everything in such granular detail. If you haven't chatted with the team/founder I'd def give it a shot. The only wrinkle is they're struggling (for some reason) with the X API.\n8:47 AM\n8:47 AM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 64,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-05-07",
@@ -1623,7 +1633,9 @@
         "sender": "Robert",
         "text": "Thanks. Best to work with my business manager Sam Levin samlevin@mac.com\n\nI am at scobleizer@gmail.com\n\nCan I have your email and I will have him work with you?\n8:09 AM\n8:09 AM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 65,
@@ -1701,7 +1713,7 @@
   },
   {
     "rank": 68,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-04-24",
@@ -1728,7 +1740,9 @@
         "sender": "Lead",
         "text": "Hi Robert, I’m reaching out from Bloomberg. I have been following your work at the intersection of AI and spatial computing, especially your recent analysis on Scobleizer, your work with Infinite Retina, and your founder-led conversations on Unaligned that surface early signals across AI startups, robotics, and XR. Your long track record of identifying shifts early, from cloud and mobile eras to today’s AI and spatial stack, makes your perspective uniquely valuable for a serious discussion on where practical adoption is actually happening versus where hype is running ahead. I would love to explore a collaboration around those frontier themes for a Bloomberg audience focused on real business impact. If this is of interest, I can send over scheduling options that work around your availability.\nBrad\n8:41 AM\n8:41 AM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 69,
@@ -1773,7 +1787,7 @@
   },
   {
     "rank": 70,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-03-25",
@@ -1804,7 +1818,9 @@
         "sender": "Robert",
         "text": "Sorry for missing this. You were thrown to my other folder that I don't check as frequently as I should. \n\nWould love to. Best way is to have Sam Levin, my business manager, work with you samlevin@mac.com\n1:07 PM\n1:07 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 71,
@@ -2638,7 +2654,7 @@
   },
   {
     "rank": 105,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-02-14",
@@ -2665,7 +2681,9 @@
         "sender": "Lead",
         "text": "Hey there,\n\nI’m  Sri from in10nt.  We’re building a platform to deploy tens to thousands of cloud agents (e.g., OpenClaw) to execute everyday workflows. \n\nWe’d love to offer you free access in exchange for being a design partner. Your feedback would be extremely valuable  so that we can iterate and build upon in10nt . The goal is to make our service the most  reliable and secure, while transitioning our prototype to a dependable system. \n\nIf interested, we would love to set up a call with you! Please let me know what time works best!\n2:25 PM\n2:25 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 107,
@@ -2921,7 +2939,7 @@
   },
   {
     "rank": 116,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2025-05-08",
@@ -2972,7 +2990,9 @@
         "sender": "Lead",
         "text": "Hello Robert!\nTips please, I happen to swing past SF for two days. What’s the best way to network with peeps in AR and AI spaces? Any event or place where I should definitely hang out? I land on the 3rd of March and stay until the 5th and then I am off to LA for IHRSA and onwards to Austin for SXSW.\nCheers in advance !\nOh and I booked my Apple Vision Pro demo at the visitor centre store 4:30pm on the 4th - cannot wait !\n7:06 PM\n7:06 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 117,
@@ -3281,7 +3301,7 @@
   },
   {
     "rank": 132,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-03-12",
@@ -3312,11 +3332,13 @@
         "sender": "Robert",
         "text": "Sorry for missing this. You were thrown to my other folder that I don't check as frequently as I should. \n\nWould love to.\n1:10 PM\n1:10 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 137,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-02-18",
@@ -3343,7 +3365,9 @@
         "sender": "Lead",
         "text": "Hi  Robert !!\n\nIf you're interested, could we do a quick 10-15 minute interview ?\n\nWe're currently conducting interviews.  \n\nRight now, integrating just one external API into an agent often takes hours to days , and the hassle of handling payments, authentication, implementation, testing, and security is a major bottleneck for everyone.\n\nThat's why we're building OmniAPI — a dedicated API provider + payment infrastructure designed specifically for AI agents.\n\n・Agents can automatically discover and select from a huge catalog of APIs (including everything on Rapid API)  \n・Pay-per-use with instant, frictionless micro-payments — no need for account sign-ups, subscriptions, or complicated billing setups  \n・Payments happen directly within HTTP requests using a simple, open standard (called x402), so it's fast, low-cost, and feels almost like using a regular API (without the usual payment headaches)  \n\nThis dramatically cuts integration time and opens up smooth new possibilities, like agents automatically using each other's services.\n\nWe'd also love to hear any feedback if you try it out 🙏\n\nThanks so much!!!\n\nwebsite: https://t.co/LcQxIwTKjq\nSpir: t.co/Bbez5TMND4\n4:26 AM\n4:26 AM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 138,
@@ -3704,7 +3728,7 @@
   },
   {
     "rank": 164,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-03-24",
@@ -3731,7 +3755,9 @@
         "sender": "Lead",
         "text": "Scobleizer – Hello! How would you like to explore some of our latest premium pleasure items completely on us? We're inviting a select group to experience our new collection. Simply choose from our optional products, and in return, we just ask for an honest Amazon Review after you've had a chance to try it out. To get started, could you share which Amazon platform you typically use? We ensure all shipments are handled with complete discretion. Let's find something exciting for you! 🌟📦\n5:14 PM\n5:14 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 165,
@@ -3770,7 +3796,7 @@
   },
   {
     "rank": 166,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-03-06",
@@ -3797,11 +3823,13 @@
         "sender": "Lead",
         "text": "Hey Robert are you currently monitoring how your visitors behave across your marketing channels?\n\nReason I'm asking is cause most SaaS companies we talk to are losing revenue because they can't tie every action back to a real person so they're flying blind.\n\nWe help SaaS brands like Microsoft and Carvana to help understand their customers with behavioral analytics, using our analytics.\n\nI'd be happy to set you up with a free demo to see if it could help your business.\n1:03 PM\n1:03 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 169,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-02-19",
@@ -3828,11 +3856,13 @@
         "sender": "Lead",
         "text": "I know you've been covering the OpenClaw/Moltbook ecosystem closely. There's a new layer worth your attention.\n \nStratus X1 just launched out of stealth, it's a 290M parameter world model that sits above LLMs, giving agents the ability to simulate and validate actions before executing them. Real numbers: 2x task completion on WebArena, +105% with Claude Sonnet 4. 5-min integration with OpenClaw.\n \nI'm working with the Formation team on GTM. Would love to get you early beta access and a direct briefing with the founders, think it'd make a strong story given the OpenClaw angle. Worth 20 minutes?\n1:16 PM\n1:16 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 172,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-02-16",
@@ -3863,7 +3893,9 @@
         "sender": "Lead",
         "text": "Our aim is to keep putting out useful articles that reveal what others don’t commonly know and soon release products that add tangible value to builders, rather than academic benchmarks that mean nothing\n1:43 PM\n1:43 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 174,
@@ -3933,7 +3965,7 @@
   },
   {
     "rank": 177,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-01-10",
@@ -3960,7 +3992,9 @@
         "sender": "Lead",
         "text": "Hi there, this is Oscar from Avocado. We're in charge of marketing and operations for the Dreamina software. We'd like to invite you to test our DreaminaAI software. Would you be interested?\n12:58 AM\n12:58 AM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 178,
@@ -4809,7 +4843,7 @@
   },
   {
     "rank": 212,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-02-03",
@@ -4836,7 +4870,9 @@
         "sender": "Lead",
         "text": "Hey Robert, wassup? I’m launching a new app and need your help promoting it on your page for your many followers. A simple tweet will help. I need your help. Let’s talk. Thank you\n2:16 PM\n2:16 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 213,
@@ -5725,7 +5761,7 @@
   },
   {
     "rank": 311,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-05-25",
@@ -5768,7 +5804,9 @@
         "sender": "Lead",
         "text": "That's a great point.\n\nIt feels like we've reached a stage where building products has become easier, but getting consistent distribution and customer attention has become much harder.\n\nIn the conversations you've had recently, what's the biggest mistake AI founders are making when it comes to finding customers?\n5:32 AM\n5:32 AM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 312,
@@ -5989,7 +6027,7 @@
   },
   {
     "rank": 317,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-05-06",
@@ -6060,7 +6098,9 @@
         "sender": "Lead",
         "text": "Hi Robert, we just launched on Product Hunt! I would really appreciate to get your support with an upvote\n12:22 PM\n12:22 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 319,
@@ -6448,7 +6488,7 @@
   },
   {
     "rank": 331,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-03-13",
@@ -6483,7 +6523,9 @@
         "sender": "Robert",
         "text": "Sorry for missing this. You were thrown to my other folder that I don't check as frequently as I should. I will try to help in future.\n12:57 PM\n12:57 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 333,
@@ -6660,7 +6702,7 @@
   },
   {
     "rank": 339,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-02-06",
@@ -6687,7 +6729,9 @@
         "sender": "Lead",
         "text": "Gm I'm building the first SocialFi platform on TG, launched a little over a month ago with 100K+ in revenue and 200k+ users. Would love to chat if this would be smth that you'd invest in.\n4:16 AM\n4:16 AM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 340,
@@ -6799,7 +6843,7 @@
   },
   {
     "rank": 342,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-01-30",
@@ -6830,7 +6874,9 @@
         "sender": "Lead",
         "text": "Link to the launch tweet:\n3:09 PM\n3:09 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 344,
@@ -6869,7 +6915,7 @@
   },
   {
     "rank": 347,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-01-14",
@@ -6896,7 +6942,9 @@
         "sender": "Lead",
         "text": "Hi, I’m Jackie from the LobeHub team 👋\nYou can check out our product here: https://t.co/zwh4TvH7py\n\nWe’re planning to launch LobeHub 2.0 in about two weeks, and it will go live on Product Hunt at the same time.\nI really enjoy your content in the AI space and would love to invite you to check out our launch tweet when it’s live — if you like it, it’d mean a lot if you could help share it.\nIf you’re interested, we can also offer you early access or a sneak peek of the new version.\nThanks so much! 🙏\n4:00 AM\n4:00 AM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 348,
@@ -6970,7 +7018,7 @@
   },
   {
     "rank": 351,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-01-12",
@@ -6997,7 +7045,9 @@
         "sender": "Lead",
         "text": "Hello! I'm Rikki from Noah AI. \n \nWe are dedicated to building AI agents that can think and execute like the top 1% of biopharma and medical professionals. And I'd love to invite you to try our agent. \nThis is our product link: t.co/27LL66JsKL\n \nNoah AI was founded in 2023 by a team of pharma and tech experts from companies such as Roche, Novartis, Astellas, LinkedIn, and TikTok. \n\nThe outstanding aspect of Noah AI in the field of biomedicine lies in its reliable, authentic and timely data sources, which can be traced back to Pubmed and other sources. For those with research needs, Noah is undoubtedly professional.\n          \nIf you find it interesting, we'd be happy to discuss a paid collaboration, such as a sponsored post or other creative ideas that fit your style.\n \nPlease feel free to let me know if this sounds interesting to you!\n4:48 AM\n4:48 AM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 354,
@@ -7096,7 +7146,7 @@
   },
   {
     "rank": 357,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-01-04",
@@ -7123,7 +7173,9 @@
         "sender": "Lead",
         "text": "Hey Robot, I’m the CTO of Throne, the guys building the health tracking device for your toilet. My cofounder Scott did a podcast with you a while back. We’ll be at CES as well. Would love to meet up or have you drop by the booth. \n\nBooth # 61255 at Eureka Park\n\nHope to see you there!\n12:58 PM\n12:58 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 358,
@@ -7192,7 +7244,7 @@
   },
   {
     "rank": 359,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-01-02",
@@ -7219,7 +7271,9 @@
         "sender": "Lead",
         "text": "Hey Robert! Saw you’ll be at CES and are using dictation tools like Typeless. Would love to meet up sometime and show you a demo of what we’re building at Subtle ($6M raised from founders of Twitter, Pinterest, Perplexity). It’s an ML-backed device for private voice input. t.co/iXB1lmgHKr Lmk!\n1:10 PM\n1:10 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 360,
@@ -7295,7 +7349,7 @@
   },
   {
     "rank": 364,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2025-09-28",
@@ -7326,7 +7380,9 @@
         "sender": "Lead",
         "text": "Hii Robert, noticed from your bio you're doing lead gen! Just thought this may be helpful.\n\nI built a platform with 300Million+ leads (emails, phone numbers, etc.) and am thinking of offering full, unlimited access to first 20 people for one time payment.\n\nInterested in testing it out, Robert ?\n9:55 AM\n9:55 AM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 368,
@@ -7514,7 +7570,7 @@
   },
   {
     "rank": 377,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-05-24",
@@ -7565,7 +7621,9 @@
         "sender": "Lead",
         "text": "t.co/wv3jpRoNUo will remain my long shot product ..it will be big but no investor will invest. So we will circle around B2B vision but keep that running alongside 😁 t.co/wv3jpRoNUo\n8:56 PM\n8:56 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 378,
@@ -7684,7 +7742,7 @@
   },
   {
     "rank": 382,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-04-28",
@@ -7715,7 +7773,9 @@
         "sender": "Robert",
         "text": "I don't have any advice, as I don't know what works regarding cold emailing. You might do some homework on how to write a great cold email to try to get them to answer.\n9:03 PM\n9:03 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 383,
@@ -7999,7 +8059,7 @@
   },
   {
     "rank": 396,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-02-27",
@@ -8026,7 +8086,9 @@
         "sender": "Lead",
         "text": "Love what you’re building! I’m in beta with my open claw @RockportAI who is running around X audio summarizing long form content. It’s gaining traction!. I have a separate agent serving as his “producer” and it’s his job to source interesting long form in AI and beyond. The API costs intense ($500+) per day to start but it’s learning and optioning daily. Lots of exploration, trail/error and reiterative learning. Will keep an eye on your project, maybe I can use your service when it launches. Wishing you the best. Have a good evening. 🙏\n9:54 PM\n9:54 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 397,
@@ -8063,7 +8125,7 @@
   },
   {
     "rank": 398,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-02-19",
@@ -8090,7 +8152,9 @@
         "sender": "Lead",
         "text": "Hey Robert. Hope all is well. Found you in deep research WITHOUT AI! My team at @formthefog just trained and is launching a world model for agents. Would love to get you in front of the founders if you had interest. Cheers, Jim\n8:53 PM\n8:53 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 399,
@@ -8158,7 +8222,7 @@
   },
   {
     "rank": 402,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-02-13",
@@ -8185,11 +8249,13 @@
         "sender": "Lead",
         "text": "Hi there! I’m Evelyn from RockFlow’s Growth Team, an AI-Fintech startup.  \n\nWe love your insights into AI and would love to invite you to beta test our latest AI Agent, Bobby. With Bobby, you can effortlessly complete trades through natural language conversations.  \n\nLooking forward to hearing from you😊!\n4:16 PM\n4:16 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 404,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-02-10",
@@ -8216,11 +8282,13 @@
         "sender": "Lead",
         "text": "Hello,\n\nI’m Marvel from Peace Through Trade (PTT), a Proof-of-Work Layer 1 focused on compliant Real World Assets.\n\nFor the past four years, we’ve been building fully KYC/AML-aligned RWA infrastructure, including insurable on-chain assets, regulatory alignment within Singapore’s framework, and early compatibility with standards like ERC-3643. We’ve been following your work and see strong alignment.\n\nWe’d love to:\n• Host you on an X Spaces (video) to discuss your RWA/tokenization and AI approach and the evolving regulatory landscape.\n• Explore collaboration across compliant infrastructure integrations, shared liquidity, co-marketing, IRL events, and ecosystem synergies.\n\nOur founders bring nearly a decade of experience across legislation and family offices, having helped pioneer CBD regulation across LATAM. Their prior venture reached a $9B valuation.\n\nIf this resonates, happy to share next steps and time options.\n\nBest,\nMarvel\nPeace Through Trade\n9:42 AM\n9:42 AM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 405,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-02-09",
@@ -8247,7 +8315,9 @@
         "sender": "Lead",
         "text": "He Robert - Hope you and the family are well! I've been hustling but living in Mexico. Still chasing, the startup dream and now able to focus and execute. It's crazy.\n\nI saw a post a few days ago. If companies in your network, need resources, I can help. Of course, I would love to pay you a commission on every placement. \n\nBy, I have access to a number of ML/AL resources in Mexico, Colombia, Costa Rica, & Argentina.\n6:12 PM\n6:12 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 406,
@@ -8282,7 +8352,7 @@
   },
   {
     "rank": 407,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-02-05",
@@ -8309,11 +8379,13 @@
         "sender": "Lead",
         "text": "Hi Robert, building robotics software to make it more accessible — currently in SF, would love to meet if some time if you’re free. (I’m really good at making stuff go viral)\n1:56 PM\n1:56 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 408,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-02-02",
@@ -8344,7 +8416,9 @@
         "sender": "Lead",
         "text": "Hey Robert, what’s the best way to get in touch with you about our startup and any feedback you might have?\n9:14 PM\n9:14 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 409,
@@ -8936,7 +9010,7 @@
   },
   {
     "rank": 0,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-06-15",
@@ -8971,7 +9045,9 @@
         "sender": "Robert",
         "text": "I don't. But would love to know more.\n12:32 PM\n12:32 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 0,
@@ -10131,7 +10207,7 @@
   },
   {
     "rank": 0,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-06-24",
@@ -10202,11 +10278,13 @@
         "sender": "Lead",
         "text": "I will be in touch as agreed soon to arrange a time for our next meeting and demo\n1:57 PM\n1:57 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 0,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-06-01",
@@ -10261,7 +10339,9 @@
         "sender": "Robert",
         "text": "It isn't something I need. But I like knowing where things are. We should do a video for others who work for corporations that do need to worry about this.\n11:05 PM\n11:05 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 0,
@@ -10757,7 +10837,7 @@
   },
   {
     "rank": 0,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-06-15",
@@ -10828,7 +10908,9 @@
         "sender": "Lead",
         "text": "We Stole a UFO Pilot Episode\n2:12 PM\n2:12 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 0,
@@ -11117,7 +11199,7 @@
   },
   {
     "rank": 0,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-06-29",
@@ -11156,7 +11238,9 @@
         "sender": "Robert",
         "text": "Thanks!\n2:03 AM\n2:03 AM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 0,
@@ -11327,7 +11411,7 @@
   },
   {
     "rank": 0,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-06-01",
@@ -11398,7 +11482,9 @@
         "sender": "Robert",
         "text": "Love! Yeah, trying.\n3:56 PM\n3:56 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 0,
@@ -11799,7 +11885,7 @@
   },
   {
     "rank": 0,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": true,
     "newestDmDate": "2026-06-22",
@@ -11830,7 +11916,9 @@
         "sender": "Robert",
         "text": "Not much.\n7:04 PM\n7:04 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 0,
@@ -12575,7 +12663,7 @@
   },
   {
     "rank": 0,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-06-22",
@@ -12610,7 +12698,9 @@
         "sender": "Lead",
         "text": "Thanks Robert,\n\nIndeed, marketing is a booming business right now for startups and companies.\n\nLet me know if you come across anyone suitable for what we do.\n1:44 PM\n1:44 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 0,
@@ -12765,7 +12855,7 @@
   },
   {
     "rank": 0,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-06-24",
@@ -12824,7 +12914,9 @@
         "sender": "Lead",
         "text": "Oh something else I just thought of that you might give a bit of thought to is someone needs to coin the word that means have your agent let me know once there's something new here to share. You seem like the dude that could start that. It's needed, imo. lol\n11:05 PM\n11:05 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 0,
@@ -12927,7 +13019,7 @@
   },
   {
     "rank": 0,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-07-03",
@@ -12982,7 +13074,9 @@
         "sender": "Robert",
         "text": "Yeah. I am a bit too. They have a few patents. Behave like a patent troll. Turned me off of them.\n2:08 AM\n2:08 AM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 0,
@@ -13462,7 +13556,7 @@
   },
   {
     "rank": 0,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-06-01",
@@ -13489,7 +13583,9 @@
         "sender": "Lead",
         "text": "Hi Rob,\n\nI’m running an early research preview of Luke.\n\nIt’s a Mac assistant exploring what personal AI looks like beyond chat: software that remembers useful context, is available from the moment you sit down, and can carry out delegated tasks and research in the background.\n\nThe broader experiment is whether AI built software can adapt to each individual, be shaped through use, and improve alongside its user over time.\n\nWould love your feedback:\nt.co/5toJHSBivz\n\nthanks,\nmatt\n11:08 PM\n11:08 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 0,
@@ -13631,7 +13727,7 @@
   },
   {
     "rank": 0,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-06-15",
@@ -13670,7 +13766,9 @@
         "sender": "Lead",
         "text": "maybe of interest, a human-first Agent observability platform:\n10:54 AM\n10:54 AM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 0,
@@ -13719,7 +13817,7 @@
   },
   {
     "rank": 0,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-06-01",
@@ -13782,7 +13880,9 @@
         "sender": "Lead",
         "text": "Agree. It’s an unverified CV repository and corp comms tool. Nothing authentic or real.\n11:06 PM\n11:06 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 0,
@@ -14181,7 +14281,7 @@
   },
   {
     "rank": 0,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-06-15",
@@ -14252,7 +14352,9 @@
         "sender": "Robert",
         "text": "Cool, thanks!\n1:36 PM\n1:36 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 0,
@@ -14582,7 +14684,7 @@
   },
   {
     "rank": 0,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-06-08",
@@ -14633,7 +14735,9 @@
         "sender": "Lead",
         "text": "Hey, hope you're doing well! Just going to leave this here, thought you might appreciate it. We're trying to build the \"Spatial Mac Computing\" Platform of the future.\n12:42 PM\n12:42 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 0,
@@ -14908,7 +15012,7 @@
   },
   {
     "rank": 0,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": true,
     "newestDmDate": "2026-06-22",
@@ -14951,7 +15055,9 @@
         "sender": "Robert",
         "text": "That's cool. Will be tracking that.\n7:09 PM\n7:09 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 0,
@@ -15020,7 +15126,7 @@
   },
   {
     "rank": 0,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-06-24",
@@ -15051,7 +15157,9 @@
         "sender": "Lead",
         "text": "just launched this: \nwould love to demo it to you + get you onboard rob! should help you with increasing conversions\n2:24 PM\n2:24 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 0,
@@ -15924,7 +16032,7 @@
   },
   {
     "rank": 0,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-06-22",
@@ -15995,7 +16103,9 @@
         "sender": "Robert",
         "text": "Yeah busy as heck\n4:24 AM\n4:24 AM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 0,
@@ -16109,7 +16219,7 @@
   },
   {
     "rank": 0,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-06-15",
@@ -16180,11 +16290,13 @@
         "sender": "Robert",
         "text": "Yeah that is cool\n3:11 PM\n3:11 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 0,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-06-01",
@@ -16223,7 +16335,9 @@
         "sender": "Robert",
         "text": "I hope so\n9:07 PM\n9:07 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 0,
@@ -16341,7 +16455,7 @@
   },
   {
     "rank": 0,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-06-25",
@@ -16368,7 +16482,9 @@
         "sender": "Robert",
         "text": "Would love to come again to YC's demo day.\n12:19 PM\n12:19 PM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 0,
@@ -16987,7 +17103,7 @@
   },
   {
     "rank": 0,
-    "newLead": true,
+    "newLead": false,
     "seenInPriorScrape": true,
     "changedSincePriorScrape": false,
     "newestDmDate": "2026-07-02",
@@ -17054,7 +17170,9 @@
         "sender": "Lead",
         "text": "For the interview, can you please load this URL in your Chrome browser, same as we did last time... then just click connect with X. It's live videoconferencing, running on your own site powered by Safebots. My team and I enhanced it to be able to show presentations, which I'll be using to demo during the interview.\n10:53 AM\n10:53 AM"
       }
-    ]
+    ],
+    "spamBlocked": false,
+    "qualifyBlocked": true
   },
   {
     "rank": 0,

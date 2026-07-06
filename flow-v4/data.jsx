@@ -45,13 +45,22 @@ async function V3LoadSupabaseLeads() {
     if (row.title) score += 10;
     score += Math.max(updated, created) / 1e13;
     score += Number(row.id || 0) / 1e9;
+    if (row.merged_into) score -= 1e14;
+    if (String(row.list_id || '').toLowerCase() === 'trash') score -= 1e12;
+    if (['dead-leads', 'done', 'paid-out'].includes(String(row.list_id || '').toLowerCase())) score -= 5e11;
     return score;
   };
 
+  const dedupKey = (row) => {
+    if (row.x_open_dm) return `xdm:${V3NormalizeOpenDmUrl(row.x_open_dm)}`;
+    const email = V3ExtractEmail(row.email) || String(row.email || '').trim().toLowerCase();
+    if (row.gmail_thread_id && email) return `thread:${row.gmail_thread_id}:${email}`;
+    if (row.gmail_thread_id) return `thread:${row.gmail_thread_id}:row:${row.id}`;
+    return `row:${row.id}`;
+  };
+
   for (const row of rows) {
-    const key = row.x_open_dm
-      ? `xdm:${V3NormalizeOpenDmUrl(row.x_open_dm)}`
-      : (row.gmail_thread_id ? `thread:${row.gmail_thread_id}` : `row:${row.id}`);
+    const key = dedupKey(row);
     const prev = canonical.get(key);
     if (!prev || scoreRow(row) > scoreRow(prev)) canonical.set(key, row);
   }
@@ -724,9 +733,11 @@ function V3NextMoveFromRow(stage, name, owner, needsReply, row) {
 
 function V3ThreadFromRow(row, name, brand, stage) {
   const thread = Array.isArray(row.email_thread) ? row.email_thread : (Array.isArray(row.original_email) ? row.original_email : null);
-  if (thread && thread.length) {
-    return thread.map((m, i) => ({
+  const scopedThread = thread && thread.length ? V3SliceThreadForLeadContact(thread, row.email) : thread;
+  if (scopedThread && scopedThread.length) {
+    return scopedThread.map((m, i) => ({
       from: m.from || m.sender || (i % 2 ? name : 'UNALIGNED'),
+      email: V3ExtractEmail(m.email || m.from) || String(m.email || '').trim().toLowerCase() || '',
       when: V3RelativeTime(V3NormalizeDateForUi(m.date || m.date_iso || m.timestamp || row.created_at)),
       date: V3NormalizeDateForUi(m.date || m.date_iso || m.timestamp || row.created_at),
       dateIso: V3NormalizeDateForUi(m.date_iso),
@@ -1070,6 +1081,8 @@ function V3ExtractEmail(value) {
 function V3LeadReplyToEmail(lead, sender) {
   const senderEmails = new Set(V3SenderEmails(sender).map(email => email.toLowerCase()));
   const internalEmails = new Set(['scobleizer@gmail.com', 'unalignedx@gmail.com', 'asherunaligned@gmail.com']);
+  const leadPrimary = V3LeadPrimaryEmail(lead);
+  if (leadPrimary && !senderEmails.has(leadPrimary)) return leadPrimary;
   const candidates = [];
 
   const pushCandidate = (value) => {
@@ -1108,18 +1121,39 @@ function V3UniqueEmails(values) {
   });
 }
 
-function V3ReplyRecipients(lead, sender, internalOnly = false) {
+function V3LeadPrimaryEmail(lead) {
+  return V3ExtractEmail(lead?.email) || String(lead?.email || '').trim().toLowerCase();
+}
+
+function V3SliceThreadForLeadContact(thread, leadEmail) {
+  const contact = V3LeadPrimaryEmail({ email: leadEmail }) || String(leadEmail || '').trim().toLowerCase();
+  const list = Array.isArray(thread) ? thread : [];
+  if (!contact || list.length < 2) return list;
+  const involves = (msg) => {
+    const participants = [
+      V3ExtractEmail(msg?.from),
+      V3ExtractEmail(msg?.email),
+      String(msg?.email || '').trim().toLowerCase(),
+      ...V3EmailsFromValue(msg?.to),
+      ...V3EmailsFromValue(msg?.cc),
+    ].map(email => String(email || '').trim().toLowerCase()).filter(Boolean);
+    return participants.includes(contact);
+  };
+  const sliced = list.filter(involves);
+  return sliced.length ? sliced : list;
+}
+
+function V3ReplyRecipients(lead, sender, internalOnly = false, options = {}) {
   if (internalOnly) return { to: V3InternalEmails(sender), cc: [] };
-  const senderEmails = V3SenderEmails(sender).map(email => email.toLowerCase());
-  const leadEmail = V3LeadReplyToEmail(lead, sender) || String(lead?.email || '').trim();
-  const leadIsSender = senderEmails.includes(leadEmail.toLowerCase());
-  const participants = V3UniqueEmails([...V3ThreadParticipants(lead), ...V3InternalEmails(sender)]);
-  const to = leadEmail && !leadIsSender ? [leadEmail] : [];
-  const cc = participants.filter(email =>
-    email &&
-    email.toLowerCase() !== leadEmail.toLowerCase() &&
-    !senderEmails.includes(email.toLowerCase())
-  );
+  const senderEmails = new Set(V3SenderEmails(sender).map(email => email.toLowerCase()));
+  const leadEmail = V3LeadReplyToEmail(lead, sender) || V3LeadPrimaryEmail(lead);
+  const leadIsSender = leadEmail && senderEmails.has(String(leadEmail).toLowerCase());
+  const to = leadEmail && !leadIsSender ? [String(leadEmail).toLowerCase()] : [];
+  const cc = (typeof V3DefaultReplyCcEmails === 'function' ? V3DefaultReplyCcEmails(sender, lead, options) : V3InternalEmails(sender))
+    .filter(email => {
+      const normalized = String(email || '').trim().toLowerCase();
+      return normalized && !senderEmails.has(normalized) && !to.map(item => item.toLowerCase()).includes(normalized);
+    });
   return { to: V3UniqueEmails(to), cc: V3UniqueEmails(cc) };
 }
 
@@ -1509,6 +1543,19 @@ let V3_TIERS = {
   5: { id: 5, price: 3495, name: 'Content Core',      short: 'CORE',       items: ['1 custom X post', '1 LinkedIn post', 'Newsletter feature'] },
   6: { id: 6, price: 4495, name: 'Growth Bundle',     short: 'GROWTH',     items: ['1 custom X post', '1 LinkedIn post', '1 retweet', 'Newsletter feature'] },
   7: { id: 7, price: 6495, name: 'Maximum Impact',    short: 'MAX',        items: ['2 custom X posts', '1 LinkedIn post', '2 retweets', 'Newsletter feature', 'Strategy sync'] },
+};
+
+// Add-ons stack on any base tier below Content Core when client wants us to produce media.
+const V3_PRODUCTION_ADDONS = {
+  robert_team_demo_media: {
+    id: 11,
+    price: 500,
+    name: "Robert's Team Demo & Media",
+    short: 'PROD',
+    items: ["Robert's team produces demo clips and screen media for the post"],
+    stacks_on: 'any tier below Content Core',
+    included_in: 'Content Core ($3,495+) and above',
+  },
 };
 
 const V3_DELIV_TYPES = {
@@ -2450,7 +2497,7 @@ function V3MoveLeadStage(lead, nextStage, leads = window.V3?.LEADS || V3_LEADS) 
   }).catch(err => console.warn('[ALIGNED v4] stage update failed:', err));
 }
 
-window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_VISIBLE_LEADS, TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_VISIBLE_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, CompanyOsQualifiedLead: V3CompanyOsQualifiedLead, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, NewLeadReason: V3NewLeadReason, NewLeadSourceKind: V3NewLeadSourceKind, NewLeadSourceLabel: V3NewLeadSourceLabel, NewLeadHandle: V3NewLeadHandle, NewLeadSummary: V3NewLeadSummary, NewLeadPrimaryIdentity: V3NewLeadPrimaryIdentity, LeadMatchesQuery: V3LeadMatchesQuery, PrunePendingReplies: V3PrunePendingReplies, MergePendingReplies: V3MergePendingReplies, ResolveReplyTone: V3ResolveReplyTone, ReplyToneLabel: V3ReplyToneLabel, ReloadLeads: V3ReloadLeads };
+window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: V3_VISIBLE_LEADS, TIERS: V3_TIERS, PRODUCTION_ADDONS: V3_PRODUCTION_ADDONS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_VISIBLE_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, CompanyOsQualifiedLead: V3CompanyOsQualifiedLead, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, NewLeadReason: V3NewLeadReason, NewLeadSourceKind: V3NewLeadSourceKind, NewLeadSourceLabel: V3NewLeadSourceLabel, NewLeadHandle: V3NewLeadHandle, NewLeadSummary: V3NewLeadSummary, NewLeadPrimaryIdentity: V3NewLeadPrimaryIdentity, LeadMatchesQuery: V3LeadMatchesQuery, PrunePendingReplies: V3PrunePendingReplies, MergePendingReplies: V3MergePendingReplies, ResolveReplyTone: V3ResolveReplyTone, ReplyToneLabel: V3ReplyToneLabel, ReloadLeads: V3ReloadLeads };
 
 V3LoadPricingTiers();
 V3LoadTeamUsers();

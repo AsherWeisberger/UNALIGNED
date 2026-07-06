@@ -1303,15 +1303,22 @@ async function V3LoadSupabaseLeads(opts = {}) {
     if (row.title) score += 10;
     score += Math.max(updated, created) / 1e13;
     score += Number(row.id || 0) / 1e9;
+    if (row.merged_into) score -= 1e14;
     if (String(row.list_id || '').toLowerCase() === 'trash') score -= 1e12;
     if (['dead-leads', 'done', 'paid-out'].includes(String(row.list_id || '').toLowerCase())) score -= 5e11;
     return score;
   };
 
+  const dedupKey = (row) => {
+    if (row.x_open_dm) return `xdm:${V3NormalizeOpenDmUrl(row.x_open_dm)}`;
+    const email = V3ExtractEmail(row.email) || String(row.email || '').trim().toLowerCase();
+    if (row.gmail_thread_id && email) return `thread:${row.gmail_thread_id}:${email}`;
+    if (row.gmail_thread_id) return `thread:${row.gmail_thread_id}:row:${row.id}`;
+    return `row:${row.id}`;
+  };
+
   for (const row of rows) {
-    const key = row.x_open_dm
-      ? `xdm:${V3NormalizeOpenDmUrl(row.x_open_dm)}`
-      : (row.gmail_thread_id ? `thread:${row.gmail_thread_id}` : `row:${row.id}`);
+    const key = dedupKey(row);
     const prev = canonical.get(key);
     if (!prev || scoreRow(row) > scoreRow(prev)) canonical.set(key, row);
   }
@@ -3018,9 +3025,12 @@ function V3ThreadFromRow(row, name, brand, stage) {
   const hasThreadFields = Object.prototype.hasOwnProperty.call(row, 'email_thread')
     || Object.prototype.hasOwnProperty.call(row, 'original_email');
   const thread = Array.isArray(row.email_thread) ? row.email_thread : (Array.isArray(row.original_email) ? row.original_email : null);
-  if (thread && thread.length) {
-    return thread.map((m, i) => ({
+  const leadEmail = V3ExtractEmail(row.email) || String(row.email || '').trim().toLowerCase();
+  const scopedThread = thread && thread.length ? V3SliceThreadForLeadContact(thread, leadEmail) : thread;
+  if (scopedThread && scopedThread.length) {
+    return scopedThread.map((m, i) => ({
       from: m.from || m.sender || (i % 2 ? name : 'UNALIGNED'),
+      email: V3ExtractEmail(m.email || m.from) || String(m.email || '').trim().toLowerCase() || '',
       when: V3RelativeTime(V3NormalizeDateForUi(m.date || m.date_iso || m.timestamp || row.created_at)),
       date: V3NormalizeDateForUi(m.date || m.date_iso || m.timestamp || row.created_at),
       dateIso: V3NormalizeDateForUi(m.date_iso),
@@ -3513,9 +3523,53 @@ function V3ApplyQuickReplyDraft(lead, sender) {
   return V3ApplyRateCardReplyDraft(lead, sender);
 }
 
+const V4_MEDIA_PRODUCTION_MIN_PRICE = 3495;
+const V4_PRODUCTION_ADDON_PRICE = 500;
+const V4_PRODUCTION_ADDON_NAME = "Robert's Team Demo & Media";
+
+function V4MediaSupplyReplyGuidance(lead) {
+  const thread = Array.isArray(lead?.thread) ? lead.thread : [];
+  const blob = thread.map(m => `${m?.subject || ''} ${m?.body || ''}`).join('\n');
+  if (!blob.trim()) return '';
+  const lowered = blob.toLowerCase();
+  const mediaNeeded = /demo clips?|demo video|screen record|walkthrough|attach(?:ed)? (?:a )?video|include (?:a )?video|b-?roll|footage|media kit/.test(lowered)
+    || /no[\s-]?camera|not on camera|does not need to be on camera/.test(lowered);
+  if (!mediaNeeded) return '';
+  let dealPrice = Number(lead?.value) > 0 ? Number(lead.value) : null;
+  if (!dealPrice) {
+    const m = blob.match(/\$\s*([\d,]+)/);
+    if (m) dealPrice = Number(String(m[1]).replace(/,/g, ''));
+  }
+  const tierBlob = `${lead?.tier_name || ''} ${lead?.agentTier || ''} ${lead?.deliverables || ''}`.toLowerCase();
+  const highEnd = (dealPrice && dealPrice >= V4_MEDIA_PRODUCTION_MIN_PRICE)
+    || /content core|growth bundle|maximum impact|founder video|interview|x space/.test(tierBlob);
+  if (highEnd) return '';
+  const hasMediaLinks = /drive\.google|loom\.com|youtube\.com|youtu\.be|vimeo\.com|dropbox\.com|\.mp4|\.mov/i.test(blob);
+  const priceTxt = dealPrice ? `$${dealPrice.toLocaleString('en-US')}` : 'this tier';
+  const lines = [
+    'MEDIA POLICY (follow in this reply):',
+    `- Deal is at ${priceTxt}, below Content Core ($${V4_MEDIA_PRODUCTION_MIN_PRICE.toLocaleString('en-US')}). UNALIGNED does not produce demo clips or video at this tier.`,
+    '- Client must supply all media via Drive, Loom, or direct file links.',
+  ];
+  if (!hasMediaLinks) {
+    lines.push(
+      '- No media links are in the thread yet. Ask them to send every clip and visual they want attached.',
+      '- Do not promise Robert will record, film, or create media unless they buy the add-on or upgrade.',
+      '- Do not tell them Robert\'s thread draft is ready for posting until media is handled.',
+      `- Upsell option: ${V4_PRODUCTION_ADDON_NAME} (+$${V4_PRODUCTION_ADDON_PRICE}) — Robert's team produces demo clips and screen media.`,
+      `- Or upgrade to Content Core ($${V4_MEDIA_PRODUCTION_MIN_PRICE.toLocaleString('en-US')}), where production is included.`,
+    );
+  }
+  if (/no[\s-]?camera|not on camera|does not need to be on camera/.test(lowered)) {
+    lines.push('- Robert does not appear on camera. Client-supplied screen clips only.');
+  }
+  return lines.join('\n');
+}
+
 function V3BuildAiReplyPrompt({ lead, sender, subject, tone }) {
   const first = V3ExternalThreadFirstName(lead);
   const brand = lead?.brand || 'the company';
+  const mediaGuidance = V4MediaSupplyReplyGuidance(lead);
   const askedFor = String(lead?.operatorSummary?.asked_for || lead?.deliverables || '').trim();
   const leadSummary = String(lead?.operatorSummary?.lead_summary || '').trim();
   const nextAction = String(lead?.operatorSummary?.next_action || lead?.nextMove?.text || '').trim();
@@ -3551,7 +3605,7 @@ PRICING RULES:
 PRODUCT RULES:
 - Show you read the thread. Acknowledge what they asked for in plain language.
 - Refer to their product as "${brand}" only. Do not invent technical jargon or mash up concepts from the pitch.
-
+${mediaGuidance ? `\n${mediaGuidance}\n` : ''}
 Sender: ${senderName}
 Contact first name: ${first}
 Company / product: ${brand}
@@ -3754,6 +3808,24 @@ function V3RobertCcOptional(sender) {
   return sender === 'asher' || sender === 'sam';
 }
 
+function V3LastMessageExternalRecipients(lead, leadEmail) {
+  const thread = Array.isArray(lead?.thread) ? lead.thread : [];
+  if (!thread.length) return [];
+  const last = thread[thread.length - 1];
+  const primary = String(leadEmail || '').trim().toLowerCase();
+  const externals = [];
+  const push = (value) => {
+    for (const email of V3EmailsFromValue(value)) {
+      const normalized = String(email || '').trim().toLowerCase();
+      if (!normalized || V3IsInternalTeamEmail(normalized) || normalized === primary) continue;
+      externals.push(normalized);
+    }
+  };
+  push(last?.to);
+  push(last?.cc);
+  return V3UniqueEmails(externals);
+}
+
 function V3DefaultReplyCcEmails(sender, lead, options = {}) {
   const includeRobert = !!options.includeRobert;
   const senderEmails = new Set(V3SenderEmails(sender).map(email => email.toLowerCase()));
@@ -3763,11 +3835,7 @@ function V3DefaultReplyCcEmails(sender, lead, options = {}) {
   if (sender === 'robert') {
     cc.push(V3_TEAM_EMAILS.asher, V3_TEAM_EMAILS.sam);
     if (lead) {
-      for (const email of V3ThreadParticipants(lead)) {
-        const normalized = String(email || '').trim().toLowerCase();
-        if (!normalized || V3IsInternalTeamEmail(normalized) || normalized === leadEmail) continue;
-        cc.push(normalized);
-      }
+      for (const email of V3LastMessageExternalRecipients(lead, leadEmail)) cc.push(email);
     }
   } else if (sender === 'asher') {
     cc.push(V3_TEAM_EMAILS.sam);
@@ -3883,9 +3951,38 @@ function V3ExtractEmail(value) {
   return match ? match[0].toLowerCase() : '';
 }
 
+function V3LeadPrimaryEmail(lead) {
+  return V3ExtractEmail(lead?.email) || String(lead?.email || '').trim().toLowerCase();
+}
+
+function V3MessageInvolvesContact(msg, contactEmail) {
+  const contact = String(contactEmail || '').trim().toLowerCase();
+  if (!contact || !msg) return false;
+  const participants = [
+    V3ExtractEmail(msg?.from),
+    V3ExtractEmail(msg?.email),
+    String(msg?.email || '').trim().toLowerCase(),
+    ...V3EmailsFromValue(msg?.to),
+    ...V3EmailsFromValue(msg?.cc),
+    ...V3EmailsFromValue(msg?.replyTo),
+    ...V3EmailsFromValue(msg?.reply_to),
+  ].map(email => String(email || '').trim().toLowerCase()).filter(Boolean);
+  return participants.includes(contact);
+}
+
+function V3SliceThreadForLeadContact(thread, leadEmail) {
+  const contact = V3LeadPrimaryEmail({ email: leadEmail }) || String(leadEmail || '').trim().toLowerCase();
+  const list = Array.isArray(thread) ? thread : [];
+  if (!contact || list.length < 2) return list;
+  const sliced = list.filter(msg => V3MessageInvolvesContact(msg, contact));
+  return sliced.length ? sliced : list;
+}
+
 function V3LeadReplyToEmail(lead, sender) {
   const senderEmails = new Set(V3SenderEmails(sender).map(email => email.toLowerCase()));
   const internalEmails = new Set(['scobleizer@gmail.com', 'unalignedx@gmail.com', 'asherunaligned@gmail.com']);
+  const leadPrimary = V3LeadPrimaryEmail(lead);
+  if (leadPrimary && !senderEmails.has(leadPrimary)) return leadPrimary;
   const candidates = [];
 
   const pushCandidate = (value) => {
@@ -3928,58 +4025,27 @@ function V3ReplyRecipients(lead, sender, internalOnly = false, options = {}) {
   if (internalOnly) return { to: V3InternalEmails(sender), cc: [] };
 
   const senderEmails = new Set(V3SenderEmails(sender).map(email => email.toLowerCase()));
-  const isExcluded = (email) => {
-    const normalized = String(email || '').trim().toLowerCase();
-    return !normalized || senderEmails.has(normalized);
-  };
-
-  const participants = V3UniqueEmails(V3ThreadParticipants(lead)).filter(email => !isExcluded(email));
-  const ensureTeam = [];
-  if (sender !== 'asher') ensureTeam.push(V3_TEAM_EMAILS.asher);
-  if (sender !== 'sam') ensureTeam.push(V3_TEAM_EMAILS.sam);
-  if (sender !== 'robert' && options.includeRobert !== false) ensureTeam.push(V3_TEAM_EMAILS.robert);
-  for (const email of ensureTeam) {
-    if (!isExcluded(email) && !participants.map(item => item.toLowerCase()).includes(email.toLowerCase())) {
-      participants.push(email);
-    }
-  }
-
-  const thread = Array.isArray(lead?.thread) ? lead.thread : [];
-  const lastMsg = thread.length ? thread[thread.length - 1] : null;
+  const leadEmail = V3LeadReplyToEmail(lead, sender) || V3LeadPrimaryEmail(lead);
+  const leadIsSender = leadEmail && senderEmails.has(String(leadEmail).toLowerCase());
   const to = [];
-  const pushTo = (email) => {
-    const normalized = String(email || '').trim().toLowerCase();
-    if (!normalized || isExcluded(normalized)) return;
-    if (!to.map(item => item.toLowerCase()).includes(normalized)) to.push(normalized);
-  };
 
-  if (lastMsg) {
-    pushTo(V3ExtractEmail(lastMsg.from));
-    for (const email of V3EmailsFromValue(lastMsg.to)) pushTo(email);
-    for (const email of V3EmailsFromValue(lastMsg.cc)) {
-      if (!V3IsInternalTeamEmail(email)) pushTo(email);
-    }
-  }
-
-  const leadEmail = String(V3LeadReplyToEmail(lead, sender) || lead?.email || '').trim().toLowerCase();
-  if (leadEmail) pushTo(leadEmail);
-
-  if (!to.length) {
+  if (leadEmail && !leadIsSender) {
+    to.push(String(leadEmail).toLowerCase());
+  } else {
+    const thread = Array.isArray(lead?.thread) ? lead.thread : [];
     for (let i = thread.length - 1; i >= 0; i--) {
       const from = V3ExtractEmail(thread[i]?.from);
-      if (from && !V3IsInternalTeamEmail(from)) {
-        pushTo(from);
-        if (to.length) break;
+      if (from && !senderEmails.has(from) && !V3IsInternalTeamEmail(from)) {
+        to.push(from);
+        break;
       }
     }
   }
 
-  const externals = participants.filter(email => !V3IsInternalTeamEmail(email));
-  if (!to.length && externals.length) externals.forEach(pushTo);
-  if (!to.length && participants.length) pushTo(participants[0]);
-
-  const toSet = new Set(to.map(email => email.toLowerCase()));
-  const cc = participants.filter(email => !toSet.has(email.toLowerCase()));
+  const cc = V3DefaultReplyCcEmails(sender, lead, options).filter(email => {
+    const normalized = String(email || '').trim().toLowerCase();
+    return normalized && !senderEmails.has(normalized) && !to.map(item => item.toLowerCase()).includes(normalized);
+  });
 
   return { to: V3UniqueEmails(to), cc: V3UniqueEmails(cc) };
 }
@@ -4717,6 +4783,18 @@ let V3_TIERS = {
   5: { id: 5, price: 3495, name: 'Content Core',      short: 'CORE',       items: ['1 custom X post', '1 LinkedIn post', 'Newsletter feature'] },
   6: { id: 6, price: 4495, name: 'Growth Bundle',     short: 'GROWTH',     items: ['1 custom X post', '1 LinkedIn post', '1 retweet', 'Newsletter feature'] },
   7: { id: 7, price: 6495, name: 'Maximum Impact',    short: 'MAX',        items: ['2 custom X posts', '1 LinkedIn post', '2 retweets', 'Newsletter feature', 'Strategy sync'] },
+};
+
+const V3_PRODUCTION_ADDONS = {
+  robert_team_demo_media: {
+    id: 11,
+    price: 500,
+    name: "Robert's Team Demo & Media",
+    short: 'PROD',
+    items: ["Robert's team produces demo clips and screen media for the post"],
+    stacks_on: 'any tier below Content Core',
+    included_in: 'Content Core ($3,495+) and above',
+  },
 };
 
 const V3_DELIV_TYPES = {
@@ -5966,7 +6044,7 @@ function V3MoveLeadStage(lead, nextStage, leads = V3ActiveLeads(), opts = {}) {
     });
 }
 
-window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, StageDef: V3StageDef, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: [], TIERS: V3_TIERS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_VISIBLE_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, CompanyOsQualifiedLead: V3CompanyOsQualifiedLead, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, NewLeadReason: V3NewLeadReason, ResolveReplyTone: V3ResolveReplyTone, ReplyToneLabel: V3ReplyToneLabel, NewLeadSourceKind: V3NewLeadSourceKind, NewLeadSourceLabel: V3NewLeadSourceLabel, NewLeadHandle: V3NewLeadHandle, NewLeadSummary: V3NewLeadSummary, NewLeadPrimaryIdentity: V3NewLeadPrimaryIdentity, LeadMatchesQuery: V3LeadMatchesQuery, PrunePendingReplies: V3PrunePendingReplies, MergePendingReplies: V3MergePendingReplies, ReloadLeads: V3ReloadLeads, XLeadRepliedViaX: V3XLeadRepliedViaX, MarkRepliedViaX: V3MarkRepliedViaX };
+window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, StageDef: V3StageDef, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: [], TIERS: V3_TIERS, PRODUCTION_ADDONS: V3_PRODUCTION_ADDONS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_VISIBLE_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, CompanyOsQualifiedLead: V3CompanyOsQualifiedLead, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, NewLeadReason: V3NewLeadReason, ResolveReplyTone: V3ResolveReplyTone, ReplyToneLabel: V3ReplyToneLabel, NewLeadSourceKind: V3NewLeadSourceKind, NewLeadSourceLabel: V3NewLeadSourceLabel, NewLeadHandle: V3NewLeadHandle, NewLeadSummary: V3NewLeadSummary, NewLeadPrimaryIdentity: V3NewLeadPrimaryIdentity, LeadMatchesQuery: V3LeadMatchesQuery, PrunePendingReplies: V3PrunePendingReplies, MergePendingReplies: V3MergePendingReplies, ReloadLeads: V3ReloadLeads, XLeadRepliedViaX: V3XLeadRepliedViaX, MarkRepliedViaX: V3MarkRepliedViaX };
 
 if (!V4EarlyShouldRedirectToConnect() && !V4EarlyShouldRedirectToMac() && !V4EarlyIsPublicRoute()) {
   V3LoadPricingTiers();
@@ -7838,7 +7916,7 @@ function V3GmailThread({ lead }) {
   return (
     <div className="gmail-thread">
       {messages.map((m, i) => {
-        const senderEmail = V3ExtractEmail(m.from) ||
+        const senderEmail = V3ExtractEmail(m.email || m.from) ||
           (m.from === 'Asher' ? 'asherunaligned@gmail.com' :
            m.from === 'Sammy' ? 'unalignedx@gmail.com' :
            m.from === 'Robert' ? 'scobleizer@gmail.com' : '');
@@ -7850,10 +7928,11 @@ function V3GmailThread({ lead }) {
         const attachHint = attachments.length
           ? ` · ${attachments[0].kind === 'pricing-pdf' ? 'Rate card' : 'Attachment'}`
           : '';
+        const isTeamSender = senderEmail && V3IsInternalTeamEmail(senderEmail);
         return (
-          <article key={i} className={'gmail-msg' + (isOpen ? ' is-open' : ' is-collapsed') + (attachments.length ? ' has-attach' : '')}>
+          <article key={i} className={'gmail-msg' + (isOpen ? ' is-open' : ' is-collapsed') + (attachments.length ? ' has-attach' : '') + (isTeamSender ? ' is-team' : ' is-lead')}>
             <button type="button" className="gmail-msg-hd" onClick={() => toggle(i)} aria-expanded={isOpen}>
-              <V3Avatar name={m.from} color={m.from === 'Sammy' ? '#16894a' : m.from === 'Asher' ? '#2f5fd6' : lead.color} size="sm" />
+              <V3Avatar name={m.from} color={isTeamSender ? (m.from === 'Sammy' ? '#16894a' : '#2f5fd6') : lead.color} size="sm" />
               <div className="gmail-msg-who">
                 <span className="gmail-msg-name">{m.from || 'Unknown'}</span>
                 {!isOpen && (preview || attachments.length) ? (
@@ -13108,13 +13187,23 @@ const V4_COMPANY_OS_PREP = [
     ],
   },
   {
-    title: 'Perceptron / launch planning is live again and the pricing question is now specific',
-    tags: ['P0', 'reply now', 'launch prep'],
+    title: 'Influcio / May Zhu needs a packaging answer and a thread draft this week',
+    tags: ['P0', 'reply now', 'draft send'],
     points: [
       'May Zhu replied on July 6 with one concrete ask: confirm whether the $2,495 dedicated thread includes the client embedding their own demo clips.',
-      'That thread also points to two upcoming launches around July 13 and roughly a week later, which means timing and package shape are back on the table now.',
-      'Asher should answer the packaging question cleanly, lock what is included, and move straight into prep timing rather than leaving the thread on read.',
-      'This is active planning, not a cold follow-up anymore.',
+      'She already accepted the $2,495 rate for a dedicated X thread with embedded demo clips (no on-camera Robert) and wants the draft within the week.',
+      'Asher should answer the packaging question cleanly, lock what is included, and send the thread draft — not leave the Influcio thread on read.',
+      'This is active execution, not a cold follow-up anymore.',
+    ],
+  },
+  {
+    title: 'Perceptron / Eric Pence is waiting on payment before mid-July QRT launches',
+    tags: ['P1', 'payment chase', 'launch prep'],
+    points: [
+      'Eric Pence from Perceptron AI is asking about payment settlement before prep for two QRT launches scheduled around mid-July and late July.',
+      'Do not mix this with the Influcio thread — Perceptron is a separate company and contact.',
+      'Asher should chase payment proof and confirm launch timing once funds clear.',
+      'No publish prep for Robert until payment is confirmed.',
     ],
   },
   {
@@ -14211,18 +14300,47 @@ function V4BriefDeliverableIdFromInternal(internalValue) {
   return '';
 }
 
+function V4BriefDeliverableStorageKey(leadId) {
+  return 'ua_brief_deliverable_' + String(leadId || '');
+}
+
+function V4BriefDeliverableLoad(leadId) {
+  try {
+    if (!leadId) return null;
+    const raw = window.localStorage.getItem(V4BriefDeliverableStorageKey(leadId));
+    if (raw === null || raw === undefined) return null;
+    return String(raw);
+  } catch (err) { return null; }
+}
+
+function V4BriefDeliverableSave(leadId, deliverableId) {
+  try {
+    if (!leadId) return;
+    window.localStorage.setItem(V4BriefDeliverableStorageKey(leadId), String(deliverableId || ''));
+  } catch (err) { /* ignore */ }
+}
+
+function V4BriefDeliverableLabel(deliverableId) {
+  const hit = V4_BRIEF_DELIVERABLE_OPTIONS.find(item => item.id === String(deliverableId || ''));
+  return hit?.label || '';
+}
+
 function V4BriefDeliverableFromLead(lead) {
   const blob = [
+    V4DealThreadText(lead),
     lead?.deliverables,
     lead?.brief?.tier,
     lead?.tier_name,
     lead?.tier_short,
     lead?.operatorSummary?.asked_for,
+    lead?.description,
   ].filter(Boolean).join(' ').toLowerCase();
   if (!blob) return '';
+  if (/narrative thread|dedicated thread|thread draft|draft (?:of )?(?:the )?thread/.test(blob)) return 'thread';
+  if (/(?:3[\s-]?(?:part|piece)|three[\s-]?(?:part|piece))[\s-]?thread/.test(blob)) return 'thread';
+  if (/\bthread\b/.test(blob) && !/email thread|gmail thread|in this thread/.test(blob)) return 'thread';
   if (/quote|qrt|\brepost\b/.test(blob)) return 'repost';
   if (/\bretweet\b/.test(blob) && !/quote|qrt|repost/.test(blob)) return 'retweet';
-  if (/narrative thread|dedicated thread|\bthread\b/.test(blob)) return 'thread';
   if (/custom x|custom post/.test(blob)) return 'custom-x';
   if (/linkedin/.test(blob)) return 'linkedin';
   if (/founder video/.test(blob)) return 'founder-video';
@@ -19080,12 +19198,15 @@ function V4DealActionBar({ lead, onOpenSplits }) {
   const [briefStage, setBriefStage] = React.useState('');
   const [briefGenError, setBriefGenError] = React.useState('');
   const [briefResultUrl, setBriefResultUrl] = React.useState('');
+  const [briefDeliverable, setBriefDeliverable] = React.useState('');
   const aliveRef = React.useRef(true);
   React.useEffect(() => { aliveRef.current = true; return () => { aliveRef.current = false; }; }, []);
 
   React.useEffect(() => {
     setInvOpen(false); setInvForm(null); setInvStatus('idle'); setInvError(''); setInvResult(null);
     setBriefCopied(false); setBriefBusy(false); setBriefStage(''); setBriefGenError(''); setBriefResultUrl('');
+    const saved = V4BriefDeliverableLoad(lead?.id);
+    setBriefDeliverable(saved !== null ? saved : (V4BriefDeliverableFromLead(lead) || ''));
   }, [lead?.id]);
 
   if (!lead) return null;
@@ -19103,6 +19224,18 @@ function V4DealActionBar({ lead, onOpenSplits }) {
   };
   // Build Robert's brief doc in the background, right here on the email screen —
   // no navigation. Uses the same brief machine the Brief Maker tool does.
+  const inferredDeliverable = V4BriefDeliverableFromLead(lead);
+  const briefDeliverableInternal = V4BriefDeliverableInternal(briefDeliverable);
+  const briefDeliverableLocked = Boolean(briefDeliverableInternal);
+  const briefDeliverableHint = !briefDeliverable && inferredDeliverable
+    ? V4BriefDeliverableLabel(inferredDeliverable)
+    : '';
+
+  const setDealBriefDeliverable = (value) => {
+    setBriefDeliverable(value);
+    V4BriefDeliverableSave(lead?.id, value);
+  };
+
   const makeBrief = async () => {
     if (briefBusy) return;
     if (!briefLink) { setBriefGenError('No brief link found in this thread to build from. Open the Brief Maker to build one manually.'); return; }
@@ -19113,7 +19246,11 @@ function V4DealActionBar({ lead, onOpenSplits }) {
         method: 'POST',
         body: JSON.stringify({
           source_url: briefLink, notion_url: briefLink, email_context: V4DealEmailContext(lead),
-          deliverable_type: '', deliverable_type_locked: false,
+          deliverable_type: briefDeliverableInternal,
+          deliverable_type_locked: briefDeliverableLocked,
+          deal_value: lead?.value || null,
+          tier_name: lead?.tier_name || lead?.agentTier || '',
+          agent_tier: lead?.agentTier || '',
           calendar_title: '', calendar_mode: 'all_day', calendar_date: '', calendar_start: '', calendar_end: '',
         }),
       });
@@ -19198,6 +19335,17 @@ function V4DealActionBar({ lead, onOpenSplits }) {
         <span className="cos-dealbar-eyebrow">DEAL ACTIONS</span>
         {hasBrief && (
           <span className="cos-dealbar-group">
+            <select
+              className="cos-dealbar-select"
+              value={briefDeliverable}
+              disabled={briefBusy}
+              onChange={(e) => setDealBriefDeliverable(e.target.value)}
+              title={briefDeliverableHint ? `Auto-detected: ${briefDeliverableHint}` : 'Brief format — auto-detect reads the email thread'}
+            >
+              {V4_BRIEF_DELIVERABLE_OPTIONS.map((option) => (
+                <option key={option.id || 'auto'} value={option.id}>{option.label}</option>
+              ))}
+            </select>
             <button type="button" className="cos-dealbar-btn cos-dealbar-btn--primary" disabled={briefBusy} onClick={makeBrief} title={madeDoc ? 'Rebuild Robert’s brief doc from the client link' : 'Build Robert’s brief doc from the client link, right here'}>{briefBusy ? 'Building…' : madeDoc ? 'Refresh brief' : 'Make brief'}</button>
             {madeDoc && <a className="cos-dealbar-btn" href={madeDoc} target="_blank" rel="noreferrer">Edit doc</a>}
             {briefLink && <a className="cos-dealbar-btn" href={briefLink} target="_blank" rel="noreferrer">Open brief</a>}
@@ -19207,7 +19355,7 @@ function V4DealActionBar({ lead, onOpenSplits }) {
               : madeDoc
                 ? <span className="cos-dealbar-made">Brief made ✓</span>
                 : briefLink
-                  ? <span className="cos-dealbar-made" title={briefLink}>{V4DealBriefLinkLabel(briefLink)}{briefLinks.length > 1 ? ' +' + (briefLinks.length - 1) : ''}</span>
+                  ? <span className="cos-dealbar-made" title={briefLink}>{V4DealBriefLinkLabel(briefLink)}{briefLinks.length > 1 ? ' +' + (briefLinks.length - 1) : ''}{briefDeliverableHint ? ' · ' + briefDeliverableHint : ''}</span>
                   : <span className="cos-dealbar-made">Brief mentioned — no link found in thread</span>}
           </span>
         )}
@@ -19979,8 +20127,11 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
     gmail: cosBase.filter(l => !['trash', 'dead-leads'].includes(l.stage) && V4CompanyOsLeadSourceChannel(l) === 'gmail').length,
   }), [cosBase]);
 
-  const allCos = React.useMemo(() => cosBase
-    .filter(l => V4CompanyOsMatchesSourceFilter(l, sourceFilter)), [cosBase, sourceFilter]);
+  const allCos = React.useMemo(() => {
+    const q = String(query || '').trim();
+    if (q) return cosBase;
+    return cosBase.filter(l => V4CompanyOsMatchesSourceFilter(l, sourceFilter));
+  }, [cosBase, sourceFilter, query]);
   const byRecent = (a, b) => V3LeadActivityTimestamp(b) - V3LeadActivityTimestamp(a);
   const liveAll = allCos.filter(l => !['trash', 'dead-leads'].includes(l.stage));
 
@@ -21049,7 +21200,7 @@ function V4CommandPalette({ open, onClose, commands, leads, onOpenLead }) {
   const ql = q.trim().toLowerCase();
   const cmdResults = commands.filter(c => !ql || c.label.toLowerCase().includes(ql));
   const leadResults = ql.length >= 2
-    ? leads.filter(l => (l.brand + ' ' + l.contactName + ' ' + (l.email || '')).toLowerCase().includes(ql)).slice(0, 6)
+    ? leads.filter(l => (window.V3?.LeadMatchesQuery ? window.V3.LeadMatchesQuery(l, ql) : (l.brand + ' ' + l.contactName + ' ' + (l.email || '')).toLowerCase().includes(ql))).slice(0, 6)
     : [];
   const rows = [
     ...cmdResults.map(c => ({ key: 'cmd-' + c.label, type: 'cmd', label: c.label, hint: c.hint, run: c.run })),
