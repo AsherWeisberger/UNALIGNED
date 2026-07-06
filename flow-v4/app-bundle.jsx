@@ -958,6 +958,8 @@ async function V3EnsureXGateRules(cacheBust) {
         noise: new RegExp(rules.noise_regex, 'i'),
         partnership: new RegExp(rules.partnership_regex, 'i'),
         product: new RegExp(rules.product_regex, 'i'),
+        commercial: rules.commercial_regex ? new RegExp(rules.commercial_regex, 'i') : null,
+        nonLead: rules.non_lead_regex ? new RegExp(rules.non_lead_regex, 'i') : null,
       };
     }
   } catch (e) {
@@ -980,6 +982,14 @@ function V3PartnershipRe() {
 
 function V3ProductRe() {
   return V3_X_GATE_RULES?.product || V3_X_PRODUCT_RE;
+}
+
+function V3CommercialRe() {
+  return V3_X_GATE_RULES?.commercial || V3_X_PARTNERSHIP_RE;
+}
+
+function V3NonLeadRe() {
+  return V3_X_GATE_RULES?.nonLead || null;
 }
 
 async function V3LoadXDmIntakeRows(cacheBust) {
@@ -2534,7 +2544,8 @@ function V3XLeadDmBodyText(row) {
 function V3XLeadHasCommercialSignals(text) {
   const body = String(text || '').toLowerCase();
   if (!body) return false;
-  return V3PartnershipRe().test(body) || V3ProductRe().test(body);
+  if (V3NonLeadRe()?.test(body)) return false;
+  return V3CommercialRe().test(body);
 }
 
 function V3XLeadIsNoiseOnly(text) {
