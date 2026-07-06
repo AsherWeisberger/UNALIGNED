@@ -17992,7 +17992,8 @@ BUSINESS RULES (always follow):
 - Sound human and direct, not corporate AI.
 
 SCOPE: Answer only about THIS lead. Use the deal context and email thread provided. When asked to draft replies, output ready to send email bodies with subject lines.
-NOTE: Board actions (move stage, send draft, mark read) are executed by the app when the user confirms. Do not tell the user to click buttons or navigate menus for those. If they ask you to DO something on the board, say the app will handle it on confirm.`;
+
+BOARD ACTIONS: Never refuse, block, or second-guess mark complete, close deal, move stage, send draft, or mark read requests. Asher decides when to close a deal. Do not say "you cannot mark complete" or list prerequisites before closing. The app runs board actions on one confirm. If they ask you to DO something on the board, reply in one short line that confirm is queued. Do not explain why they should wait.`;
 
 function V3ParseHelperThread(raw) {
   if (!raw) return null;
@@ -18051,7 +18052,10 @@ function V4DealHelperWelcome(lead) {
 }
 
 function V4DealHelperIsYes(text) {
-  return /^(yes|y|yep|yeah|confirm|do it|go ahead|ok|okay|sure|proceed)\.?$/i.test(String(text || '').trim());
+  const t = String(text || '').trim();
+  if (/^(yes|y|yep|yeah|confirm|do it|go ahead|ok|okay|sure|proceed)\.?$/i.test(t)) return true;
+  if (/^(yes|y|ok|okay|sure|do it|go ahead)[,!.]?\s*(anyway|please|mark|close|complete)/i.test(t)) return true;
+  return false;
 }
 
 function V4DealHelperStageLabel(stage) {
@@ -18063,10 +18067,15 @@ function V4DealHelperParseIntent(text, lead) {
   const raw = String(text || '').trim();
   const t = raw.toLowerCase();
   if (!t || !lead) return null;
-  if (V4DealHelperIsYes(t)) return { type: 'confirm' };
+  if (V4DealHelperIsYes(raw)) return { type: 'confirm' };
   const brand = lead.brand || lead.contactName || 'this deal';
 
-  if (/\b(trash|delete)\b/.test(t) && /\b(it|this|deal|lead|thread)\b/.test(t + ' lead')) {
+  if (/\b(anyway|just do it|do it anyway|force)\b/.test(t) && /\b(mark|close|complete|move|send|trash)\b/.test(t)) {
+    if (/\b(trash|delete)\b/.test(t)) return { type: 'move_stage', stage: 'trash', label: 'Move ' + brand + ' to Trash' };
+    if (/\b(send|draft)\b/.test(t)) return { type: 'send_draft', label: 'Send the approved draft for ' + brand };
+    return { type: 'move_stage', stage: 'paid-out', label: 'Mark ' + brand + ' complete (closed)' };
+  }
+  if (/\b(trash|delete)\b/.test(t) && /\b(it|this|deal|lead|thread|one)\b/.test(t + ' lead')) {
     return { type: 'move_stage', stage: 'trash', label: 'Move ' + brand + ' to Trash' };
   }
   if (/\b(mark|set).*(read)\b/.test(t) || /\bmark.*unread.*read\b/.test(t)) {
@@ -18088,10 +18097,16 @@ function V4DealHelperParseIntent(text, lead) {
     return { type: 'open_compose', label: 'Open reply compose for ' + brand };
   }
 
+  const closeIntent = /\b(mark|move|set|close|complete|finish|archive|wrap).{0,40}\b(complete|completed|closed|close|paid|paid out|done|wrap(?:ped)? up)\b/.test(t)
+    || /\b(complete|close|finish|wrap up).{0,30}\b(this|it|lead|deal|one|thread)\b/.test(t)
+    || /\b(mark|move|set)\b.{0,20}\b(as|to)\b.{0,20}\b(complete|completed|closed|close|paid|done)\b/.test(t)
+    || /\b(can you|could you|please|help me|i want to|i need to|want to)\b.{0,30}\b(mark|move|close|complete)\b/.test(t);
+  if (closeIntent) {
+    return { type: 'move_stage', stage: 'paid-out', label: 'Mark ' + brand + ' complete (closed)' };
+  }
+
   const stageMap = [
-    { re: /\b(move to|mark as|set to|put in).*(close|closed|paid|paid out|complete|completed|wrap)\b/, stage: 'paid-out', label: 'Mark ' + brand + ' closed (paid out)' },
-    { re: /\b(mark|move).*(complete|completed|done|close|closed|paid|wrap up)\b/, stage: 'paid-out', label: 'Mark ' + brand + ' complete (closed)' },
-    { re: /\b(move to|mark as).*(brief)\b/, stage: 'done', label: 'Move ' + brand + ' to Brief / calendar' },
+    { re: /\b(move to|mark as|set to|put in).*(brief)\b/, stage: 'done', label: 'Move ' + brand + ' to Brief / calendar' },
     { re: /\b(move to|mark as).*(invoice|terms)\b/, stage: 'invoice-sent', label: 'Move ' + brand + ' to Terms / invoice' },
     { re: /\b(move to|mark as).*(negotiat)\b/, stage: 'negotiating', label: 'Move ' + brand + ' to Negotiate' },
     { re: /\b(move to|mark as).*(pric|rates)\b/, stage: 'rates-sent', label: 'Move ' + brand + ' to Pricing' },
@@ -18100,7 +18115,7 @@ function V4DealHelperParseIntent(text, lead) {
   for (const item of stageMap) {
     if (item.re.test(t)) return { type: 'move_stage', stage: item.stage, label: item.label };
   }
-  if (/^(mark complete|complete this|close this|close deal|mark closed)$/i.test(raw)) {
+  if (/^(mark complete|complete this|close this|close deal|mark closed|mark as complete|mark it complete)$/i.test(raw)) {
     return { type: 'move_stage', stage: 'paid-out', label: 'Mark ' + brand + ' complete (closed)' };
   }
   return null;
@@ -18207,7 +18222,7 @@ function V4DealHelperPanel({ lead, setComposeOpen, onAfterSend }) {
     const msgs = baseMsgs || chatMsgs;
     const confirmMsg = {
       role: 'ai',
-      text: 'Ready to ' + String(action.label || 'run this').toLowerCase() + '. Reply yes or click Yes once to confirm.',
+      text: String(action.label || 'Run this') + '. Reply yes or click Yes once. I will do it, no more checks.',
       at: new Date().toISOString(),
       pendingAction: action,
     };
@@ -18261,6 +18276,13 @@ function V4DealHelperPanel({ lead, setComposeOpen, onAfterSend }) {
     }
     if (intent && intent.type !== 'confirm') {
       proposeAction(intent, nextMsgs);
+      return;
+    }
+
+    const t = text.toLowerCase();
+    const brand = lead.brand || lead.contactName || 'this deal';
+    if (/\b(mark|move|close|complete|finish)\b/.test(t) && /\b(complete|completed|closed|close|paid|done|wrap)\b/.test(t)) {
+      proposeAction({ type: 'move_stage', stage: 'paid-out', label: 'Mark ' + brand + ' complete (closed)' }, nextMsgs);
       return;
     }
 
