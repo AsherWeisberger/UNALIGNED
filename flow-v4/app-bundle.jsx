@@ -3016,8 +3016,8 @@ function V3ThreadFromRow(row, name, brand, stage) {
       subject: m.subject || row.title || (brand + ' conversation'),
       body: V3CoerceThreadText(m.body || m.text || m.snippet || ''),
       attachments: V3NormalizeThreadAttachments(m.attachments),
-      to: V3EmailsFromValue(m.to || m.to_list || m.recipients?.to),
-      cc: V3EmailsFromValue(m.cc || m.cc_list || m.recipients?.cc),
+      to: V3EmailsFromValue(m.to || m.to_list || m.to_emails || m.recipients?.to),
+      cc: V3EmailsFromValue(m.cc || m.cc_list || m.cc_emails || m.recipients?.cc),
       replyTo: V3EmailsFromValue(m.reply_to || m.replyTo),
     })).sort((a, b) => V3TimestampForUi(a.date || a.dateIso || a.when) - V3TimestampForUi(b.date || b.dateIso || b.when));
   }
@@ -3915,11 +3915,61 @@ function V3UniqueEmails(values) {
 
 function V3ReplyRecipients(lead, sender, internalOnly = false, options = {}) {
   if (internalOnly) return { to: V3InternalEmails(sender), cc: [] };
-  const senderEmails = V3SenderEmails(sender).map(email => email.toLowerCase());
-  const leadEmail = V3LeadReplyToEmail(lead, sender) || String(lead?.email || '').trim();
-  const leadIsSender = senderEmails.includes(leadEmail.toLowerCase());
-  const to = leadEmail && !leadIsSender ? [leadEmail] : [];
-  const cc = V3DefaultReplyCcEmails(sender, lead, options);
+
+  const senderEmails = new Set(V3SenderEmails(sender).map(email => email.toLowerCase()));
+  const isExcluded = (email) => {
+    const normalized = String(email || '').trim().toLowerCase();
+    return !normalized || senderEmails.has(normalized);
+  };
+
+  const participants = V3UniqueEmails(V3ThreadParticipants(lead)).filter(email => !isExcluded(email));
+  const ensureTeam = [];
+  if (sender !== 'asher') ensureTeam.push(V3_TEAM_EMAILS.asher);
+  if (sender !== 'sam') ensureTeam.push(V3_TEAM_EMAILS.sam);
+  if (sender !== 'robert' && options.includeRobert !== false) ensureTeam.push(V3_TEAM_EMAILS.robert);
+  for (const email of ensureTeam) {
+    if (!isExcluded(email) && !participants.map(item => item.toLowerCase()).includes(email.toLowerCase())) {
+      participants.push(email);
+    }
+  }
+
+  const thread = Array.isArray(lead?.thread) ? lead.thread : [];
+  const lastMsg = thread.length ? thread[thread.length - 1] : null;
+  const to = [];
+  const pushTo = (email) => {
+    const normalized = String(email || '').trim().toLowerCase();
+    if (!normalized || isExcluded(normalized)) return;
+    if (!to.map(item => item.toLowerCase()).includes(normalized)) to.push(normalized);
+  };
+
+  if (lastMsg) {
+    pushTo(V3ExtractEmail(lastMsg.from));
+    for (const email of V3EmailsFromValue(lastMsg.to)) pushTo(email);
+    for (const email of V3EmailsFromValue(lastMsg.cc)) {
+      if (!V3IsInternalTeamEmail(email)) pushTo(email);
+    }
+  }
+
+  const leadEmail = String(V3LeadReplyToEmail(lead, sender) || lead?.email || '').trim().toLowerCase();
+  if (leadEmail) pushTo(leadEmail);
+
+  if (!to.length) {
+    for (let i = thread.length - 1; i >= 0; i--) {
+      const from = V3ExtractEmail(thread[i]?.from);
+      if (from && !V3IsInternalTeamEmail(from)) {
+        pushTo(from);
+        if (to.length) break;
+      }
+    }
+  }
+
+  const externals = participants.filter(email => !V3IsInternalTeamEmail(email));
+  if (!to.length && externals.length) externals.forEach(pushTo);
+  if (!to.length && participants.length) pushTo(participants[0]);
+
+  const toSet = new Set(to.map(email => email.toLowerCase()));
+  const cc = participants.filter(email => !toSet.has(email.toLowerCase()));
+
   return { to: V3UniqueEmails(to), cc: V3UniqueEmails(cc) };
 }
 
@@ -3960,6 +4010,8 @@ function V3ThreadParticipants(lead) {
       push(msg?.from);
       push(msg?.to);
       push(msg?.cc);
+      push(msg?.to_emails);
+      push(msg?.cc_emails);
       push(msg?.replyTo);
       push(msg?.reply_to);
     }
@@ -7030,7 +7082,8 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
   const isInline = isGmail || layout === 'inline' || layout === 'dock';
   const [sender, setSender] = React.useState(() => V3SenderForUser(user));
   const [internalOnly, setInternalOnly] = React.useState(false);
-  const [ccRobert, setCcRobert] = React.useState(false);
+  const [ccRobert, setCcRobert] = React.useState(true);
+  const recipientsEditedRef = React.useRef(false);
   const draft = React.useMemo(() => V3ComposeReplyDraft(lead, sender), [lead.id, lead.draftReply?.body, lead.draftReply?.subject, lead.thread.length, lead.lastTouchAt, sender]);
   const initialRecipients = React.useMemo(() => V3ReplyRecipients(lead, sender, internalOnly, { includeRobert: ccRobert }), [lead.id, sender, internalOnly, ccRobert]);
   const [to, setTo] = React.useState(initialRecipients.to);
@@ -7052,7 +7105,10 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
   const draftToneLabel = window.V3ReplyToneLabel ? window.V3ReplyToneLabel(draftTone) : draftTone;
   const toLine = to.join(',');
   const ccLine = cc.join(',');
-  const isSelfRecipient = V3IsSelfRecipient(sender, toLine);
+  const isSelfRecipient = V3SenderEmails(sender).some(email => {
+    const normalized = email.toLowerCase();
+    return to.some(item => item.toLowerCase() === normalized) || cc.some(item => item.toLowerCase() === normalized);
+  });
 
   const clearSuccessTimer = () => {
     if (successTimer.current) {
@@ -7073,11 +7129,12 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
 
   React.useEffect(() => {
     const nextSender = V3SenderForUser(user);
-    const next = V3ReplyRecipients(lead, nextSender, false, { includeRobert: false });
+    const next = V3ReplyRecipients(lead, nextSender, false, { includeRobert: true });
     const nextDraft = V3ComposeReplyDraft(lead, nextSender);
+    recipientsEditedRef.current = false;
     setSender(nextSender);
     setInternalOnly(false);
-    setCcRobert(false);
+    setCcRobert(true);
     setTo(next.to);
     setCc(next.cc);
     setToDraft('');
@@ -7096,6 +7153,7 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
   }, [sender, ccRobert]);
 
   React.useEffect(() => {
+    if (recipientsEditedRef.current) return;
     const next = V3ReplyRecipients(lead, sender, internalOnly, { includeRobert: ccRobert });
     setTo(next.to);
     setCc(next.cc);
@@ -7122,6 +7180,7 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
   const addRecipients = (field, value) => {
     const emails = V3SplitEmails(value);
     if (!emails.length) return;
+    recipientsEditedRef.current = true;
     if (field === 'to') setTo(list => V3UniqueEmails([...list, ...emails]));
     if (field === 'cc') setCc(list => V3UniqueEmails([...list, ...emails]));
     if (field === 'to') setToDraft('');
@@ -7130,6 +7189,7 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
   };
 
   const removeRecipient = (field, email) => {
+    recipientsEditedRef.current = true;
     if (field === 'to') setTo(list => list.filter(item => item !== email));
     if (field === 'cc') setCc(list => list.filter(item => item !== email));
     if (error) setError('');
@@ -7258,28 +7318,23 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
           <span className="gmail-reply-icon" aria-hidden="true">
             <V3Icon name="reply" w={18} />
           </span>
-          <div className="gmail-reply-meta">
-            <div className="gmail-reply-to-line">
-              <span className="gmail-reply-label">To</span>
-              <span className="gmail-reply-value" title={toLine}>{toLine || 'Add recipient'}</span>
-            </div>
-            {ccLine ? (
-              <div className="gmail-reply-to-line">
-                <span className="gmail-reply-label">Cc</span>
-                <span className="gmail-reply-value" title={ccLine}>{ccLine}</span>
-              </div>
-            ) : null}
+          <div className="gmail-reply-meta gmail-reply-meta--editable">
             <select className="gmail-reply-from" value={sender} disabled={status === 'sending'} onChange={e => setSender(e.target.value)} title="Send as">
               <option value="asher">Asher</option>
               <option value="sam">Sam Levin</option>
               <option value="robert">Robert Scoble</option>
             </select>
+            <span className="gmail-reply-all-hint">Reply all · edit To/Cc below</span>
           </div>
           {onCollapse && (
             <button className="gmail-reply-close" type="button" onClick={onCollapse} title="Discard reply" aria-label="Discard reply">
               <V3Icon name="x" w={14} />
             </button>
           )}
+        </div>
+        <div className="gmail-reply-fields mail-compose-fields mail-compose--gmail">
+          <RecipientChips label="To" list={to} field="to" draft={toDraft} setDraft={setToDraft} />
+          {!internalOnly && <RecipientChips label="Cc" list={cc} field="cc" draft={ccDraft} setDraft={setCcDraft} />}
         </div>
         <textarea
           ref={bodyRef}

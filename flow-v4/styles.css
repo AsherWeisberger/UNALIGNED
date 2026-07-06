@@ -15964,6 +15964,29 @@ body[data-theme="light"] .gmail-reply-value {
   text-overflow: ellipsis;
 }
 
+body[data-theme="light"] .gmail-reply-meta--editable {
+  gap: 6px;
+}
+
+body[data-theme="light"] .gmail-reply-all-hint {
+  font-size: 11px;
+  color: #5f6368;
+}
+
+body[data-theme="light"] .gmail-reply-fields {
+  padding: 0 16px 8px 50px;
+  border-bottom: 1px solid #e8eaed;
+}
+
+body[data-theme="light"] .gmail-reply-fields .mail-compose-recips {
+  margin-bottom: 6px;
+}
+
+body[data-theme="dark"] .gmail-reply-meta--editable { gap: 6px; }
+body[data-theme="dark"] .gmail-reply-all-hint { font-size: 11px; color: var(--text-3); }
+body[data-theme="dark"] .gmail-reply-fields { padding: 0 16px 8px 50px; border-bottom: 1px solid var(--line); }
+body[data-theme="dark"] .gmail-reply-fields .mail-compose-recips { margin-bottom: 6px; }
+
 body[data-theme="light"] .gmail-reply-from {
   align-self: flex-start;
   border: 0;
