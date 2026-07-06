@@ -8,6 +8,9 @@ if [ -z "$branch" ]; then
   exit 1
 fi
 
+echo "=== Compiling ops bundle (app-bundle.jsx → app-bundle.js) ==="
+bash scripts/compile_ops_bundle.sh
+
 echo "=== Committing and pushing to GitHub Pages branch: ${branch} ==="
 git add index.html ops.html 404.html flow-v4.html aligned.html firebase.json feedback.html feedback connect.html connect scope.html assets CNAME robots.txt unaligned_logo.png favicon.ico robert-review.html flow-v4 functions
 if [ -d assets/docs ]; then
