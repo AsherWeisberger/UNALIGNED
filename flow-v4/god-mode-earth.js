@@ -109,9 +109,9 @@
   }
 
   const GLOBE_SCRIPT_CANDIDATES = [
+    () => new URL('flow-v4/vendor/globe.gl.safari.min.js', global.location.href).href,
     () => new URL('flow-v4/vendor/globe.gl.min.js', global.location.href).href,
     'https://cdn.jsdelivr.net/npm/globe.gl@2.35.0/dist/globe.gl.min.js',
-    'https://unpkg.com/globe.gl@2.35.0/dist/globe.gl.min.js',
   ];
   let globeLibPromise = null;
 
@@ -273,35 +273,38 @@
   }
 
   function initGlobeInstance(GlobeFactory, el) {
-    const globeOpts = {
-      rendererConfig: {
-        antialias: false,
-        alpha: true,
-        powerPreference: 'default',
-        failIfMajorPerformanceCaveat: false,
-      },
-      animateIn: false,
-      waitForGlobeReady: true,
-      useWebGPU: false,
+    if (el) el.innerHTML = '';
+    const rendererConfig = {
+      antialias: false,
+      alpha: true,
+      powerPreference: 'default',
+      failIfMajorPerformanceCaveat: false,
     };
     const attempts = [
-      () => new GlobeFactory(el, globeOpts),
-      () => GlobeFactory(globeOpts)(el),
-      () => GlobeFactory()(el),
-      () => new GlobeFactory(el),
+      { label: 'curried-default', run: () => GlobeFactory()(el) },
+      { label: 'ctor-default', run: () => new GlobeFactory(el) },
+      {
+        label: 'ctor-safe-renderer',
+        run: () => new GlobeFactory(el, { rendererConfig, animateIn: false, waitForGlobeReady: true }),
+      },
+      {
+        label: 'curried-safe-renderer',
+        run: () => GlobeFactory({ rendererConfig, animateIn: false, waitForGlobeReady: true })(el),
+      },
     ];
     let lastErr = null;
     for (let i = 0; i < attempts.length; i++) {
       try {
         if (el) el.innerHTML = '';
-        const inst = attempts[i]();
+        const inst = attempts[i].run();
         if (inst) return inst;
       } catch (e) {
         lastErr = e;
-        console.warn('[god-mode] globe init attempt ' + (i + 1) + ' failed', e);
+        console.warn('[god-mode] globe init ' + attempts[i].label + ' failed', e);
       }
     }
-    throw lastErr || new Error('globe.gl init failed');
+    const msg = lastErr?.message || 'globe.gl init failed';
+    throw new Error(msg);
   }
 
   function disposeGlobeInstance(globe) {
@@ -1702,6 +1705,43 @@
       let globe = null;
       let onControls = null;
 
+      const buildGlobe = async () => {
+        await waitForGlobeContainer(globeRef.current);
+        if (cancelled || !globeRef.current || globeInstRef.current) return null;
+        const GlobeFactory = await ensureGlobeLibrary();
+        if (cancelled || !globeRef.current || globeInstRef.current) return null;
+        const v = viewerRef.current || {};
+        const mountEl = globeRef.current;
+        const g = initGlobeInstance(GlobeFactory, mountEl);
+        g
+          .globeImageUrl(EARTH_IMG)
+          .bumpImageUrl(BUMP_IMG)
+          .showAtmosphere(true)
+          .atmosphereColor('lightskyblue')
+          .atmosphereAltitude(0.18)
+          .pointLabel('label')
+          .onPointHover((pt) => {
+            if (globeRef.current) globeRef.current.style.cursor = pt ? 'pointer' : 'grab';
+          });
+        try { g.backgroundImageUrl(SKY_IMG); } catch (e) {
+          console.warn('[god-mode] sky background skipped', e);
+        }
+        try {
+          g.globeTileEngineUrl(SAT_TILE_URL).globeTileEngineMaxLevel(SAT_TILE_MAX_LEVEL);
+        } catch (e) {
+          console.warn('[god-mode] satellite tile engine unavailable', e);
+        }
+        const controls = g.controls();
+        if (!controls) throw new Error('Globe controls unavailable');
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.35;
+        controls.enableDamping = true;
+        controls.minDistance = 101;
+        controls.maxDistance = 520;
+        g.pointOfView({ lat: Number(v.lat) || 28, lng: viewerLng(v) || -20, altitude: 2.2 }, 0);
+        return g;
+      };
+
       const mountGlobe = async () => {
         if (cancelled) return;
         if (!globeRef.current) {
@@ -1715,101 +1755,87 @@
           setGlobeError('3D globe needs WebGL: ' + (webgl.reason || 'unavailable') + '. Enable hardware graphics or try another browser.');
           return;
         }
-        try {
-          await waitForGlobeContainer(globeRef.current);
-          if (cancelled || !globeRef.current || globeInstRef.current) return;
-          const GlobeFactory = await ensureGlobeLibrary();
-          if (cancelled || !globeRef.current || globeInstRef.current) return;
-          const v = viewerRef.current || {};
-          globe = initGlobeInstance(GlobeFactory, globeRef.current)
-            .globeImageUrl(EARTH_IMG)
-            .bumpImageUrl(BUMP_IMG)
-            .backgroundImageUrl(SKY_IMG)
-            .showAtmosphere(true)
-            .atmosphereColor('lightskyblue')
-            .atmosphereAltitude(0.18)
-            .pointLabel('label')
-            .onPointHover((pt) => {
-              if (globeRef.current) globeRef.current.style.cursor = pt ? 'pointer' : 'grab';
-            });
-          try {
-            globe.globeTileEngineUrl(SAT_TILE_URL).globeTileEngineMaxLevel(SAT_TILE_MAX_LEVEL);
-          } catch (e) {
-            console.warn('[god-mode] satellite tile engine unavailable', e);
+        let lastErr = null;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          if (cancelled || globeInstRef.current) return;
+          if (attempt > 0) {
+            disposeGlobeInstance(globeInstRef.current);
+            globeInstRef.current = null;
+            if (globeRef.current) globeRef.current.innerHTML = '';
+            await new Promise((r) => window.setTimeout(r, 450));
           }
-          globe.controls().autoRotate = true;
-          globe.controls().autoRotateSpeed = 0.35;
-          globe.controls().enableDamping = true;
-          globe.controls().minDistance = 101;
-          globe.controls().maxDistance = 520;
-          globe.pointOfView({ lat: Number(v.lat) || 28, lng: viewerLng(v) || -20, altitude: 2.2 }, 0);
-          globeInstRef.current = globe;
-          global.__V4GodGlobe = globe;
           try {
-            const renderer = globe.renderer?.();
-            if (renderer) {
-              renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-              renderer.domElement.addEventListener('webglcontextlost', (ev) => {
-                ev.preventDefault();
-                setGlobeError('Graphics memory ran out — close and reopen god mode.');
-              });
-            }
-          } catch (e) {}
-          setupWeatherShells(globe);
-          if (!cancelled) setGlobeReady(true);
-
-          // Throttled by timestamp (not rAF — background tabs starve rAF).
-          // Pauses auto-rotate on deep zoom so the tile engine isn't fed a
-          // moving camera forever (the old freeze).
-          let lastControlsWork = 0;
-          onControls = () => {
-            const now = Date.now();
-            if (now - lastControlsWork < 80) return;
-            lastControlsWork = now;
-            if (!globeInstRef.current) return;
-            syncStreetRef.current(globe);
+            globe = await buildGlobe();
+            if (!globe || cancelled) return;
+            globeInstRef.current = globe;
+            global.__V4GodGlobe = globe;
             try {
-              const alt = Number(globe.pointOfView()?.altitude);
-              if (Number.isFinite(alt)) {
-                const controls = globe.controls();
-                if (alt < AUTOROTATE_PAUSE_ALT && controls.autoRotate) controls.autoRotate = false;
-                else if (alt > AUTOROTATE_RESUME_ALT && !controls.autoRotate) controls.autoRotate = true;
-                setCanReset(alt < AUTOROTATE_RESUME_ALT);
-                const deep = alt < SAT_DETAIL_ALT;
-                if (deep !== deepZoomRef.current) {
-                  deepZoomRef.current = deep;
-                  applyLayersRef.current();
-                }
+              const renderer = globe.renderer?.();
+              if (renderer) {
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+                renderer.domElement.addEventListener('webglcontextlost', (ev) => {
+                  ev.preventDefault();
+                  setGlobeError('Graphics memory ran out — close and reopen god mode.');
+                });
               }
             } catch (e) {}
-          };
-          globe.controls().addEventListener('change', onControls);
+            setupWeatherShells(globe);
+            if (!cancelled) setGlobeReady(true);
 
-          const frameTick = () => {
-            if (cloudMeshRef.current && cloudMeshRef.current.visible) {
-              cloudMeshRef.current.rotation.y += 0.00035;
-            }
-            updateRocketOverlay();
-            updateFlightOverlay();
+            let lastControlsWork = 0;
+            onControls = () => {
+              const now = Date.now();
+              if (now - lastControlsWork < 80) return;
+              lastControlsWork = now;
+              if (!globeInstRef.current) return;
+              syncStreetRef.current(globe);
+              try {
+                const alt = Number(globe.pointOfView()?.altitude);
+                if (Number.isFinite(alt)) {
+                  const ctrls = globe.controls();
+                  if (alt < AUTOROTATE_PAUSE_ALT && ctrls.autoRotate) ctrls.autoRotate = false;
+                  else if (alt > AUTOROTATE_RESUME_ALT && !ctrls.autoRotate) ctrls.autoRotate = true;
+                  setCanReset(alt < AUTOROTATE_RESUME_ALT);
+                  const deep = alt < SAT_DETAIL_ALT;
+                  if (deep !== deepZoomRef.current) {
+                    deepZoomRef.current = deep;
+                    applyLayersRef.current();
+                  }
+                }
+              } catch (e) {}
+            };
+            globe.controls().addEventListener('change', onControls);
+
+            const frameTick = () => {
+              if (cloudMeshRef.current && cloudMeshRef.current.visible) {
+                cloudMeshRef.current.rotation.y += 0.00035;
+              }
+              updateRocketOverlay();
+              updateFlightOverlay();
+              cloudSpinRef.current = window.requestAnimationFrame(frameTick);
+            };
             cloudSpinRef.current = window.requestAnimationFrame(frameTick);
-          };
-          cloudSpinRef.current = window.requestAnimationFrame(frameTick);
 
-          window.requestAnimationFrame(() => {
-            resizeRef.current();
-            applyLayersRef.current();
-            syncStreetRef.current(globe);
-            syncRadarOverlayVisibility();
-          });
-          if (typeof ResizeObserver !== 'undefined') {
-            resizeObs = new ResizeObserver(() => resizeRef.current());
-            resizeObs.observe(globeRef.current);
+            window.requestAnimationFrame(() => {
+              resizeRef.current();
+              applyLayersRef.current();
+              syncStreetRef.current(globe);
+              syncRadarOverlayVisibility();
+            });
+            if (typeof ResizeObserver !== 'undefined') {
+              resizeObs = new ResizeObserver(() => resizeRef.current());
+              resizeObs.observe(globeRef.current);
+            }
+            window.addEventListener('resize', resizeRef.current);
+            return;
+          } catch (e) {
+            lastErr = e;
+            console.error('[god-mode] globe mount attempt ' + (attempt + 1) + ' failed', e);
           }
-          window.addEventListener('resize', resizeRef.current);
-        } catch (e) {
-          if (!cancelled) {
-            setGlobeError('3D globe failed to load: ' + (e?.message || 'unknown error') + '. Hard refresh (Cmd+Shift+R).');
-          }
+        }
+        if (!cancelled) {
+          const hint = isWebKitBrowser() ? ' Try Chrome if Safari keeps failing.' : '';
+          setGlobeError('3D globe failed to load: ' + (lastErr?.message || 'unknown error') + '.' + hint + ' Hard refresh (Cmd+Shift+R).');
         }
       };
 

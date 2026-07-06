@@ -20850,7 +20850,7 @@ function V4LoadGodModeModule() {
       return;
     }
     const s = document.createElement('script');
-    s.src = 'flow-v4/god-mode-earth.js?v=20260705-godmode-v20';
+    s.src = 'flow-v4/god-mode-earth.js?v=20260706-godmode-v21';
     s.async = true;
     s.onload = () => {
       if (typeof window.V4GodModeEarth === 'function') resolve(window.V4GodModeEarth);
