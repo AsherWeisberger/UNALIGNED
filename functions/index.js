@@ -19,7 +19,7 @@ function getGoogle() {
 
 const PRICING_PDF_DIR = path.join(__dirname, 'pricing');
 const PRICING_PDF_CANONICAL_BASE = 'https://asherweisberger.github.io/UNALIGNED';
-const PRICING_PDF_VERSION = '20260628';
+const PRICING_PDF_VERSION = '20260706';
 const PRICING_PDF_PACKS = {
   single: {
     file: 'SINGLE_TIER.pdf',

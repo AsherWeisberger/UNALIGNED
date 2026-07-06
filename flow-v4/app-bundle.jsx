@@ -4699,7 +4699,7 @@ function V3MergePendingReplies(leads, pendingReplies) {
 
 const V3_PRICING_PDF_CANONICAL_BASE = 'https://agentdashboard.cloud';
 const V3_PRICING_PDF_LEGACY_BASE = 'https://asherweisberger.github.io/UNALIGNED';
-const V3_PRICING_PDF_VERSION = '20260628';
+const V3_PRICING_PDF_VERSION = '20260706';
 const V3_PRICING_PDF_PACKS = {
   single: { id: 'single', label: '1× Single Tier', path: 'docs/SINGLE_TIER.pdf', filename: 'UNALIGNED SINGLE TIER PRICING 2026.pdf', stamp: 'Current live rate card · June 28, 2026' },
   duo: { id: 'duo', label: '2× Duo Bundle', path: 'docs/DUO_BUNDLE.pdf', filename: 'UNALIGNED DUO BUNDLE PRICING 2026.pdf', stamp: 'Current live rate card · June 28, 2026' },

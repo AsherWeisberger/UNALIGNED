@@ -26,6 +26,12 @@ copy_if "$ROOT/CNAME"
 copy_if "$ROOT/favicon.ico"
 copy_if "$ROOT/unaligned_logo.png"
 rsync -a "$ROOT/assets/" "$SITE/assets/"
+mkdir -p "$SITE/docs"
+for pdf in SINGLE_TIER.pdf DUO_BUNDLE.pdf MULTI_TIER.pdf; do
+  if [[ -f "$ROOT/docs/$pdf" ]]; then
+    cp "$ROOT/docs/$pdf" "$SITE/docs/$pdf"
+  fi
+done
 
 # Public router only — no private hostnames in shipped HTML.
 cp "$ROOT/public-index.html" "$SITE/index.html"
