@@ -21,7 +21,7 @@ fi
 cd "$ROOT"
 
 export LLM_BACKEND="${LLM_BACKEND:-local}"
-export LOCAL_MODEL="${LOCAL_MODEL:-qwen3.6:35b-a3b}"
+export LOCAL_MODEL="${LOCAL_MODEL:-qwen2.5:32b-instruct}"
 export OLLAMA_URL="${OLLAMA_URL:-http://localhost:11434/api/chat}"
 export USE_LOCAL_CLASSIFIER="${USE_LOCAL_CLASSIFIER:-1}"
 

@@ -68,11 +68,11 @@ OPENCODE_CONFIG_FILE = Path.home() / ".config" / "opencode" / "opencode.json"
 HERMES_ENV_FILE = Path.home() / ".hermes" / ".env"
 DEFAULT_LLM_TARGETS = [
     {"base_url": "http://127.0.0.1:8642/v1", "model": "hermes-agent", "label": "Hermes API Qwen 3.6 35B", "auth": "hermes"},
-    {"base_url": "http://127.0.0.1:11434/v1", "model": "qwen3.6:35b-a3b", "label": "Ollama Qwen 3.6 35B"},
+    {"base_url": "http://127.0.0.1:11434/v1", "model": "qwen2.5:32b-instruct", "label": "Ollama Qwen 2.5 32B Instruct"},
 ]
 PREFERRED_LOCAL_MODELS = [
     ("http://127.0.0.1:8642/v1", "hermes-agent"),
-    ("http://127.0.0.1:11434/v1", "qwen3.6:35b-a3b"),
+    ("http://127.0.0.1:11434/v1", "qwen2.5:32b-instruct"),
 ]
 ALLOWED_ORIGINS = {
     "https://asherweisberger.github.io",
@@ -88,7 +88,11 @@ ALLOWED_ORIGINS = {
 LOCAL_BRIEF_LLM_ENABLED = str(os.environ.get("LOCAL_BRIEF_LLM_ENABLED") or "1").strip().lower() in {"1", "true", "yes", "on"}
 LOCAL_BRIEF_SKIP_FACTS = str(os.environ.get("LOCAL_BRIEF_SKIP_FACTS") or "0").strip().lower() in {"1", "true", "yes", "on"}
 LOCAL_BRIEF_SKIP_DRAFTS = str(os.environ.get("LOCAL_BRIEF_SKIP_DRAFTS") or "0").strip().lower() in {"1", "true", "yes", "on"}
-LOCAL_BRIEF_LLM_TIMEOUT_SEC = max(15, int(os.environ.get("LOCAL_BRIEF_LLM_TIMEOUT_SEC") or "35"))
+# 35s was too tight: the 35B model needs ~34s just to warm on a cold call, plus
+# time to read a long source doc and write 1800-2200 tokens of JSON. When it timed
+# out the brief fell back to mechanically stitching the source doc's own sentences
+# (repetitive, source-leaking drafts). 150s gives cold-start + long-output headroom.
+LOCAL_BRIEF_LLM_TIMEOUT_SEC = max(15, int(os.environ.get("LOCAL_BRIEF_LLM_TIMEOUT_SEC") or "150"))
 NOTION_BRIEF_CACHE_TTL_SEC = max(60, int(os.environ.get("NOTION_BRIEF_CACHE_TTL_SEC") or "3600"))
 NOTION_CACHE_DIR = STATE_DIR / "notion-brief-cache"
 
@@ -2088,7 +2092,33 @@ def polish_alignednews_sentence(value: str | None) -> str:
             return replacement
     if "alignednews" not in text.lower():
         return ALIGNEDNEWS_CLOSER
-    return text
+    # The LLM sometimes returns a multi-sentence blob (an AlignedNews line plus
+    # founder bio). Appended verbatim to every draft it made all three blur together
+    # and got truncated mid-thought. Collapse to the single, self-contained
+    # AlignedNews sentence; fall back to the clean closer if none qualifies.
+    flattened = strip_hyphens_from_paragraph(text)
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", flattened) if s.strip()]
+    # The tie-in must express Robert's editorial interest, never a claim about
+    # AlignedNews's audience, traffic, or SEO. The model has no such data and
+    # inventing it ("targets the demographic that drives AlignedNews traffic") is
+    # a fabrication that must never reach a brief. Reject and use the safe closer.
+    fabrication_terms = (
+        "traffic", "demographic", "audience", "reader", "readership", "subscriber",
+        "drives", "targets", "target", "seo", "funnel", "conversion", "clicks",
+        "eyeballs", "views", "impression", "reach ", "grow the", "our audience",
+    )
+    for cand in sentences:
+        low = cand.lower()
+        if "alignednews" not in low:
+            continue
+        if any(term in low for term in fabrication_terms):
+            continue
+        if low.startswith(("that ", "that's", "this ", "it ", "he ", "she ", "they ", "shipping")):
+            continue
+        if len(cand) > 140:
+            continue
+        return cand if cand.endswith((".", "!", "?")) else cand + "."
+    return ALIGNEDNEWS_CLOSER
 
 
 def text_mentions_alignednews(value: str) -> bool:
@@ -2107,7 +2137,10 @@ def ensure_drafts_reference_alignednews(drafts: list[dict], why_alignednews: str
             continue
         label_value = line(item.get("label"))
         text_value = normalize_alignednews_copy(clean_draft_text(item.get("text") or ""))
-        if text_value and not text_mentions_alignednews(text_value):
+        # Only Option 1 gets the auto tie-in. Appending it to every option made all
+        # three end on the identical AlignedNews line and blur together. Options 2+
+        # keep their own copy (the model can still weave AlignedNews in naturally).
+        if idx == 0 and text_value and not text_mentions_alignednews(text_value):
             if thread_mode:
                 paragraphs = split_draft_paragraphs(text_value)
                 if paragraphs:

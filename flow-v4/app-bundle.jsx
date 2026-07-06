@@ -1057,7 +1057,7 @@ const V3_SUPABASE_LIST_COLUMNS = [
   'deal_awaiting', 'deal_evidence', 'deal_next_action', 'needs_human_read', 'ready_to_invoice', 'agreement',
   'brief_status', 'needs_reply', 'needs_followup', 'last_inbound_at', 'sender_group', 'quality_tier', 'activity',
   'checklist', 'due_date', 'email_id', 'labels', 'linkedin_url', 'location', 'merged_into', 'phone', 'priority',
-  'reply_hook',
+  'reply_hook', 'helper_thread',
 ].join(',');
 
 const V3_detailHydrateInflight = new Map();
@@ -2320,6 +2320,7 @@ function V3NormalizeSupabaseLead(row) {
     operatorEscalation: Array.isArray(operatorMemory?.escalation) ? operatorMemory.escalation : [],
     operatorUpdatedAt: operatorMemory?.updated_at || null,
     rowId: row.id,
+    helperThread: V3ParseHelperThread(row.helper_thread),
     source: leadSource,
     rawDescription: row.description || '',
     notes: xContext.xSummary || briefPayload.rich_description || briefPayload.notes || row.notes || '',
@@ -17981,6 +17982,185 @@ function V6ListRow({ lead, title, isCurrent, onClick, style }) {
   );
 }
 
+const V4_DEAL_HELPER_SYSTEM_PREAMBLE = `You are the UNALIGNED deal helper for Asher. You help with ONE collaboration at a time using the local Mac Studio model only.
+
+BUSINESS RULES (always follow):
+- Payment is 100% upfront before any posting goes live. No partial payments, no 50/50 splits, no milestones.
+- Reply flow for new outreach: Email 1 from Robert (warm intro, rates, deliverable framing). Email 2 from Asher (terms, payment upfront, next steps). Two separate emails, Robert first.
+- Subject line format: {CONTACT_NAME or COMPANY} x SCOBLE x COLLAB
+- Never use hyphens, en dashes, or em dashes in drafted email or reply text. Use periods, commas, or rephrase.
+- Sound human and direct, not corporate AI.
+
+SCOPE: Answer only about THIS lead. Use the deal context and email thread provided. When asked to draft replies, output ready to send email bodies with subject lines.`;
+
+function V3ParseHelperThread(raw) {
+  if (!raw) return null;
+  let parsed = raw;
+  if (typeof parsed === 'string') {
+    try { parsed = JSON.parse(parsed); } catch (e) { return null; }
+  }
+  if (!parsed || !Array.isArray(parsed.messages)) return null;
+  const messages = parsed.messages
+    .filter(m => m && (m.role === 'user' || m.role === 'ai') && String(m.text || '').trim())
+    .map(m => ({ role: m.role, text: String(m.text).trim(), at: m.at || '' }))
+    .slice(-40);
+  return { messages, updatedAt: parsed.updatedAt || '' };
+}
+
+function V4DealHelperStorageKey(leadId) {
+  return 'ua_helper_thread_' + String(leadId || '');
+}
+
+function V4DealHelperLoadThread(lead) {
+  const fromLead = V3ParseHelperThread(lead?.helperThread);
+  if (fromLead?.messages?.length) return fromLead;
+  try {
+    const stored = window.localStorage.getItem(V4DealHelperStorageKey(lead?.id));
+    return V3ParseHelperThread(stored ? JSON.parse(stored) : null) || { messages: [], updatedAt: '' };
+  } catch (e) {
+    return { messages: [], updatedAt: '' };
+  }
+}
+
+function V4DealHelperSaveThread(lead, thread) {
+  const payload = {
+    messages: (thread.messages || []).slice(-40),
+    updatedAt: new Date().toISOString(),
+  };
+  try {
+    window.localStorage.setItem(V4DealHelperStorageKey(lead.id), JSON.stringify(payload));
+  } catch (e) { /* ignore */ }
+  const cardId = String(lead?.rowId || lead?.id || '');
+  if (cardId && !cardId.startsWith('xdm-')) {
+    V4CosPatchLead(lead, { helper_thread: payload }, { helperThread: payload }, { skipUndo: true });
+  }
+  return payload;
+}
+
+function V4DealHelperWelcome(lead) {
+  const brand = lead?.brand || lead?.contactName || 'this deal';
+  const stage = lead?.stage ? String(lead.stage).replace(/-/g, ' ') : 'unknown stage';
+  const deliverable = lead?.deliverables || lead?.operatorSummary?.asked_for || '';
+  const bits = [brand, stage];
+  if (deliverable) bits.push(deliverable);
+  return {
+    role: 'ai',
+    text: 'Scoped to ' + bits.join(' · ') + '. Paste a long email or ask me to draft your reply, explain where things stand, or walk through next steps.',
+  };
+}
+
+function V4DealHelperPanel({ lead }) {
+  const [open, setOpen] = React.useState(false);
+  const [chatInput, setChatInput] = React.useState('');
+  const [chatBusy, setChatBusy] = React.useState(false);
+  const [chatMsgs, setChatMsgs] = React.useState([]);
+  const scrollRef = React.useRef(null);
+  const bridge = typeof window !== 'undefined' && window.claude && window.claude.complete;
+  const label = (window.claude?.label) ? window.claude.label() : 'Mac Studio';
+
+  React.useEffect(() => {
+    const loaded = V4DealHelperLoadThread(lead);
+    const msgs = loaded.messages.length ? loaded.messages : [V4DealHelperWelcome(lead)];
+    setChatMsgs(msgs);
+    setChatInput('');
+  }, [lead?.id]);
+
+  React.useEffect(() => {
+    if (!open || !scrollRef.current) return;
+    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [chatMsgs, chatBusy, open]);
+
+  const persist = (msgs) => {
+    if (!lead?.id) return;
+    V4DealHelperSaveThread(lead, { messages: msgs });
+  };
+
+  const send = async () => {
+    const text = chatInput.trim();
+    if (!text || chatBusy || !lead) return;
+    const userMsg = { role: 'user', text, at: new Date().toISOString() };
+    const nextMsgs = [...chatMsgs, userMsg];
+    setChatInput('');
+    setChatMsgs(nextMsgs);
+    persist(nextMsgs);
+    if (!bridge) {
+      const offline = [...nextMsgs, { role: 'ai', text: 'Local LLM offline. Start local_llm_bridge.py on the Mac Studio.', at: new Date().toISOString() }];
+      setChatMsgs(offline);
+      persist(offline);
+      return;
+    }
+    setChatBusy(true);
+    try {
+      const focus = V4BuildCopilotFocusFromLead(lead);
+      let ctx = '';
+      try { ctx = JSON.stringify(focus); } catch (e) { ctx = String(focus); }
+      const history = nextMsgs.slice(-14).map(m => (m.role === 'user' ? 'USER: ' : 'ASSISTANT: ') + m.text).join('\n\n');
+      const prompt = V4_DEAL_HELPER_SYSTEM_PREAMBLE
+        + '\n\nDEAL CONTEXT:\n' + ctx.slice(0, 5200)
+        + '\n\nCHAT SO FAR:\n' + history
+        + '\n\nUSER:\n' + text
+        + '\n\nASSISTANT:';
+      const out = String(await window.claude.complete(prompt, { max_tokens: 1200, num_ctx: 8192 }) || '').trim();
+      const finalMsgs = [...nextMsgs, { role: 'ai', text: out || 'No response from local model.', at: new Date().toISOString() }];
+      setChatMsgs(finalMsgs);
+      persist(finalMsgs);
+    } catch (err) {
+      const errMsgs = [...nextMsgs, { role: 'ai', text: 'Error: ' + (err?.message || 'bridge failed'), at: new Date().toISOString() }];
+      setChatMsgs(errMsgs);
+      persist(errMsgs);
+    } finally {
+      setChatBusy(false);
+    }
+  };
+
+  if (!lead) return null;
+
+  if (!open) {
+    return (
+      <aside className="cos-helper-panel cos-helper-panel--collapsed">
+        <button type="button" className="cos-helper-expand" onClick={() => setOpen(true)} title="Open deal helper">
+          <V3Icon name="spark" w={16} />
+          <span className="cos-helper-expand-label">Helper</span>
+        </button>
+      </aside>
+    );
+  }
+
+  return (
+    <aside className="cos-helper-panel">
+      <header className="cos-helper-hd">
+        <div>
+          <div className="cos-helper-eyebrow">Deal helper</div>
+          <strong>{lead.brand || lead.contactName}</strong>
+        </div>
+        <button type="button" className="hd-icon-btn" onClick={() => setOpen(false)} aria-label="Collapse deal helper">
+          <V3Icon name="chev_d" w={14} style={{ transform: 'rotate(-90deg)' }} />
+        </button>
+      </header>
+      <div className="cos-helper-src">{bridge ? label : 'offline'}</div>
+      <div className="cos-helper-log" ref={scrollRef}>
+        {chatMsgs.map((m, i) => (
+          <div key={i} className={'cos-helper-msg is-' + m.role}>{m.text}</div>
+        ))}
+        {chatBusy && <div className="cos-helper-msg is-ai cos-helper-thinking">Thinking…</div>}
+      </div>
+      <div className="cos-helper-in">
+        <textarea
+          value={chatInput}
+          onChange={e => setChatInput(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+          placeholder="Paste an email or ask for a draft reply…"
+          rows={5}
+          spellCheck
+        />
+        <button type="button" onClick={send} disabled={chatBusy || !chatInput.trim()}>
+          {chatBusy ? 'Thinking…' : 'Send'}
+        </button>
+      </div>
+    </aside>
+  );
+}
+
 function V4BuildCopilotFocusFromLead(lead) {
   if (!lead) return null;
   const context = typeof V4OrgApprovalContext === 'function' ? V4OrgApprovalContext(lead) : null;
@@ -18906,7 +19086,11 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
     return () => window.removeEventListener('v3:email-sent', onSent);
   }, [lead?.id, onAfterSend, setComposeOpen]);
   if (!lead) {
-    return <div className="cos2-reader"><div className="cos2-reader-empty">Select a thread from the list.</div></div>;
+    return (
+      <div className="cos2-reader-shell">
+        <div className="cos2-reader"><div className="cos2-reader-empty">Select a thread from the list.</div></div>
+      </div>
+    );
   }
 
   const isBriefSelected = isBrief && briefItem;
@@ -19190,6 +19374,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
     && V4CleanDisplayText(gmailSubject).toLowerCase() !== readerTitle.toLowerCase();
 
   return (
+    <div className="cos2-reader-shell">
     <div className={'cos2-reader v6-reader cos2-reader--split cos2-reader--gmail' + (composeOpen ? ' cos2-reader--compose-open' : '') + (isThreadTab ? ' cos2-reader--gmail-native' : '')}>
       {isThreadTab ? (
         <div className="gmail-read-pane">
@@ -19427,6 +19612,8 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
       </div>
         </>
       )}
+    </div>
+    <V4DealHelperPanel lead={lead} />
     </div>
   );
 }

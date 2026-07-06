@@ -47,7 +47,7 @@ SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SU
 # Dedicated DEAL_MODEL_* so the scraper env (which points LOCAL_MODEL_NAME at a
 # separate :8000 server) cannot clobber this. Defaults to the live Ollama model.
 LOCAL_MODEL_BASE = os.environ.get("DEAL_MODEL_BASE", "http://127.0.0.1:11434/v1").rstrip("/")
-LOCAL_MODEL_NAME = os.environ.get("DEAL_MODEL_NAME", "qwen3.6:35b-a3b")
+LOCAL_MODEL_NAME = os.environ.get("DEAL_MODEL_NAME", "qwen2.5:32b-instruct")
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-opus-4-8")
 ESCALATE_VALUE = float(os.environ.get("DEAL_ESCALATE_VALUE", "3000"))
@@ -245,17 +245,13 @@ def _post(url, headers, payload, timeout=180):
 
 
 def llm_local(user):
-    # qwen3.6 is a reasoning model; give it room so the "thinking" does not eat the
-    # whole budget and leave the JSON answer empty.
     data = _post(LOCAL_MODEL_BASE + "/chat/completions",
                  {"Content-Type": "application/json"},
-                 {"model": LOCAL_MODEL_NAME, "max_tokens": 4000,
-                  "think": False,  # Ollama: disable reasoning so it answers JSON directly
+                 {"model": LOCAL_MODEL_NAME, "max_tokens": 2000,
                   "messages": [{"role": "system", "content": _SYSTEM},
                                {"role": "user", "content": user}]})
     msg = data["choices"][0]["message"]
-    # qwen reasoning models sometimes leave content empty and put output in `reasoning`.
-    return msg.get("content") or msg.get("reasoning") or ""
+    return msg.get("content") or ""
 
 
 def llm_claude(user):
@@ -294,7 +290,7 @@ def classify(card):
     user = ("Card metadata:\n" + json.dumps(meta, ensure_ascii=False) +
             "\n\nThread (oldest to newest, quoted tails stripped):\n" +
             (rendered or "(no thread text available)") +
-            "\n\nReturn the JSON object now. /no_think")
+            "\n\nReturn the JSON object now.")
     raw = llm_local(user)
     read = _last_json(raw)
     # Escalate to Claude only when local is low-confidence AND the card is high-stakes.

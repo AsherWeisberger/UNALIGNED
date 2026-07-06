@@ -13,7 +13,7 @@ import httpx
 # Default: local Qwen on Mac Studio. Set LLM_BACKEND=anthropic only for explicit API fallback.
 LLM_BACKEND = os.environ.get("LLM_BACKEND", "local").strip().lower()
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434/api/chat")
-LOCAL_MODEL = os.environ.get("LOCAL_MODEL", "qwen3.6:35b-a3b")
+LOCAL_MODEL = os.environ.get("LOCAL_MODEL", "qwen2.5:32b-instruct")
 
 OPERATOR_FRAMEWORK = """\
 OPERATOR FRAMEWORK (apply before writing — this is Asher's own voice and judgment):
@@ -112,7 +112,6 @@ def ollama_chat(
         "model": LOCAL_MODEL,
         "messages": [{"role": "user", "content": content}],
         "stream": False,
-        "think": False,
         "options": {
             "temperature": temperature,
             "num_ctx": num_ctx,
@@ -138,7 +137,6 @@ async def ollama_chat_async(
         "model": LOCAL_MODEL,
         "messages": [{"role": "user", "content": content}],
         "stream": False,
-        "think": False,
         "options": {
             "temperature": temperature,
             "num_ctx": num_ctx,

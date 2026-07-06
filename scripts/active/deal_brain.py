@@ -44,7 +44,7 @@ OUT_DIR = Path.home() / ".config" / "google-credentials" / "deal_brain"
 CRED_DIR = Path.home() / ".config" / "google-credentials"
 
 LOCAL_MODEL_BASE = os.environ.get("DEAL_MODEL_BASE", "http://127.0.0.1:11434/v1").rstrip("/")
-LOCAL_MODEL_NAME = os.environ.get("DEAL_MODEL_NAME", "qwen3.6:35b-a3b")
+LOCAL_MODEL_NAME = os.environ.get("DEAL_MODEL_NAME", "qwen2.5:32b-instruct")
 GMAIL_TOKEN_FILES = [Path(p) for p in os.environ.get(
     "DEAL_GMAIL_TOKENS",
     f"{CRED_DIR/'gmail-token.json'},{CRED_DIR/'asher-gmail-token.json'}").split(",") if p.strip()]
@@ -274,15 +274,13 @@ OLLAMA_CHAT_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434/api/chat"
 
 
 def llm_json(user: str, system: str = SYSTEM) -> dict | None:
-    """Native Ollama chat with format=json + think off — the same proven path as
-    local_llm.ollama_chat (the OpenAI-compat endpoint leaks reasoning into content)."""
+    """Native Ollama chat with format=json — same path as local_llm.ollama_chat."""
     try:
         r = requests.post(OLLAMA_CHAT_URL, json={
             "model": LOCAL_MODEL_NAME,
             "messages": [{"role": "system", "content": system},
                          {"role": "user", "content": user}],
             "stream": False,
-            "think": False,
             "format": "json",
             "options": {"temperature": 0.3, "num_ctx": 32768, "num_predict": 6000},
         }, timeout=600)
