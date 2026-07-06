@@ -17991,7 +17991,8 @@ BUSINESS RULES (always follow):
 - Never use hyphens, en dashes, or em dashes in drafted email or reply text. Use periods, commas, or rephrase.
 - Sound human and direct, not corporate AI.
 
-SCOPE: Answer only about THIS lead. Use the deal context and email thread provided. When asked to draft replies, output ready to send email bodies with subject lines.`;
+SCOPE: Answer only about THIS lead. Use the deal context and email thread provided. When asked to draft replies, output ready to send email bodies with subject lines.
+NOTE: Board actions (move stage, send draft, mark read) are executed by the app when the user confirms. Do not tell the user to click buttons or navigate menus for those. If they ask you to DO something on the board, say the app will handle it on confirm.`;
 
 function V3ParseHelperThread(raw) {
   if (!raw) return null;
@@ -18045,34 +18046,196 @@ function V4DealHelperWelcome(lead) {
   if (deliverable) bits.push(deliverable);
   return {
     role: 'ai',
-    text: 'Scoped to ' + bits.join(' · ') + '. Paste a long email or ask me to draft your reply, explain where things stand, or walk through next steps.',
+    text: 'Scoped to ' + bits.join(' · ') + '. I draft replies and run board actions for this deal. Tell me to mark complete, send the draft, move stage, or trash it. I will do it after you confirm once with yes.',
   };
 }
 
-function V4DealHelperPanel({ lead }) {
+function V4DealHelperIsYes(text) {
+  return /^(yes|y|yep|yeah|confirm|do it|go ahead|ok|okay|sure|proceed)\.?$/i.test(String(text || '').trim());
+}
+
+function V4DealHelperStageLabel(stage) {
+  const def = window.V3?.StageDef ? window.V3.StageDef(stage) : null;
+  return def?.name || String(stage || '').replace(/-/g, ' ');
+}
+
+function V4DealHelperParseIntent(text, lead) {
+  const raw = String(text || '').trim();
+  const t = raw.toLowerCase();
+  if (!t || !lead) return null;
+  if (V4DealHelperIsYes(t)) return { type: 'confirm' };
+  const brand = lead.brand || lead.contactName || 'this deal';
+
+  if (/\b(trash|delete)\b/.test(t) && /\b(it|this|deal|lead|thread)\b/.test(t + ' lead')) {
+    return { type: 'move_stage', stage: 'trash', label: 'Move ' + brand + ' to Trash' };
+  }
+  if (/\b(mark|set).*(read)\b/.test(t) || /\bmark.*unread.*read\b/.test(t)) {
+    return { type: 'mark_read', label: 'Mark ' + brand + ' read' };
+  }
+  if (/\bmark.*replied.*x\b/.test(t) || /\breplied on x\b/.test(t)) {
+    return { type: 'mark_replied_x', label: 'Mark ' + brand + ' replied on X' };
+  }
+  if (/\b(send|approve).*(draft|reply|email)\b/.test(t) || /\bsend (it|this|the reply)\b/.test(t)) {
+    return { type: 'send_draft', label: 'Send the approved draft for ' + brand };
+  }
+  if (/\b(refresh|pull|sync).*(thread|gmail|email)\b/.test(t)) {
+    return { type: 'refresh_thread', label: 'Refresh the Gmail thread for ' + brand };
+  }
+  if (/\b(refresh|pull).*(x|dm)\b/.test(t)) {
+    return { type: 'refresh_x', label: 'Refresh X DM context for ' + brand };
+  }
+  if (/\b(open|start).*(compose|reply)\b/.test(t)) {
+    return { type: 'open_compose', label: 'Open reply compose for ' + brand };
+  }
+
+  const stageMap = [
+    { re: /\b(move to|mark as|set to|put in).*(close|closed|paid|paid out|complete|completed|wrap)\b/, stage: 'paid-out', label: 'Mark ' + brand + ' closed (paid out)' },
+    { re: /\b(mark|move).*(complete|completed|done|close|closed|paid|wrap up)\b/, stage: 'paid-out', label: 'Mark ' + brand + ' complete (closed)' },
+    { re: /\b(move to|mark as).*(brief)\b/, stage: 'done', label: 'Move ' + brand + ' to Brief / calendar' },
+    { re: /\b(move to|mark as).*(invoice|terms)\b/, stage: 'invoice-sent', label: 'Move ' + brand + ' to Terms / invoice' },
+    { re: /\b(move to|mark as).*(negotiat)\b/, stage: 'negotiating', label: 'Move ' + brand + ' to Negotiate' },
+    { re: /\b(move to|mark as).*(pric|rates)\b/, stage: 'rates-sent', label: 'Move ' + brand + ' to Pricing' },
+    { re: /\b(move to|mark as).*(scope|first touch|engage)\b/, stage: 'engaged', label: 'Move ' + brand + ' to Engaged' },
+  ];
+  for (const item of stageMap) {
+    if (item.re.test(t)) return { type: 'move_stage', stage: item.stage, label: item.label };
+  }
+  if (/^(mark complete|complete this|close this|close deal|mark closed)$/i.test(raw)) {
+    return { type: 'move_stage', stage: 'paid-out', label: 'Mark ' + brand + ' complete (closed)' };
+  }
+  return null;
+}
+
+async function V4DealHelperExecuteAction(lead, action, opts = {}) {
+  if (!lead || !action) throw new Error('No action to run.');
+  switch (action.type) {
+    case 'move_stage': {
+      if (!action.stage) throw new Error('No stage selected.');
+      if (typeof window.V3?.MoveLeadStage === 'function') window.V3.MoveLeadStage(lead, action.stage);
+      return 'Done. ' + (lead.brand || 'Lead') + ' is now ' + V4DealHelperStageLabel(action.stage) + '.';
+    }
+    case 'mark_read': {
+      V4CosPatchLead(lead, { new_reply_at: null }, { unread: false, newReplyAt: null });
+      return 'Done. Marked read.';
+    }
+    case 'mark_replied_x': {
+      if (typeof window.V3?.MarkRepliedViaX === 'function') window.V3.MarkRepliedViaX(lead);
+      return 'Done. Marked replied on X.';
+    }
+    case 'send_draft': {
+      await V4SendApprovedReply(lead);
+      if (typeof opts.onAfterSend === 'function') opts.onAfterSend(lead);
+      return 'Done. Draft sent.';
+    }
+    case 'refresh_thread': {
+      const isX = typeof V3IsXLeadRecord === 'function' && V3IsXLeadRecord(lead);
+      if (isX) await V4RefreshLeadFromX(lead);
+      else await V4RefreshLeadFromGmail(lead);
+      return 'Done. Thread refreshed.';
+    }
+    case 'refresh_x': {
+      await V4RefreshLeadFromX(lead);
+      return 'Done. X context refreshed.';
+    }
+    case 'open_compose': {
+      if (typeof opts.setComposeOpen === 'function') opts.setComposeOpen(true);
+      return 'Done. Reply compose is open.';
+    }
+    default:
+      throw new Error('Unknown action.');
+  }
+}
+
+function V4DealHelperQuickButtons(lead) {
+  if (!lead) return [];
+  const stage = String(lead.stage || '');
+  const btns = [];
+  const pendingDraft = String(lead.draftReplyStatus || '').toLowerCase() === 'pending'
+    && String(lead.draftReply?.body || '').trim();
+  if (pendingDraft) {
+    btns.push({ text: 'Send draft', primary: true, action: { type: 'send_draft', label: 'Send the approved draft' } });
+  }
+  if (!['done', 'paid-out', 'trash', 'dead-leads'].includes(stage)) {
+    if (['invoice-sent', 'done'].includes(stage)) {
+      btns.push({ text: 'Mark closed', primary: !pendingDraft, action: { type: 'move_stage', stage: 'paid-out', label: 'Mark deal closed (paid out)' } });
+    } else {
+      btns.push({ text: 'Mark complete', primary: !pendingDraft, action: { type: 'move_stage', stage: 'paid-out', label: 'Mark deal complete (closed)' } });
+    }
+    if (['negotiating', 'invoice-sent', 'rates-sent'].includes(stage)) {
+      btns.push({ text: 'Move to brief', action: { type: 'move_stage', stage: 'done', label: 'Move to Brief / calendar' } });
+    }
+  }
+  if (lead.unread || lead.needsReply) {
+    btns.push({ text: 'Mark read', action: { type: 'mark_read', label: 'Mark thread read' } });
+  }
+  if (typeof V3XLeadNeedsDmReply === 'function' && V3XLeadNeedsDmReply(lead) && typeof V3XLeadRepliedViaX === 'function' && !V3XLeadRepliedViaX(lead)) {
+    btns.push({ text: 'Mark replied on X', action: { type: 'mark_replied_x', label: 'Mark replied on X' } });
+  }
+  return btns.slice(0, 4);
+}
+
+function V4DealHelperPanel({ lead, setComposeOpen, onAfterSend }) {
   const [open, setOpen] = React.useState(false);
   const [chatInput, setChatInput] = React.useState('');
   const [chatBusy, setChatBusy] = React.useState(false);
   const [chatMsgs, setChatMsgs] = React.useState([]);
+  const [pendingAction, setPendingAction] = React.useState(null);
   const scrollRef = React.useRef(null);
   const bridge = typeof window !== 'undefined' && window.claude && window.claude.complete;
   const label = (window.claude?.label) ? window.claude.label() : 'Mac Studio';
+  const quickBtns = React.useMemo(() => V4DealHelperQuickButtons(lead), [lead?.id, lead?.stage, lead?.unread, lead?.needsReply, lead?.draftReplyStatus, lead?.draftReply?.body]);
 
   React.useEffect(() => {
     const loaded = V4DealHelperLoadThread(lead);
     const msgs = loaded.messages.length ? loaded.messages : [V4DealHelperWelcome(lead)];
     setChatMsgs(msgs);
     setChatInput('');
+    setPendingAction(null);
   }, [lead?.id]);
 
   React.useEffect(() => {
     if (!open || !scrollRef.current) return;
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [chatMsgs, chatBusy, open]);
+  }, [chatMsgs, chatBusy, open, pendingAction]);
 
   const persist = (msgs) => {
     if (!lead?.id) return;
     V4DealHelperSaveThread(lead, { messages: msgs });
+  };
+
+  const proposeAction = (action, baseMsgs) => {
+    const msgs = baseMsgs || chatMsgs;
+    const confirmMsg = {
+      role: 'ai',
+      text: 'Ready to ' + String(action.label || 'run this').toLowerCase() + '. Reply yes or click Yes once to confirm.',
+      at: new Date().toISOString(),
+      pendingAction: action,
+    };
+    const next = [...msgs, confirmMsg];
+    setPendingAction(action);
+    setChatMsgs(next);
+    persist(next);
+  };
+
+  const runPendingAction = async (baseMsgs) => {
+    const action = pendingAction;
+    if (!action || chatBusy || !lead) return;
+    setChatBusy(true);
+    setPendingAction(null);
+    try {
+      const result = await V4DealHelperExecuteAction(lead, action, { setComposeOpen, onAfterSend });
+      const doneMsg = { role: 'ai', text: result, at: new Date().toISOString() };
+      const next = [...(baseMsgs || chatMsgs), doneMsg];
+      setChatMsgs(next);
+      persist(next);
+    } catch (err) {
+      const errMsg = { role: 'ai', text: 'Could not run that: ' + (err?.message || 'failed'), at: new Date().toISOString() };
+      const next = [...(baseMsgs || chatMsgs), errMsg];
+      setChatMsgs(next);
+      persist(next);
+    } finally {
+      setChatBusy(false);
+    }
   };
 
   const send = async () => {
@@ -18083,6 +18246,24 @@ function V4DealHelperPanel({ lead }) {
     setChatInput('');
     setChatMsgs(nextMsgs);
     persist(nextMsgs);
+
+    const intent = V4DealHelperParseIntent(text, lead);
+    if (intent?.type === 'confirm') {
+      if (pendingAction) {
+        await runPendingAction(nextMsgs);
+      } else {
+        const note = { role: 'ai', text: 'Nothing queued to confirm. Tell me what to do first.', at: new Date().toISOString() };
+        const withNote = [...nextMsgs, note];
+        setChatMsgs(withNote);
+        persist(withNote);
+      }
+      return;
+    }
+    if (intent && intent.type !== 'confirm') {
+      proposeAction(intent, nextMsgs);
+      return;
+    }
+
     if (!bridge) {
       const offline = [...nextMsgs, { role: 'ai', text: 'Local LLM offline. Start local_llm_bridge.py on the Mac Studio.', at: new Date().toISOString() }];
       setChatMsgs(offline);
@@ -18137,24 +18318,47 @@ function V4DealHelperPanel({ lead }) {
           <V3Icon name="chev_d" w={14} style={{ transform: 'rotate(-90deg)' }} />
         </button>
       </header>
+      {quickBtns.length > 0 && (
+        <div className="cos-helper-actions">
+          {quickBtns.map((btn, idx) => (
+            <button
+              key={idx}
+              type="button"
+              className={'cos-helper-act' + (btn.primary ? ' is-primary' : '')}
+              disabled={chatBusy}
+              onClick={() => proposeAction(btn.action)}
+            >
+              {btn.text}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="cos-helper-src">{bridge ? label : 'offline'}</div>
       <div className="cos-helper-log" ref={scrollRef}>
         {chatMsgs.map((m, i) => (
           <div key={i} className={'cos-helper-msg is-' + m.role}>{m.text}</div>
         ))}
-        {chatBusy && <div className="cos-helper-msg is-ai cos-helper-thinking">Thinking…</div>}
+        {chatBusy && <div className="cos-helper-msg is-ai cos-helper-thinking">Working…</div>}
       </div>
+      {pendingAction && (
+        <div className="cos-helper-confirm-bar">
+          <span>{pendingAction.label || 'Run action'}?</span>
+          <button type="button" className="cos-helper-yes" disabled={chatBusy} onClick={() => runPendingAction()}>
+            Yes, do it
+          </button>
+        </div>
+      )}
       <div className="cos-helper-in">
         <textarea
           value={chatInput}
           onChange={e => setChatInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-          placeholder="Paste an email or ask for a draft reply…"
+          placeholder={pendingAction ? 'Reply yes to confirm…' : 'Paste an email, ask for a draft, or say mark complete…'}
           rows={5}
           spellCheck
         />
         <button type="button" onClick={send} disabled={chatBusy || !chatInput.trim()}>
-          {chatBusy ? 'Thinking…' : 'Send'}
+          {chatBusy ? 'Working…' : 'Send'}
         </button>
       </div>
     </aside>
@@ -19613,7 +19817,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
         </>
       )}
     </div>
-    <V4DealHelperPanel lead={lead} />
+    <V4DealHelperPanel lead={lead} setComposeOpen={setComposeOpen} onAfterSend={onAfterSend} />
     </div>
   );
 }
