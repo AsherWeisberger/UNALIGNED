@@ -293,6 +293,15 @@ def fill_opener(pattern: str, **kwargs: str) -> str:
     return _line(out)
 
 
+EYEWITNESS_OPENER_MARKERS = (
+    "being at the launch",
+    "being at ",
+    "i tested ",
+    "one prompt. minutes later",
+)
+FABRICATED_NAME_DROP_MARKERS = ("the guy who started", "he worked on")
+
+
 def robert_opener(
     *,
     variant: int = 0,
@@ -300,12 +309,32 @@ def robert_opener(
     topic: str = "",
     hook: str = "",
     artifact: str = "launch page",
+    allow_eyewitness: bool = False,
+    allow_name_drop: bool = False,
 ) -> str:
     tone = tonality_for_variant(variant)
     patterns = tone.get("opener_patterns") or []
     if not patterns:
         patterns = TONALITY_DEFS[variant % len(TONALITY_DEFS)].get("opener_patterns") or [""]
-    pattern = patterns[variant % len(patterns)]
+
+    def _pattern_allowed(pattern: str) -> bool:
+        lowered = pattern.lower()
+        if not allow_eyewitness and any(marker in lowered for marker in EYEWITNESS_OPENER_MARKERS):
+            return False
+        if not allow_name_drop and any(marker in lowered for marker in FABRICATED_NAME_DROP_MARKERS):
+            return False
+        return True
+
+    allowed = [pattern for pattern in patterns if _pattern_allowed(pattern)]
+    pool = allowed or [
+        pattern
+        for tone_def in TONALITY_DEFS
+        for pattern in (tone_def.get("opener_patterns") or [])
+        if _pattern_allowed(pattern)
+    ]
+    if not pool:
+        pool = ["What caught my eye with {brand} is the workflow shift, not another tool list."]
+    pattern = pool[variant % len(pool)]
     return fill_opener(
         pattern,
         brand=brand or "this team",

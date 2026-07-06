@@ -19022,6 +19022,20 @@ function V4DealMadeBriefDoc(lead) {
     return String(parsed && parsed.url ? parsed.url : '');
   } catch (err) { return ''; }
 }
+// Full Gmail thread for the brief machine — deliverable signals, anchor posts, angles.
+function V4DealEmailContext(lead) {
+  const t = Array.isArray(lead?.thread) ? lead.thread : [];
+  if (!t.length) return '';
+  const parts = t.map((m) => {
+    const from = String(m?.from || m?.sender || '').trim();
+    const subj = String(m?.subject || '').trim();
+    const body = String(m?.body || m?.snippet || m?.text || '').trim();
+    if (!body && !subj) return '';
+    return `From: ${from}\nSubject: ${subj}\n${body}`.trim();
+  }).filter(Boolean);
+  const joined = parts.join('\n\n---\n\n');
+  return joined.length > 14000 ? joined.slice(-14000) : joined;
+}
 function V4DealBriefLinkLabel(url) {
   const u = String(url || '').toLowerCase();
   if (u.includes('notion.')) return 'Notion brief';
@@ -19087,7 +19101,7 @@ function V4DealActionBar({ lead, onOpenSplits }) {
       const jobRes = await V4BriefServiceFetch('/start-brief-job', {
         method: 'POST',
         body: JSON.stringify({
-          source_url: briefLink, notion_url: briefLink, email_context: '',
+          source_url: briefLink, notion_url: briefLink, email_context: V4DealEmailContext(lead),
           deliverable_type: '', deliverable_type_locked: false,
           calendar_title: '', calendar_mode: 'all_day', calendar_date: '', calendar_start: '', calendar_end: '',
         }),

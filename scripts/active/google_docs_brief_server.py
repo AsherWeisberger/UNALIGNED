@@ -115,8 +115,10 @@ from robert_handoff_operator import (  # type: ignore
 from x_dm_draft import draft_x_dm_reply_for_lead  # type: ignore
 from brief_draft_rewrite import (  # type: ignore
     draft_looks_instructional,
+    draft_uses_robert_template,
     ensure_publishable_drafts,
     format_sender_intel_for_prompt,
+    infer_negotiation_stage,
     parse_sender_email_intelligence,
     rebuild_drafts_for_deliverable,
 )
@@ -1086,6 +1088,8 @@ Rules:
 - Do not write compliance placeholders like "Paid partnership disclosure here for compliance" in the draft body.
 - Do not write notes to yourself like "tone: provocative" or "the thesis is" inside the post copy.
 - Do not invent metrics or facts.
+- Never claim Robert attended a launch, tested a product, or met a founder unless SENDER DEMO CONTEXT or source text explicitly proves it. No "Being at the launch" unless the source says he was there.
+- When the source or sender email points to suggested angles in a creator brief, use those angles. Do not substitute generic Robert voice templates.
 - If a tag or link is required, include it in a natural close, not as a wall of text.
 
 Campaign title:
@@ -1375,6 +1379,9 @@ def enrich_payload_from_sender_email(payload: dict) -> dict:
         and not merged.get("deliverable_type_locked")
     ):
         merged["deliverable_type"] = normalize_deliverable_type(line(intel.get("deliverable_hint")))
+
+    if intel.get("negotiation_stage") and not line(merged.get("deliverable_type")):
+        merged["negotiation_stage"] = True
 
     must = dict(merged.get("must_include") or {})
     if intel.get("site_link") and not line(must.get("link")):
@@ -2889,6 +2896,8 @@ def draft_text_is_lazy(value: str, joined_lines: str) -> bool:
     )
     if any(item in lowered for item in client_slop):
         return True
+    if draft_uses_robert_template(text) and alpha_count < 220:
+        return True
     return False
 
 
@@ -4063,14 +4072,25 @@ def build_structured_brief_payload(
         payload["sender_intelligence"] = sender_intel
         payload["sender_intelligence_text"] = sender_intel_text
     merged = dict(payload)
+    merged = enrich_payload_from_sender_email(merged)
+    if line(email_context) and infer_negotiation_stage(email_context) and not line(merged.get("deliverable_type")):
+        merged["negotiation_stage"] = True
+        status = [line(item) for item in (merged.get("status_note") or []) if line(item)]
+        note = (
+            "Negotiating — deliverable format not confirmed yet. "
+            "Confirm QRT, thread, or standalone with the client before Robert posts."
+        )
+        if note not in status:
+            status.insert(0, note)
+        merged["status_note"] = status
     source_payload = {
         "title": title,
         "source_url": source_url,
         "source_text": payload.get("source_text"),
         "links": links,
-        "email_context": payload.get("email_context"),
-        "sender_intelligence": payload.get("sender_intelligence"),
-        "sender_intelligence_text": payload.get("sender_intelligence_text"),
+        "email_context": merged.get("email_context"),
+        "sender_intelligence": merged.get("sender_intelligence"),
+        "sender_intelligence_text": merged.get("sender_intelligence_text"),
     }
     if LOCAL_BRIEF_LLM_ENABLED and not LOCAL_BRIEF_SKIP_FACTS:
         llm_payload = query_local_brief_model(source_payload)
@@ -4096,7 +4116,6 @@ def build_structured_brief_payload(
         merged = apply_deliverable_override(merged, deliverable_override)
         merged = rebuild_drafts_for_deliverable(merged)
     merged = ensure_publishable_drafts(merged)
-    merged = enrich_payload_from_sender_email(merged)
     if deliverable_override:
         merged = apply_deliverable_override(merged, deliverable_override)
         merged = rebuild_drafts_for_deliverable(merged)

@@ -48,6 +48,372 @@ QUOTED_PROMPT_RE = re.compile(
     re.I,
 )
 
+AM_HANDOFF_MARKERS = (
+    "please take some time to review",
+    "review it carefully",
+    "review carefully",
+    "talking points",
+    "ways to angle",
+    "way to angle",
+    "creator brief",
+    "attached brief",
+    "sharing the brief",
+    "here is the brief",
+    "here's the brief",
+    "let me know if you have any questions",
+    "when you get a chance",
+    "for your review",
+    "take a look at",
+    "wanted to share",
+    "please find attached",
+    "brief for robert",
+    "build the brief",
+    "build a brief",
+    "forwarding this",
+    "passing along",
+    "see attached",
+)
+
+DEMO_STORY_MARKERS = (
+    "heatwave",
+    "heat wave",
+    "one prompt",
+    "built within minutes",
+    "the thread will be about",
+    "we created as the example",
+    "example for the posting",
+    "i built ",
+    "i ran one prompt",
+    "the demo that",
+    "zip code",
+    "launch page",
+    "finished page",
+)
+
+
+ROBERT_TEMPLATE_OPENERS = (
+    "being at the launch of",
+    "the guy who started",
+    "everyone is sharing",
+    "i hate myself for saying this",
+    "i tested ",
+    "one prompt. minutes later",
+)
+
+
+def infer_negotiation_stage(text: str) -> bool:
+    """Price/rates thread with interest but no confirmed deliverable format yet."""
+    lowered = _line(text).lower()
+    if not lowered:
+        return False
+    has_price_signal = any(
+        phrase in lowered
+        for phrase in (
+            "pricing",
+            "rates",
+            "rate card",
+            "how much",
+            "price",
+            "budget",
+            "move forward",
+            "move foward",
+            "would like to move",
+            "interested",
+            "process payment",
+            "send an invoice",
+            "payment cleared",
+        )
+    )
+    has_deliverable = bool(_infer_deliverable_hint_from_email(text))
+    has_campaign_brief = any(
+        phrase in lowered
+        for phrase in (
+            "creator brief",
+            "suggested angles",
+            "looking for a qrt",
+            "qrt + comment",
+            "quote tweet",
+            "dedicated thread",
+            "we need a",
+            "we're looking for",
+            "we are looking for",
+            "post on wednesday",
+            "viral quote post",
+        )
+    )
+    return has_price_signal and not has_deliverable and not has_campaign_brief
+
+
+def robert_eyewitness_allowed(payload: dict[str, Any]) -> bool:
+    if sender_demo_story(payload):
+        return True
+    haystack = " ".join(
+        [
+            _line(payload.get("source_text")),
+            _line(payload.get("email_context")),
+            _line((payload.get("sender_intelligence") or {}).get("demo_story")),
+        ]
+    ).lower()
+    proof_markers = (
+        "i tested",
+        "i built",
+        "robert tested",
+        "robert built",
+        "was at the launch",
+        "attended the launch",
+        "sat in the",
+        "watched the demo",
+        "field test",
+        "one prompt. minutes later",
+    )
+    return any(marker in haystack for marker in proof_markers)
+
+
+def robert_name_drop_allowed(payload: dict[str, Any]) -> bool:
+    haystack = " ".join(
+        [
+            _line(payload.get("source_text")),
+            _line(payload.get("email_context")),
+        ]
+    ).lower()
+    return any(
+        marker in haystack
+        for marker in (
+            "founder",
+            "co-founder",
+            "started it",
+            "he worked on",
+            "she worked on",
+            "the guy who",
+            "the team behind",
+        )
+    )
+
+
+def draft_uses_robert_template(text: str) -> bool:
+    lowered = _line(text).lower()
+    if not lowered:
+        return False
+    return any(marker in lowered for marker in ROBERT_TEMPLATE_OPENERS)
+
+
+def compose_campaign_angle_standalone_drafts(payload: dict[str, Any]) -> list[dict[str, str]]:
+    """Prefer creator-brief angles over generic Robert voice templates."""
+    angles = payload.get("campaign_angles") or []
+    if not angles:
+        return []
+    must = payload.get("must_include") or {}
+    tag = _line(must.get("tag"))
+    hashtags = _line(must.get("hashtags"))
+    link = _line(must.get("link"))
+    footer = " ".join(part for part in (tag, hashtags, link) if part).strip()
+    labels = [
+        "Option 1. Recommended",
+        "Option 2. Technical angle",
+        "Option 3. Market angle",
+    ]
+    out: list[dict[str, str]] = []
+    for idx, angle in enumerate(angles[:3]):
+        if not isinstance(angle, dict):
+            continue
+        hook = _line(angle.get("hook")) or _line(angle.get("title"))
+        examples = [ _line(item) for item in (angle.get("examples") or []) if _line(item) ]
+        body = hook
+        for example in examples:
+            if len(example) >= 40 and not draft_looks_instructional(example):
+                body = example
+                break
+        if not body or draft_looks_instructional(body):
+            continue
+        if footer and footer.lower() not in body.lower():
+            body = f"{body} {footer}".strip()
+        voice = score_robert_authenticity(body)
+        out.append(
+            {
+                "label": labels[idx] if idx < len(labels) else f"Option {idx + 1}",
+                "text": strip_non_robert_phrases(clean_draft_text(body)),
+                "brief_angle": angle.get("number"),
+                "robert_voice_score": voice.get("score"),
+                "robert_voice_tier": voice.get("tier"),
+                "robert_tonality": voice.get("tonality"),
+            }
+        )
+    return out
+
+
+def _infer_deliverable_hint_from_email(text: str) -> str:
+    lowered = _line(text).lower()
+    if not lowered:
+        return ""
+    if re.search(r"quote[\s\-]?tweet|quote[\s\-]?repost|\bqrt\b", lowered):
+        return "Quote repost"
+    if re.search(r"\bretweet\b", lowered) and not re.search(r"no retweets?", lowered):
+        return "Retweet"
+    if re.search(r"\brepost\b", lowered) and not re.search(r"no reposts?", lowered):
+        return "Quote repost"
+    if "narrative thread" in lowered or "dedicated thread" in lowered:
+        return "Dedicated thread"
+    if re.search(r"\bthread\b", lowered) and "no thread" not in lowered:
+        return "Dedicated thread"
+    if "custom x post" in lowered or "custom post" in lowered:
+        return "Custom post"
+    if "linkedin" in lowered:
+        return "LinkedIn post"
+    if "founder video" in lowered:
+        return "Founder Video Post"
+    if "x space" in lowered:
+        return "X Space (live)"
+    if re.search(r"\binterview\b", lowered):
+        return "Interview"
+    return ""
+
+
+def _email_sentence_is_meta(sentence: str) -> bool:
+    lowered = _line(sentence).lower()
+    if not lowered:
+        return True
+    return any(marker in lowered for marker in AM_HANDOFF_MARKERS)
+
+
+def parse_sender_email_intelligence(text: str) -> dict[str, Any]:
+    """Extract brief-building signals from client AM emails addressed to Ash."""
+    raw = clean_draft_text(text)
+    if not raw:
+        return {}
+
+    lowered = raw.lower()
+    urls = re.findall(r"https?://[^\s)>\]]+", raw)
+    anchor_post = next(
+        (url for url in urls if "x.com" in url.lower() or "twitter.com" in url.lower()),
+        "",
+    )
+    site_link = next(
+        (
+            url
+            for url in urls
+            if "x.com" not in url.lower()
+            and "twitter.com" not in url.lower()
+            and "notion" not in url.lower()
+            and "docs.google.com" not in url.lower()
+        ),
+        "",
+    )
+
+    go_live = ""
+    for pattern in (
+        r"(?i)(?:go[\s-]?live|posting window|post on|publish(?:ing)?|live on|scheduled for|launch(?:ing)? on)[:\s]+([^\n.]{4,100})",
+        r"(?i)(?:target date|post date)[:\s]+([^\n.]{4,100})",
+    ):
+        match = re.search(pattern, raw)
+        if match:
+            go_live = _line(match.group(1))
+            break
+
+    angles: list[str] = []
+    if any(marker in lowered for marker in AM_HANDOFF_MARKERS):
+        angles = []
+    elif "talking points" in lowered:
+        tail = re.split(r"(?i)talking points[:\s]*", raw, maxsplit=1)
+        if len(tail) > 1:
+            section = re.split(r"(?i)(?:let me know|best,|thanks,|regards,|cheers,)", tail[1])[0]
+            for row in section.splitlines():
+                cleaned = re.sub(r"^[\s\-•*]+", "", row).strip()
+                cleaned = re.sub(r"^\d+[\).\]]\s*", "", cleaned).strip()
+                if cleaned and len(cleaned) > 12 and not _email_sentence_is_meta(cleaned):
+                    angles.append(cleaned)
+    if "ways to angle" in lowered or "way to angle" in lowered:
+        tail = re.split(r"(?i)ways?\s+to\s+angle[^:]*:?", raw, maxsplit=1)
+        if len(tail) > 1:
+            section = re.split(r"(?i)(?:let me know|best,|thanks,|regards,)", tail[1])[0]
+            for row in section.splitlines():
+                cleaned = re.sub(r"^[\s\-•*]+", "", row).strip()
+                if cleaned and len(cleaned) > 12 and not _email_sentence_is_meta(cleaned):
+                    angles.append(cleaned)
+
+    demo_story = ""
+    if any(marker in lowered for marker in DEMO_STORY_MARKERS):
+        thread_match = re.search(r"(?i)the thread will be about\s+(.+?)(?:\.|$)", raw)
+        if thread_match:
+            demo_story = _line(thread_match.group(1))
+        if not demo_story:
+            for sentence in re.split(r"(?<=[.!?])\s+", raw):
+                sentence_lower = sentence.lower()
+                if any(marker in sentence_lower for marker in DEMO_STORY_MARKERS) and not _email_sentence_is_meta(sentence):
+                    demo_story = _line(sentence)
+                    break
+
+    tone_notes: list[str] = []
+    for pattern in (
+        r"(?i)(?:tone|style|voice)[:\s]+([^\n.]{8,140})",
+        r"(?i)(?:keep it|write it|should feel)\s+([^\n.]{8,140})",
+    ):
+        match = re.search(pattern, raw)
+        if match:
+            note = _line(match.group(1))
+            if note and not _email_sentence_is_meta(note):
+                tone_notes.append(note)
+
+    deduped_angles: list[str] = []
+    seen_angles: set[str] = set()
+    for angle in angles:
+        key = angle.lower()
+        if key in seen_angles:
+            continue
+        seen_angles.add(key)
+        deduped_angles.append(angle)
+
+    if "suggested angles" in lowered or "creator brief" in lowered:
+        for row in raw.splitlines():
+            cleaned = re.sub(r"^[\s\-•*]+", "", row).strip()
+            if cleaned and len(cleaned) > 12 and not _email_sentence_is_meta(cleaned):
+                if cleaned.lower() not in {angle.lower() for angle in deduped_angles}:
+                    deduped_angles.append(cleaned)
+
+    return {
+        "is_am_handoff": any(marker in lowered for marker in AM_HANDOFF_MARKERS),
+        "demo_story": demo_story,
+        "angles": deduped_angles[:6],
+        "anchor_post": anchor_post,
+        "site_link": site_link,
+        "go_live": go_live,
+        "deliverable_hint": _infer_deliverable_hint_from_email(raw),
+        "negotiation_stage": infer_negotiation_stage(raw),
+        "doc_has_suggested_angles": "suggested angles" in lowered or "creator brief" in lowered,
+        "tone_notes": tone_notes[:4],
+    }
+
+
+def format_sender_intel_for_prompt(intel: dict[str, Any]) -> str:
+    if not intel:
+        return ""
+    lines: list[str] = []
+    if intel.get("is_am_handoff"):
+        lines.append(
+            "This email is addressed to the account manager, not Robert. "
+            "Use it for logistics, deliverable signals, anchor links, timing, and talking points. "
+            "Never paste review requests or scheduling language into Robert's draft posts."
+        )
+    if intel.get("deliverable_hint"):
+        lines.append(f"Deliverable signal: {intel['deliverable_hint']}")
+    if intel.get("negotiation_stage"):
+        lines.append(
+            "Negotiation stage: client confirmed interest but deliverable format is not locked yet. "
+            "Do not invent QRT/thread/standalone. Use creator-brief angles when present."
+        )
+    if intel.get("doc_has_suggested_angles"):
+        lines.append("Creator brief includes suggested angles — lead drafts from those, not generic templates.")
+    if intel.get("anchor_post"):
+        lines.append(f"Anchor post to quote: {intel['anchor_post']}")
+    if intel.get("go_live"):
+        lines.append(f"Timing: {intel['go_live']}")
+    if intel.get("demo_story"):
+        lines.append(f"Robert demo story (lead drafts with this when real): {intel['demo_story']}")
+    for angle in intel.get("angles") or []:
+        lines.append(f"Talking point: {angle}")
+    for note in intel.get("tone_notes") or []:
+        lines.append(f"Tone note: {note}")
+    return "\n".join(lines)
+
 
 def extract_demo_task_from_text(text: str) -> str:
     cleaned = clean_draft_text(text)
@@ -65,14 +431,27 @@ def extract_demo_task_from_text(text: str) -> str:
 
 
 def sender_demo_story(payload: dict[str, Any]) -> str:
-    """What Robert / Ash actually tested — Brief Maker dialogue box. Takes priority over Notion example prompts."""
+    """What Robert actually tested — only real demo narratives, never AM handoff boilerplate."""
+    intel = payload.get("sender_intelligence") or {}
+    demo = _line(intel.get("demo_story"))
+    if demo:
+        return demo
+
     ctx = _line(payload.get("email_context"))
     if not ctx:
         return ""
+
+    parsed = parse_sender_email_intelligence(ctx)
+    demo = _line(parsed.get("demo_story"))
+    if demo:
+        return demo
+
     lowered = ctx.lower()
     if lowered.startswith("example prompt"):
         return ""
-    if len(ctx) >= 24 and "example prompt" not in lowered:
+    if parsed.get("is_am_handoff"):
+        return ""
+    if len(ctx) >= 24 and "example prompt" not in lowered and any(marker in lowered for marker in DEMO_STORY_MARKERS):
         return ctx
     return ""
 
@@ -179,6 +558,18 @@ def draft_looks_instructional(text: str) -> bool:
         "add your proof",
         "pick one in the verify",
         "nothing goes live until",
+        "please take some time to review",
+        "review it carefully",
+        "review carefully",
+        "especially the talking points",
+        "talking points",
+        "ways to angle",
+        "way to angle",
+        "creator brief",
+        "attached brief",
+        "let me know if you have any questions",
+        "when you get a chance",
+        "for your review",
     )
     return any(marker in lowered for marker in instruction_markers)
 
@@ -315,10 +706,33 @@ def compose_strategic_thread(payload: dict[str, Any], *, variant: int = 0) -> st
         ]
     else:
         short_topic = company or "AI"
+        eyewitness = robert_eyewitness_allowed(payload)
+        name_drop = robert_name_drop_allowed(payload)
         mains = [
-            robert_opener(variant=variant, brand=company, topic=short_topic, artifact="launch page"),
-            robert_opener(variant=variant + 1, brand=company, topic=short_topic, artifact="launch page"),
-            robert_opener(variant=variant + 2, brand=company, topic=short_topic, artifact="demo page"),
+            robert_opener(
+                variant=variant,
+                brand=company,
+                topic=short_topic,
+                artifact="launch page",
+                allow_eyewitness=eyewitness,
+                allow_name_drop=name_drop,
+            ),
+            robert_opener(
+                variant=variant + 1,
+                brand=company,
+                topic=short_topic,
+                artifact="launch page",
+                allow_eyewitness=eyewitness,
+                allow_name_drop=name_drop,
+            ),
+            robert_opener(
+                variant=variant + 2,
+                brand=company,
+                topic=short_topic,
+                artifact="demo page",
+                allow_eyewitness=eyewitness,
+                allow_name_drop=name_drop,
+            ),
         ]
         # Keep product-specific fallbacks when voice openers are too generic.
         mains = [
@@ -365,23 +779,168 @@ def compose_strategic_standalone(payload: dict[str, Any], *, variant: int = 0) -
     return clean_draft_text(body)
 
 
+def _deliverable_is_thread(deliverable: str) -> bool:
+    lowered = deliverable.lower()
+    return "thread" in lowered and "quote" not in lowered and "retweet" not in lowered
+
+
+def _deliverable_is_quote_repost(deliverable: str) -> bool:
+    lowered = deliverable.lower()
+    return "quote" in lowered or "qrt" in lowered
+
+
+def _alignednews_closer(payload: dict[str, Any]) -> str:
+    raw = _line(payload.get("why_alignednews"))
+    if raw:
+        raw = re.sub(r"AlignedNews\.com", "AlignedNews", raw, flags=re.I)
+        raw = re.sub(r"alignednews\.com", "AlignedNews", raw, flags=re.I)
+        if "alignednews" in raw.lower():
+            return raw
+    return "That is the bigger AI story I track at AlignedNews."
+
+
+def _trim_qrt_copy(text: str, *, max_chars: int = 270) -> str:
+    out = clean_draft_text(text)
+    if len(out) <= max_chars:
+        return out
+    trimmed = out[:max_chars].rsplit(" ", 1)[0].strip()
+    if trimmed and not trimmed.endswith((".", "!", "?")):
+        trimmed += "."
+    return trimmed
+
+
+def compose_quote_repost_line(payload: dict[str, Any], *, variant: int = 0) -> str:
+    """One short QRT reaction — not a narrative thread."""
+    company = _line(payload.get("company_name")) or "This product"
+    core = _line(payload.get("core_idea"))
+    hook = product_hook(payload)
+    proof = product_proof(payload)
+    aligned = _alignednews_closer(payload)
+    footer = _draft_footer(payload)
+    bodies = [
+        f"Team mode for AI agents is the shift. {company} makes that feel real in daily work. {aligned}",
+        f"What caught my eye: agents hand work to each other instead of one long chat thread. {aligned}",
+        f"The category move is assistant to team, not a bigger single prompt. {aligned}",
+    ]
+    body = strip_non_robert_phrases(
+        strip_pollution(strip_hyphens_from_copy(bodies[variant % len(bodies)]))
+    )
+    tag = _line((payload.get("must_include") or {}).get("tag"))
+    if tag and tag.lower() not in body.lower():
+        body = f"{body} {tag}".strip()
+    elif footer and footer.lower() not in body.lower():
+        body = f"{body} {footer}".strip()
+    return _trim_qrt_copy(body)
+
+
+def compose_quote_repost_drafts(payload: dict[str, Any]) -> list[dict[str, str]]:
+    labels = [
+        "Option 1. Recommended",
+        "Option 2. Technical angle",
+        "Option 3. Market angle",
+    ]
+    out: list[dict[str, str]] = []
+    for idx, label in enumerate(labels):
+        text = compose_quote_repost_line(payload, variant=idx)
+        voice = score_robert_authenticity(text)
+        out.append({
+            "label": label,
+            "text": text,
+            "robert_voice_score": voice.get("score"),
+            "robert_voice_tier": voice.get("tier"),
+            "robert_tonality": voice.get("tonality"),
+        })
+    return out
+
+
+def compose_retweet_drafts(payload: dict[str, Any]) -> list[dict[str, str]]:
+    intel = payload.get("sender_intelligence") or {}
+    anchor = _line(intel.get("anchor_post"))
+    where = payload.get("where_it_lives") or []
+    if not anchor:
+        for row in where:
+            if isinstance(row, (list, tuple)) and len(row) >= 2:
+                if re.search(r"quote|qrt|retweet|anchor|post to", _line(row[0]), re.I):
+                    anchor = _line(row[1])
+                    break
+    anchor_note = f"Anchor: {anchor}" if anchor else "Use the anchor post listed in logistics."
+    return [{
+        "label": "Retweet instructions",
+        "text": (
+            "1. Open the anchor post in logistics.\n"
+            "2. Retweet it (no quote commentary needed).\n"
+            f"3. Confirm live: {anchor_note}"
+        ).strip(),
+    }]
+
+
+def rebuild_drafts_for_deliverable(payload: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(payload)
+    if merged.get("negotiation_stage"):
+        angle_drafts = compose_campaign_angle_standalone_drafts(merged)
+        if len(angle_drafts) >= 2:
+            merged["drafts"] = angle_drafts
+            merged["drafts_source"] = "campaign_angles"
+            merged["post_format"] = "custom_post"
+            merged["max_thread_replies"] = 0
+            return merged
+    deliverable = _line(merged.get("deliverable_type"))
+    if not deliverable:
+        angle_drafts = compose_campaign_angle_standalone_drafts(merged)
+        if len(angle_drafts) >= 2:
+            merged["drafts"] = angle_drafts
+            merged["drafts_source"] = "campaign_angles"
+            return merged
+        return merged
+    lowered = deliverable.lower()
+    if _deliverable_is_quote_repost(lowered):
+        merged["drafts"] = compose_quote_repost_drafts(merged)
+        merged["post_format"] = "quote_repost"
+        merged["max_thread_replies"] = 0
+        merged["drafts_source"] = "deliverable_rebuild"
+    elif "retweet" in lowered:
+        merged["drafts"] = compose_retweet_drafts(merged)
+        merged["post_format"] = "retweet"
+        merged["max_thread_replies"] = 0
+        merged["drafts_source"] = "deliverable_rebuild"
+    elif _deliverable_is_thread(lowered):
+        merged["drafts"] = build_fallback_robert_drafts(merged)
+        merged["post_format"] = "narrative_thread"
+        merged["drafts_source"] = "deliverable_rebuild"
+    else:
+        merged["drafts"] = build_fallback_robert_drafts(merged)
+        merged["post_format"] = "custom_post"
+        merged["max_thread_replies"] = 0
+        merged["drafts_source"] = "deliverable_rebuild"
+    return merged
+
+
 def polish_draft_text(text: str, payload: dict[str, Any], *, variant: int = 0) -> str:
     deliverable = _line(payload.get("deliverable_type")).lower()
-    is_thread = "thread" in deliverable or re.search(r"(?im)^Main post:\s*", text or "")
+    is_thread = _deliverable_is_thread(deliverable)
+    is_quote = _deliverable_is_quote_repost(deliverable)
 
     if draft_needs_quality_polish(text):
+        if is_quote:
+            return compose_quote_repost_line(payload, variant=variant)
         if is_thread:
             return compose_strategic_thread(payload, variant=variant)
         return compose_strategic_standalone(payload, variant=variant)
 
     sections = parse_thread_sections(text)
     if sections.get("main") or sections.get("reply_1"):
+        if is_quote:
+            return compose_quote_repost_line(payload, variant=variant)
+        if not is_thread:
+            return compose_strategic_standalone(payload, variant=variant)
         main = strip_pollution(sections.get("main", ""))
         reply_one = strip_pollution(sections.get("reply_1", ""))
         reply_two = strip_pollution(sections.get("reply_2", ""))
-        if lead := sender_demo_lead(payload, variant=variant):
-            if draft_needs_quality_polish(main) or QUOTED_PROMPT_RE.search(main):
+        if draft_needs_quality_polish(main) or QUOTED_PROMPT_RE.search(main):
+            if lead := sender_demo_lead(payload, variant=variant):
                 main = lead
+            else:
+                return compose_strategic_thread(payload, variant=variant)
         if draft_looks_like_client_boilerplate(reply_one):
             reply_one = product_proof(payload) or product_hook(payload)
         if draft_looks_instructional(reply_two):
@@ -389,15 +948,24 @@ def polish_draft_text(text: str, payload: dict[str, Any], *, variant: int = 0) -
         return format_thread_draft(main, reply_one, reply_two)
 
     out = strip_pollution(strip_hyphens_from_copy(text))
-    if demo := sender_demo_story(payload):
-        if draft_needs_quality_polish(out):
-            return compose_strategic_standalone(payload, variant=variant)
+    if draft_needs_quality_polish(out):
+        if is_quote:
+            return compose_quote_repost_line(payload, variant=variant)
+        return compose_strategic_standalone(payload, variant=variant)
     return clean_draft_text(out)
 
 
 def build_fallback_robert_drafts(payload: dict[str, Any]) -> list[dict[str, str]]:
+    angle_drafts = compose_campaign_angle_standalone_drafts(payload)
+    if len(angle_drafts) >= 2:
+        return angle_drafts
+
     deliverable = _line(payload.get("deliverable_type")).lower()
-    is_thread = "thread" in deliverable
+    if _deliverable_is_quote_repost(deliverable):
+        return compose_quote_repost_drafts(payload)
+    if "retweet" in deliverable:
+        return compose_retweet_drafts(payload)
+    is_thread = _deliverable_is_thread(deliverable)
     labels = [
         "Option 1. Recommended",
         "Option 2. Technical angle",
@@ -423,16 +991,33 @@ def build_fallback_robert_drafts(payload: dict[str, Any]) -> list[dict[str, str]
 
 def ensure_publishable_drafts(payload: dict[str, Any]) -> dict[str, Any]:
     merged = dict(payload)
+    deliverable = _line(merged.get("deliverable_type")).lower()
     drafts = [item for item in (merged.get("drafts") or []) if isinstance(item, dict)]
-    if not drafts:
-        merged["drafts"] = build_fallback_robert_drafts(merged)
-        merged["drafts_source"] = "strategic_rewrite"
+
+    def _drafts_look_like_wrong_format(items: list[dict]) -> bool:
+        if _deliverable_is_quote_repost(deliverable) or "retweet" in deliverable:
+            return any("main post:" in _line(item.get("text")).lower() for item in items)
+        if _deliverable_is_thread(deliverable):
+            return False
+        return any("main post:" in _line(item.get("text")).lower() for item in items)
+
+    if not drafts or _drafts_look_like_wrong_format(drafts):
+        merged = rebuild_drafts_for_deliverable(merged)
+        return merged
+
+    if any(draft_uses_robert_template(_line(item.get("text"))) for item in drafts if isinstance(item, dict)):
+        angle_drafts = compose_campaign_angle_standalone_drafts(merged)
+        if len(angle_drafts) >= 2:
+            merged["drafts"] = angle_drafts
+            merged["drafts_source"] = "campaign_angles"
+            return merged
+        merged = rebuild_drafts_for_deliverable(merged)
         return merged
 
     polished: list[dict[str, str]] = []
     for idx, draft in enumerate(drafts[:3]):
         text = polish_draft_text(_line(draft.get("text")), merged, variant=idx)
-        if not text:
+        if not text or draft_looks_instructional(text):
             continue
         voice = score_robert_authenticity(text)
         polished.append(
@@ -450,8 +1035,9 @@ def ensure_publishable_drafts(payload: dict[str, Any]) -> dict[str, Any]:
             }
         )
 
-    if len(polished) < 2:
-        polished = build_fallback_robert_drafts(merged)
+    if len(polished) < 2 or _drafts_look_like_wrong_format(polished):
+        merged = rebuild_drafts_for_deliverable(merged)
+        return merged
 
     merged["drafts"] = polished[:3]
     merged["drafts_source"] = "strategic_rewrite"
