@@ -1702,7 +1702,16 @@ function V3ApplyTravelLeadMeta(lead) {
 function V4XNormalizeDmSender(value) {
   const sender = String(value || '').trim().toLowerCase();
   if (!sender) return '';
-  if (sender === 'robert' || sender.includes('robert') || sender.includes('scoble')) return 'robert';
+  if (sender === 'lead') return 'lead';
+  if (
+    sender === 'you'
+    || sender === 'robert'
+    || sender.includes('robert')
+    || sender.includes('scoble')
+    || sender.includes('asher')
+    || sender.includes('unaligned')
+    || sender.includes('sam')
+  ) return 'robert';
   return 'lead';
 }
 
@@ -2125,10 +2134,10 @@ function V3BuildXThreadFromLead(lead) {
 function V3MarkRepliedViaX(lead) {
   if (!lead) return;
   const ctx = V3ParseXDescriptionContext(lead.rawDescription);
-  const cached = V4_X_DM_DRAFT_CACHE.get(String(lead.id));
-  const draftBody = String(cached?.draft || '').trim();
+  const scrapedRobert = V4XLatestRobertText(lead);
   const priorRobert = V4XIntakeCleanDm(ctx.lastRobertMessage || lead.xLastRobertMessage || '');
-  const replyBody = V4XIntakeCleanDm(draftBody) || priorRobert || 'Marked as replied on X.';
+  // Never persist the AI draft as the sent reply — morning scrape replaces with live DM text.
+  const replyBody = scrapedRobert || priorRobert || 'Marked as replied on X.';
   const markedAt = new Date().toISOString();
   const merged = {
     ...V3ParseBriefDescription(lead.rawDescription),
@@ -3549,7 +3558,7 @@ function V4MediaSupplyReplyGuidance(lead) {
   const lines = [
     'MEDIA POLICY (follow in this reply):',
     `- Deal is at ${priceTxt}, below Content Core ($${V4_MEDIA_PRODUCTION_MIN_PRICE.toLocaleString('en-US')}). UNALIGNED does not produce demo clips or video at this tier.`,
-    '- Client must supply all media via Drive, Loom, or direct file links.',
+    '- Client must supply all media — send links or attach files.',
   ];
   if (!hasMediaLinks) {
     lines.push(
@@ -13167,106 +13176,106 @@ Object.assign(window, { V4TodayView, V4RobertBriefView, V4InboxView, V4LeadsView
 
 const V4_COMPANY_OS_PREP = [
   {
-    title: 'ACL / final payment is still open and Robert needs one clean execution handoff',
-    tags: ['P0', 'payment chase', 'robert brief'],
+    title: 'Humanoid / Meadow AI needs invoice out and Robert briefed before the July 10 target',
+    tags: ['P0', 'invoice link', 'robert brief'],
     points: [
-      'The Stripe board now shows the open $12,300 Hockey Stick / Alibaba final-payment invoice due July 6, while Annika keeps feeding Qoder notes, interview constraints, and approval conditions into the same thread.',
-      'Robert has enough field context to execute, but not enough room to improvise: client approval is required before publish, Qoder Work cannot become a standalone interview, and Robert still needs one tight brief with order, contact names, and guardrails.',
-      'Asher owns two things here: receipt chase and the 60-second Robert handoff that compresses the ACL field plan into one pass.',
-      'Prep exists. Payment proof does not.',
+      'Ivan accepted the draft-first / pay-in-full-before-publish structure on July 7 and asked for Robert\'s draft by July 8 or July 9 for a July 10 publish target.',
+      'The client already supplied the two canonical Humanoid source links, so the missing pieces are internal: send the invoice/payment link and hand Robert one tight execution brief.',
+      'Asher should keep this lane simple: invoice out, draft in motion, no publish until funds clear.',
+      'This is ready for action, not another discovery thread.',
     ],
   },
   {
-    title: 'EezyCollab / OJO needs the final 3-part thread plus case direction this week',
-    tags: ['P0', 'draft send', 'case plan'],
+    title: 'OJO / EezyCollab only needs one case-direction answer after the brand approved the script',
+    tags: ['P0', 'reply now', 'case direction'],
     points: [
-      'EezyCollab confirmed the brand wants the final 3-piece thread text and a decision on whether UNALIGNED will build the cases iteratively with feedback or stick to the original case direction.',
-      'They also asked if the cases can be finished this week, so this is no longer a vague review lane.',
-      'Asher needs to send the final text set and state the case-development path plainly in-thread.',
-      'No more abstract alignment notes. They want the actual thread copy now.',
+      'EezyCollab said on July 7 that the brand likes the Robert draft and only wants Asher\'s preference on the case path: keep the current approach or adjust during recording for more Elon/Tesla pull.',
+      'This thread is no longer blocked on copy. It is blocked on one explicit Asher answer plus whether the cases can finish this week.',
+      'Reply with one path, one timing promise, and stop letting the brand restate the same question.',
+      'No fresh drafting sprint is needed here unless the case direction changes.',
     ],
   },
   {
-    title: 'Influcio / May Zhu needs a packaging answer and a thread draft this week',
-    tags: ['P0', 'reply now', 'draft send'],
+    title: 'ACL / Alibaba is still unpaid and still trying to tie the $12,300 release to first-cut delivery',
+    tags: ['P0', 'payment chase', 'execution guardrails'],
     points: [
-      'May Zhu replied on July 6 with one concrete ask: confirm whether the $2,495 dedicated thread includes the client embedding their own demo clips.',
-      'She already accepted the $2,495 rate for a dedicated X thread with embedded demo clips (no on-camera Robert) and wants the draft within the week.',
-      'Asher should answer the packaging question cleanly, lock what is included, and send the thread draft — not leave the Influcio thread on read.',
-      'This is active execution, not a cold follow-up anymore.',
+      'The Stripe board still shows the Hockey Stick / Alibaba final invoice open at $12,300, due July 6, 2026.',
+      'Annika\'s latest July 7 reply again says Alibaba will pay only after the 8 edited videos are sent and approved, while also asking for more raw assets and a first-draft timeline.',
+      'Asher owns the commercial line: keep asking for the receipt, keep the contract date explicit, and do not let review notes rewrite the payment milestone.',
+      'Robert still needs one 60-second handoff that lists the 8-post order, approval path, asset gaps, and the rule that nothing ships before finance is real.',
     ],
   },
   {
-    title: 'Perceptron / Eric Pence is waiting on payment before mid-July QRT launches',
-    tags: ['P1', 'payment chase', 'launch prep'],
+    title: 'KATLAS has draft approval momentum, but payment terms still have to stay prepaid',
+    tags: ['P1', 'terms pushback', 'draft cleanup'],
     points: [
-      'Eric Pence from Perceptron AI is asking about payment settlement before prep for two QRT launches scheduled around mid-July and late July.',
-      'Do not mix this with the Influcio thread — Perceptron is a separate company and contact.',
-      'Asher should chase payment proof and confirm launch timing once funds clear.',
-      'No publish prep for Robert until payment is confirmed.',
+      'Harper moved from 50/50 terms pushback to concrete draft feedback on July 6 and said Option 1 is their favorite, with one small copy tweak.',
+      'That means creative fit is mostly solved. The unresolved part is still payment structure, not copy quality.',
+      'Asher can absorb the tiny edit, but the lane is only clean if the client pays in full before the post goes live.',
+      'Do not let positive draft feedback turn into accidental post-first payment.',
     ],
   },
   {
-    title: 'AZ8 / payment was promised today, but the lane is still admin-first until the receipt lands',
-    tags: ['P1', 'payment proof', 'admin fix'],
-    points: [
-      'AZ8 said they would submit payment today, asked whether Robert can publish immediately after receipt, and then followed up with an electronic-signature request tied to their Google Sheet.',
-      'The issue is no longer lead quality. It is whether the admin path is complete enough for the wire and proof trail to actually clear.',
-      'Asher needs to close the signature/admin ask, keep the invoice thread clean, and demand the receipt the moment funds move.',
-      'No receipt means no publish promise to Robert.',
-    ],
-  },
-  {
-    title: 'KATLAS / they want draft-first and 50-50 payment, so the deal only moves if prepaid policy holds',
-    tags: ['P1', 'terms pushback', 'draft path'],
-    points: [
-      'KATLAS accepted the $2,195 quote repost, has the invoice, and then asked for draft-first review with 50% after approval and 50% after posting.',
-      'Asher already pushed back that this is not how UNALIGNED handles payment, which is correct, but the lane remains unresolved until the client either prepays or walks.',
-      'If Asher wants to keep it alive, the only safe path is draft for comfort, full payment before publish, and no softening on terms.',
-      'This is a terms decision, not an execution-ready brief.',
-    ],
-  },
-  {
-    title: 'Viture / choose the sync slot and force payment proof into the same reply',
+    title: 'Viture has the check-in on calendar, so the next Asher move is to pair scheduling with proof',
     tags: ['P1', 'schedule lock', 'receipt verify'],
     points: [
-      'Leo asked for either Wednesday, July 8, 2026 or Thursday, July 9, 2026 at 9:00 AM PT, rejected the Saturday idea, and said their finance team already sent payment.',
-      'The giveaway mechanics are already settled, so the open work is not strategy. It is date confirmation plus actual remittance proof.',
-      'Asher should answer with one slot and ask for the payment receipt in the same message so scheduling and finance stop drifting apart.',
-      'Do not brief Robert until the meeting time and money trail sit together in-thread.',
+      'The calendar invite is now out for Thursday, July 9, 2026 at 8:00 PM EDT / 5:00 PM PT with Leo and Emily.',
+      'That clears the schedule question, but the lane should still stay admin-aware until the promised payment proof is visible in-thread.',
+      'Asher should use the confirmed call as leverage to gather the finance trail rather than let scheduling and money split into separate threads.',
+      'A clean meeting plus a clean receipt is the handoff point.',
     ],
   },
 ];
 
 const V4_COMPANY_OS_WAITING = [
   {
-    title: 'Hyperagent / Atomik is aligned on pricing and Wednesday timing, but Robert still needs to actually build the asset',
-    tags: ['watch', 'robert build', 'awaiting execution'],
+    title: 'Influcio / May Zhu is with the client now on the demo-clip question',
+    tags: ['watch', 'client feedback', 'do not touch'],
     points: [
-      'Atomik said the pricing works, wants the post on Wednesday, and sent the Hyperagent referral link plus example directions.',
-      'That means the commercial thread is warm, but the gating item is now internal: someone still has to build the agent or skill and turn it into a usable Robert-facing demo.',
-      'Keep it visible as a live execution watch item rather than a chase thread.',
-      'This is waiting on build work, not on another client explanation.',
+      'May said on July 7 that she needs to check with her client before confirming whether they can proceed without demo clips at the current rate.',
+      'Asher already answered: client-supplied clips can be added, but any UNALIGNED-produced demo work becomes a separate fee.',
+      'That is the correct stopping point. Wait for the client decision instead of adding more explanation.',
+      'No new Robert prep until the clip scope is explicit.',
     ],
   },
   {
-    title: 'Riverside / the signed agreement is finally in-thread, so review before anyone argues again',
-    tags: ['watch', 'agreement review', 'scope dispute'],
+    title: 'Perceptron wants two QRT launches around July 13 and one week later, but payment path is still unanswered',
+    tags: ['watch', 'payment path', 'launch prep'],
     points: [
-      'Jay said they will pay out of pocket while Riverside catches up, and the signed agreement PDF is finally attached in the same thread.',
-      'Savion still claims Net 30 from posting date and says the Facebook cross-post plus analytics are still part of deliverable one.',
-      'Keep it in watch until Asher or Sam reads the agreement and decides whether this is a real deliverable gap or a documentation mismatch.',
-      'The next move should come from the contract, not memory.',
+      'Eric Pence asked when prep should start for the July 13 launch and the second launch roughly seven days later.',
+      'Asher replied that payment should be settled first and followed up again on July 5. No answer has come back yet.',
+      'Keep it warm, but do not spin up execution work without a payment path.',
+      'This becomes active the moment Eric answers how they want to settle.',
     ],
   },
   {
-    title: 'Stripe verification / payouts are still paused until Sam clears identity review',
-    tags: ['watch', 'internal blocker', 'manual'],
+    title: 'team9 / EezyCollab payment is in simple receipt-watch mode',
+    tags: ['watch', 'payment pending', 'receipt chase'],
     points: [
-      'Stripe said on July 2 that payouts on the UNALIGNED account are paused until Samuel Levin uploads a live selfie and photo ID by July 12, 2026.',
-      'Asher already replied that Sam should complete the identity check on his mobile device since the account is under his name.',
-      'This is a manual blocker, not a thread to chase. Keep it visible until the verification is actually complete.',
-      'No payout-sensitive lane is fully safe while the Stripe account is paused.',
+      'EezyCollab asked for the payment form on July 3, Asher said it was submitted, and he chased confirmation again on July 7 for the $995 payout.',
+      'There is no new question from their side right now, only missing confirmation that the payment has actually been sent.',
+      'Watch for the receipt or payment-confirmed reply and leave the thread alone until then.',
+      'This is a finance checkpoint, not a creative one.',
+    ],
+  },
+  {
+    title: 'AD&OG and AZ8 are both in finance-watch, not new-selling mode',
+    tags: ['watch', 'admin', 'do not touch'],
+    points: [
+      'Evie at AD&OG replied on July 7 that she will ask finance and reply back ASAP.',
+      'AZ8 said they would submit payment, then tried to push an electronic-signature step inside their sheet; Asher already said the signed invoice should be enough.',
+      'Both lanes now live or die on receipt proof, not extra back-and-forth.',
+      'Only re-open if a promised payment reply misses or a receipt lands.',
+    ],
+  },
+  {
+    title: 'Nabulines / Ledger is a clean wait after the rate card send',
+    tags: ['watch', 'future shortlist', 'do not touch'],
+    points: [
+      'Nabu asked for Robert\'s standard rate card so they can include him in future creator shortlists.',
+      'Asher sent the PDF on July 6, and there is no open task beyond waiting for a campaign that fits.',
+      'Do not manufacture urgency here; the next move belongs to their internal shortlist process.',
+      'This is a relationship lane, not an active deal lane today.',
     ],
   },
 ];
@@ -13352,22 +13361,15 @@ const V4_COMPANY_OS_SENDERS = [
 
 const V4_COMPANY_OS_RULES = [
   'Asher owns every reply, payment form, invoice link, receipt chase, final live link, date confirmation, and 60-second Robert brief. Robert should only see lanes that are commercially and operationally clean.',
-  'Payment initiated, payment sent, payment queued, and payment done are all watch words, not proof. Finance is only done when the thread has the actual receipt or a confirmed settled trail.',
-  'A screenshot, wire promise, payment screenshot, or contract sheet is still provisional. Treat it as prep until the cash trail matches.',
-  'If a client says their bank needs a signed contract or extra admin detail before payment can move, clear that same day and keep the document trail in the thread.',
-  'Product access, scripts, briefs, and approval notes do not clear execution by themselves. Payment state, final source material, and launch timing still have to line up in one thread.',
-  'If a client asks for post-first payment, split payment, or vague future settlement, restate prepaid policy immediately and do not soften it through alternate rails.',
-  'Draft-first review is acceptable. Post-first payment is not. If the client wants approval comfort, give them the draft path and still settle in full before publish.',
-  'If the client asks for a form, signature sheet, tax detail, or admin field before they can pay, clear that same day and keep the proof trail in email.',
-  'If a campaign is paid but the preview, source link, tracking link, or final live post is missing, it stays on Asher\'s action list until the proof bundle is complete.',
-  'If a date slips, the lane goes back to schedule-confirmation mode until the new timing is explicitly locked in-thread.',
-  'Robert should never post from draft copy, preview assets, or pre-release material without the canonical live source link and approval path.',
-  'Keep ACL and every other logistics-heavy campaign inside the active email chain. Side channels can inform, but they do not define the board.',
-  'If the written agreement and the remembered agreement diverge, stop arguing and pull the documents back into the thread before moving.',
-  'Re-send broken files once, then stop pushing until the client actually reopens the milestone or misses a promised next step.',
-  'Do-not-touch means no proactive poke unless there is a promised receipt, promised live link, promised scheduling option, or promised approval that should already be in hand.',
-  'Stripe or bank compliance blockers are board blockers. If payouts are paused or payment rails need identity/admin work, surface that until it is actually cleared.',
-  'Every Robert brief must fit inside 60 seconds and include company, deliverable, timing, source link, approval path, payment state, owner, and the one reason Robert is the right amplifier now.',
+  'Payment initiated, payment sent, payment queued, and finance is checking are not proof. Finance is only done when the thread shows the actual receipt or a confirmed settled trail.',
+  'Draft-first review is acceptable. Post-first payment, split-after-publish terms, and approval-then-pay language all still resolve to full payment before anything goes live.',
+  'If a client asks for one admin step before payment can move, clear it once the same day, then push the thread back to receipt mode instead of starting a new admin loop.',
+  'Do not let scheduling, creative approval, and payment live in separate places. The clean lane is one thread with date, source material, approval path, and money trail together.',
+  'If a client is waiting on internal feedback, stop at the last clear answer and do not keep explaining the same policy unless they reopen the point.',
+  'If a campaign is paid but the preview, source link, final live link, or proof bundle is incomplete, it stays on Asher\'s action list until the trail is whole.',
+  'If the written agreement and the remembered agreement diverge, pull the contract back into the thread and anchor the board to the document, not to anyone\'s memory.',
+  'Do-not-touch means no proactive poke unless a promised receipt, promised approval, promised final link, or promised scheduling answer is now overdue.',
+  'Every Robert brief must fit inside 60 seconds and include company, deliverable, timing, source links, approval path, payment state, owner, and the one reason Robert is the right amplifier now.',
 ];
 
 const V4_COMPANY_OS_STAGES = [
@@ -19187,7 +19189,7 @@ function V4DealHasInvoiceInfo(lead, text) {
   return V4_INVOICE_HINTS.some((h) => text.includes(h));
 }
 
-function V4DealActionBar({ lead, onOpenSplits }) {
+function V4DealActionBar({ lead, onOpenSplits, onReply, replyLabel, onRefreshThread, refreshBusy, quickStages = [], onMoveStage, onTrash, onMarkRead, showMarkRead, onShowStands, onShowBrief }) {
   const [invOpen, setInvOpen] = React.useState(false);
   const [invForm, setInvForm] = React.useState(null);
   const [invStatus, setInvStatus] = React.useState('idle');
@@ -19216,7 +19218,6 @@ function V4DealActionBar({ lead, onOpenSplits }) {
   const madeDoc = briefResultUrl || V4DealMadeBriefDoc(lead);
   const hasBrief = !!briefLink || !!madeDoc || V4DealHasBrief(lead, text);
   const hasInvoice = V4DealHasInvoiceInfo(lead, text);
-  if (!hasBrief && !hasInvoice) return null;
 
   const copyBriefLink = async () => {
     if (!briefLink) return;
@@ -19332,7 +19333,12 @@ function V4DealActionBar({ lead, onOpenSplits }) {
   return (
     <div className="cos-dealbar">
       <div className="cos-dealbar-row">
-        <span className="cos-dealbar-eyebrow">DEAL ACTIONS</span>
+        <span className="cos-dealbar-eyebrow">ACTIONS</span>
+        {onReply && (
+          <button type="button" className="cos-dealbar-btn cos-dealbar-btn--primary" onClick={onReply}>
+            {replyLabel || 'Reply'}
+          </button>
+        )}
         {hasBrief && (
           <span className="cos-dealbar-group">
             <select
@@ -19346,27 +19352,58 @@ function V4DealActionBar({ lead, onOpenSplits }) {
                 <option key={option.id || 'auto'} value={option.id}>{option.label}</option>
               ))}
             </select>
-            <button type="button" className="cos-dealbar-btn cos-dealbar-btn--primary" disabled={briefBusy} onClick={makeBrief} title={madeDoc ? 'Rebuild Robert’s brief doc from the client link' : 'Build Robert’s brief doc from the client link, right here'}>{briefBusy ? 'Building…' : madeDoc ? 'Refresh brief' : 'Make brief'}</button>
-            {madeDoc && <a className="cos-dealbar-btn" href={madeDoc} target="_blank" rel="noreferrer">Edit doc</a>}
-            {briefLink && <a className="cos-dealbar-btn" href={briefLink} target="_blank" rel="noreferrer">Open brief</a>}
-            {briefLink && <button type="button" className="cos-dealbar-btn" onClick={copyBriefLink}>{briefCopied ? 'Copied ✓' : 'Copy link'}</button>}
-            {briefBusy
-              ? <span className="cos-dealbar-made">{briefStage || 'Building brief…'}</span>
-              : madeDoc
-                ? <span className="cos-dealbar-made">Brief made ✓</span>
-                : briefLink
-                  ? <span className="cos-dealbar-made" title={briefLink}>{V4DealBriefLinkLabel(briefLink)}{briefLinks.length > 1 ? ' +' + (briefLinks.length - 1) : ''}{briefDeliverableHint ? ' · ' + briefDeliverableHint : ''}</span>
-                  : <span className="cos-dealbar-made">Brief mentioned — no link found in thread</span>}
+            <button type="button" className={'cos-dealbar-btn' + (onReply ? '' : ' cos-dealbar-btn--primary')} disabled={briefBusy} onClick={makeBrief} title={madeDoc ? 'Rebuild Robert’s brief doc from the client link' : 'Build Robert’s brief doc from the client link, right here'}>{briefBusy ? 'Building…' : madeDoc ? 'Refresh brief' : 'Make brief'}</button>
           </span>
         )}
         {hasInvoice && (
           <span className="cos-dealbar-group">
-            <button type="button" className={'cos-dealbar-btn' + (hasBrief ? '' : ' cos-dealbar-btn--primary') + (invOpen ? ' is-active' : '')} onClick={() => (invOpen ? setInvOpen(false) : openInvoice())}>
+            <button type="button" className={'cos-dealbar-btn' + (hasBrief || onReply ? '' : ' cos-dealbar-btn--primary') + (invOpen ? ' is-active' : '')} onClick={() => (invOpen ? setInvOpen(false) : openInvoice())}>
               {invOpen ? 'Close invoice' : 'Create invoice'}
             </button>
             {invResult && <span className="cos-dealbar-made">Draft ready ✓</span>}
           </span>
         )}
+        {quickStages.length > 0 && onMoveStage && (
+          <select
+            className="cos-dealbar-select cos-dealbar-move"
+            value=""
+            onChange={(e) => { if (e.target.value) onMoveStage(e.target.value); }}
+            title="Move this deal to another stage"
+          >
+            <option value="">Move to…</option>
+            {quickStages.map(action => (
+              <option key={action.stage} value={action.stage}>{action.label}</option>
+            ))}
+          </select>
+        )}
+        <span className="cos-dealbar-spacer" />
+        {briefBusy
+          ? <span className="cos-dealbar-made">{briefStage || 'Building brief…'}</span>
+          : madeDoc
+            ? <span className="cos-dealbar-made">Brief made ✓</span>
+            : null}
+        <details className="cos-dealbar-more">
+          <summary aria-label="More actions" title="More actions">⋯</summary>
+          <div
+            className="cos-dealbar-menu"
+            onClick={(e) => { const d = e.currentTarget.closest('details'); if (d) d.removeAttribute('open'); }}
+          >
+            {madeDoc && <a href={madeDoc} target="_blank" rel="noreferrer">Edit brief doc</a>}
+            {briefLink && <a href={briefLink} target="_blank" rel="noreferrer">Open source brief</a>}
+            {briefLink && <button type="button" onClick={copyBriefLink}>{briefCopied ? 'Link copied ✓' : 'Copy brief link'}</button>}
+            {(madeDoc || briefLink) && <div className="cos-dealbar-menu-sep" />}
+            {onRefreshThread && (
+              <button type="button" onClick={onRefreshThread} disabled={refreshBusy}>
+                {refreshBusy ? 'Refreshing…' : 'Refresh thread'}
+              </button>
+            )}
+            {showMarkRead && onMarkRead && <button type="button" onClick={onMarkRead}>Mark read</button>}
+            {onShowStands && <button type="button" onClick={onShowStands}>Where this stands</button>}
+            {onShowBrief && <button type="button" onClick={onShowBrief}>Content brief</button>}
+            {onTrash && <div className="cos-dealbar-menu-sep" />}
+            {onTrash && <button type="button" className="is-danger" onClick={onTrash}>Move to trash</button>}
+          </div>
+        </details>
       </div>
       {briefGenError && (
         <div className="cos-brain-invoice-msg cos-brain-invoice-msg--err" style={{ margin: '0 12px 12px' }}>{briefGenError}</div>
@@ -19717,45 +19754,6 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
 
   const readerOps = (
     <>
-      <div className="cos-quick-actions">
-        <div className="cos-quick-actions-group">
-          <span className="cos-quick-actions-label">Quick actions</span>
-          <button className="cos-quick-btn is-primary" type="button" onClick={() => (needsXDmReply ? openXDmReply() : setComposeOpen(true))}>
-            {needsXDmReply ? (xDmReplyOpen ? 'DM draft open' : 'Reply on X') : (lead.draftReply ? 'Approve draft' : (replyAction ? lead.nextMove.action : 'Reply'))}
-          </button>
-          {isXLead && lead.xOpenDm && (
-            <button className="cos-quick-btn" type="button" onClick={() => window.open(lead.xOpenDm, '_blank', 'noopener')}>
-              Open DM
-            </button>
-          )}
-          {isXLead && !V3XLeadRepliedViaX(lead) && (
-            <button className="cos-quick-btn" type="button" onClick={() => window.V3.MarkRepliedViaX?.(lead)}>
-              Mark replied on X
-            </button>
-          )}
-          {lead.unread && (
-            <button className="cos-quick-btn" type="button" onClick={clearUnread}>
-              Mark read
-            </button>
-          )}
-          <button className="cos-quick-btn is-danger" type="button" onClick={() => moveLead('trash')}>
-            Trash
-          </button>
-        </div>
-        <div className="cos-quick-actions-group">
-          <span className="cos-quick-actions-label">Move to</span>
-          {quickStages.map(action => (
-            <button
-              key={action.stage}
-              className="cos-quick-btn"
-              type="button"
-              onClick={() => moveLead(action.stage)}
-            >
-              {action.label}
-            </button>
-          ))}
-        </div>
-      </div>
       {(lead.operatorMemory || lead.draftReply) && (
         <section className="cos-operator-strip">
           <div className="cos-operator-strip-head">
@@ -19853,15 +19851,6 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
                 <span className="gmail-read-sep">·</span>
                 <span className="gmail-read-stage" style={{ color: stage.color }}>{stage.name}</span>
                 {(lead.unread || lead.needsReply) && <span className="gmail-read-action">Needs reply</span>}
-                <span className="gmail-read-links">
-                  <button type="button" className="gmail-read-link" onClick={refreshThread} disabled={threadSync.status === 'syncing'}>
-                    {threadSync.status === 'syncing'
-                      ? 'Refreshing…'
-                      : (isXLead ? '↻ Pull X context' : '↻ Refresh thread')}
-                  </button>
-                  <button type="button" className="gmail-read-link" onClick={() => setTab('stands')}>Where this stands</button>
-                  {lead.brief && <button type="button" className="gmail-read-link" onClick={() => setTab('brief')}>Brief</button>}
-                </span>
               </div>
               {threadSync.note ? <div className={'gmail-read-sync-note is-' + threadSync.status}>{threadSync.note}</div> : null}
             </div>
@@ -19906,7 +19895,21 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
               </div>
             </div>
           )}
-          <V4DealActionBar lead={lead} onOpenSplits={onOpenSplits} />
+          <V4DealActionBar
+            lead={lead}
+            onOpenSplits={onOpenSplits}
+            onReply={() => (needsXDmReply ? openXDmReply() : setComposeOpen(true))}
+            replyLabel={needsXDmReply ? (xDmReplyOpen ? 'DM draft open' : 'Reply on X') : (lead.draftReply ? 'Approve draft' : (replyAction ? lead.nextMove.action : 'Reply'))}
+            onRefreshThread={refreshThread}
+            refreshBusy={threadSync.status === 'syncing'}
+            quickStages={quickStages}
+            onMoveStage={moveLead}
+            onTrash={() => moveLead('trash')}
+            onMarkRead={clearUnread}
+            showMarkRead={Boolean(lead.unread)}
+            onShowStands={() => setTab('stands')}
+            onShowBrief={lead.brief ? () => setTab('brief') : null}
+          />
           <V4DealBrainPanel lead={lead} setComposeOpen={setComposeOpen} onOpenSplits={onOpenSplits} />
           <div className="gmail-read-scroll">
             {isXLead ? (
@@ -20028,7 +20031,17 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
               </div>
             </div>
           )}
-          <V4DealActionBar lead={lead} onOpenSplits={onOpenSplits} />
+          <V4DealActionBar
+            lead={lead}
+            onOpenSplits={onOpenSplits}
+            onReply={() => (needsXDmReply ? openXDmReply() : setComposeOpen(true))}
+            replyLabel={needsXDmReply ? 'Reply on X' : (lead.draftReply ? 'Approve draft' : 'Reply')}
+            quickStages={quickStages}
+            onMoveStage={moveLead}
+            onTrash={() => moveLead('trash')}
+            onMarkRead={clearUnread}
+            showMarkRead={Boolean(lead.unread)}
+          />
           <V4DealBrainPanel lead={lead} setComposeOpen={setComposeOpen} onOpenSplits={onOpenSplits} />
           <div className="cos2-reader-workspace cos2-reader-workspace--gmail">
             <div className="cos2-reader-pane cos2-reader-pane--thread">
