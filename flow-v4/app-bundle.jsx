@@ -19549,6 +19549,7 @@ function V4DealActionBar({ lead, onOpenSplits, onReply, replyLabel, onRefreshThr
   }, [lead?.id]);
 
   if (!lead) return null;
+  const closable = onMoveStage && !['paid-out', 'trash', 'dead-leads'].includes(String(lead.stage || ''));
   const text = V4DealThreadText(lead);
   const briefLinks = V4DealBriefSourceLinks(lead);
   const briefLink = briefLinks[0] || V4DealBriefDocUrl(lead) || '';
@@ -19719,6 +19720,16 @@ function V4DealActionBar({ lead, onOpenSplits, onReply, replyLabel, onRefreshThr
           : madeDoc
             ? <span className="cos-dealbar-made">Brief made ✓</span>
             : null}
+        {closable && (
+          <button
+            type="button"
+            className="cos-dealbar-btn cos-dealbar-btn--close"
+            onClick={() => onMoveStage('paid-out')}
+            title="Deal done — moves to Done and paid. Comes back if they email again."
+          >
+            Close deal
+          </button>
+        )}
         {onTrash && (
           <button
             type="button"
@@ -19739,6 +19750,10 @@ function V4DealActionBar({ lead, onOpenSplits, onReply, replyLabel, onRefreshThr
             {briefLink && <a href={briefLink} target="_blank" rel="noreferrer">Open source brief</a>}
             {briefLink && <button type="button" onClick={copyBriefLink}>{briefCopied ? 'Link copied ✓' : 'Copy brief link'}</button>}
             {(madeDoc || briefLink) && <div className="cos-dealbar-menu-sep" />}
+            {closable && (
+              <button type="button" onClick={() => onMoveStage('paid-out')}>Close deal</button>
+            )}
+            {closable && <div className="cos-dealbar-menu-sep" />}
             {onRefreshThread && (
               <button type="button" onClick={onRefreshThread} disabled={refreshBusy}>
                 {refreshBusy ? 'Refreshing…' : 'Refresh thread'}
@@ -20588,6 +20603,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
   const [selId, setSelId] = React.useState(null);
   const [composeOpen, setComposeOpen] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
+  const [mobileSummaryOpen, setMobileSummaryOpen] = React.useState(true);
   const deepLinkLeadRef = React.useRef(null);
   const deepLinkComposeRef = React.useRef(false);
   const skipSplitResetRef = React.useRef(false);
@@ -20614,6 +20630,18 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
     window.addEventListener('v4:cos-activate-split', onActivate);
     return () => window.removeEventListener('v4:cos-activate-split', onActivate);
   }, [splits]);
+
+  React.useEffect(() => {
+    const collapseOnScroll = (event) => {
+      if (!window.matchMedia || !window.matchMedia('(max-width: 900px)').matches) return;
+      const target = event.target;
+      if (!target || typeof target.scrollTop !== 'number') return;
+      if (target.scrollTop > 28) setMobileSummaryOpen(false);
+    };
+    const nodes = document.querySelectorAll('.cos2-page .cos2-list, .cos2-page .cos2-main-scroll, .cos2-page .v6-list-scroll');
+    nodes.forEach(node => node.addEventListener('scroll', collapseOnScroll, { passive: true }));
+    return () => nodes.forEach(node => node.removeEventListener('scroll', collapseOnScroll));
+  }, [splitId, mobileOpen]);
 
   React.useEffect(() => {
     if (!splitsOpen) return;
@@ -21131,7 +21159,22 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
 
   return (
     <section className={'page cos2-page cos2-page--queue' + (mobileOpen ? ' is-mobile-reader-open' : '') + (splitsOpen ? ' is-splits-open' : '')}>
-      <header className="cos2-top cos2-top--stats">
+      <header className={'cos2-top cos2-top--stats' + (mobileSummaryOpen ? ' is-mobile-summary-open' : ' is-mobile-summary-collapsed')}>
+        <button
+          type="button"
+          className="cos2-mobile-summary-toggle"
+          aria-expanded={mobileSummaryOpen}
+          onClick={() => setMobileSummaryOpen(open => !open)}
+        >
+          <span>{mobileSummaryOpen ? 'Hide summary' : 'Workspace summary'}</span>
+          <strong>
+            {travelCount ? `${travelCount} travel · ` : ''}
+            {sendCount} to send · {intakeCount} intake
+          </strong>
+          <span className={'cos2-mobile-summary-chevron' + (mobileSummaryOpen ? ' is-open' : '')}>
+            <V3Icon name="chev_d" w={14} />
+          </span>
+        </button>
         <div className="v6-client-brand" aria-label="UNALIGNED active workspace">
           <V6UnalignedMark size={28} />
           <div className="v6-wm">UNALIGNED<small>ACTIVE WORKSPACE</small></div>
@@ -22565,6 +22608,14 @@ function V4App() {
     setOrgansMenuOpen(false);
     setMobileMenuOpen(false);
   };
+  const goToCompanyOsHome = () => {
+    try {
+      window.sessionStorage.setItem('cos-queue', 'send');
+    } catch (e) {}
+    window.dispatchEvent(new CustomEvent('v4:cos-activate-split', { detail: { splitId: 'send' } }));
+    goView('company-os');
+  };
+  const cosCompanyOsHomeActive = view === 'company-os' && !cosToolkitOpen && !cosPartnerFeedbackOpen && !cosDeskIntakeOpen && !cosScopeIntakeOpen;
   const organsToolViews = ['organs', 'inbox', 'invoices', 'new-leads', 'leads'];
   const organsMenuActive = organsToolViews.includes(view) || (view === 'company-os' && (cosToolkitOpen || cosPartnerFeedbackOpen || cosDeskIntakeOpen || cosScopeIntakeOpen));
   const goToOrgansToolkit = () => {
@@ -22616,7 +22667,7 @@ function V4App() {
   ];
 
   const paletteCommands = [
-    { label: 'Go to Company OS', hint: 'workspace', run: () => goView('company-os') },
+    { label: 'Go to Company OS', hint: 'workspace', run: goToCompanyOsHome },
     { label: 'Go to Organs', hint: 'command center', run: () => goView('organs') },
     { label: 'Go to Toolkit', hint: 'brief maker, X signal, handoffs', run: goToOrgansToolkit },
     { label: 'Go to Partner feedback', hint: 'collaboration scores', run: goToPartnerFeedback },
@@ -22642,17 +22693,17 @@ function V4App() {
     <div className="app" data-screen-label={`UNALIGNED — ${view}`}>
       {/* ─── Top bar ─── */}
       <header className="hd v6-gnav">
-        <div className="hd-brand v6-gbrand">
+        <button type="button" className="hd-brand v6-gbrand" onClick={goToCompanyOsHome} aria-label="Go to Company OS home" title="Company OS home">
           <V6CompanyOsLogo className="v6-logo-full" />
           <V6CompanyOsLogo compact className="v6-logo-compact" />
-        </div>
+        </button>
 
         <div className="hd-nav">
           <button className="hd-nav-btn" aria-current={view === 'today' ? 'page' : undefined} onClick={() => goView('today')}>Today</button>
           <button className="hd-nav-btn" aria-current={view === 'calendar' ? 'page' : undefined} onClick={() => goView('calendar')}>
             <V3Icon name="cal" w={13} style={{ marginRight: 4 }} /> Calendar
           </button>
-          <button className="hd-nav-btn" aria-current={view === 'company-os' ? 'page' : undefined} onClick={() => goView('company-os')}>Company OS</button>
+          <button className="hd-nav-btn" aria-current={cosCompanyOsHomeActive ? 'page' : undefined} onClick={goToCompanyOsHome}>Company OS</button>
           <div className="hd-nav-menu" ref={organsMenuRef}>
             <button
               className="hd-nav-btn hd-nav-menu-btn"
@@ -22916,8 +22967,8 @@ function V4App() {
           <V3Icon name="diamond" w={18} />
           Today
         </button>
-        <button className="ft-tab" aria-current={!mobileMenuOpen && view === 'company-os' && !cosToolkitOpen && !cosPartnerFeedbackOpen && !cosDeskIntakeOpen && !cosScopeIntakeOpen ? 'page' : undefined}
-                onClick={() => goView('company-os')}>
+        <button className="ft-tab" aria-current={!mobileMenuOpen && cosCompanyOsHomeActive ? 'page' : undefined}
+                onClick={goToCompanyOsHome}>
           <V3Icon name="diamond" w={18} />
           OS
         </button>
