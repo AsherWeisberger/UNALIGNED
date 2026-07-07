@@ -21430,3 +21430,198 @@ body[data-theme] .gmail-reply-sheet.is-open {
     display: none !important;
   }
 }
+
+/* Company OS mobile density pass: keep controls, give the feed back its screen. */
+@media (max-width: 760px) {
+  body[data-theme] .cos-list-toolbar {
+    gap: 6px !important;
+    padding: 8px max(10px, env(safe-area-inset-right)) 8px max(10px, env(safe-area-inset-left)) !important;
+    border-bottom: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
+  }
+
+  body[data-theme] .cos-list-toolbar-section--queues {
+    padding-bottom: 6px !important;
+    margin-bottom: 4px !important;
+    border-bottom: 0 !important;
+  }
+
+  body[data-theme] .cos-queue-toolbar-row {
+    align-items: center;
+    gap: 6px;
+  }
+
+  body[data-theme] .cos-list-toolbar .cos-queue-bar {
+    gap: 6px !important;
+    padding-right: 8px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    flex-wrap: nowrap !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 18px), transparent 100%);
+    mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 18px), transparent 100%);
+  }
+
+  body[data-theme] .cos-list-toolbar .cos-queue-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  body[data-theme] .cos-list-toolbar .cos-queue-pill {
+    min-height: 31px !important;
+    padding: 0 10px !important;
+    gap: 6px !important;
+    border-radius: 999px !important;
+    font-size: 12px !important;
+    line-height: 1 !important;
+    box-shadow: none !important;
+  }
+
+  body[data-theme] .cos-list-toolbar .cos-queue-pill-label {
+    line-height: 1 !important;
+    white-space: nowrap;
+  }
+
+  body[data-theme] .cos-list-toolbar .cos-queue-pill-cnt {
+    min-width: 24px;
+    padding: 2px 7px !important;
+    font-size: 10px !important;
+    line-height: 1.15 !important;
+  }
+
+  body[data-theme] .cos-list-toolbar .cos-more-wrap {
+    align-self: center !important;
+  }
+
+  body[data-theme] .cos-list-toolbar .cos-queue-pill--more {
+    min-width: 54px !important;
+    justify-content: center;
+  }
+
+  body[data-theme] .cos-list-toolbar .cos-source-seg {
+    width: 100%;
+    min-height: 32px;
+    padding: 2px !important;
+    border-radius: 999px !important;
+  }
+
+  body[data-theme] .cos-list-toolbar .cos-source-seg-btn {
+    min-height: 28px !important;
+    padding: 0 8px !important;
+    border-radius: 999px !important;
+    font-size: 10px !important;
+    letter-spacing: 0.08em !important;
+    gap: 6px !important;
+  }
+
+  body[data-theme] .cos-list-toolbar .cos-source-seg-cnt {
+    min-width: 24px;
+    padding: 2px 6px !important;
+    font-size: 9px !important;
+  }
+
+  body[data-theme] .cos-active-mission {
+    padding: 9px max(12px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left)) !important;
+  }
+
+  body[data-theme] .cos-active-mission-hd {
+    align-items: center;
+    margin-bottom: 6px !important;
+    gap: 8px;
+  }
+
+  body[data-theme] .cos-active-mission-eyebrow {
+    font-size: 9px;
+    letter-spacing: 0.14em;
+  }
+
+  body[data-theme] .cos-active-mission-label {
+    margin-top: 3px !important;
+    font-size: 11px !important;
+    line-height: 1.25 !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  body[data-theme] .cos-active-mission-score-num {
+    font-size: 22px !important;
+  }
+
+  body[data-theme] .cos-active-mission-score-lbl {
+    font-size: 8px !important;
+  }
+
+  body[data-theme] .cos-active-mission-track {
+    height: 3px !important;
+  }
+
+  body[data-theme] .cos-active-mission-meta {
+    display: none !important;
+  }
+
+  body[data-theme] .cos-active-strip-hd {
+    padding: 8px 12px 7px !important;
+  }
+
+  body[data-theme] .cos-active-strip-sub {
+    display: none !important;
+  }
+}
+
+@media (max-width: 760px) {
+  body[data-theme] .cos-list-toolbar {
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+    gap: 4px !important;
+  }
+
+  body[data-theme] .cos-list-toolbar-section--queues {
+    padding-bottom: 3px !important;
+    margin-bottom: 1px !important;
+  }
+
+  body[data-theme] .cos-queue-toolbar-row {
+    gap: 5px !important;
+  }
+
+  body[data-theme] .cos-list-toolbar .cos-queue-bar {
+    gap: 5px !important;
+  }
+
+  body[data-theme] .cos-list-toolbar .cos-queue-pill {
+    min-height: 28px !important;
+    padding: 0 9px !important;
+    gap: 5px !important;
+    font-size: 11px !important;
+  }
+
+  body[data-theme] .cos-list-toolbar .cos-queue-pill-cnt {
+    min-width: 21px;
+    padding: 1px 6px !important;
+    font-size: 9px !important;
+  }
+
+  body[data-theme] .cos-list-toolbar .cos-queue-pill--more {
+    min-width: 48px !important;
+  }
+
+  body[data-theme] .cos-list-toolbar .cos-source-seg {
+    min-height: 27px !important;
+    padding: 1px !important;
+  }
+
+  body[data-theme] .cos-list-toolbar .cos-source-seg-btn {
+    min-height: 25px !important;
+    padding: 0 7px !important;
+    font-size: 9px !important;
+    letter-spacing: 0.1em !important;
+    gap: 5px !important;
+  }
+
+  body[data-theme] .cos-list-toolbar .cos-source-seg-cnt {
+    min-width: 20px;
+    padding: 1px 5px !important;
+    font-size: 8px !important;
+  }
+}

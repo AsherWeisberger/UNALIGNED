@@ -20522,7 +20522,7 @@ function AnimatedCounter({ value, className = '', format }) {
   return <span className={className} data-changing={prevRef.current !== value}>{format ? format(display) : display}</span>;
 }
 
-function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef, user = 'asher', onOpenLead, onNavigateView, initialQueue = '' }) {
+function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef, user = 'asher', onOpenLead, onNavigateView, initialQueue = '', queueTarget = '', queueNonce = 0 }) {
   React.useEffect(() => {
     V4MaybeRedirectToMachineHostedApp();
   }, []);
@@ -20630,6 +20630,12 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
     window.addEventListener('v4:cos-activate-split', onActivate);
     return () => window.removeEventListener('v4:cos-activate-split', onActivate);
   }, [splits]);
+
+  React.useEffect(() => {
+    if (!queueNonce) return;
+    const id = String(queueTarget || '').trim();
+    if (id && splits.some(s => s.id === id)) setSplitId(id);
+  }, [queueNonce, queueTarget, splits]);
 
   React.useEffect(() => {
     const collapseOnScroll = (event) => {
@@ -22319,6 +22325,8 @@ function V4App() {
   const [cosPartnerFeedbackOpen, setCosPartnerFeedbackOpen] = React.useState(false);
   const [cosDeskIntakeOpen, setCosDeskIntakeOpen] = React.useState(false);
   const [cosScopeIntakeOpen, setCosScopeIntakeOpen] = React.useState(false);
+  const [cosQueueTarget, setCosQueueTarget] = React.useState('send');
+  const [cosQueueNonce, setCosQueueNonce] = React.useState(0);
   const [godModeOpen, setGodModeOpen] = React.useState(false);
   const [godModeLayer, setGodModeLayer] = React.useState('weather');
   const [godModeViewer, setGodModeViewer] = React.useState({});
@@ -22608,34 +22616,42 @@ function V4App() {
     setOrgansMenuOpen(false);
     setMobileMenuOpen(false);
   };
+  const setCosSurface = (splitId) => {
+    setCosToolkitOpen(splitId === 'toolkit');
+    setCosPartnerFeedbackOpen(splitId === 'partner-feedback');
+    setCosDeskIntakeOpen(splitId === 'desk-intake');
+    setCosScopeIntakeOpen(splitId === 'scope-intake');
+  };
+  const activateCosSplit = (splitId) => {
+    const id = String(splitId || '').trim();
+    if (!id) return;
+    setCosSurface(id);
+    setCosQueueTarget(id);
+    setCosQueueNonce(n => n + 1);
+    try { window.sessionStorage.setItem('cos-queue', id); } catch (e) {}
+    window.dispatchEvent(new CustomEvent('v4:cos-activate-split', { detail: { splitId: id } }));
+  };
   const goToCompanyOsHome = () => {
-    try {
-      window.sessionStorage.setItem('cos-queue', 'send');
-    } catch (e) {}
-    window.dispatchEvent(new CustomEvent('v4:cos-activate-split', { detail: { splitId: 'send' } }));
+    activateCosSplit('send');
     goView('company-os');
   };
   const cosCompanyOsHomeActive = view === 'company-os' && !cosToolkitOpen && !cosPartnerFeedbackOpen && !cosDeskIntakeOpen && !cosScopeIntakeOpen;
   const organsToolViews = ['organs', 'inbox', 'invoices', 'new-leads', 'leads'];
   const organsMenuActive = organsToolViews.includes(view) || (view === 'company-os' && (cosToolkitOpen || cosPartnerFeedbackOpen || cosDeskIntakeOpen || cosScopeIntakeOpen));
   const goToOrgansToolkit = () => {
-    try { window.sessionStorage.setItem('cos-queue', 'toolkit'); } catch (e) {}
-    window.dispatchEvent(new CustomEvent('v4:cos-activate-split', { detail: { splitId: 'toolkit' } }));
+    activateCosSplit('toolkit');
     goView('company-os');
   };
   const goToPartnerFeedback = () => {
-    try { window.sessionStorage.setItem('cos-queue', 'partner-feedback'); } catch (e) {}
-    window.dispatchEvent(new CustomEvent('v4:cos-activate-split', { detail: { splitId: 'partner-feedback' } }));
+    activateCosSplit('partner-feedback');
     goView('company-os');
   };
   const goToDeskIntake = () => {
-    try { window.sessionStorage.setItem('cos-queue', 'desk-intake'); } catch (e) {}
-    window.dispatchEvent(new CustomEvent('v4:cos-activate-split', { detail: { splitId: 'desk-intake' } }));
+    activateCosSplit('desk-intake');
     goView('company-os');
   };
   const goToScopeIntake = () => {
-    try { window.sessionStorage.setItem('cos-queue', 'scope-intake'); } catch (e) {}
-    window.dispatchEvent(new CustomEvent('v4:cos-activate-split', { detail: { splitId: 'scope-intake' } }));
+    activateCosSplit('scope-intake');
     goView('company-os');
   };
   const runMobileCommand = (fn) => {
@@ -22678,7 +22694,7 @@ function V4App() {
     { label: 'Go to Briefs', run: () => goView('inbox') },
     { label: 'Go to Invoices', run: () => goView('invoices') },
     { label: 'Go to New Leads', hint: 'Robert Gmail + X intake', run: () => goView('new-leads') },
-    { label: 'Go to Intake queue', hint: 'Company OS send tab', run: () => { try { window.sessionStorage.setItem('cos-queue', 'send'); } catch (e) {} goView('company-os'); } },
+    { label: 'Go to Intake queue', hint: 'Company OS send tab', run: goToCompanyOsHome },
     { label: 'Go to Network', run: () => goView('leads') },
     { label: 'View as Asher', hint: 'shared lane', run: () => { setTweak('viewAs', 'asher'); setOpenId(null); } },
     { label: 'View as Sammy', hint: 'shared lane', run: () => { setTweak('viewAs', 'sammy'); setOpenId(null); } },
@@ -22932,6 +22948,8 @@ function V4App() {
             listSearchRef={cosListSearchRef}
             user={user}
             onOpenLead={setOpenId}
+            queueTarget={cosQueueTarget}
+            queueNonce={cosQueueNonce}
             onNavigateView={(nextView, nextOpenId = null) => {
               setView(nextView);
               setOpenId(nextOpenId);
@@ -22946,9 +22964,9 @@ function V4App() {
               onOpenNewLeads={() => goView('new-leads')}
               onOpenInCompanyOs={(leadId) => {
                 try {
-                  window.sessionStorage.setItem('cos-queue', 'send');
                   window.sessionStorage.setItem('cos-lead-id', String(leadId));
                 } catch (e) {}
+                activateCosSplit('send');
                 setView('company-os');
                 setOpenId(null);
               }}
