@@ -1239,7 +1239,16 @@ function V3FriendlySupabaseError(status, detail) {
   if (text.includes('PGRST205') || text.includes('Could not find the table')) {
     return 'Supabase schema missing — run the latest SQL migration';
   }
-  const snippet = text.replace(/\s+/g, ' ').trim().slice(0, 160);
+  if (/<!doctype html|<html|<head|<body/i.test(text)) {
+    return status === 404
+      ? 'Supabase endpoint returned a website page instead of board data. Open the Mac ops host or check API configuration.'
+      : 'Supabase endpoint returned HTML instead of board data. Check API configuration.';
+  }
+  const snippet = text
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 140);
   return snippet ? ('Supabase ' + status + ': ' + snippet) : ('Supabase ' + status);
 }
 
@@ -11737,8 +11746,271 @@ function V4InvoicesView({ query = '' }) {
   );
 }
 
+// ─── Today deal cards (company-centric rollup of Company OS sections) ───
+
+function V4TodayDealPaymentState(lead) {
+  if (!lead) return null;
+  if (lead.stage === 'paid-out') return { label: 'Paid', tone: 'paid' };
+  if (lead.stage === 'invoice-sent') {
+    return { label: 'Unpaid', tone: 'unpaid', detail: `${lead.daysInStage || 0}d out` };
+  }
+  if (lead.stage === 'done') return { label: 'Pre-invoice', tone: 'pending' };
+  return null;
+}
+
+function V4TodayDealPrimaryTask(tasks) {
+  if (!tasks?.length) return null;
+  const sorted = [...tasks].sort((a, b) => {
+    if (a.urgent !== b.urgent) return a.urgent ? -1 : 1;
+    if (a.dueIn !== b.dueIn) return a.dueIn - b.dueIn;
+    return (b.value || 0) - (a.value || 0);
+  });
+  return sorted[0];
+}
+
+function V4TodayDealBlocker(lead, primaryTask) {
+  if (!lead) return '';
+  const exec = V4CompanyOsExecutionMeta(lead);
+  if (primaryTask?.title) return primaryTask.title;
+  if (lead.stage === 'invoice-sent') return `Invoice out · confirm payment`;
+  if (lead.stage === 'done') {
+    if (!lead.brief) return 'Terms locked · create brief + invoice';
+    if (lead.brief?.status === 'awaiting-approval') return 'Brief drafted · awaiting your approval';
+    if (lead.brief?.status === 'ready') return 'Brief ready · Robert can execute';
+    return exec.briefState || V4CompanyOsJob(lead);
+  }
+  if (lead.needsReply) return `${V4CompanyOsPhase(lead)} · needs reply`;
+  return V4CompanyOsJob(lead);
+}
+
+function V4TodayDealCta(lead, primaryTask) {
+  if (primaryTask?.action === 'open-brief') return { label: 'Open brief', action: 'brief' };
+  if (primaryTask?.type) {
+    const verb = (typeof CTA_VERB !== 'undefined' ? CTA_VERB : {})[primaryTask.type];
+    if (verb) return { label: verb, action: 'company-os' };
+  }
+  if (lead?.stage === 'invoice-sent') return { label: 'Check payment', action: 'company-os' };
+  if (lead?.stage === 'done' && !lead?.brief) return { label: 'Start brief', action: 'company-os' };
+  if (lead?.needsReply) return { label: 'Reply', action: 'company-os' };
+  return { label: 'Open deal', action: 'company-os' };
+}
+
+function V4TodayDealUrgency(card) {
+  const task = card.primaryTask;
+  if (task?.urgent) return 0;
+  if (task && task.dueIn < 0) return 1;
+  if (task && task.dueIn === 0) return 2;
+  if (card.lead?.stage === 'invoice-sent') return 3;
+  if (card.lead?.needsReply) return 4;
+  return 10 + (task?.dueIn || 14);
+}
+
+function V4TodayBuildDealCards(leads, tasks, user, opts = {}) {
+  const { max = 24, taskFilter = null } = opts;
+  const visibleLeads = (Array.isArray(leads) ? leads : []).filter(l => {
+    if (!l || l.stage === 'paid-out') return false;
+    if (!window.V3.LeadVisibleToProfile(l, user)) return false;
+    return true;
+  });
+  const tasksByLead = new Map();
+  for (const task of (tasks || [])) {
+    if (!task?.leadId) continue;
+    if (taskFilter && !taskFilter(task)) continue;
+    const key = String(task.leadId);
+    const list = tasksByLead.get(key) || [];
+    list.push(task);
+    tasksByLead.set(key, list);
+  }
+
+  const cards = [];
+  const seen = new Set();
+  const pushLead = (lead) => {
+    const key = String(lead.id);
+    if (seen.has(key)) return;
+    seen.add(key);
+    const leadTasks = tasksByLead.get(key) || [];
+    const primaryTask = V4TodayDealPrimaryTask(leadTasks);
+    cards.push({
+      id: key,
+      lead,
+      primaryTask,
+      stageIndex: V4CompanyOsStageIndex(lead),
+      phase: V4CompanyOsPhase(lead),
+      payment: V4TodayDealPaymentState(lead),
+      execution: V4CompanyOsExecutionMeta(lead),
+      blocker: V4TodayDealBlocker(lead, primaryTask),
+      cta: V4TodayDealCta(lead, primaryTask),
+      snippet: V4CompanyOsListSnippet(lead),
+      value: lead.value || primaryTask?.value || null,
+    });
+  };
+
+  for (const task of (tasks || [])) {
+    if (taskFilter && !taskFilter(task)) continue;
+    if (task.lead) pushLead(task.lead);
+  }
+  for (const lead of visibleLeads) {
+    if (taskFilter) {
+      if (['invoice-sent', 'done'].includes(lead.stage)) pushLead(lead);
+      continue;
+    }
+    if (['new', 'first-touch', 'engaged', 'rates-sent', 'negotiating', 'invoice-sent', 'done'].includes(lead.stage)) {
+      pushLead(lead);
+    }
+  }
+
+  return cards
+    .sort((a, b) => {
+      const ua = V4TodayDealUrgency(a);
+      const ub = V4TodayDealUrgency(b);
+      if (ua !== ub) return ua - ub;
+      return (b.value || 0) - (a.value || 0);
+    })
+    .slice(0, max);
+}
+
+function TodayDealPath({ stageIndex, compact }) {
+  const stages = V4_COMPANY_OS_STAGES;
+  return (
+    <div className={'today-deal-path' + (compact ? ' is-compact' : '')} aria-label="Deal progress">
+      {stages.map((stage, index) => {
+        const isDone = index < stageIndex;
+        const isCurrent = index === stageIndex;
+        return (
+          <div
+            key={stage.key}
+            className={[
+              'today-deal-path-step',
+              isDone ? 'is-done' : '',
+              isCurrent ? 'is-current' : '',
+            ].filter(Boolean).join(' ')}
+            title={stage.label}
+          >
+            <span className="today-deal-path-bar" />
+            <small>{compact ? stage.label.split(' ')[0] : stage.label}</small>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function TodayDealMilestones({ lead, execution }) {
+  const stage = lead?.stage || 'new';
+  const brief = lead?.brief;
+  const items = [
+    { key: 'email', label: 'Email', done: !['new'].includes(stage), active: ['first-touch', 'engaged', 'rates-sent', 'negotiating'].includes(stage) },
+    { key: 'terms', label: 'Terms', done: ['invoice-sent', 'done', 'paid-out'].includes(stage), active: stage === 'negotiating' },
+    { key: 'brief', label: 'Brief', done: brief && ['ready', 'in-production', 'shipped'].includes(brief.status), active: stage === 'done' && !brief },
+    { key: 'invoice', label: 'Invoice', done: ['paid-out'].includes(stage), active: stage === 'invoice-sent' || (stage === 'done' && brief) },
+  ];
+  return (
+    <div className="today-deal-milestones">
+      {items.map(item => (
+        <span
+          key={item.key}
+          className={[
+            'today-deal-milestone',
+            item.done ? 'is-done' : '',
+            item.active ? 'is-active' : '',
+          ].filter(Boolean).join(' ')}
+        >
+          {item.done ? '✓' : '·'} {item.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function TodayDealCard({ card, onOpenInCompanyOs, onOpenBrief, compact }) {
+  const lead = card.lead;
+  if (!lead) return null;
+  const payment = card.payment;
+  const openDeal = () => {
+    if (typeof onOpenInCompanyOs === 'function') onOpenInCompanyOs(lead.id);
+    else if (typeof window.V4OpenLeadInCompanyOs === 'function') {
+      window.V4OpenLeadInCompanyOs(lead.id, 'send');
+      window.dispatchEvent(new CustomEvent('v4:navigate-view', { detail: { view: 'company-os' } }));
+    }
+  };
+  const runCta = (e) => {
+    e.stopPropagation();
+    if (card.cta.action === 'brief' && typeof onOpenBrief === 'function') onOpenBrief(lead.id);
+    else openDeal();
+  };
+
+  return (
+    <article
+      className={'today-deal-card' + (compact ? ' is-compact' : '') + (card.primaryTask?.urgent ? ' is-urgent' : '')}
+      onClick={openDeal}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter') openDeal(); }}
+    >
+      <div className="today-deal-card-hd">
+        <div className="today-deal-card-brand-block">
+          <h3 className="today-deal-card-brand">{lead.brand || lead.title || lead.contactName}</h3>
+          <div className="today-deal-card-contact">{lead.contactName}</div>
+        </div>
+        <div className="today-deal-card-badges">
+          {card.value != null && (
+            <span className="today-deal-card-value">{v3Money(card.value, { compact: true })}</span>
+          )}
+          {payment && (
+            <span className={'today-deal-pay today-deal-pay-' + payment.tone}>
+              {payment.label}{payment.detail ? ` · ${payment.detail}` : ''}
+            </span>
+          )}
+          <span className="today-deal-phase">{card.phase}</span>
+        </div>
+      </div>
+
+      {!compact && <TodayDealPath stageIndex={card.stageIndex} />}
+      <TodayDealMilestones lead={lead} execution={card.execution} />
+
+      <div className="today-deal-blocker">{card.blocker}</div>
+      {!compact && card.snippet && (
+        <div className="today-deal-snippet">{card.snippet}</div>
+      )}
+
+      <div className="today-deal-card-ft">
+        <button type="button" className="btn btn-accent btn-sm today-deal-cta" onClick={runCta}>
+          {card.cta.label}
+        </button>
+        <button type="button" className="btn btn-ghost btn-sm today-deal-secondary" onClick={(e) => { e.stopPropagation(); openDeal(); }}>
+          Company OS →
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function TodayDealGrid({ cards, label, sublabel, onOpenInCompanyOs, onOpenBrief, compact }) {
+  if (!cards.length) return null;
+  return (
+    <section className="today-deal-section">
+      <header className="today-deal-section-hd">
+        <h2 className="today-deal-section-title">{label}</h2>
+        <span className="today-deal-section-count">{cards.length}</span>
+        {sublabel && <span className="today-deal-section-sub">{sublabel}</span>}
+      </header>
+      <div className={'today-deal-grid' + (compact ? ' is-compact' : '')}>
+        {cards.map(card => (
+          <TodayDealCard
+            key={card.id}
+            card={card}
+            compact={compact}
+            onOpenInCompanyOs={onOpenInCompanyOs}
+            onOpenBrief={onOpenBrief}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 // ─── Today ──────────────────────────────────────────────────
-function V4TodayView({ user, leads, onOpenLead, onGoInbox }) {
+function V4TodayView({ user, leads, onOpenLead, onGoInbox, onOpenInCompanyOs }) {
   const { USERS, TASK_TYPES, deriveTasks, bucketTasks, greeting } = window.V3;
   const me = USERS[user];
 
@@ -11763,6 +12035,39 @@ function V4TodayView({ user, leads, onOpenLead, onGoInbox }) {
     });
   };
 
+  const openBrief = (leadId) => {
+    window.dispatchEvent(new CustomEvent('v3:open-brief', { detail: { leadId } }));
+  };
+
+  const nowDealCards = React.useMemo(() => V4TodayBuildDealCards(
+    leads,
+    liveTasks,
+    user,
+    {
+      max: 12,
+      taskFilter: (t) => t.urgent || t.dueIn <= 0,
+    }
+  ), [leads, liveTasks, user]);
+
+  const priorityDealCards = React.useMemo(
+    () => nowDealCards.filter(c => c.primaryTask?.urgent),
+    [nowDealCards]
+  );
+  const activeDealCards = React.useMemo(
+    () => nowDealCards.filter(c => !c.primaryTask?.urgent),
+    [nowDealCards]
+  );
+
+  const nextDealCards = React.useMemo(() => V4TodayBuildDealCards(
+    leads,
+    liveTasks,
+    user,
+    {
+      max: 16,
+      taskFilter: (t) => t.dueIn >= 1 && t.dueIn <= 7,
+    }
+  ), [leads, liveTasks, user]);
+
   const STUCK_DAYS = 7;
   const ACTIVE_STAGES = ['new','first-touch','engaged','rates-sent','negotiating','invoice-sent'];
   const stuckLeads = React.useMemo(() =>
@@ -11777,8 +12082,8 @@ function V4TodayView({ user, leads, onOpenLead, onGoInbox }) {
   const dayLabel = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
   const pipeOpen = leads.filter(l => !['paid-out'].includes(l.stage)).reduce((s, l) => s + (l.value || 0), 0);
 
-  const nowCount   = buckets.urgent.length + buckets.past.length + buckets.today.length;
-  const nextCount  = buckets.tomorrow.length + buckets.thisWeek.length;
+  const nowCount   = nowDealCards.length;
+  const nextCount  = nextDealCards.length;
   const laterCount = buckets.upcoming.length;
 
   // Auto-flip to first non-empty tab on user change
@@ -11787,10 +12092,10 @@ function V4TodayView({ user, leads, onOpenLead, onGoInbox }) {
   }, [user]);
 
   const subline = nowCount === 0
-    ? (nextCount > 0 ? `Clear for now · ${nextCount} coming up` : "You're all clear.")
-    : (<><strong style={{ color: 'var(--text)' }}>{nowCount}</strong> thing{nowCount === 1 ? '' : 's'} on you right now</>);
+    ? (nextCount > 0 ? `Clear for now · ${nextCount} deals coming up` : "You're all clear.")
+    : (<><strong style={{ color: 'var(--text)' }}>{nowCount}</strong> deal{nowCount === 1 ? '' : 's'} you're building</>);
 
-  const ctx = { user, onOpenLead, onToggle: toggleComplete, completed, now, fadeMs: FADE_MS };
+  const ctx = { user, onOpenLead, onOpenInCompanyOs, onOpenBrief: openBrief, onToggle: toggleComplete, completed, now, fadeMs: FADE_MS };
 
   return (
     <div className="page today-v4">
@@ -11825,8 +12130,15 @@ function V4TodayView({ user, leads, onOpenLead, onGoInbox }) {
       </div>
 
       <div className="body today-body">
-        {tab === 'now'   && <NowZone   buckets={buckets} {...ctx} />}
-        {tab === 'next'  && <NextZone  buckets={buckets} {...ctx} />}
+        {tab === 'now'   && (
+          <NowZone
+            buckets={buckets}
+            priorityCards={priorityDealCards}
+            activeCards={activeDealCards}
+            {...ctx}
+          />
+        )}
+        {tab === 'next'  && <NextZone buckets={buckets} dealCards={nextDealCards} {...ctx} />}
         {tab === 'later' && <LaterZone buckets={buckets} {...ctx} />}
         {tab === 'stuck' && <StuckZone leads={stuckLeads} onOpenLead={onOpenLead} user={user} />}
         {tab === 'done'  && <DoneZone  items={doneTasks} {...ctx} />}
@@ -11950,9 +12262,10 @@ function V3PipeViz({ stageId, daysInStage, compact }) {
   );
 }
 
-// ─── NOW zone — big action cards, 3 sub-sections clearly differentiated
-function NowZone({ buckets, ...ctx }) {
-  const isEmpty = buckets.urgent.length === 0 && buckets.past.length === 0 && buckets.today.length === 0;
+// ─── NOW zone — company deal cards (Company OS rollup)
+function NowZone({ buckets, priorityCards = [], activeCards = [], ...ctx }) {
+  const hasDeals = priorityCards.length > 0 || activeCards.length > 0;
+  const isEmpty = !hasDeals;
   if (isEmpty) {
     return (
       <div className="card" style={{ padding: '40px 24px', textAlign: 'center' }}>
@@ -11962,17 +12275,23 @@ function NowZone({ buckets, ...ctx }) {
   }
   return (
     <>
-      {buckets.urgent.length > 0 && (
-        <NowSection tone="priority" label="Priority" sublabel="They asked for a date in the email"
-                    items={buckets.urgent} {...ctx} />
+      {priorityCards.length > 0 && (
+        <TodayDealGrid
+          cards={priorityCards}
+          label="Priority"
+          sublabel="They asked for a date in the email"
+          onOpenInCompanyOs={ctx.onOpenInCompanyOs}
+          onOpenBrief={ctx.onOpenBrief}
+        />
       )}
-      {buckets.past.length > 0 && (
-        <NowSection tone="late" label="Past due" sublabel="Should have been done by now"
-                    items={buckets.past} {...ctx} />
-      )}
-      {buckets.today.length > 0 && (
-        <NowSection tone="today" label="Due today" sublabel="Wrap by end of day"
-                    items={buckets.today} {...ctx} />
+      {activeCards.length > 0 && (
+        <TodayDealGrid
+          cards={activeCards}
+          label="Deals you're building"
+          sublabel="Tap a card to open Company OS"
+          onOpenInCompanyOs={ctx.onOpenInCompanyOs}
+          onOpenBrief={ctx.onOpenBrief}
+        />
       )}
     </>
   );
@@ -12129,9 +12448,9 @@ function NowCard({ task, user, onOpenLead, onToggle, completed, now, fadeMs }) {
   );
 }
 
-// ─── NEXT zone — compact rows, grouped by tomorrow / this week
-function NextZone({ buckets, ...ctx }) {
-  const isEmpty = buckets.tomorrow.length === 0 && buckets.thisWeek.length === 0;
+// ─── NEXT zone — compact deal cards for the coming week
+function NextZone({ buckets, dealCards = [], ...ctx }) {
+  const isEmpty = dealCards.length === 0;
   if (isEmpty) {
     return (
       <div className="card" style={{ padding: '40px 24px', textAlign: 'center' }}>
@@ -12140,14 +12459,14 @@ function NextZone({ buckets, ...ctx }) {
     );
   }
   return (
-    <>
-      {buckets.tomorrow.length > 0 && (
-        <CompactSection label="Tomorrow" sublabel="Heads up" items={buckets.tomorrow} {...ctx} />
-      )}
-      {buckets.thisWeek.length > 0 && (
-        <CompactSection label="Later this week" sublabel="Next 2–7 days" items={buckets.thisWeek} {...ctx} />
-      )}
-    </>
+    <TodayDealGrid
+      cards={dealCards}
+      label="Coming up this week"
+      sublabel="Tomorrow through next 7 days"
+      compact
+      onOpenInCompanyOs={ctx.onOpenInCompanyOs}
+      onOpenBrief={ctx.onOpenBrief}
+    />
   );
 }
 
@@ -19382,6 +19701,16 @@ function V4DealActionBar({ lead, onOpenSplits, onReply, replyLabel, onRefreshThr
           : madeDoc
             ? <span className="cos-dealbar-made">Brief made ✓</span>
             : null}
+        {onTrash && (
+          <button
+            type="button"
+            className="cos-dealbar-btn cos-dealbar-btn--danger cos-dealbar-trash"
+            onClick={onTrash}
+            title="Move to trash"
+          >
+            <V3Icon name="trash" w={14} /> Trash
+          </button>
+        )}
         <details className="cos-dealbar-more">
           <summary aria-label="More actions" title="More actions">⋯</summary>
           <div
@@ -19531,6 +19860,34 @@ function V4DealBrainPanel({ lead, setComposeOpen, onOpenSplits }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function V4CosTrashLead(lead, moveLead) {
+  if (!lead || typeof moveLead !== 'function') return;
+  const isSpam = typeof V4LeadLooksLikeSpam === 'function' && V4LeadLooksLikeSpam(lead);
+  const isIntake = window.V3?.IsNewLeadReview?.(lead);
+  const isReview = String(lead?.draftReplyStatus || '').toLowerCase() === 'review';
+  if (isSpam || isIntake || isReview) {
+    moveLead('trash');
+    return;
+  }
+  if (window.confirm('Move this deal to Trash?')) moveLead('trash');
+}
+
+function V4CosDismissBar({ lead, isIntake, onAccept, onTrash }) {
+  const isSpam = typeof V4LeadLooksLikeSpam === 'function' && V4LeadLooksLikeSpam(lead);
+  if (!isIntake && !isSpam) return null;
+  return (
+    <div className={'cos-intake-bar cos-spam-dismiss-bar' + (isSpam ? ' is-spam' : '')}>
+      <span>{isSpam ? 'Likely spam or noise — trash to remove from your queue' : 'New intake from Robert pipeline'}</span>
+      {isIntake && typeof onAccept === 'function' ? (
+        <button type="button" className="cos-intake-accept" onClick={onAccept}>Accept to board</button>
+      ) : null}
+      <button type="button" className="cos-intake-trash" onClick={onTrash}>
+        <V3Icon name="trash" w={12} /> Trash
+      </button>
     </div>
   );
 }
@@ -19839,6 +20196,15 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
                 <V3Icon name="compact" w={18} />
               </button>
             )}
+            <button
+              type="button"
+              className="gmail-read-trash hd-icon-btn"
+              onClick={() => V4CosTrashLead(lead, moveLead)}
+              aria-label="Move to trash"
+              title="Trash"
+            >
+              <V3Icon name="trash" w={16} />
+            </button>
             <div className="gmail-read-hd-main">
               <h1 className="gmail-read-subject">{readerTitle}</h1>
               {showThreadSubject ? <div className="gmail-read-thread-subject">{V4CleanDisplayText(gmailSubject)}</div> : null}
@@ -19870,13 +20236,12 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
               {quickSend.error ? <div className="gmail-read-sync-note is-error">{quickSend.error}</div> : null}
             </div>
           )}
-          {isIntake && (
-            <div className="cos-intake-bar">
-              <span>New intake from Robert pipeline</span>
-              <button type="button" className="cos-intake-accept" onClick={() => window.V3.MoveLeadStage(lead, 'first-touch')}>Accept to board</button>
-              <button type="button" className="cos-intake-trash" onClick={() => window.V3.MoveLeadStage(lead, 'trash')}>Trash</button>
-            </div>
-          )}
+          <V4CosDismissBar
+            lead={lead}
+            isIntake={isIntake}
+            onAccept={() => window.V3.MoveLeadStage(lead, 'first-touch')}
+            onTrash={() => V4CosTrashLead(lead, moveLead)}
+          />
           {(hasDraftReady || agentLine) && !composeOpen && (
             <details className="cos-agent-strip">
               <summary><span className="cos-agent-strip-lbl">Agent</span> {agentLine}</summary>
@@ -19904,7 +20269,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
             refreshBusy={threadSync.status === 'syncing'}
             quickStages={quickStages}
             onMoveStage={moveLead}
-            onTrash={() => moveLead('trash')}
+            onTrash={() => V4CosTrashLead(lead, moveLead)}
             onMarkRead={clearUnread}
             showMarkRead={Boolean(lead.unread)}
             onShowStands={() => setTab('stands')}
@@ -20019,6 +20384,12 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
                 <span><b>{Array.isArray(lead.thread) ? lead.thread.length : 0}</b> emails</span>
               </div>
             </>
+          <V4CosDismissBar
+            lead={lead}
+            isIntake={isIntake}
+            onAccept={() => window.V3.MoveLeadStage(lead, 'first-touch')}
+            onTrash={() => V4CosTrashLead(lead, moveLead)}
+          />
           {isReview && (
             <div className="cos2-review-banner">
               <div className="cos2-review-banner-msg">
@@ -20027,7 +20398,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
               </div>
               <div className="cos2-review-banner-btns">
                 {lead.draftReply && <button type="button" className="cos2-review-approve" onClick={() => setComposeOpen(true)}>Approve &amp; send</button>}
-                <button type="button" className="cos2-review-dismiss" onClick={() => { if (window.confirm('Dismiss as scam and move to Trash?')) window.V3.MoveLeadStage(lead, 'trash'); }}>Dismiss (scam)</button>
+                <button type="button" className="cos2-review-dismiss" onClick={() => V4CosTrashLead(lead, moveLead)}>Dismiss (scam)</button>
               </div>
             </div>
           )}
@@ -20038,7 +20409,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
             replyLabel={needsXDmReply ? 'Reply on X' : (lead.draftReply ? 'Approve draft' : 'Reply')}
             quickStages={quickStages}
             onMoveStage={moveLead}
-            onTrash={() => moveLead('trash')}
+            onTrash={() => V4CosTrashLead(lead, moveLead)}
             onMarkRead={clearUnread}
             showMarkRead={Boolean(lead.unread)}
           />
@@ -21355,23 +21726,63 @@ function V4ParseIpLocation(data) {
   };
 }
 
+const V4_DEVICE_LOC_CACHE_KEY = 'v4:lastDeviceLocation';
+
+function V4ReadCachedDeviceLocation() {
+  try {
+    const raw = window.localStorage?.getItem(V4_DEVICE_LOC_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const lat = Number(parsed?.lat);
+    const lon = Number(parsed?.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    return {
+      lat,
+      lon,
+      city: String(parsed.city || '').trim(),
+      region: String(parsed.region || '').trim(),
+      timezone: String(parsed.timezone || '').trim(),
+      savedAt: Number(parsed.savedAt || 0),
+      source: 'device-cache',
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
 async function V4ResolveViewerLocation() {
+  // A recent real device fix beats everything, including the permission-prompt wait.
+  const cached = V4ReadCachedDeviceLocation();
+  if (cached && Date.now() - cached.savedAt < 24 * 60 * 60 * 1000) {
+    return cached;
+  }
+
   if (typeof navigator !== 'undefined' && navigator.geolocation) {
     try {
       const pos = await new Promise((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: false,
-          timeout: 5000,
+          // 5s lost the race against the permission prompt, so IP geolocation won
+          // with the ISP hub city (Fort Wayne). Give the prompt time to be answered.
+          timeout: 20000,
           maximumAge: 30 * 60 * 1000,
         });
       });
       const lat = Number(pos.coords.latitude);
       const lon = Number(pos.coords.longitude);
       if (Number.isFinite(lat) && Number.isFinite(lon)) {
+        try {
+          window.localStorage?.setItem(V4_DEVICE_LOC_CACHE_KEY, JSON.stringify({
+            lat, lon, timezone: V4BrowserTimezone(), savedAt: Date.now(),
+          }));
+        } catch (e) {}
         return { lat, lon, source: 'device' };
       }
     } catch (e) {}
   }
+
+  // Denied or no fix: an older device fix is still far closer than ISP-hub IP geo.
+  if (cached) return cached;
 
   const ipEndpoints = [
     'https://ipwho.is/',
@@ -21425,8 +21836,10 @@ async function V4ReverseGeocodeCity(lat, lon) {
 }
 
 function V4WttrWeatherLabel(cur) {
-  const desc = cur?.weatherDesc?.[0]?.value || cur?.lang_en?.[0]?.value || cur?.weatherCode;
-  return String(desc || 'Weather').trim();
+  // No default here: returning 'Weather' used to override the correct WMO label
+  // whenever the payload had no wttr-style description (e.g. Open-Meteo responses).
+  const desc = cur?.weatherDesc?.[0]?.value || cur?.lang_en?.[0]?.value;
+  return String(desc || '').trim();
 }
 
 function V4NormalizeLocalWeatherPayload(data) {
@@ -21448,6 +21861,22 @@ function V4NormalizeLocalWeatherPayload(data) {
 
 async function V4FetchLocalWeather(lat, lon) {
   const q = `latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}`;
+  // Open-Meteo first: real WMO weather codes plus the location's actual timezone.
+  // The local bridge answers with wttr codes ("122") the label map doesn't know and
+  // reports UTC, which blanked the weather label and flipped the clock to UTC.
+  try {
+    const res = await V4FetchWithTimeout(
+      `https://api.open-meteo.com/v1/forecast?${q}&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=auto`,
+      {},
+      9000,
+    );
+    if (res.ok) {
+      const data = await res.json();
+      const normalized = V4NormalizeLocalWeatherPayload(data);
+      if (normalized?.current?.temperature_2m != null) return normalized;
+    }
+  } catch (e) {}
+
   for (const base of V4OpsServiceBases()) {
     try {
       const res = await V4FetchWithTimeout(`${base}/god-mode/local-weather?${q}`, {}, 9000);
@@ -21517,7 +21946,7 @@ function V4LoadGodModeModule() {
       return;
     }
     const s = document.createElement('script');
-    s.src = 'flow-v4/god-mode-earth.js?v=20260706-godmode-v21';
+    s.src = 'flow-v4/god-mode-earth.js?v=20260707-godmode-v26-streetwx';
     s.async = true;
     s.onload = () => {
       if (typeof window.V4GodModeEarth === 'function') resolve(window.V4GodModeEarth);
@@ -21627,7 +22056,9 @@ function V4LocalWeatherClock({ onOpenGodMode }) {
         if (timezone !== timezoneRef.current) startClock(timezone);
 
         const weather = await V4FetchLocalWeather(loc.lat, loc.lon);
-        const weatherTz = String(weather?.timezone || timezone);
+        // The local bridge reports "UTC" as its timezone; never let that restart the clock.
+        const rawWeatherTz = String(weather?.timezone || '');
+        const weatherTz = rawWeatherTz && rawWeatherTz !== 'UTC' ? rawWeatherTz : timezone;
         const temp = weather?.current?.temperature_2m;
         const weatherLabel = String(
           weather?.current?.weather_label || V4WeatherCodeLabel(weather?.current?.weather_code) || '',
@@ -21733,6 +22164,40 @@ function V4SyncStatusBadge() {
       {label}
     </button>
   );
+}
+
+function V4BoardStateChip({ state, error }) {
+  const detail = String(error || '').replace(/\s+/g, ' ').trim();
+  if (state === 'loading') {
+    return <span className="hd-board-state hd-board-state--loading"><span className="dot"></span>Loading board</span>;
+  }
+  if (state === 'cached') {
+    return (
+      <button
+        type="button"
+        className="hd-board-state hd-board-state--warn"
+        onClick={() => window.V3?.ReloadLeads?.()}
+        title={detail || 'Showing cached board while live data reconnects'}
+      >
+        <span className="dot"></span>
+        Cached board
+      </button>
+    );
+  }
+  if (state === 'error') {
+    return (
+      <button
+        type="button"
+        className="hd-board-state hd-board-state--err"
+        onClick={() => window.V3?.ReloadLeads?.()}
+        title={detail || 'Could not load leads from Supabase'}
+      >
+        <span className="dot"></span>
+        Board offline
+      </button>
+    );
+  }
+  return null;
 }
 
 function V4Onboarding({ view }) {
@@ -22242,23 +22707,8 @@ function V4App() {
           )}
         </div>
 
-        <V4SyncStatusBadge />
-        {boardState === 'loading' && <span className="hd-board-state">Loading board…</span>}
-        {boardState === 'cached' && (
-          <button
-            type="button"
-            className="hd-board-state hd-board-state--warn"
-            onClick={() => window.V3?.ReloadLeads?.()}
-            title={boardError || 'Showing cached board while Supabase is unreachable'}
-          >
-            Cached board — retry live load
-          </button>
-        )}
-        {boardState === 'error' && (
-          <button type="button" className="hd-board-state hd-board-state--err" onClick={() => window.V3?.ReloadLeads?.()} title={boardError || 'Could not load leads from Supabase'}>
-            Board error — retry{boardError ? ` (${boardError})` : ''}
-          </button>
-        )}
+        {boardState === 'ready' && <V4SyncStatusBadge />}
+        <V4BoardStateChip state={boardState} error={boardError} />
 
         <button
           className="hd-theme-toggle"
@@ -22333,7 +22783,18 @@ function V4App() {
         )}
 
         {view === 'today' && (
-          <V4TodayView user={user} leads={operationalLeads} query={search} onOpenLead={setOpenId} onGoInbox={() => setView('inbox')} />
+          <V4TodayView
+            user={user}
+            leads={operationalLeads}
+            query={search}
+            onOpenLead={setOpenId}
+            onGoInbox={() => setView('inbox')}
+            onOpenInCompanyOs={(leadId) => {
+              V4OpenLeadInCompanyOs(leadId, 'send');
+              setView('company-os');
+              setOpenId(null);
+            }}
+          />
         )}
         {view === 'board' && (
           <V3BoardView leads={operationalLeads} query={search} openId={openId} onOpen={setOpenId} user={user}

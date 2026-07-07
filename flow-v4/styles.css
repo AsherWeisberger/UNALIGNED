@@ -1522,10 +1522,11 @@ body.v4-godmode-open { overflow: hidden; }
   border: 0;
   padding: 0;
   border-radius: 50%;
-  background: rgba(255, 69, 58, 0.08);
+  background: transparent;
   transform: translate(-50%, -50%);
   cursor: pointer;
-  filter: drop-shadow(0 0 12px rgba(255, 69, 58, 0.62));
+  /* currentColor = the launch provider's brand color, set inline per marker */
+  filter: drop-shadow(0 0 10px currentColor);
   pointer-events: auto;
 }
 .v4-god-rocket-pad {
@@ -1552,8 +1553,22 @@ body.v4-godmode-open { overflow: hidden; }
   position: absolute;
   inset: 2px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 69, 58, 0.72);
+  border: 1px solid currentColor;
+  opacity: 0.75;
   animation: v4-god-rocket-blast 1.35s ease-out infinite;
+}
+/* Rocket-shaped provider marker (SpaceX blue, Rocket Lab red, etc.) */
+.v4-god-rocket-svg {
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+  width: 24px;
+  height: 30px;
+}
+.v4-god-rocket-svg svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 @keyframes v4-god-rocket-blast {
   0% { transform: scale(0.45); opacity: 0.82; }
@@ -5147,6 +5162,181 @@ body.v4-godmode-open { overflow: hidden; }
   color: var(--text);
 }
 
+/* ─── Today deal cards (company-centric Company OS rollup) ─── */
+.today-deal-section {
+  margin-top: 22px;
+}
+.today-deal-section-hd {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 0 4px 12px;
+}
+.today-deal-section-title {
+  margin: 0;
+  font: 600 15px/1.2 var(--font-display);
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.today-deal-section-count {
+  font: 600 11px/1 var(--font-mono);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.today-deal-section-sub {
+  margin-left: auto;
+  font: 500 11px/1 var(--font-body);
+  color: var(--text-3);
+}
+.today-deal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+}
+.today-deal-grid.is-compact {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+.today-deal-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
+}
+.today-deal-card:hover {
+  border-color: var(--line-2, var(--line));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+  transform: translateY(-1px);
+}
+.today-deal-card.is-urgent {
+  border-color: color-mix(in srgb, var(--bad) 35%, var(--line));
+  box-shadow: inset 3px 0 0 var(--bad);
+}
+.today-deal-card.is-compact {
+  padding: 12px 14px;
+  gap: 8px;
+}
+.today-deal-card-hd {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.today-deal-card-brand {
+  margin: 0;
+  font: 600 16px/1.2 var(--font-display);
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.today-deal-card-contact {
+  margin-top: 3px;
+  font: 500 12px/1.3 var(--font-body);
+  color: var(--text-3);
+}
+.today-deal-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.today-deal-card-value {
+  font: 600 12px/1 var(--font-mono);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.today-deal-phase {
+  font: 600 10px/1 var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-deep, var(--accent));
+  padding: 4px 7px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.today-deal-pay {
+  font: 600 10px/1 var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 4px 7px;
+  border-radius: 99px;
+}
+.today-deal-pay-paid { color: var(--good); background: color-mix(in srgb, var(--good) 14%, transparent); }
+.today-deal-pay-unpaid { color: var(--bad); background: color-mix(in srgb, var(--bad) 14%, transparent); }
+.today-deal-pay-pending { color: var(--amber, #c9a000); background: color-mix(in srgb, var(--amber, #c9a000) 14%, transparent); }
+.today-deal-path {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+}
+.today-deal-path.is-compact .today-deal-path-step small { font-size: 8px; }
+.today-deal-path-step {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.today-deal-path-bar {
+  display: block;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--line);
+}
+.today-deal-path-step small {
+  font: 500 9px/1.2 var(--font-mono);
+  color: var(--text-4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.today-deal-path-step.is-done .today-deal-path-bar { background: var(--accent); }
+.today-deal-path-step.is-current .today-deal-path-bar { background: var(--accent-deep, var(--accent)); }
+.today-deal-path-step.is-current small { color: var(--text); font-weight: 600; }
+.today-deal-milestones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.today-deal-milestone {
+  font: 500 10px/1 var(--font-mono);
+  color: var(--text-4);
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+.today-deal-milestone.is-done { color: var(--good); }
+.today-deal-milestone.is-active { color: var(--text); background: color-mix(in srgb, var(--accent) 10%, var(--surface-2)); }
+.today-deal-blocker {
+  font: 600 13px/1.35 var(--font-body);
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.today-deal-snippet {
+  font: 500 12px/1.45 var(--font-body);
+  color: var(--text-3);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.today-deal-card-ft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+.today-deal-cta { flex-shrink: 0; }
+.today-deal-secondary { margin-left: auto; }
+
+@media (max-width: 720px) {
+  .today-deal-grid { grid-template-columns: 1fr; }
+  .today-deal-path { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
 /* ─── NOW section — strong visual differentiation per tone ─── */
 .now-section {
   margin-top: 22px;
@@ -7711,9 +7901,50 @@ a.cos-desk-intake-copy:hover {
 .hd-sync--warn .dot { background: #f59e0b; }
 .hd-sync--err .dot { background: #dc2626; }
 .hd-sync--busy .dot { animation: pulse 1.2s ease infinite; }
-.hd-board-state { font-size: var(--fs-xs); color: var(--text-secondary); margin-left: 8px; }
-.hd-board-state--warn { color: #b45309; background: none; border: none; cursor: pointer; text-decoration: underline; }
-.hd-board-state--err { color: #dc2626; background: none; border: none; cursor: pointer; text-decoration: underline; }
+.hd-board-state {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 25px;
+  max-width: 138px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-1);
+  color: var(--text-2);
+  font: 700 9.5px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hd-board-state .dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  border-radius: 999px;
+  background: currentColor;
+}
+button.hd-board-state { cursor: pointer; }
+button.hd-board-state:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, currentColor 32%, var(--line));
+  background: var(--surface-2);
+}
+.hd-board-state--loading { color: var(--accent-2, var(--accent)); }
+.hd-board-state--loading .dot { animation: pulse 1.2s ease infinite; }
+.hd-board-state--warn {
+  color: #9a5b00;
+  border-color: rgba(245, 158, 11, 0.24);
+  background: rgba(245, 158, 11, 0.08);
+}
+.hd-board-state--err {
+  color: #b42318;
+  border-color: rgba(220, 38, 38, 0.22);
+  background: rgba(220, 38, 38, 0.07);
+}
 .cos2-sync-note {
   font-size: var(--fs-xs);
   color: var(--text-secondary);
@@ -14130,6 +14361,14 @@ body[data-theme="light"] .hd-brand {
     height: 40px;
     width: 40px;
   }
+
+  .hd-board-state {
+    display: none;
+  }
+
+  .hd-local-clock {
+    display: none;
+  }
 }
 
 body[data-theme="light"] .v6-gword {
@@ -19570,8 +19809,13 @@ body[data-theme="light"] .cos2-page--queue .cos2-list{width:368px;flex-shrink:0}
 .cos-agent-oneline{padding:10px 16px 0;font-size:12px;line-height:1.45;color:var(--text-2);border-top:1px solid var(--line);background:var(--surface-0)}
 .cos-agent-oneline strong{font-family:var(--font-mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3);margin-right:6px}
 .cos-intake-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 20px;border-bottom:1px solid var(--line);background:color-mix(in srgb,#ffedd5 45%,var(--surface-0));font-size:12px}
-.cos-intake-accept,.cos-intake-trash{padding:6px 11px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--line);background:#fff}
+.cos-spam-dismiss-bar.is-spam{background:color-mix(in srgb,var(--bad,#b42318) 10%,var(--surface-0))}
+.cos-intake-accept,.cos-intake-trash{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--line);background:#fff}
+.cos-intake-trash{border-color:color-mix(in srgb,var(--danger,#b42318) 35%,var(--line));color:var(--danger,#b42318)}
 .cos-intake-accept{border-color:color-mix(in oklab,var(--accent) 35%,var(--line));color:var(--accent-deep,var(--accent))}
+.cos-dealbar-trash{flex-shrink:0}
+.gmail-read-trash{flex-shrink:0;color:var(--text-3)}
+.gmail-read-trash:hover{color:var(--danger,#b42318)}
 .gmail-read-pane{display:flex;flex-direction:column;min-height:0;flex:1}
 .gmail-read-scroll{flex:1;min-height:0;overflow:auto}
 .gmail-reply-sheet{flex-shrink:0;border-top:1px solid var(--line);background:var(--surface-0);box-shadow:0 -8px 24px -16px rgba(0,0,0,.15)}
@@ -20264,3 +20508,447 @@ body[data-theme="dark"] .cos-x-reply-draft {
 .cos-dealbar-select[disabled] { opacity: 0.5; cursor: default; }
 .cos-dealbar-made { font: var(--fw-bold) var(--fs-xs)/1 var(--font-mono); letter-spacing: 0.06em; color: var(--text-tertiary); text-transform: uppercase; }
 .cos-dealbar .cos-brain-invoice { margin: 0 12px 12px; }
+.cos-dealbar-spacer { flex: 1 1 auto; min-width: 8px; }
+.cos-dealbar-move { max-width: 130px; }
+.cos-dealbar-btn--danger { color: var(--danger, #b42318); border-color: color-mix(in srgb, var(--danger, #b42318) 35%, var(--border)); background: transparent; }
+.cos-dealbar-btn--danger:hover { border-color: var(--danger, #b42318); background: color-mix(in srgb, var(--danger, #b42318) 8%, transparent); }
+.cos-dealbar-more { position: relative; flex: none; }
+.cos-dealbar-more > summary { list-style: none; cursor: pointer; border: 1px solid var(--border); border-radius: 999px; width: 32px; height: 28px; display: inline-flex; align-items: center; justify-content: center; font: var(--fw-bold) 16px/1 var(--font-body); background: var(--surface-2); color: var(--text-primary); user-select: none; }
+.cos-dealbar-more > summary::-webkit-details-marker { display: none; }
+.cos-dealbar-more > summary:hover, .cos-dealbar-more[open] > summary { border-color: var(--accent); }
+.cos-dealbar-menu { position: absolute; right: 0; top: calc(100% + 6px); min-width: 190px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-lg, 0 10px 28px rgba(0, 0, 0, 0.16)); padding: 6px; display: flex; flex-direction: column; gap: 2px; z-index: 40; }
+.cos-dealbar-menu button, .cos-dealbar-menu a { text-align: left; border: none; background: none; padding: 8px 10px; border-radius: 8px; font: var(--fw-med, 500) var(--fs-sm)/1.2 var(--font-body); color: var(--text-primary); cursor: pointer; text-decoration: none; display: block; width: 100%; }
+.cos-dealbar-menu button:hover, .cos-dealbar-menu a:hover { background: var(--surface-2); }
+.cos-dealbar-menu button[disabled] { opacity: 0.5; cursor: default; }
+.cos-dealbar-menu .is-danger { color: var(--danger, #b42318); }
+.cos-dealbar-menu-sep { height: 1px; background: var(--border-subtle, var(--border)); margin: 4px 6px; }
+
+/* God mode: live ground weather chip shown at street-level zoom */
+.v4-godmode-groundwx {
+  border-color: rgba(125, 200, 255, 0.35);
+  color: #bfe3ff;
+}
+
+/* ============================================================================
+   COMPANY OS COMMAND POLISH — 2026-07-07
+   Organs should feel like an approval desk. Company OS should read like mail.
+   ============================================================================ */
+
+.orgx-wrap {
+  --orgx-glass: color-mix(in srgb, var(--surface-1, #fff) 84%, white 16%);
+  background:
+    radial-gradient(circle at 14% 0%, rgba(82, 124, 218, 0.13), transparent 34rem),
+    radial-gradient(circle at 86% 2%, rgba(77, 176, 143, 0.10), transparent 30rem),
+    linear-gradient(180deg, #f7f9fc 0%, #edf3f8 42%, #f7f8fa 100%);
+}
+
+body[data-theme="dark"] .orgx-wrap {
+  --orgx-glass: color-mix(in srgb, var(--surface-1, #111821) 82%, #1c2838 18%);
+  background:
+    radial-gradient(circle at 14% 0%, rgba(92, 132, 226, 0.16), transparent 32rem),
+    radial-gradient(circle at 86% 2%, rgba(77, 176, 143, 0.11), transparent 30rem),
+    linear-gradient(180deg, #080d13 0%, #0e151d 45%, #090d12 100%);
+}
+
+.orgx-top {
+  padding: 14px 28px 10px;
+  background: color-mix(in srgb, var(--bg) 74%, transparent);
+}
+
+.orgx-eye,
+.orgx-section-eyebrow,
+.orgx-today-eyebrow {
+  letter-spacing: .18em;
+}
+
+.orgx-title {
+  font-size: clamp(26px, 2.2vw, 34px);
+}
+
+.orgx-gauges {
+  gap: 8px;
+}
+
+.orgx-ctr,
+.orgx-run,
+.orgx-halt,
+.orgx-refresh {
+  min-height: 30px;
+  box-shadow: 0 10px 30px -24px rgba(15, 31, 58, .55);
+}
+
+.orgx-medic {
+  padding: 12px 28px 8px;
+}
+
+.orgx-today {
+  margin: 0 28px 12px;
+  padding: 12px;
+  border-radius: 18px;
+  background: var(--orgx-glass);
+  box-shadow: 0 22px 60px -48px rgba(18, 37, 72, .55);
+}
+
+.orgx-today-head {
+  margin-bottom: 8px;
+}
+
+.orgx-today-title {
+  font-size: 16px;
+}
+
+.orgx-today-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 8px;
+  max-height: none;
+  overflow: visible;
+}
+
+.orgx-today-row {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "gate brand val" "line line line";
+  align-items: start;
+  padding: 11px 12px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-1, #fff) 90%, white 10%);
+  transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+
+.orgx-today-row:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in oklab, var(--accent) 34%, var(--line));
+  box-shadow: 0 18px 36px -28px rgba(20, 51, 114, .5);
+}
+
+.orgx-today-rank {
+  display: none;
+}
+
+.orgx-today-gate {
+  border-radius: 999px;
+  padding: 4px 8px;
+}
+
+.orgx-command-grid {
+  grid-template-columns: minmax(680px, 1.72fr) minmax(280px, .56fr);
+  align-items: start;
+  gap: 16px;
+  padding: 12px 28px 16px;
+}
+
+.orgx-command,
+.orgx-health,
+.orgx-incident,
+.orgx-rail,
+.orgx-card {
+  background: var(--orgx-glass);
+  border-color: rgba(137, 158, 190, .36);
+  box-shadow: 0 24px 70px -52px rgba(14, 35, 74, .62);
+}
+
+.orgx-command {
+  padding: 20px;
+  border-radius: 20px;
+}
+
+.orgx-section-top {
+  margin-bottom: 10px;
+}
+
+.orgx-section-top h2 {
+  font-size: clamp(22px, 1.6vw, 30px);
+}
+
+.orgx-approval-meta {
+  margin: 8px 0 14px;
+}
+
+.orgx-approval-meta span {
+  padding: 5px 10px;
+  background: color-mix(in srgb, var(--surface-2, #f6f8fb) 82%, white 18%);
+}
+
+.orgx-review-stack {
+  grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr);
+  gap: 12px;
+}
+
+.orgx-context-card,
+.orgx-reason-card,
+.orgx-reply-card {
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--surface-0, #fff) 88%, white 12%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .65);
+}
+
+body[data-theme="dark"] .orgx-context-card,
+body[data-theme="dark"] .orgx-reason-card,
+body[data-theme="dark"] .orgx-reply-card {
+  background: color-mix(in srgb, var(--surface-1, #111821) 88%, #1b2736 12%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04);
+}
+
+.orgx-mini-head {
+  padding: 9px 12px;
+}
+
+.orgx-context-body {
+  max-height: 360px;
+  font-size: 14px;
+  line-height: 1.62;
+}
+
+.orgx-reason-main {
+  border-left-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-soft, #edf3ff) 38%, transparent);
+}
+
+.orgx-approval-body {
+  max-height: 250px;
+  font-size: 14.5px;
+  line-height: 1.62;
+}
+
+.orgx-approval-actions {
+  gap: 9px;
+  margin-top: 16px;
+}
+
+.orgx-approval-actions .orgx-b {
+  min-height: 38px;
+  border-radius: 10px;
+}
+
+.orgx-b.ap {
+  min-width: 132px;
+  box-shadow: 0 16px 34px -24px rgba(0, 0, 0, .5);
+}
+
+.orgx-health {
+  position: sticky;
+  top: 94px;
+  border-radius: 20px;
+}
+
+.orgx-health-row {
+  padding: 11px 0;
+}
+
+.orgx-incident-row {
+  padding: 0 28px 14px;
+}
+
+.orgx-body {
+  grid-template-columns: 210px minmax(0, 1fr);
+  padding: 0 28px 28px;
+}
+
+.orgx-rail {
+  top: 92px;
+  border-radius: 18px;
+}
+
+.orgx-grid {
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.orgx-card {
+  min-height: 132px;
+  border-radius: 18px;
+}
+
+.orgx-nm {
+  font-size: 15px;
+}
+
+.orgx-ds,
+.orgx-gd,
+.orgx-quiet {
+  line-height: 1.42;
+}
+
+body[data-theme] .cos2-reader--gmail-native {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-0, #fff) 96%, white 4%), var(--surface-0, #fff));
+}
+
+body[data-theme] .gmail-read-hd {
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px 9px 10px;
+  min-height: 58px;
+  border-bottom: 1px solid var(--line);
+}
+
+body[data-theme] .gmail-read-back,
+body[data-theme] .gmail-read-splits,
+body[data-theme] .gmail-read-trash {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+}
+
+body[data-theme] .gmail-read-subject {
+  margin: 0 0 3px;
+  font-size: clamp(18px, 1.4vw, 22px);
+  line-height: 1.18;
+  font-weight: 650;
+  letter-spacing: -.015em;
+}
+
+body[data-theme] .gmail-read-thread-subject {
+  margin-bottom: 4px;
+  font-size: 12.5px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body[data-theme] .gmail-read-submeta {
+  gap: 4px 7px;
+  font-size: 11.5px;
+}
+
+body[data-theme] .cos-agent-strip {
+  margin: 7px 22px 0;
+}
+
+body[data-theme] .cos-dealbar {
+  margin: 9px 18px 4px;
+  border-radius: 14px;
+  box-shadow: 0 18px 44px -36px rgba(18, 37, 72, .45);
+}
+
+body[data-theme] .cos-dealbar-row {
+  padding: 8px 10px;
+  gap: 7px;
+}
+
+body[data-theme] .cos-dealbar-eyebrow {
+  display: none;
+}
+
+body[data-theme] .cos-dealbar-btn,
+body[data-theme] .cos-dealbar-select {
+  min-height: 30px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+body[data-theme] .gmail-read-scroll {
+  padding: 4px 24px 28px 54px;
+}
+
+body[data-theme] .gmail-thread {
+  max-width: 1040px;
+}
+
+body[data-theme] .gmail-msg {
+  border-bottom-color: color-mix(in srgb, var(--line) 80%, transparent);
+}
+
+body[data-theme] .gmail-msg-hd {
+  min-height: 52px;
+  padding: 11px 0;
+  grid-template-columns: 36px minmax(0, 1fr) auto 22px;
+}
+
+body[data-theme] .gmail-msg.is-open .gmail-msg-hd {
+  padding-bottom: 6px;
+}
+
+body[data-theme] .gmail-msg-name {
+  font-size: 14px;
+}
+
+body[data-theme] .gmail-msg-email,
+body[data-theme] .gmail-msg-snippet,
+body[data-theme] .gmail-msg-when,
+body[data-theme] .gmail-msg-rcpts {
+  font-size: 11.5px;
+}
+
+body[data-theme] .gmail-msg-body {
+  padding: 0 0 18px 48px;
+}
+
+body[data-theme] .gmail-msg-text {
+  max-width: 920px;
+  font-size: 14.5px;
+  line-height: 1.66;
+}
+
+body[data-theme] .gmail-reply-sheet {
+  background: color-mix(in srgb, var(--surface-0, #fff) 94%, white 6%);
+  box-shadow: 0 -18px 44px -38px rgba(18, 37, 72, .5);
+}
+
+body[data-theme] .gmail-reply-sheet.is-open {
+  max-height: min(46vh, 470px);
+}
+
+@media (max-width: 1180px) {
+  .orgx-command-grid {
+    grid-template-columns: 1fr;
+  }
+  .orgx-health {
+    position: relative;
+    top: auto;
+  }
+}
+
+@media (max-width: 900px) {
+  body[data-theme] .gmail-read-hd {
+    padding: max(10px, env(safe-area-inset-top)) 12px 9px max(8px, env(safe-area-inset-left));
+  }
+  body[data-theme] .gmail-read-scroll {
+    padding: 2px 14px max(22px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  }
+  body[data-theme] .gmail-msg-body {
+    padding-left: 0;
+  }
+  body[data-theme] .gmail-msg-text {
+    max-width: none;
+    font-size: 15px;
+    line-height: 1.58;
+  }
+  body[data-theme] .cos-dealbar {
+    margin: 8px 12px 2px;
+  }
+  body[data-theme] .cos-dealbar-row {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+  body[data-theme] .cos-dealbar-row::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .orgx-top,
+  .orgx-medic,
+  .orgx-command-grid,
+  .orgx-incident-row,
+  .orgx-body {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .orgx-today {
+    margin-left: 14px;
+    margin-right: 14px;
+  }
+  .orgx-today-list {
+    grid-template-columns: 1fr;
+  }
+  .orgx-review-stack {
+    grid-template-columns: 1fr;
+  }
+  .orgx-context-body,
+  .orgx-approval-body {
+    max-height: 230px;
+  }
+}
