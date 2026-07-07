@@ -6029,7 +6029,12 @@ function V3MoveLeadStage(lead, nextStage, leads = V3ActiveLeads(), opts = {}) {
     V3ForgetTrashedCard(lead);
   }
 
-  const updated = leads.map(item => String(item.id) === String(lead.id) ? { ...item, stage: normalizedStage } : item);
+  const closedNow = ['paid-out', 'done'].includes(normalizedStage);
+  const updated = leads.map(item => String(item.id) === String(lead.id) ? {
+    ...item,
+    stage: normalizedStage,
+    ...(closedNow ? { unread: false, newReplyAt: null, needsReply: false } : {}),
+  } : item);
   window.V3.LEADS = updated;
   window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated } }));
 
@@ -6040,9 +6045,21 @@ function V3MoveLeadStage(lead, nextStage, leads = V3ActiveLeads(), opts = {}) {
       const merged = (window.V3.LEADS || updated).map(item => {
         if (String(item.id) === String(lead.id)) {
           if (String(item.id) !== cardId) return null;
-          return { ...item, stage: normalizedStage, id: cardId, rowId: cardId };
+          return {
+            ...item,
+            stage: normalizedStage,
+            id: cardId,
+            rowId: cardId,
+            ...(closedNow ? { unread: false, newReplyAt: null, needsReply: false } : {}),
+          };
         }
-        if (String(item.id) === cardId) return { ...item, stage: normalizedStage };
+        if (String(item.id) === cardId) {
+          return {
+            ...item,
+            stage: normalizedStage,
+            ...(closedNow ? { unread: false, newReplyAt: null, needsReply: false } : {}),
+          };
+        }
         return item;
       }).filter(Boolean);
       window.V3.LEADS = merged;
@@ -17141,6 +17158,7 @@ function V4CosIsSendLead(lead) {
   const st = String(lead.draftReplyStatus || '').toLowerCase();
   if (lead.draftReply?.body && (st === 'review' || st === 'pending')) return true;
   if (lead.draftReply?.body && (lead.unread || lead.needsReply)) return true;
+  if ((lead.unread || lead.needsReply || lead.newReplyAt) && ['invoice-sent', 'negotiating', 'engaged', 'rates-sent', 'first-touch'].includes(lead.stage)) return true;
   if ((lead.unread || lead.needsReply) && lead.nextMove?.who) return true;
   return false;
 }
@@ -22253,6 +22271,7 @@ function V4App() {
   const cosListSearchRef = React.useRef(null);
   const organsMenuRef = React.useRef(null);
   const [organsMenuOpen, setOrgansMenuOpen] = React.useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [cosToolkitOpen, setCosToolkitOpen] = React.useState(false);
   const [cosPartnerFeedbackOpen, setCosPartnerFeedbackOpen] = React.useState(false);
   const [cosDeskIntakeOpen, setCosDeskIntakeOpen] = React.useState(false);
@@ -22296,6 +22315,7 @@ function V4App() {
 
   React.useEffect(() => {
     setOrgansMenuOpen(false);
+    setMobileMenuOpen(false);
   }, [view]);
 
   React.useEffect(() => {
@@ -22543,6 +22563,7 @@ function V4App() {
     try { window.dispatchEvent(new CustomEvent('v4:skip-boot')); } catch (e) {}
     if (id !== 'inbox' && id !== 'leads') setOpenId(null);
     setOrgansMenuOpen(false);
+    setMobileMenuOpen(false);
   };
   const organsToolViews = ['organs', 'inbox', 'invoices', 'new-leads', 'leads'];
   const organsMenuActive = organsToolViews.includes(view) || (view === 'company-os' && (cosToolkitOpen || cosPartnerFeedbackOpen || cosDeskIntakeOpen || cosScopeIntakeOpen));
@@ -22566,6 +22587,33 @@ function V4App() {
     window.dispatchEvent(new CustomEvent('v4:cos-activate-split', { detail: { splitId: 'scope-intake' } }));
     goView('company-os');
   };
+  const runMobileCommand = (fn) => {
+    setMobileMenuOpen(false);
+    if (typeof fn === 'function') fn();
+  };
+  const mobileMoreActive = mobileMenuOpen || ['calendar', 'inbox', 'invoices', 'new-leads', 'leads'].includes(view) ||
+    (view === 'company-os' && (cosPartnerFeedbackOpen || cosDeskIntakeOpen || cosScopeIntakeOpen));
+  const mobileCommandGroups = [
+    {
+      label: 'Daily work',
+      items: [
+        { label: 'Calendar', hint: 'Schedule and go-live holds', icon: 'cal', run: () => goView('calendar') },
+        { label: 'New Leads', hint: 'Robert Gmail and X intake', icon: 'plus', run: () => goView('new-leads') },
+        { label: 'Briefs', hint: 'Robert posting briefs', icon: 'doc', run: () => goView('inbox') },
+        { label: 'Invoices', hint: 'Paid, outstanding, Stripe', icon: 'invoice', run: () => goView('invoices') },
+      ],
+    },
+    {
+      label: 'Tools',
+      items: [
+        { label: 'Toolkit', hint: 'Brief Maker, X signal, manual lead', icon: 'bolt', run: goToOrgansToolkit },
+        { label: 'Network', hint: 'Contacts and history', icon: 'network', run: () => goView('leads') },
+        { label: 'Partner Feedback', hint: 'Score completed collabs', icon: 'star', run: goToPartnerFeedback },
+        { label: "Robert's Desk", hint: 'Manual public-intake lane', icon: 'leads', run: goToDeskIntake },
+        { label: 'Scope Forms', hint: 'Package and scope submissions', icon: 'table', run: goToScopeIntake },
+      ],
+    },
+  ];
 
   const paletteCommands = [
     { label: 'Go to Company OS', hint: 'workspace', run: () => goView('company-os') },
@@ -22868,23 +22916,61 @@ function V4App() {
           <V3Icon name="diamond" w={18} />
           Today
         </button>
-        <button className="ft-tab" aria-current={view === 'calendar' ? 'page' : undefined}
-                onClick={() => goView('calendar')}>
-          <V3Icon name="cal" w={18} />
-          Calendar
-        </button>
-        <button className="ft-tab" aria-current={view === 'company-os' ? 'page' : undefined}
+        <button className="ft-tab" aria-current={!mobileMenuOpen && view === 'company-os' && !cosToolkitOpen && !cosPartnerFeedbackOpen && !cosDeskIntakeOpen && !cosScopeIntakeOpen ? 'page' : undefined}
                 onClick={() => goView('company-os')}>
           <V3Icon name="diamond" w={18} />
           OS
         </button>
-        <button className="ft-tab" aria-current={organsMenuActive ? 'page' : undefined}
+        <button className="ft-tab" aria-current={!mobileMenuOpen && view === 'organs' ? 'page' : undefined}
                 onClick={() => goView('organs')}>
           <V3Icon name="network" w={18} />
           Organs
           {(unreadCount + newLeadCount) > 0 && <span className="ft-tab-badge">{(unreadCount + newLeadCount) > 99 ? '99+' : (unreadCount + newLeadCount)}</span>}
         </button>
+        <button className="ft-tab ft-tab-toolkit" aria-current={!mobileMenuOpen && view === 'company-os' && cosToolkitOpen ? 'page' : undefined}
+                onClick={goToOrgansToolkit}>
+          <V3Icon name="bolt" w={18} />
+          Toolkit
+        </button>
+        <button className="ft-tab" aria-current={mobileMoreActive ? 'page' : undefined}
+                aria-expanded={mobileMenuOpen}
+                onClick={() => setMobileMenuOpen(open => !open)}>
+          <V3Icon name="compact" w={18} />
+          More
+        </button>
       </footer>
+
+      {mobileMenuOpen && (
+        <div className="mobile-nav-layer" role="dialog" aria-modal="true" aria-label="Mobile command drawer">
+          <button type="button" className="mobile-nav-scrim" aria-label="Close mobile menu" onClick={() => setMobileMenuOpen(false)} />
+          <div className="mobile-nav-sheet">
+            <div className="mobile-nav-handle" aria-hidden="true" />
+            <div className="mobile-nav-head">
+              <div>
+                <span>Command drawer</span>
+                <strong>Run UNALIGNED from your phone</strong>
+              </div>
+              <button type="button" onClick={() => setMobileMenuOpen(false)}>Close</button>
+            </div>
+            {mobileCommandGroups.map(group => (
+              <section className="mobile-nav-group" key={group.label}>
+                <p>{group.label}</p>
+                <div className="mobile-nav-grid">
+                  {group.items.map(item => (
+                    <button type="button" key={item.label} className="mobile-nav-action" onClick={() => runMobileCommand(item.run)}>
+                      <span className="mobile-nav-action-ic"><V3Icon name={item.icon} w={17} /></span>
+                      <span>
+                        <strong>{item.label}</strong>
+                        <em>{item.hint}</em>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Detail drawer — suppressed in Inbox; the inbox's right pane is its own reader */}
       {openLead && view !== 'inbox' && (
