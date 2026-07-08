@@ -18326,7 +18326,11 @@ function V4CosDeskIntake({ onOpenLead }) {
         note: 'Sent as Robert ✓ CCed Asher and Sam.',
       });
     } catch (err) {
-      setRelay((r) => ({ ...r, busy: false, note: 'Robert send failed: ' + (err?.message || err) }));
+      const msg = String(err?.message || err || '');
+      const hint = /send service is unavailable|re-auth/i.test(msg)
+        ? ' On your Mac run: python3 scripts/active/reauth_robert_gmail_send.py (sign in as Robert), then retry.'
+        : '';
+      setRelay((r) => ({ ...r, busy: false, note: 'Robert send failed: ' + msg + hint }));
     }
   };
 
