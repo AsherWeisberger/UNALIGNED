@@ -1150,7 +1150,9 @@ async function V3HydrateLeadDetail(lead, opts = {}) {
 
 function V3UseLeadDetailHydration(lead) {
   React.useEffect(() => {
-    if (!lead?.id || lead._detailHydrated) return;
+    if (!lead?.id) return;
+    const hasThread = Array.isArray(lead.thread) && lead.thread.length > 0;
+    if (lead._detailHydrated && hasThread) return;
     if (!lead.gmailThreadId && !lead.email) return;
     let cancelled = false;
     V3HydrateLeadDetail(lead).catch(err => {
@@ -3381,6 +3383,15 @@ function V3SenderForUser(_user) {
   return 'asher';
 }
 
+function V3SenderForLead(lead, user) {
+  const mailbox = typeof V4CompanyOsMailboxOrigin === 'function'
+    ? V4CompanyOsMailboxOrigin(lead)
+    : (typeof V3LeadMailboxOrigin === 'function' ? V3LeadMailboxOrigin(lead) : '');
+  if (mailbox === 'robert') return 'robert';
+  if (mailbox === 'asher') return 'asher';
+  return V3SenderForUser(user);
+}
+
 function V3SenderName(sender) {
   if (sender === 'robert') return 'Robert Scoble';
   if (sender === 'sam') return 'Sam Levin';
@@ -5087,7 +5098,7 @@ async function V3SendLeadEmail({ lead, sender, to, cc, subject, body, attachPdf 
   return data;
 }
 
-Object.assign(window, { V3SenderForUser, V3SenderName, V3SenderSignature, V3EnsureSenderSignature, V3ComposeReplyDraft, V3ResolveReplyTone, V3ReplyToneLabel, V3SubjectForLead, V3DefaultCc, V3InternalEmails, V3SenderEmails, V3IsSelfRecipient, V3SplitEmails, V3EmailsFromValue, V3ExtractEmail, V3LeadReplyToEmail, V3ThreadParticipants, V3LeadMatchesQuery, V3UniqueEmails, V3ReplyRecipients, V3RobertCcOptional, V3_TEAM_EMAILS, V3ThreadMessageKey, V3PendingReplyKey, V3PendingReplyMatchesLead, V3PrunePendingReplies, V3MergePendingReplies, V3SendLeadEmail, V3InferPricingPdfPack, V3PricingPdfMeta, V3_PRICING_PDF_PACKS, V3LeadActivityTimestamp, V3LeadReceivedTimestamp, V3SortLeadsByActivity, V3NewLeadReason });
+Object.assign(window, { V3SenderForUser, V3SenderForLead, V3SenderName, V3SenderSignature, V3EnsureSenderSignature, V3ComposeReplyDraft, V3ResolveReplyTone, V3ReplyToneLabel, V3SubjectForLead, V3DefaultCc, V3InternalEmails, V3SenderEmails, V3IsSelfRecipient, V3SplitEmails, V3EmailsFromValue, V3ExtractEmail, V3LeadReplyToEmail, V3ThreadParticipants, V3LeadMatchesQuery, V3UniqueEmails, V3ReplyRecipients, V3RobertCcOptional, V3_TEAM_EMAILS, V3ThreadMessageKey, V3PendingReplyKey, V3PendingReplyMatchesLead, V3PrunePendingReplies, V3MergePendingReplies, V3SendLeadEmail, V3InferPricingPdfPack, V3PricingPdfMeta, V3_PRICING_PDF_PACKS, V3LeadActivityTimestamp, V3LeadReceivedTimestamp, V3SortLeadsByActivity, V3NewLeadReason });
 
 
 // FLOW v3 — data with category labels matching UNALIGNED's INTERVIEW / COLLABORATION / PARTNERSHIP / INTRO tabs
@@ -7504,7 +7515,7 @@ function V3PricingPdfAttachControl({ attachPdf, setAttachPdf, pricingPdfPack, se
 function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
   const isGmail = layout === 'gmail';
   const isInline = isGmail || layout === 'inline' || layout === 'dock';
-  const [sender, setSender] = React.useState(() => V3SenderForUser(user));
+  const [sender, setSender] = React.useState(() => V3SenderForLead(lead, user));
   const [internalOnly, setInternalOnly] = React.useState(false);
   const [ccRobert, setCcRobert] = React.useState(true);
   const recipientsEditedRef = React.useRef(false);
@@ -7514,7 +7525,7 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
   const [cc, setCc] = React.useState(initialRecipients.cc);
   const [toDraft, setToDraft] = React.useState('');
   const [ccDraft, setCcDraft] = React.useState('');
-  const [body, setBody] = React.useState(() => V3ComposeMessageOnly(draft.body, V3SenderForUser(user)));
+  const [body, setBody] = React.useState(() => V3ComposeMessageOnly(draft.body, V3SenderForLead(lead, user)));
   const [attachPdf, setAttachPdf] = React.useState(false);
   const [pricingPdfPack, setPricingPdfPack] = React.useState('single');
   const [status, setStatus] = React.useState('draft');
@@ -7552,7 +7563,12 @@ function V3InlineReply({ lead, user, onCollapse, layout = 'default' }) {
   };
 
   React.useEffect(() => {
-    const nextSender = V3SenderForUser(user);
+    let nextSender = V3SenderForLead(lead, user);
+    try {
+      const stored = window.sessionStorage.getItem('cos-sender');
+      if (stored === 'robert' || stored === 'asher' || stored === 'sam') nextSender = stored;
+      window.sessionStorage.removeItem('cos-sender');
+    } catch (e) {}
     const next = V3ReplyRecipients(lead, nextSender, false, { includeRobert: true });
     const nextDraft = V3ComposeReplyDraft(lead, nextSender);
     recipientsEditedRef.current = false;
@@ -9042,6 +9058,16 @@ function V4CosQueueForGate(gateId) {
   return 'watch';
 }
 
+function V4IsRobertGmailIntakeLead(lead) {
+  if (!lead || lead.isRobertBrief) return false;
+  const kind = window.V3?.NewLeadSourceKind ? window.V3.NewLeadSourceKind(lead) : 'gmail';
+  if (kind === 'x') return false;
+  const mailbox = typeof V4CompanyOsMailboxOrigin === 'function'
+    ? V4CompanyOsMailboxOrigin(lead)
+    : (window.V3?.LeadMailboxOrigin ? window.V3.LeadMailboxOrigin(lead) : '');
+  return mailbox === 'robert' && window.V3?.IsNewLeadReview?.(lead);
+}
+
 function V4OpenLeadInCompanyOs(leadId, queueId, opts) {
   const q = queueId || 'send';
   try {
@@ -9049,11 +9075,20 @@ function V4OpenLeadInCompanyOs(leadId, queueId, opts) {
     window.sessionStorage.setItem('cos-lead-id', String(leadId));
     if (opts && opts.compose) window.sessionStorage.setItem('cos-compose', '1');
     else window.sessionStorage.removeItem('cos-compose');
+    if (opts && opts.sender) window.sessionStorage.setItem('cos-sender', String(opts.sender));
+    else window.sessionStorage.removeItem('cos-sender');
   } catch (e) {}
+}
+
+function V4OpenRobertIntakeLead(leadId) {
+  V4OpenLeadInCompanyOs(leadId, 'send', { compose: true, sender: 'robert' });
+  window.dispatchEvent(new CustomEvent('v4:navigate-view', { detail: { view: 'company-os' } }));
 }
 if (typeof window !== 'undefined') {
   window.V4CosQueueForGate = V4CosQueueForGate;
   window.V4OpenLeadInCompanyOs = V4OpenLeadInCompanyOs;
+  window.V4IsRobertGmailIntakeLead = V4IsRobertGmailIntakeLead;
+  window.V4OpenRobertIntakeLead = V4OpenRobertIntakeLead;
 }
 
 // The board write each gate's Approve/Deny performs. Reply approvals use
@@ -12327,7 +12362,7 @@ function TodayDealGrid({ cards, label, sublabel, onOpenInCompanyOs, onOpenBrief,
 }
 
 // ─── Today ──────────────────────────────────────────────────
-function V4TodayView({ user, leads, onOpenLead, onGoInbox, onOpenInCompanyOs }) {
+function V4TodayView({ user, leads, onOpenLead, onGoInbox, onOpenInCompanyOs, onNewLeadClick }) {
   const { USERS, TASK_TYPES, deriveTasks, bucketTasks, greeting } = window.V3;
   const me = USERS[user];
 
@@ -12428,7 +12463,7 @@ function V4TodayView({ user, leads, onOpenLead, onGoInbox, onOpenInCompanyOs }) 
             <span>Inbox</span>
             {unreadCount > 0 && <span className="btn-inbox-cta-cnt">{unreadCount}</span>}
           </button>
-          <button className="btn btn-sm btn-accent"><V3Icon name="plus" /> New lead</button>
+          <button type="button" className="btn btn-sm btn-accent" onClick={onNewLeadClick}><V3Icon name="plus" /> New lead</button>
         </div>
       </div>
 
@@ -20239,7 +20274,7 @@ function V4LeadNegotiateWorkspace({
 }) {
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const [pane, setPane] = React.useState('draft');
-  const [sender, setSender] = React.useState(() => V3SenderForUser(user));
+  const [sender, setSender] = React.useState(() => V3SenderForLead(lead, user));
   const [userBody, setUserBody] = React.useState('');
   const [aiBaseline, setAiBaseline] = React.useState('');
   const [status, setStatus] = React.useState('draft');
@@ -20253,7 +20288,7 @@ function V4LeadNegotiateWorkspace({
   const ccLine = recipients.cc.join(',');
 
   React.useEffect(() => {
-    const nextSender = V3SenderForUser(user);
+    const nextSender = V3SenderForLead(lead, user);
     const nextDraft = V3ComposeReplyDraft(lead, nextSender);
     setSender(nextSender);
     setAiBaseline(nextDraft.body);
@@ -20969,7 +21004,18 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
   React.useEffect(() => { setTab('thread'); }, [lead?.id]);
   V3UseLeadDetailHydration(lead);
   React.useEffect(() => {
-    setThreadSync({ status: 'idle', note: '' });
+    if (!lead?.id) return undefined;
+    const threadEmpty = !Array.isArray(lead.thread) || lead.thread.length === 0;
+    if (!threadEmpty || !V4IsRobertGmailIntakeLead(lead)) return undefined;
+    if (!lead.gmailThreadId && !lead.email) return undefined;
+    let cancelled = false;
+    setThreadSync({ status: 'syncing', note: 'Pulling thread from Robert Gmail…' });
+    V4RefreshLeadFromGmail(lead)
+      .then(() => { if (!cancelled) setThreadSync({ status: 'ok', note: 'Thread synced from Gmail.' }); })
+      .catch((err) => { if (!cancelled) setThreadSync({ status: 'error', note: err?.message || 'Could not sync thread.' }); });
+    return () => { cancelled = true; };
+  }, [lead?.id]);
+  React.useEffect(() => {
     setQuickSend({ status: '', error: '' });
     setXDmReplyOpen(false);
     setXDmDraft('');
@@ -23499,6 +23545,17 @@ function V4App() {
   }, []);
 
   React.useEffect(() => {
+    const onNav = (e) => {
+      const next = e?.detail?.view;
+      if (!next || !V4_VALID_VIEWS.includes(next)) return;
+      if (next === 'company-os') activateCosSplit('send');
+      goView(next);
+    };
+    window.addEventListener('v4:navigate-view', onNav);
+    return () => window.removeEventListener('v4:navigate-view', onNav);
+  }, []);
+
+  React.useEffect(() => {
     const onLoad = (e) => {
       setBoardState(e.detail?.cached ? 'cached' : 'ready');
       setBoardError(e.detail?.cached ? (e.detail.cacheError || '') : '');
@@ -23757,6 +23814,26 @@ function V4App() {
   const goToCompanyOsHome = () => {
     activateCosSplit('send');
     goView('company-os');
+  };
+  const openIntakeLead = (id) => {
+    const lead = mergedLeads.find(l => String(l.id) === String(id));
+    if (V4IsRobertGmailIntakeLead(lead)) {
+      V4OpenLeadInCompanyOs(id, 'send', { compose: true, sender: 'robert' });
+      activateCosSplit('send');
+      goView('company-os');
+      setOpenId(null);
+      return;
+    }
+    setOpenId(id);
+    try { window.sessionStorage.setItem('cos-lead-id', String(id)); } catch (e) {}
+  };
+  const openNewLeadEntry = () => {
+    const firstRobert = mergedLeads.find(l => V4IsRobertGmailIntakeLead(l));
+    if (firstRobert) {
+      openIntakeLead(firstRobert.id);
+      return;
+    }
+    goView('new-leads');
   };
   const cosCompanyOsHomeActive = view === 'company-os' && !cosToolkitOpen && !cosPartnerFeedbackOpen && !cosDeskIntakeOpen && !cosScopeIntakeOpen;
   const organsToolViews = ['organs', 'inbox', 'invoices', 'new-leads', 'leads'];
@@ -24027,6 +24104,7 @@ function V4App() {
             query={search}
             onOpenLead={setOpenId}
             onGoInbox={() => setView('inbox')}
+            onNewLeadClick={openNewLeadEntry}
             onOpenInCompanyOs={(leadId) => {
               V4OpenLeadInCompanyOs(leadId, 'send');
               setView('company-os');
@@ -24049,12 +24127,7 @@ function V4App() {
           <V4NewLeadsView
             leads={mergedLeads}
             query={search}
-            onOpenLead={(id) => {
-              setOpenId(id);
-              try {
-                window.sessionStorage.setItem('cos-lead-id', String(id));
-              } catch (e) {}
-            }}
+            onOpenLead={openIntakeLead}
           />
         )}
         {view === 'leads' && (
@@ -24101,7 +24174,14 @@ function V4App() {
       {/* ─── Footer ─── */}
       <footer className="ft">
         <span className="dot"></span>
-        <span>Synced · {operationalLeads.length} cards · {operationalLeads.filter(l => !['paid-out'].includes(l.stage)).length} active · {newLeadCount} new leads</span>
+        <span>
+          Synced · {operationalLeads.length} cards · {operationalLeads.filter(l => !['paid-out'].includes(l.stage)).length} active ·{' '}
+          {newLeadCount > 0 ? (
+            <button type="button" className="ft-sync-link" onClick={openNewLeadEntry}>{newLeadCount} new lead{newLeadCount === 1 ? '' : 's'}</button>
+          ) : (
+            <span>0 new leads</span>
+          )}
+        </span>
         <span className="right">{me.name} ({me.role}) · UNALIGNED Ops</span>
         <button className="ft-tab" aria-current={view === 'today' ? 'page' : undefined}
                 onClick={() => goView('today')}>
@@ -24112,12 +24192,13 @@ function V4App() {
                 onClick={goToCompanyOsHome}>
           <V3Icon name="diamond" w={18} />
           OS
+          {newLeadCount > 0 && <span className="ft-tab-badge">{newLeadCount > 99 ? '99+' : newLeadCount}</span>}
         </button>
         <button className="ft-tab" aria-current={!mobileMenuOpen && view === 'organs' ? 'page' : undefined}
                 onClick={() => goView('organs')}>
           <V3Icon name="network" w={18} />
           Organs
-          {(unreadCount + newLeadCount) > 0 && <span className="ft-tab-badge">{(unreadCount + newLeadCount) > 99 ? '99+' : (unreadCount + newLeadCount)}</span>}
+          {unreadCount > 0 && <span className="ft-tab-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>}
         </button>
         <button className="ft-tab ft-tab-toolkit" aria-current={!mobileMenuOpen && view === 'company-os' && cosToolkitOpen ? 'page' : undefined}
                 onClick={goToOrgansToolkit}>
