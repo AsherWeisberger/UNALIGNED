@@ -22649,6 +22649,12 @@ async function V4RefreshLeadFromGmail(lead) {
     const when = data.retry_after ? new Date(data.retry_after).toLocaleTimeString() : '';
     throw new Error('Gmail rate limit — try again' + (when ? (' after ' + when) : ' in a few minutes'));
   }
+  const errText = String(data.error || '');
+  if (/rate limit|429|rateLimitExceeded/i.test(errText)) {
+    const match = errText.match(/Retry after ([0-9TZ:\.-]+)/i);
+    const when = match ? new Date(match[1]).toLocaleTimeString() : '';
+    throw new Error('Gmail rate limit — try again' + (when ? (' after ' + when) : ' in a few minutes'));
+  }
   if (!res.ok || data.ok === false) throw new Error(data.error || 'Gmail refresh failed');
   await V3ReloadLeads({ cacheBust: Date.now() });
   window.dispatchEvent(new CustomEvent('v4:refresh-complete', { detail: { leadRefresh: true, cardId: String(cardId) } }));
