@@ -21708,7 +21708,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
       window.prompt('Copy this X DM draft:', text);
     }
   };
-  const gmailDeltaRef = React.useRef({ running: false, last: 0 });
+  const gmailDeltaRef = React.useRef({ running: false, last: 0, blockedUntil: 0 });
   const [isMobile, setIsMobile] = React.useState(() =>
     typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches
   );
@@ -21733,8 +21733,9 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
   const refreshFromGmail = React.useCallback(async (opts = {}) => {
     if (gmailDeltaRef.current.running) return;
     const quiet = !!opts.quiet;
-    const minGap = quiet ? 120000 : 0;
+    const minGap = quiet ? 300000 : 0;
     const now = Date.now();
+    if (now < (gmailDeltaRef.current.blockedUntil || 0)) return;
     if (minGap && now - gmailDeltaRef.current.last < minGap) return;
     gmailDeltaRef.current.running = true;
     gmailDeltaRef.current.last = now;
@@ -21748,6 +21749,16 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
         body: JSON.stringify({}),
       });
       let data = await res.json().catch(() => ({}));
+      if (data.rate_limited) {
+        const retryAt = Date.parse(data.retry_after || '');
+        if (retryAt > Date.now()) gmailDeltaRef.current.blockedUntil = retryAt + 5000;
+        if (!quiet) {
+          setSyncNote('Gmail rate limit — sync paused' + (data.retry_after ? (' until ' + new Date(retryAt).toLocaleTimeString()) : ''));
+          setSyncStatus('warn');
+          window.setTimeout(() => { setSyncStatus('idle'); setSyncNote(''); }, 5000);
+        }
+        return;
+      }
       if (!res.ok || data.ok === false) {
         throw new Error(data.error || ('Sync failed (' + res.status + ')'));
       }
@@ -21808,7 +21819,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
       if (document.visibilityState === 'visible') refreshFromGmail({ quiet: true });
     };
     const first = window.setTimeout(tick, 2500);
-    const interval = window.setInterval(tick, 120000);
+    const interval = window.setInterval(tick, 300000);
     const onFocus = () => tick();
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', tick);
@@ -22634,6 +22645,10 @@ async function V4RefreshLeadFromGmail(lead) {
     body: JSON.stringify({ card_id: String(cardId) }),
   });
   const data = await res.json().catch(() => ({}));
+  if (data.rate_limited) {
+    const when = data.retry_after ? new Date(data.retry_after).toLocaleTimeString() : '';
+    throw new Error('Gmail rate limit — try again' + (when ? (' after ' + when) : ' in a few minutes'));
+  }
   if (!res.ok || data.ok === false) throw new Error(data.error || 'Gmail refresh failed');
   await V3ReloadLeads({ cacheBust: Date.now() });
   window.dispatchEvent(new CustomEvent('v4:refresh-complete', { detail: { leadRefresh: true, cardId: String(cardId) } }));
