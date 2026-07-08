@@ -2462,7 +2462,13 @@ function V3NormalizeSupabaseLead(row) {
   const name = row.contact_name || row.title || row.email || 'Untitled lead';
   const brand = row.business_name || V3DomainBrand(row.email) || row.title || 'Unknown company';
   const received = V3NormalizeDateForUi(row.date_received_iso || row.created_at || row.moved_at);
-  const thread = V3ThreadFromRow(row, name, brand, row.list_id);
+  let thread = V3ThreadFromRow(row, name, brand, row.list_id);
+  if (V3IsDeskIntakeRow(row)) {
+    const deskThread = V3BuildDeskIntakeThreadFromRow(row, name, brand);
+    if (deskThread.length && (V3DeskIntakeThreadIsPlaceholder(thread, row) || deskThread.length > thread.length)) {
+      thread = deskThread;
+    }
+  }
   const latestThreadDate = V3LatestThreadDate(thread);
   const newReplyAt = V3NormalizeDateForUi(row.new_reply_at);
   const lastTouchAt = V3MaxTouchAt(latestThreadDate, row.new_reply_at, row.last_inbound_at, row.updated_at, row.moved_at, received);
@@ -3184,7 +3190,116 @@ function V3OperatorSummaryText(summary) {
   return '';
 }
 
+function V3DeskIntakePayloadFromRow(row) {
+  const brief = V3ParseBriefDescription(row?.description);
+  if (brief?.type === 'connect_form_intake') return brief;
+  if (String(row?.lead_source || '').toLowerCase() === 'connect-form' && brief) return brief;
+  return null;
+}
+
+function V3IsDeskIntakeRow(row) {
+  if (!row) return false;
+  if (String(row.lead_source || '').toLowerCase() === 'connect-form') return true;
+  return V3DeskIntakePayloadFromRow(row)?.type === 'connect_form_intake';
+}
+
+function V3DeskIntakeRowLikeFromPayload(row, payload) {
+  const company = row.business_name || row.title || '';
+  return {
+    name: row.contact_name || row.title || 'Lead',
+    email: row.email || '',
+    message: payload?.intake_message || payload?.summary || '',
+    topic_type: payload?.intake_topic || payload?.intake_lane || 'collaboration',
+    responses: { company },
+  };
+}
+
+function V3DeskIntakeThreadIsPlaceholder(thread, row) {
+  const body = String(thread?.[0]?.body || thread?.[thread.length - 1]?.body || '').trim().toLowerCase();
+  const intent = String(row?.intent || '').trim().toLowerCase();
+  if (!body) return true;
+  if (body === intent) return true;
+  if (body === 'collaboration' || body === 'general outreach') return true;
+  return thread.length <= 1 && body.length < 40;
+}
+
+function V3BuildDeskIntakeThreadFromRow(row, name, brand) {
+  const payload = V3DeskIntakePayloadFromRow(row);
+  if (!payload) return [];
+  const intakeRow = V3DeskIntakeRowLikeFromPayload(row, payload);
+  const msgs = [];
+  const intakeBody = String(payload.intake_message || payload.summary || '').trim();
+  const intakeAt = V3NormalizeDateForUi(payload.intake_submitted_at || row.created_at || row.date_received_iso);
+  if (intakeBody) {
+    msgs.push({
+      from: name,
+      email: V3ExtractEmail(row.email) || String(row.email || '').trim().toLowerCase(),
+      when: V3RelativeTime(intakeAt),
+      date: intakeAt,
+      dateIso: intakeAt,
+      subject: 'Connect form submission',
+      body: intakeBody,
+      to: ['scobleizer@gmail.com'],
+      cc: [],
+      replyTo: [],
+    });
+  }
+  const robertAt = V3NormalizeDateForUi(payload.robert_handoff_sent_at);
+  if (robertAt) {
+    const robertBody = String(payload.robert_handoff_body || '').trim()
+      || (typeof V4DeskIntakeRobertBodyTemplate === 'function' ? V4DeskIntakeRobertBodyTemplate(intakeRow) : '');
+    msgs.push({
+      from: 'Robert Scoble <scobleizer@gmail.com>',
+      email: 'scobleizer@gmail.com',
+      when: V3RelativeTime(robertAt),
+      date: robertAt,
+      dateIso: robertAt,
+      subject: payload.robert_handoff_subject || (typeof V4IntakeSubject === 'function' ? V4IntakeSubject(intakeRow) : (brand + ' conversation')),
+      body: robertBody,
+      to: [String(row.email || '').trim()].filter(Boolean),
+      cc: ['asherunaligned@gmail.com', 'unalignedx@gmail.com'],
+      replyTo: [],
+    });
+  }
+  const asherAt = V3NormalizeDateForUi(payload.asher_followup_sent_at);
+  if (asherAt) {
+    const asherBody = String(payload.asher_followup_body || '').trim()
+      || (typeof V4IntakeAsherDraftBody === 'function' ? V4IntakeAsherDraftBody(intakeRow) : '');
+    msgs.push({
+      from: 'Asher Weisberger <asherunaligned@gmail.com>',
+      email: 'asherunaligned@gmail.com',
+      when: V3RelativeTime(asherAt),
+      date: asherAt,
+      dateIso: asherAt,
+      subject: payload.asher_followup_subject
+        || ('Re: ' + (payload.robert_handoff_subject || (typeof V4IntakeSubject === 'function' ? V4IntakeSubject(intakeRow) : (brand + ' conversation')))),
+      body: asherBody,
+      to: [String(row.email || '').trim()].filter(Boolean),
+      cc: [],
+      replyTo: [],
+    });
+  }
+  return msgs.sort((a, b) => V3TimestampForUi(a.date || a.dateIso || a.when) - V3TimestampForUi(b.date || b.dateIso || b.when));
+}
+
+function V3DeskIntakeEmailThreadFromUi(thread) {
+  return (Array.isArray(thread) ? thread : []).map((msg) => ({
+    from: msg.from,
+    to: msg.to,
+    cc: msg.cc,
+    subject: msg.subject,
+    body: msg.body,
+    date: msg.dateIso || msg.date,
+    date_iso: msg.dateIso || msg.date,
+  }));
+}
+
 function V3ThreadFallbackBody(row) {
+  const deskPayload = V3DeskIntakePayloadFromRow(row);
+  if (deskPayload) {
+    const intake = String(deskPayload.intake_message || deskPayload.summary || '').trim();
+    if (intake) return intake;
+  }
   const memory = V3ParseOperatorMemory(row.description);
   const summaryText = V3OperatorSummaryText(memory?.summary);
   if (summaryText) return summaryText;
@@ -3195,6 +3310,10 @@ function V3ThreadFallbackBody(row) {
   if (desc.startsWith('{') || desc.includes('operator_memory')) {
     try {
       const parsed = typeof row.description === 'object' ? row.description : JSON.parse(desc);
+      if (parsed?.type === 'connect_form_intake') {
+        const intake = String(parsed.intake_message || parsed.summary || '').trim();
+        if (intake) return intake;
+      }
       const parsedSummary = V3OperatorSummaryText(parsed?.operator_memory?.summary);
       if (parsedSummary) return parsedSummary;
       if (parsed?.x_summary) return String(parsed.x_summary).trim();
@@ -17368,6 +17487,10 @@ function V4CosIsTravelLead(lead) {
 
 function V4CosIsSendLead(lead) {
   if (!lead) return false;
+  if (V4IsDeskIntakeLead(lead)) {
+    const payload = V3ParseBriefDescription(lead.rawDescription);
+    if ((payload?.robert_handoff_sent_at || payload?.asher_followup_sent_at) && !lead.newReplyAt) return false;
+  }
   if (V4DeskIntakeAwaitingLeadReply(lead) && !V4CosActiveLeadNeedsYou(lead)) return false;
   if (V4CosIsTravelLead(lead)) return false;
   if (window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(lead)) return false;
@@ -18018,6 +18141,16 @@ function V3ApplyDeskIntakeBoardState(lead) {
   };
 }
 
+function V3FindDeskIntakeRowForLead(intakeRows, lead) {
+  return (Array.isArray(intakeRows) ? intakeRows : []).find((item) => {
+    if (item.card_id && String(item.card_id) === String(lead.id)) return true;
+    const email = String(item.email || '').trim().toLowerCase();
+    if (email && String(lead.email || '').trim().toLowerCase() === email) return true;
+    const payload = V3ParseBriefDescription(lead.rawDescription);
+    return Number(payload?.desk_intake_id) === Number(item.id);
+  }) || null;
+}
+
 async function V3HealDeskIntakeCardsFromIntake(leads) {
   const list = Array.isArray(leads) ? leads : [];
   let intake = [];
@@ -18026,36 +18159,77 @@ async function V3HealDeskIntakeCardsFromIntake(leads) {
   } catch (e) {
     return list;
   }
-  const routed = intake.filter((row) => row.card_id && ['routed', 'reviewed'].includes(String(row.status || '').toLowerCase()));
-  if (!routed.length) return list;
+  if (!intake.length) return list;
   const jobs = [];
   const healed = list.map((lead) => {
-    const row = routed.find((item) => String(item.card_id) === String(lead.id));
+    if (!V4IsDeskIntakeLead(lead) && String(lead.source || '').toLowerCase() !== 'connect-form') return lead;
+    const row = V3FindDeskIntakeRowForLead(intake, lead);
     if (!row) return lead;
-    const payload = V3ParseBriefDescription(lead.rawDescription);
-    if (payload.robert_handoff_sent_at || payload.asher_followup_sent_at) return lead;
+    const status = String(row.status || '').toLowerCase();
+    const payload = V3ParseBriefDescription(lead.rawDescription) || {};
+    const robertSent = Boolean(payload.robert_handoff_sent_at);
+    const asherSent = Boolean(payload.asher_followup_sent_at);
+    const routedAfterSend = status === 'routed';
+    const threadBroken = V3DeskIntakeThreadIsPlaceholder(lead.thread, {
+      intent: lead.deliverables || payload.intake_topic,
+      description: lead.rawDescription,
+    });
+    const needsRobertStamp = routedAfterSend && !robertSent;
+    const needsThreadRebuild = threadBroken && (robertSent || asherSent || routedAfterSend);
+    if (!needsRobertStamp && !needsThreadRebuild) return lead;
+
     const markedAt = row.routed_at || row.reviewed_at || row.created_at || new Date().toISOString();
     const merged = {
       ...payload,
       ...V4DeskIntakeCardDescription(row),
       type: 'connect_form_intake',
-      robert_handoff_sent_at: markedAt,
+      ...(needsRobertStamp
+        ? {
+          robert_handoff_sent_at: markedAt,
+          robert_handoff_subject: V4IntakeSubject(row),
+          robert_handoff_body: payload.robert_handoff_body || V4DeskIntakeRobertBodyTemplate(row),
+        }
+        : {}),
     };
     const desc = JSON.stringify(merged);
-    jobs.push(V4PatchLeadAsync(lead, {
+    const supabaseRow = {
+      contact_name: lead.contactName || row.name,
+      business_name: lead.brand,
+      title: lead.brand,
+      email: lead.email || row.email,
       description: desc,
-      draft_reply_status: 'sent',
-      draft_reply: null,
-      new_reply_at: null,
-    }, {
+      created_at: row.created_at,
+      intent: lead.deliverables,
+    };
+    const builtThread = V3BuildDeskIntakeThreadFromRow(supabaseRow, lead.contactName || row.name, lead.brand);
+    const emailThread = V3DeskIntakeEmailThreadFromUi(builtThread);
+    const first = String(lead.contactName || row.name || 'them').split(' ')[0];
+    const localPatch = {
       rawDescription: desc,
       needsReply: false,
       unread: false,
       draftReply: null,
       draftReplyStatus: 'sent',
+      agentAssessment: '',
+      recommendedAction: '',
       source: 'connect-form',
-    }));
-    return { ...lead, rawDescription: desc, source: 'connect-form' };
+      thread: builtThread.length ? builtThread : lead.thread,
+      nextMove: {
+        who: null,
+        text: asherSent ? `Asher followed up — waiting on ${first}` : `Robert emailed — waiting on ${first}`,
+        action: '',
+      },
+    };
+    jobs.push(V4PatchLeadAsync(lead, {
+      description: desc,
+      email_thread: emailThread,
+      draft_reply_status: 'sent',
+      draft_reply: null,
+      new_reply_at: null,
+      agent_assessment: null,
+      recommended_action: null,
+    }, localPatch));
+    return { ...lead, ...localPatch };
   });
   if (jobs.length) await Promise.all(jobs).catch((err) => console.warn('[ALIGNED v4] desk intake heal failed:', err));
   return healed;
@@ -18086,22 +18260,28 @@ async function V4RecordDeskIntakeOutbound(cardId, row, { step, subject, body, to
     ...V4DeskIntakeCardDescription(row),
     type: 'connect_form_intake',
     ...(step === 'robert'
-      ? { robert_handoff_sent_at: now, robert_handoff_subject: String(subject || '').trim() }
-      : { asher_followup_sent_at: now, asher_followup_subject: String(subject || '').trim() }),
+      ? {
+        robert_handoff_sent_at: now,
+        robert_handoff_subject: String(subject || '').trim(),
+        robert_handoff_body: String(body || '').trim(),
+      }
+      : {
+        asher_followup_sent_at: now,
+        asher_followup_subject: String(subject || '').trim(),
+        asher_followup_body: String(body || '').trim(),
+      }),
   };
   const first = String(row.name || 'them').trim().split(/\s+/)[0] || 'them';
-  const threadMsg = {
-    from: step === 'robert'
-      ? 'Robert Scoble <scobleizer@gmail.com>'
-      : 'Asher Weisberger <asherunaligned@gmail.com>',
-    to: Array.isArray(to) ? to : [String(row.email || '').trim()].filter(Boolean),
-    cc: Array.isArray(cc) ? cc : [],
-    subject: String(subject || '').trim(),
-    body: String(body || '').trim(),
-    date: now,
-    dateIso: now,
+  const supabaseRow = {
+    contact_name: boardLead?.contactName || row.name,
+    business_name: boardLead?.brand || V4DeskIntakeCompany(row) || row.name,
+    title: boardLead?.brand || row.name,
+    email: boardLead?.email || row.email,
+    description: JSON.stringify(merged),
+    created_at: row.created_at,
+    intent: boardLead?.deliverables,
   };
-  const thread = [...(Array.isArray(boardLead?.thread) ? boardLead.thread : []), threadMsg];
+  const thread = V3BuildDeskIntakeThreadFromRow(supabaseRow, supabaseRow.contact_name, supabaseRow.business_name);
   const localPatch = {
     rawDescription: JSON.stringify(merged),
     source: 'connect-form',
@@ -18122,15 +18302,8 @@ async function V4RecordDeskIntakeOutbound(cardId, row, { step, subject, body, to
       action: '',
     },
   };
-  const emailThread = thread.map((msg) => ({
-    from: msg.from,
-    to: msg.to,
-    cc: msg.cc,
-    subject: msg.subject,
-    body: msg.body,
-    date: msg.dateIso || msg.date,
-    date_iso: msg.dateIso || msg.date,
-  }));
+  const emailThread = V3DeskIntakeEmailThreadFromUi(thread);
+  const outboundMsg = thread[thread.length - 1] || {};
   const fields = {
     description: JSON.stringify(merged),
     email_thread: emailThread,
@@ -18151,10 +18324,10 @@ async function V4RecordDeskIntakeOutbound(cardId, row, { step, subject, body, to
     detail: {
       leadId: id,
       sender: step === 'robert' ? 'robert' : 'asher',
-      subject: threadMsg.subject,
-      body: threadMsg.body,
-      to: threadMsg.to,
-      cc: threadMsg.cc,
+      subject: outboundMsg.subject,
+      body: outboundMsg.body,
+      to: outboundMsg.to,
+      cc: outboundMsg.cc,
     },
   }));
 }
@@ -18245,13 +18418,34 @@ function V4IntakeSubject(row) {
     : `${who} x SCOBLE x COLLAB`;
 }
 
-async function V4IntakeRobertDraftBody(row) {
+function V4DeskIntakeRobertBodyTemplate(row, ack = '') {
   const first = String(row.name || 'there').trim().split(/\s+/)[0] || 'there';
   const company = V4DeskIntakeCompany(row) || '';
   const topic = V4DeskIntakeLane(row) === 'general_outreach'
     ? 'general outreach'
     : 'a collaboration';
   const summary = String(row.message || '').trim().replace(/\s+/g, ' ').slice(0, 220);
+  const ackLine = String(ack || '').trim()
+    || 'Thanks for reaching out through my site, this sounds like it could be a strong fit for what I cover.';
+  const introLine = company && company !== row.name
+    ? `${row.name || 'A new lead'} from ${company} came in through the site about ${topic}`
+    : `${row.name || 'A new lead'} came in through the site about ${topic}`;
+  return V3NoDashes([
+    `Hi ${first},`,
+    '',
+    ackLine,
+    '',
+    "I'm going to loop in my Business Partner, Sam and Asher, our Client Services Manager so they can help guide the conversation!",
+    '',
+    `Asher, Sam: ${introLine}${summary ? `. Their note: "${summary}"` : '.'}`,
+    '',
+    'Robert Scoble',
+    'Founder, Unaligned',
+    'AlignedNews.com',
+  ].join('\n'));
+}
+
+async function V4IntakeRobertDraftBody(row) {
   let ack = '';
   try {
     if (window.claude?.complete) {
@@ -18263,23 +18457,7 @@ async function V4IntakeRobertDraftBody(row) {
       ack = ack.replace(/[-–—]/g, ' ');
     }
   } catch (e) {}
-  if (!ack) ack = 'Thanks for reaching out through my site, this sounds like it could be a strong fit for what I cover.';
-  const introLine = company && company !== row.name
-    ? `${row.name || 'A new lead'} from ${company} came in through the site about ${topic}`
-    : `${row.name || 'A new lead'} came in through the site about ${topic}`;
-  return V3NoDashes([
-    `Hi ${first},`,
-    '',
-    ack,
-    '',
-    "I'm going to loop in my Business Partner, Sam and Asher, our Client Services Manager so they can help guide the conversation!",
-    '',
-    `Asher, Sam: ${introLine}${summary ? `. Their note: "${summary}"` : '.'}`,
-    '',
-    'Robert Scoble',
-    'Founder, Unaligned',
-    'AlignedNews.com',
-  ].join('\n'));
+  return V4DeskIntakeRobertBodyTemplate(row, ack);
 }
 
 function V4IntakeAsherDraftBody(row) {
