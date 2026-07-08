@@ -2471,15 +2471,19 @@ function V3NormalizeSupabaseLead(row) {
   const stage = closedStage;
   const daysInStage = V3DaysSince(row.moved_at || received);
   const followUpDue = V3LeadFollowUpDue(row, thread, stage, activityDays);
+  const briefPayload = V3ParseBriefDescription(row.description);
   const pendingDraft = String(row.draft_reply_status || '').toLowerCase() === 'pending';
   const latestMsg = thread.length ? thread[thread.length - 1] : null;
   const teamRepliedLast = latestMsg && V3IsTeamParticipant(latestMsg.from);
-  const needsReply = Boolean(row.new_reply_at) || (pendingDraft && !teamRepliedLast) || stage === 'new' || followUpDue;
+  const deskWaiting = (briefPayload?.type === 'connect_form_intake' || String(row.lead_source || '').toLowerCase() === 'connect-form')
+    && Boolean(briefPayload?.robert_handoff_sent_at || briefPayload?.asher_followup_sent_at)
+    && !row.new_reply_at;
+  let needsReply = Boolean(row.new_reply_at) || (pendingDraft && !teamRepliedLast && !deskWaiting) || stage === 'new' || followUpDue;
+  if (deskWaiting) needsReply = Boolean(row.new_reply_at);
   const ownerId = V3NormalizeOwner(row.assignee || row.created_by);
   const value = V3ParseMoney(row.estimated_value);
   const category = V3CategoryFromRow(row);
   const timelineDays = V3TimelineDaysFromRow(row);
-  const briefPayload = V3ParseBriefDescription(row.description);
   const xContext = V3ParseXDescriptionContext(row.description);
   const operatorMemory = V3ParseOperatorMemory(row.description);
   const isRobertBrief = V3IsRobertBriefRow(row) || briefPayload.kind === 'official-posting' || briefPayload.type === 'official-posting';
@@ -17528,6 +17532,8 @@ function V4CosMarkActiveGmailCleared(lead) {
 }
 
 function V4CosSortActiveLeads(a, b) {
+  const deskDelta = (V4DeskIntakeAwaitingLeadReply(b) ? 1 : 0) - (V4DeskIntakeAwaitingLeadReply(a) ? 1 : 0);
+  if (deskDelta) return deskDelta;
   const needDelta = (V4CosActiveLeadNeedsYou(b) ? 1 : 0) - (V4CosActiveLeadNeedsYou(a) ? 1 : 0);
   if (needDelta) return needDelta;
   const hot = (l) => {
@@ -18039,8 +18045,18 @@ async function V4RecordDeskIntakeOutbound(cardId, row, { step, subject, body, to
       action: '',
     },
   };
+  const emailThread = thread.map((msg) => ({
+    from: msg.from,
+    to: msg.to,
+    cc: msg.cc,
+    subject: msg.subject,
+    body: msg.body,
+    date: msg.dateIso || msg.date,
+    date_iso: msg.dateIso || msg.date,
+  }));
   const fields = {
     description: JSON.stringify(merged),
+    email_thread: emailThread,
     draft_reply_status: 'sent',
     draft_reply: null,
     new_reply_at: null,
@@ -18048,6 +18064,10 @@ async function V4RecordDeskIntakeOutbound(cardId, row, { step, subject, body, to
     list_id: boardLead?.stage || 'first-touch',
   };
   await V4PatchLeadAsync(boardLead || { id, rowId: id }, fields, localPatch);
+  try {
+    window.sessionStorage.setItem('cos-lead-id', id);
+  } catch (e) {}
+  window.dispatchEvent(new CustomEvent('v4:navigate-view', { detail: { view: 'company-os' } }));
   window.dispatchEvent(new CustomEvent('v3:email-sent', {
     detail: {
       leadId: id,
@@ -18317,6 +18337,7 @@ function V4CosDeskIntake({ onOpenLead }) {
         cc: data.draft?.cc_emails || ['asherunaligned@gmail.com', 'unalignedx@gmail.com'],
       });
       await setRowStatus({ ...row, card_id: link.cardId }, 'routed');
+      if (window.V3?.ReloadLeads) await window.V3.ReloadLeads({ cacheBust: Date.now(), quiet: true });
       setRelay({
         rowId: row.id,
         step: 'asher',
