@@ -5,7 +5,7 @@
   <link rel="canonical" href="https://agentdashboard.cloud/connect" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>UNALIGNED · Reach Robert's team</title>
-  <!-- form build: 20260704-connect-x-card-v3 -->
+  <!-- form build: 20260708-connect-lanes-v1 -->
   <meta name="description" content="Share your idea with Robert Scoble's team. We read everything and route the best fits to Robert's desk." />
   <meta name="theme-color" content="#000000" />
   <meta name="color-scheme" content="dark" />
@@ -41,8 +41,8 @@
     }
   })();
   </script>
-  <link rel="icon" href="favicon.ico" />
-  <link rel="stylesheet" href="assets/unaligned-form.css?v=20260702-xpro-v1" />
+  <link rel="icon" href="../favicon.ico" />
+  <link rel="stylesheet" href="../assets/unaligned-form.css?v=20260708-lanes-v1" />
 </head>
 <body class="ua-form-page ua-form-connect">
   <div class="ua-scene">
@@ -51,7 +51,7 @@
     <div class="ua-wrap">
       <header class="ua-hero">
         <div class="ua-logo-frame">
-          <img src="assets/unaligned-form-logo.png" alt="UNALIGNED" class="ua-logo" width="800" height="199" />
+          <img src="../assets/unaligned-form-logo.png" alt="UNALIGNED" class="ua-logo" width="800" height="199" />
           <div class="ua-logo-glow" aria-hidden="true"></div>
         </div>
         <p class="ua-tagline">Robert Scoble · team intake</p>
@@ -65,12 +65,21 @@
   <script>
     const API = 'https://us-central1-unaligned-fc556.cloudfunctions.net/robertDeskIntake';
 
-    const TOPICS = [
-      { label: 'A collaboration idea', value: 'collaboration' },
-      { label: 'A partnership', value: 'partnership' },
-      { label: 'Getting in sync on something', value: 'sync' },
-      { label: 'Something cool I came across', value: 'something_cool' },
-      { label: 'Something else', value: 'other' },
+    const LANES = [
+      {
+        label: 'Collaboration',
+        value: 'collaboration',
+        lead: 'Paid collabs, sponsorships, brand deals, and project ideas with Robert.',
+        messageHint: 'What are you proposing, what deliverable do you want, and any timing or budget context.',
+        briefHint: 'Optional but helpful — deck, brief, or one-pager for the collab.',
+      },
+      {
+        label: 'General outreach',
+        value: 'general_outreach',
+        lead: 'Partnerships, intros, syncs, and anything else worth routing to Robert\'s desk.',
+        messageHint: 'What you want to explore, why now, and how Robert fits in.',
+        briefHint: 'Optional — link to a deck, site, or doc if it helps.',
+      },
     ];
 
     const CONTACT_PREFS = [
@@ -134,7 +143,8 @@
       email: '',
       contact_detail: '',
       contact_preference: '',
-      topic_type: '',
+      intake_lane: 'collaboration',
+      topic_type: 'collaboration',
       brief_link: '',
       message: '',
       company_website: '',
@@ -143,6 +153,10 @@
     let contactDetailInput = null;
     let backupEmailWrap = null;
     let contactPanel = null;
+    let laneLeadEl = null;
+    let messageHintEl = null;
+    let briefHintEl = null;
+    let briefFieldWrap = null;
 
     function el(tag, attrs, children) {
       const node = document.createElement(tag);
@@ -229,15 +243,50 @@
       return panel;
     }
 
+    function laneConfig(value) {
+      return LANES.find((lane) => lane.value === value) || LANES[0];
+    }
+
+    function applyLane(value) {
+      const lane = laneConfig(value);
+      state.intake_lane = lane.value;
+      state.topic_type = lane.value;
+      if (laneLeadEl) laneLeadEl.textContent = lane.lead;
+      if (messageHintEl) messageHintEl.textContent = lane.messageHint;
+      if (briefHintEl) briefHintEl.textContent = lane.briefHint;
+    }
+
+    function laneTabs() {
+      const wrap = el('div', { className: 'lane-tabs', role: 'tablist', 'aria-label': 'Intake type' });
+      LANES.forEach((lane) => {
+        const btn = el('button', {
+          type: 'button',
+          className: 'lane-tab' + (state.intake_lane === lane.value ? ' is-on' : ''),
+          text: lane.label,
+          role: 'tab',
+          'aria-selected': state.intake_lane === lane.value ? 'true' : 'false',
+        });
+        btn.addEventListener('click', () => {
+          wrap.querySelectorAll('.lane-tab').forEach((b) => {
+            const on = b.textContent === lane.label;
+            b.classList.toggle('is-on', on);
+            b.setAttribute('aria-selected', on ? 'true' : 'false');
+          });
+          applyLane(lane.value);
+        });
+        wrap.appendChild(btn);
+      });
+      return wrap;
+    }
+
     function renderForm() {
       const app = document.getElementById('app');
       app.innerHTML = '';
       app.appendChild(el('div', { className: 'eyebrow', text: "Robert's desk" }));
       app.appendChild(el('h2', { text: "Reach Robert's team" }));
-      app.appendChild(el('p', {
-        className: 'lead',
-        text: "Partnerships, projects, and ideas worth a look — share how to reach you and what you want to explore. We filter everything; the best fits land on Robert's desk.",
-      }));
+      app.appendChild(laneTabs());
+      laneLeadEl = el('p', { className: 'lead', text: laneConfig(state.intake_lane).lead });
+      app.appendChild(laneLeadEl);
       app.appendChild(el('p', {
         className: 'promise',
         text: "This isn't a sales form. It's a direct line to the people who work with Robert every day.",
@@ -268,21 +317,26 @@
       backupEmailWrap = backupEmail;
       form.appendChild(backupEmail);
 
-      form.appendChild(choiceField('topic_type', 'What do you want to talk about?', TOPICS));
-
-      form.appendChild(textField('brief_link', 'Brief link', {
+      briefFieldWrap = el('div', { className: 'field' });
+      briefFieldWrap.appendChild(el('label', { text: 'Brief link' }));
+      const briefInput = el('input', {
         type: 'url',
         placeholder: 'https://notion.so/… or docs.google.com/…',
-        hint: 'Optional — for collaborations, sponsorships, or partnerships. Paste a link to your brief, deck, or one-pager.',
         autocomplete: 'off',
-      }));
+      });
+      briefInput.addEventListener('input', () => { state.brief_link = briefInput.value.trim(); });
+      briefFieldWrap.appendChild(briefInput);
+      briefHintEl = el('span', { className: 'hint', text: laneConfig(state.intake_lane).briefHint });
+      briefFieldWrap.appendChild(briefHintEl);
+      form.appendChild(briefFieldWrap);
 
       const msg = el('div', { className: 'field' });
       msg.appendChild(el('label', { text: 'Tell us a bit more *' }));
       const msgTa = el('textarea', { placeholder: 'What are you building, proposing, or excited about? A few sentences is plenty.' });
       msgTa.addEventListener('input', () => { state.message = msgTa.value; });
       msg.appendChild(msgTa);
-      msg.appendChild(el('span', { className: 'hint', text: 'Enough context for the team to know if it belongs on Robert\'s desk.' }));
+      messageHintEl = el('span', { className: 'hint', text: laneConfig(state.intake_lane).messageHint });
+      msg.appendChild(messageHintEl);
       form.appendChild(msg);
 
       const hp = el('div', { className: 'hp' });
@@ -313,6 +367,7 @@
             email: state.contact_preference === 'email' ? state.contact_detail : state.email,
             contact_preference: state.contact_preference,
             contact_detail: state.contact_detail,
+            intake_lane: state.intake_lane,
             topic_type: state.topic_type,
             brief_link: state.brief_link,
             message: state.message,

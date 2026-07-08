@@ -80,6 +80,12 @@
     if (origGetContext && !origGetContext.__godModeCtxPatched && isWebKitBrowser()) {
       canvasProto.getContext = function godModeGetContext(type, attrs) {
         if (type === 'webgl2') {
+          // Modern Safari has real WebGL2 — use it. Forcing WebGL1 here (the old
+          // workaround) made three.js call WebGL2-only APIs like texImage3D on a
+          // WebGL1 context, which crashed the globe. Only downgrade when WebGL2
+          // is genuinely unavailable.
+          const gl2 = origGetContext.call(this, 'webgl2', attrs);
+          if (gl2) return gl2;
           return origGetContext.call(this, 'webgl', attrs)
             || origGetContext.call(this, 'experimental-webgl', attrs);
         }
@@ -137,9 +143,12 @@
   const SAT_TILE_URL = (x, y, l) =>
     `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${l}/${y}/${x}`;
   const SAT_DETAIL_ALT = 0.62;
-  // Level 15 ≈ 4m/px — plenty of ground detail. Higher levels flood the GPU
-  // with tile textures during pan/rotate and kill the WebGL context.
-  const SAT_TILE_MAX_LEVEL = 15;
+  // Below this altitude the 3D weather visuals (hex towers, city labels, radar
+  // shell) would dwarf the view — swap them for the live ground-weather chip.
+  const GROUND_ZOOM_ALT = 0.25;
+  // Level 17 ≈ 0.6m/px — streets and individual houses. Only requested at very
+  // low altitude where few tiles are visible, so the GPU tile load stays small.
+  const SAT_TILE_MAX_LEVEL = 17;
   const AUTOROTATE_PAUSE_ALT = 1.15;
   const AUTOROTATE_RESUME_ALT = 1.6;
   const MAX_FLIGHT_POINTS = 300;
@@ -665,19 +674,50 @@
     }));
   }
 
-  function buildRocketElement() {
-    if (rocketElementProto) return rocketElementProto.cloneNode(true);
+  // Provider-branded launch markers. SpaceX rides in Falcon blue; the other
+  // household rocket names get their own colors so the globe reads at a glance.
+  const LAUNCH_PROVIDER_COLORS = [
+    [/space ?x|falcon|starship/i, '#4da3ff'],
+    [/blue origin|new glenn|new shepard/i, '#8e9dff'],
+    [/rocket ?lab|electron|neutron/i, '#ff5e6c'],
+    [/united launch|\bula\b|vulcan|atlas v/i, '#ffd60a'],
+    [/arianespace|ariane|vega/i, '#bf5af2'],
+    [/casc|long march|china aerospace|cz-/i, '#ff453a'],
+    [/roscosmos|soyuz|proton|angara/i, '#ff9f0a'],
+    [/isro|pslv|gslv|lvm/i, '#34c759'],
+    [/nasa|\bsls\b/i, '#ff375f'],
+  ];
+
+  function launchProviderColor(provider, rocket) {
+    const hay = `${provider || ''} ${rocket || ''}`;
+    for (let i = 0; i < LAUNCH_PROVIDER_COLORS.length; i++) {
+      if (LAUNCH_PROVIDER_COLORS[i][0].test(hay)) return LAUNCH_PROVIDER_COLORS[i][1];
+    }
+    return '#d0d6e0';
+  }
+
+  const ROCKET_SVG = [
+    '<svg viewBox="0 0 24 30" aria-hidden="true">',
+    '  <path d="M12 1c3.1 2.5 4.7 6.2 4.7 10.8v7.6H7.3v-7.6C7.3 7.2 8.9 3.5 12 1Z" fill="currentColor"/>',
+    '  <circle cx="12" cy="10.2" r="2" fill="rgba(8,10,16,0.9)"/>',
+    '  <path d="M7.3 14.6 3.9 21l3.4-.9v-5.5Z" fill="currentColor" opacity="0.75"/>',
+    '  <path d="M16.7 14.6l3.4 6.4-3.4-.9v-5.5Z" fill="currentColor" opacity="0.75"/>',
+    '  <path d="M9.6 20.3h4.8L12 26l-2.4-5.7Z" fill="#ff9f0a"/>',
+    '</svg>',
+  ].join('');
+
+  function buildRocketElement(color) {
     const el = document.createElement('button');
     el.type = 'button';
     el.className = 'v4-god-rocket-marker';
     el.innerHTML = [
       '<div class="v4-god-rocket-pad">',
-      '  <span class="v4-god-rocket-icon">▲</span>',
+      '  <span class="v4-god-rocket-icon v4-god-rocket-svg">' + ROCKET_SVG + '</span>',
       '  <span class="v4-god-rocket-pulse"></span>',
       '</div>',
     ].join('');
-    rocketElementProto = el;
-    return el.cloneNode(true);
+    el.style.color = color || '#d0d6e0';
+    return el;
   }
 
   function buildPlaneElement() {
@@ -943,6 +983,117 @@
         type: 'satellite',
       };
     }).filter((row) => Number.isFinite(row.lat) && Number.isFinite(row.lng));
+  }
+
+  // ---- Starlink constellation (client-side SGP4 via satellite.js + Celestrak TLEs) ----
+  const SAT_LIB_URL = 'https://unpkg.com/satellite.js@5.0.0/dist/satellite.min.js';
+  const STARLINK_TLE_URL = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle';
+  const STARLINK_TLE_CACHE_KEY = 'v4-godmode-starlink-tle-v1';
+  const STARLINK_TLE_TTL_MS = 6 * 60 * 60 * 1000;
+  const KM_PER_GLOBE_RADIUS = 6371; // globe.gl altitude unit = 1 earth radius
+  let satLibPromise = null;
+  let starlinkSatrecs = null;
+
+  function loadSatelliteLib() {
+    if (global.satellite?.twoline2satrec) return Promise.resolve(global.satellite);
+    if (satLibPromise) return satLibPromise;
+    satLibPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = SAT_LIB_URL;
+      s.async = true;
+      s.onload = () => (global.satellite?.twoline2satrec
+        ? resolve(global.satellite)
+        : reject(new Error('satellite.js loaded but missing API')));
+      s.onerror = () => reject(new Error('satellite.js failed to load'));
+      document.head.appendChild(s);
+    });
+    return satLibPromise;
+  }
+
+  async function fetchStarlinkTleText() {
+    try {
+      const raw = JSON.parse(window.localStorage.getItem(STARLINK_TLE_CACHE_KEY) || 'null');
+      if (raw?.text && Date.now() - Number(raw.savedAt || 0) < STARLINK_TLE_TTL_MS) return raw.text;
+    } catch (e) {}
+    let text = '';
+    // Mac proxy first: Celestrak 403s requests coming from a browser Origin,
+    // but server-side fetches are fine (and the proxy caches for 6h).
+    try {
+      const data = await fetchGodModeProxy('/god-mode/starlink-tle', 45000);
+      if (data?.ok && data.tle) text = String(data.tle);
+    } catch (e) {}
+    if (!text) {
+      const res = await fetchWithTimeout(STARLINK_TLE_URL, {}, 30000);
+      if (!res.ok) throw new Error('starlink TLE feed ' + res.status);
+      text = await res.text();
+    }
+    if (!/^1 /m.test(text)) throw new Error('starlink TLE feed malformed');
+    try {
+      window.localStorage.setItem(STARLINK_TLE_CACHE_KEY, JSON.stringify({ text, savedAt: Date.now() }));
+    } catch (e) {} // ~1.8MB — caching is best-effort, quota errors are fine
+    return text;
+  }
+
+  async function ensureStarlinkSatrecs() {
+    if (starlinkSatrecs?.length) return starlinkSatrecs;
+    const sat = await loadSatelliteLib();
+    const text = await fetchStarlinkTleText();
+    const lines = text.split(/\r?\n/);
+    const recs = [];
+    for (let i = 1; i < lines.length; i++) {
+      const l1 = lines[i];
+      const l2 = lines[i + 1] || '';
+      if (!l1 || l1.charCodeAt(0) !== 49 /* '1' */ || !l1.startsWith('1 ') || !l2.startsWith('2 ')) continue;
+      const name = String(lines[i - 1] || '').trim() || 'STARLINK';
+      try {
+        const rec = sat.twoline2satrec(l1, l2);
+        if (rec) recs.push({ name, rec });
+      } catch (e) {}
+      i += 1;
+    }
+    if (!recs.length) throw new Error('no starlink TLEs parsed');
+    starlinkSatrecs = recs;
+    return recs;
+  }
+
+  function propagateStarlinkPoints() {
+    const sat = global.satellite;
+    if (!sat || !starlinkSatrecs?.length) return [];
+    const now = new Date();
+    const gmst = sat.gstime(now);
+    const points = [];
+    for (let i = 0; i < starlinkSatrecs.length; i++) {
+      const { name, rec } = starlinkSatrecs[i];
+      let geo = null;
+      try {
+        const pv = sat.propagate(rec, now);
+        if (!pv?.position) continue;
+        geo = sat.eciToGeodetic(pv.position, gmst);
+      } catch (e) { continue; }
+      const lat = sat.degreesLat(geo.latitude);
+      const lng = sat.degreesLong(geo.longitude);
+      const altKm = Number(geo.height);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(altKm)) continue;
+      if (altKm < 100 || altKm > 2500) continue; // drop decayed/garbage propagations
+      points.push({
+        lat,
+        lng,
+        alt: altKm / KM_PER_GLOBE_RADIUS,
+        size: 0.16,
+        color: 'rgba(125,200,255,0.85)',
+        label: name,
+        name,
+        type: 'starlink',
+      });
+    }
+    return points;
+  }
+
+  async function fetchStarlink() {
+    await ensureStarlinkSatrecs();
+    const points = propagateStarlinkPoints();
+    if (!points.length) throw new Error('starlink propagation produced no positions');
+    return { points, count: points.length, updatedAt: Date.now() };
   }
 
   function readLaunchCache() {
@@ -1229,6 +1380,8 @@
     const layerRef = React.useRef(activeLayer);
     const weatherModeRef = React.useRef('temp');
     const deepZoomRef = React.useRef(false);
+    const groundZoomRef = React.useRef(false);
+    const groundWxRef = React.useRef({ key: '', at: 0, inflight: false });
     const radarGlobeUrlRef = React.useRef('');
     const cloudSpinRef = React.useRef(null);
 
@@ -1240,12 +1393,14 @@
     const [weather, setWeather] = React.useState([]);
     const [flights, setFlights] = React.useState([]);
     const [satellites, setSatellites] = React.useState([]);
+    const [starlink, setStarlink] = React.useState({ points: [], count: 0 });
     const [launches, setLaunches] = React.useState({ markers: [], list: [] });
     const [earthEvents, setEarthEvents] = React.useState([]);
     const [radar, setRadar] = React.useState(null);
     const [issTrail, setIssTrail] = React.useState([]);
     const [canReset, setCanReset] = React.useState(false);
     const [zoomLabel, setZoomLabel] = React.useState('Orbital view');
+    const [groundWeather, setGroundWeather] = React.useState(null);
     const [stats, setStats] = React.useState({ flights: 0, sats: 0, launches: 0, cities: 0, events: 0 });
     const [selected, setSelected] = React.useState(null);
     const [groundTarget, setGroundTarget] = React.useState(null);
@@ -1295,10 +1450,43 @@
         if (alt >= 2.4) setZoomLabel('Orbital view');
         else if (alt >= 1.2) setZoomLabel('Continental view');
         else if (alt >= SAT_DETAIL_ALT) setZoomLabel('Satellite imagery · scroll to zoom closer');
-        else setZoomLabel('Ground detail · Esri satellite tiles');
+        else if (alt >= GROUND_ZOOM_ALT) setZoomLabel('Ground detail · keep zooming for streets');
+        else if (alt >= 0.02) setZoomLabel('Aerial view · keep zooming');
+        else if (alt >= 0.002) setZoomLabel('City view · Esri imagery');
+        else setZoomLabel('Street level · Esri imagery');
       } catch (e) {
         console.warn('[god-mode] zoom label sync failed', e);
       }
+    }, []);
+
+    // Live conditions for the exact spot the camera hovers at deep zoom, so the
+    // weather layer survives street-level zoom instead of vanishing.
+    const refreshGroundWeather = React.useCallback((lat, lng) => {
+      const key = `${Math.round(lat * 10) / 10},${Math.round(lng * 10) / 10}`;
+      const st = groundWxRef.current;
+      if (st.inflight) return;
+      if (st.key === key && Date.now() - st.at < 60000) return;
+      st.inflight = true;
+      const url = 'https://api.open-meteo.com/v1/forecast'
+        + `?latitude=${lat.toFixed(3)}&longitude=${lng.toFixed(3)}`
+        + '&current=temperature_2m,weather_code,wind_speed_10m'
+        + '&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto';
+      fetchWithTimeout(url, { headers: { Accept: 'application/json' } }, 9000)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          const cur = data?.current;
+          if (!cur) return;
+          const code = Number(cur.weather_code);
+          const temp = Math.round(Number(cur.temperature_2m));
+          const wind = Math.round(Number(cur.wind_speed_10m));
+          groundWxRef.current = { key, at: Date.now(), inflight: false };
+          setGroundWeather({
+            text: `${wmoGlyph(code)} ${wmoLabel(code)} · ${Number.isFinite(temp) ? temp + '°F' : '—'}`
+              + (Number.isFinite(wind) && wind > 0 ? ` · wind ${wind} mph` : ''),
+          });
+        })
+        .catch(() => {})
+        .finally(() => { groundWxRef.current.inflight = false; });
     }, []);
 
     const inspectPoint = React.useCallback((item, altitude, duration) => {
@@ -1381,10 +1569,11 @@
         // At ground detail the weather labels/hex towers just block the
         // satellite imagery — hide them until the user zooms back out.
         const deepZoom = deepZoomRef.current;
+        const groundZoom = groundZoomRef.current;
         const flightPoints = showFlights && flights.length ? flightPointsForGlobe(flights) : [];
         const labelRows = [];
         const windArcs = [];
-        if (showWeather && !deepZoom) {
+        if (showWeather && !groundZoom) {
           weather.forEach((w) => {
             labelRows.push({
               ...w,
@@ -1463,7 +1652,7 @@
             inspectPoint(pt || null, 1.35, 1100);
           });
 
-        if (showWeather && !deepZoom && mode === 'temp' && weather.length) {
+        if (showWeather && !groundZoom && mode === 'temp' && weather.length) {
           const binTempColor = (bin) => {
             const pts = bin?.points || [];
             if (!pts.length) return 'rgba(90,90,90,0.2)';
@@ -1484,7 +1673,7 @@
           globe.hexBinPointsData([]);
         }
 
-        if (showWeather && !deepZoom && mode === 'wind' && windArcs.length) {
+        if (showWeather && !groundZoom && mode === 'wind' && windArcs.length) {
           globe
             .arcsData(windArcs)
             .arcStartLat('startLat')
@@ -1503,17 +1692,21 @@
           globe.arcsData([]);
         }
 
-        // Never merge — merged point geometry kills per-point click detection,
-        // and the panel promises clickable aircraft. Capped at MAX_FLIGHT_POINTS.
+        // Flights stay unmerged for per-point clicks (planes also have DOM markers).
+        // The Starlink constellation is thousands of points, so when it's on we
+        // merge everything into one geometry — aircraft clicks still work through
+        // the screen-space plane markers.
+        const starlinkPoints = showSats && starlink.points.length ? starlink.points : [];
+        const pointRows = starlinkPoints.length ? starlinkPoints.concat(flightPoints) : flightPoints;
         globe
-          .pointsData(flightPoints)
+          .pointsData(pointRows)
           .pointLat('lat')
           .pointLng('lng')
           .pointAltitude('alt')
           .pointRadius('size')
           .pointColor('color')
           .pointResolution(3)
-          .pointsMerge(false)
+          .pointsMerge(!!starlinkPoints.length)
           .pointsTransitionDuration(0)
           .onPointClick((pt) => inspectPoint(pt || null, 1.35, 900));
 
@@ -1557,7 +1750,7 @@
           overlay.innerHTML = '';
           if (showLaunches) {
             launches.markers.forEach((m) => {
-              const el = buildRocketElement();
+              const el = buildRocketElement(launchProviderColor(m.provider, m.rocket));
               el.style.position = 'absolute';
               el.style.transform = 'translate(-50%, -50%)';
               el.style.display = 'none';
@@ -1576,7 +1769,7 @@
 
         globe
           .ringsData([
-            ...(showLaunches ? launches.markers.map((m) => ({ ...m, ringColor: 'rgba(255,69,58,0.55)', ringRadius: 3.5, ringSpeed: 2.2 })) : []),
+            ...(showLaunches ? launches.markers.map((m) => ({ ...m, ringColor: colorWithAlpha(launchProviderColor(m.provider, m.rocket), 0.55), ringRadius: 3.5, ringSpeed: 2.2 })) : []),
             ...(showEvents ? earthEvents.map((m) => ({ ...m, ringColor: colorWithAlpha(m.color || '#bf5af2', 0.55), ringRadius: 2.2, ringSpeed: 1.4 })) : []),
           ])
           .ringLat('lat')
@@ -1589,17 +1782,17 @@
 
         layerRef.current = layer;
         if (radarMeshRef.current) {
-          radarMeshRef.current.visible = showWeather && !deepZoom && mode === 'precip' && !!radarGlobeUrlRef.current;
+          radarMeshRef.current.visible = showWeather && !groundZoom && mode === 'precip' && !!radarGlobeUrlRef.current;
         }
         if (cloudMeshRef.current) {
-          cloudMeshRef.current.visible = showWeather && !deepZoom && mode !== 'precip' && !!cloudMeshRef.current.material.map;
+          cloudMeshRef.current.visible = showWeather && !groundZoom && mode !== 'precip' && !!cloudMeshRef.current.material.map;
         }
       } catch (e) {
         const msg = String(e?.message || e || 'layer render failed');
         setLayerError(msg);
         console.error('[god-mode] layer apply failed', e);
       }
-    }, [layer, weather, flights, satellites, launches, earthEvents, viewer, weatherMode, issTrail, updateRocketOverlay, updateFlightOverlay, inspectPoint]);
+    }, [layer, weather, flights, satellites, starlink, launches, earthEvents, viewer, weatherMode, issTrail, updateRocketOverlay, updateFlightOverlay, inspectPoint]);
 
     applyLayersRef.current = applyGlobeLayers;
     syncStreetRef.current = syncZoomLabel;
@@ -1617,9 +1810,9 @@
       if (!mesh) return;
       const showWeather = layerRef.current === 'all' || layerRef.current === 'weather';
       const mode = weatherModeRef.current || 'temp';
-      mesh.visible = showWeather && !deepZoomRef.current && mode === 'precip' && !!radarGlobeUrlRef.current;
+      mesh.visible = showWeather && !groundZoomRef.current && mode === 'precip' && !!radarGlobeUrlRef.current;
       if (cloudMeshRef.current) {
-        cloudMeshRef.current.visible = showWeather && !deepZoomRef.current && mode !== 'precip' && !!cloudMeshRef.current.material.map;
+        cloudMeshRef.current.visible = showWeather && !groundZoomRef.current && mode !== 'precip' && !!cloudMeshRef.current.material.map;
       }
     }, []);
 
@@ -1645,23 +1838,9 @@
         try {
           texProtoRef.current = baseMap;
 
-          const cloud = makeShellFromGlobe(base, 1.015, (mat) => {
-            mat.opacity = 0.4;
-          });
-          cloud.renderOrder = 1;
-          cloudMeshRef.current = cloud;
-          const cloudImg = new Image();
-          cloudImg.crossOrigin = 'anonymous';
-          cloudImg.onload = () => {
-            if (cloudMeshRef.current !== cloud) return;
-            const tex = baseMap.clone();
-            tex.image = cloudImg;
-            tex.needsUpdate = true;
-            cloud.material.map = tex;
-            cloud.material.needsUpdate = true;
-            syncRadarOverlayVisibility();
-          };
-          cloudImg.src = CLOUDS_IMG;
+          // Cloud shell removed: a lit 0.4-opacity sphere over the globe read as a
+          // milky "second globe" and buried the map. Radar shell below still covers
+          // the precip view; cloudMeshRef stays null and every guard handles that.
 
           const radarShell = makeShellFromGlobe(base, 1.011, (mat) => {
             mat.opacity = 0.85;
@@ -1736,7 +1915,10 @@
         controls.autoRotate = true;
         controls.autoRotateSpeed = 0.35;
         controls.enableDamping = true;
-        controls.minDistance = 101;
+        // 101 kept the camera ~64km up — streets and houses never resolved.
+        // 100.02 allows ~1.3km above the surface; the camera near plane is
+        // tightened dynamically in the controls handler so the ground doesn't clip.
+        controls.minDistance = 100.02;
         controls.maxDistance = 520;
         g.pointOfView({ lat: Number(v.lat) || 28, lng: viewerLng(v) || -20, altitude: 2.2 }, 0);
         return g;
@@ -1790,16 +1972,37 @@
               if (!globeInstRef.current) return;
               syncStreetRef.current(globe);
               try {
-                const alt = Number(globe.pointOfView()?.altitude);
+                const pov = globe.pointOfView();
+                const alt = Number(pov?.altitude);
                 if (Number.isFinite(alt)) {
                   const ctrls = globe.controls();
                   if (alt < AUTOROTATE_PAUSE_ALT && ctrls.autoRotate) ctrls.autoRotate = false;
                   else if (alt > AUTOROTATE_RESUME_ALT && !ctrls.autoRotate) ctrls.autoRotate = true;
                   setCanReset(alt < AUTOROTATE_RESUME_ALT);
+                  // Tighten the near plane as we descend so the ground doesn't
+                  // clip at street level (default near ~0.1 = ~6km).
+                  try {
+                    const cam = globe.camera();
+                    const wantNear = Math.min(0.1, Math.max(0.004, alt * 0.3));
+                    if (cam && Math.abs(cam.near - wantNear) > wantNear * 0.25) {
+                      cam.near = wantNear;
+                      cam.updateProjectionMatrix();
+                    }
+                  } catch (e) {}
                   const deep = alt < SAT_DETAIL_ALT;
                   if (deep !== deepZoomRef.current) {
                     deepZoomRef.current = deep;
                     applyLayersRef.current();
+                  }
+                  const ground = alt < GROUND_ZOOM_ALT;
+                  if (ground !== groundZoomRef.current) {
+                    groundZoomRef.current = ground;
+                    applyLayersRef.current();
+                    if (!ground) setGroundWeather(null);
+                  }
+                  const wxLayer = layerRef.current === 'weather' || layerRef.current === 'all';
+                  if (ground && wxLayer && Number.isFinite(Number(pov?.lat)) && Number.isFinite(Number(pov?.lng))) {
+                    refreshGroundWeather(Number(pov.lat), Number(pov.lng));
                   }
                 }
               } catch (e) {}
@@ -1965,7 +2168,11 @@
           }),
           loadFeed('satellites', fetchIss, (v) => {
             setSatellites(v);
-            setStats((s) => ({ ...s, sats: v.length }));
+            setStats((s) => ({ ...s, sats: Math.max(Number(s.sats) || 0, v.length) }));
+          }),
+          loadFeed('starlink', fetchStarlink, (v) => {
+            setStarlink(v);
+            setStats((s) => ({ ...s, sats: v.count + 1 }));
           }),
           fetchIssTrail().then((t) => { if (!cancelled) setIssTrail(t); }).catch(() => {}),
           loadFeed('launches', fetchLaunches, (v) => {
@@ -1986,6 +2193,14 @@
       const issTimer = setInterval(() => {
         fetchIss().then((rows) => { if (!cancelled) setSatellites(rows); }).catch(() => {});
       }, 8000);
+      // Re-propagate the already-parsed TLEs — no refetch, just fresh positions.
+      const starlinkTimer = setInterval(() => {
+        if (cancelled || !starlinkSatrecs?.length) return;
+        try {
+          const points = propagateStarlinkPoints();
+          if (points.length && !cancelled) setStarlink({ points, count: points.length, updatedAt: Date.now() });
+        } catch (e) {}
+      }, 60000);
       const launchTimer = setInterval(() => {
         fetchLaunches().then((rows) => { if (!cancelled) setLaunches(rows); }).catch(() => {});
       }, 1800000);
@@ -2008,6 +2223,7 @@
         cancelled = true;
         clearInterval(flightTimer);
         clearInterval(issTimer);
+        clearInterval(starlinkTimer);
         clearInterval(launchTimer);
         clearInterval(eventTimer);
         clearInterval(radarTimer);
@@ -2107,6 +2323,11 @@
               && React.createElement('div', { className: 'v4-godmode-loading v4-godmode-loading-warn' }, 'Some feeds failed — globe still works'),
             globeError && React.createElement('div', { className: 'v4-godmode-globe-error' }, globeError),
             React.createElement('div', { className: 'v4-godmode-zoom-chip' }, zoomLabel),
+            groundWeather && (layer === 'weather' || layer === 'all') && React.createElement(
+              'div',
+              { className: 'v4-godmode-zoom-chip v4-godmode-groundwx', style: { top: 40 } },
+              groundWeather.text,
+            ),
             canReset && React.createElement('button', {
               type: 'button',
               className: 'v4-godmode-zoom-chip',

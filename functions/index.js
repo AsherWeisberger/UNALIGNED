@@ -829,7 +829,21 @@ exports.createCollabFeedbackLink = functions.https.onRequest(async (req, res) =>
 const ROBERT_CONNECT_BASE = process.env.ROBERT_CONNECT_BASE
   || 'https://agentdashboard.cloud/connect';
 
-const DESK_TOPIC_TYPES = new Set(['collaboration', 'partnership', 'sync', 'something_cool', 'other']);
+const DESK_TOPIC_TYPES = new Set([
+  'collaboration',
+  'general_outreach',
+  'partnership',
+  'sync',
+  'something_cool',
+  'other',
+]);
+const DESK_INTAKE_LANES = new Set(['collaboration', 'general_outreach']);
+
+function deskIntakeLaneFromTopic(topicType) {
+  const topic = String(topicType || '').toLowerCase();
+  if (topic === 'collaboration') return 'collaboration';
+  return 'general_outreach';
+}
 const DESK_CONTACT_PREFS = new Set(['email', 'x', 'whatsapp', 'signal', 'phone', 'other']);
 
 function deskCleanText(value, maxLen) {
@@ -932,7 +946,9 @@ function normalizeDeskSubmission(body = {}) {
   const company = deskCleanText(body.company, 120);
   const name = deskCleanText(body.name, 120) || deskCleanText(`${firstName} ${lastName}`.trim(), 120);
   const message = deskCleanText(body.message, 4000);
-  const topicType = String(body.topic_type || body.topicType || '').toLowerCase();
+  const intakeLane = String(body.intake_lane || body.intakeLane || '').toLowerCase();
+  let topicType = String(body.topic_type || body.topicType || '').toLowerCase();
+  if (DESK_INTAKE_LANES.has(intakeLane)) topicType = intakeLane;
   const contactPreference = String(body.contact_preference || body.contactPreference || '').toLowerCase();
   const contactDetail = deskContactDetail(body, contactPreference);
   let email = deskEmail(body.email);
@@ -989,6 +1005,7 @@ function normalizeDeskSubmission(body = {}) {
       referrer: deskCleanText(body.referrer, 500),
       responses: {
         topic_type: topicType,
+        intake_lane: deskIntakeLaneFromTopic(topicType),
         contact_preference: contactPreference,
         contact_detail: storedContactDetail,
         company,

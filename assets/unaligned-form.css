@@ -217,6 +217,42 @@ textarea:focus {
   gap: 12px;
 }
 
+.lane-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0 0 18px;
+  padding: 4px;
+  border-radius: 14px;
+  border: 1px solid var(--ua-line);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.lane-tab {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 11px 12px;
+  font: 600 13px/1.2 var(--ua-display);
+  letter-spacing: 0.02em;
+  color: var(--ua-muted);
+  background: transparent;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.lane-tab:hover {
+  color: var(--ua-text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.lane-tab.is-on {
+  color: var(--ua-text);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--ua-line-strong);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
 .choice, .scale, .row { display: flex; flex-wrap: wrap; gap: 8px; }
 
 .choice button,
