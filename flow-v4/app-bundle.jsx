@@ -1577,15 +1577,28 @@ function V3BuildXDescriptionFromLead(lead, extra = {}) {
     lead.xLastRobertMessage || ctx.lastRobertMessage,
     V4XLatestRobertText(lead),
   );
-  const replied = marked || V3XLeadRepliedViaX(lead);
+  const dmParsed = V4XParseDmMessagesFromLead(lead);
+  const dmLastSender = dmParsed.length ? dmParsed[dmParsed.length - 1].sender : '';
+  const normalizedSender = dmLastSender || V4XNormalizeDmSender(lead.xLastSender || ctx.lastSender || '');
+  const statusText = String(lead.xCurrentStatus || ctx.xCurrentStatus || '').toLowerCase();
+  const leadSpokeLast = normalizedSender === 'lead'
+    || statusText.includes('lead waiting')
+    || statusText.includes('send - lead');
+  const replied = marked || V3XLeadRepliedViaX(lead) || (!leadSpokeLast && normalizedSender === 'robert');
+  const lastSender = normalizedSender === 'robert'
+    ? 'Robert'
+    : (normalizedSender === 'lead' ? 'Lead' : (lead.xLastSender || ctx.lastSender || ''));
+  const xCurrentStatus = leadSpokeLast
+    ? 'SEND - Lead waiting'
+    : (replied ? 'WAIT - Robert was last' : (lead.xCurrentStatus || ctx.xCurrentStatus || ''));
   return {
     ...brief,
     x_summary: lead.notes || ctx.xSummary || '',
     last_message: lead.evidence || lead.xLastLeadMessage || ctx.lastMessage || '',
     last_robert_message: robert,
-    last_sender: replied ? 'Robert' : (lead.xLastSender || ctx.lastSender || ''),
+    last_sender: lastSender,
     replied_via_x: replied,
-    x_current_status: lead.xCurrentStatus || ctx.xCurrentStatus || (replied ? 'WAIT - Robert was last' : ''),
+    x_current_status: xCurrentStatus,
     x_reply_marked_at: lead.xReplyMarkedAt || ctx.xReplyMarkedAt || '',
     best_next_step: lead.xBestNextStep || ctx.bestNextStep || '',
     x_username: lead.xHandle || ctx.xUsername || '',
@@ -1609,22 +1622,23 @@ function V3ApplyMarkedXReplyRefresh(lead) {
   if (!robertChanged && desc === String(lead.rawDescription || '')) {
     return { lead, changed: false, desc: '' };
   }
-  const refreshed = V3ApplyXReplyState({
+  const refreshBase = {
     ...lead,
     rawDescription: desc,
     xLastRobertMessage: payload.last_robert_message,
     xRepliedViaX: true,
-    xLastSender: 'Robert',
+    xLastSender: payload.last_sender,
     xCurrentStatus: payload.x_current_status,
     xReplyMarkedAt: payload.x_reply_marked_at,
-    needsReply: false,
-    unread: false,
+  };
+  const state = V3InferXReplyState(refreshBase);
+  const refreshed = V3ApplyXReplyState({
+    ...refreshBase,
+    needsReply: state.needsXReply,
+    unread: state.needsXReply,
     thread: V3BuildXThreadFromLead({
-      ...lead,
-      rawDescription: desc,
-      xLastRobertMessage: payload.last_robert_message,
-      xLastSender: 'Robert',
-      xReplyMarkedAt: payload.x_reply_marked_at,
+      ...refreshBase,
+      xLastSender: payload.last_sender,
     }),
   });
   return { lead: refreshed, changed: true, desc };
@@ -1676,8 +1690,24 @@ function V3InferXReplyState(lead) {
     if (xLastSender.toLowerCase() === 'robert') repliedViaX = true;
     if (status.includes('lead waiting') || status.includes('send - lead')) repliedViaX = false;
   }
-  const needsXReply = !repliedViaX
-    || (!explicitlyMarked && (status.includes('lead waiting') || xLastSender.toLowerCase() === 'lead'));
+  const dmParsed = V4XParseDmMessagesFromLead(lead);
+  const dmLastSender = dmParsed.length ? dmParsed[dmParsed.length - 1].sender : '';
+  const normalizedSender = dmLastSender || V4XNormalizeDmSender(xLastSender);
+  const leadSpokeLast = Boolean(
+    lead.unread
+    || lead.newReplyAt
+    || status.includes('lead waiting')
+    || status.includes('send - lead')
+    || normalizedSender === 'lead'
+  );
+  const robertSpokeLast = !leadSpokeLast && (
+    normalizedSender === 'robert'
+    || status.includes('robert was last')
+    || explicitlyMarked
+  );
+  let needsXReply = false;
+  if (leadSpokeLast) needsXReply = true;
+  else if (!repliedViaX && !robertSpokeLast) needsXReply = true;
   return { repliedViaX, needsXReply, xLastRobertMessage, xLastSender, xReplyMarkedAt };
 }
 
@@ -14313,14 +14343,8 @@ function V4XLeadNeedsDmReply(lead) {
   const state = V3InferXReplyState(lead);
   if (state.needsXReply) return true;
   const nextStep = String(lead?.xBestNextStep || lead?.nextMove?.text || '').toLowerCase();
-  if (
-    nextStep.includes('reply in x')
-    || nextStep.includes('review thread')
-    || nextStep.includes('move them to email')
-    || nextStep.includes('move the deal off x')
-  ) return true;
-  // No email on card yet — keep DM draft available (handoff / follow-up on X).
-  return true;
+  if (nextStep.includes('reply in x') || nextStep.includes('review thread')) return true;
+  return false;
 }
 
 const V4_X_DM_DRAFT_CACHE = new Map();
@@ -17318,6 +17342,7 @@ function V4CosIsSendLead(lead) {
   if (lead.draftReply?.body && (lead.unread || lead.needsReply)) return true;
   if ((lead.unread || lead.needsReply || lead.newReplyAt) && ['invoice-sent', 'negotiating', 'engaged', 'rates-sent', 'first-touch'].includes(lead.stage)) return true;
   if ((lead.unread || lead.needsReply) && lead.nextMove?.who) return true;
+  if (V3IsXLeadRecord(lead) && V3XLeadRepliedViaX(lead) && !V3InferXReplyState(lead).needsXReply) return true;
   return false;
 }
 
@@ -17428,17 +17453,9 @@ function V4CosIsActiveGmailConversation(lead) {
 function V4CosIsActiveXConversation(lead) {
   if (!lead || !V3IsXLeadRecord(lead)) return false;
   if (V4CosIsClosedForActive(lead)) return false;
-
   if (V4XLeadNeedsDmReply(lead)) return true;
-
-  const ts = V4CosConversationTouchAt(lead);
-  const inWindow = ts && (Date.now() - ts) <= V4_COS_ACTIVE_WINDOW_MS;
-  const hasDraft = V4CosHasActionableDraft(lead);
-
-  if (V3XLeadRepliedViaX(lead) && inWindow) return true;
-  if (!inWindow) return false;
-  if (lead.unread || lead.newReplyAt || lead.needsReply) return true;
-  if (hasDraft) return true;
+  if (V4CosHasActionableDraft(lead)) return true;
+  if (lead.unread || lead.newReplyAt) return true;
   return false;
 }
 
@@ -17511,7 +17528,12 @@ function V4CosBuildSendQueueSections(items = []) {
     .sort((a, b) => V3LeadReceivedTimestamp(b) - V3LeadReceivedTimestamp(a));
   const staleIntake = items.filter(l => isIntake(l) && !V4CosIsFreshIntake(l))
     .sort((a, b) => V3LeadReceivedTimestamp(b) - V3LeadReceivedTimestamp(a));
-  const sendWork = items.filter(l => !isIntake(l)).sort(V4SortActionLeads);
+  const sendWork = items.filter(l => !isIntake(l)).sort((a, b) => {
+    const xWaiting = (l) => V3IsXLeadRecord(l) && V3XLeadRepliedViaX(l) && !V3InferXReplyState(l).needsXReply;
+    const waitDelta = (xWaiting(a) ? 1 : 0) - (xWaiting(b) ? 1 : 0);
+    if (waitDelta) return waitDelta;
+    return V4SortActionLeads(a, b);
+  });
   const sections = [];
   if (freshIntake.length) sections.push({ id: 'fresh-intake', label: 'New this week', items: freshIntake });
   if (sendWork.length) sections.push({ id: 'send-work', label: 'Replies & drafts', items: sendWork });
