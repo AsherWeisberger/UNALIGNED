@@ -1651,17 +1651,27 @@ function V3RefreshMarkedXReplies(leads) {
 async function V3PersistMarkedXReplyUpdates(leads) {
   const jobs = [];
   for (const lead of Array.isArray(leads) ? leads : []) {
-    const { changed, desc } = V3ApplyMarkedXReplyRefresh(lead);
-    if (!changed || !desc) continue;
     const cardId = lead?.rowId || lead?.id;
     if (!cardId || String(cardId).startsWith('xdm-')) continue;
-    jobs.push(
-      fetch(V3SupabaseRequestUrl('/rest/v1/cards?id=eq.' + encodeURIComponent(cardId)), {
-        method: 'PATCH',
-        headers: V3SupabaseRequestHeaders({ Prefer: 'return=minimal' }),
-        body: JSON.stringify({ description: desc }),
-      }).catch((err) => console.warn('[ALIGNED v4] marked X reply persist failed:', cardId, err)),
-    );
+    const { changed, desc } = V3ApplyMarkedXReplyRefresh(lead);
+    if (changed && desc) {
+      jobs.push(
+        fetch(V3SupabaseRequestUrl('/rest/v1/cards?id=eq.' + encodeURIComponent(cardId)), {
+          method: 'PATCH',
+          headers: V3SupabaseRequestHeaders({ Prefer: 'return=minimal' }),
+          body: JSON.stringify({ description: desc }),
+        }).catch((err) => console.warn('[ALIGNED v4] marked X reply persist failed:', cardId, err)),
+      );
+    }
+    if (V3LeadWasMarkedRepliedOnX(lead) && !V3InferXReplyState(lead).needsXReply && lead.newReplyAt) {
+      jobs.push(
+        fetch(V3SupabaseRequestUrl('/rest/v1/cards?id=eq.' + encodeURIComponent(cardId)), {
+          method: 'PATCH',
+          headers: V3SupabaseRequestHeaders({ Prefer: 'return=minimal' }),
+          body: JSON.stringify({ new_reply_at: null }),
+        }).catch((err) => console.warn('[ALIGNED v4] stale X new_reply_at clear failed:', cardId, err)),
+      );
+    }
   }
   if (jobs.length) await Promise.all(jobs);
   return jobs.length;
@@ -1672,6 +1682,25 @@ function V3IsXLeadRecord(lead) {
   const source = String(lead.source || '').toLowerCase();
   if (source === 'x' || source.includes('x-dm') || source.includes('twitter_dm') || source.includes('ingest-twitter_dm')) return true;
   return Boolean(lead.xOpenDm);
+}
+
+function V3XLeadRepliedAfterMark(lead) {
+  if (!V3LeadWasMarkedRepliedOnX(lead)) return false;
+  const ctx = V3ParseXDescriptionContext(lead.rawDescription);
+  const markedAt = V3TimestampForUi(lead.xReplyMarkedAt || ctx.xReplyMarkedAt);
+  if (!markedAt) return false;
+  const newReplyAt = V3TimestampForUi(lead.newReplyAt);
+  if (newReplyAt && newReplyAt > markedAt + 60000) return true;
+  const dmParsed = V4XParseDmMessagesFromLead(lead);
+  if (dmParsed.length >= 2 && dmParsed[dmParsed.length - 1].sender === 'lead') {
+    return dmParsed.some(msg => msg.sender === 'robert');
+  }
+  const status = String(lead.xCurrentStatus || ctx.xCurrentStatus || '').toLowerCase();
+  if (status.includes('lead waiting') || status.includes('send - lead')) {
+    const sender = V4XNormalizeDmSender(lead.xLastSender || ctx.lastSender || '');
+    if (sender === 'lead' && dmParsed.length >= 2) return true;
+  }
+  return false;
 }
 
 function V3InferXReplyState(lead) {
@@ -1690,24 +1719,20 @@ function V3InferXReplyState(lead) {
     if (xLastSender.toLowerCase() === 'robert') repliedViaX = true;
     if (status.includes('lead waiting') || status.includes('send - lead')) repliedViaX = false;
   }
-  const dmParsed = V4XParseDmMessagesFromLead(lead);
-  const dmLastSender = dmParsed.length ? dmParsed[dmParsed.length - 1].sender : '';
-  const normalizedSender = dmLastSender || V4XNormalizeDmSender(xLastSender);
-  const leadSpokeLast = Boolean(
-    lead.unread
-    || lead.newReplyAt
-    || status.includes('lead waiting')
-    || status.includes('send - lead')
-    || normalizedSender === 'lead'
-  );
-  const robertSpokeLast = !leadSpokeLast && (
-    normalizedSender === 'robert'
-    || status.includes('robert was last')
-    || explicitlyMarked
-  );
   let needsXReply = false;
-  if (leadSpokeLast) needsXReply = true;
-  else if (!repliedViaX && !robertSpokeLast) needsXReply = true;
+  if (V3XLeadRepliedAfterMark(lead)) {
+    needsXReply = true;
+  } else if (explicitlyMarked || repliedViaX) {
+    needsXReply = false;
+  } else {
+    const dmParsed = V4XParseDmMessagesFromLead(lead);
+    const dmLastSender = dmParsed.length ? dmParsed[dmParsed.length - 1].sender : '';
+    const normalizedSender = dmLastSender || V4XNormalizeDmSender(xLastSender);
+    needsXReply = normalizedSender === 'lead'
+      || status.includes('lead waiting')
+      || status.includes('send - lead')
+      || !repliedViaX;
+  }
   return { repliedViaX, needsXReply, xLastRobertMessage, xLastSender, xReplyMarkedAt };
 }
 
@@ -1727,6 +1752,7 @@ function V3ApplyXReplyState(lead) {
     xReplyMarkedAt: state.xReplyMarkedAt || lead.xReplyMarkedAt || '',
     needsReply: state.needsXReply,
     unread: state.needsXReply,
+    newReplyAt: state.needsXReply ? (lead.newReplyAt || null) : null,
   };
   if (state.repliedViaX && !state.needsXReply) {
     next.nextMove = {
@@ -2312,6 +2338,7 @@ function V3MarkRepliedViaX(lead) {
     xCurrentStatus: merged.x_current_status,
     needsReply: false,
     unread: false,
+    newReplyAt: null,
     // Replying manually on X retires the pending AI draft. Without clearing it,
     // V4CosIsSendLead keeps the lead in the Send queue on the draft branch, so
     // the source-tab count never drops.
@@ -2332,7 +2359,7 @@ function V3MarkRepliedViaX(lead) {
     }),
   });
   if (typeof V4CosPatchLead === 'function') {
-    V4CosPatchLead(lead, { description: desc, draft_reply_status: '', draft_reply: null }, localPatch);
+    V4CosPatchLead(lead, { description: desc, draft_reply_status: '', draft_reply: null, new_reply_at: null }, localPatch);
   } else {
     const updated = (window.V3.LEADS || []).map(item => String(item.id) === String(lead.id) ? { ...item, ...localPatch } : item);
     window.V3.LEADS = updated;
@@ -17455,7 +17482,6 @@ function V4CosIsActiveXConversation(lead) {
   if (V4CosIsClosedForActive(lead)) return false;
   if (V4XLeadNeedsDmReply(lead)) return true;
   if (V4CosHasActionableDraft(lead)) return true;
-  if (lead.unread || lead.newReplyAt) return true;
   return false;
 }
 
@@ -17465,10 +17491,13 @@ function V4CosIsActiveConversation(lead) {
 
 function V4CosActiveLeadNeedsYou(lead) {
   if (!lead) return false;
+  if (V3IsXLeadRecord(lead)) {
+    return V4XLeadNeedsDmReply(lead) || V4CosHasActionableDraft(lead);
+  }
   if (lead.unread || lead.newReplyAt) return true;
   if (V4XLeadNeedsDmReply(lead)) return true;
   if (V4CosHasActionableDraft(lead)) return true;
-  if (lead.needsReply && !(V3IsXLeadRecord(lead) && V3XLeadRepliedViaX(lead))) return true;
+  if (lead.needsReply) return true;
   return false;
 }
 
@@ -17498,7 +17527,10 @@ function V4CosMarkActiveGmailCleared(lead) {
 function V4CosSortActiveLeads(a, b) {
   const needDelta = (V4CosActiveLeadNeedsYou(b) ? 1 : 0) - (V4CosActiveLeadNeedsYou(a) ? 1 : 0);
   if (needDelta) return needDelta;
-  const hot = (l) => (l.unread || l.newReplyAt ? 2 : 0) + (l.draftReply?.body ? 1 : 0);
+  const hot = (l) => {
+    const inbound = V3IsXLeadRecord(l) ? V3InferXReplyState(l).needsXReply : Boolean(l.unread || l.newReplyAt);
+    return (inbound ? 2 : 0) + (l.draftReply?.body ? 1 : 0);
+  };
   const hotDelta = hot(b) - hot(a);
   if (hotDelta) return hotDelta;
   return V4CosConversationTouchAt(b) - V4CosConversationTouchAt(a);
@@ -17549,14 +17581,17 @@ function V4CosActiveLeadQueueId(lead) {
 }
 
 function V4CosActiveLeadStatus(lead) {
-  if (lead.unread || lead.newReplyAt) return { label: 'New reply', tone: 'hot' };
   const draftSt = String(lead.draftReplyStatus || '').toLowerCase();
   if (draftSt === 'review') return { label: 'Review draft', tone: 'draft' };
   if (lead.draftReply?.body) return { label: 'Send draft', tone: 'draft' };
   if (V3IsXLeadRecord(lead)) {
-    if (V4XLeadNeedsDmReply(lead)) return { label: 'X DM', tone: 'x' };
+    if (V4XLeadNeedsDmReply(lead)) {
+      if (V3LeadWasMarkedRepliedOnX(lead)) return { label: 'New reply', tone: 'hot' };
+      return { label: 'X DM', tone: 'x' };
+    }
     if (V3XLeadRepliedViaX(lead)) return { label: 'Waiting', tone: 'x' };
   }
+  if (lead.unread || lead.newReplyAt) return { label: 'New reply', tone: 'hot' };
   if (V4_COS_GMAIL_NEGOTIATION_STAGES.includes(lead.stage)) return { label: 'Negotiating', tone: 'live' };
   const recentMsgs = V4CosThreadMessagesInWindow(lead, V4_COS_ACTIVE_WINDOW_MS);
   if (recentMsgs >= 2 || (Array.isArray(lead.thread) && lead.thread.length >= 3)) {
