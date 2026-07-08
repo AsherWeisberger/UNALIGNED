@@ -1347,7 +1347,8 @@ async function V3LoadSupabaseLeads(opts = {}) {
   }
   leads = V3ApplyTrashedCardTombstones(V3FilterVisibleLeads(leads));
   V3PruneConfirmedTrashedTombstones(leads);
-  return leads;
+  leads = await V3HealDeskIntakeCardsFromIntake(leads);
+  return leads.map((lead) => V3ApplyDeskIntakeBoardState(lead));
 }
 
 function V3PrefetchHotLeadDetails(leads, opts = {}) {
@@ -2590,7 +2591,8 @@ function V3NormalizeSupabaseLead(row) {
     ),
   };
   const withTravel = V3ApplyTravelLeadMeta(normalized);
-  return isXCard ? V3ApplyXReplyState(withTravel) : withTravel;
+  const base = isXCard ? V3ApplyXReplyState(withTravel) : withTravel;
+  return isXCard ? base : V3ApplyDeskIntakeBoardState(base);
 }
 
 function V3ParseDraftReply(value) {
@@ -17366,6 +17368,7 @@ function V4CosIsTravelLead(lead) {
 
 function V4CosIsSendLead(lead) {
   if (!lead) return false;
+  if (V4DeskIntakeAwaitingLeadReply(lead) && !V4CosActiveLeadNeedsYou(lead)) return false;
   if (V4CosIsTravelLead(lead)) return false;
   if (window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(lead)) return false;
   const st = String(lead.draftReplyStatus || '').toLowerCase();
@@ -17379,6 +17382,7 @@ function V4CosIsSendLead(lead) {
 
 function V4CosIsChaseLead(lead) {
   if (!lead) return false;
+  if (V4DeskIntakeAwaitingLeadReply(lead) && !V4CosActiveLeadNeedsYou(lead)) return false;
   if (window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(lead)) return false;
   if (V4CosIsSendLead(lead)) return false;
   if (lead.followUpDue) return true;
@@ -17569,7 +17573,7 @@ function V4CosBuildSendQueueSections(items = []) {
     .sort((a, b) => V3LeadReceivedTimestamp(b) - V3LeadReceivedTimestamp(a));
   const staleIntake = items.filter(l => isIntake(l) && !V4CosIsFreshIntake(l))
     .sort((a, b) => V3LeadReceivedTimestamp(b) - V3LeadReceivedTimestamp(a));
-  const sendWork = items.filter(l => !isIntake(l)).sort((a, b) => {
+  const sendWork = items.filter(l => !isIntake(l) && !(V4DeskIntakeAwaitingLeadReply(l) && !V4CosActiveLeadNeedsYou(l))).sort((a, b) => {
     const xWaiting = (l) => V3IsXLeadRecord(l) && V3XLeadRepliedViaX(l) && !V3InferXReplyState(l).needsXReply;
     const waitDelta = (xWaiting(a) ? 1 : 0) - (xWaiting(b) ? 1 : 0);
     if (waitDelta) return waitDelta;
@@ -17990,12 +17994,85 @@ function V4DeskIntakeOutboundTouchAt(lead) {
   return payload?.asher_followup_sent_at || payload?.robert_handoff_sent_at || '';
 }
 
+function V3ApplyDeskIntakeBoardState(lead) {
+  if (!lead || V3IsXLeadRecord(lead) || !V4IsDeskIntakeLead(lead)) return lead;
+  const payload = V3ParseBriefDescription(lead.rawDescription);
+  const nm = String(lead.nextMove?.text || '').toLowerCase();
+  const robertSent = Boolean(payload.robert_handoff_sent_at) || nm.includes('robert emailed');
+  const asherSent = Boolean(payload.asher_followup_sent_at) || nm.includes('asher followed up');
+  const waiting = (robertSent || asherSent) && !lead.newReplyAt;
+  if (!waiting) return lead;
+  const first = String(lead.contactName || 'them').split(' ')[0];
+  return {
+    ...lead,
+    source: lead.source || 'connect-form',
+    needsReply: false,
+    unread: false,
+    draftReply: null,
+    draftReplyStatus: 'sent',
+    nextMove: {
+      who: null,
+      text: asherSent ? `Asher followed up — waiting on ${first}` : `Robert emailed — waiting on ${first}`,
+      action: '',
+    },
+  };
+}
+
+async function V3HealDeskIntakeCardsFromIntake(leads) {
+  const list = Array.isArray(leads) ? leads : [];
+  let intake = [];
+  try {
+    intake = await V4LoadDeskIntake(60);
+  } catch (e) {
+    return list;
+  }
+  const routed = intake.filter((row) => row.card_id && ['routed', 'reviewed'].includes(String(row.status || '').toLowerCase()));
+  if (!routed.length) return list;
+  const jobs = [];
+  const healed = list.map((lead) => {
+    const row = routed.find((item) => String(item.card_id) === String(lead.id));
+    if (!row) return lead;
+    const payload = V3ParseBriefDescription(lead.rawDescription);
+    if (payload.robert_handoff_sent_at || payload.asher_followup_sent_at) return lead;
+    const markedAt = row.routed_at || row.reviewed_at || row.created_at || new Date().toISOString();
+    const merged = {
+      ...payload,
+      ...V4DeskIntakeCardDescription(row),
+      type: 'connect_form_intake',
+      robert_handoff_sent_at: markedAt,
+    };
+    const desc = JSON.stringify(merged);
+    jobs.push(V4PatchLeadAsync(lead, {
+      description: desc,
+      draft_reply_status: 'sent',
+      draft_reply: null,
+      new_reply_at: null,
+    }, {
+      rawDescription: desc,
+      needsReply: false,
+      unread: false,
+      draftReply: null,
+      draftReplyStatus: 'sent',
+      source: 'connect-form',
+    }));
+    return { ...lead, rawDescription: desc, source: 'connect-form' };
+  });
+  if (jobs.length) await Promise.all(jobs).catch((err) => console.warn('[ALIGNED v4] desk intake heal failed:', err));
+  return healed;
+}
+
 function V4DeskIntakeAwaitingLeadReply(lead) {
   if (!V4IsDeskIntakeLead(lead)) return false;
-  const sentAt = V4DeskIntakeOutboundTouchAt(lead);
-  const ts = V3TimestampForUi(sentAt);
-  if (!ts || (Date.now() - ts) > V4_COS_ACTIVE_WINDOW_MS) return false;
-  return true;
+  if (lead.newReplyAt) return true;
+  const payload = V3ParseBriefDescription(lead?.rawDescription);
+  const sentAt = payload?.robert_handoff_sent_at || payload?.asher_followup_sent_at;
+  const nm = String(lead?.nextMove?.text || '').toLowerCase();
+  if (sentAt) {
+    const ts = V3TimestampForUi(sentAt);
+    if (ts && (Date.now() - ts) <= V4_COS_ACTIVE_WINDOW_MS) return true;
+  }
+  if ((nm.includes('robert emailed') || nm.includes('asher followed up')) && !lead.newReplyAt) return true;
+  return false;
 }
 
 async function V4RecordDeskIntakeOutbound(cardId, row, { step, subject, body, to, cc }) {
@@ -18066,6 +18143,8 @@ async function V4RecordDeskIntakeOutbound(cardId, row, { step, subject, body, to
   await V4PatchLeadAsync(boardLead || { id, rowId: id }, fields, localPatch);
   try {
     window.sessionStorage.setItem('cos-lead-id', id);
+    window.sessionStorage.setItem('cos-active-gmail-collapsed', '0');
+    window.localStorage.setItem('cos-active-gmail-collapsed', '0');
   } catch (e) {}
   window.dispatchEvent(new CustomEvent('v4:navigate-view', { detail: { view: 'company-os' } }));
   window.dispatchEvent(new CustomEvent('v3:email-sent', {
