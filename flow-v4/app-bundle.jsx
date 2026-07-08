@@ -1348,6 +1348,7 @@ async function V3LoadSupabaseLeads(opts = {}) {
   leads = V3ApplyTrashedCardTombstones(V3FilterVisibleLeads(leads));
   V3PruneConfirmedTrashedTombstones(leads);
   leads = await V3HealDeskIntakeCardsFromIntake(leads);
+  leads = await V3DedupeDeskIntakeCards(leads);
   return leads.map((lead) => V3ApplyDeskIntakeBoardState(lead));
 }
 
@@ -18076,17 +18077,42 @@ function V4FindDeskIntakeCard(leads, row) {
   return null;
 }
 
+async function V4FindDeskIntakeCardOnBoard(row) {
+  const email = String(row?.email || '').trim().toLowerCase();
+  if (!email) return null;
+  try {
+    const data = await V3FetchSupabaseJson(
+      '/rest/v1/cards?select=id,email,lead_source,list_id,description'
+        + '&email=eq.' + encodeURIComponent(email)
+        + '&list_id=not.in.(trash,dead-leads)'
+        + '&order=updated_at.desc&limit=5',
+      { retries: 1 }
+    );
+    const rows = Array.isArray(data) ? data : [];
+    const linked = row?.card_id
+      ? rows.find((item) => String(item.id) === String(row.card_id))
+      : null;
+    if (linked) return linked;
+    const connect = rows.find((item) => String(item.lead_source || '').toLowerCase() === 'connect-form');
+    if (connect) return connect;
+    return rows[0] || null;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function V4EnsureDeskIntakeCard(row, leads) {
-  const existing = V4FindDeskIntakeCard(leads, row);
+  const existing = V4FindDeskIntakeCard(leads, row) || await V4FindDeskIntakeCardOnBoard(row);
   if (existing) {
-    const cardId = existing.id;
+    const cardId = existing.id || existing.rowId;
     if (!row.card_id || String(row.card_id) !== String(cardId)) {
       await V4PatchDeskIntakeRow(row.id, {
         card_id: Number(cardId),
         status: row.status === 'new' ? 'routed' : (row.status || 'routed'),
       });
     }
-    return { cardId, lead: existing, created: false };
+    const boardLead = (leads || []).find((item) => String(item.id) === String(cardId)) || existing;
+    return { cardId, lead: boardLead, created: false };
   }
   const payload = V4DeskIntakeCardPayload(row);
   const res = await fetch(V3SupabaseRequestUrl('/rest/v1/cards'), {
@@ -18139,6 +18165,46 @@ function V3ApplyDeskIntakeBoardState(lead) {
       action: '',
     },
   };
+}
+
+async function V3DedupeDeskIntakeCards(leads) {
+  const list = Array.isArray(leads) ? leads : [];
+  let intake = [];
+  try {
+    intake = await V4LoadDeskIntake(60);
+  } catch (e) {
+    return list;
+  }
+  const linkedIds = new Set(
+    intake.map((row) => row.card_id).filter(Boolean).map((id) => String(id))
+  );
+  const byEmail = new Map();
+  for (const lead of list) {
+    if (!V4IsDeskIntakeLead(lead)) continue;
+    const email = String(lead.email || '').trim().toLowerCase();
+    if (!email) continue;
+    if (!byEmail.has(email)) byEmail.set(email, []);
+    byEmail.get(email).push(lead);
+  }
+  const trashedIds = new Set();
+  const jobs = [];
+  for (const group of byEmail.values()) {
+    if (group.length < 2) continue;
+    const canonical = group.find((lead) => linkedIds.has(String(lead.id)))
+      || group.slice().sort((a, b) => V3TimestampForUi(b.lastTouchAt || b.receivedAt) - V3TimestampForUi(a.lastTouchAt || a.receivedAt))[0];
+    for (const dup of group) {
+      if (String(dup.id) === String(canonical.id)) continue;
+      trashedIds.add(String(dup.id));
+      jobs.push(V4PatchLeadAsync(dup, {
+        list_id: 'trash',
+        merged_into: Number(canonical.id) || canonical.id,
+      }, { stage: 'trash' }));
+    }
+  }
+  if (jobs.length) {
+    await Promise.all(jobs).catch((err) => console.warn('[ALIGNED v4] desk intake dedupe failed:', err));
+  }
+  return trashedIds.size ? list.filter((lead) => !trashedIds.has(String(lead.id))) : list;
 }
 
 function V3FindDeskIntakeRowForLead(intakeRows, lead) {
@@ -21697,14 +21763,16 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
         }
       }
       const patched = Number(data.cards_updated ?? data.threads_patched ?? 0);
+      const refreshed = Number(data.active_threads_refreshed || 0);
       const created = Number(data.new_cards_written || 0);
       const operatorQueued = !!data.operator_queued;
-      const boardChanged = patched > 0 || created > 0 || operatorQueued || !!data.checkpoint_expired;
+      const boardChanged = patched > 0 || refreshed > 0 || created > 0 || operatorQueued || !!data.checkpoint_expired;
       if (boardChanged && window.V3?.ReloadLeads) await window.V3.ReloadLeads({ quiet: true });
       if (!quiet || boardChanged) {
         const parts = [];
         if (created) parts.push(created + ' new');
         if (patched) parts.push(patched + ' updated');
+        if (refreshed) parts.push(refreshed + ' refreshed');
         if (operatorQueued) parts.push('operator drafting');
         setSyncNote(
           parts.length
