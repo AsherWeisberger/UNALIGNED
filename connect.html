@@ -5,7 +5,7 @@
   <link rel="canonical" href="https://agentdashboard.cloud/connect" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>UNALIGNED · Reach Robert's team</title>
-  <!-- form build: 20260708-connect-gate-v1 -->
+  <!-- form build: 20260708-connect-lanes-v1 -->
   <meta name="description" content="Share your idea with Robert Scoble's team. We read everything and route the best fits to Robert's desk." />
   <meta name="theme-color" content="#000000" />
   <meta name="color-scheme" content="dark" />
@@ -42,7 +42,7 @@
   })();
   </script>
   <link rel="icon" href="../favicon.ico" />
-  <link rel="stylesheet" href="../assets/unaligned-form.css?v=20260708-gate-v1" />
+  <link rel="stylesheet" href="../assets/unaligned-form.css?v=20260708-lanes-v1" />
 </head>
 <body class="ua-form-page ua-form-connect">
   <div class="ua-scene">
@@ -64,8 +64,6 @@
   </div>
   <script>
     const API = 'https://us-central1-unaligned-fc556.cloudfunctions.net/robertDeskIntake';
-    const GATE_STORAGE = 'ua_connect_gate_v1';
-    const GATE_PASSWORD = 'Annika';
 
     const LANES = [
       {
@@ -159,61 +157,6 @@
     let messageHintEl = null;
     let briefHintEl = null;
     let briefFieldWrap = null;
-
-    function gateUnlocked() {
-      try { return sessionStorage.getItem(GATE_STORAGE) === '1'; } catch (e) { return false; }
-    }
-
-    function setGateUnlocked() {
-      try { sessionStorage.setItem(GATE_STORAGE, '1'); } catch (e) {}
-    }
-
-    function renderGate() {
-      const app = document.getElementById('app');
-      app.innerHTML = '';
-      app.appendChild(el('div', { className: 'eyebrow', text: 'Private intake' }));
-      app.appendChild(el('h2', { text: 'Team access' }));
-      app.appendChild(el('p', {
-        className: 'lead',
-        text: 'This form is for invited outreach only. Enter the team password to continue.',
-      }));
-
-      const form = el('form', { className: 'ua-gate-form' });
-      const field = el('div', { className: 'field' });
-      field.appendChild(el('label', { text: 'Password' }));
-      const input = el('input', {
-        type: 'password',
-        placeholder: 'Team password',
-        autocomplete: 'current-password',
-        'aria-label': 'Team password',
-      });
-      field.appendChild(input);
-      form.appendChild(field);
-
-      const status = el('div', { className: 'status', id: 'gate-status' });
-      const submit = el('button', { className: 'submit', type: 'submit', text: 'Unlock' });
-      form.appendChild(submit);
-      form.appendChild(status);
-
-      form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        status.className = 'status';
-        status.textContent = '';
-        const value = String(input.value || '').trim();
-        if (value !== GATE_PASSWORD) {
-          status.className = 'status is-error';
-          status.textContent = 'Wrong password.';
-          input.value = '';
-          input.focus();
-          return;
-        }
-        setGateUnlocked();
-        bootForm();
-      });
-
-      app.appendChild(form);
-      window.requestAnimationFrame(() => input.focus());
-    }
 
     function el(tag, attrs, children) {
       const node = document.createElement(tag);
@@ -431,7 +374,6 @@
             company_website: state.company_website,
             referrer: document.referrer || '',
             source: 'connect_form',
-            gate_password: GATE_PASSWORD,
           };
           if (state.contact_preference === 'x') payload.x_handle = state.contact_detail;
           if (['whatsapp', 'signal', 'phone'].includes(state.contact_preference)) {
@@ -468,7 +410,7 @@
       app.appendChild(box);
     }
 
-    async function bootForm() {
+    async function boot() {
       try {
         const resp = await fetch(API, { method: 'GET' });
         const data = await resp.json().catch(() => ({}));
@@ -477,14 +419,6 @@
       } catch (err) {
         renderForm();
       }
-    }
-
-    function boot() {
-      if (!gateUnlocked()) {
-        renderGate();
-        return;
-      }
-      bootForm();
     }
 
     boot();

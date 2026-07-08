@@ -52,12 +52,112 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&family=Press+Start+2P&display=swap" rel="stylesheet" />
 
-<link rel="stylesheet" href="flow-v4/styles.css?v=20260708-cos-declutter-2" />
+<link rel="stylesheet" href="flow-v4/styles.css?v=20260708-ops-gate-v1" />
+<style>
+  .ops-gate-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background:
+      radial-gradient(900px 420px at 50% -8%, rgba(255, 255, 255, 0.07), transparent 62%),
+      linear-gradient(180deg, #050505 0%, #000 42%, #020202 100%);
+    color: #f4f4f5;
+    font-family: "Hanken Grotesk", system-ui, sans-serif;
+  }
+  .ops-gate-screen.is-visible { display: flex; }
+  .ops-gate-card {
+    width: min(420px, 100%);
+    padding: 28px 26px 24px;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(12, 12, 14, 0.92);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+  }
+  .ops-gate-eyebrow {
+    display: block;
+    margin-bottom: 10px;
+    font: 600 11px/1.4 "JetBrains Mono", ui-monospace, monospace;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #9ca3af;
+  }
+  .ops-gate-card h1 {
+    margin: 0 0 8px;
+    font: 700 24px/1.15 "Bricolage Grotesque", system-ui, sans-serif;
+  }
+  .ops-gate-card p {
+    margin: 0 0 18px;
+    color: #a1a1aa;
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  .ops-gate-field { margin-bottom: 14px; }
+  .ops-gate-field label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .ops-gate-field input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.04);
+    color: #f4f4f5;
+    font-size: 15px;
+  }
+  .ops-gate-field input:focus {
+    outline: none;
+    border-color: rgba(29, 155, 240, 0.55);
+    box-shadow: 0 0 0 3px rgba(29, 155, 240, 0.18);
+  }
+  .ops-gate-submit {
+    width: 100%;
+    margin-top: 4px;
+    padding: 12px 14px;
+    border: 0;
+    border-radius: 10px;
+    background: #f4f4f5;
+    color: #09090b;
+    font: 700 14px/1 "Hanken Grotesk", system-ui, sans-serif;
+    cursor: pointer;
+  }
+  .ops-gate-error {
+    min-height: 20px;
+    margin-top: 12px;
+    color: #fca5a5;
+    font-size: 13px;
+  }
+  body.ops-gate-locked #root,
+  body.ops-gate-locked #boot-status { visibility: hidden; }
+</style>
 
 <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
 </head>
-<body data-theme="light">
+<body data-theme="light" class="ops-gate-locked">
+
+<div id="ops-gate-screen" class="ops-gate-screen is-visible" aria-hidden="false">
+  <div class="ops-gate-card">
+    <span class="ops-gate-eyebrow">Company OS</span>
+    <h1>Team access</h1>
+    <p>This dashboard is private. Enter the team password to open Company OS.</p>
+    <form id="ops-gate-form">
+      <div class="ops-gate-field">
+        <label for="ops-gate-password">Password</label>
+        <input id="ops-gate-password" type="password" autocomplete="current-password" placeholder="Team password" />
+      </div>
+      <button type="submit" class="ops-gate-submit">Unlock dashboard</button>
+      <div id="ops-gate-error" class="ops-gate-error" role="alert"></div>
+    </form>
+  </div>
+</div>
 
 <template id="__bundler_thumbnail">
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
@@ -248,37 +348,91 @@
 })();
 </script>
 
-<script src="flow-v4/cube-theme-transition.js?v=20260701-liquid-1"></script>
 <script>
 (function () {
-  var dev = /[?&]dev=1(?:&|$)/.test(String(location.search || ''));
-  var v = '20260708-desk-intake-lanes-v1';
-  if (dev) {
-    var babel = document.createElement('script');
-    babel.src = 'https://unpkg.com/@babel/standalone@7.29.0/babel.min.js';
-    babel.crossOrigin = 'anonymous';
-    babel.onload = function () {
-      var s = document.createElement('script');
-      s.type = 'text/babel';
-      s.src = 'flow-v4/app-bundle.jsx?v=' + v;
-      document.body.appendChild(s);
-    };
-    document.body.appendChild(babel);
-    return;
+  var OPS_GATE_STORAGE = 'ua_ops_gate_v1';
+  var OPS_GATE_PASSWORD = 'Annika';
+  var gateScreen = document.getElementById('ops-gate-screen');
+  var gateForm = document.getElementById('ops-gate-form');
+  var gateInput = document.getElementById('ops-gate-password');
+  var gateError = document.getElementById('ops-gate-error');
+  var bundleStarted = false;
+
+  function opsGateUnlocked() {
+    try { return sessionStorage.getItem(OPS_GATE_STORAGE) === '1'; } catch (e) { return false; }
   }
-  var s = document.createElement('script');
-  s.src = 'flow-v4/app-bundle.js?v=' + v;
-  s.onerror = function () {
-    var fallback = document.createElement('script');
-    fallback.type = 'text/babel';
-    fallback.src = 'flow-v4/app-bundle.jsx?v=' + v;
-    var babel = document.createElement('script');
-    babel.src = 'https://unpkg.com/@babel/standalone@7.29.0/babel.min.js';
-    babel.crossOrigin = 'anonymous';
-    babel.onload = function () { document.body.appendChild(fallback); };
-    document.body.appendChild(babel);
-  };
-  document.body.appendChild(s);
+
+  function setOpsGateUnlocked() {
+    try { sessionStorage.setItem(OPS_GATE_STORAGE, '1'); } catch (e) {}
+  }
+
+  function hideOpsGate() {
+    document.body.classList.remove('ops-gate-locked');
+    if (gateScreen) {
+      gateScreen.classList.remove('is-visible');
+      gateScreen.setAttribute('aria-hidden', 'true');
+    }
+  }
+
+  function loadOpsBundle() {
+    if (bundleStarted) return;
+    bundleStarted = true;
+    var cube = document.createElement('script');
+    cube.src = 'flow-v4/cube-theme-transition.js?v=20260701-liquid-1';
+    document.body.appendChild(cube);
+    var dev = /[?&]dev=1(?:&|$)/.test(String(location.search || ''));
+    var v = '20260708-ops-gate-v1';
+    if (dev) {
+      var babel = document.createElement('script');
+      babel.src = 'https://unpkg.com/@babel/standalone@7.29.0/babel.min.js';
+      babel.crossOrigin = 'anonymous';
+      babel.onload = function () {
+        var s = document.createElement('script');
+        s.type = 'text/babel';
+        s.src = 'flow-v4/app-bundle.jsx?v=' + v;
+        document.body.appendChild(s);
+      };
+      document.body.appendChild(babel);
+      return;
+    }
+    var s = document.createElement('script');
+    s.src = 'flow-v4/app-bundle.js?v=' + v;
+    s.onerror = function () {
+      var fallback = document.createElement('script');
+      fallback.type = 'text/babel';
+      fallback.src = 'flow-v4/app-bundle.jsx?v=' + v;
+      var babel = document.createElement('script');
+      babel.src = 'https://unpkg.com/@babel/standalone@7.29.0/babel.min.js';
+      babel.crossOrigin = 'anonymous';
+      babel.onload = function () { document.body.appendChild(fallback); };
+      document.body.appendChild(babel);
+    };
+    document.body.appendChild(s);
+  }
+
+  function unlockOpsDashboard() {
+    hideOpsGate();
+    loadOpsBundle();
+  }
+
+  if (opsGateUnlocked()) {
+    unlockOpsDashboard();
+  } else if (gateForm && gateInput) {
+    gateForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (gateError) gateError.textContent = '';
+      var value = String(gateInput.value || '').trim();
+      if (value !== OPS_GATE_PASSWORD) {
+        if (gateError) gateError.textContent = 'Wrong password.';
+        gateInput.value = '';
+        gateInput.focus();
+        return;
+      }
+      setOpsGateUnlocked();
+      unlockOpsDashboard();
+    });
+    window.requestAnimationFrame(function () { gateInput.focus(); });
+  }
 })();
 </script>
 
