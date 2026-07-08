@@ -17412,8 +17412,9 @@ function V4CosConversationTouchAt(lead) {
   if (!lead) return 0;
   const thread = Array.isArray(lead?.thread) ? lead.thread : [];
   const latestThread = V3LatestThreadDate(thread);
-  const candidates = [lead.newReplyAt, lead.lastInboundAt, latestThread];
+  const candidates = [lead.newReplyAt, lead.lastInboundAt, latestThread, lead.lastTouchAt];
   if (V3IsXLeadRecord(lead)) candidates.push(lead.xReplyMarkedAt);
+  if (V4IsDeskIntakeLead(lead)) candidates.push(V4DeskIntakeOutboundTouchAt(lead));
   let best = 0;
   for (const value of candidates) {
     const t = V3TimestampForUi(value);
@@ -17457,6 +17458,8 @@ function V4CosIsGmailLeadForActive(lead) {
 function V4CosIsActiveGmailConversation(lead) {
   if (!lead || !V4CosIsGmailLeadForActive(lead)) return false;
   if (V4CosIsClosedForActive(lead)) return false;
+
+  if (V4DeskIntakeAwaitingLeadReply(lead)) return true;
 
   if (V4_COS_GMAIL_NEGOTIATION_STAGES.includes(lead.stage)) return true;
 
@@ -17590,6 +17593,9 @@ function V4CosActiveLeadStatus(lead) {
       return { label: 'X DM', tone: 'x' };
     }
     if (V3XLeadRepliedViaX(lead)) return { label: 'Waiting', tone: 'x' };
+  }
+  if (V4DeskIntakeAwaitingLeadReply(lead) && !(lead.unread || lead.newReplyAt || lead.needsReply)) {
+    return { label: 'Waiting', tone: 'live' };
   }
   if (lead.unread || lead.newReplyAt) return { label: 'New reply', tone: 'hot' };
   if (V4_COS_GMAIL_NEGOTIATION_STAGES.includes(lead.stage)) return { label: 'Negotiating', tone: 'live' };
@@ -17966,6 +17972,94 @@ async function V4EnsureDeskIntakeCard(row, leads) {
   return { cardId: card.id, lead: V3NormalizeSupabaseLead(card), created: true };
 }
 
+function V4IsDeskIntakeLead(lead) {
+  if (!lead) return false;
+  if (String(lead.source || '').toLowerCase() === 'connect-form') return true;
+  const payload = V3ParseBriefDescription(lead.rawDescription);
+  return payload?.type === 'connect_form_intake';
+}
+
+function V4DeskIntakeOutboundTouchAt(lead) {
+  const payload = V3ParseBriefDescription(lead?.rawDescription);
+  return payload?.asher_followup_sent_at || payload?.robert_handoff_sent_at || '';
+}
+
+function V4DeskIntakeAwaitingLeadReply(lead) {
+  if (!V4IsDeskIntakeLead(lead)) return false;
+  const sentAt = V4DeskIntakeOutboundTouchAt(lead);
+  const ts = V3TimestampForUi(sentAt);
+  if (!ts || (Date.now() - ts) > V4_COS_ACTIVE_WINDOW_MS) return false;
+  return true;
+}
+
+async function V4RecordDeskIntakeOutbound(cardId, row, { step, subject, body, to, cc }) {
+  const id = String(cardId || '');
+  if (!id) return;
+  const boardLead = (window.V3?.LEADS || []).find((item) => String(item.id) === id) || null;
+  const now = new Date().toISOString();
+  const prev = V3ParseBriefDescription(boardLead?.rawDescription) || {};
+  const merged = {
+    ...prev,
+    ...V4DeskIntakeCardDescription(row),
+    type: 'connect_form_intake',
+    ...(step === 'robert'
+      ? { robert_handoff_sent_at: now, robert_handoff_subject: String(subject || '').trim() }
+      : { asher_followup_sent_at: now, asher_followup_subject: String(subject || '').trim() }),
+  };
+  const first = String(row.name || 'them').trim().split(/\s+/)[0] || 'them';
+  const threadMsg = {
+    from: step === 'robert'
+      ? 'Robert Scoble <scobleizer@gmail.com>'
+      : 'Asher Weisberger <asherunaligned@gmail.com>',
+    to: Array.isArray(to) ? to : [String(row.email || '').trim()].filter(Boolean),
+    cc: Array.isArray(cc) ? cc : [],
+    subject: String(subject || '').trim(),
+    body: String(body || '').trim(),
+    date: now,
+    dateIso: now,
+  };
+  const thread = [...(Array.isArray(boardLead?.thread) ? boardLead.thread : []), threadMsg];
+  const localPatch = {
+    rawDescription: JSON.stringify(merged),
+    source: 'connect-form',
+    thread,
+    lastTouchAt: now,
+    lastTouch: typeof V3RelativeTime === 'function' ? V3RelativeTime(now) : now,
+    needsReply: false,
+    unread: false,
+    newReplyAt: null,
+    draftReply: null,
+    draftReplyStatus: 'sent',
+    stage: boardLead?.stage || 'first-touch',
+    nextMove: {
+      who: null,
+      text: step === 'robert'
+        ? `Robert emailed — waiting on ${first}`
+        : `Asher followed up — waiting on ${first}`,
+      action: '',
+    },
+  };
+  const fields = {
+    description: JSON.stringify(merged),
+    draft_reply_status: 'sent',
+    draft_reply: null,
+    new_reply_at: null,
+    moved_at: now,
+    list_id: boardLead?.stage || 'first-touch',
+  };
+  await V4PatchLeadAsync(boardLead || { id, rowId: id }, fields, localPatch);
+  window.dispatchEvent(new CustomEvent('v3:email-sent', {
+    detail: {
+      leadId: id,
+      sender: step === 'robert' ? 'robert' : 'asher',
+      subject: threadMsg.subject,
+      body: threadMsg.body,
+      to: threadMsg.to,
+      cc: threadMsg.cc,
+    },
+  }));
+}
+
 async function V4LinkDeskIntakeRowsToBoard(rows, leads) {
   const linked = [];
   for (const row of Array.isArray(rows) ? rows : []) {
@@ -18212,10 +18306,17 @@ function V4CosDeskIntake({ onOpenLead }) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data.ok === false) throw new Error(data.error || 'Robert send failed');
-      await setRowStatus({ ...row, card_id: link.cardId }, 'routed');
       if (link.created) {
         await V3ReloadLeads({ cacheBust: Date.now(), quiet: true }).catch(() => {});
       }
+      await V4RecordDeskIntakeOutbound(link.cardId, row, {
+        step: 'robert',
+        subject: relay.subject,
+        body: relay.body,
+        to: data.draft?.to_emails || [row.email],
+        cc: data.draft?.cc_emails || ['asherunaligned@gmail.com', 'unalignedx@gmail.com'],
+      });
+      await setRowStatus({ ...row, card_id: link.cardId }, 'routed');
       setRelay({
         rowId: row.id,
         step: 'asher',
@@ -18249,6 +18350,13 @@ function V4CosDeskIntake({ onOpenLead }) {
         subject: relay.subject,
         body: relay.body,
         attachPdf: true,
+      });
+      await V4RecordDeskIntakeOutbound(link.cardId || row.card_id, row, {
+        step: 'asher',
+        subject: relay.subject,
+        body: relay.body,
+        to: [row.email],
+        cc: [],
       });
       setRelay({ rowId: row.id, step: 'done', subject: '', body: '', busy: false, note: 'Sent as Asher ✓ with the pricing package attached.' });
     } catch (err) {
