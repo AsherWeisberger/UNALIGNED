@@ -217,6 +217,14 @@ textarea:focus {
   gap: 12px;
 }
 
+.ua-gate-form {
+  margin-top: 8px;
+}
+
+.ua-gate-form .field {
+  margin-bottom: 14px;
+}
+
 .lane-tabs {
   display: grid;
   grid-template-columns: 1fr 1fr;

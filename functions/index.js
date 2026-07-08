@@ -838,6 +838,12 @@ const DESK_TOPIC_TYPES = new Set([
   'other',
 ]);
 const DESK_INTAKE_LANES = new Set(['collaboration', 'general_outreach']);
+const CONNECT_GATE_PASSWORD = String(process.env.CONNECT_GATE_PASSWORD || 'Annika');
+
+function deskConnectGateOk(body = {}) {
+  const raw = String(body.gate_password || body.gatePassword || body.intake_password || '').trim();
+  return raw.length > 0 && raw === CONNECT_GATE_PASSWORD;
+}
 
 function deskIntakeLaneFromTopic(topicType) {
   const topic = String(topicType || '').toLowerCase();
@@ -1031,6 +1037,10 @@ exports.robertDeskIntake = functions.https.onRequest(async (req, res) => {
       });
     }
     if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'GET or POST only' });
+
+    if (!deskConnectGateOk(req.body || {})) {
+      return res.status(403).json({ ok: false, error: 'Access denied' });
+    }
 
     const parsed = normalizeDeskSubmission(req.body || {});
     if (parsed.error) return res.status(400).json({ ok: false, error: parsed.error });
