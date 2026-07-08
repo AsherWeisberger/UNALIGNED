@@ -13512,6 +13512,16 @@ Object.assign(window, { V4TodayView, V4RobertBriefView, V4InboxView, V4LeadsView
 
 const V4_COMPANY_OS_PREP = [
   {
+    title: 'Atomik / HyperAgent said yes at $4,500, so Asher needs billing details and the fresh invoice path now',
+    tags: ['P0', 'invoice now', 'reply now'],
+    points: [
+      'Aviral asked on July 7 whether Robert would personally walk through HyperAgent on video, Asher answered with the founder-video scope, and Aviral replied that $4,500 works.',
+      'That moved the thread out of pitching. The live blocker is operational: collect billing details, issue the right invoice, and make sure the old lower-priced Stripe trail does not confuse the lane.',
+      'No creative prep should start until the payment path matches the accepted scope and the thread shows how they want to settle.',
+      'This is an Asher-owned close step, not a discovery problem anymore.',
+    ],
+  },
+  {
     title: 'Humanoid / Meadow AI needs invoice out and Robert briefed before the July 10 target',
     tags: ['P0', 'invoice link', 'robert brief'],
     points: [
@@ -13519,6 +13529,16 @@ const V4_COMPANY_OS_PREP = [
       'The client already supplied the two canonical Humanoid source links, so the missing pieces are internal: send the invoice/payment link and hand Robert one tight execution brief.',
       'Asher should keep this lane simple: invoice out, draft in motion, no publish until funds clear.',
       'This is ready for action, not another discovery thread.',
+    ],
+  },
+  {
+    title: 'Hockey Stick / Robbyant only needs the final wording pass tied directly to the invoice',
+    tags: ['P0', 'draft cleanup', 'invoice chase'],
+    points: [
+      'Jennifer asked for one wording change on July 7: swap "temporal cues" for "semantic priors" in the Robbyant draft, then said they will process the invoice ASAP once the updated final draft is shared.',
+      'That means the commercial next step and the creative next step are now the same move: send the corrected final draft and keep the invoice in the same thread.',
+      'Do not treat "we will process the invoice" as proof. The lane stays active until the receipt or settled payment trail actually lands.',
+      'Robert does not need a new concept brief here, only the corrected approved copy path.',
     ],
   },
   {
@@ -13564,6 +13584,26 @@ const V4_COMPANY_OS_PREP = [
 ];
 
 const V4_COMPANY_OS_WAITING = [
+  {
+    title: 'KATLAS has draft approval and a posting window, but the lane is still waiting on full payment',
+    tags: ['watch', 'payment pending', 'do not touch'],
+    points: [
+      'Harper said Option 1 is approved, gave the repost window for Wednesday, July 8 after the 6:00 AM PDT anchor post, and asked for that timing to hold.',
+      'Asher already answered that timing works and pushed the next biggest step back to payment, including Stripe options.',
+      'That means the creative question is basically settled; the only unresolved gate is whether payment clears before anything goes live.',
+      'Hold the lane in watch mode unless Harper pays or reopens the copy.',
+    ],
+  },
+  {
+    title: 'Viture has the Thursday, July 9 check-in locked, but receipt proof is still missing',
+    tags: ['watch', 'schedule set', 'receipt verify'],
+    points: [
+      'The calendar invite is now out for Thursday, July 9, 2026 at 8:00 PM EDT / 5:00 PM PT with Leo and Emily, and Leo confirmed he is looking forward to it.',
+      'That closes the scheduling loop, but the payment trail is still only at "initiated on our end" rather than confirmed receipt.',
+      'Do not create extra work here; use the meeting as the next checkpoint for finance proof and execution alignment.',
+      'This becomes active again the moment payment proof arrives or the meeting produces a concrete go-live commitment.',
+    ],
+  },
   {
     title: 'Influcio / May Zhu is with the client now on the demo-clip question',
     tags: ['watch', 'client feedback', 'do not touch'],
@@ -13699,6 +13739,7 @@ const V4_COMPANY_OS_RULES = [
   'Asher owns every reply, payment form, invoice link, receipt chase, final live link, date confirmation, and 60-second Robert brief. Robert should only see lanes that are commercially and operationally clean.',
   'Payment initiated, payment sent, payment queued, and finance is checking are not proof. Finance is only done when the thread shows the actual receipt or a confirmed settled trail.',
   'Draft-first review is acceptable. Post-first payment, split-after-publish terms, and approval-then-pay language all still resolve to full payment before anything goes live.',
+  'If the accepted scope changes mid-thread, replace the stale invoice or payment language the same day so the thread, the board, and Stripe all point at the same deliverable.',
   'If a client asks for one admin step before payment can move, clear it once the same day, then push the thread back to receipt mode instead of starting a new admin loop.',
   'Do not let scheduling, creative approval, and payment live in separate places. The clean lane is one thread with date, source material, approval path, and money trail together.',
   'If a client is waiting on internal feedback, stop at the last clear answer and do not keep explaining the same policy unless they reopen the point.',
