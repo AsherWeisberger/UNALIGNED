@@ -5177,22 +5177,49 @@ function V3PricingPdfMeta(pack) {
   return { ...meta, path: V3PricingPdfHref(meta.path) };
 }
 
+function V3DeskIntakeGmailReplyMeta(lead) {
+  const payload = V3ParseBriefDescription(lead?.rawDescription) || {};
+  const threadId = String(lead?.gmailThreadId || payload.robert_gmail_thread_id || '').trim() || null;
+  const inReplyTo = String(
+    payload.robert_handoff_rfc822_message_id
+    || payload.robert_gmail_rfc822_message_id
+    || ''
+  ).trim() || null;
+  const references = String(payload.robert_gmail_references || inReplyTo || '').trim() || null;
+  return { threadId, inReplyTo, references };
+}
+
+function V3DeskIntakeReplySubject(lead, storedSubject) {
+  const payload = V3ParseBriefDescription(lead?.rawDescription) || {};
+  const base = String(payload.robert_handoff_subject || payload.asher_followup_subject || '').trim();
+  const stored = String(storedSubject || '').trim();
+  const pick = stored || base;
+  if (!pick) return V3SubjectForLead(lead);
+  return /^re:/i.test(pick) ? pick : `Re: ${pick}`;
+}
+
 async function V3SendLeadEmail({ lead, sender, to, cc, subject, body, attachPdf = false, pricingPdfPack = null }) {
   let token = V3ApiToken();
   if (!token) token = await V3BootstrapApiToken();
   if (!token) {
     throw new Error('Send token could not load from your Mac. Hard refresh (Cmd+Shift+R), wait for Medic to clear "Loading send token…", then Approve & send again.');
   }
+  const deskMeta = V4IsDeskIntakeLead(lead) ? V3DeskIntakeGmailReplyMeta(lead) : {};
+  const sendSubject = V4IsDeskIntakeLead(lead) && sender !== 'robert'
+    ? V3DeskIntakeReplySubject(lead, subject)
+    : subject;
   const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token };
   const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail', {
     method: 'POST',
     headers,
     body: JSON.stringify({
       to,
-      subject,
+      subject: sendSubject,
       body,
       from: sender,
-      threadId: lead?.gmailThreadId || null,
+      threadId: deskMeta.threadId || lead?.gmailThreadId || null,
+      inReplyTo: deskMeta.inReplyTo || null,
+      references: deskMeta.references || null,
       cc: cc ?? V3DefaultCc(sender),
       attachPdf,
       pricingPdfPack: attachPdf ? (pricingPdfPack || V3InferPricingPdfPack(lead)) : null,
@@ -18683,7 +18710,7 @@ async function V4HealDeskIntakeLinkedCardFromDuplicate(row, leads) {
   return true;
 }
 
-async function V4RecordDeskIntakeOutbound(cardId, row, { step, subject, body, to, cc }) {
+async function V4RecordDeskIntakeOutbound(cardId, row, { step, subject, body, to, cc, gmailMeta }) {
   const id = String(cardId || '');
   if (!id) return;
   const boardLead = (window.V3?.LEADS || []).find((item) => String(item.id) === id) || null;
@@ -18698,6 +18725,10 @@ async function V4RecordDeskIntakeOutbound(cardId, row, { step, subject, body, to
         robert_handoff_sent_at: now,
         robert_handoff_subject: String(subject || '').trim(),
         robert_handoff_body: String(body || '').trim(),
+        ...(gmailMeta?.threadId ? { robert_gmail_thread_id: String(gmailMeta.threadId) } : {}),
+        ...(gmailMeta?.messageId ? { robert_gmail_message_id: String(gmailMeta.messageId) } : {}),
+        ...(gmailMeta?.rfc822MessageId ? { robert_handoff_rfc822_message_id: String(gmailMeta.rfc822MessageId) } : {}),
+        ...(gmailMeta?.references ? { robert_gmail_references: String(gmailMeta.references) } : {}),
       }
       : {
         asher_followup_sent_at: now,
@@ -18729,6 +18760,7 @@ async function V4RecordDeskIntakeOutbound(cardId, row, { step, subject, body, to
     draftReplyStatus: 'sent',
     stage: boardLead?.stage || 'first-touch',
     _detailHydrated: true,
+    ...(step === 'robert' && gmailMeta?.threadId ? { gmailThreadId: String(gmailMeta.threadId) } : {}),
     nextMove: {
       who: step === 'robert' ? 'asher' : null,
       text: step === 'robert'
@@ -18748,6 +18780,7 @@ async function V4RecordDeskIntakeOutbound(cardId, row, { step, subject, body, to
     needs_reply: step === 'robert',
     moved_at: now,
     list_id: boardLead?.stage || 'first-touch',
+    ...(step === 'robert' && gmailMeta?.threadId ? { gmail_thread_id: String(gmailMeta.threadId) } : {}),
   };
   await V4PatchLeadAsync(boardLead || { id, rowId: id }, fields, localPatch);
   try {
@@ -19043,6 +19076,7 @@ function V4CosDeskIntake({ onOpenLead }) {
         body: relay.body,
         to: data.draft?.to_emails || [row.email],
         cc: data.draft?.cc_emails || ['asherunaligned@gmail.com', 'unalignedx@gmail.com'],
+        gmailMeta: data.gmail || null,
       });
       await setRowStatus({ ...row, card_id: link.cardId }, 'routed');
       if (window.V3?.ReloadLeads) await window.V3.ReloadLeads({ cacheBust: Date.now(), quiet: true });

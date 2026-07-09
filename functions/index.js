@@ -104,6 +104,9 @@ async function getRobertGmailAuth() {
 }
 
 async function sendViaGmail(sender, to, subject, body, cc, attachments, threadId, replyHeaders) {
+  if (sender.id !== 'robert') {
+    return sendViaSmtp(sender, to, subject, body, cc, attachments, replyHeaders);
+  }
   try {
     const auth = await getRobertGmailAuth();
     const gmail = getGoogle().gmail({ version: 'v1', auth });
@@ -349,7 +352,7 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
     return;
   }
 
-  const { to, subject, body, cc, from, attachPdf, pricingPdfPack, threadId } = req.body || {};
+  const { to, subject, body, cc, from, attachPdf, pricingPdfPack, threadId, inReplyTo, references } = req.body || {};
 
   if (!to || !subject || !body) {
     res.status(400).json({ error: 'Missing to, subject, or body' });
@@ -363,7 +366,14 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
       return;
     }
     const ccList = effectiveCc(cc, sender, to);
-    const replyHeaders = await getThreadReplyHeaders(threadId);
+    let replyHeaders = await getThreadReplyHeaders(sender.id === 'robert' ? threadId : null);
+    if (!replyHeaders.inReplyTo && inReplyTo) {
+      replyHeaders = {
+        inReplyTo: String(inReplyTo).trim(),
+        references: String(references || inReplyTo).trim(),
+      };
+    }
+    const gmailThreadId = sender.id === 'robert' ? (threadId || null) : null;
     let messageId;
 
     let attachments = [];
@@ -372,7 +382,7 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
       attachments = [await loadPricingPdfAttachment(pack)];
     }
 
-    messageId = await sendViaGmail(sender, to, subject, body, ccList, attachments, threadId, replyHeaders);
+    messageId = await sendViaGmail(sender, to, subject, body, ccList, attachments, gmailThreadId, replyHeaders);
 
     res.json({ success: true, messageId, from: sender.id, threadId: threadId || null });
   } catch (err) {
