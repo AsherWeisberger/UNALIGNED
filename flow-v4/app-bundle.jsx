@@ -1070,7 +1070,21 @@ const V3_SUPABASE_LIST_COLUMNS = [
   'reply_hook', 'helper_thread',
 ].join(',');
 
+const V3_SUPABASE_DETAIL_COLUMNS = V3_SUPABASE_LIST_COLUMNS + ',email_thread,original_email';
+
 const V3_detailHydrateInflight = new Map();
+
+function V3ResolveLeadById(id, fallbacks = []) {
+  const cid = String(id || '');
+  if (!cid) return null;
+  const fromGlobal = (window.V3?.LEADS || []).find(item => String(item.id) === cid);
+  if (fromGlobal) return fromGlobal;
+  for (const list of fallbacks) {
+    const hit = (Array.isArray(list) ? list : []).find(item => String(item.id) === cid);
+    if (hit) return hit;
+  }
+  return null;
+}
 
 function V3SetFocusedLeadId(id) {
   window.__v3FocusedLeadId = id ? String(id) : '';
@@ -1113,10 +1127,9 @@ function V3MergeReloadedLeads(incoming, previous) {
 }
 
 async function V3FetchSupabaseCardById(cardId) {
-  const url = V3SupabaseRequestUrl('/rest/v1/cards?id=eq.' + encodeURIComponent(cardId) + '&select=*&limit=1');
-  const res = await fetch(url, { headers: V3SupabaseRequestHeaders() });
-  if (!res.ok) throw new Error('Supabase card ' + res.status + ': ' + await res.text());
-  const rows = await res.json();
+  const path = '/rest/v1/cards?id=eq.' + encodeURIComponent(cardId)
+    + '&select=' + V3_SUPABASE_DETAIL_COLUMNS + '&limit=1';
+  const rows = await V3FetchSupabaseJson(path, { timeoutMs: 28000, retries: 2 });
   return Array.isArray(rows) && rows[0] ? rows[0] : null;
 }
 
@@ -1127,22 +1140,43 @@ async function V3HydrateLeadDetail(lead, opts = {}) {
   if (existing?._detailHydrated && !opts.force) return existing;
   if (V3_detailHydrateInflight.has(cardId)) return V3_detailHydrateInflight.get(cardId);
   const promise = (async () => {
-    const row = await V3FetchSupabaseCardById(cardId);
-    if (!row) return existing;
-    let hydrated = V3NormalizeSupabaseLead(row);
-    const threadRows = window.__v3LastXDmThreadRows;
-    if (Array.isArray(threadRows) && threadRows.length) {
-      [hydrated] = V3MergeXDmThreadContextsIntoLeads([hydrated], threadRows);
+    try {
+      const row = await V3FetchSupabaseCardById(cardId);
+      if (!row) {
+        const missing = { ...existing, _detailHydrated: true, _hydrateError: 'Lead not found in archive.' };
+        const updated = (window.V3.LEADS || []).map(item =>
+          String(item.id) === cardId ? missing : item);
+        window.V3.LEADS = updated;
+        window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated, quiet: !!opts.silent } }));
+        return missing;
+      }
+      let hydrated = V3NormalizeSupabaseLead(row);
+      const threadRows = window.__v3LastXDmThreadRows;
+      if (Array.isArray(threadRows) && threadRows.length) {
+        [hydrated] = V3MergeXDmThreadContextsIntoLeads([hydrated], threadRows);
+      }
+      hydrated._detailHydrated = true;
+      delete hydrated._hydrateError;
+      const merged = (existing?._detailHydrated && opts.silent && Array.isArray(existing.thread) && existing.thread.length)
+        ? { ...hydrated, thread: hydrated.thread?.length ? hydrated.thread : existing.thread }
+        : hydrated;
+      const updated = (window.V3.LEADS || []).map(item =>
+        String(item.id) === cardId ? merged : item);
+      window.V3.LEADS = updated;
+      window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated, quiet: !!opts.silent } }));
+      return merged;
+    } catch (err) {
+      const failed = {
+        ...existing,
+        _detailHydrated: true,
+        _hydrateError: err?.message || String(err || 'Could not load thread archive'),
+      };
+      const updated = (window.V3.LEADS || []).map(item =>
+        String(item.id) === cardId ? failed : item);
+      window.V3.LEADS = updated;
+      window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated, quiet: !!opts.silent } }));
+      throw err;
     }
-    hydrated._detailHydrated = true;
-    const merged = (existing?._detailHydrated && opts.silent && Array.isArray(existing.thread) && existing.thread.length)
-      ? { ...hydrated, thread: hydrated.thread?.length ? hydrated.thread : existing.thread }
-      : hydrated;
-    const updated = (window.V3.LEADS || []).map(item =>
-      String(item.id) === cardId ? merged : item);
-    window.V3.LEADS = updated;
-    window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads: updated, quiet: !!opts.silent } }));
-    return merged;
   })().finally(() => V3_detailHydrateInflight.delete(cardId));
   V3_detailHydrateInflight.set(cardId, promise);
   return promise;
@@ -1155,9 +1189,17 @@ function V3UseLeadDetailHydration(lead) {
     if (lead._detailHydrated && hasThread) return;
     if (!lead.gmailThreadId && !lead.email) return;
     let cancelled = false;
-    V3HydrateLeadDetail(lead).catch(err => {
-      if (!cancelled) console.warn('[ALIGNED v4] lead detail hydrate failed:', err);
-    });
+    V3HydrateLeadDetail(lead)
+      .then((hydrated) => {
+        if (cancelled || !hydrated) return;
+        const threadEmpty = !Array.isArray(hydrated.thread) || !hydrated.thread.length;
+        if (!threadEmpty || !hydrated.gmailThreadId) return;
+        if (typeof V4RefreshLeadFromGmail !== 'function') return;
+        V4RefreshLeadFromGmail(hydrated).catch(() => {});
+      })
+      .catch(err => {
+        if (!cancelled) console.warn('[ALIGNED v4] lead detail hydrate failed:', err);
+      });
     return () => { cancelled = true; };
   }, [lead?.id, lead?._detailHydrated, lead?.gmailThreadId, lead?.email]);
 }
@@ -8227,7 +8269,18 @@ function V3Stands({ lead }) {
   );
 }
 
-function V3GmailThread({ lead }) {
+function V3GmailThread({ lead, onPullGmail }) {
+  const [hydrateTimedOut, setHydrateTimedOut] = React.useState(false);
+  React.useEffect(() => {
+    if (lead?._detailHydrated || !lead?.gmailThreadId) {
+      setHydrateTimedOut(false);
+      return undefined;
+    }
+    setHydrateTimedOut(false);
+    const timer = window.setTimeout(() => setHydrateTimedOut(true), 12000);
+    return () => window.clearTimeout(timer);
+  }, [lead?.id, lead?._detailHydrated, lead?.gmailThreadId]);
+
   const messages = React.useMemo(() => {
     const source = Array.isArray(lead?.thread) ? lead.thread : [];
     const sorted = [...source].sort((a, b) =>
@@ -8258,8 +8311,45 @@ function V3GmailThread({ lead }) {
   };
 
   if (!messages.length) {
+    if (lead?._hydrateError) {
+      return (
+        <div className="gmail-thread-empty">
+          <div>Could not load thread archive.</div>
+          <div className="gmail-thread-empty-note">{lead._hydrateError}</div>
+          {onPullGmail ? (
+            <button type="button" className="gmail-thread-empty-btn" onClick={() => onPullGmail()}>
+              Pull from Gmail
+            </button>
+          ) : null}
+        </div>
+      );
+    }
     if (!lead?._detailHydrated && lead?.gmailThreadId) {
+      if (hydrateTimedOut) {
+        return (
+          <div className="gmail-thread-empty">
+            <div>Thread archive is taking longer than expected.</div>
+            {onPullGmail ? (
+              <button type="button" className="gmail-thread-empty-btn" onClick={() => onPullGmail()}>
+                Pull from Gmail
+              </button>
+            ) : (
+              <div className="gmail-thread-empty-note">Use ↻ Refresh Gmail in the header.</div>
+            )}
+          </div>
+        );
+      }
       return <div className="gmail-thread-empty">Loading thread from Gmail archive…</div>;
+    }
+    if (lead?.gmailThreadId && onPullGmail) {
+      return (
+        <div className="gmail-thread-empty">
+          <div>No messages in this thread yet.</div>
+          <button type="button" className="gmail-thread-empty-btn" onClick={() => onPullGmail()}>
+            Pull from Gmail
+          </button>
+        </div>
+      );
     }
     return <div className="gmail-thread-empty">No messages in this thread yet.</div>;
   }
@@ -21028,10 +21118,11 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
   React.useEffect(() => {
     if (!lead?.id) return undefined;
     const threadEmpty = !Array.isArray(lead.thread) || lead.thread.length === 0;
-    if (!threadEmpty || !V4IsRobertGmailIntakeLead(lead)) return undefined;
+    if (!threadEmpty) return undefined;
     if (!lead.gmailThreadId && !lead.email) return undefined;
+    if (V3IsXLeadRecord(lead)) return undefined;
     let cancelled = false;
-    setThreadSync({ status: 'syncing', note: 'Pulling thread from Robert Gmail…' });
+    setThreadSync({ status: 'syncing', note: 'Pulling thread from Gmail…' });
     V4RefreshLeadFromGmail(lead)
       .then(() => { if (!cancelled) setThreadSync({ status: 'ok', note: 'Thread synced from Gmail.' }); })
       .catch((err) => { if (!cancelled) setThreadSync({ status: 'error', note: err?.message || 'Could not sync thread.' }); });
@@ -21441,7 +21532,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
                 <V4XIntakePanel lead={lead} />
               </div>
             ) : (
-              <V3GmailThread lead={lead} />
+              <V3GmailThread lead={lead} onPullGmail={refreshThread} />
             )}
           </div>
           <div className={'gmail-reply-sheet' + (composeOpen || needsXDmReply ? ' is-open is-x-dm-open' : '')}>
@@ -21699,6 +21790,12 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
     return travelItems.length > 0 ? 'travel' : 'send';
   });
   const [selId, setSelId] = React.useState(null);
+  const [, setLeadRev] = React.useState(0);
+  React.useEffect(() => {
+    const bump = () => setLeadRev(v => v + 1);
+    window.addEventListener('v3:leads-loaded', bump);
+    return () => window.removeEventListener('v3:leads-loaded', bump);
+  }, []);
   const [composeOpen, setComposeOpen] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const [mobileSummaryOpen, setMobileSummaryOpen] = React.useState(true);
@@ -22056,11 +22153,9 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
   }, [split.id, split.queue, items, query]);
   let selected = null;
   if (selId != null) {
-    selected = items.find(l => String(l.id) === String(selId)) || null;
-    if (!selected) selected = liveAll.find(l => String(l.id) === String(selId)) || null;
-    if (!selected) selected = activeMissionLeads.find(l => String(l.id) === String(selId)) || null;
+    selected = V3ResolveLeadById(selId, [items, liveAll, activeMissionLeads]);
   } else if (!isMobile) {
-    selected = items[0] || null;
+    selected = items[0] ? V3ResolveLeadById(items[0].id, [items]) : null;
   }
 
   React.useEffect(() => {

@@ -16005,6 +16005,27 @@ body[data-theme="light"] .gmail-thread-empty {
   color: #5f6368;
 }
 
+.gmail-thread-empty-note {
+  margin-top: 6px;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.gmail-thread-empty-btn {
+  margin-top: 12px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #dadce0);
+  background: var(--surface, #fff);
+  color: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.gmail-thread-empty-btn:hover {
+  background: var(--surface-hover, #f1f3f4);
+}
+
 body[data-theme="light"] .gmail-msg {
   border-bottom: 1px solid #e8eaed;
 }
