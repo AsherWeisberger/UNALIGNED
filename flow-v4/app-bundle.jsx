@@ -20791,7 +20791,19 @@ function V4DealActionBar({ lead, onOpenSplits, onReply, replyLabel, onRefreshThr
             ))}
           </select>
         )}
+        {onRefreshThread && (
+          <button
+            type="button"
+            className={'cos-dealbar-btn cos-dealbar-btn--refresh' + (refreshBusy ? ' is-busy' : '')}
+            onClick={onRefreshThread}
+            disabled={refreshBusy}
+            title="Pull the latest messages from Gmail into this thread"
+          >
+            {refreshBusy ? 'Refreshing…' : '↻ Refresh Gmail'}
+          </button>
+        )}
         <span className="cos-dealbar-spacer" />
+        {refreshBusy ? <span className="cos-dealbar-made">Syncing Gmail…</span> : null}
         {briefBusy
           ? <span className="cos-dealbar-made">{briefStage || 'Building brief…'}</span>
           : madeDoc
@@ -21191,24 +21203,26 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
   const pendingOperatorDraft = String(lead.draftReplyStatus || '').toLowerCase() === 'pending' && String(lead.draftReply?.body || '').trim();
   const refreshThread = async () => {
     if (!lead) return;
+    const brand = V4CosLeadDisplayTitle(lead) || lead.brand || 'this lead';
     setThreadSync({
       status: 'syncing',
-      note: isXLead ? 'Pulling DM context from X intake…' : 'Pulling this thread from Gmail…',
+      note: isXLead ? 'Pulling DM context from X intake…' : 'Pulling thread from Gmail…',
     });
+    V4EmitOpsToast(isXLead ? `Refreshing X context for ${brand}…` : `Refreshing Gmail thread for ${brand}…`, 'pending');
     try {
       let result = null;
       if (isXLead) result = await V4RefreshLeadFromX(lead);
       else result = await V4RefreshLeadFromGmail(lead);
-      setThreadSync({
-        status: 'ok',
-        note: isXLead
-          ? 'X DM context refreshed'
-          : (String(result?.note || '').trim() || 'Thread refreshed from Gmail'),
-      });
+      const note = V4FormatThreadRefreshNote(result, { isX: isXLead });
+      setThreadSync({ status: 'ok', note });
+      V4EmitOpsToast(note, 'ok');
+      window.setTimeout(() => setThreadSync({ status: 'idle', note: '' }), 9000);
     } catch (err) {
-      setThreadSync({ status: 'error', note: err?.message || 'Refresh failed' });
+      const message = err?.message || 'Refresh failed';
+      setThreadSync({ status: 'error', note: message });
+      V4EmitOpsToast(message, 'error');
+      window.setTimeout(() => setThreadSync({ status: 'idle', note: '' }), 12000);
     }
-    window.setTimeout(() => setThreadSync({ status: 'idle', note: '' }), 4500);
   };
   const quickApproveSend = async () => {
     setQuickSend({ status: 'sending', error: '' });
@@ -22693,6 +22707,32 @@ async function V4RefreshLeadFromX(lead) {
   return { ok: true, source: 'x-bridge' };
 }
 
+function V4FormatThreadRefreshNote(result, opts = {}) {
+  const isX = !!opts.isX;
+  if (isX) return 'X DM context refreshed from intake.';
+  const data = result && typeof result === 'object' ? result : {};
+  const msgs = Number(data.messages);
+  const mailbox = data.mailbox ? String(data.mailbox) : '';
+  const mailboxLabel = mailbox === 'robert' ? 'Robert Gmail' : (mailbox === 'asher' ? 'Asher Gmail' : (mailbox ? `${mailbox} Gmail` : 'Gmail'));
+  const parts = [];
+  if (Number.isFinite(msgs) && msgs >= 0) parts.push(`${msgs} message${msgs === 1 ? '' : 's'}`);
+  if (data.resurfaced) parts.push('new reply flagged');
+  if (data.latest_inbound) parts.push('latest is from them');
+  if (data.stale_thread_cleared) parts.push('stale thread link cleared');
+  const extra = String(data.note || '').trim();
+  if (extra) parts.push(extra);
+  const detail = parts.length ? parts.join(' · ') : 'thread matches Gmail';
+  return `Synced from ${mailboxLabel} — ${detail}`;
+}
+
+function V4EmitOpsToast(message, tone = 'ok') {
+  const text = String(message || '').trim();
+  if (!text) return;
+  try {
+    window.dispatchEvent(new CustomEvent('v4:toast', { detail: { message: text, tone } }));
+  } catch (e) {}
+}
+
 async function V4RefreshLeadFromGmail(lead) {
   const cardId = lead?.rowId || lead?.id;
   if (!cardId) throw new Error('No lead id to refresh.');
@@ -23494,6 +23534,7 @@ function V4App() {
     organs: '',
   });
   const [toast, setToast] = React.useState(null);
+  const [toastTone, setToastTone] = React.useState('ok');
   const toastTimer = React.useRef(null);
   const searchRef = React.useRef(null);
   const cosListSearchRef = React.useRef(null);
@@ -23633,20 +23674,33 @@ function V4App() {
   }, []);
 
   React.useEffect(() => {
-    const showToast = (message) => {
-      setToast(message);
+    const showToast = (message, tone = 'ok', ms = 5000) => {
+      const text = String(message || '').trim();
+      if (!text) return;
+      setToastTone(tone === 'error' ? 'error' : (tone === 'pending' ? 'pending' : 'ok'));
+      setToast(text);
       if (toastTimer.current) clearTimeout(toastTimer.current);
       toastTimer.current = setTimeout(() => {
         setToast(null);
+        setToastTone('ok');
         toastTimer.current = null;
-      }, 5000);
+      }, ms);
     };
     const onStageFailed = (e) => {
       const err = e.detail?.error || 'Could not save';
-      showToast('Trash/move failed — ' + err);
+      showToast('Trash/move failed — ' + err, 'error', 8000);
+    };
+    const onOpsToast = (e) => {
+      const tone = e.detail?.tone || 'ok';
+      const ms = tone === 'error' ? 10000 : (tone === 'pending' ? 12000 : 7000);
+      showToast(e.detail?.message || '', tone, ms);
     };
     window.addEventListener('v3:stage-persist-failed', onStageFailed);
-    return () => window.removeEventListener('v3:stage-persist-failed', onStageFailed);
+    window.addEventListener('v4:toast', onOpsToast);
+    return () => {
+      window.removeEventListener('v3:stage-persist-failed', onStageFailed);
+      window.removeEventListener('v4:toast', onOpsToast);
+    };
   }, []);
 
   React.useEffect(() => {
@@ -24290,7 +24344,12 @@ function V4App() {
       )}
 
       {toast && (
-        <div className="toast-wrap"><div className="toast"><V3Icon name="check" w={13} /> {toast}</div></div>
+        <div className="toast-wrap">
+          <div className={'toast' + (toastTone === 'error' ? ' is-error' : (toastTone === 'pending' ? ' is-pending' : ''))}>
+            {toastTone === 'ok' ? <V3Icon name="check" w={13} /> : null}
+            {toast}
+          </div>
+        </div>
       )}
 
       <TweaksPanel>

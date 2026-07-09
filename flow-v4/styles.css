@@ -18646,9 +18646,15 @@ body[data-theme="dark"] .gmail-reply-status.is-success{color:var(--good)}
 .hd-sync-btn:disabled{opacity:.7;cursor:wait}
 .gmail-read-fresh{color:var(--text-3)}
 .gmail-read-fresh.is-stale{color:#b45309;font-weight:600}
-.gmail-read-sync-note{font-size:12px;padding:6px 0 0;color:var(--text-3)}
+.gmail-read-sync-note{font-size:12px;padding:6px 0 0;color:var(--text-3);font-weight:500}
+.gmail-read-sync-note.is-syncing{color:var(--accent);animation:cos-sync-pulse 1.2s ease-in-out infinite}
 .gmail-read-sync-note.is-ok{color:#15803d}
-.gmail-read-sync-note.is-error{color:#dc2626}
+.gmail-read-sync-note.is-error{color:#dc2626;font-weight:600}
+@keyframes cos-sync-pulse{0%,100%{opacity:1}50%{opacity:.55}}
+.cos-dealbar-btn--refresh{min-width:8.5rem}
+.cos-dealbar-btn--refresh.is-busy{opacity:.85;cursor:wait}
+.toast.is-error{background:#991b1b;color:#fff}
+.toast.is-pending{background:color-mix(in srgb,var(--accent) 88%,#000);color:#fff}
 .gmail-read-approve{margin:0;border-bottom:1px solid var(--line)}
 .cos2-refresh{min-width:7.5rem;font-size:11px;letter-spacing:.04em}
 .orgx-today{margin:0 24px 14px;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:color-mix(in srgb,var(--accent-soft) 28%,var(--surface-1))}
