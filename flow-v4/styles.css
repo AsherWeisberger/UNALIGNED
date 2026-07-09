@@ -21724,3 +21724,25 @@ body[data-theme] .gmail-reply-sheet.is-open {
   resize: vertical;
 }
 .cos-desk-intake-relay-note { font-size: 12px; opacity: 0.85; }
+
+.cos-desk-intake-sent-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 12px 0 8px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(22, 137, 74, 0.08);
+  border: 1px solid rgba(22, 137, 74, 0.2);
+  font-size: 13px;
+}
+
+.cos-desk-intake-sent-banner strong {
+  display: block;
+  margin-bottom: 2px;
+}
+
+.cos-desk-intake-sent-banner span {
+  opacity: 0.8;
+  font-size: 12px;
+}

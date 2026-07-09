@@ -18219,12 +18219,18 @@ async function V4FindDeskIntakeCardOnBoard(row) {
       { retries: 1 }
     );
     const rows = Array.isArray(data) ? data : [];
+    const normalized = rows.map((item) => V3NormalizeSupabaseLead(item));
     const linked = row?.card_id
-      ? rows.find((item) => String(item.id) === String(row.card_id))
+      ? normalized.find((item) => String(item.id) === String(row.card_id))
       : null;
-    if (linked) return linked;
-    const connect = rows.find((item) => String(item.lead_source || '').toLowerCase() === 'connect-form');
-    if (connect) return connect;
+    if (linked && V4DeskIntakePayloadHasRobertSend(V3ParseBriefDescription(linked.rawDescription), linked)) {
+      return rows.find((item) => String(item.id) === String(linked.id)) || null;
+    }
+    const ranked = normalized
+      .slice()
+      .sort((a, b) => V4DeskIntakeLeadScore(b, new Set([String(row?.card_id || '')])) - V4DeskIntakeLeadScore(a, new Set([String(row?.card_id || '')])));
+    const best = ranked[0];
+    if (best) return rows.find((item) => String(item.id) === String(best.id)) || null;
     return rows[0] || null;
   } catch (e) {
     return null;
@@ -18268,6 +18274,57 @@ function V4IsDeskIntakeLead(lead) {
   return payload?.type === 'connect_form_intake';
 }
 
+function V4DeskIntakePayloadHasRobertSend(payload, lead) {
+  if (!payload) return false;
+  if (String(payload.robert_handoff_body || '').trim()) return true;
+  if (String(payload.robert_handoff_subject || '').trim() && String(payload.robert_handoff_sent_at || '').trim()) return true;
+  const thread = Array.isArray(lead?.thread) ? lead.thread : [];
+  if (thread.some((m) => /robert/i.test(String(m.from || '')))) return true;
+  return false;
+}
+
+function V4DeskIntakePayloadHasAsherSend(payload) {
+  if (!payload) return false;
+  return Boolean(String(payload.asher_followup_body || '').trim() || String(payload.asher_followup_sent_at || '').trim());
+}
+
+function V4DeskIntakeLeadScore(lead, linkedIds) {
+  const payload = V3ParseBriefDescription(lead?.rawDescription);
+  let score = 0;
+  if (linkedIds?.has?.(String(lead.id))) score += 40;
+  if (V4DeskIntakePayloadHasRobertSend(payload, lead)) score += 80;
+  if (V4DeskIntakePayloadHasAsherSend(payload)) score += 40;
+  if (Array.isArray(lead.thread) && lead.thread.length) score += 20;
+  if (!['trash', 'dead-leads'].includes(String(lead.stage || ''))) score += 15;
+  score += V3LeadActivityTimestamp(lead) / 1e15;
+  return score;
+}
+
+function V4DeskIntakeRowOutbound(row, leads) {
+  const lead = V4FindDeskIntakeCard(leads, row);
+  const payload = V3ParseBriefDescription(lead?.rawDescription);
+  const robertSent = V4DeskIntakePayloadHasRobertSend(payload, lead);
+  const asherSent = V4DeskIntakePayloadHasAsherSend(payload);
+  const first = String(row.name || lead?.contactName || 'them').split(' ')[0] || 'them';
+  let nextStep = 'robert';
+  if (robertSent && !asherSent) nextStep = 'asher';
+  if (robertSent && asherSent) nextStep = 'done';
+  return {
+    lead,
+    payload,
+    robertSent,
+    asherSent,
+    waiting: (robertSent || asherSent) && !lead?.newReplyAt,
+    sentAt: payload?.asher_followup_sent_at || payload?.robert_handoff_sent_at || '',
+    nextStep,
+    statusLabel: asherSent
+      ? `Asher followed up — waiting on ${first}`
+      : robertSent
+        ? `Robert emailed — waiting on ${first}`
+        : '',
+  };
+}
+
 function V4DeskIntakeOutboundTouchAt(lead) {
   const payload = V3ParseBriefDescription(lead?.rawDescription);
   return payload?.asher_followup_sent_at || payload?.robert_handoff_sent_at || '';
@@ -18277,8 +18334,8 @@ function V3ApplyDeskIntakeBoardState(lead) {
   if (!lead || V3IsXLeadRecord(lead) || !V4IsDeskIntakeLead(lead)) return lead;
   const payload = V3ParseBriefDescription(lead.rawDescription);
   const nm = String(lead.nextMove?.text || '').toLowerCase();
-  const robertSent = Boolean(payload.robert_handoff_sent_at) || nm.includes('robert emailed');
-  const asherSent = Boolean(payload.asher_followup_sent_at) || nm.includes('asher followed up');
+  const robertSent = V4DeskIntakePayloadHasRobertSend(payload, lead) || nm.includes('robert emailed');
+  const asherSent = V4DeskIntakePayloadHasAsherSend(payload) || nm.includes('asher followed up');
   const waiting = (robertSent || asherSent) && !lead.newReplyAt;
   if (!waiting) return lead;
   const first = String(lead.contactName || 'them').split(' ')[0];
@@ -18320,8 +18377,7 @@ async function V3DedupeDeskIntakeCards(leads) {
   const jobs = [];
   for (const group of byEmail.values()) {
     if (group.length < 2) continue;
-    const canonical = group.find((lead) => linkedIds.has(String(lead.id)))
-      || group.slice().sort((a, b) => V3TimestampForUi(b.lastTouchAt || b.receivedAt) - V3TimestampForUi(a.lastTouchAt || a.receivedAt))[0];
+    const canonical = group.slice().sort((a, b) => V4DeskIntakeLeadScore(b, linkedIds) - V4DeskIntakeLeadScore(a, linkedIds))[0];
     for (const dup of group) {
       if (String(dup.id) === String(canonical.id)) continue;
       trashedIds.add(String(dup.id));
@@ -18363,29 +18419,19 @@ async function V3HealDeskIntakeCardsFromIntake(leads) {
     if (!row) return lead;
     const status = String(row.status || '').toLowerCase();
     const payload = V3ParseBriefDescription(lead.rawDescription) || {};
-    const robertSent = Boolean(payload.robert_handoff_sent_at);
-    const asherSent = Boolean(payload.asher_followup_sent_at);
-    const routedAfterSend = status === 'routed';
+    const robertSent = V4DeskIntakePayloadHasRobertSend(payload, lead);
+    const asherSent = V4DeskIntakePayloadHasAsherSend(payload);
     const threadBroken = V3DeskIntakeThreadIsPlaceholder(lead.thread, {
       intent: lead.deliverables || payload.intake_topic,
       description: lead.rawDescription,
     });
-    const needsRobertStamp = routedAfterSend && !robertSent;
-    const needsThreadRebuild = threadBroken && (robertSent || asherSent || routedAfterSend);
-    if (!needsRobertStamp && !needsThreadRebuild) return lead;
+    const needsThreadRebuild = threadBroken && (robertSent || asherSent);
+    if (!needsThreadRebuild) return lead;
 
-    const markedAt = row.routed_at || row.reviewed_at || row.created_at || new Date().toISOString();
     const merged = {
       ...payload,
       ...V4DeskIntakeCardDescription(row),
       type: 'connect_form_intake',
-      ...(needsRobertStamp
-        ? {
-          robert_handoff_sent_at: markedAt,
-          robert_handoff_subject: V4IntakeSubject(row),
-          robert_handoff_body: payload.robert_handoff_body || V4DeskIntakeRobertBodyTemplate(row),
-        }
-        : {}),
     };
     const desc = JSON.stringify(merged);
     const supabaseRow = {
@@ -18435,14 +18481,90 @@ function V4DeskIntakeAwaitingLeadReply(lead) {
   if (!V4IsDeskIntakeLead(lead)) return false;
   if (lead.newReplyAt) return true;
   const payload = V3ParseBriefDescription(lead?.rawDescription);
-  const sentAt = payload?.robert_handoff_sent_at || payload?.asher_followup_sent_at;
   const nm = String(lead?.nextMove?.text || '').toLowerCase();
-  if (sentAt) {
+  const robertSent = V4DeskIntakePayloadHasRobertSend(payload, lead);
+  const asherSent = V4DeskIntakePayloadHasAsherSend(payload);
+  if (robertSent || asherSent) {
+    const sentAt = payload?.asher_followup_sent_at || payload?.robert_handoff_sent_at;
     const ts = V3TimestampForUi(sentAt);
     if (ts && (Date.now() - ts) <= V4_COS_ACTIVE_WINDOW_MS) return true;
   }
   if ((nm.includes('robert emailed') || nm.includes('asher followed up')) && !lead.newReplyAt) return true;
   return false;
+}
+
+async function V4HealDeskIntakeLinkedCardFromDuplicate(row, leads) {
+  const lead = V4FindDeskIntakeCard(leads, row);
+  if (!lead?.id) return false;
+  const payload = V3ParseBriefDescription(lead.rawDescription);
+  if (V4DeskIntakePayloadHasRobertSend(payload, lead)) return false;
+  const email = String(row.email || lead.email || '').trim().toLowerCase();
+  if (!email) return false;
+  let donor = (leads || []).find((item) => {
+    if (String(item.id) === String(lead.id)) return false;
+    if (String(item.email || '').trim().toLowerCase() !== email) return false;
+    const donorPayload = V3ParseBriefDescription(item.rawDescription);
+    return V4DeskIntakePayloadHasRobertSend(donorPayload, item);
+  });
+  if (!donor) {
+    try {
+      const remoteRows = await V3FetchSupabaseJson(
+        '/rest/v1/cards?select=id,title,contact_name,business_name,email,list_id,description,email_thread,lead_source'
+          + '&email=eq.' + encodeURIComponent(email)
+          + '&order=updated_at.desc&limit=8',
+        { retries: 1 }
+      );
+      const candidates = (Array.isArray(remoteRows) ? remoteRows : [])
+        .map((item) => V3NormalizeSupabaseLead(item))
+        .filter((item) => String(item.id) !== String(lead.id))
+        .filter((item) => V4DeskIntakePayloadHasRobertSend(V3ParseBriefDescription(item.rawDescription), item));
+      donor = candidates.sort((a, b) => V4DeskIntakeLeadScore(b) - V4DeskIntakeLeadScore(a))[0] || null;
+    } catch (err) {
+      donor = null;
+    }
+  }
+  if (!donor) return false;
+  const donorPayload = V3ParseBriefDescription(donor.rawDescription);
+  const merged = {
+    ...payload,
+    ...donorPayload,
+    desk_intake_id: Number(row.id) || payload.desk_intake_id,
+    type: 'connect_form_intake',
+  };
+  const desc = JSON.stringify(merged);
+  const supabaseRow = {
+    contact_name: lead.contactName || row.name,
+    business_name: lead.brand,
+    title: lead.brand,
+    email: lead.email || row.email,
+    description: desc,
+    created_at: row.created_at,
+    intent: lead.deliverables,
+  };
+  const builtThread = V3BuildDeskIntakeThreadFromRow(supabaseRow, lead.contactName || row.name, lead.brand);
+  const emailThread = V3DeskIntakeEmailThreadFromUi(builtThread);
+  const first = String(lead.contactName || row.name || 'them').split(' ')[0];
+  const localPatch = {
+    rawDescription: desc,
+    thread: builtThread,
+    needsReply: false,
+    unread: false,
+    draftReply: null,
+    draftReplyStatus: 'sent',
+    nextMove: {
+      who: null,
+      text: V4DeskIntakePayloadHasAsherSend(merged) ? `Asher followed up — waiting on ${first}` : `Robert emailed — waiting on ${first}`,
+      action: '',
+    },
+  };
+  await V4PatchLeadAsync(lead, {
+    description: desc,
+    email_thread: emailThread,
+    draft_reply_status: 'sent',
+    draft_reply: null,
+    new_reply_at: null,
+  }, localPatch);
+  return true;
 }
 
 async function V4RecordDeskIntakeOutbound(cardId, row, { step, subject, body, to, cc }) {
@@ -18708,7 +18830,21 @@ function V4CosDeskIntake({ onOpenLead }) {
       setRows(refreshed);
       setStatus(refreshed.length ? 'ready' : 'empty');
       setExpandedId((prev) => prev ?? (refreshed.find((row) => row.status === 'new')?.id ?? refreshed[0]?.id ?? null));
+      let leadsAfter = window.V3?.LEADS || [];
       if (autoLinked.length) {
+        leadsAfter = await V3ReloadLeads({ cacheBust: Date.now(), quiet: true }).catch(() => leadsAfter) || leadsAfter;
+      }
+      const healedCards = [];
+      for (const row of refreshed) {
+        if (!row.card_id) continue;
+        try {
+          const ok = await V4HealDeskIntakeLinkedCardFromDuplicate(row, leadsAfter);
+          if (ok) healedCards.push(row.id);
+        } catch (err) {
+          console.warn('[ALIGNED v4] desk intake card heal failed:', row.id, err);
+        }
+      }
+      if (healedCards.length) {
         await V3ReloadLeads({ cacheBust: Date.now(), quiet: true }).catch(() => {});
       }
     } catch (err) {
@@ -18842,8 +18978,11 @@ function V4CosDeskIntake({ onOpenLead }) {
     }
   };
 
+  const boardLeads = window.V3?.LEADS || [];
+
   const renderRow = (row) => {
     const open = expandedId === row.id;
+    const outbound = V4DeskIntakeRowOutbound(row, boardLeads);
     const when = row.created_at
       ? (typeof V3RelativeTime === 'function' ? V3RelativeTime(row.created_at) : row.created_at.slice(0, 10))
       : '—';
@@ -18899,14 +19038,43 @@ function V4CosDeskIntake({ onOpenLead }) {
               ) : null}
               {row.referrer ? <span>Referrer <strong>{row.referrer}</strong></span> : null}
             </div>
+            {outbound.waiting ? (
+              <div className="cos-desk-intake-sent-banner">
+                <V3Icon name="mail" w={14} />
+                <div>
+                  <strong>{outbound.statusLabel}</strong>
+                  {outbound.sentAt ? (
+                    <span>{typeof V3GmailTime?.full === 'function' ? V3GmailTime.full(outbound.sentAt) : outbound.sentAt}</span>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
             <div className="cos-desk-intake-actions">
-              <button
-                type="button"
-                className="is-primary"
-                disabled={busyId === row.id || !row.email || (relay && relay.rowId === row.id && relay.step !== 'done')}
-                title={row.email ? 'Robert replies and CCs Asher and Sam' : 'No email on this submission'}
-                onClick={() => openRobertRelay(row)}
-              >Reply as Robert</button>
+              {!outbound.robertSent ? (
+                <button
+                  type="button"
+                  className="is-primary"
+                  disabled={busyId === row.id || !row.email || (relay && relay.rowId === row.id && relay.step !== 'done')}
+                  title={row.email ? 'Robert replies and CCs Asher and Sam' : 'No email on this submission'}
+                  onClick={() => openRobertRelay(row)}
+                >Reply as Robert</button>
+              ) : !outbound.asherSent ? (
+                <button
+                  type="button"
+                  className="is-primary"
+                  disabled={busyId === row.id || !row.email || (relay && relay.rowId === row.id && relay.step !== 'done')}
+                  onClick={() => setRelay({
+                    rowId: row.id,
+                    step: 'asher',
+                    subject: 'Re: ' + (outbound.payload?.robert_handoff_subject || V4IntakeSubject(row)),
+                    body: V4IntakeAsherDraftBody(row),
+                    busy: false,
+                    note: 'Robert already emailed — send Asher follow-up with pricing.',
+                  })}
+                >Reply as Asher</button>
+              ) : (
+                <span className="cos-desk-intake-relay-note">Both relays sent — waiting on {String(row.name || 'them').split(' ')[0]}.</span>
+              )}
               {row.card_id && onOpenLead ? (
                 <button type="button" className="cos-desk-intake-open-card" onClick={() => onOpenLead(row.card_id)}>
                   Open deal card
