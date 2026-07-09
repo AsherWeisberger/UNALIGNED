@@ -6177,6 +6177,7 @@ const V4_EMAIL_SEND_DELAY_MS = 5000;
 const v4UndoStack = [];
 let v4UndoBarTimer = null;
 let v4PendingEmailSend = null;
+const V3_stageMoveEpoch = new Map();
 
 function V4UndoLeadLabel(lead) {
   return String(lead?.brand || lead?.contactName || lead?.email || lead?.id || 'Lead').trim();
@@ -6364,18 +6365,29 @@ function V4UndoBar() {
 function V3MoveLeadStage(lead, nextStage, leads = V3ActiveLeads(), opts = {}) {
   const normalizedStage = V3NormalizeStage(nextStage);
   const prevStage = String(lead?.stage || '').toLowerCase();
+  const leadId = String(lead?.id || lead?.rowId || '');
   if (!opts.skipUndo && prevStage && prevStage !== normalizedStage) {
-    const snapshot = { ...lead };
-    const leadId = lead?.id;
+    const restoreStage = prevStage;
+    const appliedStage = normalizedStage;
     V4UndoPush({
-      label: `${V4UndoLeadLabel(lead)} → ${V4UndoStageLabel(normalizedStage)}`,
-      detail: `Was ${V4UndoStageLabel(prevStage)}`,
+      label: `${V4UndoLeadLabel(lead)} → ${V4UndoStageLabel(appliedStage)}`,
+      detail: `Was ${V4UndoStageLabel(restoreStage)}`,
       leadId,
       leadBrand: V4UndoLeadLabel(lead),
       action: 'stage',
-      undo: () => V3MoveLeadStage(snapshot, prevStage, V3ActiveLeads(), { skipUndo: true }),
+      undo: () => {
+        const pool = V3ActiveLeads();
+        const current = pool.find(item => String(item.id) === leadId)
+          || { ...lead, stage: appliedStage };
+        const base = pool.some(item => String(item.id) === leadId)
+          ? pool
+          : [...pool, current];
+        V3MoveLeadStage(current, restoreStage, base, { skipUndo: true });
+      },
     });
   }
+  const moveEpoch = (V3_stageMoveEpoch.get(leadId) || 0) + 1;
+  if (leadId) V3_stageMoveEpoch.set(leadId, moveEpoch);
   const wasTrash = ['trash', 'dead-leads'].includes(String(lead?.stage || '').toLowerCase());
   const isTrash = ['trash', 'dead-leads'].includes(normalizedStage);
   if (isTrash && !wasTrash) {
@@ -6398,6 +6410,7 @@ function V3MoveLeadStage(lead, nextStage, leads = V3ActiveLeads(), opts = {}) {
 
   V3PersistLeadStageRemote(lead, normalizedStage)
     .then(result => {
+      if (leadId && V3_stageMoveEpoch.get(leadId) !== moveEpoch) return;
       const cardId = String(result?.card_id || V3SupabaseCardId(lead) || '');
       if (!cardId) return;
       const merged = (window.V3.LEADS || updated).map(item => {
@@ -6425,6 +6438,7 @@ function V3MoveLeadStage(lead, nextStage, leads = V3ActiveLeads(), opts = {}) {
       if (isTrash) V3RememberTrashedCard({ ...lead, id: cardId, rowId: cardId });
     })
     .catch(err => {
+      if (leadId && V3_stageMoveEpoch.get(leadId) !== moveEpoch) return;
       console.error('[ALIGNED v4] stage persist failed:', err);
       const reverted = (window.V3.LEADS || updated).map(item =>
         String(item.id) === String(lead.id) ? { ...item, stage: lead.stage } : item);
