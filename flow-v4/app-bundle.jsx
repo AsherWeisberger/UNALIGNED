@@ -4700,6 +4700,9 @@ function V3FindExistingXCard(leads, openDm, intakeId) {
 
 function V3IsNewLeadReview(lead) {
   if (!lead || lead.isRobertBrief) return false;
+  if (V4DeskIntakeAwaitingAsherFollowup(lead)) return false;
+  const payload = V3ParseBriefDescription(lead?.rawDescription);
+  if (V4DeskIntakePayloadHasRobertSend(payload, lead)) return false;
   const sourceKind = V3NewLeadSourceKind(lead);
   const mailbox = V3LeadMailboxOrigin(lead);
   const stage = String(lead.stage || '').toLowerCase();
@@ -17632,9 +17635,9 @@ function V4CosIsTravelLead(lead) {
 
 function V4CosIsSendLead(lead) {
   if (!lead) return false;
+  if (V4DeskIntakeAwaitingAsherFollowup(lead)) return true;
   if (V4IsDeskIntakeLead(lead)) {
-    const payload = V3ParseBriefDescription(lead.rawDescription);
-    if ((payload?.robert_handoff_sent_at || payload?.asher_followup_sent_at) && !lead.newReplyAt) return false;
+    if (V4DeskIntakeAwaitingLeadReply(lead) && !lead.newReplyAt) return false;
   }
   if (V4DeskIntakeAwaitingLeadReply(lead) && !V4CosActiveLeadNeedsYou(lead)) return false;
   if (V4CosIsTravelLead(lead)) return false;
@@ -17721,6 +17724,7 @@ function V4CosThreadMessagesInWindow(lead, windowMs) {
 function V4CosIsClosedForActive(lead) {
   if (!lead) return true;
   if (['trash', 'dead-leads', 'paid-out', 'done'].includes(lead.stage)) return true;
+  if (V4DeskIntakeActiveMission(lead)) return false;
   if (window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(lead)) return true;
   return false;
 }
@@ -17735,7 +17739,7 @@ function V4CosIsActiveGmailConversation(lead) {
   if (!lead || !V4CosIsGmailLeadForActive(lead)) return false;
   if (V4CosIsClosedForActive(lead)) return false;
 
-  if (V4DeskIntakeAwaitingLeadReply(lead)) return true;
+  if (V4DeskIntakeActiveMission(lead)) return true;
 
   if (V4_COS_GMAIL_NEGOTIATION_STAGES.includes(lead.stage)) return true;
 
@@ -17770,6 +17774,7 @@ function V4CosIsActiveConversation(lead) {
 
 function V4CosActiveLeadNeedsYou(lead) {
   if (!lead) return false;
+  if (V4DeskIntakeAwaitingAsherFollowup(lead)) return true;
   if (V3IsXLeadRecord(lead)) {
     return V4XLeadNeedsDmReply(lead) || V4CosHasActionableDraft(lead);
   }
@@ -17804,6 +17809,8 @@ function V4CosMarkActiveGmailCleared(lead) {
 }
 
 function V4CosSortActiveLeads(a, b) {
+  const asherDelta = (V4DeskIntakeAwaitingAsherFollowup(b) ? 1 : 0) - (V4DeskIntakeAwaitingAsherFollowup(a) ? 1 : 0);
+  if (asherDelta) return asherDelta;
   const deskDelta = (V4DeskIntakeAwaitingLeadReply(b) ? 1 : 0) - (V4DeskIntakeAwaitingLeadReply(a) ? 1 : 0);
   if (deskDelta) return deskDelta;
   const needDelta = (V4CosActiveLeadNeedsYou(b) ? 1 : 0) - (V4CosActiveLeadNeedsYou(a) ? 1 : 0);
@@ -17872,6 +17879,7 @@ function V4CosActiveLeadStatus(lead) {
     }
     if (V3XLeadRepliedViaX(lead)) return { label: 'Waiting', tone: 'x' };
   }
+  if (V4DeskIntakeAwaitingAsherFollowup(lead)) return { label: 'Send pricing', tone: 'hot' };
   if (V4DeskIntakeAwaitingLeadReply(lead) && !(lead.unread || lead.newReplyAt || lead.needsReply)) {
     return { label: 'Waiting', tone: 'live' };
   }
@@ -18302,6 +18310,19 @@ function V4DeskIntakePayloadHasAsherSend(payload) {
   return Boolean(String(payload.asher_followup_body || '').trim() || String(payload.asher_followup_sent_at || '').trim());
 }
 
+/** Robert handoff sent; Asher still owes the pricing follow-up. */
+function V4DeskIntakeAwaitingAsherFollowup(lead) {
+  if (!V4IsDeskIntakeLead(lead)) return false;
+  if (lead.newReplyAt) return false;
+  const payload = V3ParseBriefDescription(lead?.rawDescription);
+  return V4DeskIntakePayloadHasRobertSend(payload, lead) && !V4DeskIntakePayloadHasAsherSend(payload);
+}
+
+/** Desk intake with recent outbound — either Asher's turn or waiting on the lead after Asher sent. */
+function V4DeskIntakeActiveMission(lead) {
+  return V4DeskIntakeAwaitingAsherFollowup(lead) || V4DeskIntakeAwaitingLeadReply(lead);
+}
+
 function V4DeskIntakeLeadScore(lead, linkedIds) {
   const payload = V3ParseBriefDescription(lead?.rawDescription);
   let score = 0;
@@ -18334,7 +18355,7 @@ function V4DeskIntakeRowOutbound(row, leads) {
     statusLabel: asherSent
       ? `Asher followed up — waiting on ${first}`
       : robertSent
-        ? `Robert emailed — waiting on ${first}`
+        ? `Robert emailed — Asher: send pricing`
         : '',
   };
 }
@@ -18356,14 +18377,14 @@ function V3ApplyDeskIntakeBoardState(lead) {
   return {
     ...lead,
     source: lead.source || 'connect-form',
-    needsReply: false,
+    needsReply: robertSent && !asherSent,
     unread: false,
     draftReply: null,
     draftReplyStatus: 'sent',
     nextMove: {
-      who: null,
-      text: asherSent ? `Asher followed up — waiting on ${first}` : `Robert emailed — waiting on ${first}`,
-      action: '',
+      who: asherSent ? null : 'asher',
+      text: asherSent ? `Asher followed up — waiting on ${first}` : `Robert emailed — Asher: send pricing to ${first}`,
+      action: asherSent ? '' : 'Send pricing package',
     },
   };
 }
@@ -18496,14 +18517,12 @@ function V4DeskIntakeAwaitingLeadReply(lead) {
   if (lead.newReplyAt) return true;
   const payload = V3ParseBriefDescription(lead?.rawDescription);
   const nm = String(lead?.nextMove?.text || '').toLowerCase();
-  const robertSent = V4DeskIntakePayloadHasRobertSend(payload, lead);
   const asherSent = V4DeskIntakePayloadHasAsherSend(payload);
-  if (robertSent || asherSent) {
-    const sentAt = payload?.asher_followup_sent_at || payload?.robert_handoff_sent_at;
-    const ts = V3TimestampForUi(sentAt);
-    if (ts && (Date.now() - ts) <= V4_COS_ACTIVE_WINDOW_MS) return true;
-  }
-  if ((nm.includes('robert emailed') || nm.includes('asher followed up')) && !lead.newReplyAt) return true;
+  if (!asherSent) return false;
+  const sentAt = payload?.asher_followup_sent_at;
+  const ts = V3TimestampForUi(sentAt);
+  if (ts && (Date.now() - ts) <= V4_COS_ACTIVE_WINDOW_MS) return true;
+  if (nm.includes('asher followed up') && !lead.newReplyAt) return true;
   return false;
 }
 
@@ -18627,11 +18646,11 @@ async function V4RecordDeskIntakeOutbound(cardId, row, { step, subject, body, to
     draftReplyStatus: 'sent',
     stage: boardLead?.stage || 'first-touch',
     nextMove: {
-      who: null,
+      who: step === 'robert' ? 'asher' : null,
       text: step === 'robert'
-        ? `Robert emailed — waiting on ${first}`
+        ? `Robert emailed — Asher: send pricing to ${first}`
         : `Asher followed up — waiting on ${first}`,
-      action: '',
+      action: step === 'robert' ? 'Send pricing package' : '',
     },
   };
   const emailThread = V3DeskIntakeEmailThreadFromUi(thread);
@@ -18648,6 +18667,7 @@ async function V4RecordDeskIntakeOutbound(cardId, row, { step, subject, body, to
   await V4PatchLeadAsync(boardLead || { id, rowId: id }, fields, localPatch);
   try {
     window.sessionStorage.setItem('cos-lead-id', id);
+    if (step === 'robert') window.sessionStorage.setItem('cos-queue', 'send');
     window.sessionStorage.setItem('cos-active-gmail-collapsed', '0');
     window.localStorage.setItem('cos-active-gmail-collapsed', '0');
   } catch (e) {}
@@ -19774,6 +19794,7 @@ function V4CosQueueActionLabel(lead, queueId) {
   if (window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(lead)) return 'Triage';
   if (queueId === 'travel') return lead?.needsReply ? 'Reply' : 'Pursue';
   if (queueId === 'send') {
+    if (V4DeskIntakeAwaitingAsherFollowup(lead)) return 'Send';
     if (String(lead.draftReplyStatus || '').toLowerCase() === 'review') return 'Review';
     if (lead.draftReply?.body) return 'Send';
     return 'Reply';
