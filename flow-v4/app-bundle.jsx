@@ -20882,22 +20882,27 @@ function V4DealActionBar({ lead, onOpenSplits, onReply, replyLabel, onRefreshThr
 }
 
 function V4DealBrainPanel({ lead, setComposeOpen, onOpenSplits }) {
-  const [read, setRead] = React.useState(null);
+  const [meta, setMeta] = React.useState(null);
   const [open, setOpen] = React.useState(true);
   const [copied, setCopied] = React.useState(false);
 
   React.useEffect(() => {
     let alive = true;
-    setRead(null);
+    setMeta(null);
     if (!lead?.id) return undefined;
     fetch(`${V4_DEAL_BRAIN_URL}/brain/${encodeURIComponent(lead.id)}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => { if (alive && data?.read) setRead(data.read); })
+      .then((data) => { if (alive && data?.read) setMeta(data); })
       .catch(() => {});
     return () => { alive = false; };
   }, [lead?.id]);
 
+  const read = meta?.read || null;
   if (!read) return null;
+  const generatedAt = meta?.generated ? Date.parse(meta.generated) : NaN;
+  const brainAgeHrs = Number.isFinite(generatedAt) ? Math.max(0, Math.round((Date.now() - generatedAt) / 3600000)) : null;
+  const brainStale = brainAgeHrs != null && brainAgeHrs >= 36;
+  const brainAgeLabel = brainAgeHrs == null ? '' : (brainAgeHrs < 24 ? `${brainAgeHrs}h ago` : `${Math.round(brainAgeHrs / 24)}d ago`);
   const asks = Array.isArray(read.their_asks) ? read.their_asks : [];
   const signals = (Array.isArray(read.flow_signals) ? read.flow_signals : [])
     .map((s) => ({ ...s, meta: V4_BRAIN_SIGNALS[s.signal] }))
@@ -20927,11 +20932,16 @@ function V4DealBrainPanel({ lead, setComposeOpen, onOpenSplits }) {
       ))}
       <button type="button" className="cos-brain-hd" onClick={() => setOpen(!open)}>
         <span className="cos-brain-title">DEAL BRAIN</span>
-        <span className="cos-brain-conf">{read.confidence || ''}</span>
+        <span className="cos-brain-conf">{read.confidence || ''}{brainAgeLabel ? ` · ${brainAgeLabel}` : ''}</span>
         <span className="cos-brain-chev">{open ? '−' : '+'}</span>
       </button>
       {open && (
         <div className="cos-brain-body">
+          {brainStale ? (
+            <div className="cos-brain-line cos-brain-line--alert">
+              <strong>Stale read.</strong> Thread may have moved since this snapshot. Refresh from the thread pane if the summary looks behind.
+            </div>
+          ) : null}
           {read.status_summary && <p className="cos-brain-summary">{read.status_summary}</p>}
           {asks.length > 0 && (
             <div className="cos-brain-asks">
@@ -20944,7 +20954,7 @@ function V4DealBrainPanel({ lead, setComposeOpen, onOpenSplits }) {
             </div>
           )}
           {Array.isArray(read.ignored_points) && read.ignored_points.length > 0 && (
-            <div className="cos-brain-line"><strong>Unconfirmed:</strong> {read.ignored_points.join(' · ')}</div>
+            <div className="cos-brain-line"><strong>Still open in thread:</strong> {read.ignored_points.join(' · ')}</div>
           )}
           {Array.isArray(read.deadline_alerts) && read.deadline_alerts.length > 0 && (
             <div className="cos-brain-line cos-brain-line--alert"><strong>Deadlines:</strong> {read.deadline_alerts.join(' · ')}</div>
