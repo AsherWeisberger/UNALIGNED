@@ -1259,7 +1259,6 @@ function V3PublishBoardLoaded(leads, meta = {}) {
   window.V3.LEADS = leads;
   window.dispatchEvent(new CustomEvent('v3:leads-loaded', { detail: { leads, ok: !meta.cached, ...meta } }));
   if (!meta.cached) V3SaveBoardCache(leads);
-  if (!meta.cached && !meta.quiet) V3PrefetchHotLeadDetails(leads);
 }
 
 function V3PublishBoardLoadFailed(err) {
@@ -17908,16 +17907,10 @@ function V4CosIsActiveGmailConversation(lead) {
   if (!inWindow) return false;
 
   const recentMsgs = V4CosThreadMessagesInWindow(lead, V4_COS_ACTIVE_WINDOW_MS);
-  const hasDraft = V4CosHasActionableDraft(lead);
-
-  if (String(lead.dealState || '').toLowerCase() === 'returning_collab' && (lead.unread || lead.newReplyAt || lead.needsReply)) {
-    return true;
-  }
 
   if (V4DeskIntakeActiveMission(lead)) return true;
 
   if (lead.unread || lead.newReplyAt || lead.needsReply) return true;
-  if (hasDraft) return true;
   if (recentMsgs >= 1) return true;
   return false;
 }
@@ -17940,6 +17933,7 @@ function V4CosActiveLeadNeedsYou(lead) {
   if (V3IsXLeadRecord(lead)) {
     return V4XLeadNeedsDmReply(lead) || V4CosHasActionableDraft(lead);
   }
+  if (V4CosIsGmailLeadForActive(lead) && !V4IsDeskIntakeLead(lead) && V4CosIsStaleGmailLead(lead)) return false;
   if (lead.unread || lead.newReplyAt) return true;
   if (V4XLeadNeedsDmReply(lead)) return true;
   if (V4CosHasActionableDraft(lead)) return true;
@@ -18049,7 +18043,9 @@ function V4CosActiveLeadStatus(lead) {
   if (V4DeskIntakeAwaitingLeadReply(lead) && !(lead.unread || lead.newReplyAt || lead.needsReply)) {
     return { label: 'Waiting', tone: 'live' };
   }
-  if (String(lead.dealState || '').toLowerCase() === 'returning_collab' && (lead.unread || lead.newReplyAt || lead.needsReply)) {
+  if (String(lead.dealState || '').toLowerCase() === 'returning_collab'
+    && V4CosGmailInActiveWindow(lead)
+    && (lead.unread || lead.newReplyAt || lead.needsReply)) {
     return { label: 'Returning collab', tone: 'hot' };
   }
   if (lead.unread || lead.newReplyAt) return { label: 'New reply', tone: 'hot' };
@@ -22226,7 +22222,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
   }, [activeItems]);
   const [, setLeadRev] = React.useState(0);
   React.useEffect(() => {
-    const bump = () => setLeadRev(v => v + 1);
+    const bump = (e) => { if (!e?.detail?.quiet) setLeadRev(v => v + 1); };
     window.addEventListener('v3:leads-loaded', bump);
     return () => window.removeEventListener('v3:leads-loaded', bump);
   }, []);
@@ -22379,11 +22375,13 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
       const closedRefreshed = Number(data.closed_threads_refreshed || 0);
       const created = Number(data.new_cards_written || 0);
       const operatorQueued = !!data.operator_queued;
+      const updatedItems = Array.isArray(data.updated) ? data.updated : [];
       const resurfacedItems = Array.isArray(data.resurfaced)
         ? data.resurfaced
-        : (Array.isArray(data.updated) ? data.updated.filter((item) => item?.resurfaced) : []);
-      const boardChanged = patched > 0 || refreshed > 0 || closedRefreshed > 0 || created > 0
-        || operatorQueued || !!data.checkpoint_expired || resurfacedItems.length > 0;
+        : updatedItems.filter((item) => item?.resurfaced);
+      const inboundUpdates = updatedItems.filter((item) => item?.latest_inbound || item?.resurfaced || item?.source === 'history');
+      const boardChanged = created > 0 || operatorQueued || !!data.checkpoint_expired
+        || resurfacedItems.length > 0 || inboundUpdates.length > 0;
       if (boardChanged && window.V3?.ReloadLeads) await window.V3.ReloadLeads({ quiet: true });
       if (resurfacedItems.length) {
         const names = resurfacedItems
@@ -22393,23 +22391,16 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
         const label = names.length
           ? ('Returning collab: ' + names.join(', ') + (resurfacedItems.length > names.length ? (' +' + (resurfacedItems.length - names.length) + ' more') : ''))
           : ('Returning collab: ' + resurfacedItems.length + ' old chain' + (resurfacedItems.length === 1 ? '' : 's'));
-        setActiveGmailCollapsed(false);
-        try {
-          window.localStorage.setItem('cos-active-gmail-collapsed', '0');
-          window.sessionStorage.setItem('cos-active-gmail-collapsed', '0');
-          window.sessionStorage.setItem('cos-queue', 'send');
-        } catch (e) {}
         window.dispatchEvent(new CustomEvent('v4:toast', { detail: { message: label, tone: 'hot' } }));
         window.dispatchEvent(new CustomEvent('v4:returning-collab', { detail: { items: resurfacedItems } }));
       }
       if (!quiet || boardChanged) {
         const parts = [];
         if (created) parts.push(created + ' new');
-        if (patched) parts.push(patched + ' updated');
-        if (refreshed) parts.push(refreshed + ' refreshed');
-        if (closedRefreshed) parts.push(closedRefreshed + ' closed checked');
+        if (inboundUpdates.length) parts.push(inboundUpdates.length + ' inbound');
         if (resurfacedItems.length) parts.push(resurfacedItems.length + ' returning collab');
         if (operatorQueued) parts.push('operator drafting');
+        if (!boardChanged && (refreshed || closedRefreshed || patched)) parts.push('archive checked');
         setSyncNote(
           parts.length
             ? ('Synced · ' + parts.join(' · '))
@@ -22443,17 +22434,8 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
     const tick = () => {
       if (document.visibilityState === 'visible') refreshFromGmail({ quiet: true });
     };
-    const first = window.setTimeout(tick, 2500);
-    const interval = window.setInterval(tick, 900000);
-    const onFocus = () => tick();
-    window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', tick);
-    return () => {
-      window.clearTimeout(first);
-      window.clearInterval(interval);
-      window.removeEventListener('focus', onFocus);
-      document.removeEventListener('visibilitychange', tick);
-    };
+    const interval = window.setInterval(tick, 1800000);
+    return () => window.clearInterval(interval);
   }, [refreshFromGmail]);
 
   const [missionBoardCollapsed, setMissionBoardCollapsed] = React.useState(() => {
@@ -24211,14 +24193,34 @@ function V4App() {
     return () => window.removeEventListener('v4:navigate-view', onNav);
   }, []);
 
+  const quietLeadsTimerRef = React.useRef(null);
   React.useEffect(() => {
     const onLoad = (e) => {
-      setBoardState(e.detail?.cached ? 'cached' : 'ready');
-      setBoardError(e.detail?.cached ? (e.detail.cacheError || '') : '');
-      setLeads(e.detail.leads);
+      const detail = e.detail || {};
+      const nextLeads = detail.leads;
+      if (detail.quiet) {
+        window.V3.LEADS = nextLeads;
+        if (quietLeadsTimerRef.current) window.clearTimeout(quietLeadsTimerRef.current);
+        quietLeadsTimerRef.current = window.setTimeout(() => {
+          quietLeadsTimerRef.current = null;
+          setLeads(nextLeads);
+          setPendingReplies(curr => {
+            if (!window.V3.PrunePendingReplies) return curr;
+            return window.V3.PrunePendingReplies(curr, nextLeads);
+          });
+        }, 500);
+        return;
+      }
+      if (quietLeadsTimerRef.current) {
+        window.clearTimeout(quietLeadsTimerRef.current);
+        quietLeadsTimerRef.current = null;
+      }
+      setBoardState(detail.cached ? 'cached' : 'ready');
+      setBoardError(detail.cached ? (detail.cacheError || '') : '');
+      setLeads(nextLeads);
       setPendingReplies(curr => {
         if (!window.V3.PrunePendingReplies) return curr;
-        return window.V3.PrunePendingReplies(curr, e.detail.leads);
+        return window.V3.PrunePendingReplies(curr, nextLeads);
       });
     };
     const onLoading = () => {
