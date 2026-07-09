@@ -2515,7 +2515,11 @@ function V3NormalizeSupabaseLead(row) {
   let thread = V3ThreadFromRow(row, name, brand, row.list_id);
   if (V3IsDeskIntakeRow(row)) {
     const deskThread = V3BuildDeskIntakeThreadFromRow(row, name, brand);
-    if (deskThread.length && (V3DeskIntakeThreadIsPlaceholder(thread, row) || deskThread.length > thread.length)) {
+    if (deskThread.length && (
+      V3DeskIntakeThreadIsPlaceholder(thread, row)
+      || V3DeskIntakeStoredThreadBroken(thread, row)
+      || deskThread.length > thread.length
+    )) {
       thread = deskThread;
     }
   }
@@ -2643,7 +2647,9 @@ function V3NormalizeSupabaseLead(row) {
     _detailHydrated: Boolean(
       (Array.isArray(row.email_thread) && row.email_thread.length) ||
       (Array.isArray(row.original_email) && row.original_email.length) ||
-      isXCard
+      isXCard ||
+      (V3IsDeskIntakeRow(row) && Array.isArray(thread) && thread.length >= 1
+        && V3DeskIntakePayloadFromRow(row)?.intake_message)
     ),
   };
   const withTravel = V3ApplyTravelLeadMeta(normalized);
@@ -3271,6 +3277,55 @@ function V3DeskIntakeThreadIsPlaceholder(thread, row) {
   if (body === intent) return true;
   if (body === 'collaboration' || body === 'general outreach') return true;
   return thread.length <= 1 && body.length < 40;
+}
+
+/** Stored email_thread missing the lead's connect-form note or duplicated team-only messages. */
+function V3DeskIntakeStoredThreadBroken(thread, row) {
+  if (!V3IsDeskIntakeRow(row)) return false;
+  const list = Array.isArray(thread) ? thread : [];
+  if (!list.length) return false;
+  const payload = V3DeskIntakePayloadFromRow(row);
+  const intakeBody = String(payload?.intake_message || payload?.summary || '').trim();
+  const leadEmail = V3ExtractEmail(row.email) || String(row.email || '').trim().toLowerCase();
+  const hasLeadMsg = list.some((m) => {
+    const from = String(m.from || m.sender || '').toLowerCase();
+    const body = String(m.body || m.text || m.snippet || '').trim();
+    if (leadEmail) {
+      const fromEmails = [...String(m.from || m.email || '').toLowerCase().matchAll(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/g)].map((x) => x[0]);
+      if (fromEmails.includes(leadEmail)) return true;
+      if (from.includes(leadEmail.split('@')[0]) && !V3IsTeamParticipant(m.from || m.email)) return true;
+    }
+    if (intakeBody && body) {
+      const a = intakeBody.slice(0, 64);
+      const b = body.slice(0, 64);
+      if (a && b && (body.includes(a) || intakeBody.includes(b))) return true;
+    }
+    return !V3IsTeamParticipant(m.from || m.sender || m.email);
+  });
+  if (intakeBody && !hasLeadMsg) return true;
+  const robertOnly = list.filter((m) => /robert|scobleizer/i.test(String(m.from || m.email || '')));
+  if (robertOnly.length >= 2 && list.length <= robertOnly.length) return true;
+  return false;
+}
+
+function V3DeskIntakeRowFromLead(lead) {
+  if (!lead) return null;
+  return {
+    contact_name: lead.contactName,
+    business_name: lead.brand,
+    title: lead.brand,
+    email: lead.email,
+    description: lead.rawDescription,
+    created_at: lead.receivedAt,
+    intent: lead.deliverables,
+    lead_source: lead.source || 'connect-form',
+  };
+}
+
+function V3DeskIntakeThreadForLead(lead) {
+  const row = V3DeskIntakeRowFromLead(lead);
+  if (!row) return [];
+  return V3BuildDeskIntakeThreadFromRow(row, lead.contactName || row.contact_name, lead.brand || row.business_name);
 }
 
 function V3BuildDeskIntakeThreadFromRow(row, name, brand) {
@@ -8304,7 +8359,13 @@ function V3GmailThread({ lead, onPullGmail }) {
   }, [lead?.id, lead?._detailHydrated, lead?.gmailThreadId]);
 
   const messages = React.useMemo(() => {
-    const source = Array.isArray(lead?.thread) ? lead.thread : [];
+    let source = Array.isArray(lead?.thread) ? lead.thread : [];
+    if (V4IsDeskIntakeLead(lead)) {
+      const deskThread = V3DeskIntakeThreadForLead(lead);
+      if (deskThread.length && (!source.length || V3DeskIntakeStoredThreadBroken(source, V3DeskIntakeRowFromLead(lead)))) {
+        source = deskThread;
+      }
+    }
     const sorted = [...source].sort((a, b) =>
       V3TimestampForUi(a.date || a.dateIso || a.timestamp || a.when) -
       V3TimestampForUi(b.date || b.dateIso || b.timestamp || b.when)
@@ -8346,7 +8407,7 @@ function V3GmailThread({ lead, onPullGmail }) {
         </div>
       );
     }
-    if (!lead?._detailHydrated && lead?.gmailThreadId) {
+    if (!lead?._detailHydrated && lead?.gmailThreadId && !V4IsDeskIntakeLead(lead)) {
       if (hydrateTimedOut) {
         return (
           <div className="gmail-thread-empty">
@@ -18473,7 +18534,16 @@ async function V3HealDeskIntakeCardsFromIntake(leads) {
       intent: lead.deliverables || payload.intake_topic,
       description: lead.rawDescription,
     });
-    const needsThreadRebuild = threadBroken && (robertSent || asherSent);
+    const storedBroken = V3DeskIntakeStoredThreadBroken(lead.thread, {
+      email: lead.email || row.email,
+      description: lead.rawDescription,
+      lead_source: lead.source || 'connect-form',
+      intent: lead.deliverables,
+      contact_name: lead.contactName || row.name,
+      business_name: lead.brand,
+      created_at: row.created_at,
+    });
+    const needsThreadRebuild = (threadBroken || storedBroken) && (robertSent || asherSent);
     if (!needsThreadRebuild) return lead;
 
     const merged = {
@@ -18652,12 +18722,13 @@ async function V4RecordDeskIntakeOutbound(cardId, row, { step, subject, body, to
     thread,
     lastTouchAt: now,
     lastTouch: typeof V3RelativeTime === 'function' ? V3RelativeTime(now) : now,
-    needsReply: false,
+    needsReply: step === 'robert',
     unread: false,
     newReplyAt: null,
     draftReply: null,
     draftReplyStatus: 'sent',
     stage: boardLead?.stage || 'first-touch',
+    _detailHydrated: true,
     nextMove: {
       who: step === 'robert' ? 'asher' : null,
       text: step === 'robert'
@@ -18674,6 +18745,7 @@ async function V4RecordDeskIntakeOutbound(cardId, row, { step, subject, body, to
     draft_reply_status: 'sent',
     draft_reply: null,
     new_reply_at: null,
+    needs_reply: step === 'robert',
     moved_at: now,
     list_id: boardLead?.stage || 'first-touch',
   };
@@ -23010,6 +23082,10 @@ const V4_gmailPullCooldown = new Map();
 
 function V4LeadNeedsGmailRefresh(lead, maxAgeMs = V4_GMAIL_STALE_MS) {
   if (!lead || V3IsXLeadRecord(lead)) return false;
+  if (V4IsDeskIntakeLead(lead)) {
+    const payload = V3ParseBriefDescription(lead.rawDescription);
+    if (payload?.robert_handoff_sent_at || payload?.asher_followup_sent_at || payload?.intake_message) return false;
+  }
   if (!lead.gmailThreadId && !lead.email) return false;
   const thread = Array.isArray(lead.thread) ? lead.thread : [];
   if (!thread.length) return true;
