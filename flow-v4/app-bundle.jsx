@@ -2379,6 +2379,7 @@ function V3MarkRepliedViaX(lead) {
   }, { forceMarked: true });
   const desc = JSON.stringify(merged);
   window.dispatchEvent(new CustomEvent('v4:active-mission-clear', { detail: { leadId: lead.id, channel: 'x' } }));
+  window.dispatchEvent(new CustomEvent('v3:x-reply-marked', { detail: { leadId: lead.id } }));
   const localPatch = V3ApplyXReplyState({
     ...lead,
     xRepliedViaX: true,
@@ -12361,6 +12362,48 @@ function V4TodayDealPrimaryTask(tasks) {
   return sorted[0];
 }
 
+function V4TodayHasCommercialSignal(lead) {
+  const text = [
+    lead?.brand, lead?.deliverables, lead?.notes, lead?.evidence,
+    lead?.operatorSummary?.lead_summary, lead?.nextMove?.text,
+    ...(Array.isArray(lead?.thread) ? lead.thread.flatMap(msg => [msg?.subject, msg?.body]) : []),
+  ].filter(Boolean).join(' ').toLowerCase();
+  return /\b(rate|pricing|quote|budget|paid|payment|invoice|deliverable|campaign|sponsor|sponsorship|partnership|collaboration|brief|scope of work|commercial)\b/.test(text);
+}
+
+// Today is a decision desk. A card belongs here only when the current, fresh
+// conversation proves that someone on our team has a next move. In particular,
+// an X DM we already answered must never come back as a nudge just because the
+// deal has sat in a pipeline stage for a few days.
+function V4TodayNeedsDecision(lead) {
+  if (!lead || ['trash', 'dead-leads', 'paid-out'].includes(String(lead.stage || ''))) return false;
+  if (String(lead.draftReplyStatus || '').toLowerCase() === 'human_only') return false;
+  if (V4DeskIntakeAwaitingAsherFollowup(lead)) return true;
+
+  const advancedDeal = ['rates-sent', 'negotiating', 'invoice-sent', 'done'].includes(String(lead.stage || ''));
+  if (!advancedDeal && !V4TodayHasCommercialSignal(lead)) return false;
+
+  const xOnly = V4CosIsXOnlyLead(lead);
+  if (xOnly) {
+    if (V4XLeadIsWaitingOnThem(lead)) return false;
+    if (!V3CompanyOsQualifiedLead(lead)) return false;
+    const xText = [lead.evidence, lead.notes, lead.xLastLeadMessage, lead.nextMove?.text]
+      .filter(Boolean).join(' ').toLowerCase();
+    const hasPaidSignal = /\b(rate|pricing|quote|budget|paid|payment|invoice|deliverable|campaign|sponsor|sponsorship|partnership)\b/.test(xText);
+    const looksLikeFavour = /\b(likes?|comments?|reposts?|retweets?|star on github|quick repost|share|support)\b/.test(xText);
+    if (!hasPaidSignal && looksLikeFavour) return false;
+    return V3XLeadHasUsableContext(lead)
+      && (V4XLeadNeedsDmReply(lead) || V4CosHasActionableDraft(lead));
+  }
+
+  if (V4CosIsStaleGmailLead(lead)) return false;
+  if (V4CosHasActionableDraft(lead)) return true;
+  if (lead.unread || lead.newReplyAt || lead.needsReply) return true;
+  if (lead.stage === 'invoice-sent' && (lead.followUpDue || (lead.daysInStage || 0) >= 3)) return true;
+  if (lead.stage === 'done' && String(lead.brief?.status || '').toLowerCase() === 'awaiting-approval') return true;
+  return false;
+}
+
 function V4TodayDealBlocker(lead, primaryTask) {
   if (!lead) return '';
   const exec = V4CompanyOsExecutionMeta(lead);
@@ -12405,7 +12448,7 @@ function V4TodayBuildDealCards(leads, tasks, user, opts = {}) {
   const visibleLeads = (Array.isArray(leads) ? leads : []).filter(l => {
     if (!l || l.stage === 'paid-out') return false;
     if (!window.V3.LeadVisibleToProfile(l, user)) return false;
-    return true;
+    return V4TodayNeedsDecision(l);
   });
   const tasksByLead = new Map();
   for (const task of (tasks || [])) {
@@ -12442,14 +12485,10 @@ function V4TodayBuildDealCards(leads, tasks, user, opts = {}) {
 
   for (const task of (tasks || [])) {
     if (taskFilter && !taskFilter(task)) continue;
-    if (task.lead) pushLead(task.lead);
+    if (task.lead && V4TodayNeedsDecision(task.lead)) pushLead(task.lead);
   }
   for (const lead of visibleLeads) {
-    if (taskFilter) {
-      if (['invoice-sent', 'done'].includes(lead.stage)) pushLead(lead);
-      continue;
-    }
-    if (['new', 'first-touch', 'engaged', 'rates-sent', 'negotiating', 'invoice-sent', 'done'].includes(lead.stage)) {
+    if (!taskFilter && ['new', 'first-touch', 'engaged', 'rates-sent', 'negotiating', 'invoice-sent', 'done'].includes(lead.stage)) {
       pushLead(lead);
     }
   }
@@ -12521,6 +12560,8 @@ function TodayDealCard({ card, onOpenInCompanyOs, onOpenBrief, compact }) {
   const lead = card.lead;
   if (!lead) return null;
   const payment = card.payment;
+  const displayTitle = V4CosLeadDisplayTitle(lead);
+  const displaySubtitle = V4CosLeadDisplaySubtitle(lead);
   const openDeal = () => {
     if (typeof onOpenInCompanyOs === 'function') onOpenInCompanyOs(lead.id);
     else if (typeof window.V4OpenLeadInCompanyOs === 'function') {
@@ -12537,6 +12578,7 @@ function TodayDealCard({ card, onOpenInCompanyOs, onOpenBrief, compact }) {
   return (
     <article
       className={'today-deal-card' + (compact ? ' is-compact' : '') + (card.primaryTask?.urgent ? ' is-urgent' : '')}
+      data-track="today:open_lead"
       onClick={openDeal}
       role="button"
       tabIndex={0}
@@ -12544,8 +12586,8 @@ function TodayDealCard({ card, onOpenInCompanyOs, onOpenBrief, compact }) {
     >
       <div className="today-deal-card-hd">
         <div className="today-deal-card-brand-block">
-          <h3 className="today-deal-card-brand">{lead.brand || lead.title || lead.contactName}</h3>
-          <div className="today-deal-card-contact">{lead.contactName}</div>
+          <h3 className="today-deal-card-brand">{displayTitle}</h3>
+          {displaySubtitle ? <div className="today-deal-card-contact">{displaySubtitle}</div> : null}
         </div>
         <div className="today-deal-card-badges">
           {card.value != null && (
@@ -12569,10 +12611,10 @@ function TodayDealCard({ card, onOpenInCompanyOs, onOpenBrief, compact }) {
       )}
 
       <div className="today-deal-card-ft">
-        <button type="button" className="btn btn-accent btn-sm today-deal-cta" onClick={runCta}>
+        <button type="button" className="btn btn-accent btn-sm today-deal-cta" data-track={'today:action:' + card.cta.action} onClick={runCta}>
           {card.cta.label}
         </button>
-        <button type="button" className="btn btn-ghost btn-sm today-deal-secondary" onClick={(e) => { e.stopPropagation(); openDeal(); }}>
+        <button type="button" className="btn btn-ghost btn-sm today-deal-secondary" data-track="today:open_company_os" onClick={(e) => { e.stopPropagation(); openDeal(); }}>
           Company OS →
         </button>
       </div>
@@ -12619,8 +12661,9 @@ function V4TodayView({ user, leads, onOpenLead, onGoInbox, onOpenInCompanyOs, on
   const FADE_MS = 10000;
 
   const allTasks = React.useMemo(() => deriveTasks(user, leads), [user, leads]);
-  const liveTasks = allTasks.filter(t => !completed[t.id] || (now - completed[t.id]) < FADE_MS);
-  const doneTasks = allTasks.filter(t =>  completed[t.id] && (now - completed[t.id]) >= FADE_MS);
+  const decisionTasks = React.useMemo(() => allTasks.filter(t => V4TodayNeedsDecision(t.lead)), [allTasks]);
+  const liveTasks = decisionTasks.filter(t => !completed[t.id] || (now - completed[t.id]) < FADE_MS);
+  const doneTasks = decisionTasks.filter(t =>  completed[t.id] && (now - completed[t.id]) >= FADE_MS);
   const buckets   = bucketTasks(liveTasks);
 
   const toggleComplete = (task) => {
@@ -12667,7 +12710,7 @@ function V4TodayView({ user, leads, onOpenLead, onGoInbox, onOpenInCompanyOs, on
   const ACTIVE_STAGES = ['new','first-touch','engaged','rates-sent','negotiating','invoice-sent'];
   const stuckLeads = React.useMemo(() =>
     leads
-      .filter(l => ACTIVE_STAGES.includes(l.stage) && l.daysInStage >= STUCK_DAYS)
+      .filter(l => ACTIVE_STAGES.includes(l.stage) && l.daysInStage >= STUCK_DAYS && V4TodayNeedsDecision(l))
       .sort((a, b) => b.daysInStage - a.daysInStage),
     [leads]
   );
@@ -12746,6 +12789,7 @@ function TodayTab({ id, label, count, tab, setTab, tone }) {
   const active = tab === id;
   return (
     <button className={'today-tab' + (active ? ' is-active' : '') + (tone ? ' today-tab-' + tone : '')}
+            data-track={'today:tab:' + id}
             onClick={() => setTab(id)}>
       <span className="today-tab-lbl">{label}</span>
       <span className="today-tab-cnt">{count}</span>
@@ -14750,13 +14794,23 @@ function V4CompanyOsPhaseTag(lead) {
 }
 
 function V4XLeadNeedsDmReply(lead) {
-  if (!V3IsXLeadRecord(lead)) return false;
+  if (V4CompanyOsLeadSourceChannel(lead) !== 'x') return false;
   if (V3LeadExternalEmail(lead)) return false;
+  if (V4XLeadIsWaitingOnThem(lead)) return false;
   const state = V3InferXReplyState(lead);
   if (state.needsXReply) return true;
   const nextStep = String(lead?.xBestNextStep || lead?.nextMove?.text || '').toLowerCase();
   if (nextStep.includes('reply in x') || nextStep.includes('review thread')) return true;
   return false;
+}
+
+function V4XLeadIsWaitingOnThem(lead) {
+  if (!lead || V4CompanyOsLeadSourceChannel(lead) !== 'x') return false;
+  const state = V3InferXReplyState(lead);
+  if (state.repliedViaX && !state.needsXReply) return true;
+  const status = [lead?.xCurrentStatus, lead?.xBestNextStep, lead?.nextMove?.text]
+    .filter(Boolean).join(' ').toLowerCase();
+  return /replied via x.*waiting|waiting on .*\bthem\b|wait\s*[-–]\s*robert was last|robert was last/.test(status);
 }
 
 const V4_X_DM_DRAFT_CACHE = new Map();
@@ -17746,8 +17800,22 @@ function V4CosIsTravelLead(lead) {
   return V4LeadIsTravelLead(lead) && !['trash', 'dead-leads', 'paid-out'].includes(lead?.stage);
 }
 
+function V4CosIsXOnlyLead(lead) {
+  return V4CompanyOsLeadSourceChannel(lead) === 'x' && !V3LeadExternalEmail(lead);
+}
+
+function V4CosIsWaitingLead(lead) {
+  if (!lead || ['trash', 'dead-leads', 'paid-out', 'done'].includes(String(lead.stage || ''))) return false;
+  if (!V4CosIsXOnlyLead(lead)) return false;
+  return V4XLeadIsWaitingOnThem(lead);
+}
+
 function V4CosIsSendLead(lead) {
   if (!lead) return false;
+  // Some older X rows retain a draft after it was sent. The confirmed reply
+  // state wins: that conversation belongs in Waiting, never Send.
+  if (V4CosIsXOnlyLead(lead) && V4XLeadIsWaitingOnThem(lead)) return false;
+  if (V4CosIsWaitingLead(lead)) return false;
   if (V4CosIsStaleGmailLead(lead)) return false;
   if (V4DeskIntakeAwaitingAsherFollowup(lead)) return true;
   if (V4IsDeskIntakeLead(lead)) {
@@ -17761,27 +17829,27 @@ function V4CosIsSendLead(lead) {
   if (lead.draftReply?.body && (lead.unread || lead.needsReply)) return true;
   if ((lead.unread || lead.needsReply || lead.newReplyAt) && ['invoice-sent', 'negotiating', 'engaged', 'rates-sent', 'first-touch'].includes(lead.stage)) return true;
   if ((lead.unread || lead.needsReply) && lead.nextMove?.who) return true;
-  if (V3IsXLeadRecord(lead) && V3XLeadRepliedViaX(lead) && !V3InferXReplyState(lead).needsXReply) return true;
   return false;
 }
 
 function V4CosIsChaseLead(lead) {
   if (!lead) return false;
+  if (V4CosIsWaitingLead(lead)) return false;
   if (V4CosIsStaleGmailLead(lead)) return true;
   if (V4DeskIntakeAwaitingLeadReply(lead) && !V4CosActiveLeadNeedsYou(lead)) return false;
   if (window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(lead)) return false;
   if (V4CosIsSendLead(lead)) return false;
   if (lead.followUpDue) return true;
   if (String(lead.briefStatus || '').toLowerCase().replace(/_/g, '-') === 'awaiting-robert') return true;
-  if (['rates-sent', 'negotiating', 'invoice-sent', 'first-touch', 'engaged'].includes(lead.stage)) return true;
-  if (lead.stage === 'done') return true;
+  if (lead.stage === 'invoice-sent' && (lead.daysInStage || 0) >= 3) return true;
+  if (String(lead.dealAwaiting || '').toLowerCase() === 'them' && (lead.daysInStage || 0) >= 4) return true;
   return false;
 }
 
 function V4CosIsWatchLead(lead) {
   if (!lead) return false;
   if (window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(lead)) return false;
-  if (V4CosIsSendLead(lead) || V4CosIsChaseLead(lead)) return false;
+  if (V4CosIsSendLead(lead) || V4CosIsWaitingLead(lead) || V4CosIsChaseLead(lead)) return false;
   if (['done', 'paid-out'].includes(lead.stage)) return false;
   return true;
 }
@@ -17860,7 +17928,7 @@ function V4CosDedupeActiveGmailByThread(leads = []) {
 }
 
 function V4CosIsStaleGmailLead(lead) {
-  if (!lead || V3IsXLeadRecord(lead) || V4IsDeskIntakeLead(lead)) return false;
+  if (!lead || V4CompanyOsLeadSourceChannel(lead) === 'x' || V4IsDeskIntakeLead(lead)) return false;
   if (['done', 'paid-out', 'trash', 'dead-leads'].includes(String(lead.stage || ''))) return false;
   if (V4DeskIntakeAwaitingAsherFollowup(lead)) return false;
   return !V4CosGmailInActiveWindow(lead);
@@ -18051,6 +18119,7 @@ function V4CosBuildSendQueueSections(items = []) {
 function V4CosActiveLeadQueueId(lead) {
   if (V4CosIsTravelLead(lead)) return 'travel';
   if (V4CosIsSendLead(lead)) return 'send';
+  if (V4CosIsWaitingLead(lead)) return 'waiting';
   if (V4CosIsChaseLead(lead)) return 'chase';
   return 'watch';
 }
@@ -20005,6 +20074,7 @@ function V4CosActiveMissionBoard({ snapshot, collapsed, onToggle }) {
 function V4CosQueueActionLabel(lead, queueId) {
   if (window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(lead)) return 'Triage';
   if (queueId === 'travel') return lead?.needsReply ? 'Reply' : 'Pursue';
+  if (queueId === 'waiting') return 'Waiting';
   if (queueId === 'send') {
     if (V4DeskIntakeAwaitingAsherFollowup(lead)) return 'Send';
     if (String(lead.draftReplyStatus || '').toLowerCase() === 'review') return 'Review';
@@ -20035,6 +20105,7 @@ function V4QueueRow({ lead, queueId, isCurrent, onClick, style }) {
     <button
       type="button"
       className={'cos-queue-row' + (isCurrent ? ' is-current' : '') + (isIntake ? ' is-intake' : '') + (needsDm ? ' is-x-dm' : '') + (isTravel ? ' is-travel' : '')}
+      data-track={'company_os:open_lead:' + queueId}
       style={style}
       onClick={onClick}
     >
@@ -20078,6 +20149,7 @@ function V6ListRow({ lead, title, isCurrent, onClick, style }) {
     <button
       type="button"
       className={`v6-row${isCurrent ? ' cur' : ''}${badge ? ' has-badge' : ''}`}
+      data-track="company_os:open_lead:more"
       style={style}
       onClick={onClick}
       title={ageTitle || undefined}
@@ -22200,6 +22272,12 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
     return V4SortActionLeads(a, b);
   });
   const sendQueue = [...freshIntake, ...sendItems, ...staleIntake];
+  const waitingItems = activeItems.filter(l => !V4CosIsTravelLead(l) && V4CosIsWaitingLead(l)).sort((a, b) => {
+    const ageA = V4CosConversationTouchAt(a) || 0;
+    const ageB = V4CosConversationTouchAt(b) || 0;
+    if (ageA !== ageB) return ageB - ageA;
+    return byRecent(a, b);
+  });
   const chaseItems = activeItems.filter(l => !V4CosIsTravelLead(l) && V4CosIsChaseLead(l)).sort((a, b) => {
     const staleDelta = (V4CosIsStaleGmailLead(b) ? 1 : 0) - (V4CosIsStaleGmailLead(a) ? 1 : 0);
     if (staleDelta) return staleDelta;
@@ -22214,9 +22292,10 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
 
   const splits = [
     { id: 'send', label: 'Send', hint: 'Drafts to approve, replies owed, new intake', queue: true, hot: sendQueue.length > 0, items: sendQueue },
-    { id: 'chase', label: 'Chase', hint: 'Older than 3 days · follow-ups · negotiating · payment', queue: true, hot: chaseItems.length > 0, items: chaseItems },
-    { id: 'watch', label: 'Watch', hint: 'Nothing urgent from our side right now', queue: true, items: watchItems },
+    { id: 'waiting', label: 'Waiting', hint: 'We replied on X. The other side owes the next move.', queue: true, items: waitingItems },
+    { id: 'chase', label: 'Chase', hint: 'Follow-ups that are actually due, payment, and stale Gmail threads', queue: true, hot: chaseItems.length > 0, items: chaseItems },
     { id: 'travel', label: 'Travel', hint: 'Sponsored trips, factory visits, on-site events — highest value', queue: true, hot: travelItems.length > 0, items: travelItems },
+    { id: 'watch', label: 'Watch', section: 'More', hint: 'Nothing urgent from our side right now', items: watchItems },
     { id: 'snoozed', label: 'Snoozed', section: 'More', items: liveAll.filter(isSnoozed).sort((a, b) => Date.parse(snoozes[a.id]) - Date.parse(snoozes[b.id])) },
     { id: 'closed', label: 'Done and paid', section: 'More', items: closedItems },
     { id: 'trash', label: 'Trash', section: 'More', trash: true, items: base.filter(l => ['trash', 'dead-leads'].includes(l.stage)).sort(byRecent) },
@@ -22579,11 +22658,11 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
 
   // Source-tab badges (All / X / Gmail) reflect the CURRENT queue, not a static
   // network total. Counting the live queue membership on a source-unfiltered
-  // base means marking a lead replied (which drops it from Send) decrements the
-  // badge — the whole point of the count. Non-queue splits keep an active total.
+  // base keeps waiting-on-them conversations in their own truthful bucket.
+  // Non-queue splits keep an active total.
   const sourceCounts = React.useMemo(() => {
     const activeUnfiltered = cosBase.filter(l => !['trash', 'dead-leads'].includes(l.stage));
-    const isQueueSplit = ['send', 'chase', 'watch', 'travel'].includes(split.id);
+    const isQueueSplit = ['send', 'waiting', 'chase', 'travel'].includes(split.id);
     const inQueue = (l) => {
       if (!isQueueSplit) return true;
       if (isSnoozed(l)) return false;
@@ -22592,6 +22671,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
       const done = ['done', 'paid-out'].includes(l.stage);
       if (split.id === 'travel') return travel;
       if (split.id === 'send') return !travel && (isIntake || (!done && V4CosIsSendLead(l)));
+      if (split.id === 'waiting') return !travel && !isIntake && !done && V4CosIsWaitingLead(l);
       if (split.id === 'chase') return !travel && !isIntake && !done && V4CosIsChaseLead(l);
       if (split.id === 'watch') return !travel && !isIntake && !done && V4CosIsWatchLead(l);
       return true;
@@ -22829,8 +22909,9 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
   const queueHints = {
     travel: 'Travel and on-site opportunities.',
     send: 'Drafts and replies to send.',
-    chase: 'Follow ups, payment, and briefs.',
-    watch: 'Waiting on them for now.',
+    waiting: 'We already replied. The other side owes the next move.',
+    chase: 'Follow ups that are actually due, payment, and stale Gmail threads.',
+    watch: 'Nothing urgent from our side right now.',
   };
 
   const splitCountLabel = (s) => {
@@ -22946,6 +23027,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
         <button
           type="button"
           className={'cos-refresh-btn cos2-refresh' + (syncStatus === 'syncing' ? ' is-syncing' : '') + (syncStatus === 'error' ? ' is-error' : '')}
+          data-track="company_os:sync_gmail"
           onClick={refreshFromGmail}
           disabled={syncStatus === 'syncing' || purgeStatus === 'running'}
           title="Sync all Gmail changes (every lead). Shift+click for full refresh."
@@ -22975,6 +23057,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
                           key={q.id}
                           type="button"
                           className={'cos-queue-pill' + (split.id === q.id ? ' is-active' : '') + (q.hot ? ' is-hot' : '')}
+                          data-track={'company_os:queue:' + q.id}
                           onClick={() => pickSplit(q.id)}
                           title={queueHints[q.id] || q.hint}
                         >
@@ -23033,6 +23116,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
                         role="tab"
                         aria-selected={sourceFilter === tab.id}
                         className={'cos-source-seg-btn' + (sourceFilter === tab.id ? ' is-active' : '') + (tab.id === 'x' ? ' is-x' : '') + (tab.id === 'gmail' ? ' is-gmail' : '')}
+                        data-track={'company_os:source:' + tab.id}
                         onClick={() => setSourceFilter(tab.id)}
                         title={`${tab.label} leads (${cnt})`}
                       >
@@ -24039,9 +24123,8 @@ function V4Onboarding({ view }) {
 }
 
 // ---- UI usage telemetry ----------------------------------------------------
-// Every button/tab/link click lands in Supabase `ui_events` (label + pane).
-// After a couple of weeks the click counts tell us which actions deserve the
-// top of the page. Fails silent + disables itself if the table doesn't exist.
+// Product telemetry is deliberately semantic. We retain flows and outcomes,
+// never a lead name, email address, or the raw text of a client conversation.
 const V4Telemetry = (() => {
   let queue = [];
   let timer = null;
@@ -24085,10 +24168,8 @@ function V4WireClickTelemetry(getPane) {
     try {
       const el = ev.target?.closest?.('button, [role="button"], a, [data-track]');
       if (!el) return;
-      const label = el.getAttribute('data-track')
-        || el.getAttribute('aria-label')
-        || el.title
-        || (el.textContent || '');
+      const label = el.getAttribute('data-track');
+      if (!label) return;
       V4Telemetry.record(label, typeof getPane === 'function' ? getPane() : '');
     } catch (e) {}
   }, true);
@@ -24109,6 +24190,16 @@ function V4App() {
   }, [view]);
   React.useEffect(() => {
     V4WireClickTelemetry(() => telemetryViewRef.current);
+  }, []);
+  React.useEffect(() => {
+    const recordEmailSent = () => V4Telemetry.record('outcome:email_sent', 'company-os');
+    const recordXReplyMarked = () => V4Telemetry.record('outcome:x_reply_marked', 'company-os');
+    window.addEventListener('v3:email-sent', recordEmailSent);
+    window.addEventListener('v3:x-reply-marked', recordXReplyMarked);
+    return () => {
+      window.removeEventListener('v3:email-sent', recordEmailSent);
+      window.removeEventListener('v3:x-reply-marked', recordXReplyMarked);
+    };
   }, []);
   const [briefId, setBriefId] = React.useState(null);
   const [leads, setLeads] = React.useState(() => V3ActiveLeads());
