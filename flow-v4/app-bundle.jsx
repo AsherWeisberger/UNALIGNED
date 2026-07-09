@@ -22257,7 +22257,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
   const refreshFromGmail = React.useCallback(async (opts = {}) => {
     if (gmailDeltaRef.current.running) return;
     const quiet = !!opts.quiet;
-    const minGap = quiet ? 300000 : 0;
+    const minGap = quiet ? 900000 : 0;
     const now = Date.now();
     if (now < (gmailDeltaRef.current.blockedUntil || 0)) return;
     if (minGap && now - gmailDeltaRef.current.last < minGap) return;
@@ -22343,7 +22343,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
       if (document.visibilityState === 'visible') refreshFromGmail({ quiet: true });
     };
     const first = window.setTimeout(tick, 2500);
-    const interval = window.setInterval(tick, 300000);
+    const interval = window.setInterval(tick, 900000);
     const onFocus = () => tick();
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', tick);
