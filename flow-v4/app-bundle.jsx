@@ -1186,22 +1186,27 @@ function V3UseLeadDetailHydration(lead) {
   React.useEffect(() => {
     if (!lead?.id) return;
     const hasThread = Array.isArray(lead.thread) && lead.thread.length > 0;
-    if (lead._detailHydrated && hasThread) return;
+    const needsGmailPull = typeof V4LeadNeedsGmailRefresh === 'function' && V4LeadNeedsGmailRefresh(lead);
+    if (lead._detailHydrated && hasThread && !needsGmailPull) return;
     if (!lead.gmailThreadId && !lead.email) return;
     let cancelled = false;
-    V3HydrateLeadDetail(lead)
-      .then((hydrated) => {
-        if (cancelled || !hydrated) return;
-        const threadEmpty = !Array.isArray(hydrated.thread) || !hydrated.thread.length;
-        if (!threadEmpty || !hydrated.gmailThreadId) return;
-        if (typeof V4RefreshLeadFromGmail !== 'function') return;
-        V4RefreshLeadFromGmail(hydrated).catch(() => {});
-      })
-      .catch(err => {
-        if (!cancelled) console.warn('[ALIGNED v4] lead detail hydrate failed:', err);
-      });
+    const pullIfStale = (hydrated) => {
+      if (cancelled || !hydrated) return;
+      if (typeof V4MaybePullLeadFromGmail === 'function') {
+        V4MaybePullLeadFromGmail(hydrated).catch(() => {});
+      }
+    };
+    if (!lead._detailHydrated || needsGmailPull) {
+      V3HydrateLeadDetail(lead)
+        .then(pullIfStale)
+        .catch(err => {
+          if (!cancelled) console.warn('[ALIGNED v4] lead detail hydrate failed:', err);
+        });
+    } else {
+      pullIfStale(lead);
+    }
     return () => { cancelled = true; };
-  }, [lead?.id, lead?._detailHydrated, lead?.gmailThreadId, lead?.email]);
+  }, [lead?.id, lead?._detailHydrated, lead?.gmailThreadId, lead?.email, lead?.thread?.length, lead?.lastTouchAt]);
 }
 
 const V3_BOARD_CACHE_KEY = 'v3-board-leads-cache-v1';
@@ -21116,18 +21121,28 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
   React.useEffect(() => { setTab('thread'); }, [lead?.id]);
   V3UseLeadDetailHydration(lead);
   React.useEffect(() => {
-    if (!lead?.id) return undefined;
-    const threadEmpty = !Array.isArray(lead.thread) || lead.thread.length === 0;
-    if (!threadEmpty) return undefined;
+    if (!lead?.id || V3IsXLeadRecord(lead)) return undefined;
     if (!lead.gmailThreadId && !lead.email) return undefined;
-    if (V3IsXLeadRecord(lead)) return undefined;
+    if (typeof V4LeadNeedsGmailRefresh !== 'function' || !V4LeadNeedsGmailRefresh(lead)) return undefined;
     let cancelled = false;
-    setThreadSync({ status: 'syncing', note: 'Pulling thread from Gmail…' });
-    V4RefreshLeadFromGmail(lead)
-      .then(() => { if (!cancelled) setThreadSync({ status: 'ok', note: 'Thread synced from Gmail.' }); })
-      .catch((err) => { if (!cancelled) setThreadSync({ status: 'error', note: err?.message || 'Could not sync thread.' }); });
+    setThreadSync({ status: 'syncing', note: 'Pulling latest from Gmail…' });
+    const pull = typeof V4MaybePullLeadFromGmail === 'function'
+      ? V4MaybePullLeadFromGmail(lead)
+      : V4RefreshLeadFromGmail(lead);
+    Promise.resolve(pull)
+      .then((result) => {
+        if (cancelled) return;
+        if (result === null) {
+          setThreadSync({ status: 'idle', note: '' });
+          return;
+        }
+        setThreadSync({ status: 'ok', note: 'Thread synced from Gmail.' });
+      })
+      .catch((err) => {
+        if (!cancelled) setThreadSync({ status: 'error', note: err?.message || 'Could not sync thread.' });
+      });
     return () => { cancelled = true; };
-  }, [lead?.id]);
+  }, [lead?.id, lead?.thread?.length, lead?.lastTouchAt]);
   React.useEffect(() => {
     setQuickSend({ status: '', error: '' });
     setXDmReplyOpen(false);
@@ -22752,6 +22767,31 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
 }
 
 window.V4CompanyOsView = V4CompanyOsView;
+
+const V4_GMAIL_PULL_COOLDOWN_MS = 10 * 60 * 1000;
+const V4_GMAIL_STALE_MS = 2 * 60 * 60 * 1000;
+const V4_gmailPullCooldown = new Map();
+
+function V4LeadNeedsGmailRefresh(lead, maxAgeMs = V4_GMAIL_STALE_MS) {
+  if (!lead || V3IsXLeadRecord(lead)) return false;
+  if (!lead.gmailThreadId && !lead.email) return false;
+  const thread = Array.isArray(lead.thread) ? lead.thread : [];
+  if (!thread.length) return true;
+  const latest = V3LeadActivityTimestamp(lead);
+  if (!latest) return true;
+  return (Date.now() - latest) > maxAgeMs;
+}
+
+function V4MaybePullLeadFromGmail(lead, opts = {}) {
+  const cardId = String(lead?.id || '');
+  if (!cardId || typeof V4RefreshLeadFromGmail !== 'function') return Promise.resolve(null);
+  if (!V4LeadNeedsGmailRefresh(lead, opts.maxAgeMs)) return Promise.resolve(null);
+  const last = V4_gmailPullCooldown.get(cardId) || 0;
+  if (!opts.force && Date.now() - last < V4_GMAIL_PULL_COOLDOWN_MS) return Promise.resolve(null);
+  V4_gmailPullCooldown.set(cardId, Date.now());
+  return V4RefreshLeadFromGmail(lead);
+}
+
 function V4LeadThreadFreshness(lead) {
   if (!lead) return { stale: false, label: '', touch: '' };
   if (V3IsXLeadRecord(lead)) {
@@ -22763,11 +22803,12 @@ function V4LeadThreadFreshness(lead) {
   const ts = V3LeadActivityTimestamp(lead);
   if (!ts) return { stale: true, label: 'No Gmail thread synced yet', touch: '' };
   const touch = lead.lastTouch || V3RelativeTime(new Date(ts).toISOString());
+  const fullTouch = V3GmailTime.full(new Date(ts).toISOString()) || touch;
   const ageMs = Date.now() - ts;
-  if (ageMs > 48 * 60 * 60 * 1000) {
-    return { stale: true, label: `Thread may be stale · last activity ${touch}`, touch };
+  if (ageMs > V4_GMAIL_STALE_MS) {
+    return { stale: true, label: `Thread stale · last message ${fullTouch}`, touch };
   }
-  return { stale: false, label: `Updated ${touch}`, touch };
+  return { stale: false, label: `Updated ${fullTouch}`, touch };
 }
 
 async function V4RefreshLeadFromX(lead) {
@@ -23670,6 +23711,28 @@ function V4App() {
   React.useEffect(() => {
     V3BootstrapApiToken().catch(() => {});
   }, []);
+
+  React.useEffect(() => {
+    if (view !== 'company-os' || typeof V4BriefServiceFetch !== 'function') return undefined;
+    const runDelta = () => {
+      const last = Number(window.__v4LastCosDeltaSync || 0);
+      if (Date.now() - last < 20 * 60 * 1000) return;
+      window.__v4LastCosDeltaSync = Date.now();
+      V4BriefServiceFetch('/refresh-dashboard', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      })
+        .then(res => res.json().catch(() => ({})))
+        .then(data => {
+          if (data?.gmail_delta?.rate_limited) return null;
+          return V3ReloadLeads({ quiet: true, cacheBust: Date.now() });
+        })
+        .catch(() => {});
+    };
+    runDelta();
+    const id = window.setInterval(runDelta, 20 * 60 * 1000);
+    return () => window.clearInterval(id);
+  }, [view]);
 
   React.useEffect(() => {
     if (view === 'company-os') return undefined;
