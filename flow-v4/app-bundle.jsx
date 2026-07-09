@@ -2538,8 +2538,9 @@ function V3NormalizeSupabaseLead(row) {
   const deskWaiting = (briefPayload?.type === 'connect_form_intake' || String(row.lead_source || '').toLowerCase() === 'connect-form')
     && Boolean(briefPayload?.robert_handoff_sent_at || briefPayload?.asher_followup_sent_at)
     && !row.new_reply_at;
-  let needsReply = Boolean(row.new_reply_at) || (pendingDraft && !teamRepliedLast && !deskWaiting) || stage === 'new' || followUpDue;
-  if (deskWaiting) needsReply = Boolean(row.new_reply_at);
+  let needsReply = Boolean(row.needs_reply) || Boolean(row.new_reply_at)
+    || (pendingDraft && !teamRepliedLast && !deskWaiting) || stage === 'new' || followUpDue;
+  if (deskWaiting) needsReply = Boolean(row.needs_reply) || Boolean(row.new_reply_at);
   const ownerId = V3NormalizeOwner(row.assignee || row.created_by);
   const value = V3ParseMoney(row.estimated_value);
   const category = V3CategoryFromRow(row);
@@ -17787,7 +17788,7 @@ function V4CosIsWatchLead(lead) {
 
 const V4_COS_ACTIVE_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
 const V4_COS_ACTIVE_MAX = 12;
-const V4_COS_ACTIVE_MAX_PER_CHANNEL = 10;
+const V4_COS_ACTIVE_MAX_PER_CHANNEL = 12;
 const V4_COS_GMAIL_NEGOTIATION_STAGES = ['negotiating', 'invoice-sent'];
 const V4_COS_GMAIL_CONVERSATION_STAGES = ['engaged', 'first-touch', 'rates-sent'];
 const V4_COS_FRESH_INTAKE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -17818,6 +17819,44 @@ function V4CosGmailActivityTouchAt(lead) {
 function V4CosGmailInActiveWindow(lead, windowMs = V4_COS_ACTIVE_WINDOW_MS) {
   const ts = V4CosGmailActivityTouchAt(lead);
   return !!(ts && (Date.now() - ts) <= windowMs);
+}
+
+/** Sort/rank only — includes lastTouchAt so outbound replies bubble up before thread hydrates. */
+function V4CosGmailSortTouchAt(lead) {
+  if (!lead) return 0;
+  const thread = Array.isArray(lead?.thread) ? lead.thread : [];
+  let latestAny = 0;
+  for (const msg of thread) {
+    latestAny = Math.max(latestAny, V3TimestampForUi(msg?.date || msg?.dateIso || msg?.timestamp || msg?.when));
+  }
+  return Math.max(
+    V4CosGmailActivityTouchAt(lead),
+    latestAny,
+    V3TimestampForUi(lead.lastTouchAt),
+    V3LeadActivityTimestamp(lead)
+  );
+}
+
+function V4CosDedupeActiveGmailByThread(leads = []) {
+  const picked = new Map();
+  const loose = [];
+  for (const lead of leads) {
+    const tid = String(lead?.gmailThreadId || '').trim();
+    if (!tid) { loose.push(lead); continue; }
+    const prev = picked.get(tid);
+    if (!prev) { picked.set(tid, lead); continue; }
+    const score = (l) => [
+      V4CosGmailSortTouchAt(l),
+      V4CosActiveLeadNeedsYou(l) ? 1 : 0,
+      V4CosHasActionableDraft(l) ? 1 : 0,
+    ];
+    const a = score(lead);
+    const b = score(prev);
+    if (a[0] > b[0] || (a[0] === b[0] && a[1] > b[1]) || (a[0] === b[0] && a[1] === b[1] && a[2] > b[2])) {
+      picked.set(tid, lead);
+    }
+  }
+  return [...picked.values(), ...loose];
 }
 
 function V4CosIsStaleGmailLead(lead) {
@@ -17893,6 +17932,11 @@ function V4CosIsActiveGmailConversation(lead) {
 
   if (lead.unread || lead.newReplyAt || lead.needsReply) return true;
   if (recentMsgs >= 1) return true;
+  // List fetch omits email_thread — keep Gmail-linked cards with fresh inbound visible.
+  if (lead.gmailThreadId) {
+    const inboundTs = V3TimestampForUi(lead.lastInboundAt);
+    if (inboundTs && (Date.now() - inboundTs) <= V4_COS_ACTIVE_WINDOW_MS) return true;
+  }
   return false;
 }
 
@@ -17946,7 +17990,9 @@ function V4CosMarkActiveGmailCleared(lead) {
 }
 
 function V4CosSortActiveLeads(a, b) {
-  const touchDelta = V4CosConversationTouchAt(b) - V4CosConversationTouchAt(a);
+  const touchA = V4CosIsGmailLeadForActive(a) ? V4CosGmailSortTouchAt(a) : V4CosConversationTouchAt(a);
+  const touchB = V4CosIsGmailLeadForActive(b) ? V4CosGmailSortTouchAt(b) : V4CosConversationTouchAt(b);
+  const touchDelta = touchB - touchA;
   if (touchDelta) return touchDelta;
   const asherDelta = (V4DeskIntakeAwaitingAsherFollowup(b) ? 1 : 0) - (V4DeskIntakeAwaitingAsherFollowup(a) ? 1 : 0);
   if (asherDelta) return asherDelta;
@@ -22447,9 +22493,9 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
     try { window.localStorage.setItem('cos-active-x-collapsed', activeXCollapsed ? '1' : '0'); } catch (e) {}
   }, [activeXCollapsed]);
 
-  const activeGmailLeads = React.useMemo(() => activeItems
+  const activeGmailLeads = React.useMemo(() => V4CosDedupeActiveGmailByThread(activeItems
     .filter(V4CosIsActiveGmailConversation)
-    .sort(V4CosSortActiveLeads)
+    .sort(V4CosSortActiveLeads))
     .slice(0, V4_COS_ACTIVE_MAX_PER_CHANNEL), [activeItems]);
   const activeXLeads = React.useMemo(() => activeItems
     .filter(V4CosIsActiveXConversation)
