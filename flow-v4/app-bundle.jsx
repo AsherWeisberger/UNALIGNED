@@ -17830,6 +17830,10 @@ function V4CosIsActiveGmailConversation(lead) {
   if (!lead || !V4CosIsGmailLeadForActive(lead)) return false;
   if (V4CosIsClosedForActive(lead)) return false;
 
+  if (String(lead.dealState || '').toLowerCase() === 'returning_collab' && (lead.unread || lead.newReplyAt || lead.needsReply)) {
+    return true;
+  }
+
   if (V4DeskIntakeActiveMission(lead)) return true;
 
   if (V4_COS_GMAIL_NEGOTIATION_STAGES.includes(lead.stage)) return true;
@@ -17983,6 +17987,9 @@ function V4CosActiveLeadStatus(lead) {
   if (V4DeskIntakeAwaitingAsherFollowup(lead)) return { label: 'Send pricing', tone: 'hot' };
   if (V4DeskIntakeAwaitingLeadReply(lead) && !(lead.unread || lead.newReplyAt || lead.needsReply)) {
     return { label: 'Waiting', tone: 'live' };
+  }
+  if (String(lead.dealState || '').toLowerCase() === 'returning_collab' && (lead.unread || lead.newReplyAt || lead.needsReply)) {
+    return { label: 'Returning collab', tone: 'hot' };
   }
   if (lead.unread || lead.newReplyAt) return { label: 'New reply', tone: 'hot' };
   if (V4_COS_GMAIL_NEGOTIATION_STAGES.includes(lead.stage)) return { label: 'Negotiating', tone: 'live' };
@@ -22299,15 +22306,39 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
       }
       const patched = Number(data.cards_updated ?? data.threads_patched ?? 0);
       const refreshed = Number(data.active_threads_refreshed || 0);
+      const closedRefreshed = Number(data.closed_threads_refreshed || 0);
       const created = Number(data.new_cards_written || 0);
       const operatorQueued = !!data.operator_queued;
-      const boardChanged = patched > 0 || refreshed > 0 || created > 0 || operatorQueued || !!data.checkpoint_expired;
+      const resurfacedItems = Array.isArray(data.resurfaced)
+        ? data.resurfaced
+        : (Array.isArray(data.updated) ? data.updated.filter((item) => item?.resurfaced) : []);
+      const boardChanged = patched > 0 || refreshed > 0 || closedRefreshed > 0 || created > 0
+        || operatorQueued || !!data.checkpoint_expired || resurfacedItems.length > 0;
       if (boardChanged && window.V3?.ReloadLeads) await window.V3.ReloadLeads({ quiet: true });
+      if (resurfacedItems.length) {
+        const names = resurfacedItems
+          .map((item) => String(item.business || item.title || item.id || '').trim())
+          .filter(Boolean)
+          .slice(0, 3);
+        const label = names.length
+          ? ('Returning collab: ' + names.join(', ') + (resurfacedItems.length > names.length ? (' +' + (resurfacedItems.length - names.length) + ' more') : ''))
+          : ('Returning collab: ' + resurfacedItems.length + ' old chain' + (resurfacedItems.length === 1 ? '' : 's'));
+        setActiveGmailCollapsed(false);
+        try {
+          window.localStorage.setItem('cos-active-gmail-collapsed', '0');
+          window.sessionStorage.setItem('cos-active-gmail-collapsed', '0');
+          window.sessionStorage.setItem('cos-queue', 'send');
+        } catch (e) {}
+        window.dispatchEvent(new CustomEvent('v4:toast', { detail: { message: label, tone: 'hot' } }));
+        window.dispatchEvent(new CustomEvent('v4:returning-collab', { detail: { items: resurfacedItems } }));
+      }
       if (!quiet || boardChanged) {
         const parts = [];
         if (created) parts.push(created + ' new');
         if (patched) parts.push(patched + ' updated');
         if (refreshed) parts.push(refreshed + ' refreshed');
+        if (closedRefreshed) parts.push(closedRefreshed + ' closed checked');
+        if (resurfacedItems.length) parts.push(resurfacedItems.length + ' returning collab');
         if (operatorQueued) parts.push('operator drafting');
         setSyncNote(
           parts.length

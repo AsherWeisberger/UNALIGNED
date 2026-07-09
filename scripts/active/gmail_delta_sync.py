@@ -57,12 +57,13 @@ TEAM_SENDERS = (
 )
 INACTIVE_STAGES = {"done", "paid-out", "trash", "dead-leads"}
 CLOSED_RESURFACE_STAGES = frozenset({"paid-out", "done"})
-RESURFACE_STAGE = "invoice-sent"
+RESURFACE_STAGE_DONE = "engaged"
+RESURFACE_STAGE_PAID = "invoice-sent"
 NEVER_TOUCH_STAGES = frozenset({"trash", "dead-leads"})
 ACTIVE_REFRESH_STAGES = frozenset({"negotiating", "invoice-sent", "engaged", "first-touch", "rates-sent"})
 STALE_THREAD_SEC = int(os.environ.get("GMAIL_DELTA_STALE_THREAD_SEC", str(36 * 3600)))
 MAX_ACTIVE_THREAD_REFRESH = int(os.environ.get("GMAIL_DELTA_ACTIVE_REFRESH_LIMIT", "3"))
-MAX_CLOSED_THREAD_REFRESH = int(os.environ.get("GMAIL_DELTA_CLOSED_REFRESH_LIMIT", "5"))
+MAX_CLOSED_THREAD_REFRESH = int(os.environ.get("GMAIL_DELTA_CLOSED_REFRESH_LIMIT", "8"))
 MAX_HEAL_PER_RUN = int(os.environ.get("GMAIL_DELTA_HEAL_LIMIT", "5"))
 MAX_HEAL_PROBE_PER_RUN = int(os.environ.get("GMAIL_DELTA_HEAL_PROBE_LIMIT", "40"))
 LEGACY_RATE_LIMIT_FILE = Path(os.environ.get("GMAIL_RATE_LIMIT_FILE", str(STATE_DIR / "gmail_api_rate_limit.json")))
@@ -464,7 +465,26 @@ def inbound_needs_reply(msg: dict[str, Any]) -> bool:
         r"\blooks good\b.*\bthank",
         r"\bthank you\b.*\bposted\b",
     )
-    return not any(re.search(pattern, text) for pattern in no_reply_patterns)
+    if any(re.search(pattern, text) for pattern in no_reply_patterns):
+        return False
+    returning_collab_patterns = (
+        r"\b(new|another|next|future)\s+(collab|collaboration|partnership|campaign|project)\b",
+        r"\b(collab|collaborate|partnership|sponsor(?:ship)?|work together)\b",
+        r"\b(interested in|would love to|want to|keen to)\b.*\b(collab|partner|post|campaign|work)\b",
+        r"\breach(?:ing)? out again\b",
+        r"\bfollow(?:ing)? up\b.*\b(collab|campaign|project|partnership)\b",
+        r"\bany update\b",
+        r"\bcan you send\b.*\b(invoice|pricing|rates?|quote)\b",
+    )
+    if any(re.search(pattern, text) for pattern in returning_collab_patterns):
+        return True
+    return True
+
+
+def resurface_stage_for_card(list_id: str) -> str:
+    if list_id == "paid-out":
+        return RESURFACE_STAGE_PAID
+    return RESURFACE_STAGE_DONE
 
 
 def normalize_thread_list(raw: Any) -> list[dict[str, Any]]:
@@ -521,12 +541,20 @@ def build_card_thread_patch(
         return payload, meta
 
     if fresh_inbound_tail(existing, merged):
-        payload["new_reply_at"] = last.get("date") or now_iso()
+        inbound_at = last.get("date") or now_iso()
+        payload["new_reply_at"] = inbound_at
+        payload["needs_reply"] = True
+        payload["last_inbound_at"] = inbound_at
         meta["latest_inbound"] = True
         if list_id in CLOSED_RESURFACE_STAGES:
-            payload["list_id"] = RESURFACE_STAGE
+            payload["list_id"] = resurface_stage_for_card(list_id)
             payload["moved_at"] = now_iso()
+            payload["deal_state"] = "returning_collab"
+            payload["recommended_action"] = (
+                "Returning collab — they emailed again on the old chain. Open the thread, re-scope, and reply."
+            )
             meta["resurfaced"] = True
+            meta["resurfaced_from"] = list_id
     elif list_id not in INACTIVE_STAGES:
         payload["new_reply_at"] = None
 
@@ -695,11 +723,15 @@ def match_cards_for_thread(
     thread_id: str,
     cards_by_thread: dict[str, dict[str, Any]],
     cards_by_email: dict[str, list[dict[str, Any]]],
+    *,
+    closed_cards_by_thread: dict[str, list[dict[str, Any]]] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Match a Gmail thread to board cards — including outbound-only updates from the team."""
     matched: dict[str, dict[str, Any]] = {}
     if thread_id in cards_by_thread:
         matched[str(cards_by_thread[thread_id]["id"])] = cards_by_thread[thread_id]
+    for closed_card in (closed_cards_by_thread or {}).get(thread_id, []):
+        matched[str(closed_card["id"])] = closed_card
     for msg in fresh:
         contacts = message_contact_set(msg)
         for addr in contacts:
@@ -1100,6 +1132,30 @@ def history_thread_ids(service: Any, start_history_id: str, max_pages: int = 8) 
     return thread_ids, bool(page_token)
 
 
+def notify_resurfaced_cards(cards: list[dict[str, Any]]) -> None:
+    if not cards:
+        return
+    lines = []
+    for item in cards[:5]:
+        name = str(item.get("business") or item.get("id") or "Lead").strip()
+        lines.append(f"• {name}")
+    extra = len(cards) - len(lines)
+    summary = "\n".join(lines)
+    if extra > 0:
+        summary += f"\n• +{extra} more"
+    message = (
+        "🔁 Returning collab on old Gmail chain\n"
+        f"{summary}\n"
+        "Moved back to Active Gmail — reply owed."
+    )
+    try:
+        from pipeline_health import send_telegram
+
+        send_telegram(message)
+    except Exception:
+        pass
+
+
 def rate_limited_result(retry_after: str = "") -> dict[str, Any]:
     return {
         "ok": False,
@@ -1184,19 +1240,27 @@ def _run_delta_sync(args: Any) -> int:
     # split deals), so keep one card per thread — but prefer an ACTIVE card over a
     # trashed one. The old code kept whichever card happened to be last, which is how a
     # live lead's reply flag landed on a trashed duplicate and went invisible.
-    INACTIVE_FOR_PICK = {"trash", "dead-leads", "done", "paid-out"}
-    def _pick_rank(c: dict[str, Any]) -> tuple:
-        active = str(c.get("list_id") or "") not in INACTIVE_FOR_PICK
+    def _thread_owner_rank(c: dict[str, Any]) -> tuple:
+        list_id = str(c.get("list_id") or "")
+        if list_id in {"trash", "dead-leads"}:
+            tier = 0
+        elif list_id in CLOSED_RESURFACE_STAGES:
+            tier = 1
+        else:
+            tier = 2
         thread = c.get("email_thread") or c.get("original_email") or []
         n = len(thread) if isinstance(thread, list) else 0
-        return (active, n, str(c.get("updated_at") or ""))
+        return (tier, n, str(c.get("updated_at") or ""))
     cards_by_thread: dict[str, dict[str, Any]] = {}
+    closed_cards_by_thread: dict[str, list[dict[str, Any]]] = {}
     for c in cards:
-        tid = str(c.get("gmail_thread_id") or "")
+        tid = normalize_stored_thread_id(c.get("gmail_thread_id"))
         if not tid:
             continue
+        if str(c.get("list_id") or "") in CLOSED_RESURFACE_STAGES:
+            closed_cards_by_thread.setdefault(tid, []).append(c)
         cur = cards_by_thread.get(tid)
-        if cur is None or _pick_rank(c) > _pick_rank(cur):
+        if cur is None or _thread_owner_rank(c) > _thread_owner_rank(cur):
             cards_by_thread[tid] = c
     cards_by_email: dict[str, list[dict[str, Any]]] = {}
     for card in cards:
@@ -1241,7 +1305,13 @@ def _run_delta_sync(args: Any) -> int:
         except Exception as exc:
             unknown_threads.append({"thread_id": thread_id, "error": str(exc)[:160]})
             continue
-        matched = match_cards_for_thread(fresh, thread_id, cards_by_thread, cards_by_email)
+        matched = match_cards_for_thread(
+            fresh,
+            thread_id,
+            cards_by_thread,
+            cards_by_email,
+            closed_cards_by_thread=closed_cards_by_thread,
+        )
         if not matched:
             unknown_threads.append({"thread_id": thread_id, "subject": fresh[-1].get("subject") if fresh else ""})
             continue
@@ -1276,12 +1346,17 @@ def _run_delta_sync(args: Any) -> int:
                 "last_history_id": str(prev.get("history_id") or ""),
             })
 
+    resurfaced_cards = [item for item in touched if item.get("resurfaced")]
+    notify_resurfaced_cards(resurfaced_cards)
+
     result = {
         "ok": True,
         "mode": mode,
         "healed_thread_links": healed_links[:25],
         "active_threads_refreshed": len(refreshed_active),
         "closed_threads_refreshed": len(refreshed_closed),
+        "resurfaced_count": len(resurfaced_cards),
+        "resurfaced": resurfaced_cards[:25],
         "checked_threads": len(thread_ids),
         "cards_updated": len(touched),
         "unknown_threads": unknown_threads[:25],
