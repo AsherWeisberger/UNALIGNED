@@ -171,19 +171,33 @@ async function getThreadReplyHeaders(threadId) {
       userId: 'me',
       id: threadId,
       format: 'metadata',
-      metadataHeaders: ['Message-ID', 'References'],
+      metadataHeaders: ['Message-ID', 'References', 'From'],
       fields: 'messages(id,payload/headers)',
     });
     const messages = result.data.messages || [];
-    const last = messages[messages.length - 1];
-    const headers = last?.payload?.headers || [];
-    const headerValue = name => headers.find(h => h.name?.toLowerCase() === name.toLowerCase())?.value || '';
-    const messageId = headerValue('Message-ID');
-    const references = headerValue('References');
+    if (!messages.length) return {};
+    const headerValue = (headers, name) =>
+      (headers || []).find(h => h.name?.toLowerCase() === name.toLowerCase())?.value || '';
+    // Prefer Robert's outbound handoff — not a prior Asher attempt missing In-Reply-To.
+    let target = messages[messages.length - 1];
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const headers = messages[i]?.payload?.headers || [];
+      const from = headerValue(headers, 'From').toLowerCase();
+      if (from.includes('scobleizer@gmail.com') || from.includes('robert scoble')) {
+        target = messages[i];
+        break;
+      }
+    }
+    const headers = target?.payload?.headers || [];
+    const messageId = headerValue(headers, 'Message-ID');
+    const references = headerValue(headers, 'References');
     if (!messageId) return {};
+    const refChain = [...messages]
+      .map(msg => headerValue(msg?.payload?.headers || [], 'Message-ID'))
+      .filter(Boolean);
     return {
       inReplyTo: messageId,
-      references: [references, messageId].filter(Boolean).join(' '),
+      references: [references, ...refChain].filter(Boolean).join(' ').trim() || messageId,
     };
   } catch (err) {
     console.warn('Could not load Gmail thread headers:', err.message);
@@ -366,7 +380,9 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
       return;
     }
     const ccList = effectiveCc(cc, sender, to);
-    let replyHeaders = await getThreadReplyHeaders(sender.id === 'robert' ? threadId : null);
+    // Always resolve reply headers from Robert's thread when threadId is known.
+    // Asher/Sam send via SMTP but still need In-Reply-To from Robert's mailbox.
+    let replyHeaders = await getThreadReplyHeaders(threadId);
     if (!replyHeaders.inReplyTo && inReplyTo) {
       replyHeaders = {
         inReplyTo: String(inReplyTo).trim(),
