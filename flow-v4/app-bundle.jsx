@@ -17767,6 +17767,7 @@ function V4CosIsTravelLead(lead) {
 
 function V4CosIsSendLead(lead) {
   if (!lead) return false;
+  if (V4CosIsStaleGmailLead(lead)) return false;
   if (V4DeskIntakeAwaitingAsherFollowup(lead)) return true;
   if (V4IsDeskIntakeLead(lead)) {
     if (V4DeskIntakeAwaitingLeadReply(lead) && !lead.newReplyAt) return false;
@@ -17785,6 +17786,7 @@ function V4CosIsSendLead(lead) {
 
 function V4CosIsChaseLead(lead) {
   if (!lead) return false;
+  if (V4CosIsStaleGmailLead(lead)) return true;
   if (V4DeskIntakeAwaitingLeadReply(lead) && !V4CosActiveLeadNeedsYou(lead)) return false;
   if (window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(lead)) return false;
   if (V4CosIsSendLead(lead)) return false;
@@ -17818,9 +17820,39 @@ function V4CosHasActionableDraft(lead) {
   return true;
 }
 
+/** Gmail/X message activity only — never stage moves, operator bumps, or lastTouchAt. */
+function V4CosGmailActivityTouchAt(lead) {
+  if (!lead) return 0;
+  const thread = Array.isArray(lead?.thread) ? lead.thread : [];
+  const latestThread = V3LatestThreadDate(thread);
+  const candidates = [lead.newReplyAt, lead.lastInboundAt, latestThread];
+  if (V4IsDeskIntakeLead(lead)) candidates.push(V4DeskIntakeOutboundTouchAt(lead));
+  let best = 0;
+  for (const value of candidates) {
+    const t = V3TimestampForUi(value);
+    if (t > best) best = t;
+  }
+  return best;
+}
+
+function V4CosGmailInActiveWindow(lead, windowMs = V4_COS_ACTIVE_WINDOW_MS) {
+  const ts = V4CosGmailActivityTouchAt(lead);
+  return !!(ts && (Date.now() - ts) <= windowMs);
+}
+
+function V4CosIsStaleGmailLead(lead) {
+  if (!lead || V3IsXLeadRecord(lead) || V4IsDeskIntakeLead(lead)) return false;
+  if (['done', 'paid-out', 'trash', 'dead-leads'].includes(String(lead.stage || ''))) return false;
+  if (V4DeskIntakeAwaitingAsherFollowup(lead)) return false;
+  return !V4CosGmailInActiveWindow(lead);
+}
+
 /** Real email/DM activity only — ignores agent memory bumps and stage moves. */
 function V4CosConversationTouchAt(lead) {
   if (!lead) return 0;
+  if (!V3IsXLeadRecord(lead) && V4CosIsGmailLeadForActive(lead)) {
+    return V4CosGmailActivityTouchAt(lead);
+  }
   const thread = Array.isArray(lead?.thread) ? lead.thread : [];
   const latestThread = V3LatestThreadDate(thread);
   const candidates = [lead.newReplyAt, lead.lastInboundAt, latestThread, lead.lastTouchAt];
@@ -17870,6 +17902,13 @@ function V4CosIsGmailLeadForActive(lead) {
 function V4CosIsActiveGmailConversation(lead) {
   if (!lead || !V4CosIsGmailLeadForActive(lead)) return false;
   if (V4CosIsClosedForActive(lead)) return false;
+  if (V4CosIsStaleGmailLead(lead)) return false;
+
+  const inWindow = V4CosGmailInActiveWindow(lead);
+  if (!inWindow) return false;
+
+  const recentMsgs = V4CosThreadMessagesInWindow(lead, V4_COS_ACTIVE_WINDOW_MS);
+  const hasDraft = V4CosHasActionableDraft(lead);
 
   if (String(lead.dealState || '').toLowerCase() === 'returning_collab' && (lead.unread || lead.newReplyAt || lead.needsReply)) {
     return true;
@@ -17877,22 +17916,9 @@ function V4CosIsActiveGmailConversation(lead) {
 
   if (V4DeskIntakeActiveMission(lead)) return true;
 
-  if (V4_COS_GMAIL_NEGOTIATION_STAGES.includes(lead.stage)) return true;
-
-  const ts = V4CosConversationTouchAt(lead);
-  const inWindow = ts && (Date.now() - ts) <= V4_COS_ACTIVE_WINDOW_MS;
-  const recentMsgs = V4CosThreadMessagesInWindow(lead, V4_COS_ACTIVE_WINDOW_MS);
-  const hasDraft = V4CosHasActionableDraft(lead);
-
-  if (V4_COS_GMAIL_CONVERSATION_STAGES.includes(lead.stage) && inWindow) {
-    if (lead.unread || lead.newReplyAt || lead.needsReply || hasDraft) return true;
-    if (recentMsgs >= 1) return true;
-  }
-
-  if (!inWindow) return false;
-  if (lead.unread || lead.newReplyAt) return true;
+  if (lead.unread || lead.newReplyAt || lead.needsReply) return true;
   if (hasDraft) return true;
-  if (recentMsgs >= 2) return true;
+  if (recentMsgs >= 1) return true;
   return false;
 }
 
@@ -17945,19 +17971,13 @@ function V4CosMarkActiveGmailCleared(lead) {
 }
 
 function V4CosSortActiveLeads(a, b) {
+  const touchDelta = V4CosConversationTouchAt(b) - V4CosConversationTouchAt(a);
+  if (touchDelta) return touchDelta;
   const asherDelta = (V4DeskIntakeAwaitingAsherFollowup(b) ? 1 : 0) - (V4DeskIntakeAwaitingAsherFollowup(a) ? 1 : 0);
   if (asherDelta) return asherDelta;
-  const deskDelta = (V4DeskIntakeAwaitingLeadReply(b) ? 1 : 0) - (V4DeskIntakeAwaitingLeadReply(a) ? 1 : 0);
-  if (deskDelta) return deskDelta;
   const needDelta = (V4CosActiveLeadNeedsYou(b) ? 1 : 0) - (V4CosActiveLeadNeedsYou(a) ? 1 : 0);
   if (needDelta) return needDelta;
-  const hot = (l) => {
-    const inbound = V3IsXLeadRecord(l) ? V3InferXReplyState(l).needsXReply : Boolean(l.unread || l.newReplyAt);
-    return (inbound ? 2 : 0) + (l.draftReply?.body ? 1 : 0);
-  };
-  const hotDelta = hot(b) - hot(a);
-  if (hotDelta) return hotDelta;
-  return V4CosConversationTouchAt(b) - V4CosConversationTouchAt(a);
+  return V3LeadActivityTimestamp(b) - V3LeadActivityTimestamp(a);
 }
 
 function V4CosMissionDayKey() {
@@ -18033,7 +18053,9 @@ function V4CosActiveLeadStatus(lead) {
     return { label: 'Returning collab', tone: 'hot' };
   }
   if (lead.unread || lead.newReplyAt) return { label: 'New reply', tone: 'hot' };
-  if (V4_COS_GMAIL_NEGOTIATION_STAGES.includes(lead.stage)) return { label: 'Negotiating', tone: 'live' };
+  if (V4_COS_GMAIL_NEGOTIATION_STAGES.includes(lead.stage) && V4CosGmailInActiveWindow(lead)) {
+    return { label: 'Negotiating', tone: 'live' };
+  }
   const recentMsgs = V4CosThreadMessagesInWindow(lead, V4_COS_ACTIVE_WINDOW_MS);
   if (recentMsgs >= 2 || (Array.isArray(lead.thread) && lead.thread.length >= 3)) {
     return { label: 'Live thread', tone: 'live' };
@@ -22155,14 +22177,21 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
     return V4SortActionLeads(a, b);
   });
   const sendQueue = [...freshIntake, ...sendItems, ...staleIntake];
-  const chaseItems = activeItems.filter(l => !V4CosIsTravelLead(l) && V4CosIsChaseLead(l)).sort((a, b) => (b.daysInStage || 0) - (a.daysInStage || 0) || byRecent(a, b));
+  const chaseItems = activeItems.filter(l => !V4CosIsTravelLead(l) && V4CosIsChaseLead(l)).sort((a, b) => {
+    const staleDelta = (V4CosIsStaleGmailLead(b) ? 1 : 0) - (V4CosIsStaleGmailLead(a) ? 1 : 0);
+    if (staleDelta) return staleDelta;
+    const ageA = V4CosGmailActivityTouchAt(a) || 0;
+    const ageB = V4CosGmailActivityTouchAt(b) || 0;
+    if (ageA !== ageB) return ageA - ageB;
+    return (b.daysInStage || 0) - (a.daysInStage || 0) || byRecent(a, b);
+  });
   const watchItems = activeItems.filter(l => !V4CosIsTravelLead(l) && V4CosIsWatchLead(l)).sort(byRecent);
   const closedItems = live.filter(l => ['done', 'paid-out'].includes(l.stage)).sort(byRecent);
   const base = allCos;
 
   const splits = [
     { id: 'send', label: 'Send', hint: 'Drafts to approve, replies owed, new intake', queue: true, hot: sendQueue.length > 0, items: sendQueue },
-    { id: 'chase', label: 'Chase', hint: 'Negotiating, payment, follow ups, brief Robert', queue: true, hot: chaseItems.length > 0, items: chaseItems },
+    { id: 'chase', label: 'Chase', hint: 'Older than 3 days · follow-ups · negotiating · payment', queue: true, hot: chaseItems.length > 0, items: chaseItems },
     { id: 'watch', label: 'Watch', hint: 'Nothing urgent from our side right now', queue: true, items: watchItems },
     { id: 'travel', label: 'Travel', hint: 'Sponsored trips, factory visits, on-site events — highest value', queue: true, hot: travelItems.length > 0, items: travelItems },
     { id: 'snoozed', label: 'Snoozed', section: 'More', items: liveAll.filter(isSnoozed).sort((a, b) => Date.parse(snoozes[a.id]) - Date.parse(snoozes[b.id])) },
@@ -23020,7 +23049,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
                     collapsed={activeGmailCollapsed}
                     onToggle={toggleActiveGmailCollapsed}
                     eyebrow="Active Gmail"
-                    subtitle="3-day threads · negotiating · in conversation"
+                    subtitle="Email activity in the last 3 days only"
                     ariaLabel="Active Gmail conversations"
                     channel="gmail"
                   />
