@@ -62,11 +62,13 @@ NEVER_TOUCH_STAGES = frozenset({"trash", "dead-leads"})
 ACTIVE_REFRESH_STAGES = frozenset({"negotiating", "invoice-sent", "engaged", "first-touch", "rates-sent"})
 STALE_THREAD_SEC = int(os.environ.get("GMAIL_DELTA_STALE_THREAD_SEC", str(36 * 3600)))
 MAX_ACTIVE_THREAD_REFRESH = int(os.environ.get("GMAIL_DELTA_ACTIVE_REFRESH_LIMIT", "3"))
+MAX_CLOSED_THREAD_REFRESH = int(os.environ.get("GMAIL_DELTA_CLOSED_REFRESH_LIMIT", "5"))
 MAX_HEAL_PER_RUN = int(os.environ.get("GMAIL_DELTA_HEAL_LIMIT", "5"))
 MAX_HEAL_PROBE_PER_RUN = int(os.environ.get("GMAIL_DELTA_HEAL_PROBE_LIMIT", "40"))
 LEGACY_RATE_LIMIT_FILE = Path(os.environ.get("GMAIL_RATE_LIMIT_FILE", str(STATE_DIR / "gmail_api_rate_limit.json")))
 HEAL_PROBE_CURSOR_FILE = Path(os.environ.get("GMAIL_HEAL_PROBE_CURSOR_FILE", str(STATE_DIR / "gmail_heal_probe_cursor.json")))
 REFRESH_CURSOR_FILE = Path(os.environ.get("GMAIL_ACTIVE_REFRESH_CURSOR_FILE", str(STATE_DIR / "gmail_active_refresh_cursor.json")))
+CLOSED_REFRESH_CURSOR_FILE = Path(os.environ.get("GMAIL_CLOSED_REFRESH_CURSOR_FILE", str(STATE_DIR / "gmail_closed_refresh_cursor.json")))
 
 
 class GmailRateLimited(RuntimeError):
@@ -809,6 +811,94 @@ def refresh_active_card_threads(
     return touched
 
 
+def closed_cards_for_watch(
+    cards: list[dict[str, Any]],
+    limit: int,
+    *,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
+    """Done/paid-out chains we still poll so returning collabs resurface even if history lagged."""
+    candidates: list[tuple[float, dict[str, Any]]] = []
+    for card in cards:
+        list_id = str(card.get("list_id") or "")
+        if list_id not in CLOSED_RESURFACE_STAGES:
+            continue
+        source = str(card.get("lead_source") or "").lower()
+        if source in {"connect-form", "x"}:
+            continue
+        thread_id = normalize_stored_thread_id(card.get("gmail_thread_id"))
+        if not thread_id:
+            continue
+        candidates.append((latest_thread_timestamp(card), card))
+    if not candidates:
+        return []
+    candidates.sort(key=lambda item: item[0])
+    start = max(0, int(offset)) % len(candidates)
+    ordered = candidates[start:] + candidates[:start]
+    return [card for _, card in ordered[: max(0, limit)]]
+
+
+def refresh_closed_deal_threads(
+    mailboxes: list[tuple[str, Any]],
+    cards: list[dict[str, Any]],
+    *,
+    dry_run: bool = False,
+    limit: int = MAX_CLOSED_THREAD_REFRESH,
+) -> list[dict[str, Any]]:
+    """Re-fetch a small rotating batch of done/paid-out Gmail threads for returning collabs."""
+    cursor = read_json(CLOSED_REFRESH_CURSOR_FILE, {})
+    offset = int(cursor.get("offset") or 0)
+    pool = closed_cards_for_watch(cards, max(limit * 4, 20), offset=offset)
+    batch = pool[: max(0, limit)]
+    touched: list[dict[str, Any]] = []
+    for card in batch:
+        thread_id = normalize_stored_thread_id(card.get("gmail_thread_id"))
+        if not thread_id:
+            continue
+        try:
+            fresh, mailbox, _service = fetch_thread_from_mailboxes(mailboxes, thread_id)
+            if not fresh:
+                continue
+        except GmailRateLimited:
+            raise
+        except Exception as exc:
+            touched.append({
+                "id": card["id"],
+                "thread_id": thread_id,
+                "error": str(exc)[:160],
+            })
+            continue
+        merged = merge_threads(card.get("email_thread") or card.get("original_email") or [], fresh)
+        card_email = str(card.get("email") or "").strip()
+        if card_email:
+            merged = slice_thread_for_contact(merged, card_email)
+        existing = normalize_thread_list(card.get("email_thread") or card.get("original_email"))
+        existing_latest = latest_thread_timestamp(card)
+        merged_latest = max((date_sort_value(m.get("date")) for m in merged), default=0.0)
+        if len(merged) <= len(existing) and merged_latest <= existing_latest:
+            continue
+        payload, meta = build_card_thread_patch(card, merged, thread_id=thread_id)
+        if not dry_run:
+            supabase_patch(card["id"], payload)
+        touched.append({
+            "id": card["id"],
+            "thread_id": thread_id,
+            "business": card.get("business_name") or card.get("title"),
+            "messages": len(merged),
+            "mailbox": mailbox,
+            "latest_inbound": meta.get("latest_inbound"),
+            "resurfaced": meta.get("resurfaced"),
+            "source": "closed_refresh",
+        })
+    if not dry_run and batch:
+        write_json(CLOSED_REFRESH_CURSOR_FILE, {
+            "offset": (offset + len(batch)) % max(len(pool), 1),
+            "updated_at": now_iso(),
+            "last_batch": len(batch),
+        })
+    return touched
+
+
 def card_needs_thread_heal(card: dict[str, Any], mailboxes: list[tuple[str, Any]]) -> tuple[bool, str]:
     stored_raw = str(card.get("gmail_thread_id") or "").strip()
     stored = normalize_stored_thread_id(stored_raw)
@@ -1126,12 +1216,17 @@ def _run_delta_sync(args: Any) -> int:
             cards,
             dry_run=args.dry_run,
         )
+        refreshed_closed = refresh_closed_deal_threads(
+            mailboxes,
+            cards,
+            dry_run=args.dry_run,
+        )
     except GmailRateLimited as exc:
         result = rate_limited_result(exc.retry_after)
         write_json(STATUS_FILE, {"updated_at": now_iso(), **result})
         print(json.dumps(result, indent=2))
         return 0
-    touched = list(refreshed_active)
+    touched = list(refreshed_active) + list(refreshed_closed)
     unknown_threads = []
     for thread_id in sorted(thread_ids):
         try:
@@ -1186,6 +1281,7 @@ def _run_delta_sync(args: Any) -> int:
         "mode": mode,
         "healed_thread_links": healed_links[:25],
         "active_threads_refreshed": len(refreshed_active),
+        "closed_threads_refreshed": len(refreshed_closed),
         "checked_threads": len(thread_ids),
         "cards_updated": len(touched),
         "unknown_threads": unknown_threads[:25],
