@@ -422,6 +422,8 @@ def format_message(msg: dict[str, Any]) -> dict[str, Any]:
     from_email = parsed_from[1] or from_raw
     body = decode_body(payload).strip()
     attachments = extract_attachments(payload)
+    rfc822_message_id = header_value(payload, "Message-ID")
+    references = header_value(payload, "References")
     formatted = {
         "from": from_name,
         "email": from_email,
@@ -433,7 +435,10 @@ def format_message(msg: dict[str, Any]) -> dict[str, Any]:
         "body": body[:3000],
         "snippet": msg.get("snippet", ""),
         "gmail_thread_id": msg.get("threadId", ""),
+        "gmail_id": msg.get("id", ""),
         "message_id": msg.get("id", ""),
+        "rfc822_message_id": rfc822_message_id,
+        "references": references,
     }
     if attachments:
         formatted["attachments"] = attachments

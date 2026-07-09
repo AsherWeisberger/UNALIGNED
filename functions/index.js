@@ -81,8 +81,9 @@ const SENDERS = {
 // ── Gmail OAuth (Robert) ────────────────────────────────
 let cachedRobertAuth = null;
 
-async function getRobertGmailAuth() {
-  if (cachedRobertAuth) return cachedRobertAuth;
+async function getRobertGmailAuth(forceRefresh = false) {
+  if (cachedRobertAuth && !forceRefresh) return cachedRobertAuth;
+  cachedRobertAuth = null;
 
   const snap = await getDb().collection('_secrets').doc('gmail_oauth').get();
   if (!snap.exists) throw new Error('Gmail credentials not found');
@@ -90,7 +91,7 @@ async function getRobertGmailAuth() {
   const { token, refresh_token, client_id, client_secret } = snap.data();
   const oauth2 = new (getGoogle().auth.OAuth2)(client_id, client_secret);
 
-  if (!token || token.length < 50) {
+  if (forceRefresh || !token || token.length < 50) {
     console.log('Refreshing Robert access token...');
     oauth2.setCredentials({ refresh_token });
     const { credentials } = await oauth2.refreshAccessToken();
@@ -103,12 +104,12 @@ async function getRobertGmailAuth() {
   return cachedRobertAuth;
 }
 
-async function sendViaGmail(sender, to, subject, body, cc, attachments, threadId, replyHeaders) {
+async function sendViaGmail(sender, to, subject, body, cc, attachments, threadId, replyHeaders, retried = false) {
   if (sender.id !== 'robert') {
     return sendViaSmtp(sender, to, subject, body, cc, attachments, replyHeaders);
   }
   try {
-    const auth = await getRobertGmailAuth();
+    const auth = await getRobertGmailAuth(retried);
     const gmail = getGoogle().gmail({ version: 'v1', auth });
     const raw = makeMime(to, cc, subject, body, sender, attachments, replyHeaders);
     const result = await gmail.users.messages.send({
@@ -118,6 +119,18 @@ async function sendViaGmail(sender, to, subject, body, cc, attachments, threadId
     return result.data.id;
   } catch (err) {
     console.warn(`Gmail OAuth send failed for ${sender.id}:`, err.message);
+    if (!retried) {
+      cachedRobertAuth = null;
+      return sendViaGmail(sender, to, subject, body, cc, attachments, threadId, replyHeaders, true);
+    }
+    if (threadId) {
+      throw new Error(
+        `Robert Gmail could not reply inside thread ${threadId}. `
+        + 'Refusing SMTP fallback — that creates a detached chain. '
+        + 'Hard refresh and retry in a minute. '
+        + `(${err.message})`
+      );
+    }
     const fallbackDoc = sender.fallbackSecretDoc || sender.secretDoc;
     if (!fallbackDoc) throw err;
     return sendViaSmtp({ ...sender, secretDoc: fallbackDoc }, to, subject, body, cc, attachments, replyHeaders);
@@ -162,8 +175,9 @@ async function sendViaSmtp(sender, to, subject, body, cc, attachments, replyHead
 }
 
 // ── Shared ──────────────────────────────────────────
-async function getThreadReplyHeaders(threadId) {
+async function getThreadReplyHeaders(threadId, opts = {}) {
   if (!threadId) return {};
+  const preferRobert = opts.preferRobert !== false;
   try {
     const auth = await getRobertGmailAuth();
     const gmail = getGoogle().gmail({ version: 'v1', auth });
@@ -178,16 +192,28 @@ async function getThreadReplyHeaders(threadId) {
     if (!messages.length) return {};
     const headerValue = (headers, name) =>
       (headers || []).find(h => h.name?.toLowerCase() === name.toLowerCase())?.value || '';
-    // Prefer Robert's outbound handoff — not a prior Asher attempt missing In-Reply-To.
-    let target = messages[messages.length - 1];
-    for (let i = messages.length - 1; i >= 0; i -= 1) {
-      const headers = messages[i]?.payload?.headers || [];
-      const from = headerValue(headers, 'From').toLowerCase();
-      if (from.includes('scobleizer@gmail.com') || from.includes('robert scoble')) {
-        target = messages[i];
-        break;
+    let target = null;
+    if (preferRobert) {
+      for (let i = messages.length - 1; i >= 0; i -= 1) {
+        const headers = messages[i]?.payload?.headers || [];
+        const from = headerValue(headers, 'From').toLowerCase();
+        const messageId = headerValue(headers, 'Message-ID');
+        if (messageId && (from.includes('scobleizer@gmail.com') || from.includes('robert scoble'))) {
+          target = messages[i];
+          break;
+        }
       }
     }
+    if (!target) {
+      for (let i = messages.length - 1; i >= 0; i -= 1) {
+        const headers = messages[i]?.payload?.headers || [];
+        if (headerValue(headers, 'Message-ID')) {
+          target = messages[i];
+          break;
+        }
+      }
+    }
+    if (!target) target = messages[messages.length - 1];
     const headers = target?.payload?.headers || [];
     const messageId = headerValue(headers, 'Message-ID');
     const references = headerValue(headers, 'References');
@@ -382,7 +408,7 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
     const ccList = effectiveCc(cc, sender, to);
     // Always resolve reply headers from Robert's thread when threadId is known.
     // Asher/Sam send via SMTP but still need In-Reply-To from Robert's mailbox.
-    let replyHeaders = await getThreadReplyHeaders(threadId);
+    let replyHeaders = await getThreadReplyHeaders(threadId, { preferRobert: sender.id !== 'robert' });
     if (!replyHeaders.inReplyTo && inReplyTo) {
       replyHeaders = {
         inReplyTo: String(inReplyTo).trim(),

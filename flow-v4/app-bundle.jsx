@@ -4216,8 +4216,18 @@ function V3ComposeReplyDraft(lead, sender, opts = {}) {
 }
 
 function V3SubjectForLead(lead) {
-  const last = lead?.thread?.[lead.thread.length - 1] || {};
-  const base = last.subject || ((lead?.brand || 'Lead') + ' conversation');
+  const thread = Array.isArray(lead?.thread) ? lead.thread : [];
+  let base = '';
+  for (let i = thread.length - 1; i >= 0; i -= 1) {
+    const subject = String(thread[i]?.subject || '').trim();
+    if (!subject) continue;
+    const from = String(thread[i]?.from || thread[i]?.email || '').toLowerCase();
+    const isTeam = from.includes('scobleizer') || from.includes('robert scoble')
+      || from.includes('asherunaligned') || from.includes('unalignedx') || from.includes('samlevin');
+    if (!isTeam || !base) base = subject;
+    if (!isTeam) break;
+  }
+  if (!base) base = ((lead?.brand || 'Lead') + ' conversation');
   return /^re:/i.test(base) ? base : 'Re: ' + base;
 }
 
@@ -5177,6 +5187,32 @@ function V3PricingPdfMeta(pack) {
   return { ...meta, path: V3PricingPdfHref(meta.path) };
 }
 
+function V3LeadGmailReplyMeta(lead) {
+  const threadId = String(lead?.gmailThreadId || '').trim() || null;
+  const thread = Array.isArray(lead?.thread) ? lead.thread : [];
+  for (let i = thread.length - 1; i >= 0; i -= 1) {
+    const msg = thread[i];
+    const from = String(msg?.from || msg?.email || '').toLowerCase();
+    if (from.includes('scobleizer') || from.includes('robert scoble') || from.includes('asherunaligned') || from.includes('unalignedx') || from.includes('samlevin')) {
+      continue;
+    }
+    const inReplyTo = String(msg?.rfc822_message_id || msg?.rfc822MessageId || '').trim();
+    if (inReplyTo) {
+      const references = String(msg?.references || msg?.gmail_references || inReplyTo).trim() || inReplyTo;
+      return { threadId, inReplyTo, references };
+    }
+  }
+  for (let i = thread.length - 1; i >= 0; i -= 1) {
+    const msg = thread[i];
+    const inReplyTo = String(msg?.rfc822_message_id || msg?.rfc822MessageId || '').trim();
+    if (inReplyTo) {
+      const references = String(msg?.references || msg?.gmail_references || inReplyTo).trim() || inReplyTo;
+      return { threadId, inReplyTo, references };
+    }
+  }
+  return { threadId, inReplyTo: null, references: null };
+}
+
 function V3DeskIntakeGmailReplyMeta(lead) {
   const payload = V3ParseBriefDescription(lead?.rawDescription) || {};
   const threadId = String(lead?.gmailThreadId || payload.robert_gmail_thread_id || '').trim() || null;
@@ -5205,9 +5241,14 @@ async function V3SendLeadEmail({ lead, sender, to, cc, subject, body, attachPdf 
     throw new Error('Send token could not load from your Mac. Hard refresh (Cmd+Shift+R), wait for Medic to clear "Loading send token…", then Approve & send again.');
   }
   const deskMeta = V4IsDeskIntakeLead(lead) ? V3DeskIntakeGmailReplyMeta(lead) : {};
+  const leadMeta = V3LeadGmailReplyMeta(lead);
   const sendSubject = V4IsDeskIntakeLead(lead) && sender !== 'robert'
     ? V3DeskIntakeReplySubject(lead, subject)
     : subject;
+  const threadId = deskMeta.threadId || leadMeta.threadId || lead?.gmailThreadId || null;
+  if (!threadId && lead?.gmailThreadId) {
+    console.warn('[V3SendLeadEmail] threadId missing on send payload for lead', lead?.id);
+  }
   const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token };
   const resp = await fetch('https://us-central1-unaligned-fc556.cloudfunctions.net/sendEmail', {
     method: 'POST',
@@ -5217,10 +5258,10 @@ async function V3SendLeadEmail({ lead, sender, to, cc, subject, body, attachPdf 
       subject: sendSubject,
       body,
       from: sender,
-      threadId: deskMeta.threadId || lead?.gmailThreadId || null,
-      inReplyTo: deskMeta.inReplyTo || null,
-      references: deskMeta.references || null,
-      cc: cc ?? V3DefaultCc(sender),
+      threadId,
+      inReplyTo: deskMeta.inReplyTo || leadMeta.inReplyTo || null,
+      references: deskMeta.references || leadMeta.references || null,
+      cc: cc ?? V3DefaultReplyCcEmails(sender, lead).join(','),
       attachPdf,
       pricingPdfPack: attachPdf ? (pricingPdfPack || V3InferPricingPdfPack(lead)) : null,
     }),
