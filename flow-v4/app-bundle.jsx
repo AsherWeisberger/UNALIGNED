@@ -4320,6 +4320,61 @@ function V3LeadExternalEmail(lead) {
   return candidates.find(email => !internal.has(email)) || '';
 }
 
+function V4ThreadEmails(value) {
+  const text = Array.isArray(value) ? value.join(' ') : String(value || '');
+  return [...text.toLowerCase().matchAll(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/g)]
+    .map(match => match[0]);
+}
+
+function V4LeadThreadIdentityTokens(lead) {
+  const ignored = new Set([
+    're', 'fw', 'fwd', 'robert', 'scoble', 'with', 'from', 'conversation',
+    'collaboration', 'partnership', 'campaign', 'project', 'email', 'gmail',
+    'the', 'and', 'for', 'your', 'you', 'our', 'this', 'that',
+  ]);
+  return [...new Set(
+    [lead?.brand, lead?.title, lead?.contactName]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+      .match(/[a-z0-9]{4,}/g) || []
+  )].filter(token => !ignored.has(token));
+}
+
+// A Gmail thread id proves only that a message exists in one of our inboxes.
+// Before a card can drive Today or an approval, require the intended outside
+// participant—or, for old forwarded cards, a consistent deal subject.
+function V4LeadThreadIntegrity(lead) {
+  if (!lead || V4CompanyOsLeadSourceChannel(lead) === 'x') return { safe: true, reason: '' };
+  const messages = Array.isArray(lead.thread) ? lead.thread : [];
+  if (!messages.length) return { safe: true, reason: '' };
+  const expectedEmail = V3LeadExternalEmail(lead);
+  const participants = new Set(messages.flatMap(message => [
+    ...V4ThreadEmails(message?.from),
+    ...V4ThreadEmails(message?.to),
+    ...V4ThreadEmails(message?.cc),
+    ...V4ThreadEmails(message?.email),
+    ...V4ThreadEmails(message?.participants),
+  ]));
+  if (expectedEmail && !participants.has(expectedEmail)) {
+    return {
+      safe: false,
+      reason: `The saved Gmail thread does not include ${expectedEmail}.`,
+    };
+  }
+  const tokens = V4LeadThreadIdentityTokens(lead);
+  const subjects = messages.map(message => String(message?.subject || '').toLowerCase()).filter(Boolean);
+  const hasMatchingSubject = tokens.length && subjects.some(subject => tokens.some(token => subject.includes(token)));
+  const hasUnrelatedSubject = tokens.length && subjects.some(subject => !tokens.some(token => subject.includes(token)));
+  if (hasMatchingSubject && hasUnrelatedSubject) {
+    return {
+      safe: false,
+      reason: 'The cached Gmail chain contains messages from different conversations.',
+    };
+  }
+  return { safe: true, reason: '' };
+}
+
 function V3InternalEmails(excludeSender) {
   return [V3_TEAM_EMAILS.robert, V3_TEAM_EMAILS.sam, V3_TEAM_EMAILS.asher]
     .filter(email => {
@@ -8447,6 +8502,7 @@ function V3GmailThread({ lead, onPullGmail }) {
       return true;
     });
   }, [lead?.id, lead?.thread]);
+  const threadIntegrity = V4LeadThreadIntegrity(lead);
   const lastIdx = Math.max(0, messages.length - 1);
   const [expanded, setExpanded] = React.useState(() => new Set([lastIdx]));
   React.useEffect(() => {
@@ -8461,6 +8517,20 @@ function V3GmailThread({ lead, onPullGmail }) {
       return next;
     });
   };
+
+  if (!threadIntegrity.safe) {
+    return (
+      <div className="gmail-thread-empty">
+        <div>Thread withheld to prevent a wrong reply.</div>
+        <div className="gmail-thread-empty-note">{threadIntegrity.reason}</div>
+        {onPullGmail ? (
+          <button type="button" className="gmail-thread-empty-btn" onClick={() => onPullGmail()}>
+            Refresh Gmail safely
+          </button>
+        ) : null}
+      </div>
+    );
+  }
 
   if (!messages.length) {
     if (lead?._hydrateError) {
@@ -9377,6 +9447,10 @@ function V4IsRobertHandoffApproval(lead) {
 
 async function V4SendApprovedReplyNow(lead, overrides = {}) {
   if (!lead) throw new Error('No lead selected.');
+  const threadIntegrity = V4LeadThreadIntegrity(lead);
+  if (!threadIntegrity.safe) {
+    throw new Error(`Email blocked: ${threadIntegrity.reason} Refresh Gmail or correct the lead before sending.`);
+  }
   if (V4IsRobertHandoffApproval(lead)) {
     const draft = overrides.body || overrides.subject
       ? { ...(lead.draftReply || {}), subject: overrides.subject || lead?.draftReply?.subject || '', body: overrides.body || lead?.draftReply?.body || '' }
@@ -12378,6 +12452,7 @@ function V4TodayHasCommercialSignal(lead) {
 function V4TodayNeedsDecision(lead) {
   if (!lead || ['trash', 'dead-leads', 'paid-out'].includes(String(lead.stage || ''))) return false;
   if (String(lead.draftReplyStatus || '').toLowerCase() === 'human_only') return false;
+  if (!V4LeadThreadIntegrity(lead).safe) return false;
   if (V4DeskIntakeAwaitingAsherFollowup(lead)) return true;
 
   const advancedDeal = ['rates-sent', 'negotiating', 'invoice-sent', 'done'].includes(String(lead.stage || ''));
@@ -17812,6 +17887,7 @@ function V4CosIsWaitingLead(lead) {
 
 function V4CosIsSendLead(lead) {
   if (!lead) return false;
+  if (!V4LeadThreadIntegrity(lead).safe) return false;
   // Some older X rows retain a draft after it was sent. The confirmed reply
   // state wins: that conversation belongs in Waiting, never Send.
   if (V4CosIsXOnlyLead(lead) && V4XLeadIsWaitingOnThem(lead)) return false;
@@ -21793,6 +21869,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
   const moveLead = (nextStage) => window.V3.MoveLeadStage(lead, nextStage);
   const clearUnread = () => V4CosPatchLead(lead, { new_reply_at: null }, { unread: false });
   const threadFreshness = V4LeadThreadFreshness(lead);
+  const threadIntegrity = V4LeadThreadIntegrity(lead);
   const pendingOperatorDraft = String(lead.draftReplyStatus || '').toLowerCase() === 'pending' && String(lead.draftReply?.body || '').trim();
   const refreshThread = async () => {
     if (!lead) return;
@@ -21818,6 +21895,10 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
     }
   };
   const quickApproveSend = async () => {
+    if (!threadIntegrity.safe) {
+      setQuickSend({ status: 'error', error: `Email blocked: ${threadIntegrity.reason}` });
+      return;
+    }
     setQuickSend({ status: 'sending', error: '' });
     try {
       await V4SendApprovedReply(lead);
@@ -21951,7 +22032,12 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
               {threadSync.note ? <div className={'gmail-read-sync-note is-' + threadSync.status}>{threadSync.note}</div> : null}
             </div>
           </header>
-          {pendingOperatorDraft && !composeOpen && !isReview && (
+          {!threadIntegrity.safe && (
+            <div className="gmail-read-sync-note is-error">
+              <strong>Email actions are blocked.</strong> {threadIntegrity.reason} Refresh Gmail only after the card's outside contact is corrected.
+            </div>
+          )}
+          {pendingOperatorDraft && threadIntegrity.safe && !composeOpen && !isReview && (
             <div className="cos2-review-banner gmail-read-approve">
               <div className="cos2-review-banner-msg">
                 <strong>Operator draft ready</strong>

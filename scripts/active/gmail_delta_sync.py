@@ -78,7 +78,35 @@ class GmailRateLimited(RuntimeError):
         super().__init__(retry_after or "Gmail API rate limit exceeded")
 
 from draft_staleness import stale_draft_clear_patch
-from x_gmail_merge import message_contact_set, normalize_email, pick_cards_for_email_match, slice_thread_for_contact
+try:
+    from x_gmail_merge import message_contact_set, normalize_email, pick_cards_for_email_match, slice_thread_for_contact
+except ImportError:
+    # Older checkouts predate the contact-aware X/Gmail merge helpers. Keep the
+    # Gmail safety gate self-contained so a partial deploy cannot lose it.
+    from x_gmail_merge import normalize_email, pick_cards_for_email_match
+
+    def message_contact_set(msg: dict[str, Any]) -> set[str]:
+        contacts: set[str] = set()
+        for field in ("email", "from", "to", "cc", "reply_to", "replyTo"):
+            raw = msg.get(field)
+            values = raw if isinstance(raw, list) else [raw]
+            for value in values:
+                for _name, addr in email.utils.getaddresses([str(value or "")]):
+                    normalized = normalize_email(addr)
+                    if normalized:
+                        contacts.add(normalized)
+                normalized = normalize_email(value)
+                if normalized:
+                    contacts.add(normalized)
+        return contacts
+
+    def slice_thread_for_contact(thread: Any, contact_email: str) -> list[dict[str, Any]]:
+        contact = normalize_email(contact_email)
+        rows = list(thread) if isinstance(thread, list) else []
+        if not contact or len(rows) < 2:
+            return rows
+        matched = [row for row in rows if isinstance(row, dict) and contact in message_contact_set(row)]
+        return matched or rows
 
 
 def load_env() -> None:
@@ -654,6 +682,47 @@ def normalize_stored_thread_id(raw: Any) -> str:
     return text
 
 
+def card_external_email(card: dict[str, Any]) -> str:
+    """Return a card's actual outside contact, never one of our own mailboxes."""
+    email = normalize_email(card.get("email"))
+    team = {normalize_email(value) for value in TEAM_SENDERS}
+    return email if email and email not in team else ""
+
+
+def card_subject_tokens(card: dict[str, Any]) -> set[str]:
+    """Stable deal words that can validate cards which are missing an outside email."""
+    text = " ".join(str(card.get(key) or "") for key in ("business_name", "title", "contact_name"))
+    ignored = {
+        "re", "fw", "fwd", "robert", "scoble", "with", "from", "conversation",
+        "collaboration", "partnership", "campaign", "project", "email", "gmail",
+        "the", "and", "for", "your", "you", "our", "x",
+    }
+    return {
+        token for token in re.findall(r"[a-z0-9]{4,}", text.lower())
+        if token not in ignored
+    }
+
+
+def thread_matches_card(fresh: list[dict[str, Any]], card: dict[str, Any]) -> bool:
+    """Require an outside participant or a specific deal subject before trusting a Gmail link.
+
+    A Gmail thread id only proves that the message exists in one of our inboxes. It
+    does not prove that the message belongs to this card. Without this guard, a
+    card accidentally keyed to one of the team's own addresses can silently absorb
+    the newest unrelated email from that mailbox.
+    """
+    if not fresh:
+        return False
+    outside_email = card_external_email(card)
+    if outside_email:
+        return any(outside_email in message_contact_set(msg) for msg in fresh)
+    tokens = card_subject_tokens(card)
+    if not tokens:
+        return False
+    subjects = [str(msg.get("subject") or "").lower() for msg in fresh]
+    return any(any(token in subject for token in tokens) for subject in subjects)
+
+
 def lookup_thread_id_by_email(service: Any, email: str) -> str:
     """Pick the Gmail thread with the most contact traffic — not just the newest search hit."""
     tid, _mailbox = lookup_thread_id_by_email_multi([( "primary", service)], email)
@@ -734,9 +803,12 @@ def match_cards_for_thread(
     """Match a Gmail thread to board cards — including outbound-only updates from the team."""
     matched: dict[str, dict[str, Any]] = {}
     if thread_id in cards_by_thread:
-        matched[str(cards_by_thread[thread_id]["id"])] = cards_by_thread[thread_id]
+        stored_card = cards_by_thread[thread_id]
+        if thread_matches_card(fresh, stored_card):
+            matched[str(stored_card["id"])] = stored_card
     for closed_card in (closed_cards_by_thread or {}).get(thread_id, []):
-        matched[str(closed_card["id"])] = closed_card
+        if thread_matches_card(fresh, closed_card):
+            matched[str(closed_card["id"])] = closed_card
     for msg in fresh:
         contacts = message_contact_set(msg)
         for addr in contacts:
@@ -815,6 +887,14 @@ def refresh_active_card_threads(
                 "id": card["id"],
                 "thread_id": thread_id,
                 "error": str(exc)[:160],
+            })
+            continue
+        if not thread_matches_card(fresh, card):
+            touched.append({
+                "id": card["id"],
+                "thread_id": thread_id,
+                "source": "active_refresh",
+                "skipped": "identity_mismatch",
             })
             continue
         merged = merge_threads(card.get("email_thread") or card.get("original_email") or [], fresh)
@@ -905,6 +985,14 @@ def refresh_closed_deal_threads(
                 "error": str(exc)[:160],
             })
             continue
+        if not thread_matches_card(fresh, card):
+            touched.append({
+                "id": card["id"],
+                "thread_id": thread_id,
+                "source": "closed_refresh",
+                "skipped": "identity_mismatch",
+            })
+            continue
         merged = merge_threads(card.get("email_thread") or card.get("original_email") or [], fresh)
         card_email = str(card.get("email") or "").strip()
         if card_email:
@@ -947,11 +1035,13 @@ def card_needs_thread_heal(card: dict[str, Any], mailboxes: list[tuple[str, Any]
     if not stored:
         return True, "missing"
     try:
-        exists, _mailbox = thread_exists_in_mailboxes(mailboxes, stored)
+        fresh, _mailbox, _service = fetch_thread_from_mailboxes(mailboxes, stored)
     except GmailRateLimited:
         raise
-    if exists:
+    if fresh and thread_matches_card(fresh, card):
         return False, "live"
+    if fresh:
+        return True, "identity_mismatch"
     return True, "missing_or_404"
 
 
@@ -1021,7 +1111,7 @@ def heal_stale_card_thread_links(
         patch: dict[str, Any] = {"gmail_thread_id": thread_id}
         try:
             fresh, mailbox, _service = fetch_thread_from_mailboxes(mailboxes, thread_id)
-            if fresh:
+            if fresh and thread_matches_card(fresh, card):
                 merged = merge_threads(card.get("email_thread") or card.get("original_email") or [], fresh)
                 card_email = str(card.get("email") or "").strip()
                 if card_email:
@@ -1069,26 +1159,27 @@ def resolve_thread_id_for_card_multi(
     stored_raw = str(card.get("gmail_thread_id") or "").strip()
     stored = normalize_stored_thread_id(stored_raw)
     stored_fresh, stored_mailbox, _ = fetch_thread_from_mailboxes(mailboxes, stored)
-    stale_cleared = bool(stored_raw and (stored_raw != stored or not stored_fresh))
+    stored_matches = bool(stored_fresh and thread_matches_card(stored_fresh, card))
+    stale_cleared = bool(stored_raw and (stored_raw != stored or not stored_fresh or not stored_matches))
 
     best_tid = ""
     best_source = ""
     best_mailbox = ""
     best_score = (-1.0, -1)
 
-    if stored_fresh:
+    if stored_matches:
         latest = max(date_sort_value(m.get("date")) for m in stored_fresh)
         best_tid = stored
         best_source = "stored"
         best_mailbox = stored_mailbox
         best_score = (latest, len(stored_fresh))
 
-    email = str(card.get("email") or "").strip().lower()
-    if allow_email_lookup and email and "@" in email:
+    email = card_external_email(card)
+    if allow_email_lookup and email:
         discovered, discovered_mailbox = lookup_thread_id_by_email_multi(mailboxes, email)
         if discovered:
             fresh, _, _ = fetch_thread_from_mailboxes(mailboxes, discovered)
-            if fresh:
+            if fresh and thread_matches_card(fresh, card):
                 latest = max(date_sort_value(m.get("date")) for m in fresh)
                 score = (latest, len(fresh))
                 if score > best_score:
@@ -1426,34 +1517,22 @@ def _sync_single_card_impl(card_id: str | int) -> dict[str, Any]:
     stored_thread = str(card.get("gmail_thread_id") or "").strip()
     stored = normalize_stored_thread_id(stored_thread)
 
-    if stored:
-        fresh, mailbox, _service = fetch_thread_from_mailboxes(mailboxes, stored)
-        if fresh:
-            merged = merge_threads(card.get("email_thread") or card.get("original_email") or [], fresh)
-            card_email = str(card.get("email") or "").strip()
-            if card_email:
-                merged = slice_thread_for_contact(merged, card_email)
-            return _sync_single_card_patch(
-                card,
-                merged,
-                stored,
-                source="stored",
-                mailbox=mailbox,
-                stale_cleared=bool(stored_thread and stored_thread != stored),
-            )
-
     thread_id, source, stale_cleared, mailbox = resolve_thread_id_for_card_multi(
         mailboxes,
         card,
         allow_email_lookup=True,
     )
     if stale_cleared and not thread_id:
-        supabase_patch(card["id"], {"gmail_thread_id": ""})
+        supabase_patch(card["id"], {
+            "gmail_thread_id": "",
+            "draft_reply_status": "human_only",
+            "needs_human_read": True,
+        })
         return {
             "ok": False,
             "error": (
-                "The saved Gmail thread was deleted or moved. "
-                "No newer thread found for this email — run a full Gmail sync or verify the address."
+                "The saved Gmail thread did not match this lead. "
+                "It was unlinked and the draft was held for human review."
             ),
             "stale_thread_cleared": True,
             "previous_thread_id": stored_thread,
