@@ -12248,6 +12248,7 @@ function V4TodayDealBlocker(lead, primaryTask) {
 }
 
 function V4TodayDealCta(lead, primaryTask) {
+  if (V4DeskIntakeAwaitingAsherFollowup(lead)) return { label: 'Send pricing', action: 'company-os' };
   if (primaryTask?.action === 'open-brief') return { label: 'Open brief', action: 'brief' };
   if (primaryTask?.type) {
     const verb = (typeof CTA_VERB !== 'undefined' ? CTA_VERB : {})[primaryTask.type];
@@ -12261,11 +12262,12 @@ function V4TodayDealCta(lead, primaryTask) {
 
 function V4TodayDealUrgency(card) {
   const task = card.primaryTask;
-  if (task?.urgent) return 0;
-  if (task && task.dueIn < 0) return 1;
-  if (task && task.dueIn === 0) return 2;
-  if (card.lead?.stage === 'invoice-sent') return 3;
-  if (card.lead?.needsReply) return 4;
+  if (V4DeskIntakeAwaitingAsherFollowup(card.lead)) return 0;
+  if (task?.urgent) return 1;
+  if (task && task.dueIn < 0) return 2;
+  if (task && task.dueIn === 0) return 3;
+  if (card.lead?.stage === 'invoice-sent') return 4;
+  if (card.lead?.needsReply) return 5;
   return 10 + (task?.dueIn || 14);
 }
 
@@ -14981,6 +14983,7 @@ function V4CompanyOsLeadSourceChannel(lead) {
 function V4CompanyOsMatchesSourceFilter(lead, filter) {
   const mode = String(filter || 'all').toLowerCase();
   if (!mode || mode === 'all') return true;
+  if (V4DeskIntakeAwaitingAsherFollowup(lead)) return true;
   return V4CompanyOsLeadSourceChannel(lead) === mode;
 }
 
@@ -17844,17 +17847,27 @@ function V4CosIsFreshIntake(lead) {
 
 function V4CosBuildSendQueueSections(items = []) {
   const isIntake = (l) => window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(l);
+  const deskAsher = items.filter(V4DeskIntakeAwaitingAsherFollowup)
+    .sort((a, b) => V4CosConversationTouchAt(b) - V4CosConversationTouchAt(a));
   const freshIntake = items.filter(l => isIntake(l) && V4CosIsFreshIntake(l))
     .sort((a, b) => V3LeadReceivedTimestamp(b) - V3LeadReceivedTimestamp(a));
   const staleIntake = items.filter(l => isIntake(l) && !V4CosIsFreshIntake(l))
     .sort((a, b) => V3LeadReceivedTimestamp(b) - V3LeadReceivedTimestamp(a));
-  const sendWork = items.filter(l => !isIntake(l) && !(V4DeskIntakeAwaitingLeadReply(l) && !V4CosActiveLeadNeedsYou(l))).sort((a, b) => {
+  const sendWork = items.filter(l => !V4DeskIntakeAwaitingAsherFollowup(l) && !isIntake(l) && !(V4DeskIntakeAwaitingLeadReply(l) && !V4CosActiveLeadNeedsYou(l))).sort((a, b) => {
     const xWaiting = (l) => V3IsXLeadRecord(l) && V3XLeadRepliedViaX(l) && !V3InferXReplyState(l).needsXReply;
     const waitDelta = (xWaiting(a) ? 1 : 0) - (xWaiting(b) ? 1 : 0);
     if (waitDelta) return waitDelta;
     return V4SortActionLeads(a, b);
   });
   const sections = [];
+  if (deskAsher.length) {
+    sections.push({
+      id: 'desk-asher',
+      label: 'Robert handed off — your pricing reply',
+      hint: 'Robert emailed and CCed you — send the package next',
+      items: deskAsher,
+    });
+  }
   if (freshIntake.length) sections.push({ id: 'fresh-intake', label: 'New this week', items: freshIntake });
   if (sendWork.length) sections.push({ id: 'send-work', label: 'Replies & drafts', items: sendWork });
   if (staleIntake.length) sections.push({ id: 'stale-intake', label: 'Older intake', hint: 'Came in over a week ago — accept or trash', items: staleIntake });
@@ -21982,7 +21995,11 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
     .sort((a, b) => V3LeadReceivedTimestamp(b) - V3LeadReceivedTimestamp(a));
   const staleIntake = intakeNonTravel.filter(l => !V4CosIsFreshIntake(l))
     .sort((a, b) => V3LeadReceivedTimestamp(b) - V3LeadReceivedTimestamp(a));
-  const sendItems = activeItems.filter(V4CosIsSendLead).sort(V4SortActionLeads);
+  const sendItems = activeItems.filter(V4CosIsSendLead).sort((a, b) => {
+    const asherDelta = (V4DeskIntakeAwaitingAsherFollowup(b) ? 1 : 0) - (V4DeskIntakeAwaitingAsherFollowup(a) ? 1 : 0);
+    if (asherDelta) return asherDelta;
+    return V4SortActionLeads(a, b);
+  });
   const sendQueue = [...freshIntake, ...sendItems, ...staleIntake];
   const chaseItems = activeItems.filter(l => !V4CosIsTravelLead(l) && V4CosIsChaseLead(l)).sort((a, b) => (b.daysInStage || 0) - (a.daysInStage || 0) || byRecent(a, b));
   const watchItems = activeItems.filter(l => !V4CosIsTravelLead(l) && V4CosIsWatchLead(l)).sort(byRecent);
@@ -22005,9 +22022,25 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
 
   const [splitId, setSplitId] = React.useState(() => {
     if (initialQueue) return initialQueue;
-    return travelItems.length > 0 ? 'travel' : 'send';
+    try {
+      const stored = window.sessionStorage.getItem('cos-queue');
+      if (stored) return stored;
+    } catch (e) {}
+    return 'send';
   });
   const [selId, setSelId] = React.useState(null);
+  const deskAsherRoutedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (deskAsherRoutedRef.current) return;
+    const deskAsher = activeItems.filter(V4DeskIntakeAwaitingAsherFollowup);
+    if (!deskAsher.length) return;
+    let leadId = '';
+    try { leadId = String(window.sessionStorage.getItem('cos-lead-id') || '').trim(); } catch (e) {}
+    if (leadId) return;
+    deskAsherRoutedRef.current = true;
+    setSplitId((prev) => (['desk-intake', 'partner-feedback', 'scope-intake', 'toolkit'].includes(prev) ? prev : 'send'));
+    setSelId((prev) => prev ?? deskAsher[0]?.id ?? null);
+  }, [activeItems]);
   const [, setLeadRev] = React.useState(0);
   React.useEffect(() => {
     const bump = () => setLeadRev(v => v + 1);
