@@ -12677,13 +12677,13 @@ function TodayDealCard({ card, onOpenInCompanyOs, onOpenBrief, compact }) {
         </div>
       </div>
 
-      {!compact && <TodayDealPath stageIndex={card.stageIndex} />}
-      <TodayDealMilestones lead={lead} execution={card.execution} />
-
-      <div className="today-deal-blocker">{card.blocker}</div>
-      {!compact && card.snippet && (
-        <div className="today-deal-snippet">{card.snippet}</div>
-      )}
+      <div className="today-deal-card-context">
+        <div className="today-deal-context-label">Next move</div>
+        <div className="today-deal-blocker">{card.blocker}</div>
+        {!compact && card.snippet && (
+          <div className="today-deal-snippet">{card.snippet}</div>
+        )}
+      </div>
 
       <div className="today-deal-card-ft">
         <button type="button" className="btn btn-accent btn-sm today-deal-cta" data-track={'today:action:' + card.cta.action} onClick={runCta}>
@@ -12806,7 +12806,7 @@ function V4TodayView({ user, leads, onOpenLead, onGoInbox, onOpenInCompanyOs, on
 
   const subline = nowCount === 0
     ? (nextCount > 0 ? `Clear for now · ${nextCount} deals coming up` : "You're all clear.")
-    : (<><strong style={{ color: 'var(--text)' }}>{nowCount}</strong> deal{nowCount === 1 ? '' : 's'} you're building</>);
+    : (<><strong style={{ color: 'var(--text)' }}>{nowCount}</strong> decision{nowCount === 1 ? '' : 's'} ready for you</>);
 
   const ctx = { user, onOpenLead, onOpenInCompanyOs, onOpenBrief: openBrief, onToggle: toggleComplete, completed, now, fadeMs: FADE_MS };
 
@@ -13001,8 +13001,8 @@ function NowZone({ buckets, priorityCards = [], activeCards = [], ...ctx }) {
       {activeCards.length > 0 && (
         <TodayDealGrid
           cards={activeCards}
-          label="Deals you're building"
-          sublabel="Tap a card to open Company OS"
+          label="Decisions"
+          sublabel="One clear next move per deal"
           onOpenInCompanyOs={ctx.onOpenInCompanyOs}
           onOpenBrief={ctx.onOpenBrief}
         />
@@ -21553,12 +21553,13 @@ function V4DealActionBar({ lead, onOpenSplits, onReply, replyLabel, onRefreshThr
 
 function V4DealBrainPanel({ lead, setComposeOpen, onOpenSplits }) {
   const [meta, setMeta] = React.useState(null);
-  const [open, setOpen] = React.useState(true);
+  const [open, setOpen] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
 
   React.useEffect(() => {
     let alive = true;
     setMeta(null);
+    setOpen(false);
     if (!lead?.id) return undefined;
     fetch(`${V4_DEAL_BRAIN_URL}/brain/${encodeURIComponent(lead.id)}`)
       .then((r) => (r.ok ? r.json() : null))
@@ -21601,7 +21602,7 @@ function V4DealBrainPanel({ lead, setComposeOpen, onOpenSplits }) {
         </div>
       ))}
       <button type="button" className="cos-brain-hd" onClick={() => setOpen(!open)}>
-        <span className="cos-brain-title">DEAL BRAIN</span>
+        <span className="cos-brain-title">AI DEAL READ</span>
         <span className="cos-brain-conf">{read.confidence || ''}{brainAgeLabel ? ` · ${brainAgeLabel}` : ''}</span>
         <span className="cos-brain-chev">{open ? '−' : '+'}</span>
       </button>
@@ -21634,8 +21635,8 @@ function V4DealBrainPanel({ lead, setComposeOpen, onOpenSplits }) {
           )}
           {draft && (
             <div className="cos-brain-draftrow">
-              <button type="button" className="cos-brain-btn cos-brain-btn--primary" onClick={() => setComposeOpen && setComposeOpen(true)}>Reply now</button>
-              <button type="button" className="cos-brain-btn" onClick={copyDraft}>{copied ? 'Copied' : 'Copy brain draft'}</button>
+              <button type="button" className="cos-brain-btn cos-brain-btn--primary" onClick={() => setComposeOpen && setComposeOpen(true)}>Use draft</button>
+              <button type="button" className="cos-brain-btn" onClick={copyDraft}>{copied ? 'Copied' : 'Copy draft'}</button>
             </div>
           )}
         </div>
