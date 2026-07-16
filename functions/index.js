@@ -175,9 +175,138 @@ async function sendViaSmtp(sender, to, subject, body, cc, attachments, replyHead
 }
 
 // ── Shared ──────────────────────────────────────────
+function isTeamFromHeader(from) {
+  const value = String(from || '').toLowerCase();
+  return value.includes('scobleizer@gmail.com')
+    || value.includes('robert scoble')
+    || value.includes('asherunaligned')
+    || value.includes('unalignedx')
+    || value.includes('samlevin');
+}
+
+function replyHeadersFromMessages(messages, opts = {}) {
+  if (!messages.length) return {};
+  const headerValue = (headers, name) =>
+    (headers || []).find(h => h.name?.toLowerCase() === name.toLowerCase())?.value || '';
+  const preferRobert = opts.preferRobert !== false;
+  const preferExternal = opts.preferExternal === true;
+  let target = null;
+  if (preferExternal) {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const headers = messages[i]?.payload?.headers || messages[i]?.headers || [];
+      const from = headerValue(headers, 'From');
+      const messageId = headerValue(headers, 'Message-ID');
+      if (messageId && !isTeamFromHeader(from)) {
+        target = messages[i];
+        break;
+      }
+    }
+  }
+  if (!target && (preferRobert || preferExternal)) {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const headers = messages[i]?.payload?.headers || messages[i]?.headers || [];
+      const from = headerValue(headers, 'From').toLowerCase();
+      const messageId = headerValue(headers, 'Message-ID');
+      if (messageId && (from.includes('scobleizer@gmail.com') || from.includes('robert scoble'))) {
+        target = messages[i];
+        break;
+      }
+    }
+  }
+  if (!target) {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const headers = messages[i]?.payload?.headers || messages[i]?.headers || [];
+      if (headerValue(headers, 'Message-ID')) {
+        target = messages[i];
+        break;
+      }
+    }
+  }
+  if (!target) target = messages[messages.length - 1];
+  const headers = target?.payload?.headers || target?.headers || [];
+  const messageId = headerValue(headers, 'Message-ID');
+  const references = headerValue(headers, 'References');
+  if (!messageId) return {};
+  const refChain = [...messages]
+    .map(msg => headerValue(msg?.payload?.headers || msg?.headers || [], 'Message-ID'))
+    .filter(Boolean);
+  return {
+    inReplyTo: messageId,
+    references: [references, ...refChain].filter(Boolean).join(' ').trim() || messageId,
+  };
+}
+
+async function findRobertSentThreadForRecipient(recipientEmail) {
+  const email = String(recipientEmail || '').trim().toLowerCase();
+  if (!email || !email.includes('@')) return '';
+  try {
+    const auth = await getRobertGmailAuth();
+    const gmail = getGoogle().gmail({ version: 'v1', auth });
+    const list = await gmail.users().messages().list({
+      userId: 'me',
+      q: `in:sent to:${email} newer_than:180d`,
+      maxResults: 8,
+    });
+    const hits = list.data.messages || [];
+    if (!hits.length) return '';
+    let bestThreadId = '';
+    let bestTs = 0;
+    for (const hit of hits) {
+      const meta = await gmail.users().messages().get({
+        userId: 'me',
+        id: hit.id,
+        format: 'metadata',
+        metadataHeaders: ['Date', 'Subject', 'From'],
+        fields: 'threadId,internalDate,payload/headers',
+      });
+      const ts = Number(meta.data.internalDate || 0);
+      if (ts >= bestTs) {
+        bestTs = ts;
+        bestThreadId = String(meta.data.threadId || hit.threadId || '').trim();
+      }
+    }
+    return bestThreadId;
+  } catch (err) {
+    console.warn('Could not search Robert sent thread:', err.message);
+    return '';
+  }
+}
+
 async function getThreadReplyHeaders(threadId, opts = {}) {
   if (!threadId) return {};
   const preferRobert = opts.preferRobert !== false;
+  const preferExternal = opts.preferExternal === true;
+  const tryThreadIds = [String(threadId).trim()].filter(Boolean);
+  if (opts.recipientEmail) {
+    const recovered = await findRobertSentThreadForRecipient(opts.recipientEmail);
+    if (recovered && !tryThreadIds.includes(recovered)) tryThreadIds.push(recovered);
+  }
+  try {
+    const auth = await getRobertGmailAuth();
+    const gmail = getGoogle().gmail({ version: 'v1', auth });
+    for (const candidateId of tryThreadIds) {
+      try {
+        const result = await gmail.users.threads.get({
+          userId: 'me',
+          id: candidateId,
+          format: 'metadata',
+          metadataHeaders: ['Message-ID', 'References', 'From'],
+          fields: 'messages(id,payload/headers)',
+        });
+        const headers = replyHeadersFromMessages(result.data.messages || [], { preferRobert, preferExternal });
+        if (headers.inReplyTo) return headers;
+      } catch (innerErr) {
+        console.warn(`Could not load Gmail thread ${candidateId}:`, innerErr.message);
+      }
+    }
+  } catch (err) {
+    console.warn('Could not load Gmail thread headers:', err.message);
+  }
+  return {};
+}
+
+async function getThreadCanonicalSubject(threadId) {
+  if (!threadId) return '';
   try {
     const auth = await getRobertGmailAuth();
     const gmail = getGoogle().gmail({ version: 'v1', auth });
@@ -185,50 +314,33 @@ async function getThreadReplyHeaders(threadId, opts = {}) {
       userId: 'me',
       id: threadId,
       format: 'metadata',
-      metadataHeaders: ['Message-ID', 'References', 'From'],
-      fields: 'messages(id,payload/headers)',
+      metadataHeaders: ['Subject'],
+      fields: 'messages(payload/headers)',
     });
     const messages = result.data.messages || [];
-    if (!messages.length) return {};
     const headerValue = (headers, name) =>
       (headers || []).find(h => h.name?.toLowerCase() === name.toLowerCase())?.value || '';
-    let target = null;
-    if (preferRobert) {
-      for (let i = messages.length - 1; i >= 0; i -= 1) {
-        const headers = messages[i]?.payload?.headers || [];
-        const from = headerValue(headers, 'From').toLowerCase();
-        const messageId = headerValue(headers, 'Message-ID');
-        if (messageId && (from.includes('scobleizer@gmail.com') || from.includes('robert scoble'))) {
-          target = messages[i];
-          break;
-        }
-      }
+    for (const msg of messages) {
+      const subject = headerValue(msg?.payload?.headers || [], 'Subject').trim();
+      if (!subject) continue;
+      const base = subject.replace(/^(re|fwd|fw):\s*/i, '').trim();
+      return base ? `Re: ${base}` : subject;
     }
-    if (!target) {
-      for (let i = messages.length - 1; i >= 0; i -= 1) {
-        const headers = messages[i]?.payload?.headers || [];
-        if (headerValue(headers, 'Message-ID')) {
-          target = messages[i];
-          break;
-        }
-      }
-    }
-    if (!target) target = messages[messages.length - 1];
-    const headers = target?.payload?.headers || [];
-    const messageId = headerValue(headers, 'Message-ID');
-    const references = headerValue(headers, 'References');
-    if (!messageId) return {};
-    const refChain = [...messages]
-      .map(msg => headerValue(msg?.payload?.headers || [], 'Message-ID'))
-      .filter(Boolean);
-    return {
-      inReplyTo: messageId,
-      references: [references, ...refChain].filter(Boolean).join(' ').trim() || messageId,
-    };
   } catch (err) {
-    console.warn('Could not load Gmail thread headers:', err.message);
-    return {};
+    console.warn('Could not load Gmail thread subject:', err.message);
   }
+  return '';
+}
+
+function normalizeThreadedSubject(subject, canonical) {
+  const canonicalSubject = String(canonical || '').trim();
+  if (!canonicalSubject) return String(subject || '').trim();
+  const sent = String(subject || '').trim();
+  if (!sent) return canonicalSubject;
+  const sentBase = sent.replace(/^re:\s*/i, '').trim().toLowerCase();
+  const canonBase = canonicalSubject.replace(/^re:\s*/i, '').trim().toLowerCase();
+  if (sentBase === canonBase) return /^re:/i.test(sent) ? sent : canonicalSubject;
+  return canonicalSubject;
 }
 
 function threadHeaderLines(replyHeaders) {
@@ -406,14 +518,38 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
       return;
     }
     const ccList = effectiveCc(cc, sender, to);
-    // Always resolve reply headers from Robert's thread when threadId is known.
-    // Asher/Sam send via SMTP but still need In-Reply-To from Robert's mailbox.
-    let replyHeaders = await getThreadReplyHeaders(threadId, { preferRobert: sender.id !== 'robert' });
-    if (!replyHeaders.inReplyTo && inReplyTo) {
+    const clientInReplyTo = String(inReplyTo || '').trim();
+    const clientReferences = String(references || inReplyTo || '').trim();
+    let replyHeaders = {};
+    if (clientInReplyTo) {
       replyHeaders = {
-        inReplyTo: String(inReplyTo).trim(),
-        references: String(references || inReplyTo).trim(),
+        inReplyTo: clientInReplyTo,
+        references: clientReferences || clientInReplyTo,
       };
+    }
+    if (!replyHeaders.inReplyTo && threadId) {
+      replyHeaders = await getThreadReplyHeaders(threadId, {
+        preferRobert: sender.id === 'robert',
+        preferExternal: sender.id !== 'robert',
+        recipientEmail: to,
+      });
+    }
+    if (!replyHeaders.inReplyTo && clientInReplyTo) {
+      replyHeaders = {
+        inReplyTo: clientInReplyTo,
+        references: clientReferences || clientInReplyTo,
+      };
+    }
+    if (threadId && !replyHeaders.inReplyTo) {
+      throw new Error(
+        `Threaded reply blocked for ${sender.name}: could not resolve In-Reply-To from Gmail thread ${threadId}. `
+        + 'Hard refresh the dashboard and retry in one minute.'
+      );
+    }
+    let finalSubject = subject;
+    if (threadId) {
+      const canonicalSubject = await getThreadCanonicalSubject(threadId);
+      finalSubject = normalizeThreadedSubject(subject, canonicalSubject);
     }
     const gmailThreadId = sender.id === 'robert' ? (threadId || null) : null;
     let messageId;
@@ -424,7 +560,7 @@ exports.sendEmail = functions.https.onRequest(async (req, res) => {
       attachments = [await loadPricingPdfAttachment(pack)];
     }
 
-    messageId = await sendViaGmail(sender, to, subject, body, ccList, attachments, gmailThreadId, replyHeaders);
+    messageId = await sendViaGmail(sender, to, finalSubject, body, ccList, attachments, gmailThreadId, replyHeaders);
 
     res.json({ success: true, messageId, from: sender.id, threadId: threadId || null });
   } catch (err) {

@@ -5,7 +5,7 @@
   <link rel="canonical" href="https://agentdashboard.cloud/connect" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>UNALIGNED · Reach Robert's team</title>
-  <!-- form build: 20260708-connect-lanes-v1 -->
+  <!-- form build: 20260715-connect-rates-v1 -->
   <meta name="description" content="Share your idea with Robert Scoble's team. We read everything and route the best fits to Robert's desk." />
   <meta name="theme-color" content="#000000" />
   <meta name="color-scheme" content="dark" />
@@ -42,7 +42,7 @@
   })();
   </script>
   <link rel="icon" href="../favicon.ico" />
-  <link rel="stylesheet" href="../assets/unaligned-form.css?v=20260708-lanes-v1" />
+  <link rel="stylesheet" href="../assets/unaligned-form.css?v=20260715-connect-rates-v1" />
 </head>
 <body class="ua-form-page ua-form-connect">
   <div class="ua-scene">
@@ -65,7 +65,16 @@
   <script>
     const API = 'https://us-central1-unaligned-fc556.cloudfunctions.net/robertDeskIntake';
 
+    // Lane order matters: General Conversation is first and the default selection
+    // so partnership pricing only appears when they deliberately choose Collaboration.
     const LANES = [
+      {
+        label: 'General Conversation',
+        value: 'general_outreach',
+        lead: 'Partnerships, intros, syncs, and anything else worth routing to Robert\'s desk.',
+        messageHint: 'What you want to explore, why now, and how Robert fits in.',
+        briefHint: 'Optional — link to a deck, site, or doc if it helps.',
+      },
       {
         label: 'Collaboration',
         value: 'collaboration',
@@ -73,14 +82,33 @@
         messageHint: 'What are you proposing, what deliverable do you want, and any timing or budget context.',
         briefHint: 'Optional but helpful — deck, brief, or one-pager for the collab.',
       },
-      {
-        label: 'General outreach',
-        value: 'general_outreach',
-        lead: 'Partnerships, intros, syncs, and anything else worth routing to Robert\'s desk.',
-        messageHint: 'What you want to explore, why now, and how Robert fits in.',
-        briefHint: 'Optional — link to a deck, site, or doc if it helps.',
-      },
     ];
+
+    // Live rate card (matches pricing_tiers / the package PDF emailed to partners).
+    // Plain text only — no images. Shown only on the Collaboration lane.
+    const RATE_CARD = {
+      note: 'All packages are USD and paid in full before any content goes live. Existing clients may be invoiced on go-live day. Every paid post carries a clear paid partnership disclosure.',
+      packages: [
+        { name: 'Retweet', price: 1295, items: ['1 retweet'] },
+        { name: 'Quote Repost', price: 2195, items: ['1 quote repost', "Robert's original quote (up to 3 sentences)"] },
+        { name: 'Custom X Post', price: 2495, items: ['1 custom-written X post'] },
+        { name: 'Narrative Thread', price: 2995, items: ['1 thread (main post + 2 attached replies)'] },
+        { name: 'Content Core', price: 3495, items: ['1 custom X post', '1 LinkedIn post', 'Newsletter feature'] },
+        { name: 'Growth Bundle', price: 4495, items: ['1 custom X post', '1 LinkedIn post', '1 retweet', 'Newsletter feature'] },
+        { name: 'Maximum Impact', price: 6495, items: ['2 custom X posts', '1 LinkedIn post', '2 retweets', 'Newsletter feature', 'Strategy sync'] },
+        { name: 'Founder Video Post', price: 4495, items: ['1 native X video, Robert on camera reacting to or demoing the product (up to ~90s)', 'One round of edits', 'Client provides product access and brief'] },
+        { name: 'X Space (Live)', price: 4995, items: ['1 hosted or co-hosted live X Space with the founder, 30 to 45 min', 'Scheduled slot, promoted beforehand', 'Recording clipped for reuse after'] },
+      ],
+      addon: {
+        name: "Robert's Team Demo & Media",
+        price: 500,
+        items: [
+          "Robert's team produces demo clips and screen media for the post",
+          '$500 per post produced — available as an add-on on any package',
+          'Without the add-on, the client supplies links for all media',
+        ],
+      },
+    };
 
     const CONTACT_PREFS = [
       { label: 'Email', value: 'email' },
@@ -143,8 +171,9 @@
       email: '',
       contact_detail: '',
       contact_preference: '',
-      intake_lane: 'collaboration',
-      topic_type: 'collaboration',
+      // Default: general conversation so rates are not in their face on load.
+      intake_lane: 'general_outreach',
+      topic_type: 'general_outreach',
       brief_link: '',
       message: '',
       company_website: '',
@@ -157,12 +186,15 @@
     let messageHintEl = null;
     let briefHintEl = null;
     let briefFieldWrap = null;
+    let ratesPanelEl = null;
 
     function el(tag, attrs, children) {
       const node = document.createElement(tag);
       if (attrs) Object.entries(attrs).forEach(([k, v]) => {
+        if (v == null || v === false) return;
         if (k === 'className') node.className = v;
         else if (k === 'text') node.textContent = v;
+        else if (k === 'hidden' && v) node.hidden = true;
         else if (k.startsWith('on')) node.addEventListener(k.slice(2).toLowerCase(), v);
         else node.setAttribute(k, v);
       });
@@ -247,6 +279,65 @@
       return LANES.find((lane) => lane.value === value) || LANES[0];
     }
 
+    function money(n) {
+      const num = Number(n);
+      if (!Number.isFinite(num)) return '';
+      return '$' + num.toLocaleString('en-US');
+    }
+
+    function ratesPanel() {
+      const panel = el('div', {
+        className: 'rates-panel',
+        id: 'collab-rates',
+        hidden: state.intake_lane !== 'collaboration',
+        'aria-label': 'Partnership pricing',
+      });
+
+      panel.appendChild(el('div', { className: 'rates-eyebrow', text: 'Partnership packages' }));
+      panel.appendChild(el('p', {
+        className: 'rates-intro',
+        text: RATE_CARD.note,
+      }));
+
+      const list = el('ul', { className: 'rates-list' });
+      RATE_CARD.packages.forEach((pkg) => {
+        const li = el('li', { className: 'rates-item' });
+        li.appendChild(el('div', {
+          className: 'rates-item-title',
+          text: pkg.name + ' — ' + money(pkg.price),
+        }));
+        const bullets = el('ul', { className: 'rates-item-bullets' });
+        (pkg.items || []).forEach((line) => {
+          bullets.appendChild(el('li', { text: line }));
+        });
+        li.appendChild(bullets);
+        list.appendChild(li);
+      });
+      panel.appendChild(list);
+
+      if (RATE_CARD.addon) {
+        const add = el('div', { className: 'rates-addon' });
+        add.appendChild(el('div', {
+          className: 'rates-item-title',
+          text: 'Add-on · ' + RATE_CARD.addon.name + ' — ' + money(RATE_CARD.addon.price),
+        }));
+        const bullets = el('ul', { className: 'rates-item-bullets' });
+        (RATE_CARD.addon.items || []).forEach((line) => {
+          bullets.appendChild(el('li', { text: line }));
+        });
+        add.appendChild(bullets);
+        panel.appendChild(add);
+      }
+
+      ratesPanelEl = panel;
+      return panel;
+    }
+
+    function syncRatesVisibility() {
+      if (!ratesPanelEl) return;
+      ratesPanelEl.hidden = state.intake_lane !== 'collaboration';
+    }
+
     function applyLane(value) {
       const lane = laneConfig(value);
       state.intake_lane = lane.value;
@@ -254,6 +345,7 @@
       if (laneLeadEl) laneLeadEl.textContent = lane.lead;
       if (messageHintEl) messageHintEl.textContent = lane.messageHint;
       if (briefHintEl) briefHintEl.textContent = lane.briefHint;
+      syncRatesVisibility();
     }
 
     function laneTabs() {
@@ -287,6 +379,7 @@
       app.appendChild(laneTabs());
       laneLeadEl = el('p', { className: 'lead', text: laneConfig(state.intake_lane).lead });
       app.appendChild(laneLeadEl);
+      app.appendChild(ratesPanel());
       app.appendChild(el('p', {
         className: 'promise',
         text: "This isn't a sales form. It's a direct line to the people who work with Robert every day.",

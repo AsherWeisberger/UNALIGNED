@@ -261,6 +261,68 @@ textarea:focus {
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 
+/* Collaboration rate card — plain text only, no images */
+.rates-panel {
+  margin: 0 0 20px;
+  padding: 16px 16px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--ua-line);
+  background: rgba(255, 255, 255, 0.03);
+}
+.rates-panel[hidden] {
+  display: none !important;
+}
+.rates-eyebrow {
+  font: 700 10px/1 var(--ua-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ua-muted);
+  margin: 0 0 10px;
+}
+.rates-intro {
+  margin: 0 0 14px;
+  font: 500 13px/1.5 var(--ua-body, system-ui, sans-serif);
+  color: var(--ua-muted);
+}
+.rates-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.rates-item {
+  margin: 0;
+  padding: 0 0 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.rates-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.rates-item-title {
+  font: 650 14px/1.3 var(--ua-display, system-ui, sans-serif);
+  letter-spacing: 0.01em;
+  color: var(--ua-text);
+  margin: 0 0 6px;
+}
+.rates-item-bullets {
+  margin: 0;
+  padding: 0 0 0 1.15em;
+  list-style: disc;
+}
+.rates-item-bullets li {
+  font: 500 13px/1.45 var(--ua-body, system-ui, sans-serif);
+  color: var(--ua-muted);
+  margin: 0 0 3px;
+}
+.rates-addon {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--ua-line);
+}
+
 .choice, .scale, .row { display: flex; flex-wrap: wrap; gap: 8px; }
 
 .choice button,
