@@ -13312,17 +13312,56 @@ function TodayDealGrid({ cards, label, sublabel, onOpenInCompanyOs, onOpenBrief,
   );
 }
 
-// ─── Today ──────────────────────────────────────────────────
+// ─── Today / Focus (Oasis-calm skin) ────────────────────────
 /**
- * Focus workspace — one screen for China / phone / desk.
- * Left: New · Live · Negotiating. Right: full thread + reply + rate card + AI.
- * No hop to Company OS required for day-to-day work.
+ * Focus workspace — one calm company surface.
+ * Mission strip + agent chips + three rooms (Your move · In motion · Terms).
+ * Right: full deal reader. Approvals stay first-class; Full OS is secondary.
  */
+function V4FocusAgentChips(flat) {
+  const list = Array.isArray(flat) ? flat : [];
+  let asher = 0;
+  let robert = 0;
+  let x = 0;
+  let connect = 0;
+  for (const lead of list) {
+    const isX = typeof V3IsXLeadRecord === 'function' && V3IsXLeadRecord(lead);
+    const isConnect = typeof V4IsDeskIntakeLead === 'function' && V4IsDeskIntakeLead(lead);
+    const needs = V4FocusNeedsYou(lead);
+    if (isConnect) connect += 1;
+    if (isX && (needs || lead.needsReply)) x += 1;
+    if (!isX && needs) asher += 1;
+    if (String(lead.stage || '') === 'done' || String(lead.briefStatus || '').toLowerCase() === 'ready') {
+      robert += 1;
+    }
+  }
+  return [
+    { id: 'asher', name: 'Asher', role: 'Desk & email', count: asher, tone: asher ? 'hot' : 'idle', glyph: 'A' },
+    { id: 'x', name: 'X desk', role: 'DM handoffs', count: x, tone: x ? 'hot' : 'idle', glyph: 'X' },
+    { id: 'connect', name: 'Connect', role: 'Link intake', count: connect, tone: connect ? 'live' : 'idle', glyph: 'C' },
+    { id: 'robert', name: 'Robert', role: 'Briefs & posts', count: robert, tone: robert ? 'live' : 'idle', glyph: 'R' },
+  ];
+}
+
+function V4FocusMissionLine({ total, needsYou, chips }) {
+  if (total === 0) {
+    return 'Clear desk. Agents are idle — nothing needs you.';
+  }
+  const hot = (chips || []).filter((c) => c.count > 0 && c.tone === 'hot');
+  if (needsYou === 0) {
+    return `${total} open · waiting on them. Nothing needs you right now.`;
+  }
+  if (hot.length === 1) {
+    return `${needsYou} need you · ${hot[0].name} has work ready for approve.`;
+  }
+  return `${needsYou} need you · ${total} open. Pick a card — approve stays on this screen.`;
+}
+
 function V4TodayView({ user, leads, onOpenLead, onGoInbox, onOpenInCompanyOs, onNewLeadClick }) {
   const { USERS, STAGE_BY_ID, greeting } = window.V3;
   const me = USERS[user] || { name: user };
   const today = new Date();
-  const dayLabel = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  const dayLabel = today.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
 
   const buckets = React.useMemo(() => V4FocusBuckets(leads), [leads]);
   const { neu, live, negotiating } = buckets;
@@ -13330,12 +13369,21 @@ function V4TodayView({ user, leads, onOpenLead, onGoInbox, onOpenInCompanyOs, on
   const total = flat.length;
   const needsYouList = React.useMemo(() => flat.filter(V4FocusNeedsYou), [flat]);
   const needsYou = needsYouList.length;
+  const agentChips = React.useMemo(() => V4FocusAgentChips(flat), [flat]);
+  const mission = V4FocusMissionLine({ total, needsYou, chips: agentChips });
+
+  // Oasis rooms: Your move = needs you across buckets; keep New / Live / Terms as quieter rooms.
+  const yourMove = needsYouList;
+  const inMotion = React.useMemo(
+    () => live.filter((l) => !V4FocusNeedsYou(l)),
+    [live]
+  );
 
   const [selectedId, setSelectedId] = React.useState(null);
   const [composeOpen, setComposeOpen] = React.useState(false);
   const [mobileReader, setMobileReader] = React.useState(false);
+  const [room, setRoom] = React.useState('move'); // move | new | motion | terms
 
-  // Keep selection on a live card; prefer first "needs you".
   React.useEffect(() => {
     if (!flat.length) {
       setSelectedId(null);
@@ -13356,7 +13404,6 @@ function V4TodayView({ user, leads, onOpenLead, onGoInbox, onOpenInCompanyOs, on
         V4MaybePromoteNegotiating(lead).catch(() => {});
       }
     });
-    // Retire X/email twins when a real deal already advanced (Skyfall pattern).
     if (typeof V4HealSupersededSiblingLeads === 'function') {
       V4HealSupersededSiblingLeads(leads || []).catch(() => {});
     }
@@ -13367,6 +13414,15 @@ function V4TodayView({ user, leads, onOpenLead, onGoInbox, onOpenInCompanyOs, on
       || (leads || []).find((l) => String(l.id) === String(selectedId))
       || null,
     [flat, leads, selectedId]
+  );
+
+  const selectedNeedsYou = selected ? V4FocusNeedsYou(selected) : false;
+  const selectedIsX = selected && typeof V3IsXLeadRecord === 'function' && V3IsXLeadRecord(selected);
+  const selectedRepliedX = selectedIsX && typeof V3XLeadRepliedViaX === 'function' && V3XLeadRepliedViaX(selected);
+  const selectedHasDraft = Boolean(
+    String(selected?.draftReply?.body || '').trim()
+    || (selectedIsX && !selectedRepliedX)
+    || selectedNeedsYou
   );
 
   const openLead = (lead) => {
@@ -13383,7 +13439,6 @@ function V4TodayView({ user, leads, onOpenLead, onGoInbox, onOpenInCompanyOs, on
 
   const afterSend = React.useCallback(() => {
     setComposeOpen(false);
-    // Stay on this lead so Ash can confirm; jump to next needs-you if current cleared.
     window.setTimeout(() => {
       const stillNeeds = needsYouList.some((l) => String(l.id) === String(selectedId));
       if (!stillNeeds && needsYouList[0]) {
@@ -13392,80 +13447,135 @@ function V4TodayView({ user, leads, onOpenLead, onGoInbox, onOpenInCompanyOs, on
     }, 400);
   }, [needsYouList, selectedId]);
 
-  const subline = total === 0
-    ? 'Clear — nothing open in New, Live, or Negotiating.'
-    : (
-      <>
-        <strong style={{ color: 'var(--text)' }}>{total}</strong>
-        {' '}open ·{' '}
-        <strong style={{ color: 'var(--text)' }}>{needsYou}</strong>
-        {' '}need you · reply, rate card, and AI stay on this screen
-      </>
-    );
+  const jumpApprove = () => {
+    if (!selected) return;
+    setComposeOpen(true);
+    setMobileReader(true);
+  };
+
+  const roomTabs = [
+    { id: 'move', label: 'Your move', count: yourMove.length, tone: 'hot' },
+    { id: 'new', label: 'New', count: neu.length, tone: 'new' },
+    { id: 'motion', label: 'In motion', count: inMotion.length, tone: 'live' },
+    { id: 'terms', label: 'Terms', count: negotiating.length, tone: 'nego' },
+  ];
+
+  const roomLeads = room === 'move' ? yourMove
+    : room === 'new' ? neu
+    : room === 'motion' ? inMotion
+    : negotiating;
+
+  const roomEmpty = room === 'move'
+    ? 'Nothing needs you. Agents are waiting on the other side.'
+    : room === 'new'
+      ? 'No brand-new leads in the last 7 days.'
+      : room === 'motion'
+        ? 'No quiet live deals right now.'
+        : 'No active negotiations.';
+
+  const roomNote = room === 'move'
+    ? 'Approvals and replies — your desk'
+    : room === 'new'
+      ? 'Last 7 days · connect, Gmail, X'
+      : room === 'motion'
+        ? 'Live deals waiting on them'
+        : 'Price and terms in play';
 
   return (
-    <div className={'page today-v4 focus-home focus-workspace' + (mobileReader && selected ? ' is-reader-open' : '')}>
-      <div className="page-hd focus-workspace-hd">
-        <div>
-          <div className="page-eyebrow">{dayLabel} · Focus</div>
-          <h1 className="page-title">{greeting()}, <span className="accent">{me.name}</span>.</h1>
-          <div className="page-sub">{subline}</div>
+    <div className={'page today-v4 focus-home focus-workspace focus-oasis' + (mobileReader && selected ? ' is-reader-open' : '')}>
+      <header className="focus-oasis-hero">
+        <div className="focus-oasis-hero-copy">
+          <div className="focus-oasis-kicker">{dayLabel} · Company OS</div>
+          <h1 className="focus-oasis-title">{greeting()}, {me.name}</h1>
+          <p className="focus-oasis-mission">{mission}</p>
+          <div className="focus-oasis-agents" role="list" aria-label="Agent desk">
+            {agentChips.map((chip) => (
+              <div
+                key={chip.id}
+                role="listitem"
+                className={'focus-agent-chip is-' + chip.tone}
+                title={chip.role}
+              >
+                <span className="focus-agent-avatar" aria-hidden="true">{chip.glyph}</span>
+                <span className="focus-agent-meta">
+                  <strong>{chip.name}</strong>
+                  <em>{chip.count ? `${chip.count} active` : 'Idle'}</em>
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="page-actions">
-          <button className="btn-inbox-cta" onClick={onGoInbox} title="Full Company OS (optional)">
-            <V3Icon name="mail" w={13} />
-            <span>Full OS</span>
+        <div className="focus-oasis-hero-actions">
+          {needsYou > 0 && needsYouList[0] ? (
+            <button
+              type="button"
+              className="focus-oasis-primary"
+              onClick={() => openLead(needsYouList[0])}
+            >
+              Review next · {needsYou}
+            </button>
+          ) : null}
+          <button type="button" className="focus-oasis-ghost" onClick={onNewLeadClick}>
+            New lead
           </button>
-          <button type="button" className="btn btn-sm btn-accent" onClick={onNewLeadClick}>
-            <V3Icon name="plus" /> New lead
+          <button type="button" className="focus-oasis-quiet" onClick={onGoInbox} title="Full Company OS queues">
+            Full OS
           </button>
         </div>
-      </div>
+      </header>
 
-      <div className="focus-workspace-body">
-        <aside className="focus-workspace-list" aria-label="Focus queues">
+      <div className="focus-workspace-body focus-oasis-body">
+        <aside className="focus-workspace-list focus-oasis-list" aria-label="Work rooms">
+          <div className="focus-room-tabs" role="tablist" aria-label="Focus rooms">
+            {roomTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={room === tab.id}
+                className={'focus-room-tab is-' + tab.tone + (room === tab.id ? ' is-active' : '')}
+                onClick={() => setRoom(tab.id)}
+              >
+                <span>{tab.label}</span>
+                <strong>{tab.count}</strong>
+              </button>
+            ))}
+          </div>
           <V4FocusSection
-            id="new"
-            label="New"
-            note="Last 7 days only — connect form, Robert Gmail, X scrape · newest first"
-            tone="new"
-            leads={neu}
-            empty="No brand-new leads in the last 7 days. Older untriaged sits under Live as Backlog."
+            id={room}
+            label={roomTabs.find((t) => t.id === room)?.label || 'Room'}
+            note={roomNote}
+            tone={room === 'move' ? 'hot' : room === 'new' ? 'new' : room === 'motion' ? 'live' : 'nego'}
+            leads={roomLeads}
+            empty={roomEmpty}
             onOpen={openLead}
             selectedId={selectedId}
             user={user}
             stageById={STAGE_BY_ID}
-            sortMode="received"
-          />
-          <V4FocusSection
-            id="live"
-            label="Live"
-            note="Your move first · then latest activity (includes older untriaged backlog)"
-            tone="live"
-            leads={live}
-            empty="Nothing live."
-            onOpen={openLead}
-            selectedId={selectedId}
-            user={user}
-            stageById={STAGE_BY_ID}
-            sortMode="activity"
-          />
-          <V4FocusSection
-            id="negotiating"
-            label="Negotiating"
-            note="Price & terms · your move first"
-            tone="nego"
-            leads={negotiating}
-            empty="No active negotiations."
-            onOpen={openLead}
-            selectedId={selectedId}
-            user={user}
-            stageById={STAGE_BY_ID}
-            sortMode="activity"
+            sortMode={room === 'new' ? 'received' : 'activity'}
           />
         </aside>
 
-        <section className="focus-workspace-reader" aria-label="Deal workspace">
+        <section className="focus-workspace-reader focus-oasis-reader" aria-label="Deal workspace">
+          {selected && selectedNeedsYou && selectedHasDraft ? (
+            <div className="focus-approve-strip">
+              <div className="focus-approve-copy">
+                <span className="focus-approve-eyebrow">Waiting on you</span>
+                <strong>
+                  {(typeof V4CosLeadDisplayTitle === 'function' ? V4CosLeadDisplayTitle(selected) : null)
+                    || selected.brand || selected.contactName || 'Lead'}
+                </strong>
+                <em>
+                  {selectedIsX
+                    ? 'X DM draft ready — approve Connect link or edit, then send.'
+                    : 'Operator draft ready — approve & send, or edit first.'}
+                </em>
+              </div>
+              <button type="button" className="focus-approve-btn" onClick={jumpApprove}>
+                {selectedIsX ? 'Open approve' : 'Approve path'}
+              </button>
+            </div>
+          ) : null}
           {selected ? (
             <V4CosReader
               lead={selected}
@@ -13477,9 +13587,9 @@ function V4TodayView({ user, leads, onOpenLead, onGoInbox, onOpenInCompanyOs, on
               onAfterSend={afterSend}
             />
           ) : (
-            <div className="focus-reader-empty">
-              <div className="focus-reader-empty-title">Pick a lead</div>
-              <p>Reply, attach the rate card, and draft with AI — all here. No screen hopping.</p>
+            <div className="focus-reader-empty focus-oasis-empty">
+              <div className="focus-reader-empty-title">Your office is quiet</div>
+              <p>Pick a card from <strong>Your move</strong>. Agents draft; you approve. No screen hopping.</p>
             </div>
           )}
         </section>
@@ -13541,22 +13651,27 @@ function V4FocusRow({ lead, user, stageById, sortMode, isSelected, onOpen }) {
   const source = (typeof V4IsDeskIntakeLead === 'function' && V4IsDeskIntakeLead(lead))
     ? 'Connect'
     : ((typeof V3IsXLeadRecord === 'function' && V3IsXLeadRecord(lead)) ? 'X' : 'Gmail');
+  const agent = source === 'X' ? 'X desk' : source === 'Connect' ? 'Connect' : 'Asher';
 
   return (
     <button
       type="button"
-      className={'focus-row' + (needsYou ? ' is-needs-you' : '') + (isSelected ? ' is-selected' : '')}
+      className={'focus-row focus-row-oasis' + (needsYou ? ' is-needs-you' : '') + (isSelected ? ' is-selected' : '')}
       onClick={onOpen}
       data-track={'focus:open:' + (lead.stage || 'lead')}
       aria-current={isSelected ? 'true' : undefined}
     >
       <span className={'focus-row-dot' + (needsYou ? ' is-pulse' : '')} aria-hidden="true" />
       <span className="focus-row-main">
-        <span className="focus-row-brand">{brand}</span>
+        <span className="focus-row-brandline">
+          <span className="focus-row-brand">{brand}</span>
+          {needsYou ? <span className="focus-row-badge">You</span> : null}
+        </span>
         {sub ? <span className="focus-row-sub">{sub}</span> : null}
         {next ? <span className="focus-row-next">{next}</span> : null}
       </span>
       <span className="focus-row-meta">
+        <span className="focus-row-agent" title="Who owns the next move">{agent}</span>
         <span className="focus-row-stage" style={{ color: stage.color }}>{stage.short || stage.name}</span>
         {staleNew ? <span className="focus-row-stale" title="Old untriaged — not brand new">Backlog</span> : null}
         <span className="focus-row-source">{source}</span>
