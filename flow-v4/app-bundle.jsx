@@ -1139,6 +1139,25 @@ async function V3FetchSupabaseCardById(cardId) {
   return Array.isArray(rows) && rows[0] ? rows[0] : null;
 }
 
+async function V3EnsureXDmThreadContextsLoaded() {
+  if (Array.isArray(window.__v3LastXDmThreadRows)) return window.__v3LastXDmThreadRows;
+  if (window.__v3XDmThreadContextsPromise) return window.__v3XDmThreadContextsPromise;
+  window.__v3XDmThreadContextsPromise = V3LoadXDmThreadContexts()
+    .then((rows) => {
+      window.__v3LastXDmThreadRows = Array.isArray(rows) ? rows : [];
+      return window.__v3LastXDmThreadRows;
+    })
+    .catch((err) => {
+      console.warn('[ALIGNED v4] X DM thread contexts load failed', err);
+      window.__v3LastXDmThreadRows = [];
+      return [];
+    })
+    .finally(() => {
+      window.__v3XDmThreadContextsPromise = null;
+    });
+  return window.__v3XDmThreadContextsPromise;
+}
+
 async function V3HydrateLeadDetail(lead, opts = {}) {
   const cardId = String(lead?.rowId || lead?.id || '');
   if (!cardId) return lead;
@@ -1157,9 +1176,12 @@ async function V3HydrateLeadDetail(lead, opts = {}) {
         return missing;
       }
       let hydrated = V3NormalizeSupabaseLead(row);
-      const threadRows = window.__v3LastXDmThreadRows;
-      if (Array.isArray(threadRows) && threadRows.length) {
-        [hydrated] = V3MergeXDmThreadContextsIntoLeads([hydrated], threadRows);
+      // Only pull X DM transcripts when this card is actually an X lead.
+      if (V3IsXLeadRecord(hydrated) || V3IsXLeadRecord(existing)) {
+        const threadRows = await V3EnsureXDmThreadContextsLoaded();
+        if (Array.isArray(threadRows) && threadRows.length) {
+          [hydrated] = V3MergeXDmThreadContextsIntoLeads([hydrated], threadRows);
+        }
       }
       hydrated._detailHydrated = true;
       delete hydrated._hydrateError;
@@ -1417,12 +1439,14 @@ async function V3LoadSupabaseLeads(opts = {}) {
 
   await V3EnsureXGateRules(opts?.cacheBust);
   const xRows = await V3LoadXDmIntakeRows(opts?.cacheBust);
-  const threadRows = await V3LoadXDmThreadContexts(opts?.cacheBust);
-  window.__v3LastXDmThreadRows = threadRows;
+  // Do NOT merge full X DM thread contexts into every board lead here.
+  // That JSON is ~1MB and was rewriting hundreds of lead objects on each reload,
+  // which made Company OS feel laggy. Contexts load on demand when a lead opens.
+  window.__v3LastXDmThreadRows = null;
+  window.__v3XDmThreadContextsPromise = null;
   let leads = V3FilterVisibleLeads(
     V3MergeXIntakeIntoLeads([...canonical.values()].map(V3NormalizeSupabaseLead), xRows)
   );
-  leads = V3MergeXDmThreadContextsIntoLeads(leads, threadRows);
   leads = V3RefreshMarkedXReplies(leads);
   // Phantom xdm-* rows disabled — x_bridge + x_spam_cleanup own the X queue on Supabase.
   if (!leads.some(lead => String(lead.email || '').trim().toLowerCase() === 'jocelyn.cruz@hockeystick.io')) {
@@ -3330,20 +3354,58 @@ function V4LeadIsAdvancedDeal(lead) {
   return V4_ADVANCED_DEAL_STAGES.has(String(lead?.stage || '').toLowerCase());
 }
 
+/**
+ * Sibling lookup used to be O(n) per lead (O(n²) for Focus/Cos filters).
+ * Index once per leads array: match-key → best non-trash advanced-ish lead.
+ */
+const V4_SIBLING_INDEX_CACHE = { leads: null, byKey: null, byId: null };
+
+function V4SiblingIndex(leads) {
+  const list = Array.isArray(leads) ? leads : [];
+  if (V4_SIBLING_INDEX_CACHE.leads === list && V4_SIBLING_INDEX_CACHE.byKey) {
+    return V4_SIBLING_INDEX_CACHE;
+  }
+  const byKey = new Map();
+  const byId = new Map();
+  const better = (a, b) => {
+    if (!a) return b;
+    if (!b) return a;
+    const rankDelta = V4LeadStageRank(b.stage) - V4LeadStageRank(a.stage);
+    if (rankDelta) return rankDelta > 0 ? b : a;
+    return V3LeadActivityTimestamp(b) >= V3LeadActivityTimestamp(a) ? b : a;
+  };
+  for (const lead of list) {
+    if (!lead) continue;
+    byId.set(String(lead.id), lead);
+    if (['trash', 'dead-leads'].includes(String(lead.stage || '').toLowerCase())) continue;
+    const keys = V4LeadMatchKeys(lead);
+    for (const k of keys) {
+      byKey.set(k, better(byKey.get(k), lead));
+    }
+  }
+  V4_SIBLING_INDEX_CACHE.leads = list;
+  V4_SIBLING_INDEX_CACHE.byKey = byKey;
+  V4_SIBLING_INDEX_CACHE.byId = byId;
+  return V4_SIBLING_INDEX_CACHE;
+}
+
 /** Prefer the furthest-along non-trash sibling for the same brand/email/handle. */
 function V4FindCanonicalSibling(lead, leads) {
-  const pool = (Array.isArray(leads) ? leads : [])
-    .filter((other) => {
-      if (!other || String(other.id) === String(lead?.id)) return false;
-      if (['trash', 'dead-leads'].includes(String(other.stage || '').toLowerCase())) return false;
-      return V4LeadsShareIdentity(lead, other);
-    })
-    .sort((a, b) => {
-      const rankDelta = V4LeadStageRank(b.stage) - V4LeadStageRank(a.stage);
-      if (rankDelta) return rankDelta;
-      return V3LeadActivityTimestamp(b) - V3LeadActivityTimestamp(a);
-    });
-  return pool[0] || null;
+  if (!lead) return null;
+  const list = Array.isArray(leads) ? leads : (window.V3?.LEADS || []);
+  const idx = V4SiblingIndex(list);
+  let best = null;
+  for (const k of V4LeadMatchKeys(lead)) {
+    const cand = idx.byKey.get(k);
+    if (!cand || String(cand.id) === String(lead.id)) continue;
+    if (!best) best = cand;
+    else {
+      const rankDelta = V4LeadStageRank(cand.stage) - V4LeadStageRank(best.stage);
+      if (rankDelta > 0) best = cand;
+      else if (!rankDelta && V3LeadActivityTimestamp(cand) > V3LeadActivityTimestamp(best)) best = cand;
+    }
+  }
+  return best;
 }
 
 /**
@@ -3506,6 +3568,8 @@ function V3SortLeadsByFocusAction(a, b) {
 
 function V4FocusBuckets(leads = []) {
   const list = Array.isArray(leads) ? leads : [];
+  // Prime sibling index once before the three O(n) bucket passes.
+  V4SiblingIndex(list);
   const neu = list.filter((l) => V4FocusIsNew(l, list)).sort(V3SortNewLeadsByReceived);
   const negotiating = list.filter((l) => V4FocusIsNegotiating(l, list)).sort(V3SortLeadsByFocusAction);
   const live = list.filter((l) => V4FocusIsLive(l, list)).sort(V3SortLeadsByFocusAction);
@@ -23492,8 +23556,11 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
     if (q) return cosBase;
     return cosBase.filter(l => V4CompanyOsMatchesSourceFilter(l, sourceFilter));
   }, [cosBase, sourceFilter, query]);
-  const byRecent = (a, b) => V3LeadActivityTimestamp(b) - V3LeadActivityTimestamp(a);
-  const liveAll = allCos.filter(l => !['trash', 'dead-leads'].includes(l.stage));
+  const byRecent = React.useCallback((a, b) => V3LeadActivityTimestamp(b) - V3LeadActivityTimestamp(a), []);
+  const liveAll = React.useMemo(
+    () => allCos.filter(l => !['trash', 'dead-leads'].includes(l.stage)),
+    [allCos]
+  );
 
   const [snoozes, setSnoozes] = React.useState(() => {
     try { return JSON.parse(window.localStorage.getItem('v4-snoozes') || '{}'); } catch (e) { return {}; }
@@ -23501,61 +23568,94 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
   React.useEffect(() => {
     try { window.localStorage.setItem('v4-snoozes', JSON.stringify(snoozes)); } catch (e) {}
   }, [snoozes]);
-  const nowTs = Date.now();
-  const isSnoozed = (l) => snoozes[l.id] && Date.parse(snoozes[l.id]) > nowTs;
-  const awakeAll = liveAll.filter(l => !isSnoozed(l));
+  const isSnoozed = React.useCallback((l) => {
+    const until = snoozes[l.id];
+    return until && Date.parse(until) > Date.now();
+  }, [snoozes]);
 
-  const intakeItems = awakeAll
-    .filter(l => window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(l))
-    .sort(byRecent);
-  const live = awakeAll.filter(l => !(window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(l)));
-  const activeItems = live.filter(l => !['done', 'paid-out'].includes(l.stage));
-  const travelItems = [...intakeItems, ...activeItems]
-    .filter(V4CosIsTravelLead)
-    .sort((a, b) => V4SortActionLeads(a, b) || byRecent(a, b));
-  const intakeNonTravel = intakeItems.filter(l => !V4CosIsTravelLead(l));
-  const freshIntake = intakeNonTravel.filter(V4CosIsFreshIntake)
-    .sort((a, b) => V3LeadReceivedTimestamp(b) - V3LeadReceivedTimestamp(a));
-  const staleIntake = intakeNonTravel.filter(l => !V4CosIsFreshIntake(l))
-    .sort((a, b) => V3LeadReceivedTimestamp(b) - V3LeadReceivedTimestamp(a));
-  const sendItems = activeItems.filter(V4CosIsSendLead).sort((a, b) => {
-    const asherDelta = (V4DeskIntakeAwaitingAsherFollowup(b) ? 1 : 0) - (V4DeskIntakeAwaitingAsherFollowup(a) ? 1 : 0);
-    if (asherDelta) return asherDelta;
-    return V4SortActionLeads(a, b);
-  });
-  const sendQueue = [...freshIntake, ...sendItems, ...staleIntake];
-  const waitingItems = activeItems.filter(l => !V4CosIsTravelLead(l) && V4CosIsWaitingLead(l)).sort((a, b) => {
-    const ageA = V4CosConversationTouchAt(a) || 0;
-    const ageB = V4CosConversationTouchAt(b) || 0;
-    if (ageA !== ageB) return ageB - ageA;
-    return byRecent(a, b);
-  });
-  const chaseItems = activeItems.filter(l => !V4CosIsTravelLead(l) && V4CosIsChaseLead(l)).sort((a, b) => {
-    const staleDelta = (V4CosIsStaleGmailLead(b) ? 1 : 0) - (V4CosIsStaleGmailLead(a) ? 1 : 0);
-    if (staleDelta) return staleDelta;
-    const ageA = V4CosGmailActivityTouchAt(a) || 0;
-    const ageB = V4CosGmailActivityTouchAt(b) || 0;
-    if (ageA !== ageB) return ageA - ageB;
-    return (b.daysInStage || 0) - (a.daysInStage || 0) || byRecent(a, b);
-  });
-  const watchItems = activeItems.filter(l => !V4CosIsTravelLead(l) && V4CosIsWatchLead(l)).sort(byRecent);
-  const closedItems = live.filter(l => ['done', 'paid-out'].includes(l.stage)).sort(byRecent);
-  const base = allCos;
+  // Warm sibling index once per leads snapshot so Focus/Cos filters stay O(n).
+  React.useMemo(() => V4SiblingIndex(leads), [leads]);
 
-  const splits = [
+  const queues = React.useMemo(() => {
+    const awakeAll = liveAll.filter(l => !isSnoozed(l));
+    const intakeItems = awakeAll
+      .filter(l => window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(l))
+      .sort(byRecent);
+    const live = awakeAll.filter(l => !(window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(l)));
+    const activeItems = live.filter(l => !['done', 'paid-out'].includes(l.stage));
+    const travelItems = [...intakeItems, ...activeItems]
+      .filter(V4CosIsTravelLead)
+      .sort((a, b) => V4SortActionLeads(a, b) || byRecent(a, b));
+    const intakeNonTravel = intakeItems.filter(l => !V4CosIsTravelLead(l));
+    const freshIntake = intakeNonTravel.filter(V4CosIsFreshIntake)
+      .sort((a, b) => V3LeadReceivedTimestamp(b) - V3LeadReceivedTimestamp(a));
+    const staleIntake = intakeNonTravel.filter(l => !V4CosIsFreshIntake(l))
+      .sort((a, b) => V3LeadReceivedTimestamp(b) - V3LeadReceivedTimestamp(a));
+    const sendItems = activeItems.filter(V4CosIsSendLead).sort((a, b) => {
+      const asherDelta = (V4DeskIntakeAwaitingAsherFollowup(b) ? 1 : 0) - (V4DeskIntakeAwaitingAsherFollowup(a) ? 1 : 0);
+      if (asherDelta) return asherDelta;
+      return V4SortActionLeads(a, b);
+    });
+    const sendQueue = [...freshIntake, ...sendItems, ...staleIntake];
+    const waitingItems = activeItems.filter(l => !V4CosIsTravelLead(l) && V4CosIsWaitingLead(l)).sort((a, b) => {
+      const ageA = V4CosConversationTouchAt(a) || 0;
+      const ageB = V4CosConversationTouchAt(b) || 0;
+      if (ageA !== ageB) return ageB - ageA;
+      return byRecent(a, b);
+    });
+    const chaseItems = activeItems.filter(l => !V4CosIsTravelLead(l) && V4CosIsChaseLead(l)).sort((a, b) => {
+      const staleDelta = (V4CosIsStaleGmailLead(b) ? 1 : 0) - (V4CosIsStaleGmailLead(a) ? 1 : 0);
+      if (staleDelta) return staleDelta;
+      const ageA = V4CosGmailActivityTouchAt(a) || 0;
+      const ageB = V4CosGmailActivityTouchAt(b) || 0;
+      if (ageA !== ageB) return ageA - ageB;
+      return (b.daysInStage || 0) - (a.daysInStage || 0) || byRecent(a, b);
+    });
+    const watchItems = activeItems.filter(l => !V4CosIsTravelLead(l) && V4CosIsWatchLead(l)).sort(byRecent);
+    const closedItems = live.filter(l => ['done', 'paid-out'].includes(l.stage)).sort(byRecent);
+    const snoozedItems = liveAll.filter(isSnoozed).sort((a, b) => Date.parse(snoozes[a.id]) - Date.parse(snoozes[b.id]));
+    const trashItems = allCos.filter(l => ['trash', 'dead-leads'].includes(l.stage)).sort(byRecent);
+    return {
+      intakeItems,
+      activeItems,
+      travelItems,
+      sendQueue,
+      waitingItems,
+      chaseItems,
+      watchItems,
+      closedItems,
+      snoozedItems,
+      trashItems,
+    };
+  }, [liveAll, allCos, isSnoozed, byRecent, snoozes]);
+
+  const {
+    intakeItems,
+    activeItems,
+    travelItems,
+    sendQueue,
+    waitingItems,
+    chaseItems,
+    watchItems,
+    closedItems,
+    snoozedItems,
+    trashItems,
+  } = queues;
+
+  const splits = React.useMemo(() => [
     { id: 'send', label: 'Send', hint: 'Drafts to approve, replies owed, new intake', queue: true, hot: sendQueue.length > 0, items: sendQueue },
     { id: 'waiting', label: 'Waiting', hint: 'We replied on X. The other side owes the next move.', queue: true, items: waitingItems },
     { id: 'chase', label: 'Chase', hint: 'Follow-ups that are actually due, payment, and stale Gmail threads', queue: true, hot: chaseItems.length > 0, items: chaseItems },
     { id: 'travel', label: 'Travel', hint: 'Sponsored trips, factory visits, on-site events — highest value', queue: true, hot: travelItems.length > 0, items: travelItems },
     { id: 'watch', label: 'Watch', section: 'More', hint: 'Nothing urgent from our side right now', items: watchItems },
-    { id: 'snoozed', label: 'Snoozed', section: 'More', items: liveAll.filter(isSnoozed).sort((a, b) => Date.parse(snoozes[a.id]) - Date.parse(snoozes[b.id])) },
+    { id: 'snoozed', label: 'Snoozed', section: 'More', items: snoozedItems },
     { id: 'closed', label: 'Done and paid', section: 'More', items: closedItems },
-    { id: 'trash', label: 'Trash', section: 'More', trash: true, items: base.filter(l => ['trash', 'dead-leads'].includes(l.stage)).sort(byRecent) },
+    { id: 'trash', label: 'Trash', section: 'More', trash: true, items: trashItems },
     { id: 'toolkit', label: 'Toolkit', section: 'Organs', toolkit: true, items: V4_COMPANY_OS_TOOLKIT },
     { id: 'partner-feedback', label: 'Partner feedback', section: 'Organs', partnerFeedback: true, items: [] },
     { id: 'desk-intake', label: "Robert's desk", section: 'Organs', deskIntake: true, items: [] },
     { id: 'scope-intake', label: 'Scope forms', section: 'Organs', scopeIntake: true, items: [] },
-  ];
+  ], [sendQueue, waitingItems, chaseItems, travelItems, watchItems, snoozedItems, closedItems, trashItems]);
 
   const [splitId, setSplitId] = React.useState(() => {
     if (initialQueue) return initialQueue;

@@ -9355,7 +9355,10 @@ body[data-theme="light"] .cos2-page {
   background: transparent;
   text-align: left; cursor: pointer;
   min-width: 0;
-  transition: all 0.1s ease;
+  transition: background 0.1s ease, box-shadow 0.1s ease;
+  /* Skip layout/paint for off-screen list rows — big win on long Cos queues. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 56px;
 }
 .cos2-row:hover { background: var(--tesla-surface-2); }
 .cos2-row.is-current { background: #1f2937; box-shadow: inset 3px 0 0 var(--tesla-accent); }
