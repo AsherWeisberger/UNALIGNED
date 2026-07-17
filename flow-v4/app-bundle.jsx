@@ -3161,10 +3161,21 @@ function V3NormalizeXDmLeadRow(row) {
   return V3ApplyXReplyState(V3ApplyTravelLeadMeta(base));
 }
 
+/** Drop sentinel / garbage timestamps (e.g. moved_at=2099-12-31 → UI "12/31/99"). */
+function V3TimestampIsSane(t) {
+  if (!Number.isFinite(t) || t <= 0) return false;
+  // Business board starts 2024+; ignore prehistory and far-future placeholders.
+  if (t < Date.parse('2024-01-01T00:00:00Z')) return false;
+  if (t > Date.now() + 3 * 86400000) return false;
+  return true;
+}
+
 function V3TimestampForUi(value) {
   const normalized = V3NormalizeDateForUi(value);
   const t = normalized ? Date.parse(normalized) : NaN;
-  return Number.isFinite(t) ? t : 0;
+  if (!Number.isFinite(t)) return 0;
+  if (!V3TimestampIsSane(t)) return 0;
+  return t;
 }
 
 function V3MaxTouchAt(...values) {
@@ -3173,7 +3184,7 @@ function V3MaxTouchAt(...values) {
   for (const value of values) {
     const normalized = V3NormalizeDateForUi(value);
     const t = V3TimestampForUi(normalized);
-    if (t >= best) {
+    if (t > best) {
       best = t;
       bestValue = normalized;
     }
@@ -3183,7 +3194,7 @@ function V3MaxTouchAt(...values) {
 
 function V3LeadActivityTimestamp(lead) {
   if (!lead) return 0;
-  return Math.max(
+  const candidates = [
     V3TimestampForUi(lead.lastTouchAt),
     V3TimestampForUi(lead.lastInboundAt),
     V3TimestampForUi(lead.receivedAt),
@@ -3191,13 +3202,19 @@ function V3LeadActivityTimestamp(lead) {
     V3TimestampForUi(lead.briefSentAt),
     V3TimestampForUi(lead.briefApprovedAt),
     V3TimestampForUi(lead.operatorUpdatedAt),
-    ...(Array.isArray(lead.thread) ? lead.thread.map(msg => V3TimestampForUi(msg.date || msg.dateIso || msg.timestamp || msg.when)) : [0])
-  );
+    ...(Array.isArray(lead.thread) ? lead.thread.map(msg => V3TimestampForUi(msg.date || msg.dateIso || msg.timestamp || msg.when)) : [0]),
+  ];
+  return Math.max(0, ...candidates);
 }
 
 function V3LeadActivityLabel(lead) {
   const ts = V3LeadActivityTimestamp(lead);
-  if (!ts) return lead?.lastTouch || '';
+  if (!ts) {
+    // Never show garbage lastTouch strings from bad moved_at sentinels.
+    const fallback = V3TimestampForUi(lead?.receivedAt) || V3TimestampForUi(lead?.lastInboundAt);
+    if (!fallback) return '';
+    return V3GmailTime.list(new Date(fallback).toISOString());
+  }
   const iso = new Date(ts).toISOString();
   return V3GmailTime.list(iso);
 }
@@ -3217,7 +3234,299 @@ function V3LeadReceivedTimestamp(lead) {
 }
 
 function V3SortLeadsByActivity(a, b) {
-  return V3LeadActivityTimestamp(b) - V3LeadActivityTimestamp(a);
+  const delta = V3LeadActivityTimestamp(b) - V3LeadActivityTimestamp(a);
+  if (delta) return delta;
+  // Stable tie-break: newer received first, then id.
+  const recv = V3LeadReceivedTimestamp(b) - V3LeadReceivedTimestamp(a);
+  if (recv) return recv;
+  return String(b?.id || '').localeCompare(String(a?.id || ''));
+}
+
+/**
+ * Company doctrine sort — every work list uses this:
+ * max(new_reply_at, last_inbound, last_touch, received, thread dates) newest first.
+ * Alias kept so every view calls one function name.
+ */
+function V3SortLeadsByFocus(a, b) {
+  return V3SortLeadsByActivity(a, b);
+}
+
+/** New-leads queue: newest inbound first; otherwise order by date received. */
+function V3SortNewLeadsByReceived(a, b) {
+  const bumpA = V3TimestampForUi(a?.newReplyAt || a?.lastInboundAt);
+  const bumpB = V3TimestampForUi(b?.newReplyAt || b?.lastInboundAt);
+  if (bumpA || bumpB) {
+    if (bumpA !== bumpB) return bumpB - bumpA;
+    return V3SortLeadsByActivity(a, b);
+  }
+  const recv = V3LeadReceivedTimestamp(b) - V3LeadReceivedTimestamp(a);
+  if (recv) return recv;
+  return V3SortLeadsByActivity(a, b);
+}
+
+/** Focus Home buckets — fewer places to look. */
+const V4_FOCUS_CLOSED = new Set(['trash', 'dead-leads', 'paid-out', 'done']);
+/** Brand-new only: connect form / Gmail / X scrape from the last N days. */
+const V4_FOCUS_NEW_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+/** Stages that mean "this deal already moved past pure intake." */
+const V4_ADVANCED_DEAL_STAGES = new Set(['rates-sent', 'negotiating', 'invoice-sent', 'done', 'paid-out']);
+const V4_PUBLIC_EMAIL_DOMAINS = new Set([
+  'gmail.com', 'googlemail.com', 'yahoo.com', 'yahoo.co.uk', 'hotmail.com', 'outlook.com',
+  'live.com', 'icloud.com', 'me.com', 'aol.com', 'proton.me', 'protonmail.com', 'mail.com',
+]);
+
+function V4LeadStageRank(stage) {
+  const s = String(stage || '').toLowerCase();
+  if (s === 'paid-out') return 6;
+  if (s === 'done') return 5;
+  if (s === 'invoice-sent') return 4;
+  if (s === 'negotiating') return 3;
+  if (s === 'rates-sent') return 2;
+  if (s === 'engaged' || s === 'first-touch') return 1;
+  if (s === 'new') return 0;
+  if (s === 'trash' || s === 'dead-leads') return -1;
+  return 0;
+}
+
+/** Match keys so X DM · Brand and Gmail/connect Brand can resolve as one deal. */
+function V4LeadMatchKeys(lead) {
+  const keys = new Set();
+  if (!lead) return keys;
+  const brand = typeof V3LeadIdentityKey === 'function'
+    ? V3LeadIdentityKey(lead.brand || lead.title || '')
+    : String(lead.brand || lead.title || '').toLowerCase().trim();
+  if (brand && brand.length >= 2) keys.add('b:' + brand);
+  const name = typeof V3LeadIdentityKey === 'function'
+    ? V3LeadIdentityKey(lead.contactName || '')
+    : String(lead.contactName || '').toLowerCase().trim();
+  if (name && name.length >= 2) keys.add('n:' + name);
+  const email = String(lead.email || '').trim().toLowerCase();
+  if (email && email.includes('@')) {
+    keys.add('e:' + email);
+    const domain = email.split('@')[1] || '';
+    if (domain && !V4_PUBLIC_EMAIL_DOMAINS.has(domain)) keys.add('d:' + domain);
+  }
+  const handle = String(lead.xHandle || lead.xUsername || '')
+    .replace(/^@/, '')
+    .trim()
+    .toLowerCase();
+  if (handle) keys.add('x:' + handle);
+  return keys;
+}
+
+function V4LeadsShareIdentity(a, b) {
+  if (!a || !b || String(a.id) === String(b.id)) return false;
+  const A = V4LeadMatchKeys(a);
+  const B = V4LeadMatchKeys(b);
+  if (!A.size || !B.size) return false;
+  for (const k of A) {
+    if (B.has(k)) return true;
+  }
+  return false;
+}
+
+function V4LeadIsAdvancedDeal(lead) {
+  return V4_ADVANCED_DEAL_STAGES.has(String(lead?.stage || '').toLowerCase());
+}
+
+/** Prefer the furthest-along non-trash sibling for the same brand/email/handle. */
+function V4FindCanonicalSibling(lead, leads) {
+  const pool = (Array.isArray(leads) ? leads : [])
+    .filter((other) => {
+      if (!other || String(other.id) === String(lead?.id)) return false;
+      if (['trash', 'dead-leads'].includes(String(other.stage || '').toLowerCase())) return false;
+      return V4LeadsShareIdentity(lead, other);
+    })
+    .sort((a, b) => {
+      const rankDelta = V4LeadStageRank(b.stage) - V4LeadStageRank(a.stage);
+      if (rankDelta) return rankDelta;
+      return V3LeadActivityTimestamp(b) - V3LeadActivityTimestamp(a);
+    });
+  return pool[0] || null;
+}
+
+/**
+ * X-only (or early) card is obsolete when a sibling deal already has rates /
+ * negotiation / invoice / paid. Stops Skyfall-style ghosts in Active X + Focus.
+ */
+function V4LeadIsSupersededBySibling(lead, leads) {
+  if (!lead) return false;
+  if (['trash', 'dead-leads', 'paid-out', 'done'].includes(String(lead.stage || '').toLowerCase())) {
+    return false;
+  }
+  const sibling = V4FindCanonicalSibling(lead, leads || window.V3?.LEADS || []);
+  if (!sibling || !V4LeadIsAdvancedDeal(sibling)) return false;
+  const mine = V4LeadStageRank(lead.stage);
+  const theirs = V4LeadStageRank(sibling.stage);
+  if (theirs <= mine) return false;
+  const xOnly = (typeof V4CosIsXOnlyLead === 'function' && V4CosIsXOnlyLead(lead))
+    || ((typeof V3IsXLeadRecord === 'function' && V3IsXLeadRecord(lead)) && !V3LeadExternalEmail(lead));
+  // X stub always loses to advanced email/connect deal.
+  if (xOnly) return true;
+  // Duplicate early Gmail card loses to paid/invoice sibling.
+  if (theirs >= 4 && mine <= 1) return true;
+  return false;
+}
+
+/** Auto-retire X/email twins when a real deal already advanced (paid etc.). */
+async function V4HealSupersededSiblingLeads(leads = []) {
+  const list = Array.isArray(leads) ? leads : [];
+  const victims = list
+    .filter((l) => V4LeadIsSupersededBySibling(l, list))
+    .slice(0, 30);
+  if (!victims.length) return 0;
+  let n = 0;
+  for (const lead of victims) {
+    const sibling = V4FindCanonicalSibling(lead, list);
+    if (!sibling) continue;
+    // Only hard-trash clear X-only ghosts with strong sibling (invoice+).
+    const xOnly = (typeof V4CosIsXOnlyLead === 'function' && V4CosIsXOnlyLead(lead))
+      || ((typeof V3IsXLeadRecord === 'function' && V3IsXLeadRecord(lead)) && !V3LeadExternalEmail(lead));
+    if (!xOnly || V4LeadStageRank(sibling.stage) < 3) continue;
+    try {
+      if (typeof V4PatchLeadAsync === 'function') {
+        await V4PatchLeadAsync(lead, {
+          list_id: 'trash',
+          merged_into: Number(sibling.id) || sibling.id,
+          recommended_action: `Superseded by deal #${sibling.id} (${sibling.stage})`,
+        }, { stage: 'trash' });
+      } else if (window.V3?.MoveLeadStage) {
+        window.V3.MoveLeadStage(lead, 'trash');
+      }
+      n += 1;
+    } catch (err) {
+      console.warn('[ALIGNED v4] sibling heal failed', lead?.id, err);
+    }
+  }
+  return n;
+}
+
+function V4FocusLeadAgeMs(lead) {
+  if (!lead) return Number.POSITIVE_INFINITY;
+  const ts = Math.max(
+    V3LeadReceivedTimestamp(lead) || 0,
+    V3TimestampForUi(lead.receivedAt),
+    V3TimestampForUi(lead.lastInboundAt),
+    // Prefer real activity over garbage lastTouchAt (already sanitized).
+    V3LeadActivityTimestamp(lead) || 0,
+  );
+  if (!ts) {
+    // Fallback: daysInStage is better than forever-new for stuck stage=new cards.
+    const days = Number(lead.daysInStage);
+    if (Number.isFinite(days) && days >= 0) return days * 86400000;
+    return Number.POSITIVE_INFINITY;
+  }
+  return Math.max(0, Date.now() - ts);
+}
+
+function V4FocusIsFreshEnoughForNew(lead) {
+  return V4FocusLeadAgeMs(lead) <= V4_FOCUS_NEW_MAX_AGE_MS;
+}
+
+function V4FocusNeedsYou(lead) {
+  if (!lead) return false;
+  if (lead.needsReply || lead.unread || lead.newReplyAt) return true;
+  if (typeof V4DeskIntakeAwaitingAsherFollowup === 'function' && V4DeskIntakeAwaitingAsherFollowup(lead)) return true;
+  if (typeof V4XLeadNeedsDmReply === 'function' && V4XLeadNeedsDmReply(lead)) return true;
+  const st = String(lead.draftReplyStatus || '').toLowerCase();
+  if (lead.draftReply?.body && (st === 'pending' || st === 'review')) return true;
+  return false;
+}
+
+/**
+ * Brand-new inbound only (≤7 days):
+ *  - Connect form not yet worked past first touch
+ *  - Robert Gmail / X scrapes still in intake (IsNewLeadReview)
+ *  - Stage literally "new" and fresh
+ * Stale stage=new (23–75d) does NOT belong here — that is Live backlog.
+ */
+function V4FocusIsNew(lead, allLeads) {
+  if (!lead || V4_FOCUS_CLOSED.has(String(lead.stage || ''))) return false;
+  if (V4LeadIsSupersededBySibling(lead, allLeads || window.V3?.LEADS || [])) return false;
+  if (!V4FocusIsFreshEnoughForNew(lead)) return false;
+
+  // Asher already owes pricing after Robert desk handoff → Live, not New.
+  if (typeof V4DeskIntakeAwaitingAsherFollowup === 'function' && V4DeskIntakeAwaitingAsherFollowup(lead)) {
+    return false;
+  }
+
+  const stage = String(lead.stage || '').toLowerCase();
+
+  // Fresh connect-form still early (no asher package out yet).
+  if (typeof V4IsDeskIntakeLead === 'function' && V4IsDeskIntakeLead(lead)) {
+    const payload = typeof V3ParseBriefDescription === 'function'
+      ? V3ParseBriefDescription(lead.rawDescription)
+      : null;
+    const asherOut = typeof V4DeskIntakePayloadHasAsherSend === 'function'
+      && V4DeskIntakePayloadHasAsherSend(payload, lead);
+    if (!asherOut && ['new', 'first-touch', 'engaged'].includes(stage)) return true;
+  }
+
+  if (window.V3?.IsNewLeadReview && window.V3.IsNewLeadReview(lead)) return true;
+  if (stage === 'new') return true;
+  return false;
+}
+
+function V4FocusIsNegotiating(lead, allLeads) {
+  if (!lead || V4_FOCUS_CLOSED.has(String(lead.stage || ''))) return false;
+  if (V4LeadIsSupersededBySibling(lead, allLeads || window.V3?.LEADS || [])) return false;
+  return String(lead.stage || '') === 'negotiating';
+}
+
+function V4FocusIsLive(lead, allLeads) {
+  if (!lead || V4_FOCUS_CLOSED.has(String(lead.stage || ''))) return false;
+  if (V4LeadIsSupersededBySibling(lead, allLeads || window.V3?.LEADS || [])) return false;
+  if (V4FocusIsNew(lead, allLeads) || V4FocusIsNegotiating(lead, allLeads)) return false;
+  const stage = String(lead.stage || '').toLowerCase();
+  // Includes stale stage=new (old cards that never got rebucketed).
+  if (['new', 'first-touch', 'engaged', 'rates-sent', 'invoice-sent'].includes(stage)) return true;
+  if (typeof V4DeskIntakeAwaitingAsherFollowup === 'function' && V4DeskIntakeAwaitingAsherFollowup(lead)) return true;
+  // X-only / odd stages with real activity still surface in Live.
+  return Boolean(lead.needsReply || lead.unread || lead.newReplyAt || lead.draftReply?.body);
+}
+
+/** Live / Negotiating: your move first, then freshest activity. */
+function V3SortLeadsByFocusAction(a, b) {
+  const needDelta = (V4FocusNeedsYou(b) ? 1 : 0) - (V4FocusNeedsYou(a) ? 1 : 0);
+  if (needDelta) return needDelta;
+  return V3SortLeadsByFocus(a, b);
+}
+
+function V4FocusBuckets(leads = []) {
+  const list = Array.isArray(leads) ? leads : [];
+  const neu = list.filter((l) => V4FocusIsNew(l, list)).sort(V3SortNewLeadsByReceived);
+  const negotiating = list.filter((l) => V4FocusIsNegotiating(l, list)).sort(V3SortLeadsByFocusAction);
+  const live = list.filter((l) => V4FocusIsLive(l, list)).sort(V3SortLeadsByFocusAction);
+  return { neu, live, negotiating };
+}
+
+/** Thread text that usually means price/terms back-and-forth → Negotiating. */
+function V4ThreadLooksLikeNegotiating(lead) {
+  const thread = typeof V3GmailThreadMessagesForLead === 'function'
+    ? V3GmailThreadMessagesForLead(lead)
+    : (Array.isArray(lead?.thread) ? lead.thread : []);
+  const recent = thread.slice(-8);
+  const blob = recent.map((m) => [
+    m?.subject, m?.snippet, m?.body, m?.text,
+  ].filter(Boolean).join(' ')).join(' ').toLowerCase();
+  if (!blob) return false;
+  return /\b(too (high|expensive)|out of (our )?budget|budget|discount|50\s*\/\s*50|half now|split payment|net\s*\d+|payment terms|counter[- ]?offer|best (price|rate)|can you (do|come down)|lower (the )?(price|rate)|negotiate|push back|too much)\b/.test(blob);
+}
+
+async function V4MaybePromoteNegotiating(lead) {
+  if (!lead?.id) return false;
+  const stage = String(lead.stage || '');
+  if (!['new', 'first-touch', 'engaged', 'rates-sent'].includes(stage)) return false;
+  if (!V4ThreadLooksLikeNegotiating(lead)) return false;
+  if (typeof V4PatchLeadAsync === 'function') {
+    await V4PatchLeadAsync(lead, { list_id: 'negotiating', moved_at: new Date().toISOString() }, {
+      stage: 'negotiating',
+      daysInStage: 0,
+    });
+  } else if (window.V3?.MoveLeadStage) {
+    window.V3.MoveLeadStage(lead, 'negotiating');
+  }
+  return true;
 }
 
 function V3LatestThreadDate(thread) {
@@ -5546,7 +5855,7 @@ async function V3SendLeadEmail({ lead, sender, to, cc, subject, body, attachPdf 
   return data;
 }
 
-Object.assign(window, { V3SenderForUser, V3SenderForLead, V3SenderName, V3SenderSignature, V3EnsureSenderSignature, V3ComposeReplyDraft, V3ResolveReplyTone, V3ReplyToneLabel, V3SubjectForLead, V3DefaultCc, V3InternalEmails, V3SenderEmails, V3IsSelfRecipient, V3SplitEmails, V3EmailsFromValue, V3ExtractEmail, V3LeadReplyToEmail, V3ThreadParticipants, V3LeadMatchesQuery, V3UniqueEmails, V3ReplyRecipients, V3RobertCcOptional, V3_TEAM_EMAILS, V3ThreadMessageKey, V3PendingReplyKey, V3PendingReplyMatchesLead, V3PrunePendingReplies, V3MergePendingReplies, V3SendLeadEmail, V3InferPricingPdfPack, V3PricingPdfMeta, V3_PRICING_PDF_PACKS, V3LeadActivityTimestamp, V3LeadReceivedTimestamp, V3SortLeadsByActivity, V3NewLeadReason });
+Object.assign(window, { V3SenderForUser, V3SenderForLead, V3SenderName, V3SenderSignature, V3EnsureSenderSignature, V3ComposeReplyDraft, V3ResolveReplyTone, V3ReplyToneLabel, V3SubjectForLead, V3DefaultCc, V3InternalEmails, V3SenderEmails, V3IsSelfRecipient, V3SplitEmails, V3EmailsFromValue, V3ExtractEmail, V3LeadReplyToEmail, V3ThreadParticipants, V3LeadMatchesQuery, V3UniqueEmails, V3ReplyRecipients, V3RobertCcOptional, V3_TEAM_EMAILS, V3ThreadMessageKey, V3PendingReplyKey, V3PendingReplyMatchesLead, V3PrunePendingReplies, V3MergePendingReplies, V3SendLeadEmail, V3InferPricingPdfPack, V3PricingPdfMeta, V3_PRICING_PDF_PACKS, V3LeadActivityTimestamp, V3LeadReceivedTimestamp, V3SortLeadsByActivity, V3SortLeadsByFocus, V3SortNewLeadsByReceived, V3NewLeadReason });
 
 
 // FLOW v3 — data with category labels matching UNALIGNED's INTERVIEW / COLLABORATION / PARTNERSHIP / INTRO tabs
@@ -6310,6 +6619,9 @@ const V3GmailTime = (() => {
 
   const list = (v) => {
     const d = parse(v); if (!d) return '';
+    // Reject far-future sentinels (e.g. 2099-12-31) and ancient junk.
+    if (d.getTime() > Date.now() + 3 * 86400000) return '';
+    if (d.getFullYear() < 2024) return '';
     const now = new Date();
     if (sameDay(d, now)) return time12(d);
     if (d.getFullYear() === now.getFullYear()) {
@@ -6852,7 +7164,7 @@ function V3MoveLeadStage(lead, nextStage, leads = V3ActiveLeads(), opts = {}) {
     });
 }
 
-window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, StageDef: V3StageDef, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: [], TIERS: V3_TIERS, PRODUCTION_ADDONS: V3_PRODUCTION_ADDONS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_VISIBLE_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, CompanyOsQualifiedLead: V3CompanyOsQualifiedLead, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, NewLeadReason: V3NewLeadReason, ResolveReplyTone: V3ResolveReplyTone, ReplyToneLabel: V3ReplyToneLabel, NewLeadSourceKind: V3NewLeadSourceKind, NewLeadSourceLabel: V3NewLeadSourceLabel, NewLeadHandle: V3NewLeadHandle, NewLeadSummary: V3NewLeadSummary, NewLeadPrimaryIdentity: V3NewLeadPrimaryIdentity, LeadMatchesQuery: V3LeadMatchesQuery, PrunePendingReplies: V3PrunePendingReplies, MergePendingReplies: V3MergePendingReplies, ReloadLeads: V3ReloadLeads, XLeadRepliedViaX: V3XLeadRepliedViaX, MarkRepliedViaX: V3MarkRepliedViaX };
+window.V3 = { USERS: V3_USERS, STAGES: V3_STAGES, STAGE_BY_ID: V3_STAGE_BY_ID, StageDef: V3StageDef, ACTIVE_STAGE_IDS: V3_ACTIVE_STAGE_IDS, BOARD_STAGE_IDS: V3_BOARD_STAGE_IDS, TRASH_STAGE_IDS: V3_TRASH_STAGE_IDS, LEADS: [], TIERS: V3_TIERS, PRODUCTION_ADDONS: V3_PRODUCTION_ADDONS, DELIV_TYPES: V3_DELIV_TYPES, BRIEF_STATUSES: V3_BRIEF_STATUSES, ROBERT_BRIEFS: V3_VISIBLE_ROBERT_BRIEFS, TASK_TYPES: V3_TASK_TYPES, GmailTime: V3GmailTime, flowCounts: v3FlowCounts, greeting: v3Greeting, deriveTasks: v3DeriveTasks, bucketTasks: v3BucketTasks, ProfileTeam: V3ProfileTeam, ProfileLane: V3ProfileLane, LeadLane: V3LeadLane, LeadVisibleToProfile: V3LeadVisibleToProfile, LeadIsMineForProfile: V3MoveIsMineForProfile, MoveIsMineForProfile: V3MoveIsMineForProfile, MoveLeadStage: V3MoveLeadStage, IsNewLeadReview: V3IsNewLeadReview, CompanyOsQualifiedLead: V3CompanyOsQualifiedLead, LeadActivityTimestamp: V3LeadActivityTimestamp, LeadReceivedTimestamp: V3LeadReceivedTimestamp, SortLeadsByActivity: V3SortLeadsByActivity, SortLeadsByFocus: V3SortLeadsByFocus, SortNewLeadsByReceived: V3SortNewLeadsByReceived, NewLeadReason: V3NewLeadReason, ResolveReplyTone: V3ResolveReplyTone, ReplyToneLabel: V3ReplyToneLabel, NewLeadSourceKind: V3NewLeadSourceKind, NewLeadSourceLabel: V3NewLeadSourceLabel, NewLeadHandle: V3NewLeadHandle, NewLeadSummary: V3NewLeadSummary, NewLeadPrimaryIdentity: V3NewLeadPrimaryIdentity, LeadMatchesQuery: V3LeadMatchesQuery, PrunePendingReplies: V3PrunePendingReplies, MergePendingReplies: V3MergePendingReplies, ReloadLeads: V3ReloadLeads, XLeadRepliedViaX: V3XLeadRepliedViaX, MarkRepliedViaX: V3MarkRepliedViaX };
 
 if (!V4EarlyShouldRedirectToConnect() && !V4EarlyShouldRedirectToMac() && !V4EarlyIsPublicRoute()) {
   V3LoadPricingTiers();
@@ -6884,7 +7196,7 @@ function V3BoardView({ leads, openId, onOpen, user, ownerFilter, setOwnerFilter 
           const stageLeads = (stageId === 'trash'
             ? trashLeads
             : activeLeads.filter(l => l.stage === stageId))
-            .sort((a, b) => V3TimestampForUi(b.lastTouchAt) - V3TimestampForUi(a.lastTouchAt));
+            .sort(V3SortLeadsByActivity);
           const needsReply = stageId === 'trash' ? [] : stageLeads.filter(l => l.needsReply);
           const waiting    = stageId === 'trash' ? [] : stageLeads.filter(l => !l.needsReply);
 
@@ -12925,141 +13237,257 @@ function TodayDealGrid({ cards, label, sublabel, onOpenInCompanyOs, onOpenBrief,
 }
 
 // ─── Today ──────────────────────────────────────────────────
+/**
+ * Focus workspace — one screen for China / phone / desk.
+ * Left: New · Live · Negotiating. Right: full thread + reply + rate card + AI.
+ * No hop to Company OS required for day-to-day work.
+ */
 function V4TodayView({ user, leads, onOpenLead, onGoInbox, onOpenInCompanyOs, onNewLeadClick }) {
-  const { USERS, TASK_TYPES, deriveTasks, bucketTasks, greeting } = window.V3;
-  const me = USERS[user];
-
-  const [tab, setTab] = React.useState('now');
-  const [completed, setCompleted] = React.useState({});
-  const [now, setNow] = React.useState(Date.now());
-  React.useEffect(() => {
-    const i = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(i);
-  }, []);
-  const FADE_MS = 10000;
-
-  const allTasks = React.useMemo(() => deriveTasks(user, leads), [user, leads]);
-  const decisionTasks = React.useMemo(() => allTasks.filter(t => V4TodayNeedsDecision(t.lead)), [allTasks]);
-  const liveTasks = decisionTasks.filter(t => !completed[t.id] || (now - completed[t.id]) < FADE_MS);
-  const doneTasks = decisionTasks.filter(t =>  completed[t.id] && (now - completed[t.id]) >= FADE_MS);
-  const buckets   = bucketTasks(liveTasks);
-
-  const toggleComplete = (task) => {
-    setCompleted(c => {
-      if (c[task.id]) { const next = { ...c }; delete next[task.id]; return next; }
-      return { ...c, [task.id]: Date.now() };
-    });
-  };
-
-  const openBrief = (leadId) => {
-    window.dispatchEvent(new CustomEvent('v3:open-brief', { detail: { leadId } }));
-  };
-
-  const nowDealCards = React.useMemo(() => V4TodayBuildDealCards(
-    leads,
-    liveTasks,
-    user,
-    {
-      max: 12,
-      taskFilter: (t) => t.urgent || t.dueIn <= 0,
-    }
-  ), [leads, liveTasks, user]);
-
-  const priorityDealCards = React.useMemo(
-    () => nowDealCards.filter(c => c.primaryTask?.urgent),
-    [nowDealCards]
-  );
-  const activeDealCards = React.useMemo(
-    () => nowDealCards.filter(c => !c.primaryTask?.urgent),
-    [nowDealCards]
-  );
-
-  const nextDealCards = React.useMemo(() => V4TodayBuildDealCards(
-    leads,
-    liveTasks,
-    user,
-    {
-      max: 16,
-      taskFilter: (t) => t.dueIn >= 1 && t.dueIn <= 7,
-    }
-  ), [leads, liveTasks, user]);
-
-  const STUCK_DAYS = 7;
-  const ACTIVE_STAGES = ['new','first-touch','engaged','rates-sent','negotiating','invoice-sent'];
-  const stuckLeads = React.useMemo(() =>
-    leads
-      .filter(l => ACTIVE_STAGES.includes(l.stage) && l.daysInStage >= STUCK_DAYS && V4TodayNeedsDecision(l))
-      .sort((a, b) => b.daysInStage - a.daysInStage),
-    [leads]
-  );
-
-  const unreadCount = leads.filter(l => l.unread).length;
+  const { USERS, STAGE_BY_ID, greeting } = window.V3;
+  const me = USERS[user] || { name: user };
   const today = new Date();
   const dayLabel = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-  const pipeOpen = leads.filter(l => !['paid-out'].includes(l.stage)).reduce((s, l) => s + (l.value || 0), 0);
 
-  const nowCount   = nowDealCards.length;
-  const nextCount  = nextDealCards.length;
-  const laterCount = buckets.upcoming.length;
+  const buckets = React.useMemo(() => V4FocusBuckets(leads), [leads]);
+  const { neu, live, negotiating } = buckets;
+  const flat = React.useMemo(() => [...neu, ...live, ...negotiating], [neu, live, negotiating]);
+  const total = flat.length;
+  const needsYouList = React.useMemo(() => flat.filter(V4FocusNeedsYou), [flat]);
+  const needsYou = needsYouList.length;
 
-  // Auto-flip to first non-empty tab on user change
+  const [selectedId, setSelectedId] = React.useState(null);
+  const [composeOpen, setComposeOpen] = React.useState(false);
+  const [mobileReader, setMobileReader] = React.useState(false);
+
+  // Keep selection on a live card; prefer first "needs you".
   React.useEffect(() => {
-    if (tab === 'now' && nowCount === 0 && nextCount > 0) setTab('next');
-  }, [user]);
+    if (!flat.length) {
+      setSelectedId(null);
+      return;
+    }
+    const stillThere = flat.some((l) => String(l.id) === String(selectedId));
+    if (stillThere) return;
+    const pick = needsYouList[0] || flat[0];
+    setSelectedId(pick ? pick.id : null);
+  }, [flat, needsYouList, selectedId]);
 
-  const subline = nowCount === 0
-    ? (nextCount > 0 ? `Clear for now · ${nextCount} deals coming up` : "You're all clear.")
-    : (<><strong style={{ color: 'var(--text)' }}>{nowCount}</strong> decision{nowCount === 1 ? '' : 's'} ready for you</>);
+  React.useEffect(() => {
+    const candidates = (leads || []).filter((l) =>
+      ['new', 'first-touch', 'engaged', 'rates-sent'].includes(String(l.stage || ''))
+    ).slice(0, 24);
+    candidates.forEach((lead) => {
+      if (typeof V4MaybePromoteNegotiating === 'function') {
+        V4MaybePromoteNegotiating(lead).catch(() => {});
+      }
+    });
+    // Retire X/email twins when a real deal already advanced (Skyfall pattern).
+    if (typeof V4HealSupersededSiblingLeads === 'function') {
+      V4HealSupersededSiblingLeads(leads || []).catch(() => {});
+    }
+  }, [leads]);
 
-  const ctx = { user, onOpenLead, onOpenInCompanyOs, onOpenBrief: openBrief, onToggle: toggleComplete, completed, now, fadeMs: FADE_MS };
+  const selected = React.useMemo(
+    () => flat.find((l) => String(l.id) === String(selectedId))
+      || (leads || []).find((l) => String(l.id) === String(selectedId))
+      || null,
+    [flat, leads, selectedId]
+  );
+
+  const openLead = (lead) => {
+    if (!lead) return;
+    setSelectedId(lead.id);
+    setComposeOpen(false);
+    setMobileReader(true);
+  };
+
+  const closeMobileReader = () => {
+    setMobileReader(false);
+    setComposeOpen(false);
+  };
+
+  const afterSend = React.useCallback(() => {
+    setComposeOpen(false);
+    // Stay on this lead so Ash can confirm; jump to next needs-you if current cleared.
+    window.setTimeout(() => {
+      const stillNeeds = needsYouList.some((l) => String(l.id) === String(selectedId));
+      if (!stillNeeds && needsYouList[0]) {
+        setSelectedId(needsYouList[0].id);
+      }
+    }, 400);
+  }, [needsYouList, selectedId]);
+
+  const subline = total === 0
+    ? 'Clear — nothing open in New, Live, or Negotiating.'
+    : (
+      <>
+        <strong style={{ color: 'var(--text)' }}>{total}</strong>
+        {' '}open ·{' '}
+        <strong style={{ color: 'var(--text)' }}>{needsYou}</strong>
+        {' '}need you · reply, rate card, and AI stay on this screen
+      </>
+    );
 
   return (
-    <div className="page today-v4">
-      <div className="page-hd">
+    <div className={'page today-v4 focus-home focus-workspace' + (mobileReader && selected ? ' is-reader-open' : '')}>
+      <div className="page-hd focus-workspace-hd">
         <div>
-          <div className="page-eyebrow">{dayLabel}</div>
+          <div className="page-eyebrow">{dayLabel} · Focus</div>
           <h1 className="page-title">{greeting()}, <span className="accent">{me.name}</span>.</h1>
           <div className="page-sub">{subline}</div>
         </div>
         <div className="page-actions">
-          <button className="btn-inbox-cta" onClick={onGoInbox} title="Go to inbox">
+          <button className="btn-inbox-cta" onClick={onGoInbox} title="Full Company OS (optional)">
             <V3Icon name="mail" w={13} />
-            <span>Inbox</span>
-            {unreadCount > 0 && <span className="btn-inbox-cta-cnt">{unreadCount}</span>}
+            <span>Full OS</span>
           </button>
-          <button type="button" className="btn btn-sm btn-accent" onClick={onNewLeadClick}><V3Icon name="plus" /> New lead</button>
+          <button type="button" className="btn btn-sm btn-accent" onClick={onNewLeadClick}>
+            <V3Icon name="plus" /> New lead
+          </button>
         </div>
       </div>
 
-      <div className="today-tabs-bar">
-        <div className="today-tabs">
-          <TodayTab id="now"   label="Now"   count={nowCount}          tab={tab} setTab={setTab} tone="now" />
-          <TodayTab id="next"  label="Next"  count={nextCount}         tab={tab} setTab={setTab} />
-          <TodayTab id="later" label="Later" count={laterCount}        tab={tab} setTab={setTab} />
-          <TodayTab id="stuck" label="Stuck" count={stuckLeads.length} tab={tab} setTab={setTab} tone="stuck" />
-          <TodayTab id="done"  label="Done"  count={doneTasks.length}  tab={tab} setTab={setTab} tone="done" />
-        </div>
-        <div className="today-pipe-stat">
-          <span className="today-pipe-lbl">Open pipeline</span>
-          <span className="today-pipe-val">{v3Money(pipeOpen, { compact: true })}</span>
-        </div>
-      </div>
-
-      <div className="body today-body">
-        {tab === 'now'   && (
-          <NowZone
-            buckets={buckets}
-            priorityCards={priorityDealCards}
-            activeCards={activeDealCards}
-            {...ctx}
+      <div className="focus-workspace-body">
+        <aside className="focus-workspace-list" aria-label="Focus queues">
+          <V4FocusSection
+            id="new"
+            label="New"
+            note="Last 7 days only — connect form, Robert Gmail, X scrape · newest first"
+            tone="new"
+            leads={neu}
+            empty="No brand-new leads in the last 7 days."
+            onOpen={openLead}
+            selectedId={selectedId}
+            user={user}
+            stageById={STAGE_BY_ID}
+            sortMode="received"
           />
-        )}
-        {tab === 'next'  && <NextZone buckets={buckets} dealCards={nextDealCards} {...ctx} />}
-        {tab === 'later' && <LaterZone buckets={buckets} {...ctx} />}
-        {tab === 'stuck' && <StuckZone leads={stuckLeads} onOpenLead={onOpenLead} user={user} />}
-        {tab === 'done'  && <DoneZone  items={doneTasks} {...ctx} />}
+          <V4FocusSection
+            id="live"
+            label="Live"
+            note="Your move first · then latest activity (includes older untriaged backlog)"
+            tone="live"
+            leads={live}
+            empty="Nothing live."
+            onOpen={openLead}
+            selectedId={selectedId}
+            user={user}
+            stageById={STAGE_BY_ID}
+            sortMode="activity"
+          />
+          <V4FocusSection
+            id="negotiating"
+            label="Negotiating"
+            note="Price & terms · your move first"
+            tone="nego"
+            leads={negotiating}
+            empty="No active negotiations."
+            onOpen={openLead}
+            selectedId={selectedId}
+            user={user}
+            stageById={STAGE_BY_ID}
+            sortMode="activity"
+          />
+        </aside>
+
+        <section className="focus-workspace-reader" aria-label="Deal workspace">
+          {selected ? (
+            <V4CosReader
+              lead={selected}
+              user={user}
+              composeOpen={composeOpen}
+              setComposeOpen={setComposeOpen}
+              onBack={closeMobileReader}
+              leads={leads}
+              onAfterSend={afterSend}
+            />
+          ) : (
+            <div className="focus-reader-empty">
+              <div className="focus-reader-empty-title">Pick a lead</div>
+              <p>Reply, attach the rate card, and draft with AI — all here. No screen hopping.</p>
+            </div>
+          )}
+        </section>
       </div>
     </div>
+  );
+}
+
+function V4FocusSection({ id, label, note, tone, leads, empty, onOpen, selectedId, user, stageById, sortMode }) {
+  return (
+    <section className={'focus-section focus-section--' + tone} aria-label={label}>
+      <header className="focus-section-hd">
+        <div className="focus-section-titles">
+          <h2 className="focus-section-label">{label}</h2>
+          <span className="focus-section-note">{note}</span>
+        </div>
+        <span className="focus-section-cnt">{leads.length}</span>
+      </header>
+      {leads.length === 0 ? (
+        <div className="focus-empty">{empty}</div>
+      ) : (
+        <div className="focus-list">
+          {leads.map((lead) => (
+            <V4FocusRow
+              key={lead.id}
+              lead={lead}
+              user={user}
+              stageById={stageById}
+              sortMode={sortMode}
+              isSelected={String(selectedId) === String(lead.id)}
+              onOpen={() => onOpen(lead)}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function V4FocusRow({ lead, user, stageById, sortMode, isSelected, onOpen }) {
+  const stage = (stageById && stageById[lead.stage]) || { name: lead.stage || '—', color: 'var(--text-3)', short: lead.stage };
+  const brand = (typeof V4CosLeadDisplayTitle === 'function' ? V4CosLeadDisplayTitle(lead) : null)
+    || lead.brand || lead.title || lead.contactName || 'Lead';
+  const sub = (typeof V4CosLeadDisplaySubtitle === 'function' ? V4CosLeadDisplaySubtitle(lead) : null)
+    || lead.contactName || lead.email || '';
+  const when = sortMode === 'received'
+    ? (V3TimestampForUi(lead.receivedAt)
+      ? V3RelativeTime(lead.receivedAt)
+      : (typeof V3LeadActivityLabel === 'function' ? V3LeadActivityLabel(lead) : ''))
+    : (typeof V3LeadActivityLabel === 'function' ? V3LeadActivityLabel(lead) : '');
+  const next = String(lead.nextMove?.text || '').trim()
+    || (lead.needsReply || lead.unread ? 'Needs reply' : '');
+  const needsYou = V4FocusNeedsYou(lead);
+  const ageDays = Math.floor(V4FocusLeadAgeMs(lead) / 86400000);
+  const staleNew = String(lead.stage || '') === 'new' && ageDays > 7;
+  const money = typeof lead.value === 'number' && lead.value > 0
+    ? (typeof v3Money === 'function' ? v3Money(lead.value, { compact: true }) : ('$' + lead.value))
+    : '';
+  const source = (typeof V4IsDeskIntakeLead === 'function' && V4IsDeskIntakeLead(lead))
+    ? 'Connect'
+    : ((typeof V3IsXLeadRecord === 'function' && V3IsXLeadRecord(lead)) ? 'X' : 'Gmail');
+
+  return (
+    <button
+      type="button"
+      className={'focus-row' + (needsYou ? ' is-needs-you' : '') + (isSelected ? ' is-selected' : '')}
+      onClick={onOpen}
+      data-track={'focus:open:' + (lead.stage || 'lead')}
+      aria-current={isSelected ? 'true' : undefined}
+    >
+      <span className={'focus-row-dot' + (needsYou ? ' is-pulse' : '')} aria-hidden="true" />
+      <span className="focus-row-main">
+        <span className="focus-row-brand">{brand}</span>
+        {sub ? <span className="focus-row-sub">{sub}</span> : null}
+        {next ? <span className="focus-row-next">{next}</span> : null}
+      </span>
+      <span className="focus-row-meta">
+        <span className="focus-row-stage" style={{ color: stage.color }}>{stage.short || stage.name}</span>
+        {staleNew ? <span className="focus-row-stale" title="Old untriaged — not brand new">Backlog</span> : null}
+        <span className="focus-row-source">{source}</span>
+        {money ? <span className="focus-row-money">{money}</span> : null}
+        <span className="focus-row-when" title={when || ''}>{when || '—'}</span>
+      </span>
+    </button>
   );
 }
 
@@ -13511,7 +13939,7 @@ function V4InboxView({ leads, user }) {
   const cur = folders.find(f => f.id === folder);
   const filtered = leads
     .filter(cur.fn)
-    .sort((a, b) => V3TimestampForUi(b.lastTouchAt) - V3TimestampForUi(a.lastTouchAt));
+    .sort(V3SortLeadsByFocus);
   const isMobile = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
   const openLead = leads.find(l => l.id === selectedId) || (!isMobile && !selectedId ? filtered[0] : null);
   const sections = [...new Set(folders.map(f => f.section))];
@@ -13929,7 +14357,7 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
   // reuse IsNewLeadReview with a forced 'new' stage so the same source rules
   // also identify trashed intake leads for the Trash bin.
   const isReviewSource = (lead) => window.V3.IsNewLeadReview ? window.V3.IsNewLeadReview({ ...lead, stage: 'new' }) : true;
-  const sortByActivity = (a, b) => (window.V3SortLeadsByActivity ? window.V3SortLeadsByActivity(a, b) : V3TimestampForUi(b.lastTouchAt || b.receivedAt) - V3TimestampForUi(a.lastTouchAt || a.receivedAt));
+  const sortByActivity = (a, b) => (window.V3SortNewLeadsByReceived ? window.V3SortNewLeadsByReceived(a, b) : (window.V3SortLeadsByActivity ? window.V3SortLeadsByActivity(a, b) : V3TimestampForUi(b.lastTouchAt || b.receivedAt) - V3TimestampForUi(a.lastTouchAt || a.receivedAt)));
 
   const reviewLeads = React.useMemo(() => {
     const source = (Array.isArray(leads) ? leads : []).filter(lead => {
@@ -15074,6 +15502,7 @@ function V4CompanyOsPhaseTag(lead) {
 function V4XLeadNeedsDmReply(lead) {
   if (V4CompanyOsLeadSourceChannel(lead) !== 'x') return false;
   if (V3LeadExternalEmail(lead)) return false;
+  if (V4LeadIsSupersededBySibling(lead, window.V3?.LEADS || [])) return false;
   if (V4XLeadIsWaitingOnThem(lead)) return false;
   const state = V3InferXReplyState(lead);
   if (state.needsXReply) return true;
@@ -15084,6 +15513,7 @@ function V4XLeadNeedsDmReply(lead) {
 
 function V4XLeadIsWaitingOnThem(lead) {
   if (!lead || V4CompanyOsLeadSourceChannel(lead) !== 'x') return false;
+  if (V4LeadIsSupersededBySibling(lead, window.V3?.LEADS || [])) return false;
   const state = V3InferXReplyState(lead);
   if (state.repliedViaX && !state.needsXReply) return true;
   const status = [lead?.xCurrentStatus, lead?.xBestNextStep, lead?.nextMove?.text]
@@ -18332,6 +18762,7 @@ function V4CosIsActiveGmailConversation(lead) {
 function V4CosIsActiveXConversation(lead) {
   if (!lead || !V3IsXLeadRecord(lead)) return false;
   if (V4CosIsClosedForActive(lead)) return false;
+  if (V4LeadIsSupersededBySibling(lead, window.V3?.LEADS || [])) return false;
   if (V4XLeadNeedsDmReply(lead)) return true;
   if (V4CosHasActionableDraft(lead)) return true;
   return false;
@@ -22306,6 +22737,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
           return;
         }
         try { if (typeof V4HealOutboundTruthFromThread === 'function') await V4HealOutboundTruthFromThread(lead); } catch (e) {}
+        try { if (typeof V4MaybePromoteNegotiating === 'function') await V4MaybePromoteNegotiating(lead); } catch (e) {}
         setThreadSync({ status: 'ok', note: 'Thread synced from Gmail · board truth updated.' });
       })
       .catch((err) => {
@@ -25528,7 +25960,7 @@ function V4App() {
     { label: 'Go to Partner feedback', hint: 'collaboration scores', run: goToPartnerFeedback },
     { label: "Go to Robert's desk", hint: 'public connect intake', run: goToDeskIntake },
     { label: 'Go to Scope forms', hint: 'package + scope submissions', run: goToScopeIntake },
-    { label: 'Go to Today', run: () => goView('today') },
+    { label: 'Go to Focus', hint: 'New · Live · Negotiating', run: () => goView('today') },
     { label: 'Go to Calendar', run: () => goView('calendar') },
     { label: 'Go to Briefs', run: () => goView('inbox') },
     { label: 'Go to Invoices', run: () => goView('invoices') },
@@ -25554,7 +25986,7 @@ function V4App() {
         </button>
 
         <div className="hd-nav">
-          <button className="hd-nav-btn" aria-current={view === 'today' ? 'page' : undefined} onClick={() => goView('today')}>Today</button>
+          <button className="hd-nav-btn" aria-current={view === 'today' ? 'page' : undefined} onClick={() => goView('today')}>Focus</button>
           <button className="hd-nav-btn" aria-current={view === 'calendar' ? 'page' : undefined} onClick={() => goView('calendar')}>
             <V3Icon name="cal" w={13} style={{ marginRight: 4 }} /> Calendar
           </button>
@@ -25742,7 +26174,7 @@ function V4App() {
             leads={operationalLeads}
             query={search}
             onOpenLead={setOpenId}
-            onGoInbox={() => setView('inbox')}
+            onGoInbox={goToCompanyOsHome}
             onNewLeadClick={openNewLeadEntry}
             onOpenInCompanyOs={(leadId) => {
               V4OpenLeadInCompanyOs(leadId, 'send');
@@ -25825,7 +26257,7 @@ function V4App() {
         <button className="ft-tab" aria-current={view === 'today' ? 'page' : undefined}
                 onClick={() => goView('today')}>
           <V3Icon name="diamond" w={18} />
-          Today
+          Focus
         </button>
         <button className="ft-tab" aria-current={!mobileMenuOpen && cosCompanyOsHomeActive ? 'page' : undefined}
                 onClick={goToCompanyOsHome}>

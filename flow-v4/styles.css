@@ -5099,8 +5099,229 @@ body.v4-godmode-open { overflow: hidden; }
 
 /* ═══ TODAY v4 — tabbed work surface (NOW · NEXT · LATER · DONE) ══ */
 
-.today-v4 { display: flex; flex-direction: column; }
+.today-v4 { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .today-body { padding-top: 0; }
+
+/* Focus workspace — list + full deal reader on one screen */
+.today-v4.focus-home.focus-workspace {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden !important;
+  display: flex;
+  flex-direction: column;
+}
+.focus-workspace-hd {
+  flex-shrink: 0;
+  padding-bottom: 10px;
+}
+.focus-workspace-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  gap: 0;
+  overflow: hidden;
+  border-top: 1px solid var(--line);
+}
+.focus-workspace-list {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 10px 12px 28px;
+  border-right: 1px solid var(--line);
+  background: color-mix(in oklab, var(--bg) 96%, var(--surface));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.focus-workspace-reader {
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+.focus-workspace-reader .cos2-reader-shell,
+.focus-workspace-reader .cos2-reader,
+.focus-workspace-reader .gmail-read-pane {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+}
+.focus-reader-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px 24px;
+  text-align: center;
+  color: var(--text-3);
+}
+.focus-reader-empty-title {
+  font: 650 16px/1.3 var(--font-display, system-ui, sans-serif);
+  color: var(--text);
+}
+.focus-reader-empty p {
+  margin: 0;
+  max-width: 32ch;
+  font: 500 13px/1.45 var(--font-body);
+}
+
+/* Focus Home — New / Live / Negotiating */
+.focus-section {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  overflow: visible;
+  flex-shrink: 0;
+}
+.focus-row.is-selected {
+  background: color-mix(in oklab, var(--accent-soft) 55%, transparent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+@media (max-width: 900px) {
+  .focus-workspace-body {
+    grid-template-columns: 1fr;
+  }
+  .focus-workspace-list {
+    border-right: 0;
+  }
+  .focus-workspace-reader {
+    display: none;
+  }
+  .focus-workspace.is-reader-open .focus-workspace-list {
+    display: none;
+  }
+  .focus-workspace.is-reader-open .focus-workspace-reader {
+    display: flex;
+  }
+  .focus-workspace.is-reader-open .focus-workspace-hd {
+    display: none;
+  }
+}
+.focus-section-hd {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.focus-section-titles { min-width: 0; }
+.focus-section-label {
+  margin: 0;
+  font: 700 13px/1.2 var(--font-display, system-ui, sans-serif);
+  letter-spacing: 0.02em;
+}
+.focus-section-note {
+  display: block;
+  margin-top: 3px;
+  font: 500 12px/1.35 var(--font-body);
+  color: var(--text-3);
+}
+.focus-section-cnt {
+  font: 700 12px/1 var(--font-mono);
+  color: var(--text-3);
+}
+.focus-section--new .focus-section-label { color: #c2410c; }
+.focus-section--live .focus-section-label { color: #0369a1; }
+.focus-section--nego .focus-section-label { color: #7c3aed; }
+.focus-empty {
+  padding: 18px 14px;
+  font: 500 13px/1.45 var(--font-body);
+  color: var(--text-3);
+}
+.focus-list { display: flex; flex-direction: column; }
+.focus-row {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  gap: 10px 12px;
+  align-items: start;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-top: 1px solid color-mix(in oklab, var(--line) 80%, transparent);
+  background: transparent;
+  padding: 12px 14px;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.focus-row:first-child { border-top: 0; }
+.focus-row:hover { background: color-mix(in oklab, var(--accent-soft) 35%, transparent); }
+.focus-row.is-needs-you {
+  background: color-mix(in oklab, #fff7ed 55%, transparent);
+}
+.focus-row-dot {
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: var(--text-4);
+}
+.focus-row-dot.is-pulse {
+  background: #ea580c;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.18);
+}
+.focus-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.focus-row-brand {
+  font: 650 14px/1.3 var(--font-display, system-ui, sans-serif);
+  color: var(--text);
+}
+.focus-row-sub,
+.focus-row-next {
+  font: 500 12px/1.35 var(--font-body);
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.focus-row-next { color: var(--text-2); }
+.focus-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px 10px;
+  max-width: 280px;
+  font: 600 11px/1.2 var(--font-mono);
+  color: var(--text-3);
+}
+.focus-row-stage { text-transform: uppercase; letter-spacing: 0.04em; }
+.focus-row-stale {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #b45309;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 999px;
+  padding: 1px 6px;
+  font-size: 10px;
+}
+.focus-row-when { color: var(--text-3); }
+.focus-row-money { color: var(--text-2); }
+@media (max-width: 720px) {
+  .focus-row {
+    grid-template-columns: 10px minmax(0, 1fr);
+  }
+  .focus-row-meta {
+    grid-column: 2;
+    justify-content: flex-start;
+    max-width: none;
+  }
+}
 
 /* ─── Tabs bar (segmented control + pipeline stat) ─── */
 .today-tabs-bar {
