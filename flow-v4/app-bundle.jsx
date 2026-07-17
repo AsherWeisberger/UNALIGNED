@@ -2394,13 +2394,14 @@ function V3BuildXThreadFromLead(lead) {
   return thread;
 }
 
-function V3MarkRepliedViaX(lead) {
+function V3MarkRepliedViaX(lead, opts = {}) {
   if (!lead) return;
   const ctx = V3ParseXDescriptionContext(lead.rawDescription);
   const scrapedRobert = V4XLatestRobertText(lead);
   const priorRobert = V4XIntakeCleanDm(ctx.lastRobertMessage || lead.xLastRobertMessage || '');
-  // Never persist the AI draft as the sent reply — dashboard refresh replaces with live DM text.
-  const replyBody = scrapedRobert || priorRobert || 'Marked as replied on X.';
+  // Prefer explicit sent text (approve-and-send). Otherwise scraped/prior. Never invent AI draft as sent.
+  const explicit = String(opts?.replyBody || opts?.text || '').trim();
+  const replyBody = explicit || scrapedRobert || priorRobert || 'Marked as replied on X.';
   const markedAt = new Date().toISOString();
   const merged = V3BuildXDescriptionFromLead({
     ...lead,
@@ -3436,7 +3437,7 @@ function V4FocusNeedsYou(lead) {
 /**
  * Brand-new inbound only (≤7 days):
  *  - Connect form not yet worked past first touch
- *  - Robert Gmail / X scrapes still in intake (IsNewLeadReview)
+ *  - Robert Gmail / X scrapes still in intake
  *  - Stage literally "new" and fresh
  * Stale stage=new (23–75d) does NOT belong here — that is Live backlog.
  */
@@ -3451,6 +3452,9 @@ function V4FocusIsNew(lead, allLeads) {
   }
 
   const stage = String(lead.stage || '').toLowerCase();
+  const sourceKind = typeof V3NewLeadSourceKind === 'function' ? V3NewLeadSourceKind(lead) : '';
+  const mailbox = typeof V3LeadMailboxOrigin === 'function' ? V3LeadMailboxOrigin(lead) : '';
+  const qualified = typeof V3CompanyOsQualifiedLead === 'function' && V3CompanyOsQualifiedLead(lead);
 
   // Fresh connect-form still early (no asher package out yet).
   if (typeof V4IsDeskIntakeLead === 'function' && V4IsDeskIntakeLead(lead)) {
@@ -3462,7 +3466,15 @@ function V4FocusIsNew(lead, allLeads) {
     if (!asherOut && ['new', 'first-touch', 'engaged'].includes(stage)) return true;
   }
 
+  // Canonical intake flag (Robert Gmail + X stage=new).
   if (window.V3?.IsNewLeadReview && window.V3.IsNewLeadReview(lead)) return true;
+
+  // Fresh X still early (IsNewLeadReview is false once X leaves stage=new).
+  if (sourceKind === 'x' && ['new', 'first-touch'].includes(stage) && !qualified) return true;
+
+  // Fresh Robert-mailbox Gmail still early / unqualified.
+  if (mailbox === 'robert' && ['new', 'first-touch'].includes(stage) && !qualified) return true;
+
   if (stage === 'new') return true;
   return false;
 }
@@ -13354,7 +13366,7 @@ function V4TodayView({ user, leads, onOpenLead, onGoInbox, onOpenInCompanyOs, on
             note="Last 7 days only — connect form, Robert Gmail, X scrape · newest first"
             tone="new"
             leads={neu}
-            empty="No brand-new leads in the last 7 days."
+            empty="No brand-new leads in the last 7 days. Older untriaged sits under Live as Backlog."
             onOpen={openLead}
             selectedId={selectedId}
             user={user}
@@ -15675,6 +15687,66 @@ async function V4FetchXDmReplyDraft(lead, opts = {}) {
 
   V4_X_DM_DRAFT_CACHE.set(id, { loading: true, template, promise });
   return promise;
+}
+
+function V4XDmDraftIsConnectLink(text) {
+  return /agentdashboard\.cloud\/connect|\/connect\b/i.test(String(text || ''));
+}
+
+/**
+ * Approve-and-send an X DM as Robert via the brief machine (X API OAuth).
+ * On success marks the board replied with the exact text that was sent.
+ */
+async function V4SendApprovedXDm(lead, text, opts = {}) {
+  if (!lead) throw new Error('No lead selected.');
+  const body = String(text || '').trim();
+  if (!body) throw new Error('DM text is empty.');
+  const openDm = String(lead.xOpenDm || V3ParseXDescriptionContext(lead.rawDescription)?.open_dm || '').trim();
+  const handle = String(lead.xHandle || V4XIntakeHandle(lead) || '').trim();
+  if (!openDm && !handle) {
+    throw new Error('No X recipient on this lead (missing open DM link and @handle).');
+  }
+  if (typeof V4BriefServiceFetch !== 'function') {
+    throw new Error('Brief service unavailable. Open ops on the Mac Studio host.');
+  }
+  const payload = {
+    text: body,
+    lead_id: lead.id || '',
+    contact_name: lead.contactName || lead.brand || '',
+    open_dm: openDm,
+    x_handle: handle,
+    lead: V4XDmDraftPayloadFromLead(lead, body),
+  };
+  const res = await V4BriefServiceFetch('/send-x-dm', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.ok === false) {
+    throw new Error(data.error || ('X DM send failed (' + res.status + ')'));
+  }
+  if (typeof V3MarkRepliedViaX === 'function') {
+    V3MarkRepliedViaX(lead, { replyBody: body });
+  }
+  if (typeof V4EmitOpsToast === 'function' && !opts.silent) {
+    const who = lead.contactName || lead.brand || handle || 'lead';
+    V4EmitOpsToast(
+      V4XDmDraftIsConnectLink(body)
+        ? `Connect link sent on X to ${who}`
+        : `X DM sent to ${who}`,
+      'ok',
+    );
+  }
+  window.dispatchEvent(new CustomEvent('v3:x-dm-sent', {
+    detail: {
+      leadId: lead.id,
+      text: body,
+      dmEventId: data.dm_event_id || '',
+      conversationId: data.dm_conversation_id || '',
+      participantId: data.participant_id || '',
+    },
+  }));
+  return data;
 }
 
 function V4XLeadContextRows(lead) {
@@ -22713,6 +22785,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
   const [threadSync, setThreadSync] = React.useState({ status: 'idle', note: '' });
   const [quickSend, setQuickSend] = React.useState({ status: '', error: '' });
   const [xDmReplyOpen, setXDmReplyOpen] = React.useState(false);
+  const [xDmSend, setXDmSend] = React.useState({ status: 'idle', error: '' });
   const [xDmDraft, setXDmDraft] = React.useState('');
   const [xDmDraftStatus, setXDmDraftStatus] = React.useState('idle');
   const [xDmCopied, setXDmCopied] = React.useState(false);
@@ -22826,6 +22899,7 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
     setXDmDraftStatus('ready');
     setXDmReplyOpen(true);
     setXDmCopied(false);
+    setXDmSend({ status: 'idle', error: '' });
     const onReady = (e) => {
       if (String(e?.detail?.leadId) !== String(lead.id)) return;
       setXDmDraft(e.detail.draft);
@@ -22851,18 +22925,62 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
       window.prompt('Copy this X DM draft:', text);
     }
   };
+  const approveSendXDm = async () => {
+    const text = String(xDmDraft || '').trim();
+    if (!text || xDmSend.status === 'sending') return;
+    const who = lead.contactName || lead.brand || lead.xHandle || 'this lead';
+    const isConnect = V4XDmDraftIsConnectLink(text);
+    const ok = window.confirm(
+      (isConnect
+        ? `Send the Connect link DM as Robert to ${who}?\n\n`
+        : `Send this X DM as Robert to ${who}?\n\n`)
+      + text.slice(0, 480)
+      + (text.length > 480 ? '…' : '')
+    );
+    if (!ok) return;
+    setXDmSend({ status: 'sending', error: '' });
+    try {
+      await V4SendApprovedXDm(lead, text);
+      setXDmSend({ status: 'sent', error: '' });
+      if (typeof onAfterSend === 'function') onAfterSend(lead);
+    } catch (err) {
+      setXDmSend({ status: 'error', error: err?.message || 'Send failed' });
+      if (typeof V4EmitOpsToast === 'function') {
+        V4EmitOpsToast(err?.message || 'X DM send failed', 'error');
+      }
+    }
+  };
+  const xDmIsConnectDraft = V4XDmDraftIsConnectLink(xDmDraft);
+  const xDmSendBusy = xDmSend.status === 'sending';
   const xDmReplySheet = needsXDmReply ? (
     <div className="cos-x-reply-draft is-sheet">
       <div className="cos-x-reply-draft-head">
         <div>
           <div className="cos-operator-strip-eyebrow">X reply</div>
-          <strong>DM draft — copy into X</strong>
+          <strong>{xDmIsConnectDraft ? 'Connect link DM — approve to send' : 'DM draft — approve to send'}</strong>
           {xDmDraftStatus === 'loading' ? (
             <div className="cos-x-reply-draft-status">Drafting with local Qwen…</div>
           ) : null}
+          {xDmSend.status === 'sending' ? (
+            <div className="cos-x-reply-draft-status">Sending as Robert via X API…</div>
+          ) : null}
+          {xDmSend.status === 'sent' ? (
+            <div className="cos-x-reply-draft-status is-ok">Sent — board marked replied on X</div>
+          ) : null}
+          {xDmSend.status === 'error' ? (
+            <div className="cos-x-reply-draft-status is-error">{xDmSend.error}</div>
+          ) : null}
         </div>
         <div className="cos-x-reply-draft-actions">
-          <button type="button" className="cos-quick-btn is-primary" onClick={copyXDmDraft}>
+          <button
+            type="button"
+            className="cos-quick-btn is-primary"
+            disabled={xDmSendBusy || !String(xDmDraft || '').trim() || xDmSend.status === 'sent'}
+            onClick={approveSendXDm}
+          >
+            {xDmSendBusy ? 'Sending…' : (xDmSend.status === 'sent' ? 'Sent' : (xDmIsConnectDraft ? 'Approve & send Connect link' : 'Approve & send DM'))}
+          </button>
+          <button type="button" className="cos-quick-btn" onClick={copyXDmDraft} disabled={xDmSendBusy}>
             {xDmCopied ? 'Copied' : 'Copy draft'}
           </button>
           {lead.xOpenDm ? (
@@ -22870,9 +22988,9 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
               Open DM
             </button>
           ) : null}
-          {!V3XLeadRepliedViaX(lead) ? (
-            <button type="button" className="cos-quick-btn" onClick={() => window.V3.MarkRepliedViaX?.(lead)}>
-              Mark replied on X
+          {!V3XLeadRepliedViaX(lead) && xDmSend.status !== 'sent' ? (
+            <button type="button" className="cos-quick-btn" onClick={() => window.V3.MarkRepliedViaX?.(lead)} disabled={xDmSendBusy}>
+              Mark replied only
             </button>
           ) : null}
           {xDmReplyOpen ? (
@@ -22888,16 +23006,22 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
             className="cos-x-reply-draft-body"
             value={xDmDraft}
             rows={7}
-            onChange={e => setXDmDraft(e.target.value)}
+            onChange={e => {
+              setXDmDraft(e.target.value);
+              if (xDmSend.status === 'error' || xDmSend.status === 'sent') setXDmSend({ status: 'idle', error: '' });
+            }}
             spellCheck
+            disabled={xDmSendBusy}
           />
           <p className="cos-x-reply-draft-hint">
-            Paste as Robert in the X DM thread. When sent, click <strong>Mark replied on X</strong> so the board stays accurate.
+            {xDmIsConnectDraft
+              ? <>Review the Connect link handoff, then <strong>Approve &amp; send Connect link</strong> — sends as Robert and marks the board replied. Copy / Open DM stay as fallback.</>
+              : <>Edit if needed, then <strong>Approve &amp; send DM</strong> as Robert. Falls back to copy + paste if the X API token needs re-auth.</>}
           </p>
         </React.Fragment>
       ) : (
         <button type="button" className="cos-x-reply-draft-collapsed" onClick={openXDmReply}>
-          {xDmDraftStatus === 'loading' ? 'Drafting with local Qwen…' : 'Draft ready — click to expand and edit before copying'}
+          {xDmDraftStatus === 'loading' ? 'Drafting with local Qwen…' : 'Draft ready — expand to edit, then approve & send'}
         </button>
       )}
     </div>
@@ -24713,6 +24837,7 @@ window.V4LeadThreadFreshness = V4LeadThreadFreshness;
 window.V4BuildXDmReplyDraft = V4BuildXDmReplyDraft;
 window.V4BuildXDmReplyDraftTemplate = V4BuildXDmReplyDraftTemplate;
 window.V4FetchXDmReplyDraft = V4FetchXDmReplyDraft;
+window.V4SendApprovedXDm = V4SendApprovedXDm;
 window.V4XLeadNeedsDmReply = V4XLeadNeedsDmReply;
 window.V4LeadIsTravelLead = V4LeadIsTravelLead;
 // FLOW v4 — main app shell (refined top bar + view wiring)
@@ -25812,6 +25937,8 @@ function V4App() {
     .filter(l => window.V3.LeadVisibleToProfile(l, user))
     .filter(l => window.V3.LeadMatchesQuery ? window.V3.LeadMatchesQuery(l, search) : true);
   const operationalLeads = visibleLeads.filter(l => !(window.V3.IsNewLeadReview && window.V3.IsNewLeadReview(l)));
+  // Focus must INCLUDE brand-new intake (Robert Gmail / X / connect) — operationalLeads strips them.
+  const focusLeads = visibleLeads.filter(l => !['trash', 'dead-leads'].includes(String(l.stage || '')));
   const newLeadCount = mergedLeads.filter(l =>
     window.V3.IsNewLeadReview &&
     window.V3.IsNewLeadReview(l)
@@ -26171,7 +26298,7 @@ function V4App() {
         {view === 'today' && (
           <V4TodayView
             user={user}
-            leads={operationalLeads}
+            leads={focusLeads}
             query={search}
             onOpenLead={setOpenId}
             onGoInbox={goToCompanyOsHome}

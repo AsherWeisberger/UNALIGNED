@@ -21,7 +21,8 @@ TOKEN_FILE = STATE_DIR / "x-api-oauth-token.json"
 REDIRECT_URI = "http://127.0.0.1:8080/callback"
 AUTH_URL = "https://x.com/i/oauth2/authorize"
 TOKEN_URL = "https://api.x.com/2/oauth2/token"
-SCOPES = "dm.read tweet.read users.read offline.access"
+# dm.write required for Company OS approve-and-send from Robert's desk.
+SCOPES = "dm.write dm.read tweet.read users.read offline.access"
 
 
 def load_env() -> None:

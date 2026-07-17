@@ -2482,6 +2482,13 @@ body.v4-godmode-open { overflow: hidden; }
   font-size: 12px;
   color: var(--text-3);
 }
+.cos-x-reply-draft-status.is-ok {
+  color: var(--ok, #1a7f4b);
+}
+.cos-x-reply-draft-status.is-error {
+  color: var(--danger, #c0392b);
+  max-width: 42ch;
+}
 .cos-x-reply-draft-actions {
   display: flex;
   flex-wrap: wrap;

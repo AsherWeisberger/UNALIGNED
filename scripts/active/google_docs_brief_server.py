@@ -113,19 +113,43 @@ from robert_handoff_operator import (  # type: ignore
     mark_x_asset_sent as mark_robert_x_asset_sent,
 )
 from x_dm_draft import draft_x_dm_reply_for_lead  # type: ignore
+from x_dm_send import send_x_dm_request  # type: ignore
 from brief_draft_rewrite import (  # type: ignore
+    MEDIA_PRODUCTION_MIN_PRICE,
+    PRODUCTION_ADDON_NAME,
+    PRODUCTION_ADDON_PRICE,
     draft_looks_instructional,
+    deliverable_profile,
+    drafts_quality_report,
     draft_uses_robert_template,
     ensure_publishable_drafts,
     format_sender_intel_for_prompt,
+    infer_deal_price_from_context,
+    infer_deliverable_from_email,
     infer_negotiation_stage,
+    media_production_in_scope,
+    production_upgrade_option_lines,
+    client_will_embed_own_media,
+    deliverable_needs_quote_anchor,
+    filter_client_media_quotes,
+    is_internal_x_profile_url,
+    is_valid_quote_anchor_url,
+    parse_media_requirements_from_text,
     parse_sender_email_intelligence,
+    pick_anchor_post_from_urls,
     rebuild_drafts_for_deliverable,
+    source_facts_for_drafting,
+    _deliverable_is_thread,
 )
 
 
 BRIEF_JOBS_LOCK = threading.Lock()
 BRIEF_JOBS: dict[str, dict] = {}
+
+# Serialize all local-model calls. The 32B model can only run one inference at a
+# time on a 48GB machine; concurrent requests stacked up, pegged RAM, and 500'd.
+# Every local-LLM entry point acquires this so requests queue instead of piling.
+_LOCAL_LLM_GATE = threading.Semaphore(1)
 BRIEF_JOB_HISTORY_LIMIT = 40
 BRIEF_JOB_CONTEXT = threading.local()
 
@@ -943,13 +967,13 @@ def llm_prompt_for_brief(source: dict) -> str:
     source_url = line(source.get("source_url"))
     email_context = line(source.get("email_context"))
     links = source.get("links") or []
-    source_text = line(source.get("source_text"))
+    source_text = str(source.get("source_text") or "")
     link_lines = "\n".join(
         f"- {line(item.get('text'))}: {line(item.get('href'))}"
         for item in links[:20]
         if line(item.get("href"))
     )
-    trimmed_source = source_text[:5500]
+    trimmed_source = source_text[:24000]
     return f"""Extract a Robert Scoble sponsorship brief from the source below.
 
 Return valid JSON only. No markdown. No explanation. No invented facts.
@@ -959,6 +983,7 @@ Return exactly this JSON:
 {{
   "title": "",
   "company_name": "",
+  "product_name": "",
   "about_company": "",
   "core_idea": "",
   "how_it_works": "",
@@ -970,11 +995,12 @@ Return exactly this JSON:
   "where_it_lives": [["Label", "Value"]],
   "status_note": [],
   "why_alignednews": "",
-  "drafts": [
-    {{"label": "Option 1. Core angle. Recommended", "text": ""}},
-    {{"label": "Option 2. Why now angle", "text": ""}},
-    {{"label": "Option 3. Operator angle", "text": ""}}
+  "source_facts": [
+    {{"text": "", "classification": "verified_source_fact | company_claim | paper_reported_result", "qualification": ""}}
   ],
+  "creator_experience_confirmed": false,
+  "missing_critical_fields": [],
+  "drafts": [],
   "must_include": {{
     "tag": "",
     "link": "",
@@ -984,8 +1010,13 @@ Return exactly this JSON:
 }}
 
 House rules:
+- This is extraction only. Do not write social copy in this call. Return drafts as an empty list.
 - Match locked client accuracy language word for word.
 - Every draft must be fully written. No empty drafts. No placeholders.
+- Extract 8 to 14 source facts before writing. Keep company claims and paper reported results qualified.
+- Set creator_experience_confirmed true only when the source explicitly says Robert personally tested, used, built, tried, watched, or attended it. Suggested first person copy is not proof.
+- Record a missing critical field instead of inventing it.
+- Missing critical fields are only items required to execute the selected deliverable. Optional assets, repositories, weights, secondary links, and claims Robert can omit belong in open questions, not missing critical fields.
 - If the deliverable is a dedicated thread, each draft must include Main post, Reply 1, and Reply 2.
 - Do not paste source headings as content.
 - Use the product's real hooks, proof points, named moments, facts, audience framing, and terminology from the source.
@@ -1039,7 +1070,7 @@ How to write it:
 - Then state the product as the plain fix in one or two short sentences. What it is, plus the one or two proof points that actually matter (a real number, a named mechanic). No feature lists.
 - Keep it short. A few tight lines, texting tone, conversational. Not an essay, not paragraphs of analysis.
 - A clear, slightly controversial stance is good. That is his lane.
-- If AlignedNews.com genuinely fits, drop it once as a real aside, never a slogan. It does not need to appear in every option.
+- Do not mention AlignedNews.com in draft copy. These are sponsor posts, not AlignedNews editorials.
 
 FOLLOW THE SOURCE. If the brief or the sponsor email states a tone, a style, or do's and don'ts (for example "texting tone, short, no long essays, no PR speak, take a controversial stance"), follow them exactly. They override the defaults here.
 
@@ -1074,13 +1105,13 @@ Rules:
 - Each option must use a genuinely different framing AND different proof points. The three must not blur together.
 - Do not lean on a single recurring image or prop across the options. Never reuse the same physical hook (for example a laptop sleeping, closing the lid, the screen, or wifi) in more than one option, and prefer not to use that tired laptop framing at all. Reach for the real distinction instead: session bound vs persistent, babysat vs unattended, one machine vs dedicated per agent, forgets vs remembers, runs only when watched vs runs on its own.
 - Default to tight copy: a few short lines per option, not several long paragraphs, unless the deliverable is explicitly a long thread.
-- Option 1 must make a natural tie in to AlignedNews.com. The other options should do that too when it fits.
+- Do not mention AlignedNews.com in any draft option.
 - Write like the post is ready to publish right now. No brief notes. No explainer copy. No internal commentary.
 - Never output posting directions, creative briefs, or angle labels like "Example Prompt". Every draft must be finished copy Robert can paste into X.
 - If the sender context describes a demo app or example thread, write the actual post about that demo. Do not tell Robert what to build or how to frame it.
 - Keep the copy punchy and readable. Short paragraphs. Strong first line. Concrete proof points.
 - Avoid generic product-sheet phrasing like "see behaviors" or "this matters because".
-- If you reference AlignedNews.com, do it once, naturally, in Robert's voice. It should feel like a real closing thought, not a slogan.
+- Never reference AlignedNews.com in draft copy.
 - Prefer lines like "What I like here is..." or "What stands out to me is..." over stiff framing like "This is the kind of shift I cover".
 - Pull from named proof points, product mechanics, launch details, and exact source language when useful.
 - Do not paste scheduling metadata like launch date, go live time, posting window, or approval notes into the draft copy.
@@ -1141,6 +1172,123 @@ Source text:
 """
 
 
+def llm_prompt_for_drafts_v2(source: dict, base_payload: dict) -> str:
+    """Universal writer prompt. The selected deliverable controls the output shape."""
+    company = line(base_payload.get("company_name")) or "the company"
+    product = line(base_payload.get("product_name")) or company
+    deliverable = line(base_payload.get("deliverable_type"))
+    profile = deliverable_profile(deliverable)
+    must = base_payload.get("must_include") or {}
+    facts = source_facts_for_drafting(base_payload, limit=14)
+    fact_lines = "\n".join(f"F{idx + 1}: {fact}" for idx, fact in enumerate(facts))
+    source_text = str(source.get("source_text") or "")[:24000]
+    accuracy = "\n".join(
+        f"- {line(item)}"
+        for item in (base_payload.get("accuracy_requirements") or base_payload.get("angles_or_accuracy_requirements") or [])[:10]
+        if line(item)
+    )
+    required = "\n".join([
+        f"Handle: {line(must.get('tag')) or '(none)'}",
+        f"Link: {line(must.get('link')) or '(none)'}",
+        f"Hashtags: {line(must.get('hashtags')) or '(none)'}",
+    ])
+    format_rules = {
+        "quote_repost": (
+            "Write an original QRT reaction of 35 to 90 words. Add a thesis or category insight. "
+            "Do not summarize the launch post and do not include Main post or Reply labels."
+        ),
+        "custom_x": (
+            "Write a substantive standalone X post of 65 to 130 words. Use at least two source facts. "
+            "Build one clear thesis, proof, why it matters, then a natural CTA."
+        ),
+        "narrative_thread": (
+            "Write a complete three part X thread. Use exactly these labels: Main post:, Reply 1:, Reply 2:. "
+            "The main post states the thesis. Reply 1 explains the mechanism or proof. Reply 2 gives the implication and CTA."
+        ),
+        "linkedin": (
+            "Write a finished LinkedIn post of 110 to 220 words. Use short paragraphs, a clear thesis, "
+            "at least two source facts, the market or operator implication, and a natural close. Do not write X shorthand."
+        ),
+        "amplification_x": (
+            "Write a concise Amplification X reaction of 35 to 85 words for the supplied launch post. "
+            "Add Robert's source grounded take rather than repeating the announcement. Do not invent an anchor URL."
+        ),
+        "founder_video": (
+            "Write a 30 to 60 second on camera plan. Use exactly these labels: On camera hook:, Talking points:, "
+            "Closing line:, Caption:. The spoken section needs at least two source facts. The caption carries required links and handles."
+        ),
+        "x_space": (
+            "Write host notes for an X Space, not social post copy. Use exactly these labels: Opening:, Question arc:, Closing:. "
+            "Include six specific questions grounded in the source, including mechanism, limits, adoption, and what comes next."
+        ),
+        "interview": (
+            "Write a one hour interview run of show, not social post copy. Use exactly these labels: Opening:, Question arc:, Closing:. "
+            "Include eight specific questions covering founder story, product mechanism, evidence, limitations, market impact, and next steps."
+        ),
+        "retweet": "Return no social copy. The deterministic Brief Maker creates the three retweet steps.",
+        "unknown": "Do not draft. The deliverable must be selected or reliably detected first.",
+    }[profile["key"]]
+    return f"""You write campaign deliverables for Robert Scoble from an approved source fact set.
+
+Selected deliverable: {profile['label']}
+Company: {company}
+Product or release: {product}
+
+FORMAT CONTRACT
+{format_rules}
+
+ROBERT HOUSE STYLE
+- Lead with a high information observation, contrast, or market signal.
+- Name the larger category shift, then explain the mechanism that makes it credible.
+- Sound curious, technically literate, direct, and willing to take a position.
+- Use short paragraphs and clean sentences.
+- Specific first, excited second. Never sound like a press release.
+- Use structural moves like "The interesting part is" or "The bigger story is" only when they fit. They are not required catchphrases.
+
+HARD RULES
+- Use only the source facts below. Preserve numbers, names, technical terms, and qualifications exactly.
+- Every option must use the minimum number of source facts required by the format.
+- Never invent facts, links, handles, dates, numbers, repositories, rankings, customers, comparisons, or consensus.
+- Never say I tried, I used, I asked, I built, I tested, I saw, or equivalent unless creator_experience_confirmed is true.
+- Suggested first person hooks in a creator brief are not proof of experience.
+- No recycled Robert templates, empty rhetorical questions, generic hype, PR language, feature dumps, or source headings.
+- Do not use: game changer, revolutionary, everyone is talking about this, must see, the future is here.
+- No hyphens or em dashes as punctuation.
+- Include each required handle, link, disclosure phrase, and hashtag exactly when supplied.
+- Keep logistics, dates, posting windows, and approval notes out of publishable copy.
+- Make the options genuinely different in thesis and fact combination, not synonym swaps.
+
+REQUIRED ITEMS
+{required}
+
+ACCURACY AND GUARDRAILS
+{accuracy or '- None supplied'}
+
+CREATOR EXPERIENCE CONFIRMED
+{str(bool(base_payload.get('creator_experience_confirmed') or (base_payload.get('sender_intelligence') or {}).get('creator_experience_confirmed'))).lower()}
+
+SOURCE FACT SET
+{fact_lines or 'No usable source facts were extracted. Return missing_source_facts instead of drafting.'}
+
+RAW SOURCE BACKUP
+{source_text}
+
+Return valid JSON only:
+{{
+  "missing_source_facts": false,
+  "drafts": [
+    {{"label": "Option 1. Recommended", "angle": "", "facts_used": ["F1", "F2"], "text": ""}},
+    {{"label": "Option 2. Technical angle", "angle": "", "facts_used": ["F2", "F3"], "text": ""}},
+    {{"label": "Option 3. Market angle", "angle": "", "facts_used": ["F3", "F4"], "text": ""}},
+    {{"label": "Candidate 4", "angle": "", "facts_used": [], "text": ""}},
+    {{"label": "Candidate 5", "angle": "", "facts_used": [], "text": ""}}
+  ]
+}}
+
+Put the strongest candidate first. Return five candidates so the quality gate can reject weak ones and still keep three.
+"""
+
+
 def query_local_brief_json(
     *,
     prompt: str,
@@ -1150,7 +1298,8 @@ def query_local_brief_json(
 ) -> dict | None:
     targets = load_local_llm_targets()
     errors: list[str] = []
-    for target in targets:
+    with _LOCAL_LLM_GATE:
+      for target in targets:
         base_url = line(target.get("base_url")).rstrip("/")
         model = line(target.get("model"))
         if not base_url or not model:
@@ -1166,6 +1315,8 @@ def query_local_brief_json(
                 ],
                 "temperature": 0.2,
                 "max_tokens": max_tokens,
+                # Unload 60s after idle (Ollama honors keep_alive on its /v1 route).
+                "keep_alive": os.environ.get("OLLAMA_KEEP_ALIVE", "60s"),
             }
             data = post_json_with_headers(f"{base_url}/chat/completions", payload, headers=target.get("headers"), timeout=request_timeout)
             content = (((data.get("choices") or [{}])[0]).get("message") or {}).get("content", "")
@@ -1189,25 +1340,63 @@ def query_local_brief_model(source: dict) -> dict | None:
     return query_local_brief_json(
         prompt=prompt,
         system_prompt="You are a precise JSON extraction engine.",
-        max_tokens=1800,
+        max_tokens=2600,
         stage_label="brief-facts",
     )
 
 
 def query_local_brief_drafts(source: dict, base_payload: dict) -> dict | None:
     set_brief_job_stage("writing_drafts", "Writing draft options")
-    prompt = llm_prompt_for_drafts(source, base_payload)
+    profile = deliverable_profile(line(base_payload.get("deliverable_type")))
+    if profile["key"] in {"retweet", "unknown"}:
+        return None
+    prompt = llm_prompt_for_drafts_v2(source, base_payload)
     return query_local_brief_json(
         prompt=prompt,
         system_prompt=(
-            "You write social posts in the voice of Robert Scoble: a calm, credible tech "
-            "analyst and futurist. Thesis first, plain declarative first person, a contrarian "
-            "opening, concrete proof points from the source, and a natural close in his own "
-            "words. Never marketing hype, slogans, or feature bullet lists. No hyphens. "
-            "Return strict JSON only."
+            "You are the format aware Robert Scoble campaign writer. Use only the supplied "
+            "source fact set, obey the selected deliverable contract exactly, and return strict JSON only."
         ),
-        max_tokens=2200,
+        max_tokens=4200,
         stage_label="brief-drafts",
+    )
+
+
+def query_local_brief_draft_repair(
+    source: dict,
+    base_payload: dict,
+    reports: list[dict],
+    *,
+    repair_round: int,
+) -> dict | None:
+    failures = [
+        {
+            "label": line(item.get("label")),
+            "failures": item.get("failures") or [],
+            "word_count": item.get("word_count"),
+            "fact_hits": item.get("fact_hits"),
+        }
+        for item in reports
+        if not item.get("ok")
+    ]
+    if not failures:
+        return None
+    set_brief_job_stage("repairing_drafts", f"Repairing weak drafts, pass {repair_round}")
+    prompt = llm_prompt_for_drafts_v2(source, base_payload)
+    prompt += (
+        "\n\nQUALITY GATE FAILURES FROM THE PREVIOUS ATTEMPT\n"
+        + json.dumps(failures, ensure_ascii=False, indent=2)
+        + "\n\nRewrite the candidate set completely. Fix every listed failure. "
+          "Do not explain the repairs. Return the same JSON shape with five new candidates."
+    )
+    return query_local_brief_json(
+        prompt=prompt,
+        system_prompt=(
+            "You repair campaign drafts against deterministic failures. Use only the supplied source facts, "
+            "obey the selected deliverable format, and return strict JSON only."
+        ),
+        max_tokens=4200,
+        stage_label=f"brief-draft-repair-{repair_round}",
     )
 
 
@@ -1219,6 +1408,7 @@ def merge_brief_payload(base: dict, llm_payload: dict | None) -> dict:
     scalar_fields = (
         "title",
         "company_name",
+        "product_name",
         "about_company",
         "core_idea",
         "how_it_works",
@@ -1245,6 +1435,25 @@ def merge_brief_payload(base: dict, llm_payload: dict | None) -> dict:
         value = llm_payload.get(field)
         if value:
             merged[field] = value
+    extracted_facts = []
+    for item in llm_payload.get("source_facts") or []:
+        if isinstance(item, dict):
+            text_value = line(item.get("text"))
+            if text_value:
+                extracted_facts.append({
+                    "text": text_value,
+                    "classification": line(item.get("classification")) or "verified_source_fact",
+                    "qualification": line(item.get("qualification")),
+                })
+        elif line(item):
+            extracted_facts.append({"text": line(item), "classification": "verified_source_fact", "qualification": ""})
+    if extracted_facts:
+        merged["source_facts"] = extracted_facts[:14]
+    if llm_payload.get("creator_experience_confirmed") is True:
+        merged["creator_experience_confirmed"] = True
+    missing_fields = [line(item) for item in (llm_payload.get("missing_critical_fields") or []) if line(item)]
+    if missing_fields:
+        merged["missing_critical_fields"] = missing_fields
     draft_values = llm_payload.get("drafts") or []
     valid_drafts = []
     for item in draft_values:
@@ -1291,7 +1500,12 @@ def merge_draft_payload(base: dict, llm_payload: dict | None) -> dict:
             or draft_looks_instructional(text_value)
         ):
             continue
-        valid_drafts.append({"label": label_value or "Option", "text": text_value})
+        valid_drafts.append({
+            "label": label_value or "Option",
+            "text": text_value,
+            "angle": line(item.get("angle")),
+            "facts_used": [line(value) for value in (item.get("facts_used") or []) if line(value)],
+        })
     if valid_drafts:
         merged["drafts"] = valid_drafts
         merged["drafts_source"] = "llm_drafts"
@@ -1350,16 +1564,22 @@ def enrich_payload_from_sender_email(payload: dict) -> dict:
     merged["sender_intelligence"] = intel
     merged["sender_intelligence_text"] = format_sender_intel_for_prompt(intel)
 
-    if intel.get("anchor_post"):
+    anchor = line(intel.get("anchor_post"))
+    deliverable = line(merged.get("deliverable_type"))
+    if (
+        anchor
+        and deliverable_needs_quote_anchor(deliverable)
+        and is_valid_quote_anchor_url(anchor)
+    ):
         where_rows = list(merged.get("where_it_lives") or [])
         has_quote_row = any(
             isinstance(row, (list, tuple))
             and len(row) >= 2
-            and re.search(r"quote|qrt", line(row[0]), re.I)
+            and re.search(r"quote|qrt|anchor", line(row[0]), re.I)
             for row in where_rows
         )
         if not has_quote_row:
-            where_rows.append(["Post to quote", line(intel.get("anchor_post"))])
+            where_rows.append(["Post to quote", anchor])
             merged["where_it_lives"] = where_rows
 
     if intel.get("go_live") and not line(merged.get("go_live")):
@@ -1511,11 +1731,11 @@ def strip_hyphens_from_paragraph(text: str) -> str:
     if not out:
         return ""
     for dash in ("—", "–", "−", "‒"):
-        out = out.replace(dash, ". ")
-    out = re.sub(r"\s+-\s+", ". ", out)
+        out = out.replace(dash, ", ")
+    out = re.sub(r"\s+-\s+", ", ", out)
     out = re.sub(r"(?<![/@#])(?<!\w)-(?!\w)", " ", out)
-    out = re.sub(r"(\w)-(\w)", r"\1 \2", out)
     out = re.sub(r"\.\s*\.", ".", out)
+    out = re.sub(r"\s+,", ",", out)
     return re.sub(r"[ \t]+", " ", out).strip()
 
 
@@ -1525,12 +1745,11 @@ def strip_hyphens_from_copy(text: str) -> str:
     if not raw:
         return ""
     main, reply_note = split_link_in_reply_note(raw)
-    if "Main post:" in main or re.search(r"Reply\s+\d+:", main):
-        blocks = re.split(r"\n\s*(?=Main post:|Reply\s+\d+:)", main)
-        cleaned_blocks = [strip_hyphens_from_paragraph(block) for block in blocks if line(block)]
-        out = "\n\n".join(cleaned_blocks).strip()
-    else:
-        out = strip_hyphens_from_paragraph(main)
+    cleaned_lines = [
+        strip_hyphens_from_paragraph(current) if current.strip() else ""
+        for current in main.splitlines()
+    ]
+    out = re.sub(r"\n{3,}", "\n\n", "\n".join(cleaned_lines)).strip()
     if reply_note:
         reply = strip_hyphens_from_paragraph(reply_note)
         return f"{out}\n\n{reply}".strip()
@@ -1553,7 +1772,7 @@ def polish_robert_draft_item(draft: dict) -> dict:
         return draft
     out = dict(draft)
     if line(out.get("text")):
-        out["text"] = strip_hyphens_from_copy(line(out.get("text")))
+        out["text"] = strip_hyphens_from_copy(str(out.get("text") or ""))
     if line(out.get("label")):
         out["label"] = strip_hyphens_from_label(line(out.get("label")))
     if line(out.get("reach_reason")):
@@ -1584,7 +1803,7 @@ def draft_suffix_already_present(text: str, part: str) -> bool:
 
 
 def split_link_in_reply_note(text: str) -> tuple[str, str]:
-    raw = line(text)
+    raw = str(text or "").strip()
     if not raw:
         return "", ""
     match = re.search(r"(?i)\n\s*Link in reply:\s*.+$", raw)
@@ -1620,14 +1839,11 @@ def rewrite_standalone_draft_text(text: str, *, company: str = "", topic: str = 
     out = re.sub(r"(?i)\b(QRT|quote[\s-]?tweet|retweet)\b", "", out)
     out = re.sub(r"(?i)Anchor:.*", "", out)
     out = re.sub(r"\s*…\s*", " ", out)
-    out = (
-        f"Everyone is sharing {topic} tool lists right now. "
-        f"Lists are fine. Workflow context is still the gap. "
-        f"My take after testing {company} Brain² with a real team."
-    )
     out = re.sub(r":\s*$", "", out)
     out = re.sub(r"\(\s*" + re.escape(topic) + r"\s*\)\s*$", "", out, flags=re.I)
     out = re.sub(r"\s+", " ", out).strip()
+    if len(out) < 40:
+        out = f"The interesting part of {company} is the underlying {topic} mechanism, not the launch headline."
     if reply_note:
         out = f"{out}\n\n{reply_note}".strip()
     return out
@@ -1703,21 +1919,35 @@ def finalize_drafts_for_agency(payload: dict) -> dict:
         ]
         if clean:
             drafts = clean
-    drafts = sorted(drafts, key=lambda item: int(item.get("reach_score") or 0), reverse=True)
+    scored = [item for item in drafts if int(item.get("reach_score") or 0) > 0]
+    if merged.get("drafts_source") == "x_signal_partnership":
+        drafts = sorted(drafts, key=lambda item: int(item.get("reach_score") or 0), reverse=True)
+    elif scored:
+        top_scored = max(scored, key=lambda item: int(item.get("reach_score") or 0))
+        merged["recommended_reach"] = {
+            "label": line(top_scored.get("label")),
+            "reach_score": top_scored.get("reach_score"),
+            "reach_tier": top_scored.get("reach_tier"),
+            "reach_reason": line(top_scored.get("reach_reason")),
+            "anchor": line(top_scored.get("anchor")),
+            "plain_summary": plain_reach_summary(top_scored),
+        }
     for idx, draft in enumerate(drafts[:3], start=1):
         rest = normalize_draft_option_label(line(draft.get("label")), idx)
         suffix = " (Recommended)" if idx == 1 else ""
         draft["label"] = f"Option {idx}. {rest}{suffix}"
     if drafts:
         merged["drafts"] = [polish_robert_draft_item(item) for item in drafts[:3]]
-        top = drafts[0]
-        merged["recommended_reach"] = {
-            "label": line(top.get("label")),
-            "reach_score": top.get("reach_score"),
-            "reach_tier": top.get("reach_tier"),
-            "reach_reason": line(top.get("reach_reason")),
-            "anchor": "",
-        }
+        if merged.get("drafts_source") == "x_signal_partnership":
+            top = drafts[0]
+            merged["recommended_reach"] = {
+                "label": line(top.get("label")),
+                "reach_score": top.get("reach_score"),
+                "reach_tier": top.get("reach_tier"),
+                "reach_reason": line(top.get("reach_reason")),
+                "anchor": line(top.get("anchor")),
+                "plain_summary": plain_reach_summary(top),
+            }
     return merged
 
 
@@ -1849,37 +2079,95 @@ def infer_campaign_launch_line(lines: list[str]) -> str:
     return ""
 
 
+def _x_signal_skip_phrase(value: str) -> bool:
+    lowered = line(value).lower()
+    if not lowered:
+        return True
+    skip_markers = (
+        "embedding",
+        "demo clip",
+        "narrative thread",
+        "does that include",
+        "paid partnership",
+        "for your review",
+        "example prompt",
+        "drive link",
+        "loom",
+        "$",
+        "invoice",
+        "approval",
+    )
+    return any(marker in lowered for marker in skip_markers)
+
+
+def infer_x_signal_campaign_terms(payload: dict) -> list[str]:
+    terms: list[str] = []
+    company = line(payload.get("company_name"))
+    if company:
+        terms.append(company)
+    must = payload.get("must_include") or {}
+    tag = line(must.get("tag")).lstrip("@")
+    link = line(must.get("link"))
+    if tag:
+        terms.append(tag)
+    if link:
+        domain = re.sub(r"^https?://(www\.)?", "", link, flags=re.I).split("/")[0]
+        stem = domain.split(".")[0]
+        if stem and len(stem) >= 3:
+            terms.append(stem)
+    for field in ("core_idea", "about_company", "announcement"):
+        text = line(payload.get(field))
+        if text and not _x_signal_skip_phrase(text):
+            terms.append(text.split(".")[0].strip())
+    for angle in (payload.get("campaign_angles") or [])[:3]:
+        if not isinstance(angle, dict):
+            continue
+        for key in ("hook", "title"):
+            text = line(angle.get(key))
+            if text and not _x_signal_skip_phrase(text):
+                terms.append(text)
+                break
+    for item in (payload.get("content_angle_points") or [])[:3]:
+        text = line(item)
+        if text and not _x_signal_skip_phrase(text):
+            terms.append(re.sub(r"^Angle\s+\d+:\s*", "", text, flags=re.I))
+    intel = payload.get("sender_intelligence") or {}
+    demo_story = line(intel.get("demo_story"))
+    if demo_story and not _x_signal_skip_phrase(demo_story):
+        terms.append(demo_story.split(".")[0].strip())
+    source_text = line(payload.get("source_text"))
+    if re.search(r"brain[\u00b2²2]?", source_text, re.I):
+        terms.append("Brain² AI")
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for raw in terms:
+        current = line(raw)
+        if not current:
+            continue
+        key = current.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(current)
+    return deduped[:8]
+
+
 def infer_x_signal_topic(payload: dict) -> str:
     x_cfg = payload.get("x_signal") or {}
     explicit = line(x_cfg.get("topic"))
-    if explicit:
+    if explicit and not _x_signal_skip_phrase(explicit):
         return explicit[:80]
-    intel = payload.get("sender_intelligence") or {}
-    demo_story = line(intel.get("demo_story"))
-    if demo_story:
-        short = demo_story.split(".")[0].strip()
-        if 12 <= len(short) <= 80:
-            return short
-    email_context = line(payload.get("email_context"))
-    if email_context and len(email_context) >= 24 and not intel.get("is_am_handoff"):
-        short = email_context.split(".")[0].strip()
-        if 12 <= len(short) <= 80 and "example prompt" not in short.lower():
-            return short
-    source_text = line(payload.get("source_text"))
     company = line(payload.get("company_name"))
-    if re.search(r"brain[\u00b2²2]?", source_text, re.I):
-        return "Brain² AI"
-    launch_line = infer_campaign_launch_line((payload.get("source_text") or "").splitlines())
-    if launch_line:
-        short = launch_line.split(".")[0].strip()
-        if 8 <= len(short) <= 72:
-            return short
-    core = line(payload.get("core_idea"))
-    if core:
-        short = core.split(".")[0].strip()
-        if 8 <= len(short) <= 72:
-            return short
-    return company or "Campaign"
+    campaign_terms = infer_x_signal_campaign_terms(payload)
+    if company and len(campaign_terms) > 1:
+        second = next((item for item in campaign_terms if item.lower() != company.lower()), "")
+        if second:
+            return f"{company} {second}"[:80]
+    if company:
+        return company[:80]
+    if campaign_terms:
+        return campaign_terms[0][:80]
+    return "Campaign"
 
 
 def infer_x_signal_handle(payload: dict, *, tag: str, company: str) -> str:
@@ -1930,6 +2218,10 @@ def x_signal_payload_for_brief(payload: dict) -> dict | None:
         set_brief_job_stage("scoring_reach", "Scoring X reach")
         brief_log(f"brief-x-signal: analyzing {company}")
         standalone_post = bool((parse_agency_constraints(line(payload.get("email_context"))) or {}).get("standalone_post"))
+        deliverable = line(payload.get("deliverable_type")).lower()
+        attach_allowed = not _deliverable_is_thread(deliverable) and "quote" not in deliverable and "qrt" not in deliverable
+        if standalone_post:
+            attach_allowed = False
         signal = analyze_partnership_signal(
             brand=company,
             topic=topic,
@@ -1940,6 +2232,8 @@ def x_signal_payload_for_brief(payload: dict) -> dict | None:
             drafts=drafts,
             max_results=25,
             standalone_post=standalone_post,
+            campaign_terms=infer_x_signal_campaign_terms(payload),
+            attach_allowed=attach_allowed,
         )
         return signal
     except Exception as exc:
@@ -1947,16 +2241,76 @@ def x_signal_payload_for_brief(payload: dict) -> dict | None:
         return {"ok": False, "error": str(exc)}
 
 
-def drafts_need_x_signal(drafts: list[dict], joined_lines: str) -> bool:
+CAMPAIGN_DRAFT_SOURCES = frozenset({
+    "notion_angles",
+    "campaign_angles",
+    "deliverable_rebuild",
+})
+
+
+def _payload_has_campaign_drafts(payload: dict, drafts: list[dict], joined_lines: str) -> bool:
+    source = line(payload.get("drafts_source"))
+    if source in CAMPAIGN_DRAFT_SOURCES:
+        return True
+    if payload.get("campaign_angles"):
+        return True
+    deliverable = line(payload.get("deliverable_type")).lower()
+    if _deliverable_is_thread(deliverable):
+        texts = [line(item.get("text")) for item in drafts if line(item.get("text"))]
+        if texts and all("main post:" in text.lower() and "reply 1:" in text.lower() for text in texts):
+            return True
+    valid = [item for item in drafts if isinstance(item, dict) and line(item.get("text"))]
+    if not valid:
+        return False
+    lazy_count = sum(1 for item in valid if draft_text_is_lazy(line(item.get("text")), joined_lines))
+    if lazy_count >= len(valid):
+        return False
+    if any(isinstance(item, dict) and item.get("brief_angle") for item in valid):
+        return True
+    if any(
+        isinstance(item, dict) and int(item.get("robert_voice_score") or 0) >= 55
+        for item in valid
+    ):
+        return True
+    return len(valid) >= 2 and lazy_count == 0
+
+
+def drafts_need_x_signal(drafts: list[dict], joined_lines: str, payload: dict | None = None) -> bool:
+    """Only replace drafts when the brief has no usable campaign copy yet."""
+    payload = payload or {}
     valid = [item for item in (drafts or []) if isinstance(item, dict) and line(item.get("text"))]
     if len(valid) < 2:
         return True
-    lazy_count = sum(1 for item in valid if draft_text_is_lazy(line(item.get("text")), joined_lines))
-    if lazy_count:
-        return True
-    if any(isinstance(item, dict) and item.get("brief_angle") for item in valid):
+    if _payload_has_campaign_drafts(payload, valid, joined_lines):
         return False
+    lazy_count = sum(1 for item in valid if draft_text_is_lazy(line(item.get("text")), joined_lines))
     return lazy_count >= max(1, len(valid) - 1)
+
+
+def plain_reach_summary(draft: dict) -> str:
+    """One plain sentence about why a draft fits the live X wave."""
+    score = draft.get("reach_score")
+    tier = line(draft.get("reach_tier"))
+    reason = line(draft.get("reach_reason")).lower()
+    bits: list[str] = []
+    if score not in (None, ""):
+        bits.append(f"Fit {score}/100 ({tier or 'n/a'})")
+    if "hot thread" in reason:
+        bits.append("attached to a hot live thread")
+    elif "warm thread" in reason:
+        bits.append("attached to a warm conversation")
+    elif "live thread" in reason:
+        bits.append("references active conversation")
+    term_match = re.search(r"term in line 1:\s*([^\s·]+)", reason, re.I)
+    if term_match:
+        bits.append(f"opens with live term “{term_match.group(1)}”")
+    elif "weak term match" in reason:
+        bits.append("first line could mirror what's trending more closely")
+    if "standalone original" in reason:
+        bits.append("standalone original post")
+    elif "wave 2" in reason or "qrt" in reason:
+        bits.append("QRT attach play")
+    return ". ".join(bits) + "." if bits else ""
 
 
 def apply_x_signal_draft_posts(enriched: dict, signal: dict, *, joined_lines: str = "") -> dict:
@@ -1966,7 +2320,11 @@ def apply_x_signal_draft_posts(enriched: dict, signal: dict, *, joined_lines: st
     deliverable = line(enriched.get("deliverable_type")).lower()
     if "quote" in deliverable or "qrt" in deliverable:
         return enriched
-    if not drafts_need_x_signal(list(enriched.get("drafts") or []), joined_lines):
+    if _deliverable_is_thread(deliverable):
+        brief_log("brief-x-signal: keeping campaign thread drafts (score only)")
+        return enriched
+    if not drafts_need_x_signal(list(enriched.get("drafts") or []), joined_lines, enriched):
+        brief_log("brief-x-signal: keeping campaign drafts (score only)")
         return enriched
     brief_drafts: list[dict] = []
     constraints = (enriched.get("agency_constraints") or {}) if isinstance(enriched, dict) else {}
@@ -2037,28 +2395,54 @@ def attach_x_signal_to_brief_payload(payload: dict, *, joined_lines: str = "") -
                     next_item[key] = match.get(key)
             next_drafts.append(next_item)
         if next_drafts:
-            enriched["drafts"] = sorted(next_drafts, key=lambda item: int(item.get("reach_score") or 0), reverse=True)
-            top = enriched["drafts"][0]
+            enriched["drafts"] = next_drafts
+            scored_items = [item for item in next_drafts if int(item.get("reach_score") or 0) > 0]
+            top = (
+                max(scored_items, key=lambda item: int(item.get("reach_score") or 0))
+                if scored_items
+                else next_drafts[0]
+            )
             enriched["recommended_reach"] = {
                 "label": line(top.get("label")),
                 "reach_score": top.get("reach_score"),
                 "reach_tier": top.get("reach_tier"),
                 "reach_reason": line(top.get("reach_reason")),
                 "anchor": line(top.get("anchor")),
+                "plain_summary": plain_reach_summary(top),
             }
+    audience_play = signal.get("audience_play") or {}
+    recommended = enriched.get("recommended_reach") or {}
+    quality = signal.get("signal_quality") or {}
+    quality_label = line(quality.get("quality")) or "thin"
     enriched["x_signal_result"] = {
         "ok": True,
         "generated_at": signal.get("generated_at"),
         "headline": signal.get("headline"),
         "keywords": (signal.get("keywords") or {}).get("suggested_keywords") or [],
         "hashtags": (signal.get("keywords") or {}).get("suggested_hashtags") or [],
-        "top_conversation": signal.get("top_conversation") or [],
+        "top_conversation": (
+            (signal.get("signal_quality") or {}).get("top_posts")
+            or signal.get("top_conversation")
+            or []
+        ),
         "draft_posts": signal.get("draft_posts") or [],
         "wording_rules": signal.get("wording_rules") or [],
         "differentiation_notes": signal.get("differentiation_notes") or [],
+        "audience_play": audience_play,
+        "timing_window": line(audience_play.get("timing_window")),
+        "primary_move": line(audience_play.get("primary_move")),
+        "robert_moves": [
+            line(item)
+            for item in (audience_play.get("robert_first_moves") or audience_play.get("robert_moves") or [])[:3]
+            if line(item)
+        ],
+        "signal_quality": quality_label,
+        "signal_note": line(quality.get("note")),
+        "campaign_anchors": [line(item) for item in (signal.get("campaign_anchors") or []) if line(item)][:6],
+        "plain_pick_summary": plain_reach_summary(recommended) if recommended else "",
         "scoring_note": (
-            "Reach score is a relative wave-stack index for choosing between drafts. "
-            "It is not an impression forecast."
+            "Fit score compares your draft options to what's live on X right now. "
+            "Use it to sharpen the first line — not to override campaign facts."
         ),
     }
     return enriched
@@ -2133,39 +2517,40 @@ def text_mentions_alignednews(value: str) -> bool:
     return "alignednews.com" in lowered or "alignednews" in lowered
 
 
+def strip_alignednews_from_draft_text(text: str) -> str:
+    """Sponsor drafts are not AlignedNews posts — remove injected tie-in lines."""
+    raw = clean_draft_text(text)
+    if not raw or not text_mentions_alignednews(raw):
+        return raw
+    chunks: list[str] = []
+    for block in split_draft_paragraphs(raw):
+        if "\n" in block:
+            head, body = block.split("\n", 1)
+            body = " ".join(
+                sent for sent in re.split(r"(?<=[.!?])\s+", body)
+                if sent.strip() and "alignednews" not in sent.lower()
+            ).strip()
+            chunks.append(f"{head}\n{body}".strip() if body else head.strip())
+            continue
+        cleaned = " ".join(
+            sent for sent in re.split(r"(?<=[.!?])\s+", block)
+            if sent.strip() and "alignednews" not in sent.lower()
+        ).strip()
+        if cleaned:
+            chunks.append(cleaned)
+    return "\n\n".join(chunks).strip() or raw
+
+
 def ensure_drafts_reference_alignednews(drafts: list[dict], why_alignednews: str, deliverable_type: str = "") -> list[dict]:
     if not drafts:
         return drafts
-    aligned_line = polish_alignednews_sentence(why_alignednews)
     normalized: list[dict] = []
-    thread_mode = "thread" in str(deliverable_type or "").lower()
-    for idx, item in enumerate(drafts):
+    for item in drafts:
         if not isinstance(item, dict):
             continue
         label_value = line(item.get("label"))
-        text_value = normalize_alignednews_copy(clean_draft_text(item.get("text") or ""))
-        # Only Option 1 gets the auto tie-in. Appending it to every option made all
-        # three end on the identical AlignedNews line and blur together. Options 2+
-        # keep their own copy (the model can still weave AlignedNews in naturally).
-        if idx == 0 and text_value and not text_mentions_alignednews(text_value):
-            if thread_mode:
-                paragraphs = split_draft_paragraphs(text_value)
-                if paragraphs:
-                    last_block = paragraphs[-1]
-                    if "\n" in last_block:
-                        head, body = last_block.split("\n", 1)
-                        body = clean_sentence(f"{body} {aligned_line}")
-                        paragraphs[-1] = f"{head}\n{body}".strip()
-                    else:
-                        paragraphs.append(aligned_line)
-                    text_value = "\n\n".join(paragraphs).strip()
-                else:
-                    text_value = aligned_line
-            else:
-                text_value = f"{text_value} {aligned_line}".strip()
-        elif text_value:
-            text_value = normalize_alignednews_copy(text_value)
-        normalized.append({"label": label_value or "Option", "text": text_value})
+        text_value = strip_alignednews_from_draft_text(str(item.get("text") or ""))
+        normalized.append({**item, "label": label_value or "Option", "text": text_value})
     return normalized or drafts
 
 
@@ -2225,7 +2610,7 @@ def collect_lines_after_marker(lines: list[str], marker_pattern: str, stop_patte
     return output
 
 
-def parse_thread_sections(lines: list[str]) -> list[dict]:
+def _parse_t_thread_sections(lines: list[str]) -> list[dict]:
     sections: list[dict] = []
     current = None
     for raw in lines:
@@ -2255,6 +2640,77 @@ def parse_thread_sections(lines: list[str]) -> list[dict]:
     if current:
         sections.append(current)
     return [section for section in sections if section.get("body")]
+
+
+def _parse_d_angle_sections(lines: list[str]) -> list[dict]:
+    """Hockey Stick angle packs: D1/D2/... with Technical claims + Attach blocks."""
+    start_idx = 0
+    for idx, raw in enumerate(lines):
+        if re.match(r"^D\d+\s*[·-]", line(raw)):
+            start_idx = idx
+            break
+    else:
+        return []
+
+    sections: list[dict] = []
+    current: dict | None = None
+    mode: str | None = None
+    stop_re = re.compile(r"^Media library\b", re.I)
+    for raw in lines[start_idx:]:
+        text = line(raw)
+        if not text:
+            continue
+        if stop_re.match(text):
+            break
+        if re.match(r"^D\d+\s*[·-]", text):
+            if current and (current.get("technical") or current.get("attach") or current.get("hooks")):
+                sections.append(current)
+            current = {"label": text, "body": [], "technical": [], "hooks": [], "attach": []}
+            mode = None
+            continue
+        if current is None:
+            continue
+        if text.startswith("Use when:"):
+            current["body"].append(text)
+            continue
+        if text == "Technical claims":
+            mode = "technical"
+            continue
+        if text.startswith("Hooks"):
+            mode = "hooks"
+            continue
+        if text == "Draft thread":
+            mode = "draft_thread"
+            continue
+        if text == "Attach":
+            mode = "attach"
+            continue
+        if mode == "technical" and len(text) >= 24 and not is_creator_content_pack_header(text):
+            current["technical"].append(text)
+        elif mode == "hooks" and len(text) >= 20 and not draft_looks_instructional(text):
+            current["hooks"].append(text)
+        elif mode == "attach" and len(text) >= 20 and not re.search(r"\.(png|jpg|jpeg|gif|webp)\b", text, re.I):
+            current["attach"].append(text)
+    if current and (current.get("technical") or current.get("attach") or current.get("hooks")):
+        sections.append(current)
+    for section in sections:
+        if not section.get("body"):
+            section["body"] = (
+                list(section.get("hooks") or [])
+                + list(section.get("technical") or [])
+                + list(section.get("attach") or [])
+            )
+    return [
+        section for section in sections
+        if section.get("body") or section.get("technical") or section.get("attach")
+    ]
+
+
+def parse_thread_sections(lines: list[str]) -> list[dict]:
+    t_sections = _parse_t_thread_sections(lines)
+    if t_sections:
+        return t_sections
+    return _parse_d_angle_sections(lines)
 
 
 def strip_quoted_copy(value: str) -> str:
@@ -2394,6 +2850,35 @@ def select_part2_content_angles(angles: list[dict], *, limit: int = 3) -> list[d
         if len(selected) >= limit:
             break
     return selected[:limit]
+
+
+def thread_sections_to_campaign_angles(sections: list[dict], *, company: str = "") -> list[dict]:
+    """Turn T1/T2/T3 creator-pack sections into campaign angles when Notion angles are missing."""
+    angles: list[dict] = []
+    voice_labels = ("Recommended", "Technical angle", "Market angle")
+    for idx, section in enumerate(sections[:3]):
+        if not isinstance(section, dict):
+            continue
+        label = line(section.get("label") or "")
+        body = [
+            line(item) for item in (section.get("body") or [])
+            if line(item) and not is_creator_content_pack_header(line(item))
+            and not is_low_signal_content(line(item), company=company)
+        ]
+        if not body:
+            continue
+        hook = body[0]
+        if is_creator_content_pack_header(hook):
+            continue
+        angles.append({
+            "number": idx + 1,
+            "title": re.sub(r"^T\d+\s*[·-]\s*", "", label, flags=re.I).strip() or f"Thread part {idx + 1}",
+            "voice": voice_labels[idx] if idx < len(voice_labels) else "",
+            "hook": hook,
+            "thread": " ".join(body[1:3]).strip(),
+            "examples": [item for item in body[1:] if len(item) >= 40][:2],
+        })
+    return angles
 
 
 def angle_context_reply(angle: dict) -> str:
@@ -2767,6 +3252,57 @@ BRIEF_INSTRUCTION_MARKERS = (
     "thanks for taking a look at",
 )
 
+ACCURACY_REQUIREMENT_MARKERS = (
+    "locked client accuracy",
+    "match locked",
+    "word for word",
+    "must say",
+    "do not say",
+    "non-negotiable",
+    "never open",
+    "teams-first",
+    "one narrative lane",
+    "one proof point",
+    "no hashtags",
+    "no em dashes",
+    "clarify that distinction",
+    "core positioning",
+    "same params",
+    "same base model",
+    "not a longer loop",
+    "self-grading",
+    "answer key",
+    "genuine uncertainty",
+)
+
+
+def looks_like_accuracy_requirement(value: str) -> bool:
+    text = clean_draft_text(value).lower()
+    if not text:
+        return True
+    if brief_section_is_meta(text):
+        return True
+    return any(marker in text for marker in ACCURACY_REQUIREMENT_MARKERS)
+
+
+def split_content_angles_and_accuracy(items: list[str]) -> tuple[list[str], list[str]]:
+    content: list[str] = []
+    accuracy: list[str] = []
+    seen: set[str] = set()
+    for raw in items:
+        current = line(raw)
+        if not current:
+            continue
+        key = current.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        if looks_like_accuracy_requirement(current):
+            accuracy.append(current)
+        else:
+            content.append(current)
+    return content, accuracy
+
 
 def brief_section_is_meta(value: str) -> bool:
     text = clean_draft_text(value)
@@ -2896,9 +3432,23 @@ def draft_text_is_lazy(value: str, joined_lines: str) -> bool:
     )
     if any(item in lowered for item in client_slop):
         return True
-    if draft_uses_robert_template(text) and alpha_count < 220:
+    if draft_uses_robert_template(text):
+        return True
+    if draft_looks_like_scheduling_metadata(text):
+        return True
+    if "lists are fine. workflow context is still the gap" in lowered:
+        return True
+    if "amongst the people collecting the data" in lowered:
         return True
     return False
+
+
+def draft_looks_like_scheduling_metadata(value: str) -> bool:
+    try:
+        from brief_draft_rewrite import draft_looks_like_scheduling_metadata as _check
+    except ImportError:
+        from scripts.active.brief_draft_rewrite import draft_looks_like_scheduling_metadata as _check
+    return _check(value)
 
 
 def build_thread_draft(main_post: str, replies: list[str]) -> str:
@@ -2968,9 +3518,19 @@ def contains_url(value: str) -> bool:
     return bool(re.search(r"https?://|www\.", str(value or ""), re.I))
 
 
+def is_creator_content_pack_header(value: str) -> bool:
+    try:
+        from brief_draft_rewrite import draft_looks_like_pack_header
+    except ImportError:
+        from scripts.active.brief_draft_rewrite import draft_looks_like_pack_header
+    return draft_looks_like_pack_header(value)
+
+
 def is_low_signal_content(value: str, company: str = "") -> bool:
     text = clean_content_value(value, company=company)
     if not text or brief_section_is_meta(text):
+        return True
+    if is_creator_content_pack_header(text):
         return True
     lowered = text.lower()
     if contains_url(text):
@@ -3068,6 +3628,14 @@ def infer_company_name(title: str, lines: list[str]) -> str:
     if re.search(r"\bClickUp\b", joined, re.I):
         return "ClickUp"
     for current in lines:
+        company_match = re.match(
+            r"^([A-Z][A-Za-z0-9.&+]{1,36})\s+is\s+(?:an?\s+)?(?:embodied\s+AI\s+|AI\s+|technology\s+)?company\b",
+            line(current),
+            re.I,
+        )
+        if company_match:
+            return line(company_match.group(1))
+    for current in lines:
         text = line(current)
         match = re.match(r"^([A-Za-z0-9][A-Za-z0-9 .&+-]{1,40}?)\s+x\s+", text, re.I)
         if match:
@@ -3106,6 +3674,34 @@ def resolve_company_name(title: str, lines: list[str], current: str = "") -> str
     if not current_line:
         return inferred
     return current_line
+
+
+def infer_product_name(title: str, company: str, lines: list[str]) -> str:
+    for current in lines:
+        match = re.match(r"^(?:Product|Project|Model)\s*:\s*(.{2,70})$", line(current), re.I)
+        if match:
+            candidate = line(match.group(1))
+            if not contains_url(candidate):
+                return candidate
+    for current in lines:
+        match = re.match(
+            r"^([A-Z][A-Za-z0-9_.+\- ]{1,50}?)\s+is\s+(?:a|an|the)\s+"
+            r"(?:research release|video-action foundation model|foundation model|product|platform|assistant|api)\b",
+            line(current),
+            re.I,
+        )
+        if match:
+            return line(match.group(1))
+    candidate = line(title)
+    candidate = re.sub(
+        r"\b(?:dedicated post brief|creator content pack|campaign brief|influencer brief|launch brief|brief)\b.*$",
+        "",
+        candidate,
+        flags=re.I,
+    ).strip(" .:-|·")
+    if candidate and candidate.lower() != line(company).lower() and len(candidate) <= 70:
+        return candidate
+    return ""
 
 
 _JUNK_X_HANDLES = frozenset({
@@ -3314,8 +3910,28 @@ def apply_deliverable_override(payload: dict, explicit: str = "") -> dict:
 
 
 def infer_deliverable_type(lines: list[str], extra_text: str = "") -> str:
-    joined = " ".join([*lines, line(extra_text)]).strip()
+    """Infer deliverable from source lines; email context wins when provided."""
+    if line(extra_text):
+        from_email = normalize_deliverable_type(infer_deliverable_from_email(extra_text))
+        if from_email:
+            return from_email
+    joined = " ".join(lines).strip()
     lowered = joined.lower()
+    if not lowered:
+        return ""
+    if re.search(
+        r"narrative thread|dedicated thread|thread draft|draft (?:of )?(?:the )?thread",
+        lowered,
+    ):
+        return "Dedicated thread"
+    if re.search(
+        r"(?:3[\s-]?(?:part|piece)|three[\s-]?(?:part|piece))[\s-]?thread",
+        lowered,
+    ):
+        return "Dedicated thread"
+    if re.search(r"\bthread\b", lowered) and "no thread" not in lowered:
+        if not re.search(r"email thread|gmail thread|in this thread|this email thread", lowered):
+            return "Dedicated thread"
     if re.search(r"quote[\s\-]?tweet|quote[\s\-]?repost|quote \+ repost|\(qrt\)|\bqrt\b", lowered):
         return "Quote repost"
     if re.search(r"\bretweet\b", lowered) and not re.search(r"no retweets?|no qrt|no quote", lowered):
@@ -3330,10 +3946,6 @@ def infer_deliverable_type(lines: list[str], extra_text: str = "") -> str:
         return "X Space (live)"
     if re.search(r"\binterview\b", lowered) and "interview request" not in lowered:
         return "Interview"
-    if "dedicated thread" in lowered or "narrative thread" in lowered:
-        return "Dedicated thread"
-    if re.search(r"\bthread\b", lowered) and "no thread" not in lowered:
-        return "Dedicated thread"
     if "linkedin" in lowered:
         return "LinkedIn post"
     if "custom post" in lowered or "custom x post" in lowered:
@@ -3445,6 +4057,387 @@ def collect_assets(links: list[dict], urls: list[str]) -> list[list[str]]:
     return assets[:10]
 
 
+def collect_notion_thread_asset_lines(
+    lines: list[str],
+    thread_sections: list[dict] | None = None,
+) -> list[list[str]]:
+    """Pull Asset: rows from Notion thread structure (label + description or URL)."""
+    rows: list[list[str]] = []
+    seen: set[str] = set()
+    for section in thread_sections or []:
+        for item in section.get("body") or []:
+            current = line(item)
+            if not current.lower().startswith("asset:"):
+                continue
+            body = re.sub(r"(?i)^asset:\s*", "", current).strip()
+            if body and body.lower() not in seen:
+                rows.append(["Notion thread asset", body])
+                seen.add(body.lower())
+    for raw in lines or []:
+        current = line(raw)
+        if not current.lower().startswith("asset:"):
+            continue
+        body = re.sub(r"(?i)^asset:\s*", "", current).strip()
+        if body and body.lower() not in seen:
+            rows.append(["Notion thread asset", body])
+            seen.add(body.lower())
+    return rows[:8]
+
+
+def merge_media_requirement_labels(*sources: list[str] | None) -> list[str]:
+    merged: list[str] = []
+    seen: set[str] = set()
+    for source in sources:
+        for item in source or []:
+            current = line(item)
+            key = current.lower()
+            if current and key not in seen:
+                seen.add(key)
+                merged.append(current)
+    return merged
+
+
+def build_demo_media_checklist(
+    *,
+    company: str,
+    email_context: str,
+    source_text: str,
+    sender_intel: dict | None,
+    assets: list[list[str]],
+    notion_thread_assets: list[list[str]],
+    notion_media_guidance: str,
+    agency_constraints: dict | None,
+    deliverable_type: str,
+    site_link: str,
+    demo_story: str,
+    part2_direction: str,
+    x_post_structure: list[str],
+    deal_value: Any = None,
+    tier_name: str = "",
+    agent_tier: str = "",
+) -> dict:
+    """Build demo/media section: real files when we have them, actionable placeholders when we don't."""
+    combined = "\n".join(part for part in (email_context, source_text) if line(part))
+    parsed = parse_media_requirements_from_text(combined)
+    intel = sender_intel or {}
+
+    requirements = merge_media_requirement_labels(
+        parsed.get("requirements"),
+        intel.get("media_requirements"),
+    )
+    client_quotes = filter_client_media_quotes([
+        line(item)
+        for item in (
+            *(intel.get("media_client_quotes") or []),
+            *(parsed.get("client_quotes") or []),
+        )
+        if line(item)
+    ])
+    client_quotes = list(dict.fromkeys(client_quotes))[:3]
+    client_embeds_own = bool(
+        parsed.get("client_embeds_own_media") or client_will_embed_own_media(combined)
+    )
+
+    no_on_camera = bool(intel.get("no_on_camera") or parsed.get("no_on_camera"))
+    structure_wants_media = any(
+        re.search(r"screen record|screenshot|walkthrough|video|demo|show a result", line(step), re.I)
+        for step in (x_post_structure or [])
+    )
+    agency_media = bool((agency_constraints or {}).get("media_allowed"))
+    notion_wants_media = bool(notion_media_guidance)
+
+    media_required = bool(
+        requirements
+        or no_on_camera
+        or notion_wants_media
+        or structure_wants_media
+        or agency_media
+    )
+
+    video_assets: list[list[str]] = []
+    other_assets: list[list[str]] = []
+    seen_urls: set[str] = set()
+
+    def push_asset(label: str, value: str) -> None:
+        current_label = line(label) or "Asset"
+        current_value = line(value)
+        if not current_value:
+            return
+        key = current_value.lower()
+        if key in seen_urls:
+            return
+        seen_urls.add(key)
+        bucket = video_assets if re.search(
+            r"video|loom|youtube|youtu\.be|vimeo|\.mp4|\.mov|screen|demo|clip|footage",
+            f"{current_label} {current_value}",
+            re.I,
+        ) else other_assets
+        bucket.append([current_label, current_value])
+
+    for row in (assets or []) + (notion_thread_assets or []):
+        if isinstance(row, (list, tuple)) and len(row) >= 2:
+            push_asset(line(row[0]), line(row[1]))
+
+    files_ready = bool(video_assets or other_assets)
+    demo_known = bool(line(demo_story) and len(line(demo_story)) >= 20)
+
+    status = "not_needed"
+    if media_required:
+        if files_ready and demo_known:
+            status = "ready"
+        elif files_ready or demo_known:
+            status = "partial"
+        else:
+            status = "missing"
+
+    attach_target = "main post"
+    if "thread" in line(deliverable_type).lower():
+        attach_target = "main post (or Reply 1 if the link lives in main)"
+    elif agency_media:
+        attach_target = "main post (optional per agency)"
+
+    deal_price = infer_deal_price_from_context(
+        email_context,
+        source_text,
+        explicit=deal_value,
+    )
+    production_in_scope = media_production_in_scope(
+        deal_price=deal_price,
+        deliverable_type=deliverable_type,
+        tier_name=tier_name,
+        agent_tier=agent_tier,
+    )
+    client_must_supply_all_media = bool(media_required and not production_in_scope)
+    price_label = f"${deal_price:,}" if deal_price else "this tier"
+
+    action_steps: list[str] = []
+    if no_on_camera:
+        if client_must_supply_all_media:
+            action_steps.append(
+                "Robert does not appear on camera. Client must supply all screen clips and visuals."
+            )
+        else:
+            action_steps.append(
+                "Robert does not appear on camera. Use a screen recording or client-supplied clips only."
+            )
+    if notion_media_guidance:
+        action_steps.append(f"Notion guidance: {notion_media_guidance}")
+    if agency_media:
+        action_steps.append(
+            "Agency allows optional media: video under 15 seconds or one image on the main post."
+        )
+    for step in (x_post_structure or []):
+        if re.search(r"screen record|screenshot|video|walkthrough|show a result", step, re.I):
+            action_steps.append(f"Notion thread step: {step}")
+
+    company_name = line(company) or "the product"
+    product_url = site_link or "[see Website in Logistics]"
+
+    if client_must_supply_all_media:
+        if client_embeds_own:
+            action_steps.insert(
+                0,
+                f"Scope: {price_label} Narrative Thread includes embedding client-supplied demo clips "
+                f"(main post or Reply 1). UNALIGNED does not film or produce clips at this tier.",
+            )
+        else:
+            action_steps.insert(
+                0,
+                f"Media policy: at {price_label} (below Content Core / ${MEDIA_PRODUCTION_MIN_PRICE:,}), "
+                "UNALIGNED does not produce demo clips or video. The client must supply all media files.",
+            )
+
+    if status == "missing":
+        if client_must_supply_all_media:
+            if client_embeds_own:
+                action_steps.extend([
+                    "Before publish: collect links or files for every clip the client wants embedded.",
+                    "Robert on camera demoing the product = Founder Video Post ($4,495) — not this thread tier.",
+                    f"If they want UNALIGNED to produce clips (not just embed theirs): "
+                    f"{PRODUCTION_ADDON_NAME} (+${PRODUCTION_ADDON_PRICE}).",
+                ])
+            else:
+                action_steps.extend([
+                    "Do not ask Robert to record or create media for this deal.",
+                    "Reply in-thread: ask the client to send their demo clips, screenshots, "
+                    "and visuals they want attached (links or files).",
+                    f"If they want us to produce media: add {PRODUCTION_ADDON_NAME} (+${PRODUCTION_ADDON_PRICE}).",
+                    f"Or upgrade to Content Core (${MEDIA_PRODUCTION_MIN_PRICE:,}), where production is included.",
+                ])
+        elif any("clip" in req.lower() or "demo" in req.lower() for req in requirements):
+            action_steps.extend([
+                "Demo clips are in scope for this tier — none linked yet.",
+                f"1. Open {product_url} and run the example workflow from the Notion brief.",
+                "2. Screen-record 30–60 seconds: one prompt → finished page/output.",
+                f"3. Attach the clip to the {attach_target} before sending the draft for approval.",
+            ])
+        elif any("screen" in req.lower() or "walkthrough" in req.lower() for req in requirements):
+            action_steps.extend([
+                f"Record a screen walkthrough of {company_name} at {product_url}.",
+                f"Attach to the {attach_target}.",
+            ])
+        elif media_required:
+            action_steps.extend([
+                f"Media is expected for this campaign but no files are linked yet.",
+                f"Check Notion brief assets, client Drive links, or record a quick screen demo at {product_url}.",
+                f"Attach to the {attach_target}.",
+            ])
+        if not demo_known and not client_must_supply_all_media:
+            action_steps.append(
+                "Main post should open with what Robert actually built or recorded — "
+                "not Notion example-prompt text. Fill this in after the demo step above."
+            )
+        elif not demo_known and client_must_supply_all_media:
+            action_steps.append(
+                "Main post should reference the client-supplied clips once they arrive — "
+                "not generic Notion example-prompt text."
+            )
+    elif status == "partial":
+        if files_ready and not demo_known:
+            action_steps.append(
+                "Files are linked below. Watch them, then write the main post opening with what you saw — "
+                "one concrete result in Robert's voice."
+            )
+        if demo_known and not files_ready:
+            if client_must_supply_all_media:
+                action_steps.append(
+                    f"Demo notes exist but no clip file is linked. Client must supply media: {line(demo_story)[:160]}"
+                )
+            else:
+                action_steps.append(
+                    f"Demo story is noted below but no clip file is linked. "
+                    f"Record or attach before posting: {line(demo_story)[:160]}"
+                )
+
+    has_campaign_copy = bool(
+        line(demo_story)
+        or line(part2_direction)
+        or (x_post_structure or [])
+    )
+    hold_robert = bool(
+        client_must_supply_all_media
+        and not files_ready
+        and not client_embeds_own
+        and not has_campaign_copy
+    )
+    if client_must_supply_all_media and not files_ready and client_embeds_own:
+        status = "waiting_on_client_links"
+
+    return {
+        "required": media_required,
+        "status": "blocked" if hold_robert else status,
+        "requirements": requirements,
+        "client_quotes": client_quotes,
+        "no_on_camera": no_on_camera,
+        "demo_story": line(demo_story),
+        "attach_to": attach_target,
+        "video_assets": video_assets,
+        "other_assets": other_assets,
+        "action_steps": action_steps[:10],
+        "deal_price": deal_price,
+        "production_in_scope": production_in_scope,
+        "client_must_supply_all_media": client_must_supply_all_media,
+        "hold_robert_until_media": hold_robert,
+        "client_embeds_own_media": client_embeds_own,
+        "production_addon_price": PRODUCTION_ADDON_PRICE,
+        "production_addon_name": PRODUCTION_ADDON_NAME,
+        "production_upsell_lines": production_upgrade_option_lines(),
+        "drafts_are_sketches": bool(
+            media_required
+            and hold_robert
+            and not has_campaign_copy
+        ),
+    }
+
+
+def _compact_media_requirements(requirements: list[str]) -> str:
+    labels = [line(item) for item in requirements if line(item)]
+    if not labels:
+        return ""
+    lowered = {item.lower() for item in labels}
+    parts: list[str] = []
+    if any("demo clip" in item for item in lowered) or any("demo video" in item for item in lowered):
+        parts.append("demo clips")
+    for item in labels:
+        key = item.lower()
+        if key in {"demo clips", "demo video"}:
+            continue
+        if key == "media kit":
+            parts.append("media kit (reference)")
+        else:
+            parts.append(item)
+    return ", ".join(dict.fromkeys(parts))
+
+
+def _client_facing_clip_placement(attach_to: str) -> str:
+    raw = line(attach_to)
+    if not raw:
+        return "Main post, or Reply 1 if that fits better."
+    cleaned = raw.replace("(or Reply 1 if the link lives in main)", "").strip()
+    if "reply 1" in raw.lower():
+        return "Main post, or Reply 1 if that fits better."
+    return cleaned.rstrip(".")
+
+
+def format_demo_media_checklist_rows(demo_media: dict) -> list[tuple[str, str]]:
+    """Client-facing media checklist — plain language for the brand and Robert."""
+    if not demo_media.get("required"):
+        return []
+    status = line(demo_media.get("status")) or "missing"
+    rows: list[tuple[str, str]] = []
+    price = demo_media.get("deal_price")
+    price_txt = f"${int(price):,}" if price else "Your package"
+    placement = _client_facing_clip_placement(line(demo_media.get("attach_to")))
+    needed = _compact_media_requirements(list(demo_media.get("requirements") or []))
+    needed_phrase = needed.replace("demo clips", "demo clip") if needed else "demo clip"
+
+    if demo_media.get("client_embeds_own_media"):
+        rows.append((
+            "What's included",
+            f"Yes — your {price_txt} Narrative Thread includes embedding your demo clips "
+            f"in the post ({placement.lower()}).",
+        ))
+    elif demo_media.get("client_must_supply_all_media"):
+        rows.append((
+            "What's included",
+            f"Your {price_txt} placement. Please supply the clips and visuals for the post.",
+        ))
+    else:
+        rows.append((
+            "What's included",
+            "Your post can include demo clips or visuals where noted in the draft below.",
+        ))
+
+    if status in {"missing", "waiting_on_client_links", "partial", "blocked"}:
+        rows.append((
+            "Please send",
+            f"Send your {needed_phrase} (links or files) before we publish.",
+        ))
+    elif status == "ready":
+        rows.append((
+            "Files received",
+            "Your media links are in the thread. We will attach them as listed below.",
+        ))
+
+    linked_assets = [
+        (line(row[0]) or "File", line(row[1]))
+        for row in (demo_media.get("video_assets") or []) + (demo_media.get("other_assets") or [])
+        if isinstance(row, (list, tuple)) and len(row) >= 2 and line(row[1])
+    ]
+    if linked_assets:
+        for label_v, url_v in linked_assets[:4]:
+            rows.append((label_v, url_v))
+
+    if demo_media.get("client_must_supply_all_media"):
+        rows.append((
+            "Optional",
+            f"If you would like our team to produce the clips (+${PRODUCTION_ADDON_PRICE}), "
+            f"let us know before we finalize the draft.",
+        ))
+
+    return rows
+
+
 def standardized_calendar_title(company: str, *platform_hints: str) -> str:
     # COMPANY x ACTION - PLATFORM, e.g. "VIKTOR x QRT - X.COM".
     # First hint is the deliverable_type; the post location for these is always X.
@@ -3466,6 +4459,7 @@ def build_structured_brief_payload(
     deliverable_override: str = "",
 ) -> dict:
     company = resolve_company_name(title, lines, infer_company_name(title, lines))
+    product_name = infer_product_name(title, company, lines)
     thread_sections = parse_thread_sections(lines)
     filtered_lines = [
         current for current in (
@@ -3475,6 +4469,14 @@ def build_structured_brief_payload(
         and current not in {"Skip to content", "Get Notion free", "✍️", "🧵", "📌", "🧩", "🔗"}
         and current != title
     ]
+    useful_source_text = "\n".join(filtered_lines).strip()
+    combined_source_evidence = "\n".join(
+        part for part in (useful_source_text, line(email_context)) if part
+    )
+    if len(filtered_lines) < 3 or len(combined_source_evidence) < 180:
+        raise ValueError(
+            "The full source brief was not loaded. Check the source permissions or paste the AM email context, then try again."
+        )
     campaign_line = next((
         line(item) for item in lines
         if re.search(r"\bx\b", line(item), re.I)
@@ -3559,8 +4561,9 @@ def build_structured_brief_payload(
     ) or go_live_line
     deliverable_type = (
         normalize_deliverable_type(deliverable_override)
+        or normalize_deliverable_type(infer_deliverable_from_email(email_context))
         or normalize_deliverable_type(line(sender_intel.get("deliverable_hint")))
-        or infer_deliverable_type(lines, email_context)
+        or infer_deliverable_type(lines)
     )
 
     accuracy_lines = collect_matching_lines(
@@ -3610,12 +4613,13 @@ def build_structured_brief_payload(
         source_url,
     )
     company_handle, founder_handle = resolve_brief_x_handles(tags, deduped_urls, joined_lines)
-    quote_post = line(sender_intel.get("anchor_post")) or next(
-        (u for u in deduped_urls if "x.com" in u.lower() or "twitter.com" in u.lower()),
-        "",
+    quote_post = (
+        line(sender_intel.get("anchor_post"))
+        if is_valid_quote_anchor_url(line(sender_intel.get("anchor_post")))
+        else pick_anchor_post_from_urls(deduped_urls)
     )
     submit_url = next((u for u in deduped_urls if "fillout.com" in u.lower() or "forms." in u.lower()), "")
-    hashtags = " ".join(re.findall(r"#[A-Za-z0-9_]+", "\n".join(lines[:200])))
+    hashtags = " ".join(re.findall(r"#[A-Za-z][A-Za-z0-9_]{0,30}\b", "\n".join(lines[:200])))
     direct_site_link = next((u for u in deduped_urls if all(x not in u.lower() for x in ("x.com", "twitter.com", "notion.", "docs.google.com", "drive.google.com"))), "")
     if direct_site_link:
         site_link = direct_site_link
@@ -3693,6 +4697,8 @@ def build_structured_brief_payload(
     x_post_structure = parse_x_post_structure(lines)
     content_angles = parse_content_angles(lines)
     part2_angle_choices = select_part2_content_angles(content_angles)
+    if (not part2_angle_choices or all(angle_is_instructional(item) for item in part2_angle_choices)) and thread_sections:
+        part2_angle_choices = thread_sections_to_campaign_angles(thread_sections, company=company)
     if part2_direction:
         how_it_works_text = clean_sentence(part2_direction)
 
@@ -3723,12 +4729,9 @@ def build_structured_brief_payload(
         parts = [line(part) for part in re.split(r"(?<=[.!?])\s+", current) if line(part)]
         return " ".join(parts[:count]).strip()
 
-    def derive_angle_points() -> list[str]:
+    def derive_content_angle_points() -> list[str]:
+        """Hooks and lanes Robert can pick — not guardrails or accuracy rules."""
         points: list[str] = []
-        if part2_direction:
-            points.append(f"Part 2 (your own take): {first_sentences(part2_direction, 3)}")
-        if x_post_structure:
-            points.extend(f"Thread step {idx}: {step}" for idx, step in enumerate(x_post_structure, start=1))
         for angle in part2_angle_choices[:4]:
             hook = strip_quoted_copy(angle.get("hook") or "")
             title = line(angle.get("title"))
@@ -3750,22 +4753,36 @@ def build_structured_brief_payload(
                 label = re.sub(r"^T\d+\s*[·-]\s*", "", line(section.get("label")))
                 if body and label:
                     points.append(f"{label}: {first_sentences(body, 2)}")
+        if not points:
+            points = [
+                item for item in angle_lines
+                if not looks_like_accuracy_requirement(item)
+            ]
+        cleaned = clean_points(points, limit=6)
+        return [
+            item for item in cleaned
+            if not brief_section_is_meta(item) and not looks_like_accuracy_requirement(item)
+        ]
+
+    def derive_accuracy_requirement_points() -> list[str]:
+        """Client guardrails and must-get-right facts — separate from post angles."""
+        points: list[str] = []
         if guardrails_line:
             guardrails_body = re.sub(r"^Guardrails.*?:", "", guardrails_line).strip()
-            guardrail_parts = [line(part) for part in re.split(r"\.\s+|\;\s*", guardrails_body) if line(part)]
-            prioritized = []
-            for part in guardrail_parts:
-                lowered = part.lower()
-                if "never open" in lowered or "teams-first" in lowered:
-                    prioritized.append(part)
-                elif "one narrative lane" in lowered or "one proof point" in lowered:
-                    prioritized.append(part)
-                elif "no hashtags" in lowered or "no em dashes" in lowered:
-                    prioritized.append(part)
-            if prioritized:
-                points.extend(clean_points(prioritized[:3], limit=3))
-        cleaned = clean_points(points or accuracy_lines or angle_lines, limit=6)
+            guardrail_parts = [
+                line(part) for part in re.split(r"\.\s+|\;\s*", guardrails_body) if line(part)
+            ]
+            points.extend(guardrail_parts)
+        for item in accuracy_lines:
+            if line(item) and not brief_section_is_meta(item):
+                points.append(line(item))
+        cleaned = clean_points(points, limit=8)
         return [item for item in cleaned if not brief_section_is_meta(item)]
+
+    def derive_angle_points() -> list[str]:
+        content = derive_content_angle_points()
+        accuracy = derive_accuracy_requirement_points()
+        return clean_points(content + accuracy, limit=10)
 
     def compact_status_lines() -> list[str]:
         status: list[str] = []
@@ -3797,9 +4814,10 @@ def build_structured_brief_payload(
         media_link = next((u for u in deduped_urls if "youtube.com" in u.lower() or "youtu.be" in u.lower()), "")
         if media_link:
             rows.append(["Announcement video", media_link])
-        elif quote_post and (
-            "quote-repost" in campaign_line.lower()
-            or "quote repost" in line(deliverable_type).lower()
+        elif (
+            quote_post
+            and deliverable_needs_quote_anchor(deliverable_type)
+            and is_valid_quote_anchor_url(quote_post)
         ):
             rows.append(["Post to quote", quote_post.rstrip(".,;")])
         drive_link = next((u for u in deduped_urls if "drive.google.com" in u.lower()), "")
@@ -3893,10 +4911,7 @@ def build_structured_brief_payload(
                     t2_first,
                     how_it_works_text,
                 ),
-                first_nonempty(
-                    "They call it the iLands Survival Benchmark. Can an autonomous agent stay alive for 30 days on its own. " + aligned_line + ". " + closing_line,
-                    proof_line,
-                ),
+                first_nonempty(closing_line, proof_line),
             ],
         )
         draft_two = build_thread_draft(
@@ -3911,10 +4926,7 @@ def build_structured_brief_payload(
                     how_it_works_text,
                     t2_first,
                 ),
-                first_nonempty(
-                    "After user generated content, this looks a lot like user generated agents. " + aligned_line + ". " + closing_line,
-                    closing_line,
-                ),
+                first_nonempty(closing_line, proof_line),
             ],
         )
         draft_three = build_thread_draft(
@@ -3929,10 +4941,7 @@ def build_structured_brief_payload(
                     proof_line,
                     how_it_works_text,
                 ),
-                first_nonempty(
-                    "This is one of the stranger and more important product ideas I have seen lately. " + aligned_line + ". " + closing_line,
-                    closing_line,
-                ),
+                first_nonempty(closing_line, announcement_text),
             ],
         )
     elif "thread" in deliverable_type.lower():
@@ -3940,38 +4949,38 @@ def build_structured_brief_payload(
             first_nonempty(t1_first, announcement_text, core_idea_text, draft_seed),
             [
                 first_nonempty(t2_first, how_it_works_text, proof_line),
-                first_nonempty(f"{proof_line} {aligned_line}".strip(), closing_line),
+                first_nonempty(closing_line, proof_line),
             ],
         )
         draft_two = build_thread_draft(
             first_nonempty(core_idea_text, first_sentences(" ".join(best_content_lines(why_people_care, company=company, limit=2)), 2), announcement_text),
             [
                 first_nonempty(how_it_works_text, t3_first, proof_line),
-                first_nonempty(f"{proof_line} {aligned_line}".strip(), closing_line),
+                first_nonempty(closing_line, proof_line),
             ],
         )
         draft_three = build_thread_draft(
             first_nonempty(proof_line, announcement_text, core_idea_text),
             [
                 first_nonempty(first_sentences(" ".join(best_content_lines(core_heading, company=company, limit=2)), 2), how_it_works_text, t2_first),
-                first_nonempty(f"{announcement_text} {aligned_line}".strip(), closing_line),
+                first_nonempty(closing_line, announcement_text),
             ],
         )
     else:
         draft_one = join_draft_paragraphs(
             first_nonempty(t1_first, announcement_text, core_idea_text),
             first_nonempty(t2_first, how_it_works_text),
-            first_nonempty(f"{proof_line} {aligned_line}".strip(), closing_line),
+            first_nonempty(closing_line, proof_line),
         )
         draft_two = join_draft_paragraphs(
             first_nonempty(core_idea_text, first_sentences(" ".join(best_content_lines(why_people_care, company=company, limit=2)), 2)),
             first_nonempty(how_it_works_text, t3_first),
-            first_nonempty(f"{proof_line} {aligned_line}".strip(), closing_line),
+            first_nonempty(closing_line, proof_line),
         )
         draft_three = join_draft_paragraphs(
             first_nonempty(proof_line, announcement_text),
             first_nonempty(first_sentences(" ".join(best_content_lines(core_heading, company=company, limit=2)), 2), how_it_works_text),
-            first_nonempty(f"{announcement_text} {aligned_line}".strip(), closing_line),
+            first_nonempty(closing_line, announcement_text),
         )
 
     if draft_text_is_lazy(draft_one, joined_lines):
@@ -3979,25 +4988,25 @@ def build_structured_brief_payload(
             first_nonempty(announcement_text, core_idea_text, about_company),
             [
                 first_nonempty(how_it_works_text, proof_line),
-                first_nonempty(f"{proof_line} {aligned_line}".strip(), closing_line),
+                first_nonempty(closing_line, proof_line),
             ],
-        ) if "thread" in deliverable_type.lower() else join_draft_paragraphs(announcement_text, how_it_works_text, f"{aligned_line}. {closing_line}".strip())
+        ) if "thread" in deliverable_type.lower() else join_draft_paragraphs(announcement_text, how_it_works_text, closing_line)
     if draft_text_is_lazy(draft_two, joined_lines):
         draft_two = build_thread_draft(
             first_nonempty(core_idea_text, about_company),
             [
                 first_nonempty(proof_line, how_it_works_text),
-                first_nonempty(f"{proof_line} {aligned_line}".strip(), closing_line),
+                first_nonempty(closing_line, proof_line),
             ],
-        ) if "thread" in deliverable_type.lower() else join_draft_paragraphs(core_idea_text, proof_line, f"{aligned_line}. {closing_line}".strip())
+        ) if "thread" in deliverable_type.lower() else join_draft_paragraphs(core_idea_text, proof_line, closing_line)
     if draft_text_is_lazy(draft_three, joined_lines):
         draft_three = build_thread_draft(
             first_nonempty(proof_line, announcement_text, core_idea_text),
             [
                 first_nonempty(how_it_works_text, first_sentences(" ".join(best_content_lines(core_heading, company=company, limit=2)), 2)),
-                first_nonempty(f"{announcement_text} {aligned_line}".strip(), closing_line),
+                first_nonempty(closing_line, announcement_text),
             ],
-        ) if "thread" in deliverable_type.lower() else join_draft_paragraphs(proof_line, how_it_works_text, f"{aligned_line}. {closing_line}".strip())
+        ) if "thread" in deliverable_type.lower() else join_draft_paragraphs(proof_line, how_it_works_text, closing_line)
 
     where_it_lives = compact_where_it_lives()
     if notion_angle_drafts:
@@ -4037,6 +5046,7 @@ def build_structured_brief_payload(
         "subtitle": subtitle,
         "filename": slug_filename(f"{company}_{brief_platform_label(deliverable_type, campaign_platform, campaign_line, title)}"),
         "company_name": company,
+        "product_name": product_name,
         "about_company": about_company,
         "core_idea": core_idea_text,
         "how_it_works": how_it_works_text,
@@ -4044,6 +5054,8 @@ def build_structured_brief_payload(
         "deliverable_type": deliverable_type,
         "go_live": go_live,
         "go_live_note": clean_sentence("Your job is to send the draft for review and post only when approved on the shared timeline"),
+        "content_angle_points": derive_content_angle_points(),
+        "accuracy_requirements": derive_accuracy_requirement_points(),
         "angles_or_accuracy_requirements": derive_angle_points(),
         "where_it_lives": where_it_lives,
         "assets": collect_assets(links, deduped_urls),
@@ -4053,6 +5065,7 @@ def build_structured_brief_payload(
         "notion_media_guidance": notion_media_guidance,
         "x_post_structure": x_post_structure,
         "campaign_angles": part2_angle_choices,
+        "thread_sections": thread_sections,
         "drafts": draft_entries,
         "drafts_source": drafts_source,
         "must_include": {
@@ -4061,9 +5074,33 @@ def build_structured_brief_payload(
             "hashtags": hashtags,
         },
         "source_url": source_url,
-        "source_text": joined_lines[:3500],
+        "source_text": joined_lines[:24000],
+        "source_character_count": len(joined_lines),
+        "source_line_count": len(lines),
         "source_label": source_label,
     }
+    raw_source_facts: list[dict[str, str]] = []
+    for current in filtered_lines:
+        fact = clean_content_value(current, company=company)
+        lowered_fact = fact.lower()
+        if len(fact) < 32 or len(fact) > 360:
+            continue
+        if is_structural_heading(fact) or brief_section_is_meta(fact) or contains_url(fact):
+            continue
+        if "brief" in lowered_fact and len(fact) < 100:
+            continue
+        if re.match(r"^(company|founder|project|website|launch|go live)\s*[:|]", fact, re.I):
+            continue
+        raw_source_facts.append({
+            "text": fact,
+            "classification": "source_fact_unclassified",
+            "qualification": "",
+        })
+    seeded_payload = {**payload, "source_facts": raw_source_facts}
+    payload["source_facts"] = [
+        {"text": fact, "classification": "source_fact_unclassified", "qualification": ""}
+        for fact in source_facts_for_drafting(seeded_payload, limit=14)
+    ]
     if submit_url:
         payload["submit_url"] = submit_url
     if line(email_context):
@@ -4100,26 +5137,101 @@ def build_structured_brief_payload(
             brief_log("brief-facts: using source directly")
     else:
         brief_log("brief-facts: skipped (structured Notion parse)")
-    if LOCAL_BRIEF_LLM_ENABLED and not LOCAL_BRIEF_SKIP_DRAFTS:
+    selected_profile = deliverable_profile(line(merged.get("deliverable_type")))
+    if selected_profile["key"] == "unknown":
+        raise ValueError(
+            "Brief Maker could not determine the deliverable. Choose the correct deliverable type and try again."
+        )
+    missing_critical = [line(item) for item in (merged.get("missing_critical_fields") or []) if line(item)]
+    blocking_markers = (
+        "company name",
+        "product name",
+        "deliverable type",
+        "required cta",
+        "required destination",
+        "required website",
+        "source unreadable",
+        "source brief unreadable",
+    )
+    blocking_missing = [
+        item for item in missing_critical
+        if any(marker in item.lower() for marker in blocking_markers)
+    ]
+    if blocking_missing:
+        raise ValueError("The source brief is missing: " + ", ".join(blocking_missing[:5]))
+    if missing_critical:
+        merged["open_questions"] = list(dict.fromkeys([
+            *[line(item) for item in (merged.get("open_questions") or []) if line(item)],
+            *missing_critical,
+        ]))
+    usable_facts = source_facts_for_drafting(merged, limit=14)
+    if selected_profile["key"] != "retweet" and len(usable_facts) < 2:
+        raise ValueError(
+            "The source brief does not contain enough usable facts to write accurate options. Add product facts or paste the AM email context, then try again."
+        )
+    try:
+        from brief_draft_rewrite import payload_has_creator_content_pack
+    except ImportError:
+        from scripts.active.brief_draft_rewrite import payload_has_creator_content_pack
+    skip_llm_drafts = payload_has_creator_content_pack(merged) or bool(thread_sections)
+    if LOCAL_BRIEF_LLM_ENABLED and not LOCAL_BRIEF_SKIP_DRAFTS and not skip_llm_drafts:
         draft_payload = query_local_brief_drafts(source_payload, merged)
         merged = merge_draft_payload(merged, draft_payload)
+        expected_passes = 1 if selected_profile["key"] == "retweet" else 3
+        for repair_round in range(1, 3):
+            quality_reports = drafts_quality_report(merged)
+            passing = [item for item in quality_reports if item.get("ok")]
+            if len(passing) >= expected_passes:
+                break
+            repaired_payload = query_local_brief_draft_repair(
+                source_payload,
+                merged,
+                quality_reports,
+                repair_round=repair_round,
+            )
+            if not repaired_payload:
+                break
+            merged = merge_draft_payload(merged, repaired_payload)
     else:
-        brief_log("brief-drafts: skipped (live X signal will supply drafts)")
+        if skip_llm_drafts:
+            brief_log("brief-drafts: skipped (creator content pack — using source angles)")
+        else:
+            brief_log("brief-drafts: skipped (building campaign drafts from source)")
     merged = apply_agency_constraints_to_payload(merged)
     company_name = resolve_company_name(title, lines, line(merged.get("company_name")) or company)
     merged["company_name"] = company_name
+    if deliverable_override:
+        merged = apply_deliverable_override(merged, deliverable_override)
+    merged = ensure_publishable_drafts(merged)
+    if deliverable_override:
+        merged = apply_deliverable_override(merged, deliverable_override)
+        merged = ensure_publishable_drafts(merged)
     set_brief_job_stage("scoring_reach", "Pulling live X signal")
     merged = attach_x_signal_to_brief_payload(merged, joined_lines=joined_lines)
     merged = apply_agency_constraints_to_payload(merged)
     merged = polish_robert_drafts(finalize_drafts_for_agency(merged))
-    if deliverable_override:
-        merged = apply_deliverable_override(merged, deliverable_override)
-        merged = rebuild_drafts_for_deliverable(merged)
-    merged = ensure_publishable_drafts(merged)
-    if deliverable_override:
-        merged = apply_deliverable_override(merged, deliverable_override)
-        merged = rebuild_drafts_for_deliverable(merged)
-        merged = ensure_publishable_drafts(merged)
+    intel = merged.get("sender_intelligence") if isinstance(merged.get("sender_intelligence"), dict) else {}
+    if not intel and isinstance(sender_intel, dict):
+        intel = sender_intel
+    merged["demo_media"] = build_demo_media_checklist(
+        company=company_name,
+        email_context=line(merged.get("email_context")),
+        source_text=line(merged.get("source_text")),
+        sender_intel=intel,
+        assets=list(merged.get("assets") or []),
+        notion_thread_assets=collect_notion_thread_asset_lines(lines, thread_sections),
+        notion_media_guidance=line(merged.get("notion_media_guidance")),
+        agency_constraints=merged.get("agency_constraints") or {},
+        deliverable_type=line(merged.get("deliverable_type")) or deliverable_type,
+        site_link=line((merged.get("must_include") or {}).get("link")) or site_link,
+        demo_story=line(intel.get("demo_story")),
+        part2_direction=line(merged.get("part2_direction")),
+        x_post_structure=list(merged.get("x_post_structure") or []),
+        deal_value=merged.get("deal_value") or merged.get("estimated_value") or merged.get("tier_price"),
+        tier_name=line(merged.get("tier_name")),
+        agent_tier=line(merged.get("agent_tier")),
+    )
+    # Media next steps live in the client-facing Demo & Media section — not internal status notes.
     merged["title"] = standardized_brief_title(
         company_name,
         line(merged.get("deliverable_type")) or deliverable_type,
@@ -4220,6 +5332,181 @@ def source_to_brief_payload(source: dict, source_url: str, email_context: str = 
     if line(email_context):
         payload["email_context"] = line(email_context)
     return payload
+
+
+def _gmail_header_value(headers: list[dict], name: str) -> str:
+    target = name.lower()
+    for header in headers or []:
+        if str(header.get("name") or "").lower() == target:
+            return str(header.get("value") or "").strip()
+    return ""
+
+
+def _is_team_from_header(value: str) -> bool:
+    hay = str(value or "").lower()
+    return any(
+        token in hay
+        for token in (
+            "scobleizer@gmail.com",
+            "robert scoble",
+            "asherunaligned@gmail.com",
+            "asher weisberger",
+            "unalignedx@gmail.com",
+            "samlevin@mac.com",
+            "sam levin",
+        )
+    )
+
+
+def _reply_headers_from_gmail_messages(messages: list[dict], *, prefer_external: bool) -> dict[str, str]:
+    if not messages:
+        return {}
+    header_rows = []
+    for msg in messages:
+        payload = msg.get("payload") or {}
+        header_rows.append(payload.get("headers") or [])
+
+    def pick_target(prefer_robert: bool) -> list | None:
+        if prefer_external:
+            for headers in reversed(header_rows):
+                if _gmail_header_value(headers, "Message-ID") and not _is_team_from_header(
+                    _gmail_header_value(headers, "From")
+                ):
+                    return headers
+        if prefer_robert or prefer_external:
+            for headers in reversed(header_rows):
+                from_value = _gmail_header_value(headers, "From").lower()
+                if _gmail_header_value(headers, "Message-ID") and (
+                    "scobleizer@gmail.com" in from_value or "robert scoble" in from_value
+                ):
+                    return headers
+        for headers in reversed(header_rows):
+            if _gmail_header_value(headers, "Message-ID"):
+                return headers
+        return header_rows[-1] if header_rows else None
+
+    target = pick_target(prefer_robert=True)
+    if not target:
+        return {}
+    message_id = _gmail_header_value(target, "Message-ID")
+    if not message_id:
+        return {}
+    references = _gmail_header_value(target, "References")
+    ref_chain = [_gmail_header_value(headers, "Message-ID") for headers in header_rows]
+    ref_chain = [item for item in ref_chain if item]
+    return {
+        "inReplyTo": message_id,
+        "references": " ".join([part for part in [references, *ref_chain] if part]).strip() or message_id,
+        "subject": _gmail_header_value(target, "Subject"),
+    }
+
+
+def _find_robert_sent_thread_for_recipient(service, recipient_email: str) -> str:
+    email = str(recipient_email or "").strip().lower()
+    if "@" not in email:
+        return ""
+    try:
+        hits = (
+            service.users()
+            .messages()
+            .list(userId="me", q=f"in:sent to:{email} newer_than:180d", maxResults=8)
+            .execute()
+            .get("messages", [])
+        )
+    except Exception:
+        return ""
+    best_thread = ""
+    best_ts = 0
+    for hit in hits:
+        try:
+            meta = (
+                service.users()
+                .messages()
+                .get(
+                    userId="me",
+                    id=hit["id"],
+                    format="metadata",
+                    metadataHeaders=["Date", "Subject", "From"],
+                )
+                .execute()
+            )
+        except Exception:
+            continue
+        ts = int(meta.get("internalDate") or 0)
+        if ts >= best_ts:
+            best_ts = ts
+            best_thread = str(meta.get("threadId") or hit.get("threadId") or "").strip()
+    return best_thread
+
+
+def _load_robert_gmail_read_service():
+    """Robert inbox read access — required for thread Message-ID lookup (send token is send-only)."""
+    from gmail_delta_sync import GMAIL_MAILBOX_TOKENS, load_gmail_service  # type: ignore
+
+    last_error = ""
+    for _label, token_file in GMAIL_MAILBOX_TOKENS:
+        try:
+            return load_gmail_service(interactive=False, token_file=token_file)
+        except Exception as exc:
+            last_error = str(exc)
+    raise RuntimeError(last_error or "Robert Gmail read token is unavailable on this Mac.")
+
+
+def resolve_gmail_reply_headers(payload: dict) -> dict:
+    """Resolve In-Reply-To / References from Robert's live Gmail (local OAuth)."""
+    thread_id = str(payload.get("threadId") or payload.get("thread_id") or "").strip()
+    recipient = str(payload.get("to") or payload.get("email") or "").strip().lower()
+    prefer_external = str(payload.get("sender") or payload.get("from") or "").lower() != "robert"
+    try:
+        service = _load_robert_gmail_read_service()
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+    candidates = [thread_id] if thread_id else []
+    recovered = _find_robert_sent_thread_for_recipient(service, recipient)
+    if recovered and recovered not in candidates:
+        candidates.append(recovered)
+
+    last_error = ""
+    for candidate in candidates:
+        if not candidate:
+            continue
+        try:
+            result = (
+                service.users()
+                .threads()
+                .get(
+                    userId="me",
+                    id=candidate,
+                    format="metadata",
+                    metadataHeaders=["Message-ID", "References", "From", "Subject"],
+                )
+                .execute()
+            )
+        except Exception as exc:
+            last_error = str(exc)
+            continue
+        headers = _reply_headers_from_gmail_messages(
+            result.get("messages") or [],
+            prefer_external=prefer_external,
+        )
+        if headers.get("inReplyTo"):
+            subject = headers.get("subject") or ""
+            base = re.sub(r"^(re|fwd|fw):\s*", "", subject, flags=re.I).strip()
+            canonical = f"Re: {base}" if base else subject
+            return {
+                "ok": True,
+                "threadId": candidate,
+                "inReplyTo": headers["inReplyTo"],
+                "references": headers.get("references") or headers["inReplyTo"],
+                "subject": canonical or subject,
+            }
+
+    return {
+        "ok": False,
+        "error": last_error or "Could not resolve Gmail reply headers for this thread.",
+        "threadId": thread_id or recovered or "",
+    }
 
 
 def sync_asher_gmail_now() -> dict:
@@ -4426,13 +5713,37 @@ def sync_lead_thread(payload: dict | None = None) -> dict:
     card_id = line(body.get("card_id") or body.get("lead_id") or body.get("id"))
     if not card_id:
         return {"ok": False, "error": "card_id is required"}
+    script = ACTIVE_SCRIPTS_DIR / "gmail_delta_sync.py"
+    brief_log(f"sync_lead_thread card={card_id}")
     try:
-        from gmail_delta_sync import sync_single_card
-
-        return sync_single_card(card_id)
+        result = subprocess.run(
+            [sys.executable, str(script), "--card-id", str(card_id)],
+            cwd=str(WEB_ROOT),
+            capture_output=True,
+            text=True,
+            timeout=int(os.environ.get("GMAIL_SINGLE_CARD_SYNC_TIMEOUT_SEC", "60")),
+        )
     except Exception as exc:
         brief_log(f"sync_lead_thread error card={card_id}: {exc}")
         return {"ok": False, "error": str(exc)}
+    payload_out: dict = {}
+    if result.stdout.strip():
+        try:
+            payload_out = json.loads(result.stdout)
+        except Exception:
+            payload_out = {"ok": False, "error": (result.stdout or result.stderr or "sync failed")[:500]}
+    if result.returncode != 0 and payload_out.get("ok") is not False:
+        payload_out = {
+            "ok": False,
+            "error": (result.stderr or result.stdout or "Lead thread sync failed")[:500],
+        }
+    if payload_out.get("rate_limited"):
+        payload_out.setdefault("ok", False)
+    brief_log(
+        f"sync_lead_thread finished card={card_id} ok={payload_out.get('ok')} "
+        f"rate_limited={payload_out.get('rate_limited')}"
+    )
+    return payload_out
 
 
 def sync_asher_gmail_delta() -> dict:
@@ -4646,6 +5957,7 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
     company_name = line(payload.get("company_name"))
     push("title", title)
     deliverable = line(payload.get("deliverable_type")).lower()
+    selected_profile = deliverable_profile(deliverable)
     is_qrt = "quote" in deliverable or "qrt" in deliverable
     if is_qrt:
         push("subtitle", f"Robert brief · QRT · {company_name or 'Campaign'}")
@@ -4672,13 +5984,28 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
     if agency_lines:
         push_section("Agency Requirements", combine_values("Must follow", agency_lines[:4]))
 
-    angles = [
+    combined_angle_items = [
         line(item)
         for item in (payload.get("angles_or_accuracy_requirements") or [])
-        if line(item) and not brief_section_is_meta(item)
+        if line(item)
     ]
-    if angles and not is_qrt:
-        push_section("Potential Content Angles", combine_values("Pick a lane", angles[:4]))
+    if payload.get("content_angle_points") is not None:
+        content_angles = [
+            line(item) for item in (payload.get("content_angle_points") or []) if line(item)
+        ]
+    else:
+        content_angles, _ = split_content_angles_and_accuracy(combined_angle_items)
+    if payload.get("accuracy_requirements") is not None:
+        accuracy_reqs = clean_points(
+            [line(item) for item in (payload.get("accuracy_requirements") or []) if line(item)],
+            limit=6,
+        )
+    else:
+        _, accuracy_reqs = split_content_angles_and_accuracy(combined_angle_items)
+    if content_angles and not is_qrt:
+        push_section("Potential Content Angles", combine_values("Pick a lane", content_angles[:4]))
+    if accuracy_reqs and not is_qrt:
+        push_section("Accuracy & Guardrails", combine_values("Get these right", accuracy_reqs[:5]))
 
     part2 = polish_brief_section(line(payload.get("part2_direction")), max_sentences=2, max_chars=260)
     structure_steps = [line(item) for item in (payload.get("x_post_structure") or []) if line(item)]
@@ -4722,8 +6049,16 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
         if isinstance(item, (list, tuple)) and len(item) >= 2:
             label_v = line(item[0])
             value_v = line(item[1])
-            if value_v:
-                logistics_rows.append((label_v or "Link", value_v))
+            if not value_v:
+                continue
+            if is_internal_x_profile_url(value_v):
+                continue
+            if re.search(r"quote|qrt|anchor", label_v, re.I):
+                if not deliverable_needs_quote_anchor(deliverable):
+                    continue
+                if not is_valid_quote_anchor_url(value_v):
+                    continue
+            logistics_rows.append((label_v or "Link", value_v))
     must_include = payload.get("must_include") or {}
     if line(must_include.get("link")) and not any(label == "Website" for label, _ in logistics_rows):
         logistics_rows.append(("Website", line(must_include.get("link"))))
@@ -4748,23 +6083,34 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
 
     push_logistics_rows(logistics_rows)
 
+    open_questions = [
+        line(item) for item in (payload.get("open_questions") or []) if line(item)
+    ]
+    if open_questions:
+        push_section(
+            "Open Items Before Posting",
+            combine_values("Verify or omit", open_questions[:5]),
+        )
+
+    demo_media = payload.get("demo_media") if isinstance(payload.get("demo_media"), dict) else {}
+    checklist_entries = format_demo_media_checklist_rows(demo_media)
+    if checklist_entries:
+        push_section("Media checklist", checklist_entries)
+
     drafts = payload.get("drafts") or []
     valid_drafts = [item for item in drafts if isinstance(item, dict) and (line(item.get("label")) or line(item.get("text")))]
     if valid_drafts:
         push("spacer")
-        push("section_heading", "Draft Options")
-        if is_qrt:
-            push(
-                "body",
-                "QRT the anchor post above. Pick ONE reaction. Same AlignedNews tie-in on every option.",
-                shaded=True,
-            )
-        elif "quote" in deliverable:
-            push(
-                "body",
-                "QRT. Quote the anchor post in logistics. Pick ONE reaction below. Nothing goes live until you choose in Verify.",
-                shaded=True,
-            )
+        push(
+            "section_heading",
+            line(payload.get("draft_output_heading")) or selected_profile["output_heading"],
+        )
+        output_instruction = (
+            line(payload.get("draft_output_instruction"))
+            or selected_profile["output_instruction"]
+        )
+        if output_instruction:
+            push("body", output_instruction, shaded=True)
         push("blank")
         for idx, draft in enumerate(valid_drafts):
             label = line(draft.get("label"))
@@ -4790,17 +6136,28 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
             push("body", "Approve Y/N:  (  ) Yes  (  ) No — or write edits on the line below.", shaded=True)
         else:
             option_labels = "        ".join(f"Option {idx} (  )" for idx in range(1, len(valid_drafts) + 1))
-            push("body", f"Pick ONE to post:        {option_labels}", shaded=True)
+            pick_label = (
+                "Pick ONE run of show"
+                if selected_profile["key"] in {"x_space", "interview"}
+                else "Pick ONE script"
+                if selected_profile["key"] == "founder_video"
+                else "Pick ONE to post"
+            )
+            push("body", f"{pick_label}:        {option_labels}", shaded=True)
         push("body", "Edit / what to change:  ______________________________________________", shaded=True)
 
     asset_rows = []
     seen_asset_urls: set[str] = set()
+    if demo_media.get("required"):
+        for row in (demo_media.get("video_assets") or []) + (demo_media.get("other_assets") or []):
+            if isinstance(row, (list, tuple)) and len(row) >= 2:
+                seen_asset_urls.add(line(row[1]).lower())
     for row in (payload.get("assets") or []):
         if isinstance(row, (list, tuple)) and len(row) >= 2:
             label_v, url_v = line(row[0]), line(row[1])
-            if url_v and url_v not in seen_asset_urls:
+            if url_v and url_v.lower() not in seen_asset_urls:
                 asset_rows.append((label_v or "Asset", url_v))
-                seen_asset_urls.add(url_v)
+                seen_asset_urls.add(url_v.lower())
     if asset_rows:
         push("spacer")
         push("section_heading", "Assets to include")
@@ -4818,36 +6175,94 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
         if x_signal.get("ok") is False:
             push("body", f"X Signal skipped: {line(x_signal.get('error'))}", shaded=True)
         else:
-            if line(recommended_reach.get("label")):
-                score = recommended_reach.get("reach_score")
-                tier = line(recommended_reach.get("reach_tier"))
-                reason = line(recommended_reach.get("reach_reason"))
-                anchor = line(recommended_reach.get("anchor"))
-                summary = f"Recommended draft: {line(recommended_reach.get('label'))}"
-                if score not in (None, ""):
-                    summary += f" · Reach {score}/100"
-                    if tier:
-                        summary += f" ({tier})"
-                if reason:
-                    summary += f". Why: {reason}"
-                push("body", summary, shaded=True)
-                standalone = bool((payload.get("agency_constraints") or {}).get("standalone_post"))
-                if anchor and not standalone:
-                    push("body", anchor, shaded=True, lead_label="Anchor")
-                elif standalone:
-                    push("body", "Standalone post required. Use the live thread for language only, not as a QRT target.", shaded=True, lead_label="Note")
+            quality = line(x_signal.get("signal_quality")) or "thin"
+            company = line(payload.get("company_name")) or "this brand"
+            push(
+                "body",
+                f"Searches X for conversation around {company} and this product — "
+                "so you can sharpen the first line of the draft options above.",
+                shaded=True,
+            )
+            signal_note = line(x_signal.get("signal_note"))
+            if signal_note:
+                push("body", signal_note, shaded=True, lead_label="Signal")
+            anchors = [line(item) for item in (x_signal.get("campaign_anchors") or []) if line(item)]
+            if anchors:
+                push(
+                    "body",
+                    ", ".join(anchors[:6]),
+                    shaded=True,
+                    lead_label="Searched for",
+                )
+            timing = line(x_signal.get("timing_window")) or line((x_signal.get("audience_play") or {}).get("timing_window"))
+            if timing:
+                push("body", timing, shaded=True, lead_label="Timing")
+            primary_move = line(x_signal.get("primary_move")) or line((x_signal.get("audience_play") or {}).get("primary_move"))
+            if primary_move:
+                push("body", primary_move, shaded=True, lead_label="Best move")
+            elif quality in {"thin", "off_topic"}:
+                push(
+                    "body",
+                    "No reliable live thread for this brand right now. Use the draft options as written.",
+                    shaded=True,
+                    lead_label="Best move",
+                )
+            robert_moves = [
+                line(item) for item in (x_signal.get("robert_moves") or []) if line(item)
+            ]
+            seen_moves: set[str] = set()
+            for move in robert_moves[:2]:
+                key = move.lower()[:72]
+                if key in seen_moves or move == primary_move:
+                    continue
+                seen_moves.add(key)
+                push("body", move, shaded=True, lead_label="Tip")
             keywords = [line(item) for item in (x_signal.get("keywords") or []) if line(item)]
             if keywords:
-                push("body", ", ".join(keywords[:6]), shaded=True, lead_label="Live terms")
-            top_posts = x_signal.get("top_conversation") or []
+                push(
+                    "body",
+                    f"Mirror one in your first line if it fits: {', '.join(keywords[:6])}",
+                    shaded=True,
+                    lead_label="Campaign terms",
+                )
+            show_threads = quality in {"strong", "usable"}
+            top_posts = x_signal.get("top_conversation") or [] if show_threads else []
             if top_posts:
                 top = top_posts[0] if isinstance(top_posts[0], dict) else {}
                 if top:
                     post_line = f"@{line(top.get('username'))}: {line(top.get('text'))[:180]}"
                     if top.get("engagement") not in (None, ""):
                         post_line = f"{top.get('engagement')} eng · {post_line}"
-                    push("body", post_line, shaded=True, lead_label="Top wave")
-            push("body", line(x_signal.get("scoring_note")) or "Reach score ranks draft fit against the live X wave. It is not an impression forecast.", shaded=True, lead_label="Read this")
+                    push("body", post_line, shaded=True, lead_label="On-topic thread")
+            if line(recommended_reach.get("label")) and int(recommended_reach.get("reach_score") or 0) > 0:
+                plain = (
+                    line(recommended_reach.get("plain_summary"))
+                    or line(x_signal.get("plain_pick_summary"))
+                    or plain_reach_summary(recommended_reach)
+                )
+                pick_line = f"Highest fit among your drafts: {line(recommended_reach.get('label'))}"
+                if plain and "weak term match" not in plain.lower():
+                    pick_line = f"{pick_line}. {plain}"
+                push("body", pick_line, shaded=True, lead_label="Draft pick")
+                anchor = line(recommended_reach.get("anchor"))
+                standalone = bool((payload.get("agency_constraints") or {}).get("standalone_post"))
+                is_thread = _deliverable_is_thread(line(payload.get("deliverable_type")).lower())
+                if anchor and not standalone and not is_thread and show_threads:
+                    push("body", anchor, shaded=True, lead_label="QRT target")
+                elif is_thread and top_posts:
+                    push(
+                        "body",
+                        "Narrative thread for this deal — borrow language only, do not QRT.",
+                        shaded=True,
+                        lead_label="Format",
+                    )
+            push(
+                "body",
+                line(x_signal.get("scoring_note"))
+                or "Fit score ranks your draft options against on-topic X conversation. Not an impressions guarantee.",
+                shaded=True,
+                lead_label="How to read this",
+            )
         push("blank")
 
     if line(payload.get("submit_url")):
@@ -5157,12 +6572,36 @@ def send_robert_handoff_for_lead(lead: dict, draft_payload: dict | None = None) 
         subject = generated["subject"]
         body = generated["body"]
     payload = create_mime_message(target["to_emails"], subject, body, cc=list(ROBERT_HANDOFF_CC_EMAILS))
-    send_service.users().messages().send(userId="me", body=payload).execute()
+    sent = send_service.users().messages().send(userId="me", body=payload).execute()
+    gmail_meta: dict[str, str] = {}
+    msg_id = str(sent.get("id") or "").strip()
+    thread_id = str(sent.get("threadId") or "").strip()
+    if msg_id:
+        try:
+            meta = send_service.users().messages().get(
+                userId="me",
+                id=msg_id,
+                format="metadata",
+                metadataHeaders=["Message-ID", "References"],
+            ).execute()
+            headers = {
+                str(h.get("name") or "").lower(): str(h.get("value") or "").strip()
+                for h in (meta.get("payload") or {}).get("headers") or []
+            }
+            gmail_meta = {
+                "messageId": msg_id,
+                "threadId": thread_id,
+                "rfc822MessageId": headers.get("message-id", ""),
+                "references": headers.get("references", ""),
+            }
+        except Exception as exc:
+            gmail_meta = {"messageId": msg_id, "threadId": thread_id, "error": str(exc)[:240]}
     if target["kind"] == "x" and target.get("key"):
         mark_robert_x_asset_sent({str(target["key"])})
     return {
         "ok": True,
         "sent": True,
+        "gmail": gmail_meta,
         "draft": {
             "kind": target["kind"],
             "to_emails": target["to_emails"],
@@ -5758,6 +7197,25 @@ def god_mode_satellites_payload() -> dict:
     return {"ok": True, "satellites": satellites}
 
 
+def god_mode_starlink_tle_payload() -> dict:
+    """Proxy the Starlink TLE catalog — Celestrak 403s browser (CORS/Origin) requests."""
+    cached = god_mode_cache_get("starlink_tle", 6 * 3600)
+    if cached:
+        return cached
+    url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle"
+    req = request.Request(url, headers={"User-Agent": "UNALIGNED-GodMode/1.0"})
+    with request.urlopen(req, timeout=45) as response:
+        text = response.read().decode("utf-8", errors="replace")
+    if "\n1 " not in text:
+        stale = god_mode_cache_get("starlink_tle", 48 * 3600)
+        if stale:
+            return stale
+        raise ValueError("Celestrak returned an unexpected payload.")
+    payload = {"ok": True, "tle": text, "fetched_at": time.time()}
+    god_mode_cache_set("starlink_tle", payload)
+    return payload
+
+
 def god_mode_events_payload() -> dict:
     cached = god_mode_cache_get("events", 600)
     if cached:
@@ -6157,10 +7615,13 @@ def move_lead_stage(payload: dict) -> dict:
                 break
     if not card_id:
         raise ValueError("move-lead-stage requires card_id or matching open_dm")
-    updated = supabase_patch_card(card_id, {
+    patch = {
         "list_id": list_id,
         "moved_at": datetime.now(timezone.utc).isoformat(),
-    })
+    }
+    if list_id in {"paid-out", "done"}:
+        patch["new_reply_at"] = None
+    updated = supabase_patch_card(card_id, patch)
     return {
         "ok": True,
         "card_id": card_id,
@@ -6321,6 +7782,18 @@ def create_brief_doc(payload: dict) -> dict:
     source_url = line(payload.get("source_url")) or line(payload.get("notion_url"))
     email_context = line(payload.get("email_context"))
     explicit_deliverable = line(payload.get("deliverable_type"))
+    for deal_field in ("deal_value", "estimated_value", "tier_name", "tier_price", "agent_tier"):
+        if payload.get(deal_field) not in (None, ""):
+            payload = dict(payload)
+            break
+    deliverable_locked = bool(payload.get("deliverable_type_locked"))
+    if not explicit_deliverable and not deliverable_locked and email_context:
+        inferred = normalize_deliverable_type(infer_deliverable_from_email(email_context))
+        if inferred:
+            explicit_deliverable = inferred
+            payload = dict(payload)
+            payload["deliverable_type"] = inferred
+            payload["deliverable_type_locked"] = True
     imported = None
     if source_url and not line(payload.get("title")):
         brief_log("Reading source brief")
@@ -6336,12 +7809,10 @@ def create_brief_doc(payload: dict) -> dict:
         payload["email_context"] = line(email_context)
     if explicit_deliverable:
         payload = apply_deliverable_override(payload, explicit_deliverable)
-        payload = rebuild_drafts_for_deliverable(payload)
     payload = enrich_payload_from_sender_email(payload)
     if explicit_deliverable:
         payload = apply_deliverable_override(payload, explicit_deliverable)
     payload = apply_agency_constraints_to_payload(payload)
-    payload = rebuild_drafts_for_deliverable(payload) if explicit_deliverable else payload
     payload = ensure_publishable_drafts(finalize_drafts_for_agency(payload))
     title = line(payload.get("title"))
     if not title:
@@ -6483,7 +7954,8 @@ def complete_local_llm(payload: dict) -> dict:
     from local_llm import backend_label, ollama_chat, LOCAL_MODEL
 
     max_tokens = int(payload.get("max_tokens") or 800)
-    text = ollama_chat(prompt, max_tokens=max_tokens, temperature=0.35)
+    with _LOCAL_LLM_GATE:  # one local inference at a time, server-wide
+        text = ollama_chat(prompt, max_tokens=max_tokens, temperature=0.35)
     return {"text": text, "model": LOCAL_MODEL, "backend": backend_label()}
 
 
@@ -6600,6 +8072,12 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
             except Exception as exc:
                 send_json(self, 502, {"ok": False, "error": str(exc)})
             return
+        if parsed.path == "/god-mode/starlink-tle":
+            try:
+                send_json(self, 200, god_mode_starlink_tle_payload())
+            except Exception as exc:
+                send_json(self, 502, {"ok": False, "error": str(exc)})
+            return
         if parsed.path == "/robert-handoff-preview":
             if not require_api_token(self):
                 send_json(self, 401, {"ok": False, "error": "Missing or invalid brief API token."})
@@ -6670,9 +8148,10 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
             "/generate-brief-doc", "/start-brief-job", "/create-calendar-hold",
             "/import-notion-brief", "/import-source-brief", "/draft-robert-handoff",
             "/send-robert-handoff", "/manual-lead-intake", "/complete", "/sync-asher-gmail", "/sync-asher-gmail-delta",
+            "/resolve-gmail-reply-headers",
             "/sync-lead-thread", "/refresh-dashboard", "/x-signal-analyze", "/robert-review-decision",
             "/dismiss-x-intake", "/restore-x-intake", "/run-x-spam-cleanup", "/move-lead-stage",
-            "/draft-x-dm-reply", "/create-collab-feedback-link",
+            "/draft-x-dm-reply", "/send-x-dm", "/create-collab-feedback-link",
         ):
             send_json(self, 404, {"ok": False, "error": "Unknown endpoint."})
             return
@@ -6693,6 +8172,9 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
                 return
             if path == "/sync-asher-gmail-delta":
                 send_json(self, 200, sync_asher_gmail_delta())
+                return
+            if path == "/resolve-gmail-reply-headers":
+                send_json(self, 200, resolve_gmail_reply_headers(payload))
                 return
             if path == "/sync-lead-thread":
                 send_json(self, 200, sync_lead_thread(payload))
@@ -6718,6 +8200,9 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
             if path == "/draft-x-dm-reply":
                 lead_payload = payload.get("lead") if isinstance(payload.get("lead"), dict) else payload
                 send_json(self, 200, draft_x_dm_reply_for_lead(lead_payload or {}))
+                return
+            if path == "/send-x-dm":
+                send_json(self, 200, send_x_dm_request(payload if isinstance(payload, dict) else {}))
                 return
             if path == "/create-collab-feedback-link":
                 send_json(self, 200, create_collab_feedback_link_request(payload))

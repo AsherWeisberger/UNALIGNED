@@ -91,7 +91,7 @@ def main() -> int:
         print("  3. Type of App: Automated App / Bot (confidential client)")
         print("  4. Callback URL (exact): http://localhost:8080/callback")
         print("  5. Website URL: https://mac-studio.tail50d3a2.ts.net/")
-        print("  6. App permissions: Read (needs dm.read scope)")
+        print("  6. App permissions: Read and write (needs dm.read + dm.write for approve-and-send)")
         print("  7. Keys and tokens -> copy OAuth 2.0 Client ID + Client Secret")
         print("  8. Put them in x-api.env as:")
         print("       export OAUTH2_CLIENT_ID=\"...\"")
