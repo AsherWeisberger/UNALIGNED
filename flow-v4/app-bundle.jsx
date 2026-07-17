@@ -25240,7 +25240,7 @@ function V4LoadGodModeModule() {
       return;
     }
     const s = document.createElement('script');
-    s.src = 'flow-v4/god-mode-earth.js?v=20260707-godmode-v26-streetwx';
+    s.src = 'flow-v4/god-mode-earth.js?v=20260717-godmode-storms-v1';
     s.async = true;
     s.onload = () => {
       if (typeof window.V4GodModeEarth === 'function') resolve(window.V4GodModeEarth);

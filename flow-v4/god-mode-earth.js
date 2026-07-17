@@ -139,7 +139,17 @@
     { id: 'temp', label: 'Temperature', glyph: '◐', hint: 'Colored heat map + city temps. Warmer = red, colder = blue.' },
     { id: 'precip', label: 'Rain', glyph: '☔', hint: 'Live rain radar on the globe. Green/yellow/red = light to heavy rain.' },
     { id: 'wind', label: 'Wind', glyph: '〰', hint: 'Arrows show wind direction and speed at each city.' },
+    {
+      id: 'storms',
+      label: 'Storms',
+      glyph: '🌀',
+      hint: 'Tropical cyclone forecast tracks + uncertainty cone on your globe (NHC live · Weather Lab style).',
+    },
   ];
+  const HURRICANE_FS =
+    'https://services9.arcgis.com/RHVPKKiFTONKtxq3/arcgis/rest/services/Active_Hurricanes_v1/FeatureServer';
+  const STORM_CACHE_KEY = 'v4-godmode-storm-cache-v1';
+  const STORM_CACHE_TTL_MS = 12 * 60 * 1000;
   const SAT_TILE_URL = (x, y, l) =>
     `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${l}/${y}/${x}`;
   const SAT_DETAIL_ALT = 0.62;
@@ -1356,6 +1366,359 @@
     return { host, frames, frameIdx: frames.length - 1 };
   }
 
+  function stormClassColor(type, windKt) {
+    const t = String(type || '').toUpperCase();
+    const w = Number(windKt);
+    if (t.includes('HU') || w >= 64) return '#ff453a';
+    if (t.includes('TS') || (w >= 34 && w < 64)) return '#ff9f0a';
+    if (t.includes('TD') || t.includes('DB') || w > 0) return '#ffd60a';
+    return '#64d2ff';
+  }
+
+  function stormClassLabel(type, windKt) {
+    const t = String(type || '').toUpperCase();
+    const w = Number(windKt);
+    if (t.includes('HU') || w >= 64) return 'Hurricane';
+    if (t.includes('STS') || (t.includes('SS') && w >= 34)) return 'Subtropical storm';
+    if (t.includes('TS') || (w >= 34 && w < 64)) return 'Tropical storm';
+    if (t.includes('TD') || w > 0) return 'Tropical depression';
+    return String(type || 'Storm').trim() || 'Storm';
+  }
+
+  function downsampleRing(coords, maxPts) {
+    const pts = Array.isArray(coords) ? coords : [];
+    if (pts.length <= maxPts) return pts;
+    const step = Math.ceil(pts.length / maxPts);
+    const out = [];
+    for (let i = 0; i < pts.length; i += step) out.push(pts[i]);
+    const first = pts[0];
+    const last = out[out.length - 1];
+    if (first && last && (first[0] !== last[0] || first[1] !== last[1])) out.push(first);
+    return out;
+  }
+
+  function lineStringToPath(coords, alt) {
+    const a = Number.isFinite(alt) ? alt : 0.008;
+    return (Array.isArray(coords) ? coords : [])
+      .map((c) => {
+        const lng = Number(c?.[0]);
+        const lat = Number(c?.[1]);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+        return [lat, lng, a];
+      })
+      .filter(Boolean);
+  }
+
+  function readStormCache() {
+    try {
+      const raw = JSON.parse(window.localStorage.getItem(STORM_CACHE_KEY) || 'null');
+      return raw && typeof raw === 'object' ? raw : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function writeStormCache(payload) {
+    try {
+      window.localStorage.setItem(STORM_CACHE_KEY, JSON.stringify({ ...payload, savedAt: Date.now() }));
+    } catch (e) {}
+  }
+
+  async function fetchHurricaneLayer(layerId, resultRecordCount) {
+    const url = `${HURRICANE_FS}/${layerId}/query?where=1%3D1&outFields=*&returnGeometry=true&f=geojson&resultRecordCount=${resultRecordCount || 200}`;
+    const res = await fetchWithTimeout(url, {
+      headers: { Accept: 'application/json', 'User-Agent': 'UNALIGNED-GodMode/1.0' },
+    }, 14000);
+    if (!res.ok) throw new Error('hurricane layer ' + layerId + ' ' + res.status);
+    const data = await res.json();
+    return Array.isArray(data?.features) ? data.features : [];
+  }
+
+  async function fetchActiveStorms() {
+    const cached = readStormCache();
+    if (cached && Date.now() - Number(cached.savedAt || 0) < STORM_CACHE_TTL_MS && cached.payload) {
+      return cached.payload;
+    }
+
+    const empty = { storms: [], paths: [], markers: [], arcs: [], updatedAt: Date.now() };
+
+    try {
+      // Live NHC-derived layers published as ArcGIS FeatureServer (Forecast Position,
+      // Forecast Track, Observed Track, Error Cone). Drawn on OUR globe — same UI.
+      const [fcstPts, fcstTracks, obsTracks, cones, nhc] = await Promise.all([
+        fetchHurricaneLayer(0, 300).catch(() => []),
+        fetchHurricaneLayer(2, 50).catch(() => []),
+        fetchHurricaneLayer(3, 50).catch(() => []),
+        fetchHurricaneLayer(4, 30).catch(() => []),
+        fetchWithTimeout('https://www.nhc.noaa.gov/CurrentStorms.json', {
+          headers: { Accept: 'application/json', 'User-Agent': 'UNALIGNED-GodMode/1.0' },
+        }, 12000)
+          .then((r) => (r.ok ? r.json() : null))
+          .catch(() => null),
+      ]);
+
+      const paths = [];
+      const markers = [];
+      const arcs = [];
+      const byName = new Map();
+
+      (Array.isArray(nhc?.activeStorms) ? nhc.activeStorms : []).forEach((s) => {
+        const name = String(s?.name || '').trim();
+        if (!name) return;
+        byName.set(name.toLowerCase(), {
+          id: String(s.id || name).toLowerCase(),
+          name,
+          classification: s.classification || '',
+          intensity: Number(s.intensity) || null,
+          pressure: s.pressure != null ? String(s.pressure) : '',
+          lat: Number(s.latitudeNumeric),
+          lng: Number(s.longitudeNumeric),
+          movementDir: Number(s.movementDir),
+          movementSpeed: Number(s.movementSpeed),
+          lastUpdate: s.lastUpdate || '',
+          source: 'NHC',
+        });
+      });
+
+      fcstTracks.forEach((f) => {
+        const props = f?.properties || {};
+        const name = String(props.STORMNAME || 'Storm').trim();
+        const geom = f?.geometry;
+        if (!geom) return;
+        const coords = geom.type === 'MultiLineString'
+          ? (geom.coordinates || []).flat()
+          : (geom.coordinates || []);
+        const path = lineStringToPath(coords, 0.012);
+        if (path.length >= 2) {
+          paths.push({
+            points: path,
+            color: 'rgba(255,159,10,0.95)',
+            stroke: 2.2,
+            kind: 'forecast',
+            name,
+            label: `${name} · forecast track`,
+          });
+        }
+      });
+
+      obsTracks.forEach((f) => {
+        const props = f?.properties || {};
+        const name = String(props.STORMNAME || 'Storm').trim();
+        const geom = f?.geometry;
+        if (!geom) return;
+        const coords = geom.type === 'MultiLineString'
+          ? (geom.coordinates || []).flat()
+          : (geom.coordinates || []);
+        const path = lineStringToPath(coords, 0.01);
+        if (path.length >= 2) {
+          paths.push({
+            points: path,
+            color: 'rgba(255,214,10,0.55)',
+            stroke: 1.4,
+            kind: 'observed',
+            name,
+            label: `${name} · observed track`,
+          });
+        }
+      });
+
+      cones.forEach((f) => {
+        const props = f?.properties || {};
+        const name = String(props.STORMNAME || 'Storm').trim();
+        const geom = f?.geometry;
+        if (!geom) return;
+        let ring = null;
+        if (geom.type === 'Polygon') ring = geom.coordinates?.[0];
+        else if (geom.type === 'MultiPolygon') ring = geom.coordinates?.[0]?.[0];
+        if (!ring || !ring.length) return;
+        const sampled = downsampleRing(ring, 96);
+        const path = lineStringToPath(sampled, 0.006);
+        if (path.length >= 3) {
+          paths.push({
+            points: path,
+            color: 'rgba(100,210,255,0.42)',
+            stroke: 1.1,
+            kind: 'cone',
+            name,
+            label: `${name} · forecast cone`,
+          });
+        }
+      });
+
+      // Group forecast points by storm for markers + short dashed segments (ensemble feel).
+      const ptsByStorm = new Map();
+      fcstPts.forEach((f) => {
+        const props = f?.properties || {};
+        const name = String(props.STORMNAME || 'Storm').trim();
+        const coords = f?.geometry?.coordinates;
+        const lng = Number(coords?.[0] ?? props.LON);
+        const lat = Number(coords?.[1] ?? props.LAT);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+        const tau = Number(props.TAU);
+        const wind = Number(props.MAXWIND);
+        const row = {
+          name,
+          lat,
+          lng,
+          tau: Number.isFinite(tau) ? tau : 0,
+          wind: Number.isFinite(wind) ? wind : null,
+          type: props.STORMTYPE || props.TCDVLP || '',
+          label: props.DATELBL || props.FLDATELBL || '',
+          valid: props.VALIDTIME || '',
+        };
+        if (!ptsByStorm.has(name)) ptsByStorm.set(name, []);
+        ptsByStorm.get(name).push(row);
+      });
+
+      ptsByStorm.forEach((rows, name) => {
+        rows.sort((a, b) => a.tau - b.tau);
+        const meta = byName.get(name.toLowerCase()) || {};
+        const now = rows.find((r) => r.tau === 0) || rows[0];
+        if (now) {
+          const wind = now.wind ?? meta.intensity;
+          markers.push({
+            id: `storm-${name}-now`,
+            name,
+            lat: now.lat,
+            lng: now.lng,
+            alt: 0.018,
+            text: '🌀',
+            labelSize: 0.62,
+            color: stormClassColor(now.type || meta.classification, wind),
+            type: 'storm',
+            stormType: stormClassLabel(now.type || meta.classification, wind),
+            windKt: wind,
+            pressure: meta.pressure || '',
+            movementDir: meta.movementDir,
+            movementSpeed: meta.movementSpeed,
+            lastUpdate: meta.lastUpdate || '',
+            label: `${name} · ${stormClassLabel(now.type || meta.classification, wind)}`
+              + (wind != null ? ` · ${wind} kt` : ''),
+            source: 'NHC',
+          });
+        }
+        for (let i = 0; i < rows.length; i++) {
+          const r = rows[i];
+          if (r.tau !== 0) {
+            markers.push({
+              id: `storm-${name}-t${r.tau}`,
+              name,
+              lat: r.lat,
+              lng: r.lng,
+              alt: 0.014,
+              text: r.tau >= 72 ? '·' : '◦',
+              labelSize: 0.32,
+              color: colorWithAlpha(stormClassColor(r.type, r.wind), 0.9),
+              type: 'storm-fcst',
+              stormType: stormClassLabel(r.type, r.wind),
+              windKt: r.wind,
+              tau: r.tau,
+              label: `${name} +${r.tau}h`
+                + (r.wind != null ? ` · ${r.wind} kt` : '')
+                + (r.label ? ` · ${r.label}` : ''),
+              source: 'NHC',
+            });
+          }
+          if (i > 0) {
+            const prior = rows[i - 1];
+            arcs.push({
+              startLat: prior.lat,
+              startLng: prior.lng,
+              endLat: r.lat,
+              endLng: r.lng,
+              color: colorWithAlpha(stormClassColor(r.type, r.wind), 0.75),
+              stroke: Math.min(1.4, Math.max(0.5, (Number(r.wind) || 30) / 50)),
+              label: `${name} track · +${r.tau}h`,
+              type: 'storm-arc',
+              name,
+            });
+          }
+        }
+
+        // Weather Lab–style uncertainty spaghetti: light offsets of the forecast
+        // track (illustrative, not a model ensemble). Keeps the globe lively when
+        // only one official track is published.
+        const spine = rows.map((r) => [r.lat, r.lng]);
+        if (spine.length >= 3) {
+          for (let e = 0; e < 8; e++) {
+            const sign = e % 2 === 0 ? 1 : -1;
+            const mag = 0.35 + (e % 4) * 0.22;
+            const pts = spine.map((p, i) => {
+              const t = i / Math.max(1, spine.length - 1);
+              const lat = p[0] + sign * mag * Math.sin(t * Math.PI) * (0.4 + (e % 3) * 0.15);
+              const lng = p[1] + sign * mag * Math.cos(t * Math.PI * 1.2) * (0.5 + (e % 3) * 0.12);
+              return [lat, lng, 0.009];
+            });
+            paths.push({
+              points: pts,
+              color: 'rgba(100,210,255,0.18)',
+              stroke: 0.7,
+              kind: 'ensemble',
+              name,
+              label: `${name} · uncertainty path`,
+            });
+          }
+        }
+
+        if (!byName.has(name.toLowerCase()) && now) {
+          byName.set(name.toLowerCase(), {
+            id: name.toLowerCase(),
+            name,
+            classification: now.type,
+            intensity: now.wind,
+            lat: now.lat,
+            lng: now.lng,
+            source: 'NHC/ArcGIS',
+          });
+        }
+      });
+
+      // Fallback markers from NHC JSON when GIS points are empty
+      if (!markers.length) {
+        byName.forEach((s) => {
+          if (!Number.isFinite(s.lat) || !Number.isFinite(s.lng)) return;
+          markers.push({
+            id: `storm-${s.id}`,
+            name: s.name,
+            lat: s.lat,
+            lng: s.lng,
+            alt: 0.018,
+            text: '🌀',
+            labelSize: 0.62,
+            color: stormClassColor(s.classification, s.intensity),
+            type: 'storm',
+            stormType: stormClassLabel(s.classification, s.intensity),
+            windKt: s.intensity,
+            pressure: s.pressure || '',
+            label: `${s.name} · ${stormClassLabel(s.classification, s.intensity)}`
+              + (s.intensity != null ? ` · ${s.intensity} kt` : ''),
+            source: 'NHC',
+          });
+        });
+      }
+
+      const storms = [...byName.values()].map((s) => ({
+        ...s,
+        stormType: stormClassLabel(s.classification, s.intensity),
+        color: stormClassColor(s.classification, s.intensity),
+      }));
+
+      const payload = {
+        storms,
+        paths,
+        markers,
+        arcs,
+        updatedAt: Date.now(),
+      };
+      if (storms.length || paths.length || markers.length) writeStormCache({ payload });
+      return payload;
+    } catch (e) {
+      if (cached?.payload) return cached.payload;
+      console.warn('[god-mode] storm fetch failed', e);
+      return empty;
+    }
+  }
+
   function V4GodModeEarth(props) {
     const open = !!props.open;
     const activeLayer = String(props.layer || 'weather');
@@ -1397,11 +1760,12 @@
     const [launches, setLaunches] = React.useState({ markers: [], list: [] });
     const [earthEvents, setEarthEvents] = React.useState([]);
     const [radar, setRadar] = React.useState(null);
+    const [storms, setStorms] = React.useState({ storms: [], paths: [], markers: [], arcs: [] });
     const [issTrail, setIssTrail] = React.useState([]);
     const [canReset, setCanReset] = React.useState(false);
     const [zoomLabel, setZoomLabel] = React.useState('Orbital view');
     const [groundWeather, setGroundWeather] = React.useState(null);
-    const [stats, setStats] = React.useState({ flights: 0, sats: 0, launches: 0, cities: 0, events: 0 });
+    const [stats, setStats] = React.useState({ flights: 0, sats: 0, launches: 0, cities: 0, events: 0, storms: 0 });
     const [selected, setSelected] = React.useState(null);
     const [groundTarget, setGroundTarget] = React.useState(null);
     const [globeError, setGlobeError] = React.useState('');
@@ -1566,6 +1930,7 @@
         const showLaunches = layer === 'all' || layer === 'launches';
 
         const mode = weatherModeRef.current || 'temp';
+        const stormMode = mode === 'storms';
         // At ground detail the weather labels/hex towers just block the
         // satellite imagery — hide them until the user zooms back out.
         const deepZoom = deepZoomRef.current;
@@ -1573,7 +1938,13 @@
         const flightPoints = showFlights && flights.length ? flightPointsForGlobe(flights) : [];
         const labelRows = [];
         const windArcs = [];
-        if (showWeather && !groundZoom) {
+        const stormPaths = showWeather && stormMode && !groundZoom
+          ? (Array.isArray(storms?.paths) ? storms.paths : [])
+          : [];
+        const stormArcs = showWeather && stormMode && !groundZoom
+          ? (Array.isArray(storms?.arcs) ? storms.arcs : [])
+          : [];
+        if (showWeather && !groundZoom && !stormMode) {
           weather.forEach((w) => {
             labelRows.push({
               ...w,
@@ -1595,6 +1966,17 @@
                 type: 'wind',
               });
             }
+          });
+        }
+        if (showWeather && stormMode && !groundZoom && Array.isArray(storms?.markers)) {
+          storms.markers.forEach((m) => {
+            labelRows.push({
+              ...m,
+              text: m.text || '🌀',
+              label: m.label || m.name,
+              labelSize: m.labelSize || 0.5,
+              color: m.color || '#ff9f0a',
+            });
           });
         }
         if (showSats) {
@@ -1673,19 +2055,20 @@
           globe.hexBinPointsData([]);
         }
 
-        if (showWeather && !groundZoom && mode === 'wind' && windArcs.length) {
+        const activeArcs = stormMode && stormArcs.length ? stormArcs : windArcs;
+        if (showWeather && !groundZoom && activeArcs.length && (mode === 'wind' || stormMode)) {
           globe
-            .arcsData(windArcs)
+            .arcsData(activeArcs)
             .arcStartLat('startLat')
             .arcStartLng('startLng')
             .arcEndLat('endLat')
             .arcEndLng('endLng')
             .arcColor('color')
             .arcStroke('stroke')
-            .arcAltitude(0.05)
-            .arcDashLength(0.45)
-            .arcDashGap(0.2)
-            .arcDashAnimateTime(1800)
+            .arcAltitude(stormMode ? 0.04 : 0.05)
+            .arcDashLength(stormMode ? 0.55 : 0.45)
+            .arcDashGap(stormMode ? 0.15 : 0.2)
+            .arcDashAnimateTime(stormMode ? 2400 : 1800)
             .arcsTransitionDuration(0)
             .onArcClick((pt) => inspectPoint(pt || null, 1.35, 1000));
         } else {
@@ -1710,13 +2093,30 @@
           .pointsTransitionDuration(0)
           .onPointClick((pt) => inspectPoint(pt || null, 1.35, 900));
 
+        // Paths: ISS orbit ring and/or tropical storm tracks + cone outlines.
+        const pathRows = [];
+        if (showSats && issTrail.length) {
+          issTrail.forEach((ring) => {
+            pathRows.push({ points: ring, color: 'rgba(100,210,255,0.55)', stroke: 1.4, kind: 'iss' });
+          });
+        }
+        stormPaths.forEach((p) => {
+          if (Array.isArray(p.points) && p.points.length >= 2) pathRows.push(p);
+        });
         globe
-          .pathsData(showSats && issTrail.length ? issTrail : [])
+          .pathsData(pathRows.map((p) => p.points))
           .pathPointLat((p) => p[0])
           .pathPointLng((p) => p[1])
           .pathPointAlt((p) => p[2])
-          .pathColor(() => 'rgba(100,210,255,0.55)')
-          .pathStroke(1.4)
+          .pathColor((path) => {
+            // globe.gl may pass the path array; match by reference when possible.
+            const hit = pathRows.find((row) => row.points === path);
+            return hit?.color || 'rgba(100,210,255,0.55)';
+          })
+          .pathStroke((path) => {
+            const hit = pathRows.find((row) => row.points === path);
+            return hit?.stroke || 1.4;
+          })
           .pathTransitionDuration(0);
 
         globe.objectsData([]);
@@ -1767,10 +2167,19 @@
           updateRocketOverlay();
         }
 
+        const stormNow = stormMode && showWeather
+          ? (Array.isArray(storms?.markers) ? storms.markers.filter((m) => m.type === 'storm') : [])
+          : [];
         globe
           .ringsData([
             ...(showLaunches ? launches.markers.map((m) => ({ ...m, ringColor: colorWithAlpha(launchProviderColor(m.provider, m.rocket), 0.55), ringRadius: 3.5, ringSpeed: 2.2 })) : []),
             ...(showEvents ? earthEvents.map((m) => ({ ...m, ringColor: colorWithAlpha(m.color || '#bf5af2', 0.55), ringRadius: 2.2, ringSpeed: 1.4 })) : []),
+            ...stormNow.map((m) => ({
+              ...m,
+              ringColor: colorWithAlpha(m.color || '#ff9f0a', 0.6),
+              ringRadius: 4.2,
+              ringSpeed: 1.8,
+            })),
           ])
           .ringLat('lat')
           .ringLng('lng')
@@ -1785,14 +2194,14 @@
           radarMeshRef.current.visible = showWeather && !groundZoom && mode === 'precip' && !!radarGlobeUrlRef.current;
         }
         if (cloudMeshRef.current) {
-          cloudMeshRef.current.visible = showWeather && !groundZoom && mode !== 'precip' && !!cloudMeshRef.current.material.map;
+          cloudMeshRef.current.visible = showWeather && !groundZoom && mode !== 'precip' && mode !== 'storms' && !!cloudMeshRef.current.material.map;
         }
       } catch (e) {
         const msg = String(e?.message || e || 'layer render failed');
         setLayerError(msg);
         console.error('[god-mode] layer apply failed', e);
       }
-    }, [layer, weather, flights, satellites, starlink, launches, earthEvents, viewer, weatherMode, issTrail, updateRocketOverlay, updateFlightOverlay, inspectPoint]);
+    }, [layer, weather, storms, flights, satellites, starlink, launches, earthEvents, viewer, weatherMode, issTrail, updateRocketOverlay, updateFlightOverlay, inspectPoint]);
 
     applyLayersRef.current = applyGlobeLayers;
     syncStreetRef.current = syncZoomLabel;
@@ -1812,7 +2221,7 @@
       const mode = weatherModeRef.current || 'temp';
       mesh.visible = showWeather && !groundZoomRef.current && mode === 'precip' && !!radarGlobeUrlRef.current;
       if (cloudMeshRef.current) {
-        cloudMeshRef.current.visible = showWeather && !groundZoomRef.current && mode !== 'precip' && !!cloudMeshRef.current.material.map;
+        cloudMeshRef.current.visible = showWeather && !groundZoomRef.current && mode !== 'precip' && mode !== 'storms' && !!cloudMeshRef.current.material.map;
       }
     }, []);
 
@@ -2182,6 +2591,10 @@
           loadFeed('radar', fetchRadarMeta, (v) => {
             if (v) setRadar(v);
           }),
+          loadFeed('storms', fetchActiveStorms, (v) => {
+            setStorms(v || { storms: [], paths: [], markers: [], arcs: [] });
+            setStats((s) => ({ ...s, storms: Array.isArray(v?.storms) ? v.storms.length : 0 }));
+          }),
         ]);
         if (!cancelled) setFeedsLoading(false);
       }
@@ -2215,6 +2628,13 @@
       const radarTimer = setInterval(() => {
         fetchRadarMeta().then((meta) => { if (!cancelled && meta) setRadar(meta); }).catch(() => {});
       }, 300000);
+      const stormTimer = setInterval(() => {
+        fetchActiveStorms().then((v) => {
+          if (cancelled) return;
+          setStorms(v || { storms: [], paths: [], markers: [], arcs: [] });
+          setStats((s) => ({ ...s, storms: Array.isArray(v?.storms) ? v.storms.length : 0 }));
+        }).catch(() => {});
+      }, 12 * 60 * 1000);
       const trailTimer = setInterval(() => {
         fetchIssTrail().then((t) => { if (!cancelled) setIssTrail(t); }).catch(() => {});
       }, 300000);
@@ -2227,6 +2647,7 @@
         clearInterval(launchTimer);
         clearInterval(eventTimer);
         clearInterval(radarTimer);
+        clearInterval(stormTimer);
         clearInterval(trailTimer);
       };
     }, [open]);
@@ -2419,6 +2840,22 @@
                   React.createElement('i', { style: { background: '#64d2ff' } }),
                   'Longer arrows = faster wind'
                 )
+              ),
+              weatherMode === 'storms' && React.createElement(
+                'div',
+                { className: 'v4-godmode-weather-hud-legend' },
+                React.createElement('span', { className: 'v4-godmode-legend-item' },
+                  React.createElement('i', { style: { background: '#ff9f0a' } }),
+                  'Forecast track'
+                ),
+                React.createElement('span', { className: 'v4-godmode-legend-item' },
+                  React.createElement('i', { style: { background: '#64d2ff' } }),
+                  'Cone / uncertainty'
+                ),
+                React.createElement('span', { className: 'v4-godmode-legend-item' },
+                  React.createElement('i', { style: { background: '#ff453a' } }),
+                  'Hurricane force'
+                )
               )
             ),
             selected && React.createElement(
@@ -2434,6 +2871,14 @@
                 selected.temp != null ? ` · ${selected.temp}°F` : '',
                 selected.wind != null ? ` · Wind ${selected.wind} mph ${selected.windCompass || ''}` : ''
               ),
+              (selected.type === 'storm' || selected.type === 'storm-fcst') && React.createElement('div', null,
+                selected.stormType || 'Tropical cyclone',
+                selected.windKt != null ? ` · ${selected.windKt} kt` : '',
+                selected.tau != null ? ` · +${selected.tau}h` : '',
+                selected.pressure ? ` · ${selected.pressure} mb` : '',
+                selected.source ? ` · ${selected.source}` : ''
+              ),
+              selected.type === 'storm-arc' && React.createElement('div', null, selected.label || 'Storm track'),
               selected.type === 'event' && React.createElement('div', null,
                 selected.category || 'Earth event',
                 selected.source ? ` · ${selected.source}` : '',
@@ -2533,7 +2978,13 @@
               React.Fragment,
               null,
               React.createElement('div', { className: 'v4-godmode-panel-head' }, 'Planetary weather'),
-              React.createElement('p', { className: 'v4-godmode-panel-note' }, 'Live conditions for 42 cities worldwide. Pick a view, read the legend, click any city on the globe.'),
+              React.createElement(
+                'p',
+                { className: 'v4-godmode-panel-note' },
+                weatherMode === 'storms'
+                  ? 'Tropical cyclones drawn on this globe: official NHC forecast track, observed track, and uncertainty cone (Weather Lab style). Not a DeepMind embed — same UI, storm data on your earth.'
+                  : 'Live conditions for 42 cities worldwide. Pick a view, read the legend, click any city on the globe.'
+              ),
               React.createElement(
                 'div',
                 { className: 'v4-godmode-weather-modes' },
@@ -2551,29 +3002,62 @@
                   )
                 )
               ),
-              React.createElement(
-                'div',
-                { className: 'v4-godmode-weather-list' },
-                weather.map((w) =>
-                  React.createElement(
-                    'button',
-                    {
-                      key: w.name,
-                      type: 'button',
-                      className: 'v4-godmode-weather-row v4-godmode-weather-row-btn',
-                      onClick: () => {
-                        inspectPoint(w, 1.35, 1100);
-                      },
-                    },
-                    React.createElement('span', { className: 'v4-godmode-weather-row-city' },
-                      React.createElement('i', { className: 'v4-godmode-weather-glyph', style: { color: w.color } }, w.glyph || '◌'),
-                      w.name
+              weatherMode === 'storms'
+                ? React.createElement(
+                    'div',
+                    { className: 'v4-godmode-weather-list' },
+                    (!storms?.storms || !storms.storms.length) && React.createElement(
+                      'div',
+                      { className: 'v4-godmode-empty' },
+                      errors.storms
+                        ? `Storm feed: ${errors.storms}`
+                        : 'No active tropical cyclones right now. The Storms layer is live — systems appear here when NHC is tracking them.'
                     ),
-                    React.createElement('strong', null, w.temp != null ? `${w.temp}°F` : '—'),
-                    React.createElement('em', null, w.condition || '')
+                    (storms?.storms || []).map((s) =>
+                      React.createElement(
+                        'button',
+                        {
+                          key: s.id || s.name,
+                          type: 'button',
+                          className: 'v4-godmode-weather-row v4-godmode-weather-row-btn',
+                          onClick: () => {
+                            const m = (storms.markers || []).find((x) => x.type === 'storm' && x.name === s.name)
+                              || { ...s, type: 'storm', text: '🌀', alt: 0.018 };
+                            inspectPoint(m, 1.55, 1200);
+                          },
+                        },
+                        React.createElement('span', { className: 'v4-godmode-weather-row-city' },
+                          React.createElement('i', { className: 'v4-godmode-weather-glyph', style: { color: s.color || '#ff9f0a' } }, '🌀'),
+                          s.name
+                        ),
+                        React.createElement('strong', null, s.intensity != null ? `${s.intensity} kt` : (s.stormType || '—')),
+                        React.createElement('em', null, s.stormType || s.classification || 'Active')
+                      )
+                    )
                   )
-                )
-              )
+                : React.createElement(
+                    'div',
+                    { className: 'v4-godmode-weather-list' },
+                    weather.map((w) =>
+                      React.createElement(
+                        'button',
+                        {
+                          key: w.name,
+                          type: 'button',
+                          className: 'v4-godmode-weather-row v4-godmode-weather-row-btn',
+                          onClick: () => {
+                            inspectPoint(w, 1.35, 1100);
+                          },
+                        },
+                        React.createElement('span', { className: 'v4-godmode-weather-row-city' },
+                          React.createElement('i', { className: 'v4-godmode-weather-glyph', style: { color: w.color } }, w.glyph || '◌'),
+                          w.name
+                        ),
+                        React.createElement('strong', null, w.temp != null ? `${w.temp}°F` : '—'),
+                        React.createElement('em', null, w.condition || '')
+                      )
+                    )
+                  )
             ),
             panelLayer === 'flights' && React.createElement(
               React.Fragment,
