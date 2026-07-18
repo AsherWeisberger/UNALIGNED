@@ -13485,26 +13485,11 @@ function V4TodayView({ user, leads, onOpenLead, onGoInbox, onOpenInCompanyOs, on
     <div className={'page today-v4 focus-home focus-workspace focus-oasis' + (mobileReader && selected ? ' is-reader-open' : '')}>
       <header className="focus-oasis-hero">
         <div className="focus-oasis-hero-copy">
-          <div className="focus-oasis-kicker">{dayLabel} · Company OS</div>
-          <h1 className="focus-oasis-title">{greeting()}, {me.name}</h1>
-          <p className="focus-oasis-mission">{mission}</p>
-          <div className="focus-oasis-agents" role="list" aria-label="Agent desk">
-            {agentChips.map((chip) => (
-              <div
-                key={chip.id}
-                role="listitem"
-                className={'focus-agent-chip is-' + chip.tone}
-                title={chip.role}
-              >
-                <span className="focus-agent-avatar" aria-hidden="true">{chip.glyph}</span>
-                <span className="focus-agent-meta">
-                  <strong>{chip.name}</strong>
-                  <em>{chip.count ? `${chip.count} active` : 'Idle'}</em>
-                </span>
-              </div>
-            ))}
-          </div>
+          <h1 className="focus-oasis-title" title={dayLabel + ' · Company OS'}>{greeting()}, {me.name}</h1>
+          <p className="focus-oasis-mission" title={mission}>{mission}</p>
         </div>
+        {/* Agent-desk chips removed — their counts re-totaled what the queue
+            tabs already show, and "Robert · Idle" said nothing actionable. */}
         <div className="focus-oasis-hero-actions">
           {needsYou > 0 && needsYouList[0] ? (
             <button
@@ -13557,25 +13542,8 @@ function V4TodayView({ user, leads, onOpenLead, onGoInbox, onOpenInCompanyOs, on
         </aside>
 
         <section className="focus-workspace-reader focus-oasis-reader" aria-label="Deal workspace">
-          {selected && selectedNeedsYou && selectedHasDraft ? (
-            <div className="focus-approve-strip">
-              <div className="focus-approve-copy">
-                <span className="focus-approve-eyebrow">Waiting on you</span>
-                <strong>
-                  {(typeof V4CosLeadDisplayTitle === 'function' ? V4CosLeadDisplayTitle(selected) : null)
-                    || selected.brand || selected.contactName || 'Lead'}
-                </strong>
-                <em>
-                  {selectedIsX
-                    ? 'X DM draft ready — approve Connect link or edit, then send.'
-                    : 'Operator draft ready — approve & send, or edit first.'}
-                </em>
-              </div>
-              <button type="button" className="focus-approve-btn" onClick={jumpApprove}>
-                {selectedIsX ? 'Open approve' : 'Approve path'}
-              </button>
-            </div>
-          ) : null}
+          {/* Approve strip removed — the reader's own "Operator draft ready"
+              banner says the same thing; two banners doubled the chrome. */}
           {selected ? (
             <V4CosReader
               lead={selected}
@@ -13664,19 +13632,19 @@ function V4FocusRow({ lead, user, stageById, sortMode, isSelected, onOpen }) {
       <span className={'focus-row-dot' + (needsYou ? ' is-pulse' : '')} aria-hidden="true" />
       <span className="focus-row-main">
         <span className="focus-row-brandline">
-          <span className="focus-row-brand">{brand}</span>
+          <span className="focus-row-brand" title={brand}>{brand}</span>
           {needsYou ? <span className="focus-row-badge">You</span> : null}
+          <span className="focus-row-when" title={when || ''}>{when || '—'}</span>
         </span>
-        {sub ? <span className="focus-row-sub">{sub}</span> : null}
-        {next ? <span className="focus-row-next">{next}</span> : null}
-      </span>
-      <span className="focus-row-meta">
-        <span className="focus-row-agent" title="Who owns the next move">{agent}</span>
-        <span className="focus-row-stage" style={{ color: stage.color }}>{stage.short || stage.name}</span>
-        {staleNew ? <span className="focus-row-stale" title="Old untriaged — not brand new">Backlog</span> : null}
-        <span className="focus-row-source">{source}</span>
-        {money ? <span className="focus-row-money">{money}</span> : null}
-        <span className="focus-row-when" title={when || ''}>{when || '—'}</span>
+        {sub ? <span className="focus-row-sub" title={sub}>{sub}</span> : null}
+        {next ? <span className="focus-row-next" title={next}>{next}</span> : null}
+        <span className="focus-row-meta">
+          <span className="focus-row-agent" title="Who owns the next move">{agent}</span>
+          <span className="focus-row-stage" style={{ color: stage.color }}>{stage.short || stage.name}</span>
+          {staleNew ? <span className="focus-row-stale" title="Old untriaged — not brand new">Backlog</span> : null}
+          <span className="focus-row-source">{source}</span>
+          {money ? <span className="focus-row-money">{money}</span> : null}
+        </span>
       </span>
     </button>
   );
@@ -23370,12 +23338,21 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
                 <span className={'gmail-read-fresh' + (threadFreshness.stale ? ' is-stale' : '')}>{threadFreshness.label}</span>
                 <span className="gmail-read-sep">·</span>
                 <span className="gmail-read-stage" style={{ color: stage.color }}>{stage.name}</span>
+                {String(lead.nextMove?.text || '').trim() ? (
+                  <>
+                    <span className="gmail-read-sep">·</span>
+                    <span className="gmail-read-next" title={String(lead.nextMove.text).trim()}>
+                      Next: {String(lead.nextMove.text).trim()}
+                    </span>
+                  </>
+                ) : null}
                 {(lead.unread || lead.needsReply) && <span className="gmail-read-action">Needs reply</span>}
               </div>
               {threadSync.note ? <div className={'gmail-read-sync-note is-' + threadSync.status}>{threadSync.note}</div> : null}
             </div>
           </header>
-          <V4DealSpine lead={lead} user={user} />
+          {/* Deal spine removed — its one remaining fact (next step) now lives
+              in the meta line above; the boxed strip was pure chrome. */}
           {!threadIntegrity.safe && (
             <div className="gmail-read-sync-note is-error">
               <strong>Email actions are blocked.</strong> {threadIntegrity.reason} Refresh Gmail only after the card's outside contact is corrected.
@@ -23544,7 +23521,8 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
                 <span><b>{Array.isArray(lead.thread) ? lead.thread.length : 0}</b> emails</span>
               </div>
             </>
-          <V4DealSpine lead={lead} user={user} />
+          {/* Deal spine removed — next-move-title and the metrics row above
+              already show the same facts. */}
           <V4CosDismissBar
             lead={lead}
             isIntake={isIntake}
@@ -24921,32 +24899,28 @@ function V4DealSpine({ lead, user }) {
   const origin = V4IsDeskIntakeLead(lead)
     ? 'Robert desk form'
     : (lead.leadSource || lead.source || source);
+  // Slimmed to the facts the thread meta line does NOT already show. Source,
+  // Stage, and thread freshness ("Truth") repeated the meta line verbatim,
+  // Origin duplicated Source, and Money rendered "—" when empty.
+  const hasMoney = (typeof lead.value === 'number' && lead.value > 0) || lead.agentTier || lead.tier_name;
   return (
     <div className="deal-spine" aria-label="Deal spine">
-      <div className="deal-spine-item">
-        <span className="deal-spine-k">Source</span>
-        <span className="deal-spine-v">{source}</span>
-      </div>
-      <div className="deal-spine-item">
-        <span className="deal-spine-k">Stage</span>
-        <span className="deal-spine-v" style={{ color: stage.color }}>{stage.name || stage.short || lead.stage}</span>
-      </div>
       <div className="deal-spine-item deal-spine-item--wide">
         <span className="deal-spine-k">Next · {nextWho}</span>
         <span className="deal-spine-v" title={nextText}>{nextText}</span>
       </div>
-      <div className="deal-spine-item">
-        <span className="deal-spine-k">Money</span>
-        <span className="deal-spine-v">{money}</span>
-      </div>
-      <div className="deal-spine-item deal-spine-item--wide">
-        <span className="deal-spine-k">Truth</span>
-        <span className={'deal-spine-v' + (fresh.stale ? ' is-stale' : '')}>{fresh.label || '—'}</span>
-      </div>
-      <div className="deal-spine-item">
-        <span className="deal-spine-k">Origin</span>
-        <span className="deal-spine-v" title={String(origin)}>{String(origin).slice(0, 28)}</span>
-      </div>
+      {hasMoney ? (
+        <div className="deal-spine-item">
+          <span className="deal-spine-k">Money</span>
+          <span className="deal-spine-v">{money}</span>
+        </div>
+      ) : null}
+      {V4IsDeskIntakeLead(lead) ? (
+        <div className="deal-spine-item">
+          <span className="deal-spine-k">Origin</span>
+          <span className="deal-spine-v">Robert desk form</span>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -25063,7 +25037,483 @@ const V4_TWEAKS = /*EDITMODE-BEGIN*/{
   "view": "company-os"
 }/*EDITMODE-END*/;
 
-const V4_VALID_VIEWS = ['today', 'board', 'new-leads', 'company-os', 'organs', 'leads', 'inbox', 'invoices', 'calendar'];
+const V4_VALID_VIEWS = ['today', 'board', 'new-leads', 'company-os', 'organs', 'leads', 'inbox', 'invoices', 'calendar', 'sandbox'];
+
+// ─── Sandbox Test — guided demo for pitching Company OS ─────
+const V4_SANDBOX_STORAGE = 'v4-sandbox-demo-v1';
+
+function V4SandboxLoadState() {
+  try {
+    const raw = JSON.parse(window.localStorage.getItem(V4_SANDBOX_STORAGE) || '{}');
+    return raw && typeof raw === 'object' ? raw : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function V4SandboxSaveState(next) {
+  try {
+    window.localStorage.setItem(V4_SANDBOX_STORAGE, JSON.stringify(next || {}));
+  } catch (e) {}
+}
+
+const V4_SANDBOX_STEPS = [
+  {
+    id: 'welcome',
+    kicker: '01 · The pitch',
+    title: 'What Company OS is',
+    time: '1 min',
+    summary: 'One operating system for creator partnerships — not another inbox.',
+  },
+  {
+    id: 'connect-gmail',
+    kicker: '02 · Connect',
+    title: 'Connect Gmail',
+    time: '2 min',
+    summary: 'Robert and Asher mailboxes become the source of truth for every deal thread.',
+  },
+  {
+    id: 'connect-x',
+    kicker: '03 · Connect',
+    title: 'Connect X (Twitter)',
+    time: '2 min',
+    summary: 'DM collabs land on the same desk as email — draft, approve, send.',
+  },
+  {
+    id: 'connect-link',
+    kicker: '04 · Connect',
+    title: 'Share the Connect link',
+    time: '1 min',
+    summary: 'One public form for partnerships. Ledger tracks Pending → In conversation → Done.',
+  },
+  {
+    id: 'focus',
+    kicker: '05 · Daily work',
+    title: 'Focus — your move first',
+    time: '2 min',
+    summary: 'Calm home: agent chips, rooms (Your move / New / In motion / Terms), approve in place.',
+  },
+  {
+    id: 'approve',
+    kicker: '06 · Approvals',
+    title: 'Approve & send',
+    time: '2 min',
+    summary: 'Agents draft. Humans approve. Email or X Connect-link DM — board stays accurate.',
+  },
+  {
+    id: 'desk-money',
+    kicker: '07 · Close',
+    title: 'Desk → rates → invoice → brief',
+    time: '2 min',
+    summary: 'From first touch to paid post without tool-hopping.',
+  },
+  {
+    id: 'live-demo',
+    kicker: '08 · Try it',
+    title: 'Open live Focus',
+    time: 'open',
+    summary: 'Leave the sandbox and walk a real (or demo) lead end to end.',
+  },
+];
+
+function V4SandboxTestView({ onGoFocus, onGoCompanyOs, onGoDesk, onGoNewLeads }) {
+  const saved = V4SandboxLoadState();
+  const [stepId, setStepId] = React.useState(() => saved.stepId || 'welcome');
+  const [connected, setConnected] = React.useState(() => ({
+    gmail: !!saved.gmail,
+    x: !!saved.x,
+    connect: !!saved.connect,
+  }));
+  const [demoLead, setDemoLead] = React.useState(() => saved.demoLead || null);
+  const [sentDemo, setSentDemo] = React.useState(!!saved.sentDemo);
+
+  const stepIndex = Math.max(0, V4_SANDBOX_STEPS.findIndex((s) => s.id === stepId));
+  const step = V4_SANDBOX_STEPS[stepIndex] || V4_SANDBOX_STEPS[0];
+  const progress = Math.round(((stepIndex + 1) / V4_SANDBOX_STEPS.length) * 100);
+  const allConnected = connected.gmail && connected.x && connected.connect;
+
+  React.useEffect(() => {
+    V4SandboxSaveState({
+      stepId,
+      gmail: connected.gmail,
+      x: connected.x,
+      connect: connected.connect,
+      demoLead,
+      sentDemo,
+    });
+  }, [stepId, connected, demoLead, sentDemo]);
+
+  const goStep = (id) => setStepId(id);
+  const next = () => {
+    const n = V4_SANDBOX_STEPS[stepIndex + 1];
+    if (n) setStepId(n.id);
+  };
+  const prev = () => {
+    const p = V4_SANDBOX_STEPS[stepIndex - 1];
+    if (p) setStepId(p.id);
+  };
+
+  const toggleConnect = (key) => {
+    setConnected((c) => ({ ...c, [key]: !c[key] }));
+  };
+
+  const spawnDemoLead = () => {
+    setDemoLead({
+      brand: 'Northwind Bio',
+      contact: 'Maya Chen',
+      channel: 'Connect form',
+      ask: 'Custom X + LinkedIn + newsletter for a product launch',
+      status: 'Needs approve',
+      agent: 'Asher draft ready',
+    });
+    setSentDemo(false);
+  };
+
+  const approveDemo = () => {
+    if (!demoLead) spawnDemoLead();
+    setSentDemo(true);
+    setDemoLead((d) => (d ? { ...d, status: 'Sent · waiting on them', agent: 'Idle' } : d));
+  };
+
+  const resetSandbox = () => {
+    if (!window.confirm('Reset Sandbox Test progress? Connections and demo lead clear.')) return;
+    setConnected({ gmail: false, x: false, connect: false });
+    setDemoLead(null);
+    setSentDemo(false);
+    setStepId('welcome');
+    V4SandboxSaveState({});
+  };
+
+  const copyConnect = async () => {
+    const url = 'https://agentdashboard.cloud/connect';
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch (e) {
+      window.prompt('Copy connect link:', url);
+    }
+  };
+
+  return (
+    <div className="page sandbox-page">
+      <header className="sandbox-hero">
+        <div className="sandbox-hero-copy">
+          <div className="sandbox-kicker">Sandbox Test · Sales demo</div>
+          <h1 className="sandbox-title">Show Company OS in eight clear steps</h1>
+          <p className="sandbox-lede">
+            Walk a person of interest through connect → daily Focus → approve → close.
+            Nothing here breaks production. Simulated connections are for the pitch only.
+          </p>
+          <div className="sandbox-progress" aria-label="Demo progress">
+            <div className="sandbox-progress-bar" style={{ width: progress + '%' }} />
+          </div>
+          <div className="sandbox-progress-meta">
+            <span>Step {stepIndex + 1} of {V4_SANDBOX_STEPS.length}</span>
+            <span>{progress}% through the tour</span>
+          </div>
+        </div>
+        <div className="sandbox-hero-status">
+          <div className="sandbox-status-card">
+            <span className="sandbox-status-label">Demo connections</span>
+            <ul className="sandbox-status-list">
+              <li className={connected.gmail ? 'is-on' : ''}>Gmail {connected.gmail ? '· connected' : '· not yet'}</li>
+              <li className={connected.x ? 'is-on' : ''}>X DMs {connected.x ? '· connected' : '· not yet'}</li>
+              <li className={connected.connect ? 'is-on' : ''}>Connect link {connected.connect ? '· ready' : '· not yet'}</li>
+            </ul>
+            {allConnected ? (
+              <p className="sandbox-status-ok">Stack is demo-ready. Jump to Focus when they get it.</p>
+            ) : (
+              <p className="sandbox-status-hint">Click through steps 2–4 to “connect” each channel in the sandbox.</p>
+            )}
+            <button type="button" className="sandbox-reset" onClick={resetSandbox}>Reset sandbox</button>
+          </div>
+        </div>
+      </header>
+
+      <div className="sandbox-body">
+        <nav className="sandbox-steps" aria-label="Tour steps">
+          {V4_SANDBOX_STEPS.map((s, i) => (
+            <button
+              key={s.id}
+              type="button"
+              className={'sandbox-step-btn' + (s.id === step.id ? ' is-active' : '') + (i < stepIndex ? ' is-done' : '')}
+              onClick={() => goStep(s.id)}
+            >
+              <span className="sandbox-step-num">{String(i + 1).padStart(2, '0')}</span>
+              <span className="sandbox-step-text">
+                <strong>{s.title}</strong>
+                <em>{s.time}</em>
+              </span>
+            </button>
+          ))}
+        </nav>
+
+        <section className="sandbox-panel" aria-live="polite">
+          <div className="sandbox-panel-kicker">{step.kicker}</div>
+          <h2 className="sandbox-panel-title">{step.title}</h2>
+          <p className="sandbox-panel-summary">{step.summary}</p>
+
+          {step.id === 'welcome' && (
+            <div className="sandbox-content">
+              <div className="sandbox-callout">
+                <strong>One line pitch</strong>
+                <p>
+                  Company OS is the operating system for creator partnership revenue —
+                  Gmail, X, public connect form, rates, invoice, and Robert brief in one desk.
+                  Agents draft. You approve. The board stays honest.
+                </p>
+              </div>
+              <div className="sandbox-grid-3">
+                <div className="sandbox-tile">
+                  <span>01</span>
+                  <strong>Truth</strong>
+                  <p>Live Gmail + X + connect form — not a CRM you type into.</p>
+                </div>
+                <div className="sandbox-tile">
+                  <span>02</span>
+                  <strong>Agents</strong>
+                  <p>Drafts, spam gate, desk intake, Connect-link DMs — always human-approved.</p>
+                </div>
+                <div className="sandbox-tile">
+                  <span>03</span>
+                  <strong>Close</strong>
+                  <p>Focus home for daily work. Rates → invoice → brief without tool hop.</p>
+                </div>
+              </div>
+              <p className="sandbox-script">
+                <strong>Say this:</strong> “I’m not selling an AI chat. I’m selling the desk that runs my partnership business.”
+              </p>
+            </div>
+          )}
+
+          {step.id === 'connect-gmail' && (
+            <div className="sandbox-content">
+              <ol className="sandbox-howto">
+                <li>Point at the real product: Asher + Robert mailboxes power the board.</li>
+                <li>In production, OAuth tokens live on the Mac Studio brief machine.</li>
+                <li>Here in sandbox, simulate the connect so the story is clear.</li>
+              </ol>
+              <button
+                type="button"
+                className={'sandbox-connect-btn' + (connected.gmail ? ' is-connected' : '')}
+                onClick={() => toggleConnect('gmail')}
+              >
+                {connected.gmail ? 'Gmail connected (demo)' : 'Click to connect Gmail (demo)'}
+              </button>
+              <ul className="sandbox-bullets">
+                <li>Threads become deal cards — no copy-paste into a CRM.</li>
+                <li>Approve &amp; send from the same screen as the thread.</li>
+                <li>Mark replied / stage moves keep the pipeline accurate.</li>
+              </ul>
+              <p className="sandbox-script">
+                <strong>Say this:</strong> “When someone emails Robert, it shows up as work — not as another tab to forget.”
+              </p>
+            </div>
+          )}
+
+          {step.id === 'connect-x' && (
+            <div className="sandbox-content">
+              <ol className="sandbox-howto">
+                <li>X DMs are where collabs start for creators like Scoble.</li>
+                <li>Company OS pulls business DMs, drafts Robert’s Connect handoff, and can approve-send.</li>
+                <li>Sibling Gmail deals suppress zombie X cards (no double work).</li>
+              </ol>
+              <button
+                type="button"
+                className={'sandbox-connect-btn' + (connected.x ? ' is-connected' : '')}
+                onClick={() => toggleConnect('x')}
+              >
+                {connected.x ? 'X connected (demo)' : 'Click to connect X (demo)'}
+              </button>
+              <ul className="sandbox-bullets">
+                <li>Default unreplied collab DM = public Connect link handoff.</li>
+                <li>Open DM still works as fallback; Mark replied keeps the board clean.</li>
+                <li>Same Focus “Your move” room as email — one desk.</li>
+              </ul>
+              <p className="sandbox-script">
+                <strong>Say this:</strong> “X isn’t a side channel. It’s the same company desk.”
+              </p>
+            </div>
+          )}
+
+          {step.id === 'connect-link' && (
+            <div className="sandbox-content">
+              <ol className="sandbox-howto">
+                <li>Share one public URL: everyone fills the same form.</li>
+                <li>Robert’s desk ledger: Pending → In conversation → Completed.</li>
+                <li>Rates show on Collaboration path; General conversation stays light.</li>
+              </ol>
+              <div className="sandbox-link-row">
+                <code>https://agentdashboard.cloud/connect</code>
+                <button type="button" className="sandbox-mini-btn" onClick={copyConnect}>Copy</button>
+                <a className="sandbox-mini-btn" href="https://agentdashboard.cloud/connect" target="_blank" rel="noopener noreferrer">Open</a>
+              </div>
+              <button
+                type="button"
+                className={'sandbox-connect-btn' + (connected.connect ? ' is-connected' : '')}
+                onClick={() => toggleConnect('connect')}
+              >
+                {connected.connect ? 'Connect link ready (demo)' : 'Mark Connect link ready (demo)'}
+              </button>
+              <p className="sandbox-script">
+                <strong>Say this:</strong> “I never renegotiate the front door. One link. One ledger.”
+              </p>
+              {typeof onGoDesk === 'function' ? (
+                <button type="button" className="sandbox-secondary-btn" onClick={onGoDesk}>
+                  Open live Robert’s desk →
+                </button>
+              ) : null}
+            </div>
+          )}
+
+          {step.id === 'focus' && (
+            <div className="sandbox-content">
+              <ol className="sandbox-howto">
+                <li><strong>Mission line</strong> — how many need you, in plain English.</li>
+                <li><strong>Agent chips</strong> — Asher, X desk, Connect, Robert (idle vs hot).</li>
+                <li><strong>Rooms</strong> — Your move · New · In motion · Terms.</li>
+                <li>Reader stays open: reply, rates, AI on one screen.</li>
+              </ol>
+              <div className="sandbox-mock-focus" aria-hidden="true">
+                <div className="sandbox-mock-mission">3 need you · 12 open. Pick a card — approve stays here.</div>
+                <div className="sandbox-mock-chips">
+                  <span className="is-hot">A Asher · 2</span>
+                  <span className="is-hot">X X desk · 1</span>
+                  <span>C Connect · idle</span>
+                  <span>R Robert · idle</span>
+                </div>
+                <div className="sandbox-mock-rooms">
+                  <span className="is-active">Your move 3</span>
+                  <span>New 1</span>
+                  <span>In motion 6</span>
+                  <span>Terms 2</span>
+                </div>
+              </div>
+              <p className="sandbox-script">
+                <strong>Say this:</strong> “This is the office. Not twelve inboxes.”
+              </p>
+              {typeof onGoFocus === 'function' ? (
+                <button type="button" className="sandbox-secondary-btn" onClick={onGoFocus}>
+                  Open live Focus →
+                </button>
+              ) : null}
+            </div>
+          )}
+
+          {step.id === 'approve' && (
+            <div className="sandbox-content">
+              <ol className="sandbox-howto">
+                <li>Spawn a sample lead (demo only).</li>
+                <li>Show “Waiting on you” strip — agent drafted, human decides.</li>
+                <li>Approve &amp; send (simulated) → status flips to waiting on them.</li>
+              </ol>
+              <div className="sandbox-demo-actions">
+                <button type="button" className="sandbox-connect-btn" onClick={spawnDemoLead}>
+                  {demoLead ? 'Reset sample lead' : 'Spawn sample lead'}
+                </button>
+                <button type="button" className="sandbox-primary-btn" onClick={approveDemo} disabled={!demoLead && !sentDemo}>
+                  {sentDemo ? 'Sent (demo)' : 'Approve & send (demo)'}
+                </button>
+              </div>
+              {demoLead ? (
+                <div className={'sandbox-demo-card' + (sentDemo ? ' is-sent' : '')}>
+                  <div className="sandbox-demo-card-top">
+                    <strong>{demoLead.brand}</strong>
+                    <em>{demoLead.status}</em>
+                  </div>
+                  <p>{demoLead.contact} · {demoLead.channel}</p>
+                  <p className="sandbox-demo-ask">{demoLead.ask}</p>
+                  <span className="sandbox-demo-agent">{demoLead.agent}</span>
+                </div>
+              ) : (
+                <p className="sandbox-status-hint">Spawn a sample lead to show the approve path without touching real deals.</p>
+              )}
+              <p className="sandbox-script">
+                <strong>Say this:</strong> “AI never auto-sends partnership money talk. I click once.”
+              </p>
+            </div>
+          )}
+
+          {step.id === 'desk-money' && (
+            <div className="sandbox-content">
+              <div className="sandbox-pipeline">
+                <div><strong>1. Intake</strong><span>Connect / Gmail / X</span></div>
+                <div><strong>2. Scope</strong><span>Rates &amp; deliverables</span></div>
+                <div><strong>3. Money</strong><span>Invoice · Stripe</span></div>
+                <div><strong>4. Brief</strong><span>Robert posts</span></div>
+                <div><strong>5. Close</strong><span>Paid · ledger done</span></div>
+              </div>
+              <ul className="sandbox-bullets">
+                <li>Desk intake stays Pending until conversation starts.</li>
+                <li>Negotiating room is for price and terms — not noise.</li>
+                <li>Briefs and invoices live under Organs when you need depth.</li>
+              </ul>
+              <p className="sandbox-script">
+                <strong>Say this:</strong> “From first DM to paid post is one system. That’s the product.”
+              </p>
+              {typeof onGoCompanyOs === 'function' ? (
+                <button type="button" className="sandbox-secondary-btn" onClick={onGoCompanyOs}>
+                  Open live Company OS queues →
+                </button>
+              ) : null}
+            </div>
+          )}
+
+          {step.id === 'live-demo' && (
+            <div className="sandbox-content">
+              <div className="sandbox-callout is-success">
+                <strong>Close the tour</strong>
+                <p>
+                  Open Focus with a real lead (or keep the sample story).
+                  Let them click Approve once. That’s the sale.
+                </p>
+              </div>
+              <div className="sandbox-cta-row">
+                {typeof onGoFocus === 'function' ? (
+                  <button type="button" className="sandbox-primary-btn" onClick={onGoFocus}>
+                    Open Focus
+                  </button>
+                ) : null}
+                {typeof onGoCompanyOs === 'function' ? (
+                  <button type="button" className="sandbox-secondary-btn" onClick={onGoCompanyOs}>
+                    Company OS
+                  </button>
+                ) : null}
+                {typeof onGoNewLeads === 'function' ? (
+                  <button type="button" className="sandbox-secondary-btn" onClick={onGoNewLeads}>
+                    New leads
+                  </button>
+                ) : null}
+                {typeof onGoDesk === 'function' ? (
+                  <button type="button" className="sandbox-secondary-btn" onClick={onGoDesk}>
+                    Robert’s desk
+                  </button>
+                ) : null}
+              </div>
+              <p className="sandbox-script">
+                <strong>Leave them with:</strong> “If you run partnerships like I do, this is the desk.”
+              </p>
+            </div>
+          )}
+
+          <footer className="sandbox-panel-nav">
+            <button type="button" className="sandbox-nav-btn" onClick={prev} disabled={stepIndex === 0}>
+              Back
+            </button>
+            <span className="sandbox-panel-nav-mid">{step.time === 'open' ? 'End of tour' : step.time + ' on this step'}</span>
+            <button
+              type="button"
+              className="sandbox-nav-btn is-next"
+              onClick={next}
+              disabled={stepIndex >= V4_SANDBOX_STEPS.length - 1}
+            >
+              Next
+            </button>
+          </footer>
+        </section>
+      </div>
+    </div>
+  );
+}
 
 function V4DefaultViewForUser(user) {
   return user === 'asher' ? 'today' : 'company-os';
@@ -26278,6 +26728,7 @@ function V4App() {
       label: 'Daily work',
       items: [
         { label: 'Calendar', hint: 'Schedule and go-live holds', icon: 'cal', run: () => goView('calendar') },
+        { label: 'Sandbox Test', hint: 'Guided sales demo', icon: 'bolt', run: () => goView('sandbox') },
         { label: 'New Leads', hint: 'Robert Gmail and X intake', icon: 'plus', run: () => goView('new-leads') },
         { label: 'Briefs', hint: 'Robert posting briefs', icon: 'doc', run: () => goView('inbox') },
         { label: 'Invoices', hint: 'Paid, outstanding, Stripe', icon: 'invoice', run: () => goView('invoices') },
@@ -26303,6 +26754,7 @@ function V4App() {
     { label: "Go to Robert's desk", hint: 'public connect intake', run: goToDeskIntake },
     { label: 'Go to Scope forms', hint: 'package + scope submissions', run: goToScopeIntake },
     { label: 'Go to Focus', hint: 'New · Live · Negotiating', run: () => goView('today') },
+    { label: 'Sandbox Test', hint: 'Guided sales demo of Company OS', run: () => goView('sandbox') },
     { label: 'Go to Calendar', run: () => goView('calendar') },
     { label: 'Go to Briefs', run: () => goView('inbox') },
     { label: 'Go to Invoices', run: () => goView('invoices') },
@@ -26333,6 +26785,7 @@ function V4App() {
             <V3Icon name="cal" w={13} style={{ marginRight: 4 }} /> Calendar
           </button>
           <button className="hd-nav-btn" aria-current={cosCompanyOsHomeActive ? 'page' : undefined} onClick={goToCompanyOsHome}>Company OS</button>
+          <button className="hd-nav-btn" aria-current={view === 'sandbox' ? 'page' : undefined} onClick={() => goView('sandbox')} title="Guided demo for pitching Company OS">Sandbox Test</button>
           <div className="hd-nav-menu" ref={organsMenuRef}>
             <button
               className="hd-nav-btn hd-nav-menu-btn"
@@ -26525,6 +26978,17 @@ function V4App() {
             }}
           />
         )}
+        {view === 'sandbox' && (
+          <V4SandboxTestView
+            onGoFocus={() => goView('today')}
+            onGoCompanyOs={goToCompanyOsHome}
+            onGoDesk={() => {
+              activateCosSplit('desk-intake');
+              goView('company-os');
+            }}
+            onGoNewLeads={() => goView('new-leads')}
+          />
+        )}
         {view === 'board' && (
           <V3BoardView leads={operationalLeads} query={search} openId={openId} onOpen={setOpenId} user={user}
                        ownerFilter={ownerFilter} setOwnerFilter={setOwnerFilter} />
@@ -26600,6 +27064,11 @@ function V4App() {
                 onClick={() => goView('today')}>
           <V3Icon name="diamond" w={18} />
           Focus
+        </button>
+        <button className="ft-tab" aria-current={view === 'sandbox' ? 'page' : undefined}
+                onClick={() => goView('sandbox')}>
+          <V3Icon name="bolt" w={18} />
+          Sandbox
         </button>
         <button className="ft-tab" aria-current={!mobileMenuOpen && cosCompanyOsHomeActive ? 'page' : undefined}
                 onClick={goToCompanyOsHome}>

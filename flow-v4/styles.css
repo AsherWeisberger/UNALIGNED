@@ -5188,44 +5188,48 @@ body.v4-godmode-open { overflow: hidden; }
     radial-gradient(1200px 480px at 12% -10%, color-mix(in oklab, var(--accent-soft) 55%, transparent), transparent 60%),
     var(--bg);
 }
+/* Compact single-row hero: title + mission inline, chips and actions beside.
+   The old stacked hero (kicker / 26px title / mission / chip row) burned ~25%
+   of the viewport before any work showed. */
 .focus-oasis-hero {
   flex-shrink: 0;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 20px 28px;
-  padding: 18px 22px 14px;
+  gap: 10px 18px;
+  padding: 10px 18px;
   border-bottom: 1px solid color-mix(in oklab, var(--line) 85%, transparent);
 }
-.focus-oasis-kicker {
-  font: 600 10px/1 var(--font-mono);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--text-3);
-  margin-bottom: 8px;
-}
+.focus-oasis-hero-copy { min-width: 0; }
 .focus-oasis-title {
-  margin: 0 0 8px;
-  font: 700 26px/1.15 var(--font-display, system-ui, sans-serif);
-  letter-spacing: -0.02em;
+  margin: 0 0 2px;
+  font: 700 17px/1.2 var(--font-display, system-ui, sans-serif);
+  letter-spacing: -0.01em;
   color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .focus-oasis-mission {
-  margin: 0 0 14px;
+  margin: 0;
   max-width: 52ch;
-  font: 500 14px/1.45 var(--font-body);
-  color: var(--text-2);
+  font: 500 12px/1.35 var(--font-body);
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .focus-oasis-agents {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
+  flex-shrink: 0;
 }
 .focus-agent-chip {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 12px 8px 8px;
+  gap: 7px;
+  padding: 4px 10px 4px 4px;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: color-mix(in oklab, var(--surface) 92%, transparent);
@@ -5243,12 +5247,12 @@ body.v4-godmode-open { overflow: hidden; }
   opacity: 0.72;
 }
 .focus-agent-avatar {
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   border-radius: 999px;
   display: grid;
   place-items: center;
-  font: 700 11px/1 var(--font-mono);
+  font: 700 10px/1 var(--font-mono);
   background: var(--text);
   color: var(--bg);
 }
@@ -5495,16 +5499,19 @@ body.v4-godmode-open { overflow: hidden; }
 }
 .focus-list { display: flex; flex-direction: column; }
 .focus-row {
+  /* Stacked layout: one content column. The old side meta column fought the
+     narrow list for width — chips overlapped the brand and text truncated to
+     nothing. Meta now wraps underneath at full width. */
   display: grid;
-  grid-template-columns: 12px minmax(0, 1fr) auto;
-  gap: 10px 12px;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 8px 10px;
   align-items: start;
   width: 100%;
   text-align: left;
   border: 0;
   border-top: 1px solid color-mix(in oklab, var(--line) 80%, transparent);
   background: transparent;
-  padding: 12px 14px;
+  padding: 11px 13px;
   cursor: pointer;
   color: inherit;
   font: inherit;
@@ -5534,6 +5541,10 @@ body.v4-godmode-open { overflow: hidden; }
 .focus-row-brand {
   font: 650 14px/1.3 var(--font-display, system-ui, sans-serif);
   color: var(--text);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .focus-row-sub,
 .focus-row-next {
@@ -5547,11 +5558,17 @@ body.v4-godmode-open { overflow: hidden; }
 .focus-row-meta {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 6px 10px;
-  max-width: 280px;
-  font: 600 11px/1.2 var(--font-mono);
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px 9px;
+  margin-top: 3px;
+  font: 600 10px/1.2 var(--font-mono);
   color: var(--text-3);
+}
+.focus-row-brandline .focus-row-when {
+  margin-left: auto;
+  flex-shrink: 0;
+  font: 600 10px/1.2 var(--font-mono);
 }
 .focus-row-stage { text-transform: uppercase; letter-spacing: 0.04em; }
 .focus-row-stale {
@@ -22521,4 +22538,447 @@ body[data-theme] .cos-brain-signal {
   .today-deal-secondary {
     margin-left: auto;
   }
+}
+
+/* Reader meta line: inline next-step segment (replaces the deal-spine box) */
+.gmail-read-next {
+  color: var(--text-2);
+  font-weight: 600;
+  min-width: 0;
+  max-width: 46ch;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ─── Sandbox Test (sales demo tour) ─── */
+.sandbox-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background:
+    radial-gradient(900px 420px at 8% -8%, color-mix(in oklab, var(--accent-soft) 50%, transparent), transparent 55%),
+    var(--bg);
+}
+.sandbox-hero {
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 22px 24px 16px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.sandbox-kicker {
+  font: 650 10px/1 var(--font-mono);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 8px;
+}
+.sandbox-title {
+  margin: 0 0 8px;
+  font: 700 26px/1.15 var(--font-display, system-ui, sans-serif);
+  letter-spacing: -0.02em;
+  color: var(--text);
+  max-width: 22ch;
+}
+.sandbox-lede {
+  margin: 0 0 14px;
+  max-width: 56ch;
+  font: 500 14px/1.5 var(--font-body);
+  color: var(--text-2);
+}
+.sandbox-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--line) 80%, transparent);
+  overflow: hidden;
+  max-width: 420px;
+}
+.sandbox-progress-bar {
+  height: 100%;
+  background: var(--text);
+  border-radius: inherit;
+  transition: width 0.25s ease;
+}
+.sandbox-progress-meta {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+  font: 500 11px/1 var(--font-mono);
+  color: var(--text-3);
+}
+.sandbox-status-card {
+  width: min(280px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px 16px;
+  background: var(--surface);
+}
+.sandbox-status-label {
+  display: block;
+  font: 650 10px/1 var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 10px;
+}
+.sandbox-status-list {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font: 500 13px/1.3 var(--font-body);
+  color: var(--text-3);
+}
+.sandbox-status-list li.is-on { color: var(--text); font-weight: 650; }
+.sandbox-status-ok {
+  margin: 0 0 10px;
+  font: 500 12px/1.4 var(--font-body);
+  color: #047857;
+}
+.sandbox-status-hint {
+  margin: 0 0 10px;
+  font: 500 12px/1.4 var(--font-body);
+  color: var(--text-3);
+}
+.sandbox-reset {
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  font: 600 11px/1 var(--font-body);
+  cursor: pointer;
+  padding: 0;
+}
+.sandbox-reset:hover { color: var(--text); }
+.sandbox-body {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 0;
+  flex: 1;
+  min-height: 0;
+}
+.sandbox-steps {
+  border-right: 1px solid var(--line);
+  padding: 14px 12px 28px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: color-mix(in oklab, var(--bg) 90%, var(--surface));
+}
+.sandbox-step-btn {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 10px 10px;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.sandbox-step-btn:hover { background: color-mix(in oklab, var(--accent-soft) 40%, transparent); }
+.sandbox-step-btn.is-active {
+  background: var(--surface);
+  border-color: var(--line);
+  box-shadow: 0 1px 0 color-mix(in oklab, var(--text) 5%, transparent);
+}
+.sandbox-step-btn.is-done .sandbox-step-num { color: #047857; }
+.sandbox-step-num {
+  font: 700 11px/1.4 var(--font-mono);
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+.sandbox-step-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.sandbox-step-text strong {
+  font: 650 13px/1.25 var(--font-body);
+  color: var(--text);
+}
+.sandbox-step-text em {
+  font: 500 11px/1.2 var(--font-mono);
+  color: var(--text-3);
+  font-style: normal;
+}
+.sandbox-panel {
+  padding: 22px 28px 32px;
+  overflow: auto;
+  min-width: 0;
+}
+.sandbox-panel-kicker {
+  font: 650 10px/1 var(--font-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 8px;
+}
+.sandbox-panel-title {
+  margin: 0 0 8px;
+  font: 700 22px/1.2 var(--font-display, system-ui, sans-serif);
+  color: var(--text);
+}
+.sandbox-panel-summary {
+  margin: 0 0 18px;
+  max-width: 58ch;
+  font: 500 15px/1.45 var(--font-body);
+  color: var(--text-2);
+}
+.sandbox-content { max-width: 640px; }
+.sandbox-callout {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: var(--surface);
+  margin-bottom: 16px;
+}
+.sandbox-callout.is-success {
+  border-color: color-mix(in oklab, #047857 30%, var(--line));
+  background: color-mix(in oklab, #ecfdf5 70%, var(--surface));
+}
+.sandbox-callout strong { display: block; margin-bottom: 6px; font: 650 13px/1.3 var(--font-body); }
+.sandbox-callout p { margin: 0; font: 500 13px/1.45 var(--font-body); color: var(--text-2); }
+.sandbox-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.sandbox-tile {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: var(--surface);
+}
+.sandbox-tile span {
+  display: block;
+  font: 700 10px/1 var(--font-mono);
+  color: var(--text-3);
+  margin-bottom: 8px;
+}
+.sandbox-tile strong { display: block; margin-bottom: 4px; font: 650 14px/1.2 var(--font-body); }
+.sandbox-tile p { margin: 0; font: 500 12px/1.4 var(--font-body); color: var(--text-3); }
+.sandbox-howto {
+  margin: 0 0 16px;
+  padding-left: 18px;
+  font: 500 14px/1.5 var(--font-body);
+  color: var(--text-2);
+}
+.sandbox-howto li { margin-bottom: 6px; }
+.sandbox-bullets {
+  margin: 14px 0;
+  padding-left: 18px;
+  font: 500 13px/1.45 var(--font-body);
+  color: var(--text-2);
+}
+.sandbox-script {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border-left: 3px solid var(--text);
+  background: color-mix(in oklab, var(--surface) 80%, transparent);
+  font: 500 13px/1.45 var(--font-body);
+  color: var(--text-2);
+}
+.sandbox-script strong { color: var(--text); }
+.sandbox-connect-btn,
+.sandbox-primary-btn,
+.sandbox-secondary-btn {
+  border-radius: 999px;
+  padding: 11px 16px;
+  font: 650 13px/1 var(--font-body);
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.sandbox-connect-btn {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--text);
+}
+.sandbox-connect-btn.is-connected {
+  border-color: color-mix(in oklab, #047857 40%, var(--line));
+  background: #ecfdf5;
+  color: #065f46;
+}
+.sandbox-primary-btn {
+  border: 0;
+  background: var(--text);
+  color: var(--bg);
+}
+.sandbox-primary-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.sandbox-secondary-btn {
+  border-color: var(--line);
+  background: transparent;
+  color: var(--text);
+  margin-top: 12px;
+}
+.sandbox-link-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.sandbox-link-row code {
+  font: 500 12px/1.3 var(--font-mono);
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.sandbox-mini-btn {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font: 600 12px/1 var(--font-body);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  text-decoration: none;
+}
+.sandbox-mock-focus {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px;
+  background: var(--surface);
+  margin-bottom: 12px;
+}
+.sandbox-mock-mission {
+  font: 500 13px/1.4 var(--font-body);
+  color: var(--text-2);
+  margin-bottom: 10px;
+}
+.sandbox-mock-chips,
+.sandbox-mock-rooms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.sandbox-mock-chips span,
+.sandbox-mock-rooms span {
+  font: 600 11px/1 var(--font-mono);
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--text-3);
+}
+.sandbox-mock-chips span.is-hot {
+  color: #c2410c;
+  border-color: #fdba74;
+  background: #fff7ed;
+}
+.sandbox-mock-rooms span.is-active {
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
+}
+.sandbox-demo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.sandbox-demo-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: color-mix(in oklab, #fff7ed 55%, var(--surface));
+  margin-bottom: 8px;
+}
+.sandbox-demo-card.is-sent {
+  background: color-mix(in oklab, #ecfdf5 60%, var(--surface));
+}
+.sandbox-demo-card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.sandbox-demo-card-top strong { font: 650 15px/1.2 var(--font-body); }
+.sandbox-demo-card-top em { font: 600 11px/1 var(--font-mono); color: #c2410c; font-style: normal; }
+.sandbox-demo-card.is-sent .sandbox-demo-card-top em { color: #047857; }
+.sandbox-demo-card p { margin: 0 0 4px; font: 500 13px/1.35 var(--font-body); color: var(--text-2); }
+.sandbox-demo-ask { color: var(--text) !important; }
+.sandbox-demo-agent {
+  display: inline-block;
+  margin-top: 6px;
+  font: 600 11px/1 var(--font-mono);
+  color: var(--text-3);
+}
+.sandbox-pipeline {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.sandbox-pipeline div {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px;
+  background: var(--surface);
+}
+.sandbox-pipeline strong { display: block; font: 650 12px/1.2 var(--font-body); margin-bottom: 4px; }
+.sandbox-pipeline span { font: 500 11px/1.3 var(--font-body); color: var(--text-3); }
+.sandbox-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+.sandbox-panel-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  max-width: 640px;
+}
+.sandbox-nav-btn {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 9px 14px;
+  font: 600 12px/1 var(--font-body);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.sandbox-nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.sandbox-nav-btn.is-next {
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
+}
+.sandbox-panel-nav-mid {
+  font: 500 11px/1 var(--font-mono);
+  color: var(--text-3);
+}
+@media (max-width: 900px) {
+  .sandbox-hero { flex-direction: column; padding: 16px 14px 12px; }
+  .sandbox-title { font-size: 22px; max-width: none; }
+  .sandbox-status-card { width: 100%; }
+  .sandbox-body { grid-template-columns: 1fr; }
+  .sandbox-steps {
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    padding: 10px;
+  }
+  .sandbox-step-btn { min-width: 160px; }
+  .sandbox-panel { padding: 16px 14px 28px; }
+  .sandbox-grid-3,
+  .sandbox-pipeline { grid-template-columns: 1fr; }
 }
