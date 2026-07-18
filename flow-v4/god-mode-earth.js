@@ -194,6 +194,7 @@
 
   const LAYERS = [
     { id: 'all', label: 'God mode', glyph: '◉' },
+    { id: 'deals', label: 'Deals', glyph: '$' },
     { id: 'weather', label: 'Weather', glyph: '☁' },
     { id: 'events', label: 'Events', glyph: '⚡' },
     { id: 'flights', label: 'Flights', glyph: '✈' },
@@ -203,6 +204,10 @@
 
   let rocketElementProto = null;
   let planeElementProto = null;
+  let satElementProto = null;
+  const STARLINK_POINT_SIZE = 0.014;
+  const STARLINK_MAX_POINTS_ALL = 520;
+  const STARLINK_MAX_POINTS_FOCUS = 900;
 
   function assetUrl(path) {
     try {
@@ -744,6 +749,46 @@
     return el.cloneNode(true);
   }
 
+  /** Compact ISS / craft silhouette — body + solar panels (not a label pole). */
+  function buildSatElement() {
+    if (satElementProto) return satElementProto.cloneNode(true);
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.className = 'v4-god-sat-marker';
+    el.innerHTML = [
+      '<span class="v4-god-sat-glow" aria-hidden="true"></span>',
+      '<svg class="v4-god-sat-svg" viewBox="0 0 40 24" aria-hidden="true">',
+      // left solar wing
+      '  <rect x="1" y="7.5" width="11" height="9" rx="1" fill="#7eb6e8" opacity="0.92"/>',
+      '  <path d="M2 9.5h9M2 12h9M2 14.5h9" stroke="#1a3a55" stroke-width="0.55" opacity="0.55"/>',
+      // right solar wing
+      '  <rect x="28" y="7.5" width="11" height="9" rx="1" fill="#7eb6e8" opacity="0.92"/>',
+      '  <path d="M29 9.5h9M29 12h9M29 14.5h9" stroke="#1a3a55" stroke-width="0.55" opacity="0.55"/>',
+      // boom / truss
+      '  <rect x="12" y="10.5" width="16" height="3" rx="0.6" fill="#d8dee8"/>',
+      // pressurized modules
+      '  <rect x="15.5" y="7" width="9" height="10" rx="2.2" fill="#f0f3f8" stroke="#9aa3b2" stroke-width="0.5"/>',
+      '  <circle cx="20" cy="12" r="1.6" fill="#5ac8fa" opacity="0.85"/>',
+      '</svg>',
+      '<span class="v4-god-sat-tag">ISS</span>',
+    ].join('');
+    satElementProto = el;
+    return el.cloneNode(true);
+  }
+
+  function thinStarlinkPoints(points, maxKeep) {
+    const list = Array.isArray(points) ? points : [];
+    const cap = Math.max(80, Number(maxKeep) || STARLINK_MAX_POINTS_ALL);
+    if (list.length <= cap) return list;
+    const step = list.length / cap;
+    const out = [];
+    for (let i = 0; i < cap; i++) {
+      const row = list[Math.floor(i * step)];
+      if (row) out.push(row);
+    }
+    return out;
+  }
+
   function markerHorizonVisible(globe, marker, marginDeg) {
     let pov = null;
     try { pov = globe.pointOfView(); } catch (e) { return false; }
@@ -964,13 +1009,11 @@
           return [{
             lat,
             lng,
-            alt: 0.05,
-            text: 'ISS',
-            labelSize: 0.55,
-            color: '#64d2ff',
-            label: 'ISS',
+            alt: 0.065,
             name: 'International Space Station',
+            label: 'ISS · live',
             type: 'satellite',
+            craft: 'iss',
           }];
         }
       }
@@ -984,13 +1027,11 @@
       return {
         lat,
         lng,
-        alt: 0.05,
-        text: 'ISS',
-        labelSize: 0.55,
-        color: '#64d2ff',
-        label: 'ISS',
+        alt: 0.065,
         name: String(row.name || 'ISS'),
+        label: String(row.name || 'ISS'),
         type: 'satellite',
+        craft: 'iss',
       };
     }).filter((row) => Number.isFinite(row.lat) && Number.isFinite(row.lng));
   }
@@ -1085,12 +1126,13 @@
       const altKm = Number(geo.height);
       if (!Number.isFinite(lat) || !Number.isFinite(lng) || !Number.isFinite(altKm)) continue;
       if (altKm < 100 || altKm > 2500) continue; // drop decayed/garbage propagations
+      // Tiny points only — large pointRadius + low resolution looked like blue cylinders.
       points.push({
         lat,
         lng,
-        alt: altKm / KM_PER_GLOBE_RADIUS,
-        size: 0.16,
-        color: 'rgba(125,200,255,0.85)',
+        alt: Math.min(0.12, Math.max(0.035, altKm / KM_PER_GLOBE_RADIUS)),
+        size: STARLINK_POINT_SIZE,
+        color: 'rgba(210, 220, 230, 0.42)',
         label: name,
         name,
         type: 'starlink',
@@ -1104,6 +1146,96 @@
     const points = propagateStarlinkPoints();
     if (!points.length) throw new Error('starlink propagation produced no positions');
     return { points, count: points.length, updatedAt: Date.now() };
+  }
+
+  // ---- Deal flow: active leads on the map (HQ city -> Robert's desk) ----
+  const DEAL_GEO_CACHE_KEY = 'v4-godmode-dealgeo-v1';
+  const DEAL_STAGE_COLORS = {
+    'first-touch': '#8e9dff',
+    engaged: '#5ac8fa',
+    'rates-sent': '#ffd60a',
+    negotiating: '#ff9f0a',
+    'invoice-sent': '#ff5e6c',
+    done: '#34c759',
+    'paid-out': '#f5c518',
+  };
+  const DEAL_ACTIVE_STAGES = Object.keys(DEAL_STAGE_COLORS);
+
+  function readDealGeoCache() {
+    try { return JSON.parse(window.localStorage.getItem(DEAL_GEO_CACHE_KEY) || '{}') || {}; }
+    catch (e) { return {}; }
+  }
+
+  async function geocodeDealCity(query, cache) {
+    const key = query.toLowerCase();
+    if (cache[key]) return cache[key].miss ? null : cache[key];
+    const city = query.split(',')[0].trim();
+    try {
+      const res = await fetchWithTimeout(
+        'https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(city) + '&count=1&language=en&format=json',
+        {}, 8000,
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const hit = Array.isArray(data?.results) ? data.results[0] : null;
+        if (hit && Number.isFinite(hit.latitude)) {
+          cache[key] = { lat: hit.latitude, lng: hit.longitude };
+          try { window.localStorage.setItem(DEAL_GEO_CACHE_KEY, JSON.stringify(cache)); } catch (e) {}
+          return cache[key];
+        }
+      }
+    } catch (e) {}
+    cache[key] = { miss: true };
+    try { window.localStorage.setItem(DEAL_GEO_CACHE_KEY, JSON.stringify(cache)); } catch (e) {}
+    return null;
+  }
+
+  async function fetchDealMarkers(viewer) {
+    const leads = (window.V3 && window.V3.LEADS) || [];
+    const hqLat = Number(viewer?.lat);
+    const hqLng = Number(viewer?.lng ?? viewer?.lon);
+    const hq = {
+      lat: Number.isFinite(hqLat) ? hqLat : 37.46,
+      lng: Number.isFinite(hqLng) ? hqLng : -122.43,
+    };
+    const active = leads.filter((l) =>
+      DEAL_ACTIVE_STAGES.includes(String(l.stage || '')) && String(l.location || '').trim() && !l.isRobertBrief);
+    const cache = readDealGeoCache();
+    const points = [];
+    const arcs = [];
+    for (const lead of active.slice(0, 80)) {
+      const loc = String(lead.location).trim();
+      const geo = await geocodeDealCity(loc, cache);
+      if (!geo) continue;
+      const color = DEAL_STAGE_COLORS[String(lead.stage)] || '#d0d6e0';
+      const name = lead.brand || lead.contactName || 'Deal';
+      const money = typeof lead.value === 'number' && lead.value > 0 ? lead.value : 0;
+      points.push({
+        lat: geo.lat,
+        lng: geo.lng,
+        alt: 0.012,
+        text: name,
+        labelSize: money ? 0.62 : 0.45,
+        color,
+        label: `${name} · ${loc} · ${String(lead.stage).replace(/-/g, ' ')}${money ? ' · $' + money.toLocaleString() : ''}`,
+        name,
+        type: 'deal',
+        leadId: lead.id,
+      });
+      arcs.push({
+        startLat: geo.lat,
+        startLng: geo.lng,
+        endLat: hq.lat,
+        endLng: hq.lng,
+        color,
+        stroke: money ? 0.85 : 0.45,
+        alt: 0.22,
+        label: `${name} → Robert`,
+        type: 'deal-arc',
+        leadId: lead.id,
+      });
+    }
+    return { points, arcs, count: points.length };
   }
 
   function readLaunchCache() {
@@ -1735,6 +1867,7 @@
     const texProtoRef = React.useRef(null);
     const rocketOverlayRef = React.useRef(null);
     const flightOverlayRef = React.useRef(null);
+    const satOverlayRef = React.useRef(null);
     const radarBusyRef = React.useRef(false);
     const applyLayersRef = React.useRef(() => {});
     const syncStreetRef = React.useRef(() => {});
@@ -1757,6 +1890,7 @@
     const [flights, setFlights] = React.useState([]);
     const [satellites, setSatellites] = React.useState([]);
     const [starlink, setStarlink] = React.useState({ points: [], count: 0 });
+    const [deals, setDeals] = React.useState({ points: [], arcs: [], count: 0 });
     const [launches, setLaunches] = React.useState({ markers: [], list: [] });
     const [earthEvents, setEarthEvents] = React.useState([]);
     const [radar, setRadar] = React.useState(null);
@@ -1918,6 +2052,30 @@
       }
     }, []);
 
+    const updateSatOverlay = React.useCallback(() => {
+      const overlay = satOverlayRef.current;
+      const globe = globeInstRef.current;
+      if (!overlay || !globe || !overlay.childElementCount) return;
+      for (let i = 0; i < overlay.children.length; i++) {
+        const el = overlay.children[i];
+        const m = el.__godMarker;
+        if (!m) continue;
+        if (!markerHorizonVisible(globe, m, 2)) {
+          if (el.style.display !== 'none') el.style.display = 'none';
+          continue;
+        }
+        const alt = Number.isFinite(Number(m.alt)) ? Number(m.alt) : 0.065;
+        const c = projectToScreen(globe, m.lat, m.lng, alt, overlay.clientWidth, overlay.clientHeight);
+        if (!c) {
+          if (el.style.display !== 'none') el.style.display = 'none';
+          continue;
+        }
+        if (el.style.display === 'none') el.style.display = '';
+        el.style.left = c.x + 'px';
+        el.style.top = c.y + 'px';
+      }
+    }, []);
+
     const applyGlobeLayers = React.useCallback(() => {
       const globe = globeInstRef.current;
       if (!globe) return;
@@ -1928,6 +2086,7 @@
         const showFlights = layer === 'all' || layer === 'flights';
         const showSats = layer === 'all' || layer === 'satellites';
         const showLaunches = layer === 'all' || layer === 'launches';
+        const showDeals = layer === 'all' || layer === 'deals';
 
         const mode = weatherModeRef.current || 'temp';
         const stormMode = mode === 'storms';
@@ -1979,13 +2138,7 @@
             });
           });
         }
-        if (showSats) {
-          labelRows.push(...satellites.map((s) => ({
-            ...s,
-            text: s.text || s.label || 'SAT',
-            labelSize: s.labelSize || 0.55,
-          })));
-        }
+        // ISS is a DOM craft marker (not a text label — labels render as long poles).
         if (showEvents && !deepZoom) {
           labelRows.push(...earthEvents.map((ev) => ({
             ...ev,
@@ -2005,6 +2158,9 @@
         }
         const viewerLat = Number(viewer.lat);
         const viewerLon = viewerLng(viewer);
+        if (showDeals && !groundZoom) {
+          deals.points.forEach((d) => labelRows.push(d));
+        }
         if (!deepZoom && Number.isFinite(viewerLat) && Number.isFinite(viewerLon)) {
           labelRows.push({
             lat: viewerLat,
@@ -2056,16 +2212,19 @@
         }
 
         const activeArcs = stormMode && stormArcs.length ? stormArcs : windArcs;
-        if (showWeather && !groundZoom && activeArcs.length && (mode === 'wind' || stormMode)) {
+        const weatherArcRows = (showWeather && !groundZoom && (mode === 'wind' || stormMode)) ? activeArcs : [];
+        const dealArcRows = (showDeals && !groundZoom && deals.arcs.length) ? deals.arcs : [];
+        const arcRows = dealArcRows.concat(weatherArcRows);
+        if (arcRows.length) {
           globe
-            .arcsData(activeArcs)
+            .arcsData(arcRows)
             .arcStartLat('startLat')
             .arcStartLng('startLng')
             .arcEndLat('endLat')
             .arcEndLng('endLng')
             .arcColor('color')
             .arcStroke('stroke')
-            .arcAltitude(stormMode ? 0.04 : 0.05)
+            .arcAltitude((d) => (Number.isFinite(d?.alt) ? d.alt : (stormMode ? 0.04 : 0.05)))
             .arcDashLength(stormMode ? 0.55 : 0.45)
             .arcDashGap(stormMode ? 0.15 : 0.2)
             .arcDashAnimateTime(stormMode ? 2400 : 1800)
@@ -2075,29 +2234,47 @@
           globe.arcsData([]);
         }
 
-        // Flights stay unmerged for per-point clicks (planes also have DOM markers).
-        // The Starlink constellation is thousands of points, so when it's on we
-        // merge everything into one geometry — aircraft clicks still work through
-        // the screen-space plane markers.
-        const starlinkPoints = showSats && starlink.points.length ? starlink.points : [];
-        const pointRows = starlinkPoints.length ? starlinkPoints.concat(flightPoints) : flightPoints;
-        globe
-          .pointsData(pointRows)
-          .pointLat('lat')
-          .pointLng('lng')
-          .pointAltitude('alt')
-          .pointRadius('size')
-          .pointColor('color')
-          .pointResolution(3)
-          .pointsMerge(!!starlinkPoints.length)
-          .pointsTransitionDuration(0)
-          .onPointClick((pt) => inspectPoint(pt || null, 1.35, 900));
+        // Starlink: dense but tiny silver points (never huge cylinders).
+        // Cap count so God Mode stays readable; full count still shown in the panel.
+        const starCap = layer === 'satellites' ? STARLINK_MAX_POINTS_FOCUS : STARLINK_MAX_POINTS_ALL;
+        const starlinkPoints = showSats && starlink.points.length
+          ? thinStarlinkPoints(starlink.points, starCap)
+          : [];
+        // Keep flights as separate unmerged points when possible so plane clicks stay accurate.
+        // When Starlink is on, merge only the constellation; flights use the plane overlay.
+        if (starlinkPoints.length) {
+          globe
+            .pointsData(starlinkPoints)
+            .pointLat('lat')
+            .pointLng('lng')
+            .pointAltitude('alt')
+            .pointRadius('size')
+            .pointColor('color')
+            .pointResolution(6)
+            .pointsMerge(true)
+            .pointsTransitionDuration(0)
+            .onPointClick((pt) => inspectPoint(pt || null, 1.55, 900));
+        } else if (flightPoints.length && showFlights) {
+          globe
+            .pointsData(flightPoints)
+            .pointLat('lat')
+            .pointLng('lng')
+            .pointAltitude('alt')
+            .pointRadius('size')
+            .pointColor('color')
+            .pointResolution(6)
+            .pointsMerge(false)
+            .pointsTransitionDuration(0)
+            .onPointClick((pt) => inspectPoint(pt || null, 1.35, 900));
+        } else {
+          globe.pointsData([]);
+        }
 
-        // Paths: ISS orbit ring and/or tropical storm tracks + cone outlines.
+        // Paths: subtle ISS orbit + storm tracks.
         const pathRows = [];
         if (showSats && issTrail.length) {
           issTrail.forEach((ring) => {
-            pathRows.push({ points: ring, color: 'rgba(100,210,255,0.55)', stroke: 1.4, kind: 'iss' });
+            pathRows.push({ points: ring, color: 'rgba(180, 200, 220, 0.38)', stroke: 0.9, kind: 'iss' });
           });
         }
         stormPaths.forEach((p) => {
@@ -2121,8 +2298,8 @@
 
         globe.objectsData([]);
 
-        // Rockets live in our own screen-space overlay — the vendored globe.gl
-        // build never attaches htmlElementsData nodes to the DOM.
+        // Rockets / planes / ISS live in screen-space overlays (vendored globe.gl
+        // never attaches htmlElementsData nodes to the DOM).
         const flightOverlay = flightOverlayRef.current;
         if (flightOverlay) {
           flightOverlay.innerHTML = '';
@@ -2143,6 +2320,28 @@
             });
           }
           updateFlightOverlay();
+        }
+
+        const satOverlay = satOverlayRef.current;
+        if (satOverlay) {
+          satOverlay.innerHTML = '';
+          if (showSats && satellites.length) {
+            satellites.forEach((m) => {
+              const el = buildSatElement();
+              el.style.position = 'absolute';
+              el.style.transform = 'translate(-50%, -50%)';
+              el.style.display = 'none';
+              el.style.pointerEvents = 'auto';
+              el.style.cursor = 'pointer';
+              el.title = m.label || m.name || 'ISS';
+              el.__godMarker = m;
+              el.addEventListener('click', () => {
+                inspectPoint(m, 1.7, 1100);
+              });
+              satOverlay.appendChild(el);
+            });
+          }
+          updateSatOverlay();
         }
 
         const overlay = rocketOverlayRef.current;
@@ -2201,7 +2400,7 @@
         setLayerError(msg);
         console.error('[god-mode] layer apply failed', e);
       }
-    }, [layer, weather, storms, flights, satellites, starlink, launches, earthEvents, viewer, weatherMode, issTrail, updateRocketOverlay, updateFlightOverlay, inspectPoint]);
+    }, [layer, weather, storms, flights, satellites, starlink, launches, earthEvents, deals, viewer, weatherMode, issTrail, updateRocketOverlay, updateFlightOverlay, updateSatOverlay, inspectPoint]);
 
     applyLayersRef.current = applyGlobeLayers;
     syncStreetRef.current = syncZoomLabel;
@@ -2424,6 +2623,7 @@
               }
               updateRocketOverlay();
               updateFlightOverlay();
+              updateSatOverlay();
               cloudSpinRef.current = window.requestAnimationFrame(frameTick);
             };
             cloudSpinRef.current = window.requestAnimationFrame(frameTick);
@@ -2479,6 +2679,7 @@
         if (globeRef.current) globeRef.current.innerHTML = '';
         if (rocketOverlayRef.current) rocketOverlayRef.current.innerHTML = '';
         if (flightOverlayRef.current) flightOverlayRef.current.innerHTML = '';
+        if (satOverlayRef.current) satOverlayRef.current.innerHTML = '';
       };
     }, [open]);
 
@@ -2578,6 +2779,10 @@
           loadFeed('satellites', fetchIss, (v) => {
             setSatellites(v);
             setStats((s) => ({ ...s, sats: Math.max(Number(s.sats) || 0, v.length) }));
+          }),
+          loadFeed('deals', () => fetchDealMarkers(viewerRef.current), (v) => {
+            setDeals(v);
+            setStats((s) => ({ ...s, deals: v.count }));
           }),
           loadFeed('starlink', fetchStarlink, (v) => {
             setStarlink(v);
@@ -2802,6 +3007,11 @@
               ref: flightOverlayRef,
               className: 'v4-godmode-flight-overlay',
               style: { position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 2 },
+            }),
+            React.createElement('div', {
+              ref: satOverlayRef,
+              className: 'v4-godmode-sat-overlay',
+              style: { position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 3 },
             }),
             React.createElement('div', {
               ref: rocketOverlayRef,
@@ -3070,7 +3280,8 @@
               React.Fragment,
               null,
               React.createElement('div', { className: 'v4-godmode-panel-head' }, 'Satellite tracking'),
-              React.createElement('p', { className: 'v4-godmode-panel-note' }, 'ISS live position with its full orbit ring (cyan). Position updates every 8 seconds.'),
+              React.createElement('p', { className: 'v4-godmode-panel-note' },
+                'ISS as a craft marker (body + solar panels) with a soft orbit ring. Starlink shows as fine silver dots — capped so the globe stays readable. Updates every few seconds.'),
               satellites.map((s) => {
                 const lat = Number(s.lat);
                 const lng = Number(s.lng);
