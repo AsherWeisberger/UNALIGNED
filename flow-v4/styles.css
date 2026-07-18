@@ -15051,8 +15051,31 @@ button.hd-brand.v6-gbrand:focus-visible {
     display: none;
   }
 
+  /* Compact God Mode entry (full weather chip is too wide on phones) */
   .hd-local-clock {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 36px;
+    padding: 6px 10px;
+    max-width: none;
+  }
+  .hd-local-clock-meta,
+  .hd-local-clock-place,
+  .hd-local-clock-weather-label {
     display: none;
+  }
+  .hd-local-clock-time {
+    font-size: 12px;
+  }
+  .hd-local-clock-temp {
+    font-size: 12px;
+  }
+  .hd-local-clock::before {
+    content: '◎';
+    font-size: 12px;
+    opacity: 0.75;
+    margin-right: 2px;
   }
 }
 
@@ -22981,4 +23004,62 @@ body[data-theme] .cos-brain-signal {
   .sandbox-panel { padding: 16px 14px 28px; }
   .sandbox-grid-3,
   .sandbox-pipeline { grid-template-columns: 1fr; }
+}
+
+/* Focus list <-> reader gutter: one divider line, not three. The list keeps its
+   border-right; the reader's border-left is dropped inside the focus workspace,
+   and the list scrollbar becomes a slim overlay instead of a wide track band. */
+.focus-workspace-reader .cos2-reader { border-left: 0; }
+.focus-workspace-list,
+.focus-oasis-list {
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--text-3) 38%, transparent) transparent;
+}
+.focus-workspace-list::-webkit-scrollbar { width: 8px; }
+.focus-workspace-list::-webkit-scrollbar-track { background: transparent; }
+.focus-workspace-list::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--text-3) 38%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/* ─── Motion system: one curve, one tempo, everywhere ─────────────────────
+   View Transitions power reader crossfades, room-tab swaps, and row FLIP
+   (approved rows fade out, the gap glides closed). Reduced-motion users get
+   instant swaps — V4Motion() skips the transition entirely. */
+:root {
+  --motion-fast: 150ms;
+  --motion-base: 200ms;
+  --motion-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 170ms;
+    animation-timing-function: var(--motion-ease);
+  }
+  .focus-workspace-reader { view-transition-name: focus-reader; }
+  ::view-transition-old(focus-reader) {
+    animation: v4-vt-out 150ms var(--motion-ease) both;
+  }
+  ::view-transition-new(focus-reader) {
+    animation: v4-vt-in 200ms var(--motion-ease) both;
+  }
+  ::view-transition-group(*) {
+    animation-duration: 190ms;
+    animation-timing-function: var(--motion-ease);
+  }
+  .focus-row {
+    transition: background var(--motion-fast) var(--motion-ease);
+  }
+  .focus-row:active { transform: scale(0.996); }
+}
+@keyframes v4-vt-out {
+  to { opacity: 0; transform: translateX(-8px); }
+}
+@keyframes v4-vt-in {
+  from { opacity: 0; transform: translateX(8px); }
+  to { opacity: 1; transform: none; }
 }

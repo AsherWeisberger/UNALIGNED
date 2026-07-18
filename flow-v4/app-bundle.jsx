@@ -2622,6 +2622,7 @@ function V3NormalizeSupabaseLead(row) {
     contactName: name,
     contactRole: row.job_title || row.lead_source || '',
     brand,
+    location: String(row.location || '').trim(),
     stage,
     value,
     deliverables: row.intent || row.lead_source || '',
@@ -13427,9 +13428,11 @@ function V4TodayView({ user, leads, onOpenLead, onGoInbox, onOpenInCompanyOs, on
 
   const openLead = (lead) => {
     if (!lead) return;
-    setSelectedId(lead.id);
-    setComposeOpen(false);
-    setMobileReader(true);
+    V4Motion(() => {
+      setSelectedId(lead.id);
+      setComposeOpen(false);
+      setMobileReader(true);
+    });
   };
 
   const closeMobileReader = () => {
@@ -13497,7 +13500,7 @@ function V4TodayView({ user, leads, onOpenLead, onGoInbox, onOpenInCompanyOs, on
               className="focus-oasis-primary"
               onClick={() => openLead(needsYouList[0])}
             >
-              Review next · {needsYou}
+              Review next · <AnimatedCounter value={needsYou} />
             </button>
           ) : null}
           <button type="button" className="focus-oasis-ghost" onClick={onNewLeadClick}>
@@ -13519,10 +13522,10 @@ function V4TodayView({ user, leads, onOpenLead, onGoInbox, onOpenInCompanyOs, on
                 role="tab"
                 aria-selected={room === tab.id}
                 className={'focus-room-tab is-' + tab.tone + (room === tab.id ? ' is-active' : '')}
-                onClick={() => setRoom(tab.id)}
+                onClick={() => V4Motion(() => setRoom(tab.id))}
               >
                 <span>{tab.label}</span>
-                <strong>{tab.count}</strong>
+                <strong><AnimatedCounter value={tab.count} /></strong>
               </button>
             ))}
           </div>
@@ -13580,10 +13583,11 @@ function V4FocusSection({ id, label, note, tone, leads, empty, onOpen, selectedI
         <div className="focus-empty">{empty}</div>
       ) : (
         <div className="focus-list">
-          {leads.map((lead) => (
+          {leads.map((lead, idx) => (
             <V4FocusRow
               key={lead.id}
               lead={lead}
+              vtIndex={idx}
               user={user}
               stageById={stageById}
               sortMode={sortMode}
@@ -13597,7 +13601,7 @@ function V4FocusSection({ id, label, note, tone, leads, empty, onOpen, selectedI
   );
 }
 
-function V4FocusRow({ lead, user, stageById, sortMode, isSelected, onOpen }) {
+function V4FocusRow({ lead, user, stageById, sortMode, isSelected, onOpen, vtIndex }) {
   const stage = (stageById && stageById[lead.stage]) || { name: lead.stage || '—', color: 'var(--text-3)', short: lead.stage };
   const brand = (typeof V4CosLeadDisplayTitle === 'function' ? V4CosLeadDisplayTitle(lead) : null)
     || lead.brand || lead.title || lead.contactName || 'Lead';
@@ -13625,6 +13629,9 @@ function V4FocusRow({ lead, user, stageById, sortMode, isSelected, onOpen }) {
     <button
       type="button"
       className={'focus-row focus-row-oasis' + (needsYou ? ' is-needs-you' : '') + (isSelected ? ' is-selected' : '')}
+      style={typeof vtIndex === 'number' && vtIndex < 24
+        ? { viewTransitionName: 'flead-' + String(lead.id).replace(/[^a-zA-Z0-9_-]/g, '_') }
+        : undefined}
       onClick={onOpen}
       data-track={'focus:open:' + (lead.stage || 'lead')}
       aria-current={isSelected ? 'true' : undefined}
@@ -23596,6 +23603,27 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
 }
 
 // Small premium animated counter for "alive" metrics
+// One motion language for state swaps: wrap a state update in a View Transition
+// when the browser supports it (Safari 18+/Chrome). Elements with a
+// view-transition-name glide (FLIP) — removed rows fade out, gaps close,
+// readers crossfade. Falls back to an instant update everywhere else.
+function V4Motion(apply) {
+  try {
+    if (typeof document !== 'undefined'
+      && typeof document.startViewTransition === 'function'
+      && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      && document.visibilityState === 'visible') {
+      const t = document.startViewTransition(() => { apply(); });
+      // Aborted transitions (rapid clicks, tab hidden) are fine — never surface.
+      if (t?.finished?.catch) t.finished.catch(() => {});
+      if (t?.ready?.catch) t.ready.catch(() => {});
+      if (t?.updateCallbackDone?.catch) t.updateCallbackDone.catch(() => {});
+      return;
+    }
+  } catch (e) {}
+  apply();
+}
+
 function AnimatedCounter({ value, className = '', format }) {
   const [display, setDisplay] = React.useState(value);
   const prevRef = React.useRef(value);
@@ -25909,7 +25937,7 @@ function V4LoadGodModeModule() {
       return;
     }
     const s = document.createElement('script');
-    s.src = 'flow-v4/god-mode-earth.js?v=20260717-godmode-storms-v1';
+    s.src = 'flow-v4/god-mode-earth.js?v=20260718-godmode-deals-v1';
     s.async = true;
     s.onload = () => {
       if (typeof window.V4GodModeEarth === 'function') resolve(window.V4GodModeEarth);
@@ -26727,6 +26755,11 @@ function V4App() {
   };
   const mobileMoreActive = mobileMenuOpen || ['calendar', 'inbox', 'invoices', 'new-leads', 'leads'].includes(view) ||
     (view === 'company-os' && (cosPartnerFeedbackOpen || cosDeskIntakeOpen || cosScopeIntakeOpen));
+  const openGodModeMobile = () => {
+    setGodModeViewer({});
+    setGodModeLayer('weather');
+    setGodModeOpen(true);
+  };
   const mobileCommandGroups = [
     {
       label: 'Daily work',
@@ -26741,6 +26774,7 @@ function V4App() {
     {
       label: 'Tools',
       items: [
+        { label: 'God Mode', hint: '3D earth · weather, flights, storms', icon: 'network', run: openGodModeMobile },
         { label: 'Toolkit', hint: 'Brief Maker, X signal, manual lead', icon: 'bolt', run: goToOrgansToolkit },
         { label: 'Network', hint: 'Contacts and history', icon: 'network', run: () => goView('leads') },
         { label: 'Partner Feedback', hint: 'Score completed collabs', icon: 'star', run: goToPartnerFeedback },
@@ -26759,6 +26793,15 @@ function V4App() {
     { label: 'Go to Scope forms', hint: 'package + scope submissions', run: goToScopeIntake },
     { label: 'Go to Focus', hint: 'New · Live · Negotiating', run: () => goView('today') },
     { label: 'Sandbox Test', hint: 'Guided sales demo of Company OS', run: () => goView('sandbox') },
+    {
+      label: 'God Mode',
+      hint: '3D earth · weather, flights, storms',
+      run: () => {
+        setGodModeViewer({});
+        setGodModeLayer('weather');
+        setGodModeOpen(true);
+      },
+    },
     { label: 'Go to Calendar', run: () => goView('calendar') },
     { label: 'Go to Briefs', run: () => goView('inbox') },
     { label: 'Go to Invoices', run: () => goView('invoices') },
