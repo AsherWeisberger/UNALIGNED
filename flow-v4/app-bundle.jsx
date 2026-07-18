@@ -23708,8 +23708,10 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
     const closedItems = live.filter(l => ['done', 'paid-out'].includes(l.stage)).sort(byRecent);
     const snoozedItems = liveAll.filter(isSnoozed).sort((a, b) => Date.parse(snoozes[a.id]) - Date.parse(snoozes[b.id]));
     const trashItems = allCos.filter(l => ['trash', 'dead-leads'].includes(l.stage)).sort(byRecent);
+    const reviewCount = live.filter(l => String(l.draftReplyStatus || '').toLowerCase() === 'review').length;
     return {
       intakeItems,
+      intakeNonTravel,
       activeItems,
       travelItems,
       sendQueue,
@@ -23719,11 +23721,13 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
       closedItems,
       snoozedItems,
       trashItems,
+      reviewCount,
     };
   }, [liveAll, allCos, isSnoozed, byRecent, snoozes]);
 
   const {
     intakeItems,
+    intakeNonTravel,
     activeItems,
     travelItems,
     sendQueue,
@@ -23733,6 +23737,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
     closedItems,
     snoozedItems,
     trashItems,
+    reviewCount,
   } = queues;
 
   const splits = React.useMemo(() => [
@@ -24365,8 +24370,7 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
   const sendCount = sendQueue.length;
   const chasePayTotal = chaseItems.filter(l => l.stage === 'invoice-sent').reduce((s, l) => s + (l.value || 0), 0);
   const briefRobertCount = chaseItems.filter(l => l.stage === 'done').length;
-  const intakeCount = intakeNonTravel.length;
-  const reviewCount = live.filter(l => String(l.draftReplyStatus || '').toLowerCase() === 'review').length;
+  const intakeCount = (intakeNonTravel || []).length;
   const openPipeline = activeItems.reduce((s, l) => s + (l.value || 0), 0);
 
   const pulseParts = [
