@@ -14572,23 +14572,41 @@ function V4Reader({ lead, user, onBack, onMoveStage }) {
 }
 
 // ─── Leads list ─────────────────────────────────────────────
-function V4RolodexNormEmail(value) {
+function V4PeopleNormEmail(value) {
   return String(value || '').trim().toLowerCase();
 }
 
-function V4RolodexPersonKey(person) {
-  const email = V4RolodexNormEmail(person?.email);
+function V4PeoplePersonKey(person) {
+  const email = V4PeopleNormEmail(person?.email);
   if (email) return 'e:' + email;
   return 'n:' + String(person?.company || '').trim().toLowerCase() + '|' + String(person?.contact || '').trim().toLowerCase();
 }
 
-function V4RolodexLetter(company, contact) {
+function V4PeopleLetter(company, contact) {
   const raw = String(company || contact || '').trim();
   const ch = raw.charAt(0).toUpperCase();
   return /[A-Z]/.test(ch) ? ch : '#';
 }
 
-const V4_ROLODEX_SEGMENTS = [
+function V4PeopleInitials(contact, company) {
+  const name = String(contact || company || '?').trim();
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase() || '?';
+}
+
+function V4PeopleFormatHandle(handle) {
+  const raw = String(handle || '').trim();
+  if (!raw) return '';
+  return raw.startsWith('@') ? raw : '@' + raw.replace(/^@+/, '');
+}
+
+function V4PeopleXUrl(handle) {
+  const raw = String(handle || '').trim().replace(/^@+/, '');
+  return raw ? ('https://x.com/' + encodeURIComponent(raw)) : '';
+}
+
+const V4_PEOPLE_SEGMENTS = [
   { id: 'all', label: 'All' },
   { id: 'past', label: 'Past' },
   { id: 'closing', label: 'Closing' },
@@ -14600,7 +14618,7 @@ const V4_ROLODEX_SEGMENTS = [
   { id: 'active', label: 'Active' },
 ];
 
-const V4_ROLODEX_SEGMENT_LABELS = {
+const V4_PEOPLE_SEGMENT_LABELS = {
   past: 'Past',
   closing: 'Closing',
   negotiating: 'Negotiating',
@@ -14612,16 +14630,110 @@ const V4_ROLODEX_SEGMENT_LABELS = {
   unknown: 'Unknown',
 };
 
+// Compat aliases for older call sites / mental map.
+const V4RolodexNormEmail = V4PeopleNormEmail;
+const V4RolodexPersonKey = V4PeoplePersonKey;
+const V4RolodexLetter = V4PeopleLetter;
+const V4_ROLODEX_SEGMENTS = V4_PEOPLE_SEGMENTS;
+const V4_ROLODEX_SEGMENT_LABELS = V4_PEOPLE_SEGMENT_LABELS;
+
+function V4PeopleDetailPanel({ person, onOpenLead, onBack, mobile }) {
+  if (!person) {
+    return (
+      <aside className="people-detail people-detail--empty" aria-label="Person detail">
+        <div className="people-empty-detail">
+          <strong>Select a person</strong>
+          <span>Choose someone from the list to see contact details and open their live deal.</span>
+        </div>
+      </aside>
+    );
+  }
+  const handle = V4PeopleFormatHandle(person.x_handle);
+  const xUrl = V4PeopleXUrl(person.x_handle);
+  const segLabel = V4_PEOPLE_SEGMENT_LABELS[person.segment] || person.segment || 'Unknown';
+  return (
+    <aside className={'people-detail' + (mobile ? ' people-detail--sheet' : '')} aria-label="Person detail">
+      {mobile ? (
+        <button type="button" className="people-back" onClick={onBack}>
+          <span aria-hidden="true">←</span> People
+        </button>
+      ) : null}
+      <div className="people-detail-hero">
+        <div className="people-avatar people-avatar--lg" aria-hidden="true">{V4PeopleInitials(person.contact, person.company)}</div>
+        <div className="people-detail-hero-text">
+          <h2 className="people-detail-name">{person.contact || 'No contact name'}</h2>
+          <div className="people-detail-company">{person.company || 'Unknown company'}</div>
+        </div>
+      </div>
+      <div className="people-detail-tags">
+        <span className={'people-seg people-seg--' + (person.segment || 'unknown')}>{segLabel}</span>
+        {person.leadId ? <span className="people-live">Live deal</span> : <span className="people-seed">Seed only</span>}
+      </div>
+      <dl className="people-detail-grid">
+        <div>
+          <dt>Email</dt>
+          <dd>{person.email ? <a href={'mailto:' + person.email}>{person.email}</a> : '—'}</dd>
+        </div>
+        <div>
+          <dt>X handle</dt>
+          <dd>{handle ? (xUrl ? <a href={xUrl} target="_blank" rel="noopener noreferrer">{handle}</a> : handle) : '—'}</dd>
+        </div>
+        <div>
+          <dt>Segment</dt>
+          <dd>{segLabel}</dd>
+        </div>
+        <div>
+          <dt>Est value</dt>
+          <dd>{person.est_value || '—'}</dd>
+        </div>
+        <div>
+          <dt>Source</dt>
+          <dd>{person.source || '—'}</dd>
+        </div>
+        <div>
+          <dt>Last updated</dt>
+          <dd>{person.last_updated || '—'}</dd>
+        </div>
+        <div>
+          <dt>Deal state</dt>
+          <dd>{person.deal_state || person.liveStage || '—'}</dd>
+        </div>
+        <div>
+          <dt>Channels</dt>
+          <dd>{(person.channels || []).join(', ') || '—'}</dd>
+        </div>
+      </dl>
+      {person.notes ? <p className="people-detail-notes">{person.notes}</p> : null}
+      {person.leadId ? (
+        <button
+          type="button"
+          className="btn people-open-deal"
+          onClick={() => onOpenLead?.(person.leadId)}
+        >
+          Open live deal
+        </button>
+      ) : (
+        <p className="people-detail-hint">No live Company OS card matches this contact yet.</p>
+      )}
+    </aside>
+  );
+}
+
 function V4LeadsView({ leads = [], query = '', openId, onOpenLead, user }) {
   const [seedPeople, setSeedPeople] = React.useState([]);
   const [seedStatus, setSeedStatus] = React.useState('loading');
   const [seg, setSeg] = React.useState('all');
   const [selectedKey, setSelectedKey] = React.useState(null);
+  const [mobileSheet, setMobileSheet] = React.useState(false);
+  const [isDesktop, setIsDesktop] = React.useState(() => (
+    typeof window !== 'undefined' ? window.matchMedia('(min-width: 900px)').matches : true
+  ));
   const listRef = React.useRef(null);
+  const pageRef = React.useRef(null);
 
   React.useEffect(() => {
     let cancelled = false;
-    fetch('flow-v4/assets/rolodex_seed.json?v=20260810-rolodex-v1')
+    fetch('flow-v4/assets/rolodex_seed.json?v=20260810-people-dual-v1')
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error('seed missing'))))
       .then((data) => {
         if (cancelled) return;
@@ -14637,11 +14749,27 @@ function V4LeadsView({ leads = [], query = '', openId, onOpenLead, user }) {
     return () => { cancelled = true; };
   }, []);
 
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+    const mq = window.matchMedia('(min-width: 900px)');
+    const onChange = () => {
+      setIsDesktop(mq.matches);
+      if (mq.matches) setMobileSheet(false);
+    };
+    onChange();
+    if (mq.addEventListener) mq.addEventListener('change', onChange);
+    else mq.addListener(onChange);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener('change', onChange);
+      else mq.removeListener(onChange);
+    };
+  }, []);
+
   const leadIndex = React.useMemo(() => {
     const byEmail = new Map();
     const byName = new Map();
     (leads || []).forEach((lead) => {
-      const email = V4RolodexNormEmail(lead?.email || lead?.contactEmail);
+      const email = V4PeopleNormEmail(lead?.email || lead?.contactEmail);
       if (email && !byEmail.has(email)) byEmail.set(email, lead);
       const nameKey = String(lead?.brand || '').trim().toLowerCase() + '|' + String(lead?.contactName || '').trim().toLowerCase();
       if (nameKey !== '|' && !byName.has(nameKey)) byName.set(nameKey, lead);
@@ -14651,13 +14779,13 @@ function V4LeadsView({ leads = [], query = '', openId, onOpenLead, user }) {
 
   const people = React.useMemo(() => {
     return (seedPeople || []).map((person) => {
-      const email = V4RolodexNormEmail(person.email);
+      const email = V4PeopleNormEmail(person.email);
       const nameKey = String(person.company || '').trim().toLowerCase() + '|' + String(person.contact || '').trim().toLowerCase();
       const lead = (email && leadIndex.byEmail.get(email)) || leadIndex.byName.get(nameKey) || null;
       return {
         ...person,
-        key: V4RolodexPersonKey(person),
-        letter: V4RolodexLetter(person.company, person.contact),
+        key: V4PeoplePersonKey(person),
+        letter: V4PeopleLetter(person.company, person.contact),
         lead,
         leadId: lead?.id || null,
         liveStage: lead?.stage || '',
@@ -14699,7 +14827,7 @@ function V4LeadsView({ leads = [], query = '', openId, onOpenLead, user }) {
 
   const segmentCounts = React.useMemo(() => {
     const counts = { all: searched.length };
-    V4_ROLODEX_SEGMENTS.forEach((item) => {
+    V4_PEOPLE_SEGMENTS.forEach((item) => {
       if (item.id === 'all') return;
       counts[item.id] = searched.filter((person) => person.segment === item.id).length;
     });
@@ -14720,57 +14848,87 @@ function V4LeadsView({ leads = [], query = '', openId, onOpenLead, user }) {
     return letters.map((letter) => ({ letter, people: map.get(letter) }));
   }, [filtered]);
 
-  const railLetters = React.useMemo(() => {
-    const present = new Set(groups.map((g) => g.letter));
-    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').concat(['#']);
-    return alphabet.filter((letter) => present.has(letter));
-  }, [groups]);
+  const selected = selectedKey ? (people.find((person) => person.key === selectedKey) || null) : null;
 
-  const selected = selectedKey ? people.find((person) => person.key === selectedKey) : null;
+  React.useEffect(() => {
+    if (!selectedKey) return;
+    if (!filtered.some((person) => person.key === selectedKey)) {
+      setSelectedKey(null);
+      setMobileSheet(false);
+    }
+  }, [filtered, selectedKey]);
+
+  const selectPerson = React.useCallback((person, { openSheet = false } = {}) => {
+    setSelectedKey(person.key);
+    if (!isDesktop && openSheet) setMobileSheet(true);
+  }, [isDesktop]);
+
+  const openLiveDeal = React.useCallback((person) => {
+    if (person?.leadId && typeof onOpenLead === 'function') onOpenLead(person.leadId);
+  }, [onOpenLead]);
 
   const jumpToLetter = (letter) => {
-    const node = listRef.current?.querySelector(`[data-rolo-letter="${letter}"]`);
+    const node = listRef.current?.querySelector(`[data-people-letter="${letter}"]`);
     if (node) node.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const onRowClick = (person) => {
-    if (person.leadId && typeof onOpenLead === 'function') {
-      onOpenLead(person.leadId);
-      return;
-    }
-    setSelectedKey((prev) => (prev === person.key ? null : person.key));
-  };
+  React.useEffect(() => {
+    const onKey = (event) => {
+      if (!pageRef.current) return;
+      const tag = String(event.target?.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || event.target?.isContentEditable) return;
+      if (!['ArrowDown', 'ArrowUp', 'Enter'].includes(event.key)) return;
+      if (!filtered.length) return;
+      const idx = Math.max(0, filtered.findIndex((person) => person.key === selectedKey));
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        const next = filtered[Math.min(filtered.length - 1, (selectedKey ? idx + 1 : 0))];
+        if (next) {
+          selectPerson(next, { openSheet: false });
+          listRef.current?.querySelector(`[data-people-key="${next.key}"]`)?.scrollIntoView({ block: 'nearest' });
+        }
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        const prev = filtered[Math.max(0, (selectedKey ? idx - 1 : 0))];
+        if (prev) {
+          selectPerson(prev, { openSheet: false });
+          listRef.current?.querySelector(`[data-people-key="${prev.key}"]`)?.scrollIntoView({ block: 'nearest' });
+        }
+      } else if (event.key === 'Enter') {
+        const person = selectedKey ? filtered.find((p) => p.key === selectedKey) : null;
+        if (person?.leadId) {
+          event.preventDefault();
+          openLiveDeal(person);
+        }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [filtered, selectedKey, selectPerson, openLiveDeal]);
 
-  const formatHandle = (handle) => {
-    const raw = String(handle || '').trim();
-    if (!raw) return '';
-    return raw.startsWith('@') ? raw : '@' + raw.replace(/^@+/, '');
-  };
+  const showMobileDetail = !isDesktop && mobileSheet && selected;
 
   return (
-    <div className="page rolo-page">
+    <div className="page people-page" ref={pageRef}>
       <div className="page-hd">
         <div>
-          <div className="page-eyebrow">People directory</div>
-          <h1 className="page-title">Rolodex</h1>
+          <div className="page-eyebrow">Directory</div>
+          <h1 className="page-title">People</h1>
           <div className="page-sub">
-            Partners and X collabs in one A to Z directory
+            Partners and X collabs in one calm directory
             {seedStatus === 'ready' ? ` · ${people.length} people` : ''}
-            {q ? ` · ${filtered.length} shown` : ''}
+            {q || seg !== 'all' ? ` · ${filtered.length} shown` : ''}
           </div>
         </div>
         <div className="page-actions">
-          {seedStatus === 'loading' && <span className="rolo-status">Loading contacts…</span>}
-          {seedStatus === 'error' && <span className="rolo-status is-error">Seed missing. Check flow-v4/assets/rolodex_seed.json</span>}
-          {selected && !selected.leadId && (
-            <button type="button" className="btn btn-sm" onClick={() => setSelectedKey(null)}>Close detail</button>
-          )}
+          {seedStatus === 'loading' && <span className="people-status">Loading contacts…</span>}
+          {seedStatus === 'error' && <span className="people-status is-error">Seed missing. Check flow-v4/assets/rolodex_seed.json</span>}
         </div>
       </div>
 
-      <div className="body rolo-body">
-        <div className="rolo-chips" role="tablist" aria-label="Rolodex segments">
-          {V4_ROLODEX_SEGMENTS.map((item) => {
+      <div className="body people-body">
+        <div className="people-chips" role="tablist" aria-label="People segments">
+          {V4_PEOPLE_SEGMENTS.map((item) => {
             const active = seg === item.id;
             const count = segmentCounts[item.id] || 0;
             return (
@@ -14779,7 +14937,7 @@ function V4LeadsView({ leads = [], query = '', openId, onOpenLead, user }) {
                 type="button"
                 role="tab"
                 aria-selected={active}
-                className={'rolo-chip' + (active ? ' is-active' : '')}
+                className={'people-chip' + (active ? ' is-active' : '')}
                 onClick={() => setSeg(item.id)}
               >
                 {item.label}
@@ -14789,52 +14947,46 @@ function V4LeadsView({ leads = [], query = '', openId, onOpenLead, user }) {
           })}
         </div>
 
-        <div className={'rolo-layout' + (selected && !selected.leadId ? ' has-detail' : '')}>
-          <div className="rolo-main">
-            <nav className="rolo-rail" aria-label="Jump to letter">
-              {railLetters.map((letter) => (
-                <button key={letter} type="button" className="rolo-rail-btn" onClick={() => jumpToLetter(letter)}>{letter}</button>
-              ))}
-            </nav>
-
-            <div className="rolo-list" ref={listRef}>
+        <div className={'people-layout' + (showMobileDetail ? ' is-mobile-detail' : '')}>
+          <section className="people-list-pane" aria-label="People list">
+            <div className="people-list" ref={listRef}>
               {seedStatus === 'ready' && filtered.length === 0 && (
-                <div className="rolo-empty">
+                <div className="people-empty">
                   <strong>No people match.</strong>
                   <span>Try another segment or clear search.</span>
                 </div>
               )}
               {groups.map((group) => (
-                <section key={group.letter} className="rolo-letter-group" data-rolo-letter={group.letter}>
-                  <header className="rolo-letter-hd sticky">{group.letter}</header>
+                <section key={group.letter} className="people-letter-group" data-people-letter={group.letter}>
+                  <header className="people-letter-hd sticky">{group.letter}</header>
                   {group.people.map((person) => {
-                    const handle = formatHandle(person.x_handle);
-                    const segLabel = V4_ROLODEX_SEGMENT_LABELS[person.segment] || person.segment || 'Unknown';
+                    const handle = V4PeopleFormatHandle(person.x_handle);
+                    const segLabel = V4_PEOPLE_SEGMENT_LABELS[person.segment] || person.segment || 'Unknown';
                     const isOpen = openId && person.leadId && openId === person.leadId;
                     const isSelected = selectedKey === person.key;
                     return (
                       <button
                         key={person.key}
                         type="button"
-                        className={'rolo-row' + (isOpen || isSelected ? ' is-active' : '') + (person.leadId ? ' has-lead' : '')}
-                        onClick={() => onRowClick(person)}
+                        data-people-key={person.key}
+                        className={'people-row' + (isOpen || isSelected ? ' is-active' : '') + (person.leadId ? ' has-lead' : '')}
+                        onClick={() => {
+                          if (isDesktop) selectPerson(person);
+                          else selectPerson(person, { openSheet: true });
+                        }}
+                        onDoubleClick={() => openLiveDeal(person)}
                       >
-                        <div className="rolo-row-main">
-                          <strong className="rolo-company">{person.company || 'Unknown company'}</strong>
-                          <span className="rolo-contact">{person.contact || 'No contact name'}</span>
-                        </div>
-                        <div className="rolo-row-meta">
-                          <span className="rolo-email">{person.email || 'No email'}</span>
-                          {handle ? <span className="rolo-handle">{handle}</span> : null}
-                        </div>
-                        <div className="rolo-row-tags">
-                          <span className={'rolo-seg rolo-seg--' + (person.segment || 'unknown')}>{segLabel}</span>
-                          {person.est_value ? <span className="rolo-value">{person.est_value}</span> : null}
-                          {person.leadId ? <span className="rolo-live">Live deal</span> : <span className="rolo-seed">Seed only</span>}
-                        </div>
-                        <div className="rolo-row-foot">
-                          <span>{person.source || '—'}</span>
-                          <span>{person.last_updated || '—'}</span>
+                        <div className="people-avatar" aria-hidden="true">{V4PeopleInitials(person.contact, person.company)}</div>
+                        <div className="people-row-main">
+                          <div className="people-row-top">
+                            <strong className="people-row-name">{person.contact || 'No contact name'}</strong>
+                            {person.leadId ? <span className="people-live">Live deal</span> : null}
+                          </div>
+                          <div className="people-row-company">{person.company || 'Unknown company'}</div>
+                          <div className="people-row-meta">
+                            <span>{person.email || handle || 'No contact'}</span>
+                            <span className={'people-seg people-seg--' + (person.segment || 'unknown')}>{segLabel}</span>
+                          </div>
                         </div>
                       </button>
                     );
@@ -14842,32 +14994,31 @@ function V4LeadsView({ leads = [], query = '', openId, onOpenLead, user }) {
                 </section>
               ))}
             </div>
-          </div>
+            {groups.length > 1 ? (
+              <nav className="people-az" aria-label="Jump to letter">
+                {groups.map((group) => (
+                  <button key={group.letter} type="button" className="people-az-btn" onClick={() => jumpToLetter(group.letter)}>{group.letter}</button>
+                ))}
+              </nav>
+            ) : null}
+          </section>
 
-          {selected && !selected.leadId && (
-            <aside className="rolo-detail" aria-label="Contact detail">
-              <div className="rolo-detail-eyebrow">Seed contact</div>
-              <h2 className="rolo-detail-title">{selected.company || 'Unknown company'}</h2>
-              <div className="rolo-detail-sub">{selected.contact || 'No contact name'}</div>
-              <dl className="rolo-detail-grid">
-                <div><dt>Email</dt><dd>{selected.email || '—'}</dd></div>
-                <div><dt>X handle</dt><dd>{formatHandle(selected.x_handle) || '—'}</dd></div>
-                <div><dt>Segment</dt><dd>{V4_ROLODEX_SEGMENT_LABELS[selected.segment] || selected.segment || '—'}</dd></div>
-                <div><dt>Est value</dt><dd>{selected.est_value || '—'}</dd></div>
-                <div><dt>Source</dt><dd>{selected.source || '—'}</dd></div>
-                <div><dt>Deal state</dt><dd>{selected.deal_state || '—'}</dd></div>
-                <div><dt>Last updated</dt><dd>{selected.last_updated || '—'}</dd></div>
-                <div><dt>Channels</dt><dd>{(selected.channels || []).join(', ') || '—'}</dd></div>
-              </dl>
-              {selected.notes ? <p className="rolo-detail-notes">{selected.notes}</p> : null}
-              <p className="rolo-detail-hint">No live Company OS card matches this contact yet.</p>
-            </aside>
-          )}
+          {isDesktop ? (
+            <V4PeopleDetailPanel person={selected} onOpenLead={onOpenLead} />
+          ) : showMobileDetail ? (
+            <V4PeopleDetailPanel
+              person={selected}
+              onOpenLead={onOpenLead}
+              mobile
+              onBack={() => setMobileSheet(false)}
+            />
+          ) : null}
         </div>
       </div>
     </div>
   );
 }
+
 
 
 // ─── Calendar ────────────────────────────────────────────────
@@ -27170,7 +27321,7 @@ function V4UnifyView({ leads, query, user, onNavigateView }) {
       <header className="collabs-heading">
         <h1><V4UnifyDotWordmark /></h1>
         <div className="collabs-heading-actions">
-          <button type="button" className="collabs-rolo-link" onClick={() => onNavigateView?.('leads')}>Open Rolodex</button>
+          <button type="button" className="collabs-people-link" onClick={() => onNavigateView?.('leads')}>Open People</button>
           <span className="collabs-count">{filtered.length} conversations</span>
         </div>
       </header>
@@ -28693,7 +28844,7 @@ function V4App() {
     if (view === 'inbox') return user === 'robert' ? 'Search briefs…' : 'Search inbox…';
     if (view === 'invoices') return 'Search invoices…';
     if (view === 'new-leads') return 'Search new leads…';
-    if (view === 'leads') return 'Search Rolodex…';
+    if (view === 'leads') return 'Search people…';
     if (view === 'board') return 'Search pipeline…';
     if (view === 'company-os') return 'Search Company OS…';
     if (view === 'unify') return 'Search Unify…';
@@ -28924,7 +29075,7 @@ function V4App() {
       items: [
         { label: 'God Mode', hint: '3D earth · weather, flights, storms', icon: 'network', run: openGodModeMobile },
         { label: 'Toolkit', hint: 'Brief Maker, X signal, manual lead', icon: 'bolt', run: goToOrgansToolkit },
-        { label: 'Rolodex', hint: 'People directory and history', icon: 'network', run: () => goView('leads') },
+        { label: 'People', hint: 'People directory and history', icon: 'network', run: () => goView('leads') },
         { label: 'Partner Feedback', hint: 'Score completed collabs', icon: 'star', run: goToPartnerFeedback },
         { label: "Robert's Desk", hint: 'Manual public-intake lane', icon: 'leads', run: goToDeskIntake },
         { label: 'Scope Forms', hint: 'Package and scope submissions', icon: 'table', run: goToScopeIntake },
@@ -28954,7 +29105,7 @@ function V4App() {
     { label: 'Go to Invoices', run: () => goView('invoices') },
     { label: 'Go to New Leads', hint: 'Robert Gmail + X intake', run: () => goView('new-leads') },
     { label: 'Go to Intake queue', hint: 'Company OS send tab', run: goToCompanyOsHome },
-    { label: 'Go to Rolodex', run: () => goView('leads') },
+    { label: 'Go to People', run: () => goView('leads') },
     { label: 'View as Asher', hint: 'shared lane', run: () => { setTweak('viewAs', 'asher'); setOpenId(null); } },
     { label: 'View as Sammy', hint: 'shared lane', run: () => { setTweak('viewAs', 'sammy'); setOpenId(null); } },
     { label: 'View as Robert', hint: 'creator lane', run: () => { setTweak('viewAs', 'robert'); setOpenId(null); } },
@@ -28978,7 +29129,7 @@ function V4App() {
             <V3Icon name="cal" w={13} style={{ marginRight: 4 }} /> Calendar
           </button>
           <button className="hd-nav-btn" aria-current={cosCompanyOsHomeActive ? 'page' : undefined} onClick={goToCompanyOsHome}>Company OS</button>
-          <button className="hd-nav-btn" aria-current={view === 'leads' ? 'page' : undefined} onClick={() => goView('leads')}>Rolodex</button>
+          <button className="hd-nav-btn" aria-current={view === 'leads' ? 'page' : undefined} onClick={() => goView('leads')}>People</button>
           <div className="hd-nav-menu" ref={organsMenuRef}>
             <button
               className="hd-nav-btn hd-nav-menu-btn"
@@ -28999,7 +29150,7 @@ function V4App() {
                 <button role="menuitem" className="hd-nav-drop-item" aria-current={view === 'new-leads' ? 'page' : undefined} onClick={() => goView('new-leads')}>
                   New Leads {newLeadCount > 0 && <span>{newLeadCount}</span>}
                 </button>
-                <button role="menuitem" className="hd-nav-drop-item" aria-current={view === 'leads' ? 'page' : undefined} onClick={() => goView('leads')}>Rolodex</button>
+                <button role="menuitem" className="hd-nav-drop-item" aria-current={view === 'leads' ? 'page' : undefined} onClick={() => goView('leads')}>People</button>
                 <div className="hd-nav-drop-sep" aria-hidden="true" />
                 <button
                   role="menuitem"
