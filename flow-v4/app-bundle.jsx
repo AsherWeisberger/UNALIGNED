@@ -785,7 +785,7 @@ function V6CompanyOsMark(props) {
   return <V6CompanyOsLogo {...props} />;
 }
 
-/** Cinematic startup — Model Y-style fade into dashboard */
+/** Lightweight UNIFY startup — the same living dot-lattice as the product. */
 function V6CompanyOsBoot({ onDone }) {
   const [phase, setPhase] = React.useState('intro');
 
@@ -798,15 +798,12 @@ function V6CompanyOsBoot({ onDone }) {
       return undefined;
     }
     const tReveal = setTimeout(() => setPhase('reveal'), 80);
-    const tHold = setTimeout(() => setPhase('hold'), 900);
-    // Single completion path: the cube boot reveal (when present) owns the finish;
-    // otherwise fall back to the exit phase + an 800ms close. (Replaces the old
-    // fixed 3200ms tDone, which would have cut a longer cube reveal off early.)
+    const tHold = setTimeout(() => setPhase('hold'), 420);
     const tExit = setTimeout(() => {
       var finish = function () { document.body.classList.remove('v6-booting'); onDone(); };
-      if (window.cubeBootReveal) window.cubeBootReveal(finish);
-      else { setPhase('exit'); setTimeout(finish, 800); }
-    }, 2400);
+      setPhase('exit');
+      setTimeout(finish, 280);
+    }, 1050);
     return () => {
       clearTimeout(tReveal);
       clearTimeout(tHold);
@@ -822,11 +819,8 @@ function V6CompanyOsBoot({ onDone }) {
       <div className="v6-boot-vignette" />
       <div className="v6-boot-glow" />
       <div className="v6-boot-core">
-        <div className="v6-boot-monogram" aria-hidden="true">U</div>
-        <div className="v6-boot-wordmark">Company <em>OS</em></div>
-        <div className="v6-boot-tagline">run the company from one place</div>
+        <div className="v6-boot-unify"><V4UnifyDotWordmark /></div>
       </div>
-      <div className="v6-boot-progress" aria-hidden="true"><span /></div>
     </div>
   );
 }
@@ -834,12 +828,12 @@ function V6CompanyOsBoot({ onDone }) {
 function V4AppRoot() {
   const skipBoot = React.useMemo(() => {
     if (/[?&]nosplash(?:=1)?(?:&|$)/.test(window.location.search)) return true;
-    try { return window.sessionStorage.getItem('v6_boot_done') === '1'; } catch (e) { return false; }
+    try { return window.sessionStorage.getItem('unify_boot_done_v1') === '1'; } catch (e) { return false; }
   }, []);
   const [ready, setReady] = React.useState(skipBoot);
 
   const finishBoot = React.useCallback(() => {
-    try { window.sessionStorage.setItem('v6_boot_done', '1'); } catch (e) {}
+    try { window.sessionStorage.setItem('unify_boot_done_v1', '1'); } catch (e) {}
     setReady(true);
   }, []);
 
@@ -1067,7 +1061,7 @@ const V3_SUPABASE_LIST_COLUMNS = [
   'deal_awaiting', 'deal_evidence', 'deal_next_action', 'needs_human_read', 'ready_to_invoice', 'agreement',
   'brief_status', 'needs_reply', 'needs_followup', 'last_inbound_at', 'sender_group', 'quality_tier', 'activity',
   'checklist', 'due_date', 'email_id', 'labels', 'linkedin_url', 'location', 'merged_into', 'phone', 'priority',
-  'reply_hook', 'helper_thread',
+  'reply_hook', 'helper_thread', 'operator_last_seen_at',
 ].join(',');
 
 const V3_SUPABASE_DETAIL_COLUMNS = V3_SUPABASE_LIST_COLUMNS + ',email_thread,original_email';
@@ -1626,8 +1620,20 @@ function V3EnrichLeadFromXIntakeRow(lead, intakeRow) {
   merged.xMessageCount = lead.xMessageCount || intake.xMessageCount;
   merged.xContactInfo = lead.xContactInfo || intake.xContactInfo;
   merged.xLeadScore = lead.xLeadScore || intake.xLeadScore;
-    merged.email = V3LeadExternalEmail(lead) || V3LeadExternalEmail(intake) || '';
+  merged.email = V3LeadExternalEmail(lead) || V3LeadExternalEmail(intake) || '';
   merged.xOpenDm = lead.xOpenDm || intake.xOpenDm;
+  // Prefer live intake flags so the X desk can show New / Changed cleanly.
+  merged.xIsNew = intake.xIsNew === true || lead.xIsNew === true;
+  merged.xChanged = intake.xChanged === true || lead.xChanged === true;
+  merged.xLeadType = intake.xLeadType || lead.xLeadType || lead.deliverables || '';
+  merged.xNewestDmDate = intake.xNewestDmDate || intake.receivedAt || lead.xNewestDmDate || lead.receivedAt || '';
+  if (intake.xBestNextStep) merged.xBestNextStep = intake.xBestNextStep;
+  if (intake.xCurrentStatus) merged.xCurrentStatus = intake.xCurrentStatus;
+  if (intake.receivedAt && (!lead.receivedAt || V3TimestampForUi(intake.receivedAt) >= V3TimestampForUi(lead.receivedAt))) {
+    merged.receivedAt = intake.receivedAt;
+    merged.lastTouchAt = intake.lastTouchAt || intake.receivedAt;
+    merged.lastTouch = intake.lastTouch || lead.lastTouch;
+  }
   if (!merged.deliverables || merged.deliverables === 'X' || merged.deliverables === 'Manual') {
     merged.deliverables = intake.deliverables || merged.deliverables;
   }
@@ -2590,6 +2596,7 @@ function V3NormalizeSupabaseLead(row) {
   }
   const latestThreadDate = V3LatestThreadDate(thread);
   const newReplyAt = V3NormalizeDateForUi(row.new_reply_at);
+  const operatorLastSeenAt = V3NormalizeDateForUi(row.operator_last_seen_at);
   const lastTouchAt = V3MaxTouchAt(latestThreadDate, row.new_reply_at, row.last_inbound_at, row.updated_at, row.moved_at, received);
   const activityDays = V3DaysSince(lastTouchAt || row.moved_at || received);
   const rawStage = V3NormalizeStage(row.list_id);
@@ -2642,6 +2649,8 @@ function V3NormalizeSupabaseLead(row) {
     color: __v3Color(name + brand),
     email: row.email || '',
     gmailThreadId: row.gmail_thread_id || '',
+    website: String(row.website || '').trim(),
+    linkedinUrl: String(row.linkedin_url || '').trim(),
     draftReply: V3ParseDraftReply(row.draft_reply),
     draftReplyStatus: row.draft_reply_status || '',
     agentAssessment: row.agent_assessment || '',
@@ -2653,6 +2662,7 @@ function V3NormalizeSupabaseLead(row) {
     dealEvidence: row.deal_evidence || '',
     dealNextAction: row.deal_next_action || '',
     needsHumanRead: Boolean(row.needs_human_read),
+    operatorLastSeenAt,
     readyToInvoice: Boolean(row.ready_to_invoice),
     dealAgreement: Boolean(row.agreement),
     operatorMemory,
@@ -2700,6 +2710,8 @@ function V3NormalizeSupabaseLead(row) {
       xReplyMarkedAt: xContext.xReplyMarkedAt || '',
     }) : thread,
     progress: Math.max(0, V3_ACTIVE_STAGE_IDS.indexOf(stage)),
+    // Operator-unseen memory: new_reply_at is the board "unread/New" flag.
+    // Scrapers set it on new inbound (Gmail/X); only mark-read / open clears it.
     unread: Boolean(row.new_reply_at),
     xOpenDm,
     xHandle: String(row.x_username || xContext.x_username || '').trim(),
@@ -3183,6 +3195,11 @@ function V3NormalizeXDmLeadRow(row) {
     xEmailDraft: String(row.emailDraft || ''),
     xQuickNote: quickNote,
     xDmMessages: Array.isArray(row.dmMessages) ? row.dmMessages : [],
+    // Intake desk flags — power New Leads X buckets (new / changed / pending).
+    xIsNew: row.newLead === true,
+    xChanged: row.changedSincePriorScrape === true || row.changedSincePriorScrape === 'true',
+    xLeadType: String(row.leadType || ''),
+    xNewestDmDate: received || '',
   };
   return V3ApplyXReplyState(V3ApplyTravelLeadMeta(base));
 }
@@ -3888,6 +3905,7 @@ function V3ThreadFromRow(row, name, brand, stage) {
       from: m.from || m.sender || (i % 2 ? name : 'UNALIGNED'),
       email: V3ExtractEmail(m.email || m.from) || String(m.email || '').trim().toLowerCase() || '',
       when: V3RelativeTime(V3NormalizeDateForUi(m.date || m.date_iso || m.timestamp || row.created_at)),
+      whenLabel: String(m.when_label || m.whenLabel || '').trim(),
       date: V3NormalizeDateForUi(m.date || m.date_iso || m.timestamp || row.created_at),
       dateIso: V3NormalizeDateForUi(m.date_iso),
       subject: m.subject || row.title || (brand + ' conversation'),
@@ -13358,7 +13376,7 @@ function V4FocusMissionLine({ total, needsYou, chips }) {
   return `${needsYou} need you · ${total} open. Pick a card — approve stays on this screen.`;
 }
 
-function V4TodayView({ user, leads, onOpenLead, onGoInbox, onOpenInCompanyOs, onNewLeadClick }) {
+function V4LegacyFocusView({ user, leads, onOpenLead, onGoInbox, onOpenInCompanyOs, onNewLeadClick }) {
   const { USERS, STAGE_BY_ID, greeting } = window.V3;
   const me = USERS[user] || { name: user };
   const today = new Date();
@@ -13564,6 +13582,213 @@ function V4TodayView({ user, leads, onOpenLead, onGoInbox, onOpenInCompanyOs, on
             </div>
           )}
         </section>
+      </div>
+    </div>
+  );
+}
+
+const V4_DEAL_INBOX_BUCKETS = [
+  { id: 'needs-call', label: 'Needs your call', note: 'Money, terms, ambiguity, or a human-only decision' },
+  { id: 'ready-send', label: 'Ready to send', note: 'Drafted only. Nothing sends from this screen.' },
+  { id: 'waiting', label: 'Waiting on them', note: 'The next move belongs to the counterparty' },
+  { id: 'reactivate', label: 'Reactivate', note: 'Older commercial conversations worth another look' },
+  { id: 'noise', label: 'Noise / Archive', note: 'Review only. Archive is disabled.' },
+];
+
+function V4DealInboxDate(value) {
+  if (!value) return 'No recent date';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'No recent date';
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function V4DealInboxMoney(value) {
+  if (value == null || value === '') return 'Not confirmed';
+  if (typeof value === 'number') return v3Money(value, { compact: true });
+  return String(value);
+}
+
+function V4DealInboxCase({ deal, selected, onSelect }) {
+  const flags = [...(deal.riskFlags || []), ...(deal.ambiguityFlags || [])];
+  return (
+    <button
+      type="button"
+      className={'deal-inbox-case' + (selected ? ' is-selected' : '')}
+      onClick={() => onSelect(deal.id)}
+      aria-current={selected ? 'true' : undefined}
+    >
+      <span className="deal-inbox-case-main">
+        <strong>{deal.title}</strong>
+        <span>{deal.latestMeaningfulUpdate}</span>
+      </span>
+      <span className="deal-inbox-case-meta">
+        {flags.length ? <em className="deal-inbox-flag">{flags.length} flag{flags.length === 1 ? '' : 's'}</em> : null}
+        <em>{deal.stage}</em>
+        <time>{V4DealInboxDate(deal.updatedAt)}</time>
+      </span>
+    </button>
+  );
+}
+
+function V4DealInboxDetail({ deal, onOpenInCompanyOs }) {
+  if (!deal) {
+    return (
+      <div className="deal-inbox-empty">
+        <strong>The queue is clear.</strong>
+        <span>Nothing in this lane needs review.</span>
+      </div>
+    );
+  }
+  const pricing = deal.pricingPayment || {};
+  const brief = deal.brief || {};
+  return (
+    <article className="deal-inbox-detail">
+      <header>
+        <div>
+          <span className="deal-inbox-kicker">Canonical deal case</span>
+          <h2>{deal.title}</h2>
+          <p>{deal.contacts.map(contact => contact.name || contact.email).filter(Boolean).join(', ') || 'Contact not confirmed'}</p>
+        </div>
+        <span className="deal-inbox-review-badge">Review mode</span>
+      </header>
+
+      <div className="deal-inbox-source-row">
+        {deal.sources.map(source => <span key={source}>{source}</span>)}
+        <span>{deal.recordIds.length} record{deal.recordIds.length === 1 ? '' : 's'}</span>
+        <span>{deal.threadCount} thread{deal.threadCount === 1 ? '' : 's'}</span>
+        <span className={'deal-inbox-confidence is-' + deal.confidence}>{deal.confidence} merge confidence</span>
+      </div>
+
+      <section className="deal-inbox-callout">
+        <span>Next action</span>
+        <strong>{deal.nextAction}</strong>
+      </section>
+
+      <section className="deal-inbox-section">
+        <h3>Latest meaningful update</h3>
+        <p>{deal.latestMeaningfulUpdate}</p>
+        <small>{deal.latestSource} · {V4DealInboxDate(deal.updatedAt)}</small>
+      </section>
+
+      <div className="deal-inbox-facts">
+        <section>
+          <span>Current stage</span>
+          <strong>{deal.stage}</strong>
+        </section>
+        <section>
+          <span>Pricing</span>
+          <strong>{pricing.pricing || V4DealInboxMoney(pricing.value)}</strong>
+        </section>
+        <section>
+          <span>Payment terms</span>
+          <strong>{pricing.paymentTerms || pricing.paymentStatus || 'Not confirmed'}</strong>
+        </section>
+        <section>
+          <span>Brief</span>
+          <strong>{brief.status || 'Not started'}</strong>
+        </section>
+      </div>
+
+      <section className="deal-inbox-section">
+        <h3>Missing assets</h3>
+        {brief.missingAssets && brief.missingAssets.length
+          ? <ul>{brief.missingAssets.map(asset => <li key={asset}>{asset}</li>)}</ul>
+          : <p>None recorded.</p>}
+      </section>
+
+      {(deal.riskFlags.length || deal.ambiguityFlags.length) ? (
+        <section className="deal-inbox-warnings">
+          {[...deal.riskFlags, ...deal.ambiguityFlags].map(flag => <p key={flag}>{flag}</p>)}
+        </section>
+      ) : null}
+
+      <footer>
+        <p>No sends, deletes, archives, pricing choices, or terms changes are available here.</p>
+        <button type="button" className="btn btn-accent" onClick={() => onOpenInCompanyOs(deal.recordIds[0])}>
+          Open source record
+        </button>
+      </footer>
+    </article>
+  );
+}
+
+function V4TodayView(props) {
+  const { leads = [], query = '', onOpenInCompanyOs } = props;
+  const model = window.UNALIGNED_DEAL_INBOX;
+  const inbox = React.useMemo(
+    () => model ? model.buildDealInbox(leads) : { cases: [], buckets: {} },
+    [model, leads]
+  );
+  const filtered = React.useMemo(() => {
+    const q = String(query || '').trim().toLowerCase();
+    if (!q) return inbox;
+    const cases = inbox.cases.filter(deal => [
+      deal.title,
+      deal.latestMeaningfulUpdate,
+      deal.nextAction,
+      deal.stage,
+      ...deal.sources,
+      ...deal.contacts.flatMap(contact => [contact.name, contact.email]),
+    ].filter(Boolean).some(value => String(value).toLowerCase().includes(q)));
+    const buckets = {};
+    V4_DEAL_INBOX_BUCKETS.forEach(bucket => {
+      buckets[bucket.id] = cases.filter(deal => deal.bucket === bucket.id);
+    });
+    return { ...inbox, cases, buckets };
+  }, [inbox, query]);
+  const [bucketId, setBucketId] = React.useState('needs-call');
+  const [selectedId, setSelectedId] = React.useState(null);
+  const bucketCases = filtered.buckets[bucketId] || [];
+  const selected = filtered.cases.find(deal => deal.id === selectedId) || bucketCases[0] || null;
+
+  React.useEffect(() => {
+    if (selected && selected.id !== selectedId) setSelectedId(selected.id);
+    if (!selected && selectedId) setSelectedId(null);
+  }, [selected, selectedId]);
+
+  return (
+    <div className="page deal-inbox-page">
+      <div className="page-hd deal-inbox-page-hd">
+        <div>
+          <div className="page-eyebrow">Today · Decision queue</div>
+          <h1 className="page-title">Deal Inbox</h1>
+          <div className="page-sub">One case per deal. Review only. Human approval remains the gate.</div>
+        </div>
+      </div>
+
+      <div className="deal-inbox-mode-strip">
+        <strong>Safe review mode</strong>
+        <span>Read-only view of current dashboard records. Possible cross-source merges are flagged, never silently applied.</span>
+      </div>
+
+      <div className="deal-inbox-buckets" role="tablist" aria-label="Deal decision lanes">
+        {V4_DEAL_INBOX_BUCKETS.map(bucket => {
+          const count = (filtered.buckets[bucket.id] || []).length;
+          return (
+            <button
+              key={bucket.id}
+              type="button"
+              role="tab"
+              aria-selected={bucketId === bucket.id}
+              className={bucketId === bucket.id ? 'is-active' : ''}
+              onClick={() => { setBucketId(bucket.id); setSelectedId(null); }}
+            >
+              <strong>{bucket.label}</strong>
+              <span>{bucket.note}</span>
+              <em>{count}</em>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="deal-inbox-workspace">
+        <aside className="deal-inbox-list">
+          {bucketCases.map(deal => (
+            <V4DealInboxCase key={deal.id} deal={deal} selected={selected && selected.id === deal.id} onSelect={setSelectedId} />
+          ))}
+          {!bucketCases.length ? <div className="deal-inbox-list-empty">No cases in this lane.</div> : null}
+        </aside>
+        <V4DealInboxDetail deal={selected} onOpenInCompanyOs={onOpenInCompanyOs} />
       </div>
     </div>
   );
@@ -14347,111 +14572,303 @@ function V4Reader({ lead, user, onBack, onMoveStage }) {
 }
 
 // ─── Leads list ─────────────────────────────────────────────
-function V4LeadsView({ leads, openId, onOpenLead, user }) {
-  const { USERS, STAGE_BY_ID } = window.V3;
-  const [tab, setTab] = React.useState('active');
-  const tabs = [
-    { id: 'active',  label: 'Active',   fn: l => !['paid-out','trash'].includes(l.stage) },
-    { id: 'mine',    label: 'My move',  fn: l => window.V3.MoveIsMineForProfile(l, user) && !['paid-out','trash'].includes(l.stage) },
-    { id: 'waiting', label: 'Waiting',  fn: l => !l.nextMove.who && !['paid-out','trash'].includes(l.stage) },
-    { id: 'paid',    label: 'Paid out', fn: l => l.stage === 'paid-out' },
-    { id: 'trash',   label: 'Trash',    fn: l => l.stage === 'trash' },
-    { id: 'all',     label: 'All',      fn: () => true },
-  ];
-  const filtered = leads.filter(tabs.find(t => t.id === tab).fn);
-  const moveLead = (lead, nextStage) => window.V3.MoveLeadStage(lead, nextStage, leads);
+function V4RolodexNormEmail(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function V4RolodexPersonKey(person) {
+  const email = V4RolodexNormEmail(person?.email);
+  if (email) return 'e:' + email;
+  return 'n:' + String(person?.company || '').trim().toLowerCase() + '|' + String(person?.contact || '').trim().toLowerCase();
+}
+
+function V4RolodexLetter(company, contact) {
+  const raw = String(company || contact || '').trim();
+  const ch = raw.charAt(0).toUpperCase();
+  return /[A-Z]/.test(ch) ? ch : '#';
+}
+
+const V4_ROLODEX_SEGMENTS = [
+  { id: 'all', label: 'All' },
+  { id: 'past', label: 'Past' },
+  { id: 'closing', label: 'Closing' },
+  { id: 'negotiating', label: 'Negotiating' },
+  { id: 'rates_sent', label: 'Rates sent' },
+  { id: 'engaged', label: 'Engaged' },
+  { id: 'potential', label: 'Potential' },
+  { id: 'packaged', label: 'Packaged' },
+  { id: 'active', label: 'Active' },
+];
+
+const V4_ROLODEX_SEGMENT_LABELS = {
+  past: 'Past',
+  closing: 'Closing',
+  negotiating: 'Negotiating',
+  rates_sent: 'Rates sent',
+  engaged: 'Engaged',
+  potential: 'Potential',
+  packaged: 'Packaged',
+  active: 'Active',
+  unknown: 'Unknown',
+};
+
+function V4LeadsView({ leads = [], query = '', openId, onOpenLead, user }) {
+  const [seedPeople, setSeedPeople] = React.useState([]);
+  const [seedStatus, setSeedStatus] = React.useState('loading');
+  const [seg, setSeg] = React.useState('all');
+  const [selectedKey, setSelectedKey] = React.useState(null);
+  const listRef = React.useRef(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('flow-v4/assets/rolodex_seed.json?v=20260810-rolodex-v1')
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error('seed missing'))))
+      .then((data) => {
+        if (cancelled) return;
+        setSeedPeople(Array.isArray(data?.people) ? data.people : []);
+        setSeedStatus('ready');
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSeedPeople([]);
+          setSeedStatus('error');
+        }
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const leadIndex = React.useMemo(() => {
+    const byEmail = new Map();
+    const byName = new Map();
+    (leads || []).forEach((lead) => {
+      const email = V4RolodexNormEmail(lead?.email || lead?.contactEmail);
+      if (email && !byEmail.has(email)) byEmail.set(email, lead);
+      const nameKey = String(lead?.brand || '').trim().toLowerCase() + '|' + String(lead?.contactName || '').trim().toLowerCase();
+      if (nameKey !== '|' && !byName.has(nameKey)) byName.set(nameKey, lead);
+    });
+    return { byEmail, byName };
+  }, [leads]);
+
+  const people = React.useMemo(() => {
+    return (seedPeople || []).map((person) => {
+      const email = V4RolodexNormEmail(person.email);
+      const nameKey = String(person.company || '').trim().toLowerCase() + '|' + String(person.contact || '').trim().toLowerCase();
+      const lead = (email && leadIndex.byEmail.get(email)) || leadIndex.byName.get(nameKey) || null;
+      return {
+        ...person,
+        key: V4RolodexPersonKey(person),
+        letter: V4RolodexLetter(person.company, person.contact),
+        lead,
+        leadId: lead?.id || null,
+        liveStage: lead?.stage || '',
+        liveValue: lead?.value || null,
+      };
+    }).sort((a, b) => {
+      const ac = String(a.company || a.contact || '').toLowerCase();
+      const bc = String(b.company || b.contact || '').toLowerCase();
+      if (ac !== bc) return ac < bc ? -1 : 1;
+      return String(a.contact || '').toLowerCase().localeCompare(String(b.contact || '').toLowerCase());
+    });
+  }, [seedPeople, leadIndex]);
+
+  const q = String(query || '').trim().toLowerCase();
+
+  const searched = React.useMemo(() => {
+    if (!q) return people;
+    return people.filter((person) => {
+      const hay = [
+        person.company,
+        person.contact,
+        person.email,
+        person.x_handle,
+        person.notes,
+        person.source,
+        person.deal_state,
+        person.est_value,
+        person.segment,
+        person.liveStage,
+      ].join(' ').toLowerCase();
+      return hay.includes(q);
+    });
+  }, [people, q]);
+
+  const filtered = React.useMemo(() => {
+    if (seg === 'all') return searched;
+    return searched.filter((person) => person.segment === seg);
+  }, [searched, seg]);
+
+  const segmentCounts = React.useMemo(() => {
+    const counts = { all: searched.length };
+    V4_ROLODEX_SEGMENTS.forEach((item) => {
+      if (item.id === 'all') return;
+      counts[item.id] = searched.filter((person) => person.segment === item.id).length;
+    });
+    return counts;
+  }, [searched]);
+
+  const groups = React.useMemo(() => {
+    const map = new Map();
+    filtered.forEach((person) => {
+      if (!map.has(person.letter)) map.set(person.letter, []);
+      map.get(person.letter).push(person);
+    });
+    const letters = [...map.keys()].sort((a, b) => {
+      if (a === '#') return 1;
+      if (b === '#') return -1;
+      return a.localeCompare(b);
+    });
+    return letters.map((letter) => ({ letter, people: map.get(letter) }));
+  }, [filtered]);
+
+  const railLetters = React.useMemo(() => {
+    const present = new Set(groups.map((g) => g.letter));
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').concat(['#']);
+    return alphabet.filter((letter) => present.has(letter));
+  }, [groups]);
+
+  const selected = selectedKey ? people.find((person) => person.key === selectedKey) : null;
+
+  const jumpToLetter = (letter) => {
+    const node = listRef.current?.querySelector(`[data-rolo-letter="${letter}"]`);
+    if (node) node.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const onRowClick = (person) => {
+    if (person.leadId && typeof onOpenLead === 'function') {
+      onOpenLead(person.leadId);
+      return;
+    }
+    setSelectedKey((prev) => (prev === person.key ? null : person.key));
+  };
+
+  const formatHandle = (handle) => {
+    const raw = String(handle || '').trim();
+    if (!raw) return '';
+    return raw.startsWith('@') ? raw : '@' + raw.replace(/^@+/, '');
+  };
 
   return (
-    <div className="page">
+    <div className="page rolo-page">
       <div className="page-hd">
         <div>
-          <div className="page-eyebrow">Pipeline</div>
-          <h1 className="page-title">Network</h1>
-          <div className="page-sub">All your collaborations in one table.</div>
+          <div className="page-eyebrow">People directory</div>
+          <h1 className="page-title">Rolodex</h1>
+          <div className="page-sub">
+            Partners and X collabs in one A to Z directory
+            {seedStatus === 'ready' ? ` · ${people.length} people` : ''}
+            {q ? ` · ${filtered.length} shown` : ''}
+          </div>
         </div>
         <div className="page-actions">
-          <button className="btn btn-sm"><V3Icon name="filter" /> Filter</button>
-          <button className="btn btn-sm"><V3Icon name="sort" /> Sort</button>
-          <button className="btn btn-sm btn-accent"><V3Icon name="plus" /> New lead</button>
+          {seedStatus === 'loading' && <span className="rolo-status">Loading contacts…</span>}
+          {seedStatus === 'error' && <span className="rolo-status is-error">Seed missing. Check flow-v4/assets/rolodex_seed.json</span>}
+          {selected && !selected.leadId && (
+            <button type="button" className="btn btn-sm" onClick={() => setSelectedKey(null)}>Close detail</button>
+          )}
         </div>
       </div>
 
-      <div className="body" style={{ paddingTop: 8 }}>
-        <div style={{ display: 'flex', gap: 4, marginBottom: 12, borderBottom: '1px solid var(--line)' }}>
-          {tabs.map(t => {
-            const n = leads.filter(t.fn).length;
-            const active = tab === t.id;
+      <div className="body rolo-body">
+        <div className="rolo-chips" role="tablist" aria-label="Rolodex segments">
+          {V4_ROLODEX_SEGMENTS.map((item) => {
+            const active = seg === item.id;
+            const count = segmentCounts[item.id] || 0;
             return (
-              <button key={t.id} className="hd-nav-btn" aria-current={active ? 'page' : undefined}
-                      onClick={() => setTab(t.id)}
-                      style={{ background: active ? 'transparent' : undefined, color: active ? 'var(--text)' : 'var(--text-3)', marginBottom: -1, borderBottom: active ? '2px solid var(--text)' : '2px solid transparent', borderRadius: 0 }}>
-                {t.label} <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, marginLeft: 4, opacity: 0.6 }}>{n}</span>
+              <button
+                key={item.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                className={'rolo-chip' + (active ? ' is-active' : '')}
+                onClick={() => setSeg(item.id)}
+              >
+                {item.label}
+                <em>{count}</em>
               </button>
             );
           })}
         </div>
 
-        <div className="card">
-          <div className="lead-row hd-row">
-            <div>Contact / Brand</div>
-            <div>Next move</div>
-            <div>Stage</div>
-            <div>Owner</div>
-            <div style={{ textAlign: 'right' }}>Value</div>
-            <div style={{ textAlign: 'right' }}>Action</div>
+        <div className={'rolo-layout' + (selected && !selected.leadId ? ' has-detail' : '')}>
+          <div className="rolo-main">
+            <nav className="rolo-rail" aria-label="Jump to letter">
+              {railLetters.map((letter) => (
+                <button key={letter} type="button" className="rolo-rail-btn" onClick={() => jumpToLetter(letter)}>{letter}</button>
+              ))}
+            </nav>
+
+            <div className="rolo-list" ref={listRef}>
+              {seedStatus === 'ready' && filtered.length === 0 && (
+                <div className="rolo-empty">
+                  <strong>No people match.</strong>
+                  <span>Try another segment or clear search.</span>
+                </div>
+              )}
+              {groups.map((group) => (
+                <section key={group.letter} className="rolo-letter-group" data-rolo-letter={group.letter}>
+                  <header className="rolo-letter-hd sticky">{group.letter}</header>
+                  {group.people.map((person) => {
+                    const handle = formatHandle(person.x_handle);
+                    const segLabel = V4_ROLODEX_SEGMENT_LABELS[person.segment] || person.segment || 'Unknown';
+                    const isOpen = openId && person.leadId && openId === person.leadId;
+                    const isSelected = selectedKey === person.key;
+                    return (
+                      <button
+                        key={person.key}
+                        type="button"
+                        className={'rolo-row' + (isOpen || isSelected ? ' is-active' : '') + (person.leadId ? ' has-lead' : '')}
+                        onClick={() => onRowClick(person)}
+                      >
+                        <div className="rolo-row-main">
+                          <strong className="rolo-company">{person.company || 'Unknown company'}</strong>
+                          <span className="rolo-contact">{person.contact || 'No contact name'}</span>
+                        </div>
+                        <div className="rolo-row-meta">
+                          <span className="rolo-email">{person.email || 'No email'}</span>
+                          {handle ? <span className="rolo-handle">{handle}</span> : null}
+                        </div>
+                        <div className="rolo-row-tags">
+                          <span className={'rolo-seg rolo-seg--' + (person.segment || 'unknown')}>{segLabel}</span>
+                          {person.est_value ? <span className="rolo-value">{person.est_value}</span> : null}
+                          {person.leadId ? <span className="rolo-live">Live deal</span> : <span className="rolo-seed">Seed only</span>}
+                        </div>
+                        <div className="rolo-row-foot">
+                          <span>{person.source || '—'}</span>
+                          <span>{person.last_updated || '—'}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </section>
+              ))}
+            </div>
           </div>
-          {filtered.length === 0 && <V3Empty icon="leads" title="Nothing here." />}
-          {filtered.map(l => {
-            const owner = l.ownerId ? USERS[l.ownerId] : null;
-            const isMine = window.V3.MoveIsMineForProfile(l, user);
-            const stage = STAGE_BY_ID[l.stage];
-            return (
-              <div key={l.id} className={'lead-row' + (openId === l.id ? ' is-active' : '')} onClick={() => onOpenLead(l.id)}>
-                <div className="lead-name">
-                  <V3Avatar name={l.contactName} color={l.color} />
-                  <div className="lead-name-txt">
-                    <strong>{l.contactName}</strong>
-                    <span>{l.brand} · {l.contactRole}</span>
-                  </div>
-                </div>
-                <div>
-                  <div className={'lead-next-txt' + (isMine ? ' you' : '')}>
-                    <V3Icon name={isMine ? 'bolt' : 'clock'} w={11} className="ic" />
-                    <span style={{ marginLeft: 5 }}>{l.nextMove.text}</span>
-                  </div>
-                  <div className="lead-next-meta">{isMine ? 'Your move' : l.nextMove.who ? `${window.V3.USERS[l.nextMove.who].name}'s move` : `Waiting on ${l.contactName.split(' ')[0]}`}</div>
-                </div>
-                <div>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: stage.color, fontWeight: 500, fontSize: 12 }}>
-                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: stage.color }}></span>
-                    {stage.name}
-                  </div>
-                  <div style={{ marginTop: 5 }}><V3StageProg stageId={l.stage} /></div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
-                  {owner ? <><V3Avatar name={owner.name} color={owner.color} size="xs" /><span>{owner.name}</span></> : <span style={{ color: 'var(--text-3)' }}>—</span>}
-                </div>
-                <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 12.5 }}>
-                  {l.value ? v3Money(l.value, { compact: true }) : '—'}
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <button
-                    className={l.stage === 'trash' ? "lead-restore-btn" : "lead-trash-btn"}
-                    title={l.stage === 'trash' ? "Restore to New" : "Move to trash"}
-                    onClick={e => { e.stopPropagation(); moveLead(l, l.stage === 'trash' ? 'new' : 'trash'); }}
-                  >
-                    <V3Icon name={l.stage === 'trash' ? "reply" : "trash"} w={12} />
-                    {l.stage === 'trash' ? 'Restore' : 'Trash'}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+
+          {selected && !selected.leadId && (
+            <aside className="rolo-detail" aria-label="Contact detail">
+              <div className="rolo-detail-eyebrow">Seed contact</div>
+              <h2 className="rolo-detail-title">{selected.company || 'Unknown company'}</h2>
+              <div className="rolo-detail-sub">{selected.contact || 'No contact name'}</div>
+              <dl className="rolo-detail-grid">
+                <div><dt>Email</dt><dd>{selected.email || '—'}</dd></div>
+                <div><dt>X handle</dt><dd>{formatHandle(selected.x_handle) || '—'}</dd></div>
+                <div><dt>Segment</dt><dd>{V4_ROLODEX_SEGMENT_LABELS[selected.segment] || selected.segment || '—'}</dd></div>
+                <div><dt>Est value</dt><dd>{selected.est_value || '—'}</dd></div>
+                <div><dt>Source</dt><dd>{selected.source || '—'}</dd></div>
+                <div><dt>Deal state</dt><dd>{selected.deal_state || '—'}</dd></div>
+                <div><dt>Last updated</dt><dd>{selected.last_updated || '—'}</dd></div>
+                <div><dt>Channels</dt><dd>{(selected.channels || []).join(', ') || '—'}</dd></div>
+              </dl>
+              {selected.notes ? <p className="rolo-detail-notes">{selected.notes}</p> : null}
+              <p className="rolo-detail-hint">No live Company OS card matches this contact yet.</p>
+            </aside>
+          )}
         </div>
       </div>
     </div>
   );
 }
+
 
 // ─── Calendar ────────────────────────────────────────────────
 const CAL_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby7SNgq-2mlzm5JkVHkbo0fsa1fOHIh6KPFfKqvPPLoFYYUvYZv94z2-KMdweTbAYVw9A/exec';
@@ -14503,10 +14920,67 @@ function V4NewLeadWorkflowLabel(lead) {
   return 'Route to scope';
 }
 
+/** X desk status: needs-you | waiting | new-only helpers */
+function V4XLeadStatusKey(lead) {
+  if (!lead) return 'pending';
+  if (V3XLeadRepliedViaX(lead)) return 'waiting';
+  const status = String(lead.xCurrentStatus || '').toLowerCase();
+  if (status.includes('robert was last') || status.includes('wait -')) return 'waiting';
+  if (status.includes('lead waiting') || status.includes('send -') || lead.needsReply) return 'needs-you';
+  if (lead.xIsNew) return 'new';
+  if (lead.xChanged) return 'changed';
+  return 'pending';
+}
+
+function V4XLeadBucket(lead) {
+  const key = V4XLeadStatusKey(lead);
+  if (key === 'needs-you') return 'needs-you';
+  if (key === 'waiting') return 'waiting';
+  if (lead?.xIsNew) return 'new';
+  if (lead?.xChanged) return 'changed';
+  return 'pending';
+}
+
+function V4XLeadBucketLabel(bucket) {
+  if (bucket === 'needs-you') return 'Needs you';
+  if (bucket === 'new') return 'New this scrape';
+  if (bucket === 'changed') return 'Changed';
+  if (bucket === 'waiting') return 'Waiting on them';
+  return 'Pending';
+}
+
+function V4XLeadTypeLabel(lead) {
+  return String(lead?.xLeadType || lead?.deliverables || '').replace(/^X DM lead$/i, '').trim();
+}
+
+function V4FormatXScrapeTime(iso) {
+  if (!iso) return '—';
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return String(iso);
+  const d = new Date(t);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  if (sameDay) return `Today ${time}`;
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
 function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
   const q = String(query || '').trim();
   const [sourceTab, setSourceTab] = React.useState('gmail');
+  const [xFilter, setXFilter] = React.useState('needs-you'); // needs-you | new | waiting | all
+  const [xHealth, setXHealth] = React.useState(null);
   const [copiedDmId, setCopiedDmId] = React.useState('');
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch('flow-v4/assets/x_scraper_health.json?v=' + Date.now())
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => { if (!cancelled) setXHealth(data && typeof data === 'object' ? data : null); })
+      .catch(() => { if (!cancelled) setXHealth(null); });
+    return () => { cancelled = true; };
+  }, [leads]);
+
   const copyDmDraft = async (lead, e) => {
     e?.stopPropagation?.();
     const text = String(await V4FetchXDmReplyDraft(lead) || '').trim();
@@ -14519,11 +14993,17 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
       window.prompt('Copy this X DM draft:', text);
     }
   };
-  // A lead belongs to the New Leads queue by its source, independent of stage —
-  // reuse IsNewLeadReview with a forced 'new' stage so the same source rules
-  // also identify trashed intake leads for the Trash bin.
+
   const isReviewSource = (lead) => window.V3.IsNewLeadReview ? window.V3.IsNewLeadReview({ ...lead, stage: 'new' }) : true;
   const sortByActivity = (a, b) => (window.V3SortNewLeadsByReceived ? window.V3SortNewLeadsByReceived(a, b) : (window.V3SortLeadsByActivity ? window.V3SortLeadsByActivity(a, b) : V3TimestampForUi(b.lastTouchAt || b.receivedAt) - V3TimestampForUi(a.lastTouchAt || a.receivedAt)));
+  const sortXDesk = (a, b) => {
+    // Needs-you first, then new, then changed, then waiting, then by recency.
+    const rank = { 'needs-you': 0, new: 1, changed: 2, pending: 3, waiting: 4 };
+    const ra = rank[V4XLeadBucket(a)] ?? 5;
+    const rb = rank[V4XLeadBucket(b)] ?? 5;
+    if (ra !== rb) return ra - rb;
+    return sortByActivity(a, b);
+  };
 
   const reviewLeads = React.useMemo(() => {
     const source = (Array.isArray(leads) ? leads : []).filter(lead => {
@@ -14542,13 +15022,32 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
       .sort(sortByActivity);
   }, [leads, q]);
 
+  const xReviewLeads = React.useMemo(
+    () => reviewLeads.filter(l => (window.V3.NewLeadSourceKind ? window.V3.NewLeadSourceKind(l) : 'gmail') === 'x'),
+    [reviewLeads],
+  );
+
+  const xCounts = React.useMemo(() => {
+    const needsYou = xReviewLeads.filter(l => V4XLeadBucket(l) === 'needs-you');
+    const isNew = xReviewLeads.filter(l => l.xIsNew);
+    const waiting = xReviewLeads.filter(l => V4XLeadBucket(l) === 'waiting');
+    const changed = xReviewLeads.filter(l => l.xChanged && !l.xIsNew);
+    return {
+      all: xReviewLeads.length,
+      needsYou: needsYou.length,
+      new: isNew.length,
+      waiting: waiting.length,
+      changed: changed.length,
+    };
+  }, [xReviewLeads]);
+
   const counts = {
     total: reviewLeads.length,
     needsReply: reviewLeads.filter(l => l.needsReply).length,
     pricing: reviewLeads.filter(l => /rate|pricing|paid|sponsor|quote|repost/i.test([l.notes, l.evidence, l.nextMove?.text].join(' '))).length,
     scope: reviewLeads.filter(l => !V4NewLeadHasPricingSignal(l)).length,
     gmail: reviewLeads.filter(l => (window.V3.NewLeadSourceKind ? window.V3.NewLeadSourceKind(l) : 'gmail') === 'gmail').length,
-    x: reviewLeads.filter(l => (window.V3.NewLeadSourceKind ? window.V3.NewLeadSourceKind(l) : 'gmail') === 'x').length,
+    x: xReviewLeads.length,
     travel: reviewLeads.filter(V4LeadIsTravelLead).length,
     trash: trashLeads.length,
   };
@@ -14558,16 +15057,40 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
   };
 
   const isTrashTab = sourceTab === 'trash';
+  const isXTab = sourceTab === 'x';
+
   const visibleLeads = React.useMemo(() => {
     if (isTrashTab) return trashLeads;
+    if (sourceTab === 'travel') return reviewLeads.filter(V4LeadIsTravelLead);
+    if (isXTab) {
+      let list = xReviewLeads.slice();
+      if (xFilter === 'needs-you') list = list.filter(l => V4XLeadBucket(l) === 'needs-you');
+      else if (xFilter === 'new') list = list.filter(l => l.xIsNew);
+      else if (xFilter === 'waiting') list = list.filter(l => V4XLeadBucket(l) === 'waiting');
+      // all — no filter
+      return list.sort(sortXDesk);
+    }
     return reviewLeads.filter(lead => {
-      if (sourceTab === 'travel') return V4LeadIsTravelLead(lead);
       const kind = window.V3.NewLeadSourceKind ? window.V3.NewLeadSourceKind(lead) : 'gmail';
-      return sourceTab === 'x' ? kind === 'x' : kind === 'gmail';
+      return kind === 'gmail';
     });
-  }, [reviewLeads, trashLeads, sourceTab, isTrashTab]);
+  }, [reviewLeads, trashLeads, xReviewLeads, sourceTab, isTrashTab, isXTab, xFilter]);
 
+  // Gmail/travel/trash: group by calendar day. X: group by status bucket.
   const groupedLeads = React.useMemo(() => {
+    if (isXTab) {
+      const order = ['needs-you', 'new', 'changed', 'pending', 'waiting'];
+      const groups = new Map(order.map(key => [key, { key, label: V4XLeadBucketLabel(key), items: [] }]));
+      for (const lead of visibleLeads) {
+        const bucket = V4XLeadBucket(lead);
+        if (!groups.has(bucket)) groups.set(bucket, { key: bucket, label: V4XLeadBucketLabel(bucket), items: [] });
+        groups.get(bucket).items.push(lead);
+      }
+      return order
+        .map(key => groups.get(key))
+        .filter(g => g && g.items.length)
+        .map(g => ({ ...g, items: g.items.slice().sort(sortByActivity) }));
+    }
     const groups = new Map();
     for (const lead of visibleLeads) {
       const stamp = window.V3LeadReceivedTimestamp ? window.V3LeadReceivedTimestamp(lead) : V3TimestampForUi(lead.receivedAt || lead.lastTouchAt);
@@ -14580,7 +15103,147 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
       groups.get(key).items.push(lead);
     }
     return Array.from(groups.values());
-  }, [visibleLeads]);
+  }, [visibleLeads, isXTab]);
+
+  const renderLeadCard = (lead) => {
+    const latest = Array.isArray(lead.thread) && lead.thread.length ? lead.thread[lead.thread.length - 1] : null;
+    const first = Array.isArray(lead.thread) && lead.thread.length ? lead.thread[0] : null;
+    const kind = window.V3.NewLeadSourceKind ? window.V3.NewLeadSourceKind(lead) : 'gmail';
+    const summary = window.V3.NewLeadSummary ? window.V3.NewLeadSummary(lead) : String(lead.notes || latest?.body || lead.nextMove?.text || '').replace(/\s+/g, ' ').trim();
+    const { gist: summaryGist, detail: summaryDetail } = V4SplitGist(summary);
+    const source = window.V3.NewLeadSourceLabel ? window.V3.NewLeadSourceLabel(lead) : 'Gmail';
+    const handle = window.V3.NewLeadHandle ? window.V3.NewLeadHandle(lead) : '';
+    const identity = window.V3.NewLeadPrimaryIdentity ? window.V3.NewLeadPrimaryIdentity(lead) : (lead.contactName || 'Unknown contact');
+    const reason = window.V3NewLeadReason ? window.V3NewLeadReason(lead) : 'Needs review';
+    const receivedStamp = window.V3.GmailTime.full(lead.receivedAt || first?.date || first?.when);
+    const receivedListStamp = window.V3.GmailTime.list(lead.receivedAt || first?.date || first?.when) || lead.lastTouch || 'new';
+    const brandRaw = String(lead.brand || '').trim();
+    const isPlaceholderBrand = /^(gmail|x|x lead|unknown.*)$/i.test(brandRaw);
+    const metaBrand = brandRaw && !isPlaceholderBrand && brandRaw.toLowerCase() !== String(identity || '').trim().toLowerCase() ? lead.brand : '';
+    const hasPricingSignal = V4NewLeadHasPricingSignal(lead);
+    const workflowLabel = V4NewLeadWorkflowLabel(lead);
+    const xSecondary = [handle, lead.email || '', metaBrand].filter(Boolean);
+    const gmailSecondary = [lead.email || '', metaBrand].filter(Boolean);
+    const xType = kind === 'x' ? V4XLeadTypeLabel(lead) : '';
+    const xStatus = kind === 'x' ? String(lead.xCurrentStatus || '').trim() : '';
+    const xNext = kind === 'x' ? String(lead.xBestNextStep || lead.nextMove?.text || '').trim() : '';
+    const xBucket = kind === 'x' ? V4XLeadBucket(lead) : '';
+    return (
+      <article
+        key={lead.id}
+        className={
+          'new-lead-card new-lead-row'
+          + (kind === 'x' ? ' is-x-card' : '')
+          + (kind === 'x' && lead.xIsNew ? ' is-x-new' : '')
+          + (kind === 'x' && xBucket === 'needs-you' ? ' is-x-needs-you' : '')
+        }
+      >
+        <div className="new-lead-main">
+          <div className="new-lead-avatar">
+            <V3Avatar name={lead.contactName} color={lead.color} size="sm" />
+          </div>
+          <div className="new-lead-content">
+            <div className="new-lead-topline">
+              <div className="new-lead-topline-main">
+                <span className={'new-lead-source-chip' + (kind === 'x' ? ' is-x' : '')}>{source}</span>
+                {kind === 'x' && lead.xIsNew ? <span className="new-lead-flag is-new">New</span> : null}
+                {kind === 'x' && lead.xChanged && !lead.xIsNew ? <span className="new-lead-flag is-changed">Changed</span> : null}
+                {kind === 'x' && xBucket === 'needs-you' ? <span className="new-lead-flag is-needs-you">Needs you</span> : null}
+                {kind === 'x' && xBucket === 'waiting' ? <span className="new-lead-flag is-waiting">Waiting</span> : null}
+                <h2>{identity}</h2>
+              </div>
+              <span title={receivedStamp || undefined}>{receivedListStamp}</span>
+            </div>
+            <div className="new-lead-meta">
+              {kind === 'x' ? (
+                <>
+                  {xSecondary.map((item, index) => index === 0 ? <strong key={item}>{item}</strong> : <span key={item}>{item}</span>)}
+                  {xType ? <span className="new-lead-type">{xType}</span> : null}
+                </>
+              ) : (
+                <>
+                  {gmailSecondary.map((item, index) => index === 0 ? <strong key={item}>{item}</strong> : <span key={item}>{item}</span>)}
+                </>
+              )}
+            </div>
+            <div className="new-lead-reason-row">
+              <span className="new-lead-reason">{reason}</span>
+              <span className={'new-lead-workflow-chip' + (V3XLeadRepliedViaX(lead) ? ' is-x-replied' : (hasPricingSignal ? ' is-pricing' : ' is-scope'))}>{workflowLabel}</span>
+              {kind === 'x' && V3XLeadRepliedViaX(lead) ? <span className="new-lead-x-replied-note">No email — reply was on X</span> : null}
+              {kind === 'x' && lead.xMessageCount ? <span>{lead.xMessageCount} msgs</span> : null}
+              {kind === 'x' && Number(lead.xLeadScore) > 0 ? <span className="new-lead-score">Score {lead.xLeadScore}</span> : null}
+            </div>
+            {kind === 'x' && (xStatus || xNext) ? (
+              <div className="new-lead-x-status-row">
+                {xStatus ? <span className="new-lead-x-status">{xStatus}</span> : null}
+                {xNext ? <span className="new-lead-x-next">Next: {xNext}</span> : null}
+              </div>
+            ) : null}
+            {summaryGist ? (
+              <div className="new-lead-gist">
+                <p className="new-lead-gist-line">{summaryGist}</p>
+                {summaryDetail && <p className="new-lead-summary">{summaryDetail}</p>}
+              </div>
+            ) : (
+              <p className="new-lead-summary">No summary available yet.</p>
+            )}
+          </div>
+        </div>
+        <div className="new-lead-actions">
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => onOpenLead?.(lead.id)}>
+            <V3Icon name="reply" w={12} />
+            {kind === 'x' ? 'Review lead' : 'Open & reply'}
+          </button>
+          {kind === 'x' && V4XLeadNeedsDmReply(lead) ? (
+            <button
+              type="button"
+              className={'btn btn-sm btn-accent' + (copiedDmId === String(lead.id) ? ' is-copied' : '')}
+              onClick={(e) => copyDmDraft(lead, e)}
+            >
+              <V3Icon name="reply" w={12} />
+              {copiedDmId === String(lead.id) ? 'Copied' : 'Copy DM draft'}
+            </button>
+          ) : null}
+          {kind === 'x' && lead.xOpenDm ? (
+            <button type="button" className="btn btn-sm btn-ghost" onClick={() => window.open(lead.xOpenDm, '_blank', 'noopener')}>
+              <V3Icon name="network" w={12} />
+              Open DM
+            </button>
+          ) : null}
+          {kind === 'x' && V3LeadExternalEmail(lead) ? (
+            <button type="button" className="btn btn-sm btn-ghost" onClick={() => onOpenLead?.(lead.id)}>
+              <V3Icon name="mail" w={12} />
+              Email lead
+            </button>
+          ) : null}
+          {isTrashTab ? (
+            <button type="button" className="btn btn-sm btn-accent" onClick={() => moveLead(lead, 'new')}>
+              <V3Icon name="reply" w={12} />
+              Restore
+            </button>
+          ) : (
+            <>
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => moveLead(lead, 'first-touch')}>
+                <V3Icon name="plus" w={12} />
+                Scope
+              </button>
+              <button type="button" className="btn btn-sm btn-accent" onClick={() => moveLead(lead, hasPricingSignal ? 'rates-sent' : 'engaged')}>
+                <V3Icon name="plus" w={12} />
+                {hasPricingSignal ? 'Pricing' : 'Qualify'}
+              </button>
+              <button type="button" className="btn btn-sm btn-danger" onClick={() => moveLead(lead, 'trash')}>
+                <V3Icon name="trash" w={12} />
+                Trash
+              </button>
+            </>
+          )}
+        </div>
+      </article>
+    );
+  };
+
+  const healthOk = xHealth && xHealth.ok !== false;
+  const healthNew = Number(xHealth?.new_threads || xHealth?.relevant_count || 0);
 
   return (
     <div className="page new-leads-page">
@@ -14588,16 +15251,31 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
         <div>
           <div className="page-eyebrow">Robert + Asher intake</div>
           <h1 className="page-title">New Leads</h1>
-          <div className="page-sub">A clean intake queue for Robert Gmail and Robert X leads, sorted newest to oldest before they enter the active board.</div>
+          <div className="page-sub">
+            {isXTab
+              ? 'X desk — new scrape hits, needs-you replies, and waiting threads. Sorted for action, not just date.'
+              : 'Gmail + X intake before leads enter the active board.'}
+          </div>
         </div>
         <div className="invoice-stats">
-          <span className="invoice-stat warn">{counts.needsReply} need reply</span>
-          <span className="invoice-stat good">{counts.scope} route to scope</span>
-          <span className="invoice-stat total">{counts.pricing} route to pricing</span>
-          <span className="invoice-stat total">{counts.gmail} gmail</span>
-          <span className="invoice-stat total">{counts.x} x</span>
-          {counts.travel > 0 ? <span className="invoice-stat warn">{counts.travel} travel</span> : null}
-          <span className="invoice-stat total">{counts.total} total</span>
+          {isXTab ? (
+            <>
+              <span className="invoice-stat warn">{xCounts.needsYou} need you</span>
+              <span className="invoice-stat good">{xCounts.new} new</span>
+              <span className="invoice-stat total">{xCounts.waiting} waiting</span>
+              <span className="invoice-stat total">{xCounts.all} x total</span>
+            </>
+          ) : (
+            <>
+              <span className="invoice-stat warn">{counts.needsReply} need reply</span>
+              <span className="invoice-stat good">{counts.scope} route to scope</span>
+              <span className="invoice-stat total">{counts.pricing} route to pricing</span>
+              <span className="invoice-stat total">{counts.gmail} gmail</span>
+              <span className="invoice-stat total">{counts.x} x</span>
+              {counts.travel > 0 ? <span className="invoice-stat warn">{counts.travel} travel</span> : null}
+              <span className="invoice-stat total">{counts.total} total</span>
+            </>
+          )}
         </div>
       </div>
 
@@ -14622,137 +15300,80 @@ function V4NewLeadsView({ leads = [], query = '', onOpenLead }) {
             </button>
           ))}
         </div>
+
+        {isXTab && (
+          <div className={'x-desk-health' + (healthOk ? ' is-ok' : ' is-bad')}>
+            <div className="x-desk-health-main">
+              <span className="x-desk-health-dot" aria-hidden="true" />
+              <div>
+                <strong>{healthOk ? 'X scrape healthy' : 'X scrape needs attention'}</strong>
+                <span>
+                  Last run {V4FormatXScrapeTime(xHealth?.ran_at)}
+                  {healthNew ? ` · ${healthNew} business thread${healthNew === 1 ? '' : 's'}` : ''}
+                  {xHealth?.inspected != null ? ` · ${xHealth.inspected} inspected` : ''}
+                </span>
+              </div>
+            </div>
+            <div className="x-desk-health-meta">
+              <span>{xCounts.needsYou} need you</span>
+              <span>{xCounts.new} new</span>
+              <span>{xCounts.waiting} waiting</span>
+            </div>
+          </div>
+        )}
+
+        {isXTab && (
+          <div className="x-desk-filters" role="tablist" aria-label="X lead status">
+            {[
+              { key: 'needs-you', label: 'Needs you', count: xCounts.needsYou },
+              { key: 'new', label: 'New', count: xCounts.new },
+              { key: 'waiting', label: 'Waiting', count: xCounts.waiting },
+              { key: 'all', label: 'All pending', count: xCounts.all },
+            ].map(tab => (
+              <button
+                key={tab.key}
+                type="button"
+                role="tab"
+                aria-selected={xFilter === tab.key}
+                className={'x-desk-filter' + (xFilter === tab.key ? ' is-active' : '')}
+                onClick={() => setXFilter(tab.key)}
+              >
+                <span>{tab.label}</span>
+                <strong>{tab.count}</strong>
+              </button>
+            ))}
+          </div>
+        )}
+
         {groupedLeads.map(group => (
-          <section key={group.key} className="new-lead-day">
+          <section key={group.key} className={'new-lead-day' + (isXTab ? ' is-x-bucket' : '')}>
             <div className="new-lead-day-hd">
               <span>{group.label}</span>
               <strong>{group.items.length}</strong>
             </div>
-            {group.items.map(lead => {
-              const latest = Array.isArray(lead.thread) && lead.thread.length ? lead.thread[lead.thread.length - 1] : null;
-              const first = Array.isArray(lead.thread) && lead.thread.length ? lead.thread[0] : null;
-              const kind = window.V3.NewLeadSourceKind ? window.V3.NewLeadSourceKind(lead) : 'gmail';
-              const summary = window.V3.NewLeadSummary ? window.V3.NewLeadSummary(lead) : String(lead.notes || latest?.body || lead.nextMove?.text || '').replace(/\s+/g, ' ').trim();
-              // Pull the opening sentence out as a highlighted "gist" so the
-              // intent ("X is asking for an intro") pops on the list; the rest
-              // of the message reads as lighter supporting detail beneath it.
-              const { gist: summaryGist, detail: summaryDetail } = V4SplitGist(summary);
-              const source = window.V3.NewLeadSourceLabel ? window.V3.NewLeadSourceLabel(lead) : 'Gmail';
-              const handle = window.V3.NewLeadHandle ? window.V3.NewLeadHandle(lead) : '';
-              const identity = window.V3.NewLeadPrimaryIdentity ? window.V3.NewLeadPrimaryIdentity(lead) : (lead.contactName || 'Unknown contact');
-              const reason = window.V3NewLeadReason ? window.V3NewLeadReason(lead) : 'Needs review';
-              const receivedStamp = window.V3.GmailTime.full(lead.receivedAt || first?.date || first?.when);
-              const receivedListStamp = window.V3.GmailTime.list(lead.receivedAt || first?.date || first?.when) || lead.lastTouch || 'new';
-              const brandRaw = String(lead.brand || '').trim();
-              const isPlaceholderBrand = /^(gmail|x|x lead|unknown.*)$/i.test(brandRaw);
-              const metaBrand = brandRaw && !isPlaceholderBrand && brandRaw.toLowerCase() !== String(identity || '').trim().toLowerCase() ? lead.brand : '';
-              const hasPricingSignal = V4NewLeadHasPricingSignal(lead);
-              const workflowLabel = V4NewLeadWorkflowLabel(lead);
-              const xSecondary = [handle, lead.email || '', metaBrand].filter(Boolean);
-              const gmailSecondary = [lead.email || '', metaBrand].filter(Boolean);
-              return (
-                <article key={lead.id} className="new-lead-card new-lead-row">
-                  <div className="new-lead-main">
-                    <div className="new-lead-avatar">
-                      <V3Avatar name={lead.contactName} color={lead.color} size="sm" />
-                    </div>
-                    <div className="new-lead-content">
-                      <div className="new-lead-topline">
-                        <div className="new-lead-topline-main">
-                          <span className={'new-lead-source-chip' + (kind === 'x' ? ' is-x' : '')}>{source}</span>
-                          <h2>{identity}</h2>
-                        </div>
-                        <span title={receivedStamp || undefined}>{receivedListStamp}</span>
-                      </div>
-                      <div className="new-lead-meta">
-                        {kind === 'x' ? (
-                          <>
-                            {xSecondary.map((item, index) => index === 0 ? <strong key={item}>{item}</strong> : <span key={item}>{item}</span>)}
-                          </>
-                        ) : (
-                          <>
-                            {gmailSecondary.map((item, index) => index === 0 ? <strong key={item}>{item}</strong> : <span key={item}>{item}</span>)}
-                          </>
-                        )}
-                      </div>
-                      <div className="new-lead-reason-row">
-                        <span className="new-lead-reason">{reason}</span>
-                        <span className={'new-lead-workflow-chip' + (V3XLeadRepliedViaX(lead) ? ' is-x-replied' : (hasPricingSignal ? ' is-pricing' : ' is-scope'))}>{workflowLabel}</span>
-                        {kind === 'x' && V3XLeadRepliedViaX(lead) ? <span className="new-lead-x-replied-note">No email — reply was on X</span> : null}
-                        {kind === 'x' && lead.xMessageCount ? <span>{lead.xMessageCount} messages</span> : null}
-                      </div>
-                      {summaryGist ? (
-                        <div className="new-lead-gist">
-                          <p className="new-lead-gist-line">{summaryGist}</p>
-                          {summaryDetail && <p className="new-lead-summary">{summaryDetail}</p>}
-                        </div>
-                      ) : (
-                        <p className="new-lead-summary">No summary available yet.</p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="new-lead-actions">
-                    <button type="button" className="btn btn-sm btn-ghost" onClick={() => onOpenLead?.(lead.id)}>
-                      <V3Icon name="reply" w={12} />
-                      {kind === 'x' ? 'Review lead' : 'Open & reply'}
-                    </button>
-                    {kind === 'x' && V4XLeadNeedsDmReply(lead) ? (
-                      <button
-                        type="button"
-                        className={'btn btn-sm btn-accent' + (copiedDmId === String(lead.id) ? ' is-copied' : '')}
-                        onClick={(e) => copyDmDraft(lead, e)}
-                      >
-                        <V3Icon name="reply" w={12} />
-                        {copiedDmId === String(lead.id) ? 'Copied' : 'Copy DM draft'}
-                      </button>
-                    ) : null}
-                    {kind === 'x' && lead.xOpenDm ? (
-                      <button type="button" className="btn btn-sm btn-ghost" onClick={() => window.open(lead.xOpenDm, '_blank', 'noopener')}>
-                        <V3Icon name="network" w={12} />
-                        Open DM
-                      </button>
-                    ) : null}
-                    {kind === 'x' && V3LeadExternalEmail(lead) ? (
-                      <button type="button" className="btn btn-sm btn-ghost" onClick={() => onOpenLead?.(lead.id)}>
-                        <V3Icon name="mail" w={12} />
-                        Email lead
-                      </button>
-                    ) : null}
-                    {isTrashTab ? (
-                      <button type="button" className="btn btn-sm btn-accent" onClick={() => moveLead(lead, 'new')}>
-                        <V3Icon name="reply" w={12} />
-                        Restore
-                      </button>
-                    ) : (
-                      <>
-                        <button type="button" className="btn btn-sm btn-ghost" onClick={() => moveLead(lead, 'first-touch')}>
-                          <V3Icon name="plus" w={12} />
-                          Scope
-                        </button>
-                        <button type="button" className="btn btn-sm btn-accent" onClick={() => moveLead(lead, hasPricingSignal ? 'rates-sent' : 'engaged')}>
-                          <V3Icon name="plus" w={12} />
-                          {hasPricingSignal ? 'Pricing' : 'Qualify'}
-                        </button>
-                        <button type="button" className="btn btn-sm btn-danger" onClick={() => moveLead(lead, 'trash')}>
-                          <V3Icon name="trash" w={12} />
-                          Trash
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </article>
-              );
-            })}
+            {group.items.map(renderLeadCard)}
           </section>
         ))}
         {visibleLeads.length === 0 && (
           <V3Empty
             icon={isTrashTab ? 'trash' : 'leads'}
-            title={isTrashTab ? 'Trash is empty.' : (sourceTab === 'x' ? 'No X leads synced yet.' : 'No Gmail leads waiting.')}
+            title={
+              isTrashTab
+                ? 'Trash is empty.'
+                : (isXTab
+                  ? (xFilter === 'needs-you'
+                    ? 'Nothing needs you on X right now.'
+                    : (xFilter === 'new'
+                      ? 'No brand-new X leads in this scrape window.'
+                      : (xFilter === 'waiting'
+                        ? 'No threads waiting on them.'
+                        : 'No X leads pending.')))
+                  : 'No Gmail leads waiting.')
+            }
             sub={isTrashTab
               ? 'Leads you trash land here and stay out of the scrape. Restore one to send it back to its queue.'
-              : (sourceTab === 'x'
-                ? 'The X scraper lane is ready. New X leads will appear here as they sync in.'
+              : (isXTab
+                ? 'Run the X scraper, then refresh. New and pending DMs land here with status chips.'
                 : 'Fresh Robert Gmail leads will appear here before they enter the board.')}
           />
         )}
@@ -15869,6 +16490,7 @@ async function V4SendApprovedXDm(lead, text, opts = {}) {
     contact_name: lead.contactName || lead.brand || '',
     open_dm: openDm,
     x_handle: handle,
+    conversation_id: String(opts.conversationId || '').trim(),
     lead: V4XDmDraftPayloadFromLead(lead, body),
   };
   const res = await V4BriefServiceFetch('/send-x-dm', {
@@ -21649,7 +22271,12 @@ async function V4DealHelperExecuteAction(lead, action, opts = {}) {
       return 'Done. ' + (lead.brand || 'Lead') + ' is now ' + V4DealHelperStageLabel(action.stage) + '.';
     }
     case 'mark_read': {
-      V4CosPatchLead(lead, { new_reply_at: null }, { unread: false, newReplyAt: null });
+      const ts = new Date().toISOString();
+      V4CosPatchLead(
+        lead,
+        { new_reply_at: null, needs_human_read: false, operator_last_seen_at: ts },
+        { unread: false, newReplyAt: null, needsHumanRead: false, operatorLastSeenAt: ts },
+      );
       return 'Done. Marked read.';
     }
     case 'mark_replied_x': {
@@ -23181,7 +23808,14 @@ function V4CosReader({ lead, user, composeOpen, setComposeOpen, onBack, isBrief,
     </div>
   ) : null;
   const moveLead = (nextStage) => window.V3.MoveLeadStage(lead, nextStage);
-  const clearUnread = () => V4CosPatchLead(lead, { new_reply_at: null }, { unread: false });
+  const clearUnread = () => {
+    const ts = new Date().toISOString();
+    V4CosPatchLead(
+      lead,
+      { new_reply_at: null, needs_human_read: false, operator_last_seen_at: ts },
+      { unread: false, newReplyAt: null, needsHumanRead: false, operatorLastSeenAt: ts },
+    );
+  };
   const threadFreshness = V4LeadThreadFreshness(lead);
   const threadIntegrity = V4LeadThreadIntegrity(lead);
   const pendingOperatorDraft = String(lead.draftReplyStatus || '').toLowerCase() === 'pending' && String(lead.draftReply?.body || '').trim();
@@ -24334,17 +24968,45 @@ function V4CompanyOsView({ leads = [], query = '', onQueryChange, listSearchRef,
       });
     }
   };
-  // U — toggle read state, backed by new_reply_at in Supabase
+  // U — toggle read state, backed by new_reply_at + operator_last_seen_at in Supabase
   const toggleRead = () => {
     if (!selected) return;
     const snap = selected;
+    const ts = new Date().toISOString();
     if (selected.unread) {
-      V4CosPatchLead(snap, { new_reply_at: null }, { unread: false, newReplyAt: null });
+      V4CosPatchLead(
+        snap,
+        { new_reply_at: null, needs_human_read: false, operator_last_seen_at: ts },
+        { unread: false, newReplyAt: null, needsHumanRead: false, operatorLastSeenAt: ts },
+      );
     } else {
-      const ts = new Date().toISOString();
-      V4CosPatchLead(snap, { new_reply_at: ts }, { unread: true, newReplyAt: ts });
+      V4CosPatchLead(
+        snap,
+        { new_reply_at: ts, needs_human_read: true },
+        { unread: true, newReplyAt: ts, needsHumanRead: true },
+      );
     }
   };
+
+  // Opening a card in Company OS = Asher has seen it. After a short dwell so
+  // rapid keyboard flips don't mass-clear unread, mark operator_last_seen_at
+  // and clear the New/unread badge.
+  React.useEffect(() => {
+    if (!selected?.id || !selected.unread) return undefined;
+    const leadId = String(selected.id);
+    const timer = window.setTimeout(() => {
+      const live = V3ResolveLeadById(leadId, [window.V3?.LEADS || []]);
+      if (!live || !live.unread) return;
+      const ts = new Date().toISOString();
+      V4CosPatchLead(
+        live,
+        { new_reply_at: null, needs_human_read: false, operator_last_seen_at: ts },
+        { unread: false, newReplyAt: null, needsHumanRead: false, operatorLastSeenAt: ts },
+        { skipUndo: true },
+      );
+    }, 900);
+    return () => window.clearTimeout(timer);
+  }, [selected?.id, selected?.unread]);
   const toggleActiveGmailCollapsed = () => {
     setActiveGmailCollapsed((was) => {
       const next = !was;
@@ -25069,7 +25731,1487 @@ const V4_TWEAKS = /*EDITMODE-BEGIN*/{
   "view": "company-os"
 }/*EDITMODE-END*/;
 
-const V4_VALID_VIEWS = ['today', 'board', 'new-leads', 'company-os', 'organs', 'leads', 'inbox', 'invoices', 'calendar', 'sandbox'];
+function V4CollabSource(lead) {
+  const source = String(lead?.source || lead?.intakeSource || lead?.leadSource || lead?.channel || '').toLowerCase();
+  if (source.includes('linkedin') || source === 'li') return 'LinkedIn';
+  if (source.includes('whatsapp') || source === 'wa') return 'WhatsApp';
+  if (source.includes('twitter') || source === 'x' || source.includes('x-dm') || source.includes('xdm')) return 'X';
+  try {
+    if (typeof V4CompanyOsLeadSourceChannel === 'function' && V4CompanyOsLeadSourceChannel(lead) === 'x') return 'X';
+  } catch (e) {}
+  return 'Gmail';
+}
+
+function V4CollabDirectSource(group) {
+  for (const record of (group?.records || [])) {
+    const candidates = [record.xOpenDm, record.openDm, record.chatUrl, record.xDmUrl];
+    for (const value of candidates) {
+      try {
+        const url = new URL(String(value || ''));
+        const host = url.hostname.toLowerCase();
+        const conversationMatch = url.pathname.match(/^\/i\/(?:chat|messages)\/(\d+-\d+)\/?$/);
+        if ((host === 'x.com' || host === 'www.x.com' || host === 'twitter.com' || host === 'www.twitter.com') && conversationMatch) {
+          return { url: url.href, label: 'Open X chat', conversationId: conversationMatch[1], kind: 'chat' };
+        }
+      } catch (e) {}
+    }
+  }
+  return null;
+}
+
+function V4CollabXSourceAction(group) {
+  if (!group || !(group.sources || []).includes('X')) return null;
+  const direct = V4CollabDirectSource(group);
+  if (direct) return direct;
+  const reserved = new Set(['home', 'i', 'messages', 'notifications', 'explore', 'search', 'settings', 'compose']);
+  for (const record of (group.records || [])) {
+    const candidates = [record.xProfileUrl, record.profileUrl, record.xUrl, record.sourceUrl, record.url, record.openDm, record.xOpenDm];
+    for (const value of candidates) {
+      try {
+        const url = new URL(String(value || ''));
+        const host = url.hostname.toLowerCase();
+        if (!['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com'].includes(host)) continue;
+        const profile = url.pathname.match(/^\/([A-Za-z0-9_]{1,15})\/?$/);
+        if (profile && !reserved.has(profile[1].toLowerCase())) {
+          return { url: url.href, label: 'Open X profile', conversationId: '', kind: 'profile' };
+        }
+        if (url.pathname !== '/' || url.search) {
+          return { url: url.href, label: 'Open X source', conversationId: '', kind: 'source' };
+        }
+      } catch (e) {}
+    }
+    const handle = String(record.xHandle || record.xUsername || record.twitterHandle || '').trim().replace(/^@/, '');
+    if (/^[A-Za-z0-9_]{1,15}$/.test(handle)) {
+      return { url: `https://x.com/${handle}`, label: 'Open X profile', conversationId: '', kind: 'profile' };
+    }
+  }
+  return { url: '', label: 'X link unavailable', conversationId: '', kind: 'unavailable' };
+}
+
+function V4CollabLinkedInSourceAction(group) {
+  if (!group || !(group.sources || []).includes('LinkedIn')) return null;
+  for (const record of (group.records || [])) {
+    let descriptionOpenDm = '';
+    try {
+      const parsed = typeof record.rawDescription === 'string'
+        ? JSON.parse(record.rawDescription)
+        : record.rawDescription;
+      descriptionOpenDm = String(parsed?.open_dm || parsed?.openDm || '');
+    } catch (e) {}
+    const candidates = [record.linkedinOpenDm, record.linkedinThreadUrl, record.website, descriptionOpenDm];
+    for (const value of candidates) {
+      try {
+        const url = new URL(String(value || '').trim());
+        const host = url.hostname.toLowerCase();
+        const exactThread = /^\/messaging\/thread\/[^/?#]+\/?$/.test(url.pathname);
+        if (url.protocol === 'https:' && ['linkedin.com', 'www.linkedin.com'].includes(host) && exactThread) {
+          return { url: url.href, label: 'Open in LinkedIn', kind: 'thread' };
+        }
+      } catch (e) {}
+    }
+  }
+  return { url: '', label: 'LinkedIn thread unavailable', kind: 'unavailable' };
+}
+
+function V4CollabMoneySignal(blob, lead) {
+  const text = String(blob || '').toLowerCase();
+  const stage = String(lead?.stage || '').toLowerCase();
+  if (['negotiating', 'rates-sent', 'invoice-sent', 'engaged'].includes(stage) && (lead?.value || lead?.needsReply)) return true;
+  return /\b(sponsor|sponsorship|collab|collaboration|paid post|paid partnership|rate card|rates|invoice|campaign|partnership|podcast|guest post|media kit|quote|budget|deliverable|unaligned|scoble|brand deal|creator|kol)\b/.test(text)
+    || Boolean(lead?.value && Number(lead.value) > 0);
+}
+
+function V4CollabIsProductNoise(blob) {
+  const text = String(blob || '').toLowerCase();
+  // Product briefings / embargos / access updates that are not paid collabs
+  if (/\b(unsubscribe|newsletter|job alert|digest|noreply|no-reply|do not reply)\b/.test(text)) return true;
+  if (/\b(nemotron|nemoguard|ne\s*mo\s*guard|embargo|product update|release notes?|changelog|security bulletin)\b/.test(text)) return true;
+  if (/\b(access to|briefing on|technical update|roadmap update)\b/.test(text)
+      && !/\b(sponsor|collab|paid|rate|invoice|partnership|campaign)\b/.test(text)) return true;
+  return false;
+}
+
+function V4CollabIsNoise(lead) {
+  if (!lead || lead.isRobertBrief) return true;
+  const stage = String(lead.stage || '').toLowerCase();
+  // dead-leads stay out of Collabs entirely; trash is handled by the Trash bin filter
+  if (stage === 'dead-leads' || stage === 'paid-out') return true;
+  if (stage === 'trash') return false;
+  const blob = [
+    lead.brand, lead.company, lead.contactName, lead.email, lead.description,
+    lead.operatorSummary?.lead_summary, lead.operatorSummary?.asked_for,
+    lead.currentStatus, lead.preview, lead.summaryForTeam, lead.dealEvidence,
+    lead.notes, lead.evidence, lead.intent, lead.deliverables,
+  ].map((v) => String(v || '')).join(' ').toLowerCase();
+  if (V4CollabIsProductNoise(blob) && !V4CollabMoneySignal(blob, lead)) return true;
+  if (/\b(unsubscribe|newsletter|job alert|digest)\b/.test(blob) && !V4CollabMoneySignal(blob, lead)) return true;
+  return false;
+}
+
+function V4CollabIsTrashed(lead) {
+  return ['trash'].includes(String(lead?.stage || '').toLowerCase());
+}
+
+/** Newest meaningful collab activity for inbox order.
+ * ONLY real conversation timestamps — never board updated_at / moved_at / lastTouchAt
+ * (those get bumped by scrapers, deal-brain, operator AI, and thread "heals" and
+ * make month-old deals look like they wrote this morning). */
+function V4CollabLeadActivityMs(lead) {
+  if (!lead) return 0;
+  const thread = Array.isArray(lead.thread) ? lead.thread
+    : (Array.isArray(lead.emailThread) ? lead.emailThread : []);
+  const threadMs = thread.reduce((max, msg) => Math.max(
+    max,
+    V3TimestampForUi(msg.date || msg.dateIso || msg.timestamp || msg.when || msg.sentAt)
+  ), 0);
+  // Prefer explicit inbound markers, then real thread message dates, then first-received.
+  // lastTouchAt is intentionally excluded — it is polluted by non-message board writes.
+  return Math.max(
+    V3TimestampForUi(lead.newReplyAt),
+    V3TimestampForUi(lead.lastInboundAt),
+    threadMs,
+    V3TimestampForUi(lead.receivedAt),
+    0
+  );
+}
+
+function V4CollabActivityLabel(ms) {
+  if (!ms) return '';
+  try {
+    return V3GmailTime.list(new Date(ms).toISOString());
+  } catch (e) {
+    return '';
+  }
+}
+
+function V4CollabGroups(leads) {
+  const pool = (Array.isArray(leads) ? leads : [])
+    .filter((lead) => !V4CollabIsNoise(lead))
+    .slice()
+    .sort((a, b) => V4CollabLeadActivityMs(b) - V4CollabLeadActivityMs(a));
+  const groups = [];
+  pool.forEach((lead) => {
+    let group = groups.find((item) => item.records.some((record) => V4LeadsShareIdentity(record, lead)));
+    if (!group) {
+      group = { records: [] };
+      groups.push(group);
+    }
+    group.records.push(lead);
+  });
+  return groups.map((group) => {
+    const records = group.records.slice().sort((a, b) => V4CollabLeadActivityMs(b) - V4CollabLeadActivityMs(a));
+    // Prefer a non-trash record as primary when mixed
+    const primary = records.find((r) => !V4CollabIsTrashed(r)) || records[0];
+    const seen = new Map();
+    const thread = records.flatMap((record) => {
+      const messages = Array.isArray(record.thread) ? record.thread
+        : (Array.isArray(record.emailThread) ? record.emailThread : []);
+      const source = V4CollabSource(record);
+      return messages.map((message) => ({
+        ...message,
+        collabSource: source,
+        collabLeadId: record.id,
+      }));
+    }).filter((message) => {
+      const key = [
+        message.date || message.dateIso || message.timestamp || '',
+        message.from || '',
+        message.subject || '',
+        String(message.body || message.snippet || '').slice(0, 240),
+      ].join('|');
+      if (seen.has(key)) {
+        // LinkedIn's DOM scraper can observe the same bubble once beside its
+        // date divider and once beside its clock label. Collapse the duplicate
+        // body while retaining both pieces of source-provided timing context.
+        const prior = seen.get(key);
+        const labels = [prior.whenLabel, message.whenLabel].filter(Boolean);
+        prior.whenLabel = Array.from(new Set(labels.flatMap((label) => String(label).split(' · ')))).join(' · ');
+        if (Array.isArray(message.attachments) && message.attachments.length) {
+          prior.attachments = Array.from(new Set([].concat(prior.attachments || [], message.attachments)));
+        }
+        return false;
+      }
+      seen.set(key, message);
+      return true;
+    }).sort((a, b) => (
+      V3TimestampForUi(a.date || a.dateIso || a.timestamp)
+      - V3TimestampForUi(b.date || b.dateIso || b.timestamp)
+    ));
+    const threadMax = thread.reduce((max, m) => Math.max(
+      max,
+      V3TimestampForUi(m.date || m.dateIso || m.timestamp)
+    ), 0);
+    const activity = Math.max(
+      ...records.map(V4CollabLeadActivityMs),
+      threadMax,
+      0
+    );
+    const allTrashed = records.every(V4CollabIsTrashed);
+    return {
+      primary,
+      records,
+      thread,
+      sources: Array.from(new Set(records.map(V4CollabSource))),
+      activity,
+      trashed: allTrashed,
+      attachments: records.flatMap((r) => [].concat(r.attachments || r.files || r.briefLinks || [])).filter(Boolean),
+    };
+  }).sort((a, b) => {
+    if (b.activity !== a.activity) return b.activity - a.activity;
+    return String(b.primary?.id || '').localeCompare(String(a.primary?.id || ''));
+  });
+}
+
+function V4CollabState(group) {
+  const records = group?.records || [];
+  if (group?.trashed || records.every(V4CollabIsTrashed)) return 'Trash';
+  const stageOf = (lead) => String(lead.stage || '').toLowerCase();
+  if (records.some((lead) => {
+    const body = lead.draftReply?.body || lead.draft_reply?.body || (typeof lead.draftReply === 'string' ? lead.draftReply : '');
+    const st = String(lead.draftReplyStatus || lead.draft_status || '').toLowerCase();
+    return body && (!st || ['pending', 'review', 'ready', 'draft'].includes(st));
+  })) return 'Draft ready';
+  const explicitNext = records.map((lead) => [lead.nextMove?.text, lead.bestNextStep, lead.dealNextAction, lead.currentStatus].filter(Boolean).join(' ')).join(' ').toLowerCase();
+  const latestMessage = group?.thread?.[group.thread.length - 1];
+  const latestFrom = String(latestMessage?.from || latestMessage?.sender || '').toLowerCase();
+  const latestIsOurs = /asher|robert|scoble|unaligned/.test(latestFrom);
+  if (/\b(wait(?:ing)?|await|replied|response sent|followed up)\b/.test(explicitNext) || latestIsOurs) return 'Waiting';
+  if (records.some((lead) => lead.needsReply || lead.unread || lead.newReplyAt || lead.operatorAnalysis?.needs_reply || lead.operatorSummary?.needs_reply)) {
+    return 'Reply needed';
+  }
+  if (records.some((lead) => stageOf(lead) === 'invoice-sent' || /invoice/i.test(String(lead.currentStatus || '')))) return 'Waiting';
+  if (records.some((lead) => stageOf(lead) === 'done' || stageOf(lead) === 'rates-sent')) return 'Invoice needed';
+  if (records.some((lead) => ['negotiating', 'first-touch', 'engaged'].includes(stageOf(lead)) && !lead.brief)) return 'Brief needed';
+  if (records.some((lead) => lead.brief?.status === 'awaiting-approval' || lead.brief?.status === 'draft')) return 'Brief needed';
+  return 'Waiting';
+}
+
+function V4CollabMessageDirection(message) {
+  if (message?.collabOptimistic) return 'outgoing';
+  const from = String(message?.from || message?.sender || '').toLowerCase();
+  return /^(you|me)$/.test(from.trim()) || /asher|robert|scoble|unaligned/.test(from) ? 'outgoing' : 'incoming';
+}
+
+function V4CollabMessageEventId(message) {
+  return String(
+    message?.dm_event_id || message?.dmEventId || message?.event_id || message?.eventId
+    || message?.message_id || message?.messageId || message?.id
+    || message?.raw?.dm_event_id || message?.raw?.event_id || message?.raw?.id || ''
+  ).trim();
+}
+
+function V4CollabMessageText(message) {
+  return String(message?.body || message?.snippet || message?.text || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function V4UnifyOptimisticMatchesSource(optimistic, sourceMessage) {
+  const optimisticEvent = V4CollabMessageEventId(optimistic);
+  const sourceEvent = V4CollabMessageEventId(sourceMessage);
+  if (optimisticEvent && sourceEvent) return optimisticEvent === sourceEvent;
+  if (V4CollabMessageDirection(sourceMessage) !== 'outgoing') return false;
+  const optimisticText = V4CollabMessageText(optimistic);
+  const sourceText = V4CollabMessageText(sourceMessage);
+  if (!optimisticText || optimisticText !== sourceText) return false;
+  const optimisticAt = V3TimestampForUi(optimistic.date || optimistic.timestamp || optimistic.sentAt);
+  const sourceAt = V3TimestampForUi(sourceMessage.date || sourceMessage.dateIso || sourceMessage.timestamp || sourceMessage.sentAt);
+  return Boolean(optimisticAt && sourceAt && Math.abs(optimisticAt - sourceAt) <= 15 * 60 * 1000);
+}
+
+function V4CollabTrashGroup(group) {
+  if (!group) return;
+  const leads = group.records || [];
+  leads.forEach((lead) => {
+    if (V4CollabIsTrashed(lead)) return;
+    if (typeof window.V3?.MoveLeadStage === 'function') {
+      window.V3.MoveLeadStage(lead, 'trash');
+    } else if (typeof V3MoveLeadStage === 'function') {
+      V3MoveLeadStage(lead, 'trash');
+    }
+  });
+}
+
+function V4CollabRestoreGroup(group) {
+  if (!group) return;
+  const leads = group.records || [];
+  leads.forEach((lead) => {
+    if (!V4CollabIsTrashed(lead)) return;
+    // Restore to engaged — money path default (not "new")
+    if (typeof window.V3?.MoveLeadStage === 'function') {
+      window.V3.MoveLeadStage(lead, 'engaged');
+    } else if (typeof V3MoveLeadStage === 'function') {
+      V3MoveLeadStage(lead, 'engaged');
+    }
+  });
+}
+
+function V4CollabPreview(group) {
+  // Prefer last real message text — not AI operator summaries (those make old deals look "live").
+  const last = group?.thread?.[group.thread.length - 1];
+  const realMsg = last?.body || last?.snippet || last?.text
+    || group?.primary?.xLastLeadMessage || group?.primary?.lastLeadMessage;
+  const raw = realMsg
+    || group?.primary?.preview
+    || group?.primary?.operatorSummary?.asked_for
+    || group?.primary?.nextMove?.text
+    || group?.primary?.operatorSummary?.lead_summary
+    || group?.primary?.description
+    || 'Open to review the conversation.';
+  return String(raw).replace(/\s+/g, ' ').trim();
+}
+
+function V4CollabTitle(group) {
+  const lead = group?.primary || {};
+  return lead.brand || lead.company || lead.xName || lead.contactName || lead.email || lead.xHandle || 'Collaboration';
+}
+
+const V4_UNIFY_ROW_STATE_KEY = 'unify-row-state-v1';
+
+function V4ReadUnifyRowState() {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(V4_UNIFY_ROW_STATE_KEY) || '{}');
+    return {
+      completed: value?.completed && typeof value.completed === 'object' ? value.completed : {},
+      hidden: value?.hidden && typeof value.hidden === 'object' ? value.hidden : {},
+      pricing: value?.pricing && typeof value.pricing === 'object' ? value.pricing : {},
+    };
+  } catch (e) {
+    return { completed: {}, hidden: {}, pricing: {} };
+  }
+}
+
+function V4WriteUnifyRowState(value) {
+  try {
+    window.localStorage.setItem(V4_UNIFY_ROW_STATE_KEY, JSON.stringify(value));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function V4UnifyInboxRow({ group, groupKey, state, sClass, isHidden = false, onOpen, onComplete, onHide, onRestore }) {
+  const [revealed, setRevealed] = React.useState(false);
+  const touch = React.useRef(null);
+  const suppressClick = React.useRef(false);
+  const lead = group.primary;
+  const title = V4CollabTitle(group);
+  const sender = lead.contactName || lead.xName || lead.email || lead.xHandle || 'Unknown sender';
+
+  const touchStart = (event) => {
+    const point = event.touches?.[0];
+    if (!point) return;
+    touch.current = { x: point.clientX, y: point.clientY, horizontal: false };
+  };
+  const touchMove = (event) => {
+    const point = event.touches?.[0];
+    if (!point || !touch.current) return;
+    const dx = point.clientX - touch.current.x;
+    const dy = point.clientY - touch.current.y;
+    if (Math.abs(dy) > Math.abs(dx) + 8) return;
+    if (Math.abs(dx) > 14) touch.current.horizontal = true;
+  };
+  const touchEnd = (event) => {
+    if (!touch.current) return;
+    const point = event.changedTouches?.[0];
+    const dx = point ? point.clientX - touch.current.x : 0;
+    const dy = point ? point.clientY - touch.current.y : 0;
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 24) suppressClick.current = true;
+    if (Math.abs(dx) > Math.abs(dy) && dx < -34) setRevealed(true);
+    else if (Math.abs(dx) > Math.abs(dy) && dx > 24) setRevealed(false);
+    touch.current = null;
+  };
+  const open = () => {
+    if (suppressClick.current) {
+      suppressClick.current = false;
+      return;
+    }
+    if (revealed) {
+      setRevealed(false);
+      return;
+    }
+    onOpen();
+  };
+
+  return (
+    <div className={'collabs-row-wrap' + (revealed ? ' is-actions-revealed' : '')}>
+      <div className="collabs-row-actions" aria-label={`Actions for ${title}`}>
+        {isHidden ? (
+          <button type="button" className="is-restore" aria-label={`Restore ${title} to the Unify inbox`} title="Restore to Unify inbox" onClick={() => { setRevealed(false); onRestore(); }}><span className="collabs-action-icon" aria-hidden="true">↶</span><span className="collabs-action-label">Restore</span></button>
+        ) : <>
+          <button type="button" className="is-complete" aria-label={`Complete ${title} in Unify`} title="Complete in Unify" onClick={() => { setRevealed(false); onComplete(); }}><span className="collabs-action-icon" aria-hidden="true">✓</span><span className="collabs-action-label">Complete</span></button>
+          <button type="button" className="is-hide" aria-label={`Hide ${title} from Unify. Reversible in Hidden.`} title="Hide from Unify · reversible in Hidden" onClick={() => { setRevealed(false); onHide(); }}><span className="collabs-action-icon" aria-hidden="true">⌫</span><span className="collabs-action-label">Delete</span></button>
+        </>}
+      </div>
+      <button
+        type="button"
+        className="collabs-row"
+        onClick={open}
+        onTouchStart={touchStart}
+        onTouchMove={touchMove}
+        onTouchEnd={touchEnd}
+        aria-label={`Open ${title}. ${state}. Swipe left on phone for Complete or Delete.`}
+      >
+        <div
+          className={'collabs-avatar ' + sClass}
+          role="img"
+          aria-label={`${state}: ${V4CollabOrbMeaning(state)}`}
+          title={`${state}: ${V4CollabOrbMeaning(state)}`}
+        >
+          <V4ThinkingOrb state={V4CollabOrbState(state)} px={40} label={`${state}: ${V4CollabOrbMeaning(state)}`} />
+        </div>
+        <div className="collabs-row-main">
+          <div className="collabs-row-top"><strong>{title}</strong><span>{sender}</span></div>
+          <p>{V4CollabPreview(group).slice(0, 190)}</p>
+        </div>
+        <div className="collabs-row-meta">
+          <time dateTime={group.activity ? new Date(group.activity).toISOString() : undefined}>{V4CollabActivityLabel(group.activity) || '—'}</time>
+          <div>{group.sources.map((source) => <span key={source} className={'collabs-source is-' + source.toLowerCase()}>{source}</span>)}</div>
+          <span className={'collabs-state ' + sClass}>{state}</span>
+        </div>
+      </button>
+    </div>
+  );
+}
+
+function V4BuildCollabReplyPrompt(group, user, pricingPack = '') {
+  const lead = group.primary;
+  const brand = lead.brand || lead.company || 'the company';
+  const contact = lead.contactName || lead.xName || lead.email || 'there';
+  const first = String(contact).split(/\s+/)[0] || 'there';
+  const sources = (group.sources || []).join(', ');
+  const asked = lead.operatorSummary?.asked_for || lead.deliverables || lead.leadType || '';
+  const prior = lead.operatorSummary?.lead_summary || lead.dealEvidence || lead.description || '';
+  const next = lead.nextMove?.text || lead.operatorSummary?.next_action || lead.bestNextStep || '';
+  const pricing = lead.value
+    ? `$${Number(lead.value).toLocaleString('en-US')}`
+    : (lead.pricing || lead.rates || lead.operatorSummary?.pricing || '');
+  const timing = lead.goLive || lead.timing || lead.operatorSummary?.timing || lead.timeLabel || '';
+  const status = V4CollabState(group);
+  const selectedPricing = pricingPack && V3_PRICING_PDF_PACKS[pricingPack]
+    ? V3PricingPdfMeta(pricingPack)
+    : null;
+  const pricingSelectionPrompt = selectedPricing
+    ? `\n- Selected Company OS pricing tier: ${selectedPricing.label} (${selectedPricing.filename})\n- When pricing or a rate card is relevant to their request, refer to that exact selected package naturally. Do not invent a dollar amount. The selection does not attach or send the rate card automatically.`
+    : '';
+  const linkedinConnectCta = (group.sources || []).includes('LinkedIn')
+    ? `\nLINKEDIN HANDOFF:\n- By default, naturally invite this lead to continue by email through https://agentdashboard.cloud/connect (for example: "Please use our Connect form and we can continue by email").\n- Keep the URL exact. Do not include it if the existing thread clearly makes that call-to-action inappropriate or redundant.`
+    : '';
+  const thread = (group.thread || []).map((m) => {
+    const when = m.date || m.dateIso || m.timestamp || '';
+    const from = m.from || m.sender || '?';
+    const src = m.collabSource || '';
+    const sub = m.subject ? ` · ${m.subject}` : '';
+    const body = String(m.body || m.snippet || m.text || '').slice(0, 1200);
+    return `[${src}] ${when} ${from}${sub}\n${body}`;
+  }).join('\n\n---\n\n');
+  return `Write a collaboration reply for UNALIGNED (Robert Scoble / partnership ops).
+
+VOICE:
+- Human, direct, confident. No AI filler. No "excited to announce". No "happy to connect".
+- No hyphens or em dashes as punctuation. Use periods or commas.
+- Match the channel tone: if latest source is X or LinkedIn, keep it shorter than a formal email.
+
+CONTEXT:
+- Person / company: ${brand}
+- Contact: ${contact}
+- Sources in this merged thread: ${sources}
+- Current status chip: ${status}
+- What they are asking for: ${asked || 'infer from thread'}
+- What we previously said / promised: ${prior || 'use only what appears in the thread'}
+- Pricing known: ${pricing || 'do not invent a price; point to rate card only if email'}
+${pricingSelectionPrompt}
+- Timing known: ${timing || 'unknown'}
+- Suggested next step: ${next || 'advance the collab cleanly'}
+- Operator: ${user || 'asher'}
+${linkedinConnectCta}
+
+FULL AVAILABLE CONVERSATION (merged across sources, do not invent missing messages):
+${thread.slice(0, 18000) || '(No raw messages stored. Write a short professional check-in based only on known facts above.)'}
+
+Write ONLY the message body. Start with "Hi ${first}," when writing email. For X/LinkedIn DMs you may skip formal greeting if the thread is casual. End with "Best," on its own line. No signature block. Do not claim anything was sent or scheduled.`;
+}
+
+function V4EnsureLinkedInConnectCta(body, group) {
+  const text = String(body || '').trim();
+  const url = 'https://agentdashboard.cloud/connect';
+  if (!(group?.sources || []).includes('LinkedIn') || text.includes(url)) return text;
+  const cta = `To continue by email, please use our Connect form: ${url}`;
+  const signoff = text.match(/\n(?:Best|Thanks|Thank you),?\s*\n/i);
+  if (!signoff || signoff.index == null) return `${text}\n\n${cta}`.trim();
+  return `${text.slice(0, signoff.index).trim()}\n\n${cta}\n${text.slice(signoff.index + 1)}`.trim();
+}
+
+function V4EnsureSelectedPricingContext(body, pricingPack) {
+  const text = String(body || '').trim();
+  const meta = V3_PRICING_PDF_PACKS[pricingPack];
+  if (!meta) return text;
+  const keyPhrase = pricingPack === 'single' ? /single\s+tier/i : pricingPack === 'duo' ? /duo\s+bundle/i : /multi\s+tier/i;
+  if (keyPhrase.test(text)) return text;
+  const sentence = `The package we're proposing is our ${meta.label}. I can send the current rate card with the details.`;
+  const signoff = text.match(/\n(?:Best|Thanks|Thank you),?\s*\n/i);
+  if (!signoff || signoff.index == null) return `${text}\n\n${sentence}`.trim();
+  return `${text.slice(0, signoff.index).trim()}\n\n${sentence}\n${text.slice(signoff.index + 1)}`.trim();
+}
+
+/** Real dotted thinking orb (Jakub Antalik / thinking-orbs) — not a letter badge. */
+function V4CollabOrbState(status, { working } = {}) {
+  if (working) return 'weaving';
+  if (status === 'Reply needed') return 'working';
+  if (status === 'Draft ready') return 'composing';
+  if (status === 'Brief needed') return 'searching';
+  if (status === 'Invoice needed') return 'solving';
+  if (status === 'Trash') return 'listening';
+  if (status === 'Waiting') return 'breathing';
+  return 'breathing';
+}
+
+function V4CollabOrbMeaning(status) {
+  if (status === 'Reply needed') return 'active pulse means your reply is the next move';
+  if (status === 'Draft ready') return 'composing motion means a draft is ready to review';
+  if (status === 'Brief needed') return 'searching motion means the collaboration needs a brief';
+  if (status === 'Invoice needed') return 'resolving motion means an invoice is the next step';
+  if (status === 'Trash') return 'quiet listening motion marks a trashed conversation';
+  return 'slow breathing means you are waiting on them';
+}
+
+function V4ThinkingOrb({ state = 'working', px = 40, paused = false, className = '', label }) {
+  const canvasRef = React.useRef(null);
+  const mountRef = React.useRef(null);
+  // Package only ships tuned presets at 64 and 20 — use 64 and CSS-scale down for denser dots.
+  const preset = px >= 28 ? 64 : 20;
+
+  React.useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return undefined;
+    let cancelled = false;
+    let tries = 0;
+    const tryMount = () => {
+      if (cancelled || !el) return;
+      if (!window.ThinkingOrbs?.mount) {
+        if (tries++ < 40) window.setTimeout(tryMount, 50);
+        return;
+      }
+      mountRef.current = window.ThinkingOrbs.mount(el, {
+        state,
+        size: preset,
+        theme: 'light',
+        speed: 1,
+        paused,
+        'aria-label': label,
+      });
+      el.style.width = `${px}px`;
+      el.style.height = `${px}px`;
+    };
+    tryMount();
+    return () => {
+      cancelled = true;
+      try { mountRef.current?.destroy(); } catch (e) {}
+      mountRef.current = null;
+    };
+  }, []); // mount once
+
+  React.useEffect(() => {
+    const el = canvasRef.current;
+    if (!mountRef.current || !el) return;
+    mountRef.current.update({
+      state,
+      size: preset,
+      theme: 'light',
+      speed: 1,
+      paused,
+      'aria-label': label,
+    });
+    el.style.width = `${px}px`;
+    el.style.height = `${px}px`;
+  }, [state, preset, px, paused, label]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className={'collabs-thinking-orb' + (className ? ' ' + className : '')}
+      width={preset}
+      height={preset}
+      aria-hidden={label ? undefined : true}
+    />
+  );
+}
+
+function V4UnifyDotWordmark({ compact = false }) {
+  const canvasRef = React.useRef(null);
+  React.useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
+    const glyphs = {
+      U: ['10001','10001','10001','10001','10001','10001','01110'],
+      N: ['10001','11001','11001','10101','10011','10011','10001'],
+      I: ['11111','00100','00100','00100','00100','00100','11111'],
+      F: ['11111','10000','10000','11110','10000','10000','10000'],
+      Y: ['10001','10001','01010','00100','00100','00100','00100'],
+    };
+    const word = 'UNIFY';
+    const cssWidth = compact ? 68 : 168;
+    const cssHeight = compact ? 18 : 46;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(cssWidth * dpr);
+    canvas.height = Math.round(cssHeight * dpr);
+    canvas.style.width = `${cssWidth}px`;
+    canvas.style.height = `${cssHeight}px`;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return undefined;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // Each authored 5x7 cell becomes a 2x2 micro-lattice. This keeps the glyph
+    // proportions but gives every stroke a denser, professional dot-matrix face.
+    const lattice = 2;
+    const step = compact ? 1.12 : 2.66;
+    const radius = compact ? .38 : .82;
+    const wordWidth = 58 * step;
+    const wordHeight = 14 * step;
+    const startX = (cssWidth - wordWidth) / 2 + step / 2;
+    const startY = (cssHeight - wordHeight) / 2 + step / 2;
+    const dots = [];
+    let column = 0;
+    word.split('').forEach((letter, letterIndex) => {
+      glyphs[letter].forEach((row, y) => row.split('').forEach((on, x) => {
+        if (on !== '1') return;
+        for (let microY = 0; microY < lattice; microY += 1) {
+          for (let microX = 0; microX < lattice; microX += 1) {
+            const denseX = (column + x) * lattice + microX;
+            const denseY = y * lattice + microY;
+            const seed = letterIndex * 83 + denseY * 13 + denseX;
+            dots.push({ x: startX + denseX * step, y: startY + denseY * step, phase: seed * 1.173 });
+          }
+        }
+      }));
+      column += 6;
+    });
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    let frame = 0;
+    let stopped = false;
+    let lastTick = -1;
+    const draw = (now = 0) => {
+      ctx.clearRect(0, 0, cssWidth, cssHeight);
+      const still = reduced?.matches;
+      const tick = Math.floor(now / 250);
+      if (tick !== lastTick) {
+        lastTick = tick;
+        canvas.dataset.motion = still ? 'reduced-static' : 'running';
+        canvas.dataset.tick = String(tick);
+      }
+      dots.forEach((dot, index) => {
+        const t = still ? 0 : now / 1000;
+        const orbitX = Math.sin(t * 1.24 + dot.phase) + .3 * Math.sin(t * .43 + dot.phase * .67);
+        const orbitY = Math.cos(t * 1.08 + dot.phase * 1.17) + .25 * Math.sin(t * .51 + dot.phase * 1.43);
+        const driftX = still ? 0 : orbitX * (compact ? .15 : .46);
+        const driftY = still ? 0 : orbitY * (compact ? .12 : .38);
+        const twinkle = Math.sin(t * 1.47 + dot.phase + index * .11);
+        const pulse = still ? 1 : .86 + .14 * twinkle;
+        ctx.beginPath();
+        ctx.arc(dot.x + driftX, dot.y + driftY, radius * pulse, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(43,39,34,${still ? .78 : .48 + .44 * pulse})`;
+        ctx.fill();
+      });
+      if (!stopped && !still) frame = window.requestAnimationFrame(draw);
+    };
+    draw();
+    const onMotionChange = () => { if (!stopped) { if (frame) window.cancelAnimationFrame(frame); draw(); } };
+    reduced?.addEventListener?.('change', onMotionChange);
+    return () => {
+      stopped = true;
+      if (frame) window.cancelAnimationFrame(frame);
+      reduced?.removeEventListener?.('change', onMotionChange);
+    };
+  }, [compact]);
+  return <canvas ref={canvasRef} className={'collabs-dot-wordmark' + (compact ? ' is-compact' : '')} role="img" aria-label="UNIFY" />;
+}
+
+function V4UnifyView({ leads, query, user, onNavigateView }) {
+  const [selectedKey, setSelectedKey] = React.useState(null);
+  const [visible, setVisible] = React.useState(40);
+  const [draft, setDraft] = React.useState({ status: 'idle', body: '', note: '', kind: 'reply' });
+  const [sendState, setSendState] = React.useState({ status: 'idle', error: '', to: '', cc: '', subject: '' });
+  const [xSendState, setXSendState] = React.useState({ status: 'idle', error: '', eventId: '', conversationId: '' });
+  const [xOptimistic, setXOptimistic] = React.useState({});
+  // The front door is chronological. Status is a quiet filter, never a competing inbox.
+  const [statusFilter, setStatusFilter] = React.useState('all');
+  const [toast, setToast] = React.useState('');
+  const [rowState, setRowState] = React.useState(V4ReadUnifyRowState);
+  const [undoHide, setUndoHide] = React.useState(null);
+
+  React.useEffect(() => {
+    const returnHome = () => {
+      setSelectedKey(null);
+      setStatusFilter('all');
+      setVisible(40);
+    };
+    window.addEventListener('v4:unify-home', returnHome);
+    return () => window.removeEventListener('v4:unify-home', returnHome);
+  }, []);
+  const groups = React.useMemo(() => V4CollabGroups(leads), [leads]);
+  const liveGroups = React.useMemo(() => groups.filter((g) => !g.trashed), [groups]);
+  const trashGroups = React.useMemo(() => groups.filter((g) => g.trashed), [groups]);
+  const filtered = React.useMemo(() => {
+    const q = String(query || '').trim().toLowerCase();
+    const now = Date.now();
+    const DAY = 86400000;
+    const base = statusFilter === 'Trash' ? trashGroups : liveGroups;
+    return base.filter((group) => {
+      const rowKey = group.records.map((lead) => String(lead.id)).sort().join(':');
+      const isCompleted = Boolean(rowState.completed[rowKey]);
+      const isHidden = Boolean(rowState.hidden[rowKey]);
+      if (statusFilter === 'Completed') {
+        if (!isCompleted || isHidden) return false;
+      } else if (statusFilter === 'Hidden') {
+        if (!isHidden) return false;
+      } else if (isCompleted || isHidden) return false;
+      if (!['all', 'Trash', 'Completed', 'Hidden'].includes(statusFilter) && V4CollabState(group) !== statusFilter) return false;
+      if (!q && statusFilter === 'all') {
+        const age = group.activity ? (now - group.activity) : Infinity;
+        const hot = V4CollabState(group) === 'Reply needed' || V4CollabState(group) === 'Draft ready';
+        if (!hot && age > 90 * DAY) return false;
+      }
+      if (!q) return true;
+      return group.records.some((lead) => V3LeadMatchesQuery(lead, q))
+        || V4CollabPreview(group).toLowerCase().includes(q)
+        || V4CollabTitle(group).toLowerCase().includes(q)
+        || group.sources.join(' ').toLowerCase().includes(q);
+    }).slice().sort((a, b) => {
+      if (b.activity !== a.activity) return b.activity - a.activity;
+      return String(b.primary?.id || '').localeCompare(String(a.primary?.id || ''));
+    });
+  }, [liveGroups, trashGroups, query, statusFilter, rowState]);
+  const keyFor = (group) => group.records.map((lead) => String(lead.id)).sort().join(':');
+  const selected = filtered.find((group) => keyFor(group) === selectedKey)
+    || groups.find((group) => keyFor(group) === selectedKey)
+    || null;
+  const selectedDirectSource = V4CollabDirectSource(selected);
+  const selectedGroupKey = selected ? keyFor(selected) : '';
+  const selectedHasGmail = Boolean(selected && (
+    selected.sources.includes('Gmail')
+    || selected.records.some((record) => record.email || record.contactEmail || record.gmailThreadId)
+  ));
+  const selectedPricingExplicit = selected
+    ? (selected.records.map((record) => rowState.pricing[`lead:${record.id}`]).find(Boolean) || rowState.pricing[selectedGroupKey] || '')
+    : '';
+  const selectedPricingPack = selected
+    ? (selectedPricingExplicit || V3InferPricingPdfPack({ ...selected.primary, thread: selected.thread }))
+    : 'single';
+  const selectedConversationId = String(selectedDirectSource?.conversationId || '');
+  const selectedOptimistic = selectedConversationId && Array.isArray(xOptimistic[selectedConversationId])
+    ? xOptimistic[selectedConversationId]
+    : [];
+  const displayedThread = selected
+    ? selected.thread.concat(selectedOptimistic).slice().sort((a, b) => (
+      V3TimestampForUi(a.date || a.dateIso || a.timestamp || a.sentAt)
+      - V3TimestampForUi(b.date || b.dateIso || b.timestamp || b.sentAt)
+    ))
+    : [];
+  const counts = React.useMemo(() => {
+    const c = { all: 0, 'Reply needed': 0, 'Draft ready': 0, Waiting: 0, 'Brief needed': 0, 'Invoice needed': 0, Completed: 0, Hidden: 0, Trash: trashGroups.length };
+    liveGroups.forEach((g) => {
+      const rowKey = keyFor(g);
+      if (rowState.hidden[rowKey]) { c.Hidden += 1; return; }
+      if (rowState.completed[rowKey]) { c.Completed += 1; return; }
+      c.all += 1;
+      const s = V4CollabState(g);
+      if (c[s] != null) c[s] += 1;
+    });
+    return c;
+  }, [liveGroups, trashGroups, rowState]);
+
+  const flash = (msg) => {
+    setToast(msg);
+    window.setTimeout(() => setToast(''), 2800);
+  };
+
+  const updateRowState = (next) => {
+    setRowState(next);
+    V4WriteUnifyRowState(next);
+  };
+
+  const selectPricingPack = (pack) => {
+    if (!selectedGroupKey || !V3_PRICING_PDF_PACKS[pack]) return;
+    const pricing = { ...rowState.pricing, [selectedGroupKey]: pack };
+    selected.records.forEach((record) => { pricing[`lead:${record.id}`] = pack; });
+    updateRowState({ ...rowState, pricing });
+    flash(`${V3PricingPdfMeta(pack).label} selected for draft context. Nothing sent.`);
+  };
+
+  const completeGroup = (group) => {
+    const rowKey = keyFor(group);
+    updateRowState({
+      completed: { ...rowState.completed, [rowKey]: new Date().toISOString() },
+      hidden: rowState.hidden,
+      pricing: rowState.pricing,
+    });
+    if (selectedKey === rowKey) setSelectedKey(null);
+    flash('Completed in Unify. Source conversations were not changed.');
+  };
+
+  const hideGroup = (group) => {
+    const rowKey = keyFor(group);
+    const next = {
+      completed: rowState.completed,
+      hidden: { ...rowState.hidden, [rowKey]: new Date().toISOString() },
+      pricing: rowState.pricing,
+    };
+    updateRowState(next);
+    setUndoHide({ rowKey, title: V4CollabTitle(group) });
+    if (selectedKey === rowKey) setSelectedKey(null);
+    window.setTimeout(() => setUndoHide((current) => current?.rowKey === rowKey ? null : current), 6000);
+  };
+
+  const undoLastHide = () => {
+    if (!undoHide) return;
+    const hidden = { ...rowState.hidden };
+    delete hidden[undoHide.rowKey];
+    updateRowState({ ...rowState, hidden });
+    setUndoHide(null);
+    flash('Restored to the Unify inbox.');
+  };
+
+  const restoreHiddenGroup = (group) => {
+    const rowKey = keyFor(group);
+    const hidden = { ...rowState.hidden };
+    delete hidden[rowKey];
+    updateRowState({ ...rowState, hidden });
+    flash('Restored to the Unify inbox. Source conversation unchanged.');
+  };
+
+  React.useEffect(() => {
+    setDraft({ status: 'idle', body: '', note: '', kind: 'reply' });
+    setSendState({ status: 'idle', error: '', to: '', cc: '', subject: '' });
+    setXSendState({ status: 'idle', error: '', eventId: '', conversationId: '' });
+  }, [selectedKey]);
+
+  React.useEffect(() => {
+    if (!selectedKey || !selected) return;
+    // The list query intentionally omits large email_thread blobs. Hydrate each
+    // stored record only after its merged conversation is opened so LinkedIn
+    // scraper histories reach the reader without making the inbox load heavier.
+    selected.records.forEach((lead) => {
+      if (!lead?._detailHydrated) {
+        V3HydrateLeadDetail(lead, { silent: true }).catch(() => {});
+      }
+    });
+  }, [selectedKey, selected]);
+
+  React.useEffect(() => {
+    if (!selectedConversationId || !selected) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await V4BriefServiceFetch(`/x-dm-outbound-audit?conversation_id=${encodeURIComponent(selectedConversationId)}`, { method: 'GET' });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || data.ok === false) throw new Error(data.error || 'Outbound audit unavailable.');
+        const records = (Array.isArray(data.records) ? data.records : []).map((record) => ({
+          body: String(record.text || ''),
+          from: 'You',
+          sender: 'You',
+          date: record.sent_at || '',
+          sentAt: record.sent_at || '',
+          collabSource: 'X',
+          collabOptimistic: true,
+          collabDeliveryState: 'sent-syncing',
+          dm_event_id: String(record.event_id || ''),
+          dm_conversation_id: String(record.conversation_id || selectedConversationId),
+        })).filter((message) => (
+          message.body && !selected.thread.some((sourceMessage) => V4UnifyOptimisticMatchesSource(message, sourceMessage))
+        ));
+        if (cancelled) return;
+        setXOptimistic((current) => ({ ...current, [selectedConversationId]: records }));
+      } catch (e) {
+        // The stored source thread remains usable if the local audit service is offline.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedConversationId, selected]);
+
+  React.useEffect(() => {
+    if (!selectedConversationId || !selectedOptimistic.length || !selected) return;
+    const remaining = selectedOptimistic.filter((optimistic) => (
+      !selected.thread.some((sourceMessage) => V4UnifyOptimisticMatchesSource(optimistic, sourceMessage))
+    ));
+    if (remaining.length === selectedOptimistic.length) return;
+    setXOptimistic((current) => {
+      const next = { ...current };
+      if (remaining.length) next[selectedConversationId] = remaining;
+      else delete next[selectedConversationId];
+      return next;
+    });
+  }, [selectedConversationId, selected, selectedOptimistic.length]);
+
+  React.useEffect(() => {
+    if (!selected) return;
+    const lead = { ...selected.primary, thread: selected.thread };
+    const sender = V3SenderForLead(lead, user);
+    const to = (typeof V3LeadReplyToEmail === 'function' ? V3LeadReplyToEmail(lead, sender) : '')
+      || lead.email || lead.contactEmail || '';
+    const cc = (typeof V3DefaultReplyCcEmails === 'function'
+      ? V3DefaultReplyCcEmails(sender, lead, { includeRobert: true }).join(', ')
+      : '');
+    const subject = typeof V3SubjectForLead === 'function' ? V3SubjectForLead(lead) : (lead.subject || 'Re: Collaboration');
+    setSendState((s) => ({ ...s, to: to || '', cc: cc || '', subject: subject || '' }));
+  }, [selectedKey, selected, user]);
+
+  const generateReply = async () => {
+    if (!selected) return;
+    if (!window.claude?.complete) {
+      setDraft({ status: 'limited', body: '', note: 'Local reply model offline. Start the Mac LLM bridge. Nothing was sent.', kind: 'reply' });
+      return;
+    }
+    const replyPricingPack = selectedHasGmail ? selectedPricingPack : '';
+    const explicitPricingPack = selectedHasGmail ? selectedPricingExplicit : '';
+    setDraft({ status: 'working', body: '', note: 'Reading the full merged conversation…', kind: 'reply', pricingPack: explicitPricingPack });
+    try {
+      const lead = { ...selected.primary, thread: selected.thread };
+      const sender = V3SenderForLead(lead, user);
+      const prompt = V4BuildCollabReplyPrompt(selected, user, replyPricingPack);
+      const out = await window.claude.complete(prompt, { max_tokens: 520, num_ctx: 8192 });
+      const raw = typeof out === 'string' ? out : (out?.text || out?.content || '');
+      const finalizedBody = typeof V3FinalizeAiReplyDraft === 'function'
+        ? V3FinalizeAiReplyDraft(raw, lead, sender)
+        : String(raw || '').trim();
+      const linkedInReadyBody = V4EnsureLinkedInConnectCta(finalizedBody, selected);
+      const body = explicitPricingPack
+        ? V4EnsureSelectedPricingContext(linkedInReadyBody, explicitPricingPack)
+        : linkedInReadyBody;
+      if (!body.trim()) throw new Error('Empty reply');
+      setDraft({
+        status: 'ready',
+        body,
+        note: V4CollabDirectSource(selected)
+          ? 'Review and edit. Nothing is sent until you choose Review & send on X and confirm the exact text.'
+          : 'Review, edit, then Send via Gmail below. Nothing is sent until you tap Send.',
+        kind: 'reply',
+        pricingPack: explicitPricingPack,
+      });
+    } catch (error) {
+      setDraft({ status: 'error', body: '', note: 'Could not generate a reply. Nothing was saved or sent.', kind: 'reply' });
+    }
+  };
+
+  const sendGmail = async () => {
+    if (!selected || !draft.body.trim()) return;
+    const lead = { ...selected.primary, thread: selected.thread };
+    const sender = V3SenderForLead(lead, user);
+    const to = String(sendState.to || '').trim();
+    const body = typeof V3EnsureSenderSignature === 'function'
+      ? V3EnsureSenderSignature(draft.body.trim(), sender)
+      : draft.body.trim();
+    if (!to) {
+      setSendState((s) => ({ ...s, status: 'error', error: 'Add a recipient email (To) before sending.' }));
+      return;
+    }
+    if (!body) {
+      setSendState((s) => ({ ...s, status: 'error', error: 'Write a reply before sending.' }));
+      return;
+    }
+    if (!window.V3SendLeadEmail && typeof V3SendLeadEmail !== 'function') {
+      setSendState((s) => ({ ...s, status: 'error', error: 'Send is unavailable on this host.' }));
+      return;
+    }
+    setSendState((s) => ({ ...s, status: 'sending', error: '' }));
+    try {
+      const sendFn = window.V3SendLeadEmail || V3SendLeadEmail;
+      await sendFn({
+        lead,
+        sender,
+        to,
+        cc: sendState.cc || undefined,
+        subject: sendState.subject || V3SubjectForLead(lead),
+        body,
+        attachPdf: false,
+      });
+      try {
+        window.dispatchEvent(new CustomEvent('v3:email-sent', {
+          detail: {
+            leadId: lead.id,
+            sender,
+            subject: sendState.subject,
+            body,
+            to: [to],
+            cc: String(sendState.cc || '').split(',').map((x) => x.trim()).filter(Boolean),
+          },
+        }));
+      } catch (e) {}
+      setSendState((s) => ({ ...s, status: 'sent', error: '' }));
+      setDraft((d) => ({
+        ...d,
+        note: `Sent via Gmail to ${to}. Thread updated when the board refreshes.`,
+      }));
+    } catch (err) {
+      setSendState((s) => ({
+        ...s,
+        status: 'error',
+        error: err?.message || 'Send failed',
+      }));
+    }
+  };
+
+  const approveSendXDm = async () => {
+    const source = V4CollabDirectSource(selected);
+    if (!selected || !source?.conversationId || !draft.body.trim() || xSendState.status === 'sending') return;
+    const exactLead = { ...selected.primary, thread: selected.thread, xOpenDm: source.url };
+    const who = V4CollabTitle(selected);
+    const text = draft.body.trim();
+    const approved = window.confirm(
+      `Send this X DM as Robert to ${who}?\n\n${text.slice(0, 700)}${text.length > 700 ? '…' : ''}\n\nThis sends only after you confirm.`
+    );
+    if (!approved) return;
+    setXSendState({ status: 'sending', error: '', eventId: '', conversationId: '' });
+    try {
+      const result = await V4SendApprovedXDm(exactLead, text, { silent: true, conversationId: source.conversationId });
+      setXSendState({
+        status: 'sent',
+        error: '',
+        eventId: String(result?.dm_event_id || ''),
+        conversationId: String(result?.dm_conversation_id || ''),
+      });
+      const sentAt = new Date().toISOString();
+      const returnedConversationId = String(result?.dm_conversation_id || source.conversationId);
+      const optimisticMessage = {
+        body: text,
+        from: 'You',
+        sender: 'You',
+        date: sentAt,
+        sentAt,
+        collabSource: 'X',
+        collabOptimistic: true,
+        collabDeliveryState: 'sent-syncing',
+        dm_event_id: String(result?.dm_event_id || ''),
+        dm_conversation_id: returnedConversationId,
+      };
+      setXOptimistic((current) => {
+        const next = { ...current };
+        const existing = Array.isArray(next[returnedConversationId]) ? next[returnedConversationId] : [];
+        const withoutDuplicate = existing.filter((message) => (
+          !V4UnifyOptimisticMatchesSource(optimisticMessage, message)
+        ));
+        next[returnedConversationId] = withoutDuplicate.concat(optimisticMessage);
+        return next;
+      });
+      setDraft((current) => ({ ...current, note: 'Sent via X API after approval. Refresh will reconcile the conversation snapshot.' }));
+    } catch (error) {
+      setXSendState({ status: 'error', error: error?.message || 'X DM send failed.', eventId: '', conversationId: '' });
+    }
+  };
+
+  const moveChannel = (channel) => {
+    if (!selected) return;
+    const lead = selected.primary;
+    const name = lead.contactName || lead.xName || 'there';
+    const first = String(name).split(/\s+/)[0];
+    const email = lead.email || lead.contactEmail || '';
+    const body = channel === 'WhatsApp'
+      ? `Hi ${first}, easier to keep this moving on WhatsApp if that works for you. Which number should I use?`
+      : `Hi ${first},\n\nHappy to keep this on email so we can share the rate card and brief cleanly.\n\nBest email for you${email ? ` (we have ${email} on file)` : ''}?\n\nBest,`;
+    setDraft({
+      status: 'ready',
+      body,
+      note: channel === 'WhatsApp'
+        ? 'WhatsApp draft — copy into WhatsApp after you edit. No auto-send.'
+        : 'Email draft ready. Use Send via Gmail below if you have their address.',
+      kind: 'channel',
+    });
+  };
+
+  const makeBriefHandoff = () => {
+    if (!selected) return;
+    const lead = selected.primary;
+    try {
+      window.sessionStorage.setItem('collabs-brief-handoff', JSON.stringify({
+        leadId: lead.id,
+        title: V4CollabTitle(selected),
+        sources: selected.sources,
+        asked: lead.operatorSummary?.asked_for || lead.deliverables || '',
+        summary: lead.operatorSummary?.lead_summary || '',
+        at: new Date().toISOString(),
+      }));
+    } catch (e) {}
+    setDraft({
+      status: 'limited',
+      body: '',
+      note: 'Brief handoff saved for this lead. Open Briefs / Brief Maker to complete. Nothing auto-created.',
+      kind: 'brief',
+    });
+  };
+
+  const createInvoiceHandoff = () => {
+    if (!selected) return;
+    try {
+      window.sessionStorage.setItem('collabs-invoice-handoff', JSON.stringify({
+        leadId: selected.primary.id,
+        title: V4CollabTitle(selected),
+        value: selected.primary.value || null,
+        at: new Date().toISOString(),
+      }));
+    } catch (e) {}
+    setDraft({
+      status: 'limited',
+      body: '',
+      note: 'Invoice handoff prepared. Open Invoices to create a draft through the approved workflow. No Stripe charge was made.',
+      kind: 'invoice',
+    });
+  };
+
+  const statusClass = (state) => {
+    if (state === 'Reply needed') return 'is-reply';
+    if (state === 'Draft ready') return 'is-draft';
+    if (state === 'Brief needed') return 'is-brief';
+    if (state === 'Invoice needed') return 'is-invoice';
+    if (state === 'Trash') return 'is-trash';
+    return 'is-wait';
+  };
+
+  const trashSelected = () => {
+    if (!selected) return;
+    V4CollabTrashGroup(selected);
+    setSelectedKey(null);
+    flash('Moved to Trash. Open Trash to restore anytime.');
+  };
+
+  const restoreSelected = () => {
+    if (!selected) return;
+    V4CollabRestoreGroup(selected);
+    setStatusFilter('Reply needed');
+    setSelectedKey(null);
+    flash('Restored from Trash → back in inbox.');
+  };
+
+  if (selected) {
+    const lead = selected.primary;
+    const title = V4CollabTitle(selected);
+    const contact = lead.contactName || lead.xName || lead.email || lead.xHandle || 'Unknown sender';
+    const latestRequest = lead.operatorSummary?.asked_for || lead.deliverables || lead.leadType || V4CollabPreview(selected);
+    const prior = lead.operatorSummary?.lead_summary || lead.dealEvidence || lead.description || '';
+    const state = V4CollabState(selected);
+    const directSource = V4CollabDirectSource(selected);
+    const xSourceAction = V4CollabXSourceAction(selected);
+    const linkedinSourceAction = V4CollabLinkedInSourceAction(selected);
+    const canGmail = !directSource && (selected.sources.includes('Gmail') || !!(lead.email || lead.contactEmail || lead.gmailThreadId));
+    const sClass = statusClass(state);
+    return (
+      <div className="collabs-shell collabs-detail">
+        <div className="collabs-ambience" aria-hidden="true">
+          <span className="collabs-orb collabs-orb--a" />
+          <span className="collabs-orb collabs-orb--b" />
+          <span className="collabs-orb collabs-orb--c" />
+        </div>
+        {toast ? <div className="collabs-toast" role="status">{toast}</div> : null}
+        <div className="collabs-detail-bar">
+          <button type="button" className="collabs-back" onClick={() => setSelectedKey(null)}>← Inbox</button>
+          <div className="collabs-detail-identity">
+            <strong>{title}</strong>
+            <span>{contact}</span>
+            <span className={'collabs-state ' + sClass}>{state}</span>
+            {selected.sources.map((source) => <span key={source} className={'collabs-source is-' + source.toLowerCase()}>{source}</span>)}
+          </div>
+          {xSourceAction || linkedinSourceAction ? <div className="collabs-source-actions">
+            {xSourceAction?.url ? (
+              <a
+                className="collabs-source-open"
+                href={xSourceAction.url}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`${xSourceAction.label} for ${title}`}
+              >
+                {xSourceAction.label} ↗
+              </a>
+            ) : xSourceAction ? (
+              <span className="collabs-source-open is-unavailable" title="No reliable X chat, profile, username, or source URL is stored for this lead.">
+                X link unavailable
+              </span>
+            ) : null}
+            {linkedinSourceAction?.url ? (
+              <a
+                className="collabs-source-open is-linkedin"
+                href={linkedinSourceAction.url}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`Open the saved LinkedIn conversation for ${title}`}
+              >
+                Open in LinkedIn ↗
+              </a>
+            ) : linkedinSourceAction ? (
+              <span className="collabs-source-open is-unavailable" title="No validated saved LinkedIn message-thread URL is stored for this lead.">
+                LinkedIn unavailable
+              </span>
+            ) : null}
+          </div> : null}
+        </div>
+        <section className="collabs-context collabs-context--compact">
+          <div className="collabs-facts">
+            <div><span>What they want</span><strong>{String(latestRequest).slice(0, 420)}</strong></div>
+            {prior ? <div><span>What we know / promised</span><strong>{String(prior).slice(0, 420)}</strong></div> : null}
+            {lead.value || lead.pricing ? <div><span>Pricing</span><strong>{lead.value ? `$${Number(lead.value).toLocaleString('en-US')}` : String(lead.pricing)}</strong></div> : null}
+            {lead.nextMove?.text || lead.bestNextStep ? <div><span>Open next step</span><strong>{lead.nextMove?.text || lead.bestNextStep}</strong></div> : null}
+          </div>
+        </section>
+        {selectedHasGmail ? (
+          <section className="collabs-pricing-picker" aria-label="Company OS pricing tier">
+            <div><strong>Pricing tier</strong><span>Draft context only · no attachment or send</span></div>
+            <div className="collabs-pricing-options" role="radiogroup" aria-label="Pricing tier for this Gmail conversation">
+              {Object.values(V3_PRICING_PDF_PACKS).map((pack) => (
+                <button
+                  key={pack.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={selectedPricingPack === pack.id}
+                  className={selectedPricingPack === pack.id ? 'is-selected' : ''}
+                  onClick={() => selectPricingPack(pack.id)}
+                  title={`${pack.label} · ${pack.filename}`}
+                >
+                  {pack.label}
+                </button>
+              ))}
+            </div>
+          </section>
+        ) : null}
+        <div className="collabs-safe-tools">
+          <button type="button" className="collabs-secondary" onClick={makeBriefHandoff}>Make brief</button>
+          <button type="button" className="collabs-secondary" onClick={createInvoiceHandoff}>Create invoice</button>
+        </div>
+        {selected.attachments.length ? (
+          <section className="collabs-materials">
+            <span className="collabs-kicker">Materials</span>
+            <div>{selected.attachments.map((item, index) => {
+              const href = typeof item === 'string' ? item : (item.url || item.href || item.webUrl || '');
+              const label = typeof item === 'string' ? item.split('/').pop() : (item.name || item.title || `Material ${index + 1}`);
+              return href ? <a key={index} href={href} target="_blank" rel="noreferrer">{label || `Material ${index + 1}`} ↗</a> : <span key={index}>{label}</span>;
+            })}</div>
+          </section>
+        ) : null}
+        {draft.status !== 'idle' ? (
+          <section className={'collabs-draft is-' + draft.status} aria-live="polite">
+            <div className="collabs-draft-head">
+              <strong>{draft.kind === 'channel' ? 'Channel move draft' : draft.kind === 'brief' ? 'Brief handoff' : draft.kind === 'invoice' ? 'Invoice handoff' : 'Proposed reply'}</strong>
+              {draft.status === 'working' ? (
+                <span className="collabs-shimmer" data-text={draft.note || 'Thinking…'}>{draft.note || 'Thinking…'}</span>
+              ) : (
+                <span>{draft.note}</span>
+              )}
+            </div>
+            {draft.body ? (
+              <>
+                <textarea
+                  value={draft.body}
+                  onChange={(event) => setDraft((current) => ({ ...current, body: event.target.value }))}
+                  aria-label="Review proposed reply"
+                />
+                {selectedHasGmail && draft.pricingPack ? (
+                  <div className="collabs-draft-pricing-preview" aria-label={`Selected pricing preview: ${V3PricingPdfMeta(draft.pricingPack).label}`}>
+                    <div className="collabs-draft-pricing-head">
+                      <strong>{V3PricingPdfMeta(draft.pricingPack).label}</strong>
+                      <span>Company OS rate card preview · review only · not attached</span>
+                    </div>
+                    <V3PricingPdfAttachPreview pack={draft.pricingPack} />
+                  </div>
+                ) : null}
+                {(draft.kind === 'reply' || draft.kind === 'channel') && directSource ? (
+                  <div className="collabs-send-box collabs-x-send-box">
+                    <div className="collabs-send-title">Send to this X conversation</div>
+                    <div className="collabs-draft-foot">
+                      <button type="button" className="collabs-primary" onClick={approveSendXDm} disabled={xSendState.status === 'sending' || xSendState.status === 'sent' || !draft.body.trim()}>
+                        {xSendState.status === 'sending' ? 'Sending…' : xSendState.status === 'sent' ? 'Sent ✓' : 'Review & send on X'}
+                      </button>
+                      <button type="button" className="collabs-secondary" onClick={() => {
+                        try { navigator.clipboard.writeText(draft.body); } catch (e) {}
+                        setDraft((current) => ({ ...current, note: 'Draft copied. Nothing was sent.' }));
+                      }}>Copy draft</button>
+                      <button type="button" className="collabs-secondary" onClick={() => {
+                        setDraft({ status: 'idle', body: '', note: '', kind: 'reply' });
+                        setXSendState({ status: 'idle', error: '', eventId: '', conversationId: '' });
+                      }} disabled={xSendState.status === 'sending'}>Cancel</button>
+                      <span className="collabs-draft-safe">{xSendState.status === 'sent' ? 'Delivered by the X API. The audit identifiers are recorded below.' : 'A final confirmation shows the exact text before any transmission.'}</span>
+                    </div>
+                    {xSendState.status === 'sent' ? <div className="collabs-x-audit">Delivered · conversation {xSendState.conversationId || 'confirmed'}{xSendState.eventId ? ` · event ${xSendState.eventId}` : ''}</div> : null}
+                    {xSendState.error ? <div className="collabs-send-error" role="alert">{xSendState.error}</div> : null}
+                  </div>
+                ) : (draft.kind === 'reply' || draft.kind === 'channel') && canGmail ? (
+                  <div className="collabs-send-box">
+                    <div className="collabs-send-title">Send via Gmail</div>
+                    <label className="collabs-field">
+                      <span>To</span>
+                      <input
+                        type="email"
+                        value={sendState.to}
+                        onChange={(e) => setSendState((s) => ({ ...s, to: e.target.value }))}
+                        placeholder="lead@company.com"
+                        autoComplete="email"
+                      />
+                    </label>
+                    <label className="collabs-field">
+                      <span>CC</span>
+                      <input
+                        type="text"
+                        value={sendState.cc}
+                        onChange={(e) => setSendState((s) => ({ ...s, cc: e.target.value }))}
+                        placeholder="optional"
+                      />
+                    </label>
+                    <label className="collabs-field">
+                      <span>Subject</span>
+                      <input
+                        type="text"
+                        value={sendState.subject}
+                        onChange={(e) => setSendState((s) => ({ ...s, subject: e.target.value }))}
+                      />
+                    </label>
+                    <div className="collabs-draft-foot">
+                      <button
+                        type="button"
+                        className="collabs-primary"
+                        onClick={sendGmail}
+                        disabled={sendState.status === 'sending' || !draft.body.trim()}
+                      >
+                        {sendState.status === 'sending' ? 'Sending…' : sendState.status === 'sent' ? 'Sent ✓' : 'Send via Gmail'}
+                      </button>
+                      <button
+                        type="button"
+                        className="collabs-secondary"
+                        onClick={() => {
+                          try { navigator.clipboard.writeText(draft.body); } catch (e) {}
+                          setDraft((c) => ({ ...c, note: 'Copied. Still not sent until you hit Send via Gmail.' }));
+                        }}
+                      >
+                        Copy draft
+                      </button>
+                      <span className="collabs-draft-safe">
+                        {sendState.status === 'sent'
+                          ? 'Email sent through UNALIGNED Gmail.'
+                          : 'One click to send after you review. Not automatic.'}
+                      </span>
+                    </div>
+                    {sendState.error ? <div className="collabs-send-error" role="alert">{sendState.error}</div> : null}
+                  </div>
+                ) : draft.body ? (
+                  <div className="collabs-draft-foot">
+                    <button
+                      type="button"
+                      className="collabs-secondary"
+                      onClick={() => {
+                        try { navigator.clipboard.writeText(draft.body); } catch (e) {}
+                        setDraft((c) => ({ ...c, note: 'Copied to clipboard.' }));
+                      }}
+                    >
+                      Copy draft
+                    </button>
+                    <span className="collabs-draft-safe">
+                      {selected.sources.includes('X') || selected.sources.includes('LinkedIn')
+                        ? 'X / LinkedIn: paste into the DM after you edit. Gmail send appears when a To address is on file.'
+                        : 'Add a To email above if Send via Gmail is missing.'}
+                    </span>
+                  </div>
+                ) : null}
+              </>
+            ) : null}
+          </section>
+        ) : null}
+        <section className="collabs-thread">
+          <h2>
+            Conversation ({displayedThread.length} messages · newest at bottom)
+            <span className="collabs-thread-provenance">
+              {selectedOptimistic.length ? ' · includes a locally persisted sent message' : ' · local stored history'}
+            </span>
+          </h2>
+          {displayedThread.length ? displayedThread.map((message, index) => (
+            <article key={V4CollabMessageEventId(message) || `${message.collabOptimistic ? 'optimistic' : 'source'}-${index}`} className={'collabs-message is-' + V4CollabMessageDirection(message) + (message.collabOptimistic ? ' is-optimistic' : '')}>
+              <header>
+                <strong>{message.from || message.sender || 'Unknown'}</strong>
+                <span className={'collabs-source is-' + String(message.collabSource || 'gmail').toLowerCase()}>{message.collabSource || 'Gmail'}</span>
+                <time>{message.collabSource === 'LinkedIn'
+                  ? (message.whenLabel || 'Time unavailable')
+                  : V3GmailTime.full(message.date || message.dateIso || message.timestamp || '')}</time>
+                {message.collabOptimistic ? <span className="collabs-message-delivery">Sent · syncing</span> : null}
+              </header>
+              <p>{message.body || message.snippet || message.text || 'No message body saved for this item.'}</p>
+              {Array.isArray(message.attachments) && message.attachments.length ? (
+                <div className="collabs-message-materials">
+                  {message.attachments.map((item, attachmentIndex) => {
+                    const href = typeof item === 'string' ? item : (item.url || item.href || item.webUrl || '');
+                    const label = typeof item === 'string' ? item.split('/').pop() : (item.name || item.title || `Attachment ${attachmentIndex + 1}`);
+                    return href
+                      ? <a key={attachmentIndex} href={href} target="_blank" rel="noreferrer">{label || `Attachment ${attachmentIndex + 1}`} ↗</a>
+                      : <span key={attachmentIndex}>{label}</span>;
+                  })}
+                </div>
+              ) : null}
+            </article>
+          )) : (
+            <div className="collabs-empty">
+              No raw messages are stored on this record yet. Source data stays intact. Generate reply uses summaries and known facts.
+            </div>
+          )}
+        </section>
+        {draft.status === 'idle' ? <div className="collabs-composer-dock" role="region" aria-label="Reply composer">
+            <div><strong>Reply to {contact}</strong><span>AI drafts from the full conversation. Review before sending.</span></div>
+            <button type="button" className="collabs-primary" onClick={generateReply} disabled={draft.status === 'working'}>
+              {draft.status === 'working' ? (
+                <span className="collabs-shimmer" data-text="Generating…">Generating…</span>
+              ) : 'Generate reply'}
+            </button>
+        </div> : null}
+      </div>
+    );
+  }
+
+  const filters = ['all', 'Reply needed', 'Draft ready', 'Waiting', 'Brief needed', 'Invoice needed', 'Completed', 'Hidden'];
+
+  return (
+    <div className="collabs-shell">
+      <div className="collabs-ambience" aria-hidden="true">
+        <span className="collabs-orb collabs-orb--a" />
+        <span className="collabs-orb collabs-orb--b" />
+        <span className="collabs-orb collabs-orb--c" />
+      </div>
+      {toast ? <div className="collabs-toast" role="status">{toast}</div> : null}
+      {undoHide ? <div className="collabs-undo-toast" role="status"><span>{undoHide.title} hidden in Unify.</span><button type="button" onClick={undoLastHide}>Undo</button></div> : null}
+      <header className="collabs-heading">
+        <h1><V4UnifyDotWordmark /></h1>
+        <div className="collabs-heading-actions">
+          <button type="button" className="collabs-rolo-link" onClick={() => onNavigateView?.('leads')}>Open Rolodex</button>
+          <span className="collabs-count">{filtered.length} conversations</span>
+        </div>
+      </header>
+      <div className="collabs-filters" role="tablist" aria-label="Collab status filters">
+        {filters.map((id) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={statusFilter === id}
+            className={'collabs-filter' + (statusFilter === id ? ' is-active' : '') + (id === 'Trash' ? ' is-trash-tab' : '')}
+            onClick={() => { setStatusFilter(id); setVisible(40); setSelectedKey(null); }}
+          >
+            {id === 'all' ? 'All' : id}
+            <em>{id === 'all' ? counts.all : (counts[id] || 0)}</em>
+          </button>
+        ))}
+      </div>
+      <section className="collabs-list" aria-label="Collaboration inbox">
+        {filtered.slice(0, visible).map((group) => {
+          const state = V4CollabState(group);
+          const sClass = statusClass(state);
+          return <V4UnifyInboxRow key={keyFor(group)} group={group} groupKey={keyFor(group)} state={state} sClass={sClass} isHidden={Boolean(rowState.hidden[keyFor(group)])} onOpen={() => setSelectedKey(keyFor(group))} onComplete={() => completeGroup(group)} onHide={() => hideGroup(group)} onRestore={() => restoreHiddenGroup(group)} />;
+        })}
+        {!filtered.length ? (
+          <div className="collabs-empty">
+            <V4ThinkingOrb state="breathing" px={64} label="Empty inbox" />
+            <div>
+              No conversations here. Try All, or clear search.
+            </div>
+          </div>
+        ) : null}
+      </section>
+      {visible < filtered.length ? (
+        <button type="button" className="collabs-more" onClick={() => setVisible((count) => count + 40)}>Load more</button>
+      ) : null}
+    </div>
+  );
+}
+
+const V4_VALID_VIEWS = ['today', 'board', 'new-leads', 'company-os', 'unify', 'organs', 'leads', 'inbox', 'invoices', 'calendar', 'sandbox'];
 
 // ─── Sandbox Test — guided demo for pitching Company OS ─────
 const V4_SANDBOX_STORAGE = 'v4-sandbox-demo-v1';
@@ -25548,12 +27690,15 @@ function V4SandboxTestView({ onGoFocus, onGoCompanyOs, onGoDesk, onGoNewLeads })
 }
 
 function V4DefaultViewForUser(user) {
-  return user === 'asher' ? 'today' : 'company-os';
+  return 'unify';
 }
 
 function V4InitialView(user) {
   try {
     const saved = window.sessionStorage.getItem('v4_view');
+    // Retire the old Focus and sales-demo entry points without deleting their
+    // implementation. Explicit Company OS/Calendar sessions remain valid.
+    if (saved === 'today' || saved === 'sandbox') return 'unify';
     if (saved && V4_VALID_VIEWS.includes(saved)) return saved;
   } catch (e) {}
   return V4DefaultViewForUser(user);
@@ -26548,9 +28693,10 @@ function V4App() {
     if (view === 'inbox') return user === 'robert' ? 'Search briefs…' : 'Search inbox…';
     if (view === 'invoices') return 'Search invoices…';
     if (view === 'new-leads') return 'Search new leads…';
-    if (view === 'leads') return 'Search network…';
+    if (view === 'leads') return 'Search Rolodex…';
     if (view === 'board') return 'Search pipeline…';
     if (view === 'company-os') return 'Search Company OS…';
+    if (view === 'unify') return 'Search Unify…';
 
     return 'Search calendar…';
   }, [view]);
@@ -26687,6 +28833,9 @@ function V4App() {
     setView(id);
     V4PersistView(id);
     try { window.dispatchEvent(new CustomEvent('v4:skip-boot')); } catch (e) {}
+    if (id === 'unify') {
+      try { window.dispatchEvent(new CustomEvent('v4:unify-home')); } catch (e) {}
+    }
     if (id !== 'inbox' && id !== 'leads') setOpenId(null);
     setOrgansMenuOpen(false);
     setMobileMenuOpen(false);
@@ -26765,7 +28914,6 @@ function V4App() {
       label: 'Daily work',
       items: [
         { label: 'Calendar', hint: 'Schedule and go-live holds', icon: 'cal', run: () => goView('calendar') },
-        { label: 'Sandbox Test', hint: 'Guided sales demo', icon: 'bolt', run: () => goView('sandbox') },
         { label: 'New Leads', hint: 'Robert Gmail and X intake', icon: 'plus', run: () => goView('new-leads') },
         { label: 'Briefs', hint: 'Robert posting briefs', icon: 'doc', run: () => goView('inbox') },
         { label: 'Invoices', hint: 'Paid, outstanding, Stripe', icon: 'invoice', run: () => goView('invoices') },
@@ -26776,7 +28924,7 @@ function V4App() {
       items: [
         { label: 'God Mode', hint: '3D earth · weather, flights, storms', icon: 'network', run: openGodModeMobile },
         { label: 'Toolkit', hint: 'Brief Maker, X signal, manual lead', icon: 'bolt', run: goToOrgansToolkit },
-        { label: 'Network', hint: 'Contacts and history', icon: 'network', run: () => goView('leads') },
+        { label: 'Rolodex', hint: 'People directory and history', icon: 'network', run: () => goView('leads') },
         { label: 'Partner Feedback', hint: 'Score completed collabs', icon: 'star', run: goToPartnerFeedback },
         { label: "Robert's Desk", hint: 'Manual public-intake lane', icon: 'leads', run: goToDeskIntake },
         { label: 'Scope Forms', hint: 'Package and scope submissions', icon: 'table', run: goToScopeIntake },
@@ -26786,13 +28934,12 @@ function V4App() {
 
   const paletteCommands = [
     { label: 'Go to Company OS', hint: 'workspace', run: goToCompanyOsHome },
+    { label: 'Go to UNIFY', hint: 'unified collaboration inbox', run: () => goView('unify') },
     { label: 'Go to Organs', hint: 'command center', run: () => goView('organs') },
     { label: 'Go to Toolkit', hint: 'brief maker, X signal, handoffs', run: goToOrgansToolkit },
     { label: 'Go to Partner feedback', hint: 'collaboration scores', run: goToPartnerFeedback },
     { label: "Go to Robert's desk", hint: 'public connect intake', run: goToDeskIntake },
     { label: 'Go to Scope forms', hint: 'package + scope submissions', run: goToScopeIntake },
-    { label: 'Go to Focus', hint: 'New · Live · Negotiating', run: () => goView('today') },
-    { label: 'Sandbox Test', hint: 'Guided sales demo of Company OS', run: () => goView('sandbox') },
     {
       label: 'God Mode',
       hint: '3D earth · weather, flights, storms',
@@ -26807,7 +28954,7 @@ function V4App() {
     { label: 'Go to Invoices', run: () => goView('invoices') },
     { label: 'Go to New Leads', hint: 'Robert Gmail + X intake', run: () => goView('new-leads') },
     { label: 'Go to Intake queue', hint: 'Company OS send tab', run: goToCompanyOsHome },
-    { label: 'Go to Network', run: () => goView('leads') },
+    { label: 'Go to Rolodex', run: () => goView('leads') },
     { label: 'View as Asher', hint: 'shared lane', run: () => { setTweak('viewAs', 'asher'); setOpenId(null); } },
     { label: 'View as Sammy', hint: 'shared lane', run: () => { setTweak('viewAs', 'sammy'); setOpenId(null); } },
     { label: 'View as Robert', hint: 'creator lane', run: () => { setTweak('viewAs', 'robert'); setOpenId(null); } },
@@ -26821,18 +28968,17 @@ function V4App() {
     <div className="app" data-screen-label={`UNALIGNED — ${view}`}>
       {/* ─── Top bar ─── */}
       <header className="hd v6-gnav">
-        <button type="button" className="hd-brand v6-gbrand" onClick={goToCompanyOsHome} aria-label="Go to Company OS home" title="Company OS home">
-          <V6CompanyOsLogo className="v6-logo-full" />
-          <V6CompanyOsLogo compact className="v6-logo-compact" />
+        <button type="button" className="hd-brand v6-gbrand hd-brand-unify" onClick={() => goView('unify')} aria-label="Go to UNIFY" title="UNIFY">
+          <V4UnifyDotWordmark compact />
         </button>
 
         <div className="hd-nav">
-          <button className="hd-nav-btn" aria-current={view === 'today' ? 'page' : undefined} onClick={() => goView('today')}>Focus</button>
+          <button className="hd-nav-btn hd-nav-btn-unify" aria-label="Home" aria-current={view === 'unify' ? 'page' : undefined} onClick={() => goView('unify')}>Home</button>
           <button className="hd-nav-btn" aria-current={view === 'calendar' ? 'page' : undefined} onClick={() => goView('calendar')}>
             <V3Icon name="cal" w={13} style={{ marginRight: 4 }} /> Calendar
           </button>
           <button className="hd-nav-btn" aria-current={cosCompanyOsHomeActive ? 'page' : undefined} onClick={goToCompanyOsHome}>Company OS</button>
-          <button className="hd-nav-btn" aria-current={view === 'sandbox' ? 'page' : undefined} onClick={() => goView('sandbox')} title="Guided demo for pitching Company OS">Sandbox Test</button>
+          <button className="hd-nav-btn" aria-current={view === 'leads' ? 'page' : undefined} onClick={() => goView('leads')}>Rolodex</button>
           <div className="hd-nav-menu" ref={organsMenuRef}>
             <button
               className="hd-nav-btn hd-nav-menu-btn"
@@ -26853,7 +28999,7 @@ function V4App() {
                 <button role="menuitem" className="hd-nav-drop-item" aria-current={view === 'new-leads' ? 'page' : undefined} onClick={() => goView('new-leads')}>
                   New Leads {newLeadCount > 0 && <span>{newLeadCount}</span>}
                 </button>
-                <button role="menuitem" className="hd-nav-drop-item" aria-current={view === 'leads' ? 'page' : undefined} onClick={() => goView('leads')}>Network</button>
+                <button role="menuitem" className="hd-nav-drop-item" aria-current={view === 'leads' ? 'page' : undefined} onClick={() => goView('leads')}>Rolodex</button>
                 <div className="hd-nav-drop-sep" aria-hidden="true" />
                 <button
                   role="menuitem"
@@ -26909,7 +29055,6 @@ function V4App() {
           >
             <V3Avatar name={me.name} color={me.color} size="xs" className="hd-context-pip" />
             <span>{me.name}</span>
-            <span className="hd-context-scope">{SCOPE_TAG[user]}</span>
             <V3Icon name="chev_d" w={12} className="hd-context-chev" />
           </button>
           {userMenuOpen && (
@@ -26960,7 +29105,7 @@ function V4App() {
       </header>
 
       {/* ─── Main area ─── */}
-      <main className="main">
+      <main className={'main' + (view === 'unify' ? ' main--collabs' : '')}>
         {/* Filter strip — only on Pipeline/Network */}
         {(view === 'board' || view === 'leads') && (
           <div className="filter-strip">
@@ -27076,6 +29221,17 @@ function V4App() {
             }}
           />
         )}
+        {view === 'unify' && (
+          <V4UnifyView
+            leads={mergedLeads}
+            query={search}
+            user={user}
+            onNavigateView={(nextView, nextOpenId = null) => {
+              setView(nextView);
+              setOpenId(nextOpenId);
+            }}
+          />
+        )}
         {view === 'organs' && (
           <div className="body body-organs" style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
             <V4OrgansView
@@ -27107,17 +29263,12 @@ function V4App() {
           )}
         </span>
         <span className="right">{me.name} ({me.role}) · UNALIGNED Ops</span>
-        <button className="ft-tab" aria-current={view === 'today' ? 'page' : undefined}
-                onClick={() => goView('today')}>
-          <V3Icon name="diamond" w={18} />
-          Focus
+        <button className="ft-tab ft-tab-unify" aria-current={view === 'unify' ? 'page' : undefined}
+                onClick={() => goView('unify')}>
+          <V3Icon name="inbox" w={18} />
+          Home
         </button>
-        <button className="ft-tab" aria-current={view === 'sandbox' ? 'page' : undefined}
-                onClick={() => goView('sandbox')}>
-          <V3Icon name="bolt" w={18} />
-          Sandbox
-        </button>
-        <button className="ft-tab" aria-current={!mobileMenuOpen && cosCompanyOsHomeActive ? 'page' : undefined}
+        <button className="ft-tab ft-tab-os" aria-current={!mobileMenuOpen && cosCompanyOsHomeActive ? 'page' : undefined}
                 onClick={goToCompanyOsHome}>
           <V3Icon name="diamond" w={18} />
           OS

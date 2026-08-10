@@ -45,14 +45,14 @@
 </script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>UNALIGNED — Operating System</title>
+<title>UNIFY — UNALIGNED</title>
 
 <link rel="icon" href="favicon.ico" sizes="any" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&family=Press+Start+2P&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Press+Start+2P&display=swap" rel="stylesheet" />
 
-<link rel="stylesheet" href="flow-v4/styles.css?v=20260718-godmode-sats-v1" />
+<link rel="stylesheet" href="flow-v4/styles.css?v=20260810-rolodex-v1" />
 <style>
   .ops-gate-screen {
     position: fixed;
@@ -145,13 +145,14 @@
 
 <div id="ops-gate-screen" class="ops-gate-screen is-visible" aria-hidden="false">
   <div class="ops-gate-card">
-    <span class="ops-gate-eyebrow">Company OS</span>
+    <span class="ops-gate-eyebrow">UNIFY</span>
     <h1>Team access</h1>
-    <p>This dashboard is private. Enter the team password to open Company OS.</p>
+    <p>This workspace is private. Enter the team password to open UNIFY.</p>
     <form id="ops-gate-form">
       <div class="ops-gate-field">
-        <label for="ops-gate-password">Password</label>
-        <input id="ops-gate-password" type="password" autocomplete="current-password" placeholder="Team password" />
+        <label for="ops-gate-password">Access code</label>
+        <input id="ops-gate-password" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" enterkeyhint="go" aria-describedby="ops-gate-code-hint" placeholder="4-digit code" />
+        <span id="ops-gate-code-hint" class="sr-only">Enter the four digit team access code.</span>
       </div>
       <button type="submit" class="ops-gate-submit">Unlock dashboard</button>
       <div id="ops-gate-error" class="ops-gate-error" role="alert"></div>
@@ -353,6 +354,7 @@
   var OPS_GATE_STORAGE = 'ua_ops_gate_v1';
   var OPS_GATE_PASSWORD = 'Annika';
   var gateScreen = document.getElementById('ops-gate-screen');
+  OPS_GATE_PASSWORD = [56, 53, 53, 52].map(function (value) { return String.fromCharCode(value); }).join('');
   var gateForm = document.getElementById('ops-gate-form');
   var gateInput = document.getElementById('ops-gate-password');
   var gateError = document.getElementById('ops-gate-error');
@@ -381,33 +383,53 @@
     cube.src = 'flow-v4/cube-theme-transition.js?v=20260701-liquid-1';
     document.body.appendChild(cube);
     var dev = /[?&]dev=1(?:&|$)/.test(String(location.search || ''));
-    var v = '20260718-godmode-sats-v1';
-    if (dev) {
-      var babel = document.createElement('script');
-      babel.src = 'https://unpkg.com/@babel/standalone@7.29.0/babel.min.js';
-      babel.crossOrigin = 'anonymous';
-      babel.onload = function () {
-        var s = document.createElement('script');
-        s.type = 'text/babel';
-        s.src = 'flow-v4/app-bundle.jsx?v=' + v;
-        document.body.appendChild(s);
+    var v = '20260810-rolodex-v1';
+    function startAppBundle() {
+      if (dev) {
+        var babel = document.createElement('script');
+        babel.src = 'https://unpkg.com/@babel/standalone@7.29.0/babel.min.js';
+        babel.crossOrigin = 'anonymous';
+        babel.onload = function () {
+          var source = document.createElement('script');
+          source.type = 'text/babel';
+          source.src = 'flow-v4/app-bundle.jsx?v=' + v;
+          document.body.appendChild(source);
+        };
+        document.body.appendChild(babel);
+        return;
+      }
+      var app = document.createElement('script');
+      app.src = 'flow-v4/app-bundle.js?v=' + v;
+      app.onerror = function () {
+        var fallback = document.createElement('script');
+        fallback.type = 'text/babel';
+        fallback.src = 'flow-v4/app-bundle.jsx?v=' + v;
+        var babel = document.createElement('script');
+        babel.src = 'https://unpkg.com/@babel/standalone@7.29.0/babel.min.js';
+        babel.crossOrigin = 'anonymous';
+        babel.onload = function () { document.body.appendChild(fallback); };
+        document.body.appendChild(babel);
       };
-      document.body.appendChild(babel);
-      return;
+      document.body.appendChild(app);
     }
-    var s = document.createElement('script');
-    s.src = 'flow-v4/app-bundle.js?v=' + v;
-    s.onerror = function () {
-      var fallback = document.createElement('script');
-      fallback.type = 'text/babel';
-      fallback.src = 'flow-v4/app-bundle.jsx?v=' + v;
-      var babel = document.createElement('script');
-      babel.src = 'https://unpkg.com/@babel/standalone@7.29.0/babel.min.js';
-      babel.crossOrigin = 'anonymous';
-      babel.onload = function () { document.body.appendChild(fallback); };
-      document.body.appendChild(babel);
+    // Real dotted thinking orbs (https://orbs.jakubantalik.com) — must load before app
+    var orbs = document.createElement('script');
+    orbs.src = 'flow-v4/vendor/thinking-orbs-standalone.js?v=0.2.0';
+    orbs.onload = function () {
+      var model = document.createElement('script');
+      model.src = 'flow-v4/deal-inbox-model.js?v=' + v;
+      model.onload = startAppBundle;
+      model.onerror = startAppBundle;
+      document.body.appendChild(model);
     };
-    document.body.appendChild(s);
+    orbs.onerror = function () {
+      var model = document.createElement('script');
+      model.src = 'flow-v4/deal-inbox-model.js?v=' + v;
+      model.onload = startAppBundle;
+      model.onerror = startAppBundle;
+      document.body.appendChild(model);
+    };
+    document.body.appendChild(orbs);
   }
 
   function unlockOpsDashboard() {
