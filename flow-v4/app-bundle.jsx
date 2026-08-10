@@ -14346,24 +14346,31 @@ function V4Reader({ lead, user, onBack, onMoveStage }) {
   );
 }
 
-// ─── Leads list ─────────────────────────────────────────────
-function V4RolodexNormEmail(value) {
+// ─── People directory (view id: leads) ───────────────────────
+function V4PeopleNormEmail(value) {
   return String(value || '').trim().toLowerCase();
 }
 
-function V4RolodexPersonKey(person) {
-  const email = V4RolodexNormEmail(person?.email);
+function V4PeoplePersonKey(person) {
+  const email = V4PeopleNormEmail(person?.email);
   if (email) return 'e:' + email;
   return 'n:' + String(person?.company || '').trim().toLowerCase() + '|' + String(person?.contact || '').trim().toLowerCase();
 }
 
-function V4RolodexLetter(company, contact) {
+function V4PeopleLetter(company, contact) {
   const raw = String(company || contact || '').trim();
   const ch = raw.charAt(0).toUpperCase();
   return /[A-Z]/.test(ch) ? ch : '#';
 }
 
-const V4_ROLODEX_SEGMENTS = [
+function V4PeopleInitials(company, contact) {
+  const name = String(contact || company || '?').trim();
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase() || '?';
+}
+
+const V4_PEOPLE_SEGMENTS = [
   { id: 'all', label: 'All' },
   { id: 'past', label: 'Past' },
   { id: 'closing', label: 'Closing' },
@@ -14375,7 +14382,7 @@ const V4_ROLODEX_SEGMENTS = [
   { id: 'active', label: 'Active' },
 ];
 
-const V4_ROLODEX_SEGMENT_LABELS = {
+const V4_PEOPLE_SEGMENT_LABELS = {
   past: 'Past',
   closing: 'Closing',
   negotiating: 'Negotiating',
@@ -14387,19 +14394,25 @@ const V4_ROLODEX_SEGMENT_LABELS = {
   unknown: 'Unknown',
 };
 
+// Keep old helper names as aliases so any stray refs stay safe.
+const V4RolodexNormEmail = V4PeopleNormEmail;
+const V4RolodexPersonKey = V4PeoplePersonKey;
+const V4RolodexLetter = V4PeopleLetter;
+const V4_ROLODEX_SEGMENTS = V4_PEOPLE_SEGMENTS;
+const V4_ROLODEX_SEGMENT_LABELS = V4_PEOPLE_SEGMENT_LABELS;
+
 function V4LeadsView({ leads = [], query = '', openId, onOpenLead, user }) {
   const [seedPeople, setSeedPeople] = React.useState([]);
   const [seedStatus, setSeedStatus] = React.useState('loading');
   const [seg, setSeg] = React.useState('all');
-  const [index, setIndex] = React.useState(0);
-  const [flipClass, setFlipClass] = React.useState('');
-  const flipTimerRef = React.useRef(null);
-  const indexRef = React.useRef(0);
-  const filteredRef = React.useRef([]);
+  const [selectedKey, setSelectedKey] = React.useState(null);
+  const [expandedKey, setExpandedKey] = React.useState(null);
+  const listRef = React.useRef(null);
+  const rowRefs = React.useRef({});
 
   React.useEffect(() => {
     let cancelled = false;
-    fetch('flow-v4/assets/rolodex_seed.json?v=20260810-rolodex-v2')
+    fetch('flow-v4/assets/rolodex_seed.json?v=20260810-people-v1')
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error('seed missing'))))
       .then((data) => {
         if (cancelled) return;
@@ -14419,7 +14432,7 @@ function V4LeadsView({ leads = [], query = '', openId, onOpenLead, user }) {
     const byEmail = new Map();
     const byName = new Map();
     (leads || []).forEach((lead) => {
-      const email = V4RolodexNormEmail(lead?.email || lead?.contactEmail);
+      const email = V4PeopleNormEmail(lead?.email || lead?.contactEmail);
       if (email && !byEmail.has(email)) byEmail.set(email, lead);
       const nameKey = String(lead?.brand || '').trim().toLowerCase() + '|' + String(lead?.contactName || '').trim().toLowerCase();
       if (nameKey !== '|' && !byName.has(nameKey)) byName.set(nameKey, lead);
@@ -14429,13 +14442,14 @@ function V4LeadsView({ leads = [], query = '', openId, onOpenLead, user }) {
 
   const people = React.useMemo(() => {
     return (seedPeople || []).map((person) => {
-      const email = V4RolodexNormEmail(person.email);
+      const email = V4PeopleNormEmail(person.email);
       const nameKey = String(person.company || '').trim().toLowerCase() + '|' + String(person.contact || '').trim().toLowerCase();
       const lead = (email && leadIndex.byEmail.get(email)) || leadIndex.byName.get(nameKey) || null;
       return {
         ...person,
-        key: V4RolodexPersonKey(person),
-        letter: V4RolodexLetter(person.company, person.contact),
+        key: V4PeoplePersonKey(person),
+        letter: V4PeopleLetter(person.company, person.contact),
+        initials: V4PeopleInitials(person.company, person.contact),
         lead,
         leadId: lead?.id || null,
         liveStage: lead?.stage || '',
@@ -14477,44 +14491,39 @@ function V4LeadsView({ leads = [], query = '', openId, onOpenLead, user }) {
 
   const segmentCounts = React.useMemo(() => {
     const counts = { all: searched.length };
-    V4_ROLODEX_SEGMENTS.forEach((item) => {
+    V4_PEOPLE_SEGMENTS.forEach((item) => {
       if (item.id === 'all') return;
       counts[item.id] = searched.filter((person) => person.segment === item.id).length;
     });
     return counts;
   }, [searched]);
 
-  const railLetters = React.useMemo(() => {
-    const present = new Set(filtered.map((person) => person.letter));
-    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').concat(['#']);
-    return alphabet.filter((letter) => present.has(letter));
+  const groups = React.useMemo(() => {
+    const map = new Map();
+    filtered.forEach((person) => {
+      const letter = person.letter || '#';
+      if (!map.has(letter)) map.set(letter, []);
+      map.get(letter).push(person);
+    });
+    return Array.from(map.entries()).map(([letter, items]) => ({ letter, items }));
   }, [filtered]);
 
-  React.useEffect(() => {
-    indexRef.current = index;
-  }, [index]);
+  const railLetters = React.useMemo(() => groups.map((g) => g.letter), [groups]);
 
   React.useEffect(() => {
-    filteredRef.current = filtered;
-  }, [filtered]);
-
-  React.useEffect(() => {
-    setIndex(0);
-    indexRef.current = 0;
-    setFlipClass('');
+    setSelectedKey(filtered[0]?.key || null);
+    setExpandedKey(null);
   }, [seg, q, seedPeople]);
 
   React.useEffect(() => {
     if (!filtered.length) {
-      if (index !== 0) setIndex(0);
+      if (selectedKey != null) setSelectedKey(null);
       return;
     }
-    if (index >= filtered.length) setIndex(0);
-  }, [filtered, index]);
-
-  React.useEffect(() => () => {
-    if (flipTimerRef.current) window.clearTimeout(flipTimerRef.current);
-  }, []);
+    if (!filtered.some((p) => p.key === selectedKey)) {
+      setSelectedKey(filtered[0].key);
+    }
+  }, [filtered, selectedKey]);
 
   const formatHandle = (handle) => {
     const raw = String(handle || '').trim();
@@ -14522,58 +14531,39 @@ function V4LeadsView({ leads = [], query = '', openId, onOpenLead, user }) {
     return raw.startsWith('@') ? raw : '@' + raw.replace(/^@+/, '');
   };
 
-  const tabTone = (letter) => {
-    const tones = ['rose', 'amber', 'sage', 'sky', 'plum', 'copper', 'slate'];
-    const ch = String(letter || '#').toUpperCase();
-    if (ch === '#') return 'slate';
-    return tones[(ch.charCodeAt(0) - 65) % tones.length];
-  };
-
   const dash = (value) => {
     const raw = String(value || '').trim();
-    return raw || 'None';
+    return raw || '—';
   };
 
-  const goTo = React.useCallback((nextIndex, dir) => {
-    const list = filteredRef.current || [];
-    const total = list.length;
-    if (!total) return;
-    const clamped = ((nextIndex % total) + total) % total;
-    if (clamped === indexRef.current && !flipClass) return;
-    if (flipTimerRef.current) window.clearTimeout(flipTimerRef.current);
-    const outClass = dir < 0 ? 'is-flip-out-prev' : 'is-flip-out-next';
-    const inClass = dir < 0 ? 'is-flip-in-prev' : 'is-flip-in-next';
-    setFlipClass(outClass);
-    flipTimerRef.current = window.setTimeout(() => {
-      setIndex(clamped);
-      indexRef.current = clamped;
-      setFlipClass(inClass);
-      flipTimerRef.current = window.setTimeout(() => {
-        setFlipClass('');
-        flipTimerRef.current = null;
-      }, 280);
-    }, 220);
-  }, [flipClass]);
-
-  const goPrev = React.useCallback(() => {
-    const total = (filteredRef.current || []).length;
-    if (!total) return;
-    goTo(indexRef.current - 1, -1);
-  }, [goTo]);
-
-  const goNext = React.useCallback(() => {
-    const total = (filteredRef.current || []).length;
-    if (!total) return;
-    goTo(indexRef.current + 1, 1);
-  }, [goTo]);
+  const activatePerson = React.useCallback((person) => {
+    if (!person) return;
+    setSelectedKey(person.key);
+    if (person.leadId && typeof onOpenLead === 'function') {
+      onOpenLead(person.leadId);
+      return;
+    }
+    setExpandedKey((curr) => (curr === person.key ? null : person.key));
+  }, [onOpenLead]);
 
   const jumpToLetter = React.useCallback((letter) => {
-    const list = filteredRef.current || [];
-    const idx = list.findIndex((person) => person.letter === letter);
-    if (idx < 0) return;
-    const dir = idx >= indexRef.current ? 1 : -1;
-    goTo(idx, dir || 1);
-  }, [goTo]);
+    const el = listRef.current?.querySelector('[data-people-letter="' + letter + '"]');
+    if (el) el.scrollIntoView({ block: 'start', behavior: 'auto' });
+    const first = filtered.find((p) => p.letter === letter);
+    if (first) setSelectedKey(first.key);
+  }, [filtered]);
+
+  const moveSelection = React.useCallback((delta) => {
+    if (!filtered.length) return;
+    const idx = Math.max(0, filtered.findIndex((p) => p.key === selectedKey));
+    const next = filtered[Math.min(filtered.length - 1, Math.max(0, idx + delta))];
+    if (!next) return;
+    setSelectedKey(next.key);
+    const row = rowRefs.current[next.key];
+    if (row && typeof row.scrollIntoView === 'function') {
+      row.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+    }
+  }, [filtered, selectedKey]);
 
   React.useEffect(() => {
     const onKey = (event) => {
@@ -14581,14 +14571,22 @@ function V4LeadsView({ leads = [], query = '', openId, onOpenLead, user }) {
       const tag = String(target?.tagName || '').toUpperCase();
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return;
       if (event.metaKey || event.ctrlKey || event.altKey) return;
-      if (event.key === 'ArrowLeft' || event.key === 'j' || event.key === 'J') {
+      if (event.key === 'ArrowDown') {
         event.preventDefault();
-        goPrev();
+        moveSelection(1);
         return;
       }
-      if (event.key === 'ArrowRight' || event.key === 'k' || event.key === 'K') {
+      if (event.key === 'ArrowUp') {
         event.preventDefault();
-        goNext();
+        moveSelection(-1);
+        return;
+      }
+      if (event.key === 'Enter') {
+        const person = filtered.find((p) => p.key === selectedKey);
+        if (person) {
+          event.preventDefault();
+          activatePerson(person);
+        }
         return;
       }
       if (event.key.length === 1) {
@@ -14598,194 +14596,154 @@ function V4LeadsView({ leads = [], query = '', openId, onOpenLead, user }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [goPrev, goNext, jumpToLetter]);
+  }, [moveSelection, activatePerson, jumpToLetter, filtered, selectedKey]);
 
-  const current = filtered.length ? filtered[Math.min(index, filtered.length - 1)] : null;
-  const peekBehind = filtered.length > 1 ? filtered[(index + 1) % filtered.length] : null;
-  const peekFar = filtered.length > 2 ? filtered[(index + 2) % filtered.length] : null;
-  const handle = current ? formatHandle(current.x_handle) : '';
-  const segLabel = current
-    ? (V4_ROLODEX_SEGMENT_LABELS[current.segment] || current.segment || 'Unknown')
-    : '';
-  const positionLabel = filtered.length ? `${index + 1} / ${filtered.length}` : '0 / 0';
-  const letterNow = current?.letter || '·';
-
-  const onCardActivate = () => {
-    if (!current) return;
-    if (current.leadId && typeof onOpenLead === 'function') {
-      onOpenLead(current.leadId);
-    }
-  };
-
-  const renderMiniCard = (person, layer) => {
-    if (!person) return null;
-    return (
-      <div
-        key={person.key + '-peek-' + layer}
-        className={'rolo-peek rolo-peek--' + layer}
-        aria-hidden="true"
-        data-tab={tabTone(person.letter)}
-      >
-        <span className={'rolo-peek-tab rolo-tab--' + tabTone(person.letter)}>{person.letter}</span>
-        <span className="rolo-peek-name">{person.company || person.contact || 'Contact'}</span>
+  const renderDetail = (person) => (
+    <div className="people-detail">
+      <div className="people-detail-grid">
+        <div><span>Email</span><strong>{dash(person.email)}</strong></div>
+        <div><span>X</span><strong>{formatHandle(person.x_handle) || '—'}</strong></div>
+        <div><span>Source</span><strong>{dash(person.source)}</strong></div>
+        <div><span>Last updated</span><strong>{dash(person.last_updated)}</strong></div>
+        <div><span>Deal state</span><strong>{dash(person.deal_state)}</strong></div>
+        <div><span>Channels</span><strong>{(person.channels || []).join(', ') || '—'}</strong></div>
       </div>
-    );
-  };
+      {person.notes ? <p className="people-detail-notes">{person.notes}</p> : null}
+      {person.leadId ? (
+        <button type="button" className="people-open-btn" onClick={() => onOpenLead?.(person.leadId)}>
+          Open live deal
+        </button>
+      ) : (
+        <div className="people-detail-hint">Seed contact — no live Company OS match yet.</div>
+      )}
+    </div>
+  );
 
   return (
-    <div className="page rolo-page">
-      <div className="page-hd">
+    <div className="page people-page">
+      <div className="page-hd people-hd">
         <div>
-          <div className="page-eyebrow">People directory</div>
-          <h1 className="page-title">Rolodex</h1>
+          <div className="page-eyebrow">Directory</div>
+          <h1 className="page-title">People</h1>
           <div className="page-sub">
-            Flip through partners and X collabs like a desk card file
-            {seedStatus === 'ready' ? ` · ${people.length} people` : ''}
-            {q ? ` · ${filtered.length} shown` : ''}
+            Partners and X collabs
+            {seedStatus === 'ready' ? ` · ${people.length}` : ''}
+            {q || seg !== 'all' ? ` · ${filtered.length} shown` : ''}
           </div>
         </div>
         <div className="page-actions">
-          {seedStatus === 'loading' && <span className="rolo-status">Loading contacts…</span>}
-          {seedStatus === 'error' && <span className="rolo-status is-error">Seed missing. Check flow-v4/assets/rolodex_seed.json</span>}
+          {seedStatus === 'loading' && <span className="people-status">Loading contacts…</span>}
+          {seedStatus === 'error' && <span className="people-status is-error">Seed missing. Check flow-v4/assets/rolodex_seed.json</span>}
         </div>
       </div>
 
-      <div className="body rolo-body">
-        <div className="rolo-chips" role="tablist" aria-label="Rolodex segments">
-          {V4_ROLODEX_SEGMENTS.map((item) => {
-            const active = seg === item.id;
-            const count = segmentCounts[item.id] || 0;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                className={'rolo-chip' + (active ? ' is-active' : '')}
-                onClick={() => setSeg(item.id)}
-              >
-                {item.label}
-                <em>{count}</em>
-              </button>
-            );
-          })}
+      <div className="body people-body">
+        <div className="people-toolbar">
+          <div className="people-chips" role="tablist" aria-label="People segments">
+            {V4_PEOPLE_SEGMENTS.map((item) => {
+              const active = seg === item.id;
+              const count = segmentCounts[item.id] || 0;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  className={'people-chip' + (active ? ' is-active' : '')}
+                  onClick={() => setSeg(item.id)}
+                >
+                  {item.label}
+                  <em>{count}</em>
+                </button>
+              );
+            })}
+          </div>
+          <div className="people-count" aria-live="polite">{filtered.length} people</div>
         </div>
 
-        <div className="rolo-stage" aria-label="Physical Rolodex">
-          <div className="rolo-stage-wood" aria-hidden="true" />
-          <div className="rolo-stage-inner">
-            <div className="rolo-meter" aria-live="polite">
-              <span className="rolo-meter-pos">{positionLabel}</span>
-              <span className="rolo-meter-letter">Letter {letterNow}</span>
+        {seedStatus === 'ready' && !filtered.length && (
+          <div className="people-empty">
+            <strong>No people match</strong>
+            <p>Try another segment or clear search.</p>
+          </div>
+        )}
+
+        <div className="people-layout">
+          <div className="people-list" ref={listRef} role="listbox" aria-label="People directory">
+            <div className="people-table-hd" aria-hidden="true">
+              <span className="people-col-person">Person</span>
+              <span className="people-col-email">Email</span>
+              <span className="people-col-x">X</span>
+              <span className="people-col-seg">Segment</span>
+              <span className="people-col-value">Est value</span>
+              <span className="people-col-live">Status</span>
             </div>
 
-            <div className="rolo-deck-row">
-              <button
-                type="button"
-                className="rolo-knob rolo-knob--prev"
-                onClick={goPrev}
-                disabled={!filtered.length}
-                aria-label="Previous contact"
-              >
-                <span className="rolo-knob-face">◀</span>
-                <span className="rolo-knob-cap">Prev</span>
-              </button>
-
-              <div className="rolo-deck">
-                {renderMiniCard(peekFar, 'far')}
-                {renderMiniCard(peekBehind, 'near')}
-                <div className={'rolo-flip ' + flipClass}>
-                  {seedStatus === 'ready' && !current && (
-                    <div className="rolo-card rolo-card--empty">
-                      <div className="rolo-card-tab rolo-tab--slate">?</div>
-                      <div className="rolo-card-body">
-                        <strong>No people match</strong>
-                        <p>Try another segment or clear search.</p>
-                      </div>
+            {groups.map((group) => (
+              <section key={group.letter} className="people-section" data-people-letter={group.letter}>
+                <div className="people-letter-hd sticky">{group.letter}</div>
+                {group.items.map((person) => {
+                  const selected = person.key === selectedKey;
+                  const expanded = person.key === expandedKey && !person.leadId;
+                  const segLabel = V4_PEOPLE_SEGMENT_LABELS[person.segment] || person.segment || 'Unknown';
+                  const handle = formatHandle(person.x_handle);
+                  return (
+                    <div key={person.key} className="people-row-wrap">
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={selected}
+                        ref={(el) => { if (el) rowRefs.current[person.key] = el; else delete rowRefs.current[person.key]; }}
+                        className={
+                          'people-row'
+                          + (selected ? ' is-selected' : '')
+                          + (expanded ? ' is-expanded' : '')
+                          + (person.leadId ? ' has-lead' : '')
+                          + (openId && person.leadId && openId === person.leadId ? ' is-open' : '')
+                        }
+                        onClick={() => activatePerson(person)}
+                      >
+                        <span className="people-col-person">
+                          <span className="people-avatar" aria-hidden="true">{person.initials}</span>
+                          <span className="people-identity">
+                            <span className="people-company">{person.company || 'Unknown company'}</span>
+                            <span className="people-contact">{person.contact || 'No contact name'}</span>
+                          </span>
+                        </span>
+                        <span className="people-col-email">{dash(person.email)}</span>
+                        <span className="people-col-x">{handle || '—'}</span>
+                        <span className="people-col-seg">
+                          <span className={'people-seg people-seg--' + (person.segment || 'unknown')}>{segLabel}</span>
+                        </span>
+                        <span className="people-col-value">{dash(person.est_value)}</span>
+                        <span className="people-col-live">
+                          {person.leadId
+                            ? <span className="people-live">Live deal</span>
+                            : <span className="people-seed">Seed</span>}
+                        </span>
+                      </button>
+                      {expanded ? renderDetail(person) : null}
                     </div>
-                  )}
-                  {current && (
-                    <article
-                      className={'rolo-card' + (current.leadId ? ' has-lead' : '') + (openId && current.leadId && openId === current.leadId ? ' is-open' : '')}
-                      data-tab={tabTone(current.letter)}
-                    >
-                      <div className={'rolo-card-tab rolo-tab--' + tabTone(current.letter)}>{current.letter}</div>
-                      <div className="rolo-card-rule" aria-hidden="true" />
-                      <div className="rolo-card-body">
-                        <div className="rolo-card-kicker">Rolodex card</div>
-                        <h2 className="rolo-card-company">{current.company || 'Unknown company'}</h2>
-                        <div className="rolo-card-contact">{current.contact || 'No contact name'}</div>
+                  );
+                })}
+              </section>
+            ))}
+          </div>
 
-                        <dl className="rolo-card-grid">
-                          <div><dt>Email</dt><dd>{dash(current.email)}</dd></div>
-                          <div><dt>X handle</dt><dd>{handle || 'None'}</dd></div>
-                          <div><dt>Segment</dt><dd>{segLabel}</dd></div>
-                          <div><dt>Est value</dt><dd>{dash(current.est_value)}</dd></div>
-                          <div><dt>Source</dt><dd>{dash(current.source)}</dd></div>
-                          <div><dt>Last updated</dt><dd>{dash(current.last_updated)}</dd></div>
-                          <div><dt>Deal state</dt><dd>{dash(current.deal_state)}</dd></div>
-                          <div><dt>Channels</dt><dd>{(current.channels || []).join(', ') || 'None'}</dd></div>
-                        </dl>
-
-                        {current.notes ? <p className="rolo-card-notes">{current.notes}</p> : null}
-
-                        <div className="rolo-card-tags">
-                          <span className={'rolo-seg rolo-seg--' + (current.segment || 'unknown')}>{segLabel}</span>
-                          {current.est_value ? <span className="rolo-value">{current.est_value}</span> : null}
-                          {current.leadId ? <span className="rolo-live">Live deal</span> : <span className="rolo-seed">Seed only</span>}
-                        </div>
-
-                        <div className="rolo-card-actions">
-                          {current.leadId ? (
-                            <button type="button" className="rolo-open-btn" onClick={onCardActivate}>
-                              Open live deal
-                            </button>
-                          ) : (
-                            <span className="rolo-card-hint">Seed contact shown on the card. No live Company OS match yet.</span>
-                          )}
-                        </div>
-                      </div>
-                    </article>
-                  )}
-                  {seedStatus === 'loading' && (
-                    <div className="rolo-card rolo-card--empty">
-                      <div className="rolo-card-tab rolo-tab--slate">…</div>
-                      <div className="rolo-card-body">
-                        <strong>Loading Rolodex</strong>
-                        <p>Pulling the card deck…</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <button
-                type="button"
-                className="rolo-knob rolo-knob--next"
-                onClick={goNext}
-                disabled={!filtered.length}
-                aria-label="Next contact"
-              >
-                <span className="rolo-knob-face">▶</span>
-                <span className="rolo-knob-cap">Next</span>
-              </button>
-            </div>
-
-            <nav className="rolo-tabs" aria-label="Jump to letter">
+          {railLetters.length > 1 && (
+            <nav className="people-jump" aria-label="Jump to letter">
               {railLetters.map((letter) => (
                 <button
                   key={letter}
                   type="button"
-                  className={'rolo-tab-btn' + (letter === letterNow ? ' is-active' : '') + ' rolo-tab--' + tabTone(letter)}
+                  className="people-jump-btn"
                   onClick={() => jumpToLetter(letter)}
                 >
                   {letter}
                 </button>
               ))}
             </nav>
-
-            <div className="rolo-keys-hint">← → or J K to flip · letter keys jump</div>
-          </div>
+          )}
         </div>
       </div>
     </div>
@@ -26889,7 +26847,7 @@ function V4App() {
     if (view === 'inbox') return user === 'robert' ? 'Search briefs…' : 'Search inbox…';
     if (view === 'invoices') return 'Search invoices…';
     if (view === 'new-leads') return 'Search new leads…';
-    if (view === 'leads') return 'Search Rolodex…';
+    if (view === 'leads') return 'Search people…';
     if (view === 'board') return 'Search pipeline…';
     if (view === 'company-os') return 'Search Company OS…';
 
@@ -27117,7 +27075,7 @@ function V4App() {
       items: [
         { label: 'God Mode', hint: '3D earth · weather, flights, storms', icon: 'network', run: openGodModeMobile },
         { label: 'Toolkit', hint: 'Brief Maker, X signal, manual lead', icon: 'bolt', run: goToOrgansToolkit },
-        { label: 'Rolodex', hint: 'People directory and history', icon: 'network', run: () => goView('leads') },
+        { label: 'People', hint: 'Contacts directory and history', icon: 'network', run: () => goView('leads') },
         { label: 'Partner Feedback', hint: 'Score completed collabs', icon: 'star', run: goToPartnerFeedback },
         { label: "Robert's Desk", hint: 'Manual public-intake lane', icon: 'leads', run: goToDeskIntake },
         { label: 'Scope Forms', hint: 'Package and scope submissions', icon: 'table', run: goToScopeIntake },
@@ -27148,7 +27106,7 @@ function V4App() {
     { label: 'Go to Invoices', run: () => goView('invoices') },
     { label: 'Go to New Leads', hint: 'Robert Gmail + X intake', run: () => goView('new-leads') },
     { label: 'Go to Intake queue', hint: 'Company OS send tab', run: goToCompanyOsHome },
-    { label: 'Go to Rolodex', run: () => goView('leads') },
+    { label: 'Go to People', run: () => goView('leads') },
     { label: 'View as Asher', hint: 'shared lane', run: () => { setTweak('viewAs', 'asher'); setOpenId(null); } },
     { label: 'View as Sammy', hint: 'shared lane', run: () => { setTweak('viewAs', 'sammy'); setOpenId(null); } },
     { label: 'View as Robert', hint: 'creator lane', run: () => { setTweak('viewAs', 'robert'); setOpenId(null); } },
@@ -27173,7 +27131,7 @@ function V4App() {
             <V3Icon name="cal" w={13} style={{ marginRight: 4 }} /> Calendar
           </button>
           <button className="hd-nav-btn" aria-current={cosCompanyOsHomeActive ? 'page' : undefined} onClick={goToCompanyOsHome}>Company OS</button>
-          <button className="hd-nav-btn" aria-current={view === 'leads' ? 'page' : undefined} onClick={() => goView('leads')}>Rolodex</button>
+          <button className="hd-nav-btn" aria-current={view === 'leads' ? 'page' : undefined} onClick={() => goView('leads')}>People</button>
           <button className="hd-nav-btn" aria-current={view === 'sandbox' ? 'page' : undefined} onClick={() => goView('sandbox')} title="Guided demo for pitching Company OS">Sandbox Test</button>
           <div className="hd-nav-menu" ref={organsMenuRef}>
             <button
@@ -27195,7 +27153,7 @@ function V4App() {
                 <button role="menuitem" className="hd-nav-drop-item" aria-current={view === 'new-leads' ? 'page' : undefined} onClick={() => goView('new-leads')}>
                   New Leads {newLeadCount > 0 && <span>{newLeadCount}</span>}
                 </button>
-                <button role="menuitem" className="hd-nav-drop-item" aria-current={view === 'leads' ? 'page' : undefined} onClick={() => goView('leads')}>Rolodex</button>
+                <button role="menuitem" className="hd-nav-drop-item" aria-current={view === 'leads' ? 'page' : undefined} onClick={() => goView('leads')}>People</button>
                 <div className="hd-nav-drop-sep" aria-hidden="true" />
                 <button
                   role="menuitem"
