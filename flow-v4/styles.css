@@ -23108,3 +23108,253 @@ body[data-theme] .cos-brain-signal {
   from { opacity: 0; transform: translateX(8px); }
   to { opacity: 1; transform: none; }
 }
+
+/* ─── Rolodex (People directory) ─────────────────────────── */
+.rolo-page .page-sub { max-width: 46rem; }
+.rolo-status { font-size: 12px; color: var(--text-3); }
+.rolo-status.is-error { color: #d97848; }
+.rolo-body { padding-top: 4px; }
+.rolo-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 14px;
+}
+.rolo-chip {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  color: var(--text-2);
+  border-radius: 999px;
+  padding: 6px 11px;
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.rolo-chip em {
+  font-style: normal;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  opacity: 0.7;
+}
+.rolo-chip.is-active {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--text) 28%, var(--line));
+  background: color-mix(in srgb, var(--text) 8%, var(--panel));
+}
+.rolo-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.rolo-layout.has-detail {
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+}
+.rolo-main {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+}
+.rolo-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: sticky;
+  top: 10px;
+  max-height: calc(100vh - 160px);
+  overflow: auto;
+  padding-top: 2px;
+}
+.rolo-rail-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 10px;
+  font-weight: 650;
+  font-family: var(--font-mono);
+  padding: 2px 0;
+  cursor: pointer;
+  line-height: 1.2;
+}
+.rolo-rail-btn:hover { color: var(--text); }
+.rolo-list {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rolo-letter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rolo-letter-hd {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 6px 2px;
+}
+.rolo-row {
+  appearance: none;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  border-radius: 14px;
+  padding: 12px 14px;
+  cursor: pointer;
+  color: inherit;
+  display: grid;
+  gap: 6px;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease;
+}
+.rolo-row:hover {
+  border-color: color-mix(in srgb, var(--text) 22%, var(--line));
+  transform: translateY(-1px);
+}
+.rolo-row.is-active {
+  border-color: color-mix(in srgb, var(--accent, #7aa2ff) 45%, var(--line));
+  background: color-mix(in srgb, var(--accent, #7aa2ff) 8%, var(--panel));
+}
+.rolo-row-main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: baseline;
+}
+.rolo-company {
+  font-size: 14px;
+  font-weight: 650;
+}
+.rolo-contact {
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.rolo-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.rolo-handle { font-family: var(--font-mono); }
+.rolo-row-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.rolo-seg {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  color: var(--text-2);
+}
+.rolo-seg--past { background: color-mix(in srgb, #6aa84f 18%, transparent); color: #8fd18a; }
+.rolo-seg--closing { background: color-mix(in srgb, #e0a100 18%, transparent); color: #f0c35a; }
+.rolo-seg--negotiating { background: color-mix(in srgb, #6fa8dc 18%, transparent); color: #9ec9ef; }
+.rolo-seg--rates_sent { background: color-mix(in srgb, #b4a7d6 18%, transparent); color: #d2c6f0; }
+.rolo-seg--engaged { background: color-mix(in srgb, #76a5af 18%, transparent); color: #a8d4db; }
+.rolo-seg--potential { background: color-mix(in srgb, #a2c4c9 16%, transparent); color: #c5e0e4; }
+.rolo-seg--packaged { background: color-mix(in srgb, #d5a6bd 18%, transparent); color: #ecc0d5; }
+.rolo-seg--active { background: color-mix(in srgb, #ea9999 18%, transparent); color: #f2b4b4; }
+.rolo-value {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-2);
+}
+.rolo-live, .rolo-seed {
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.rolo-live { color: #8fd18a; }
+.rolo-row-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.rolo-empty {
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+  padding: 28px 18px;
+  display: grid;
+  gap: 6px;
+  color: var(--text-3);
+}
+.rolo-detail {
+  position: sticky;
+  top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--panel) 94%, transparent);
+  padding: 16px;
+  display: grid;
+  gap: 10px;
+}
+.rolo-detail-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.rolo-detail-title {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.2;
+}
+.rolo-detail-sub { color: var(--text-2); font-size: 13px; }
+.rolo-detail-grid {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+.rolo-detail-grid div {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 8px;
+  font-size: 12px;
+}
+.rolo-detail-grid dt { color: var(--text-3); margin: 0; }
+.rolo-detail-grid dd { margin: 0; color: var(--text); word-break: break-word; }
+.rolo-detail-notes {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-2);
+  white-space: pre-wrap;
+}
+.rolo-detail-hint {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+@media (max-width: 900px) {
+  .rolo-layout.has-detail { grid-template-columns: 1fr; }
+  .rolo-main { grid-template-columns: 1fr; }
+  .rolo-rail { flex-direction: row; flex-wrap: wrap; position: static; max-height: none; gap: 4px; }
+  .rolo-rail-btn { border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; min-width: 26px; }
+  .rolo-detail { position: static; }
+}
