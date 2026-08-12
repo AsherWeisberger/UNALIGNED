@@ -5,7 +5,7 @@
   <link rel="canonical" href="https://agentdashboard.cloud/connect" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>UNALIGNED · Reach Robert's team</title>
-  <!-- form build: 20260715-connect-rates-v1 -->
+  <!-- form build: 20260812-x-list-placement-v1 -->
   <meta name="description" content="Share your idea with Robert Scoble's team. We read everything and route the best fits to Robert's desk." />
   <meta name="theme-color" content="#000000" />
   <meta name="color-scheme" content="dark" />
@@ -42,7 +42,7 @@
   })();
   </script>
   <link rel="icon" href="favicon.ico" />
-  <link rel="stylesheet" href="assets/unaligned-form.css?v=20260715-connect-rates-v1" />
+  <link rel="stylesheet" href="assets/unaligned-form.css?v=20260812-x-list-placement-v1" />
 </head>
 <body class="ua-form-page ua-form-connect">
   <div class="ua-scene">
@@ -84,7 +84,7 @@
       },
     ];
 
-    // Live rate card (matches pricing_tiers / the package PDF emailed to partners).
+    // Live rate card (matches pricing_tiers / package PDF + X List Placement from rate card).
     // Plain text only — no images. Shown only on the Collaboration lane.
     const RATE_CARD = {
       note: 'All packages are USD and paid in full before any content goes live. Existing clients may be invoiced on go-live day. Every paid post carries a clear paid partnership disclosure.',
@@ -106,6 +106,16 @@
           "Robert's team produces demo clips and screen media for the post",
           '$500 per post produced — available as an add-on on any package',
           'Without the add-on, the client supplies links for all media',
+        ],
+      },
+      listPlacement: {
+        eyebrow: 'X List Placement',
+        subtitle: 'Your brand sits at the top of Robert curated X lists. Not a feed post.',
+        note: 'Examples: AI Companies, AI Community, Founders. Client supplies logo, one line blurb, and profile URL. Paid Partnership disclosure. Paid in full before go live.',
+        packages: [
+          { name: 'List Placement', price: 1995, items: ['7 days, 1 list'] },
+          { name: 'List Pack', price: 3495, items: ['7 days, up to 3 lists'] },
+          { name: 'List Residency', price: 5995, items: ['30 days, 1 flagship list'] },
         ],
       },
     };
@@ -327,6 +337,32 @@
         });
         add.appendChild(bullets);
         panel.appendChild(add);
+      }
+
+      if (RATE_CARD.listPlacement) {
+        const lp = RATE_CARD.listPlacement;
+        panel.appendChild(el('div', { className: 'rates-eyebrow rates-eyebrow-list', text: lp.eyebrow }));
+        if (lp.subtitle) {
+          panel.appendChild(el('p', { className: 'rates-intro', text: lp.subtitle }));
+        }
+        const list2 = el('ul', { className: 'rates-list' });
+        (lp.packages || []).forEach((pkg) => {
+          const li = el('li', { className: 'rates-item' });
+          li.appendChild(el('div', {
+            className: 'rates-item-title',
+            text: pkg.name + ' — ' + money(pkg.price),
+          }));
+          const bullets = el('ul', { className: 'rates-item-bullets' });
+          (pkg.items || []).forEach((line) => {
+            bullets.appendChild(el('li', { text: line }));
+          });
+          li.appendChild(bullets);
+          list2.appendChild(li);
+        });
+        panel.appendChild(list2);
+        if (lp.note) {
+          panel.appendChild(el('p', { className: 'rates-intro', text: lp.note }));
+        }
       }
 
       ratesPanelEl = panel;
