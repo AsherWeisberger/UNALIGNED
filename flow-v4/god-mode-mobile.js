@@ -439,6 +439,7 @@
   const MIN_CAMERA_ALT_M = 80;
   const STREET_CAMERA_ALT_M = 160;
   const SEARCH_CAMERA_ALT_M = 12000;
+  const SEARCH_ADDRESS_ALT_M = 900;
   const MIN_ALT_RADII = MIN_CAMERA_ALT_M / EARTH_RADIUS_M;
   const STREET_ALT_RADII = STREET_CAMERA_ALT_M / EARTH_RADIUS_M;
   const SEARCH_ALT_RADII = SEARCH_CAMERA_ALT_M / EARTH_RADIUS_M;
@@ -552,37 +553,197 @@
       try { if (scene.fog) { scene.fog.enabled = false; scene.fog.density = 0; } } catch (e) {}
     } catch (e) {}
   }
-  async function enablePhonePhotoreal(Cesium, viewer, state) {
+  const PHOTOREAL_PREFETCH_M = 80000;
+  const PHOTOREAL_SHOW_M = 1200;
+  const PHOTOREAL_HIDE_M = 2200;
+  const GOOGLE_TILES_SSE = 1;
+  function googleTilesetUrlOf(tileset) {
+    try {
+      const r = tileset && (tileset.resource || tileset._resource);
+      if (r) {
+        if (typeof r.getUrlComponent === 'function') {
+          const u = r.getUrlComponent(true);
+          if (u) return String(u);
+        }
+        if (r.url) return String(r.url);
+        if (r._url) return String(r._url);
+      }
+      if (tileset && tileset.url) return String(tileset.url);
+      if (tileset && tileset._url) return String(tileset._url);
+    } catch (e) {}
+    return '';
+  }
+  function isGooglePhotorealUrl(url) {
+    return /tile\.googleapis\.com/i.test(String(url || ''));
+  }
+  function tunePhoneTileset(tileset) {
+    if (!tileset) return;
+    try { tileset.maximumScreenSpaceError = GOOGLE_TILES_SSE; } catch (e) {}
+    try { tileset.skipLevelOfDetail = false; } catch (e) {}
+    try { tileset.immediatelyLoadDesiredLevelOfDetail = true; } catch (e) {}
+    try { tileset.dynamicScreenSpaceError = false; } catch (e) {}
+    try { tileset.loadSiblings = true; } catch (e) {}
+    try { tileset.preloadWhenHidden = true; } catch (e) {}
+    try { tileset.cullRequestsWhileMoving = false; } catch (e) {}
+    try { tileset.enableCollision = false; } catch (e) {}
+    try { tileset.cacheBytes = 1024 * 1024 * 1024; } catch (e) {}
+    try { tileset.maximumCacheOverflowBytes = 1024 * 1024 * 1024; } catch (e) {}
+  }
+  function applyPhoneStreetClarity(viewer) {
+    try {
+      const scene = viewer && viewer.scene;
+      if (!scene) return;
+      try { if (scene.fog) { scene.fog.enabled = false; scene.fog.density = 0; } } catch (e) {}
+      try { if (scene.skyAtmosphere) scene.skyAtmosphere.show = false; } catch (e) {}
+      try {
+        if (scene.globe) {
+          scene.globe.show = false;
+          scene.globe.showGroundAtmosphere = false;
+          scene.globe.atmosphereLightIntensity = 0;
+          scene.globe.depthTestAgainstTerrain = false;
+        }
+      } catch (e) {}
+      try {
+        const stages = scene.postProcessStages;
+        if (stages && stages.bloom) stages.bloom.enabled = false;
+        if (stages && stages.fxaa) stages.fxaa.enabled = true;
+      } catch (e) {}
+    } catch (e) {}
+  }
+  async function enablePhonePhotoreal(Cesium, viewer, state, opts) {
+    opts = opts || {};
+    const h = (function () {
+      try { return viewer && viewer.camera && viewer.camera.positionCartographic && viewer.camera.positionCartographic.height; }
+      catch (e) { return NaN; }
+    })();
+    const shown = !!(state && state._photorealShown);
+    const wantShow = (opts.show !== undefined) ? !!opts.show : (Number.isFinite(h) && h < (shown ? PHOTOREAL_HIDE_M : PHOTOREAL_SHOW_M));
+    const wantPrefetch = wantShow || (Number.isFinite(h) && h < PHOTOREAL_PREFETCH_M) || !!opts.force;
     const key = readGoogleTilesKey();
     if (!key || !Cesium || !viewer) return false;
+    if (!wantPrefetch) {
+      if (state && state.googleTileset && !(state.googleTileset.isDestroyed && state.googleTileset.isDestroyed())) {
+        try { state.googleTileset.show = false; } catch (e) {}
+      }
+      if (state) state._photorealShown = false;
+      try { if (viewer.scene && viewer.scene.globe) viewer.scene.globe.show = true; } catch (eG) {}
+      return false;
+    }
+    if (wantShow) applyPhoneStreetClarity(viewer);
     try {
       if (state && state.googleTileset && !(state.googleTileset.isDestroyed && state.googleTileset.isDestroyed())) {
-        state.googleTileset.show = true;
-        return true;
+        if (!isGooglePhotorealUrl(googleTilesetUrlOf(state.googleTileset))) {
+          try { viewer.scene.primitives.remove(state.googleTileset); } catch (eR) {}
+          try { state.googleTileset.destroy(); } catch (eD) {}
+          state.googleTileset = null;
+        } else {
+          tunePhoneTileset(state.googleTileset);
+          try { state.googleTileset.show = !!wantShow; } catch (eT) {}
+          if (state) state._photorealShown = !!wantShow;
+          try { if (viewer.scene && viewer.scene.globe) viewer.scene.globe.show = !wantShow; } catch (eG) {}
+          return true;
+        }
       }
     } catch (e) {}
-    try { if (Cesium.GoogleMaps) Cesium.GoogleMaps.defaultApiKey = key; } catch (e) {}
-    let tileset = null;
-    try {
+    if (state && state._googleTilesPending) {
+      try { await state._googleTilesPending; } catch (eP) {}
+      if (state.googleTileset && !(state.googleTileset.isDestroyed && state.googleTileset.isDestroyed())) {
+        tunePhoneTileset(state.googleTileset);
+        try { state.googleTileset.show = !!wantShow; } catch (eT) {}
+        state._photorealShown = !!wantShow;
+        return true;
+      }
+    }
+    const pending = (async function () {
+      try { if (Cesium.GoogleMaps) Cesium.GoogleMaps.defaultApiKey = key; } catch (e) {}
+      let tileset = null;
+      const tileOpts = {
+        maximumScreenSpaceError: GOOGLE_TILES_SSE,
+        skipLevelOfDetail: false,
+        immediatelyLoadDesiredLevelOfDetail: true,
+        dynamicScreenSpaceError: false,
+        loadSiblings: true,
+        preloadWhenHidden: true,
+        cullRequestsWhileMoving: false,
+        enableCollision: false,
+        cacheBytes: 1024 * 1024 * 1024,
+        maximumCacheOverflowBytes: 1024 * 1024 * 1024,
+        showCreditsOnScreen: true,
+      };
+      const apiOpts = { key: key, onlyUsingWithGoogleGeocoder: true };
       if (typeof Cesium.createGooglePhotorealistic3DTileset === 'function') {
-        try { tileset = await Cesium.createGooglePhotorealistic3DTileset({ key: key }); }
-        catch (e1) { tileset = await Cesium.createGooglePhotorealistic3DTileset(key); }
-      } else if (Cesium.Cesium3DTileset && Cesium.Cesium3DTileset.fromUrl) {
+        try { tileset = await Cesium.createGooglePhotorealistic3DTileset(apiOpts, tileOpts); }
+        catch (e1) {
+          try { tileset = await Cesium.createGooglePhotorealistic3DTileset({ key: key, onlyUsingWithGoogleGeocoder: true }, tileOpts); }
+          catch (e1b) { tileset = null; }
+        }
+      }
+      if (!tileset && Cesium.Cesium3DTileset && Cesium.Cesium3DTileset.fromUrl) {
         tileset = await Cesium.Cesium3DTileset.fromUrl(
           'https://tile.googleapis.com/v1/3dtiles/root.json?key=' + encodeURIComponent(key),
-          { showCreditsOnScreen: true }
+          tileOpts
         );
       }
       if (!tileset) return false;
-      try { tileset.maximumScreenSpaceError = 4; } catch (e) {}
+      if (!isGooglePhotorealUrl(googleTilesetUrlOf(tileset))) {
+        try { tileset.destroy && tileset.destroy(); } catch (e) {}
+        console.warn('[god-mode-phone] photoreal tileset was not Google; keeping Esri ground');
+        return false;
+      }
+      tunePhoneTileset(tileset);
+      const stillShow = (opts.show !== undefined) ? !!opts.show : (function () {
+        try {
+          const hh = viewer.camera.positionCartographic && viewer.camera.positionCartographic.height;
+          return Number.isFinite(hh) && hh < PHOTOREAL_SHOW_M;
+        } catch (eH) { return !!wantShow; }
+      })();
+      try { if (viewer.scene && viewer.scene.globe) viewer.scene.globe.show = !stillShow; } catch (e) {}
+      try { tileset.preloadWhenHidden = true; } catch (e) {}
+      try { tileset.show = !!stillShow; } catch (e) {}
+      if (stillShow) applyPhoneStreetClarity(viewer);
       viewer.scene.primitives.add(tileset);
-      if (state) state.googleTileset = tileset;
+      if (state) {
+        state.googleTileset = tileset;
+        state._photorealShown = !!stillShow;
+      }
       return true;
+    })();
+    if (state) state._googleTilesPending = pending;
+    try {
+      return await pending;
     } catch (e) {
       console.warn('[god-mode-phone] photoreal tiles failed', e);
+      try { if (viewer.scene && viewer.scene.globe) viewer.scene.globe.show = true; } catch (eG) {}
       return false;
+    } finally {
+      if (state && state._googleTilesPending === pending) state._googleTilesPending = null;
     }
   }
+
+  var phoneCraftIconCache = Object.create(null);
+  function getPhoneCraftIcon(kind) {
+    var key = kind === 'ship' ? 'ship' : 'plane';
+    if (phoneCraftIconCache[key]) return phoneCraftIconCache[key];
+    try {
+      var c = document.createElement('canvas');
+      var g = c.getContext('2d');
+      g.fillStyle = '#ffffff';
+      if (kind === 'ship') {
+        c.width = 40; c.height = 56;
+        g.beginPath(); g.moveTo(20, 3); g.lineTo(33, 48); g.lineTo(20, 40); g.lineTo(7, 48); g.closePath(); g.fill();
+      } else {
+        c.width = 56; c.height = 56;
+        g.beginPath();
+        g.moveTo(28, 4); g.lineTo(31, 24); g.lineTo(50, 30); g.lineTo(31, 29);
+        g.lineTo(31, 42); g.lineTo(38, 50); g.lineTo(28, 44); g.lineTo(18, 50);
+        g.lineTo(25, 42); g.lineTo(25, 29); g.lineTo(6, 30); g.lineTo(25, 24);
+        g.closePath(); g.fill();
+      }
+      phoneCraftIconCache[key] = c.toDataURL();
+    } catch (e) { phoneCraftIconCache[key] = ''; }
+    return phoneCraftIconCache[key];
+  }
+
   function makeCesiumPhoneAdapter(Cesium, viewer, state) {
     const pointEntities = [];
     const fakeControls = {
@@ -657,25 +818,55 @@
           const lat = Number(row.lat);
           const lng = Number(row.lng);
           if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+          const kind = String(row.type || '');
+          const craft = kind === 'flight' || kind === 'military' || kind === 'ship';
           let height = Number(row.altM);
           if (!Number.isFinite(height)) {
             const alt = Number(row.alt);
-            height = Number.isFinite(alt) ? alt * EARTH_RADIUS_M : 0;
+            if (Number.isFinite(alt) && alt > 0 && alt < 50) height = alt * EARTH_RADIUS_M;
+            else if (Number.isFinite(alt) && alt >= 50) height = alt;
+            else height = 0;
+          }
+          if (kind === 'ship') height = 0;
+          if ((kind === 'flight' || kind === 'military') && (!Number.isFinite(height) || height > 20000 || height < 0)) {
+            const ft = Number(row.altitudeFt);
+            height = Number.isFinite(ft) ? Math.max(0, ft * 0.3048) : 10000;
           }
           if (!Number.isFinite(height) || height < 0) height = 0;
-          if (height > 2.5e6) height = 2.5e6;
+          if (height > 2.0e5) height = 2.0e5;
           let color = Cesium.Color.WHITE;
           try { color = Cesium.Color.fromCssColorString(String(row.color || '#d0d6e0')); } catch (e) {}
-          const ent = viewer.entities.add({
-            position: Cesium.Cartesian3.fromDegrees(lng, lat, height),
-            point: {
-              pixelSize: row.type === 'starlink' ? 5 : 9,
-              color: color,
-              outlineColor: Cesium.Color.BLACK,
-              outlineWidth: 1,
-              disableDepthTestDistance: 500000,
-            },
-          });
+          let heading = Number(row.heading);
+          if (!Number.isFinite(heading)) heading = Number(row.cog);
+          if (!Number.isFinite(heading)) heading = 0;
+          const rot = -(((heading % 360) + 360) % 360) * Math.PI / 180;
+          const def = { position: Cesium.Cartesian3.fromDegrees(lng, lat, height) };
+          if (craft) {
+            def.point = {
+              pixelSize: 2.2, color: color, outlineWidth: 0,
+              disableDepthTestDistance: 0,
+              heightReference: kind === 'ship' ? Cesium.HeightReference.CLAMP_TO_GROUND : Cesium.HeightReference.NONE,
+              scaleByDistance: new Cesium.NearFarScalar(2.5e5, 0.15, 1.2e7, 1.15)
+            };
+            const icon = getPhoneCraftIcon(kind === 'ship' ? 'ship' : 'plane');
+            if (icon) {
+              def.billboard = {
+                image: icon, width: kind === 'ship' ? 11 : 15, height: kind === 'ship' ? 16 : 15,
+                color: color, rotation: rot, alignedAxis: Cesium.Cartesian3.UNIT_Z,
+                disableDepthTestDistance: 0, sizeInMeters: false,
+                scaleByDistance: new Cesium.NearFarScalar(5.0e4, 1.12, 8.0e6, 0.16),
+                distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 7.5e6),
+                heightReference: kind === 'ship' ? Cesium.HeightReference.CLAMP_TO_GROUND : Cesium.HeightReference.NONE
+              };
+            }
+          } else {
+            def.point = {
+              pixelSize: kind === 'starlink' ? 3 : 6, color: color, outlineWidth: 0,
+              disableDepthTestDistance: 0,
+              scaleByDistance: new Cesium.NearFarScalar(8.0e5, 1.1, 2.2e7, 0.28)
+            };
+          }
+          const ent = viewer.entities.add(def);
           ent.__gmPhone = row;
           pointEntities.push(ent);
         });
@@ -760,26 +951,31 @@
       }
     } catch (eImg) {}
     killPhoneAtmosphere(viewer);
+    try { if (viewer.scene) viewer.scene.rethrowRenderErrors = false; } catch (eRethrow) {}
     try {
       const globe = viewer.scene.globe;
       globe.enableLighting = true;
       globe.showGroundAtmosphere = false;
       globe.atmosphereLightIntensity = 0;
-      globe.depthTestAgainstTerrain = true;
+      globe.depthTestAgainstTerrain = false;
     } catch (e) {}
     try {
       const ssc = viewer.scene.screenSpaceCameraController;
       ssc.enableInputs = true;
       ssc.enableZoom = true;
       ssc.enableRotate = true;
-      ssc.enableTilt = true;
+      ssc.enableTilt = false;
       ssc.enableLook = true;
       ssc.enableTranslate = true;
       ssc.minimumZoomDistance = MIN_CAMERA_ALT_M;
       ssc.maximumZoomDistance = 4.5e7;
       ssc.inertiaZoom = 0.4;
       try {
-        ssc.zoomEventTypes = [Cesium.CameraEventType.PINCH, Cesium.CameraEventType.WHEEL, Cesium.CameraEventType.RIGHT_DRAG];
+        const CET = Cesium.CameraEventType;
+        ssc.translateEventTypes = CET.LEFT_DRAG;
+        ssc.zoomEventTypes = [CET.PINCH, CET.WHEEL];
+        ssc.rotateEventTypes = CET.RIGHT_DRAG;
+        ssc.tiltEventTypes = [];
       } catch (eZ) {}
     } catch (e) {}
     try {
@@ -801,10 +997,22 @@
     const onMoveEnd = function () {
       try {
         const h = viewer.camera.positionCartographic && viewer.camera.positionCartographic.height;
-        if (Number.isFinite(h) && h < 80000) enablePhonePhotoreal(Cesium, viewer, state);
+        enablePhonePhotoreal(Cesium, viewer, state);
       } catch (e) {}
     };
     try { viewer.camera.moveEnd.addEventListener(onMoveEnd); } catch (e) {}
+    try {
+      viewer.camera.percentageChanged = 0.02;
+      const onCamChanged = function () {
+        if (state._photorealSyncTimer) return;
+        state._photorealSyncTimer = global.setTimeout(function () {
+          state._photorealSyncTimer = null;
+          enablePhonePhotoreal(Cesium, viewer, state);
+        }, 140);
+      };
+      viewer.camera.changed.addEventListener(onCamChanged);
+      state._onCamChanged = onCamChanged;
+    } catch (e) {}
     try { viewer.resize(); } catch (e) {}
     return makeCesiumPhoneAdapter(Cesium, viewer, state);
   }
@@ -1423,7 +1631,8 @@
 
     if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
 
-    const altKm = Number.isFinite(altM) ? Math.max(0.002, altM / 100000) : 0.01;
+    const altMSafe = Number.isFinite(altM) ? Math.max(0, altM) : 10000;
+    const altKm = Math.min(0.0022, Math.max(0.0004, altMSafe / 6371000));
 
     const cs = String(callsign || '').trim();
 
@@ -1435,7 +1644,9 @@
 
       lng,
 
-      alt: Math.min(altKm, 0.35),
+      alt: altKm,
+      altM: altMSafe,
+      color: (typeof flightAltColor === 'function') ? flightAltColor(Number.isFinite(altMSafe) ? altMSafe * 3.281 : null) : '#ffd60a',
 
       heading: Number.isFinite(heading) ? heading : 0,
 
@@ -2967,6 +3178,11 @@
     '.v4-gm-phone-back{pointer-events:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent;min-height:44px;padding:0 14px;border-radius:12px;border:1px solid rgba(255,255,255,.22);background:#e8edf5;color:#0b0d12;font-size:13px;font-weight:700;}',
     '.v4-gm-phone-globe .cesium-viewer,.v4-gm-phone-globe .cesium-viewer-cesiumWidgetContainer,.v4-gm-phone-globe .cesium-widget,.v4-gm-phone-globe .cesium-widget canvas,.v4-gm-phone-cesium{position:absolute;inset:0;width:100%!important;height:100%!important;}',
     '.v4-gm-phone-globe .cesium-viewer-toolbar,.v4-gm-phone-globe .cesium-viewer-animationContainer,.v4-gm-phone-globe .cesium-viewer-timelineContainer,.v4-gm-phone-globe .cesium-viewer-fullscreenContainer{display:none!important;}',
+    '.v4-gm-phone-suggest{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:4;max-height:240px;overflow:auto;background:rgba(11,13,18,.96);border:1px solid rgba(255,255,255,.22);border-radius:12px;pointer-events:auto;}',
+    '.v4-gm-phone-suggest button{display:block;width:100%;text-align:left;appearance:none;border:0;background:transparent;color:#f2f5fa;padding:10px 12px;font:inherit;pointer-events:auto;}',
+    '.v4-gm-phone-suggest button.is-active,.v4-gm-phone-suggest button:hover{background:rgba(232,237,245,.12);}',
+    '.v4-gm-phone-suggest-name{display:block;font-size:14px;font-weight:600;}',
+    '.v4-gm-phone-suggest-sub{display:block;font-size:11px;opacity:.7;margin-top:2px;}',
     '.v4-gm-phone-search-msg{padding:6px 16px 0;font-size:12px;opacity:.75;}',
   ].join('');
   function injectPhoneCss() {
@@ -2992,48 +3208,810 @@
       if (typeof global.__gmPhoneStreetView === 'function') global.__gmPhoneStreetView(lat, lng);
     } catch (e) {}
   }
-  async function geocodeAddress(query) {
-    const q = String(query || '').trim();
+  function parseHouseNumber(q) {
+    const m = String(q || "").trim().match(/^(\d+[A-Za-z]?)\b/);
+    return m ? String(m[1]) : "";
+  }
+
+  function normHouse(h) {
+    return String(h || "").trim().toUpperCase().replace(/^0+(?=\d)/, "");
+  }
+
+  function housesEqual(a, b) {
+    const x = normHouse(a);
+    const y = normHouse(b);
+    return !!(x && y && x === y);
+  }
+
+  const US_STATE_MAP = {
+    al: "Alabama", alabama: "Alabama", ak: "Alaska", alaska: "Alaska",
+    az: "Arizona", arizona: "Arizona", ar: "Arkansas", arkansas: "Arkansas",
+    ca: "California", california: "California", co: "Colorado", colorado: "Colorado",
+    ct: "Connecticut", connecticut: "Connecticut", de: "Delaware", delaware: "Delaware",
+    fl: "Florida", florida: "Florida", ga: "Georgia", georgia: "Georgia",
+    hi: "Hawaii", hawaii: "Hawaii", id: "Idaho", idaho: "Idaho",
+    il: "Illinois", illinois: "Illinois", in: "Indiana", indiana: "Indiana",
+    ia: "Iowa", iowa: "Iowa", ks: "Kansas", kansas: "Kansas",
+    ky: "Kentucky", kentucky: "Kentucky", la: "Louisiana", louisiana: "Louisiana",
+    me: "Maine", maine: "Maine", md: "Maryland", maryland: "Maryland",
+    ma: "Massachusetts", massachusetts: "Massachusetts", mi: "Michigan", michigan: "Michigan",
+    mn: "Minnesota", minnesota: "Minnesota", ms: "Mississippi", mississippi: "Mississippi",
+    mo: "Missouri", missouri: "Missouri", mt: "Montana", montana: "Montana",
+    ne: "Nebraska", nebraska: "Nebraska", nv: "Nevada", nevada: "Nevada",
+    nh: "New Hampshire", "new hampshire": "New Hampshire",
+    nj: "New Jersey", "new jersey": "New Jersey",
+    nm: "New Mexico", "new mexico": "New Mexico",
+    ny: "New York", "new york": "New York",
+    nc: "North Carolina", "north carolina": "North Carolina",
+    nd: "North Dakota", "north dakota": "North Dakota",
+    oh: "Ohio", ohio: "Ohio", ok: "Oklahoma", oklahoma: "Oklahoma",
+    or: "Oregon", oregon: "Oregon", pa: "Pennsylvania", pennsylvania: "Pennsylvania",
+    ri: "Rhode Island", "rhode island": "Rhode Island",
+    sc: "South Carolina", "south carolina": "South Carolina",
+    sd: "South Dakota", "south dakota": "South Dakota",
+    tn: "Tennessee", tennessee: "Tennessee", tx: "Texas", texas: "Texas",
+    ut: "Utah", utah: "Utah", vt: "Vermont", vermont: "Vermont",
+    va: "Virginia", virginia: "Virginia", wa: "Washington", washington: "Washington",
+    wv: "West Virginia", "west virginia": "West Virginia",
+    wi: "Wisconsin", wisconsin: "Wisconsin", wy: "Wyoming", wyoming: "Wyoming",
+    dc: "District of Columbia", "district of columbia": "District of Columbia",
+  };
+  const STREET_SUF_RE = /\b(ave(?:nue)?|blvd|boulevard|cir(?:cle)?|ct|court|dr(?:ive)?|hwy|highway|ln|lane|pkwy|parkway|pl(?:ace)?|rd|road|st(?:reet)?|ter(?:race)?|trl|trail|way|wy)\b/i;
+
+  function looksUsQuery(q) {
+    const s = String(q || "");
+    if (/\b\d{5}(?:-\d{4})?\b/.test(s)) return true;
+    if (/\b(united states|u\.?s\.?a\.?)\b/i.test(s)) return true;
+    if (/\b(alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming|district of columbia)\b/i.test(s)) return true;
+    if (/\b(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC)\b/.test(s)) return true;
+    return false;
+  }
+
+  function parseUsStreetQuery(q) {
+    let s = String(q || "").replace(/[.,]/g, " ").replace(/\s+/g, " ").trim();
+    if (!s) return null;
+    s = s.replace(/\b(united states|u s a|usa|u s)\s*$/i, "").trim();
+    const house = parseHouseNumber(s);
+    const zipM = s.match(/\b(\d{5})(?:-\d{4})?\b/);
+    const zip = zipM ? zipM[1] : "";
+    if (zipM) s = (s.slice(0, zipM.index) + " " + s.slice(zipM.index + zipM[0].length)).replace(/\s+/g, " ").trim();
+    const tokens = s.split(" ").filter(Boolean);
+    let state = "";
+    for (let n = 2; n >= 1; n--) {
+      if (tokens.length < n) continue;
+      const tail = tokens.slice(-n).join(" ").toLowerCase();
+      if (US_STATE_MAP[tail]) {
+        state = US_STATE_MAP[tail];
+        tokens.splice(-n, n);
+        break;
+      }
+    }
+    s = tokens.join(" ");
+    let street = "";
+    let city = "";
+    const suf = s.match(new RegExp("^(.+?\\b(?:ave(?:nue)?|blvd|boulevard|cir(?:cle)?|ct|court|dr(?:ive)?|hwy|highway|ln|lane|pkwy|parkway|pl(?:ace)?|rd|road|st(?:reet)?|ter(?:race)?|trl|trail|way|wy))\\b(.*)$", "i"));
+    if (suf) {
+      street = suf[1].trim();
+      city = suf[2].trim();
+    } else {
+      street = s;
+    }
+    return { house: house, street: street, city: city, state: state, zip: zip };
+  }
+
+  function destMeters(lat, lng, bearingDeg, distM) {
+    const rad = Math.PI / 180;
+    const br = Number(bearingDeg) * rad;
+    const north = Number(distM) * Math.cos(br);
+    const east = Number(distM) * Math.sin(br);
+    const dLat = north / 111320;
+    const cosLat = Math.cos(Number(lat) * rad);
+    const denom = 111320 * (Math.abs(cosLat) < 0.15 ? (cosLat < 0 ? -0.15 : 0.15) : cosLat);
+    const dLng = east / denom;
+    return { lat: Number(lat) + dLat, lng: Number(lng) + dLng };
+  }
+
+  function bearingDeg(lat1, lng1, lat2, lng2) {
+    const p1 = Number(lat1) * Math.PI / 180;
+    const p2 = Number(lat2) * Math.PI / 180;
+    const dl = (Number(lng2) - Number(lng1)) * Math.PI / 180;
+    const y = Math.sin(dl) * Math.cos(p2);
+    const x = Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl);
+    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+  }
+
+  function censusUrl(address) {
+    return "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address="
+      + encodeURIComponent(address) + "&benchmark=Public_AR_Current&format=json";
+  }
+
+  function censusLineAddress(comp, houseOverride) {
+    comp = comp || {};
+    const bits = [
+      houseOverride != null ? String(houseOverride) : "",
+      comp.preDirection, comp.preType, comp.preQualifier,
+      comp.streetName, comp.suffixType, comp.suffixDirection, comp.suffixQualifier,
+      comp.city, comp.state, comp.zip,
+    ].map(function (x) { return String(x || "").trim(); }).filter(Boolean);
+    return bits.join(" ");
+  }
+
+  async function fetchCensusJson(address) {
+    const addr = String(address || "").trim();
+    if (!addr) return null;
+    const url = censusUrl(addr);
+    try {
+      const res = await fetchWithTimeout(url, { headers: { Accept: "application/json" } }, 8000);
+      if (res && res.ok) return await res.json();
+    } catch (e) {}
+    try {
+      if (typeof fetchGodModeProxy === "function") {
+        const data = await fetchGodModeProxy("/god-mode/census-geocode?address=" + encodeURIComponent(addr), 10000);
+        if (data && (data.result || data.addressMatches || Number.isFinite(Number(data.lat)))) return data;
+      }
+    } catch (e) {}
+    return null;
+  }
+
+
+  function pickCensusMatch(data, wantHouse) {
+    const matches = data && data.result && Array.isArray(data.result.addressMatches)
+      ? data.result.addressMatches
+      : (data && Array.isArray(data.addressMatches) ? data.addressMatches : []);
+    if (!matches.length) return null;
+    if (wantHouse) {
+      for (let i = 0; i < matches.length; i++) {
+        const matched = String((matches[i] && matches[i].matchedAddress) || "");
+        const mHouse = (matched.match(/^(\d+)/) || [])[1] || "";
+        if (housesEqual(mHouse, wantHouse)) return matches[i];
+      }
+    }
+    return matches[0];
+  }
+
+  function censusPoint(match) {
+    const coords = (match && match.coordinates) || {};
+    const lat = Number(coords.y);
+    const lng = Number(coords.x);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return { lat: lat, lng: lng };
+  }
+
+  async function offsetCensusToParcel(match) {
+    const pt = censusPoint(match);
+    if (!pt) return null;
+    const side = String(((match && match.tigerLine) || {}).side || "").toUpperCase();
+    const comp = (match && match.addressComponents) || {};
+    const fromA = String(comp.fromAddress || "").trim();
+    const toA = String(comp.toAddress || "").trim();
+    let heading = null;
+    if (fromA && toA && fromA !== toA) {
+      try {
+        const pair = await Promise.all([
+          fetchCensusJson(censusLineAddress(comp, fromA)),
+          fetchCensusJson(censusLineAddress(comp, toA)),
+        ]);
+        const pa = censusPoint(pickCensusMatch(pair[0], fromA));
+        const pb = censusPoint(pickCensusMatch(pair[1], toA));
+        if (pa && pb) {
+          const dx = pb.lng - pa.lng;
+          const dy = pb.lat - pa.lat;
+          if ((dx * dx + dy * dy) > 1e-14) heading = bearingDeg(pa.lat, pa.lng, pb.lat, pb.lng);
+        }
+      } catch (e) {}
+    }
+    if (heading == null || !side) return { lat: pt.lat, lng: pt.lng };
+    const br = side === "R" ? ((heading + 90) % 360) : ((heading - 90 + 360) % 360);
+    return destMeters(pt.lat, pt.lng, br, 20);
+  }
+
+  async function geocodeCensus(query, wantHouse) {
+    const data = await fetchCensusJson(query);
+    if (data && Number.isFinite(Number(data.lat)) && Number.isFinite(Number(data.lng))) {
+      return { lat: Number(data.lat), lng: Number(data.lng), name: data.name || query, kind: "address", source: "census" };
+    }
+    const match = pickCensusMatch(data, wantHouse);
+    if (!match) return null;
+    const pt = censusPoint(match);
+    if (!pt) return null;
+    return {
+      lat: pt.lat,
+      lng: pt.lng,
+      name: String(match.matchedAddress || query),
+      kind: "address",
+      source: "census",
+    };
+  }
+
+
+  function nominatimHeaders() {
+    // Nominatim requires a valid User-Agent; browsers send one and forbid overriding it.
+    return { Accept: "application/json" };
+  }
+
+  async function fetchNominatim(params) {
+    const u = new URLSearchParams(Object.assign({ format: "jsonv2", addressdetails: "1", limit: "8" }, params || {}));
+    const res = await fetchWithTimeout("https://nominatim.openstreetmap.org/search?" + u.toString(), { headers: nominatimHeaders() }, 8000);
+    if (!res || !res.ok) return [];
+    const rows = await res.json();
+    return Array.isArray(rows) ? rows : [];
+  }
+
+  function geocodeKindFromNominatim(hit) {
+    const t = String((hit && (hit.addresstype || hit.type)) || "").toLowerCase();
+    const cls = String((hit && hit.class) || "").toLowerCase();
+    const addr = (hit && hit.address) || {};
+    if (addr.house_number || t === "house" || t === "building" || t === "residential" || cls === "building") return "address";
+    if (cls === "highway" || t === "road" || t === "pedestrian" || t === "living_street") return "street";
+    if (t === "city" || t === "town" || t === "village" || t === "hamlet" || t === "suburb" || t === "state" || t === "country" || t === "administrative" || t === "municipality") return "city";
+    return "place";
+  }
+
+  function geocodeKindFromPhoton(props) {
+    props = props || {};
+    const osmKey = String(props.osm_key || "").toLowerCase();
+    const osmVal = String(props.osm_value || "").toLowerCase();
+    if (props.housenumber || osmKey === "building") return "address";
+    if (osmKey === "highway") return props.housenumber ? "address" : "street";
+    if (osmKey === "place" && /city|town|village|hamlet|state|country|county|municipality/.test(osmVal)) return "city";
+    if (osmKey === "boundary") return "city";
+    return props.street ? "street" : "place";
+  }
+
+  function pickNominatimHit(rows, q) {
+    const list = Array.isArray(rows) ? rows : [];
+    if (!list.length) return null;
+    const wantHouse = parseHouseNumber(q);
+    let best = null;
+    let bestRank = -1;
+    const rank = { address: 4, street: 3, place: 2, city: 1 };
+    for (let i = 0; i < list.length; i++) {
+      const hit = list[i];
+      const k = geocodeKindFromNominatim(hit);
+      const hn = ((hit && hit.address) || {}).house_number;
+      let r = rank[k] || 2;
+      if (wantHouse) {
+        if (housesEqual(hn, wantHouse)) r = 20;
+        else if (k === "address" || k === "place") r = 8 + r;
+        else if (k === "street") r = 3;
+        else r = 1;
+      }
+      if (r > bestRank) { bestRank = r; best = hit; }
+    }
+    if (!best) return null;
+    const lat = Number(best && best.lat);
+    const lng = Number(best && best.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    return {
+      lat: lat,
+      lng: lng,
+      name: String((best && (best.display_name || best.name)) || q),
+      kind: geocodeKindFromNominatim(best),
+      source: "nominatim",
+      house: ((best.address) || {}).house_number || "",
+    };
+  }
+
+
+  function pickPhotonHit(data, q) {
+    const feats = data && data.features;
+    if (!feats || !feats.length) return null;
+    const wantHouse = parseHouseNumber(q);
+    let best = null;
+    let bestRank = -1;
+    const rank = { address: 4, street: 3, place: 2, city: 1 };
+    for (let i = 0; i < feats.length; i++) {
+      const hit = feats[i];
+      const coords = hit && hit.geometry && hit.geometry.coordinates;
+      if (!coords || coords.length < 2) continue;
+      const props = hit.properties || {};
+      const kind = geocodeKindFromPhoton(props);
+      let r = rank[kind] || 2;
+      if (wantHouse) {
+        if (housesEqual(props.housenumber, wantHouse)) r = 20;
+        else if (kind === "address" || kind === "place") r = 8 + r;
+        else if (kind === "street") r = 3;
+        else r = 1;
+      }
+      if (r > bestRank) {
+        bestRank = r;
+        const name = props.name || props.street || q;
+        const streetLine = props.housenumber && props.street ? (props.housenumber + " " + props.street) : name;
+        const bits = [streetLine, props.city || props.town || props.village, props.state, props.country].filter(Boolean);
+        best = { lat: Number(coords[1]), lng: Number(coords[0]), name: bits.join(", "), kind: kind, source: "photon", house: props.housenumber || "" };
+      }
+    }
+    if (!best || !Number.isFinite(best.lat) || !Number.isFinite(best.lng)) return null;
+    return best;
+  }
+
+
+  function googleLocationTypeRank(t) {
+    const x = String(t || "").toUpperCase();
+    if (x === "ROOFTOP") return 40;
+    if (x === "RANGE_INTERPOLATED") return 20;
+    if (x === "GEOMETRIC_CENTER") return 10;
+    return 5;
+  }
+
+  function pickGoogleGeocode(data, q) {
+    const results = data && Array.isArray(data.results) ? data.results : [];
+    if (!results.length) return null;
+    let best = null;
+    let bestRank = -1;
+    for (let i = 0; i < results.length; i++) {
+      const row = results[i];
+      const loc = row && row.geometry && row.geometry.location;
+      if (!loc) continue;
+      const lat = Number(loc.lat);
+      const lng = Number(loc.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+      const lt = String((row.geometry && row.geometry.location_type) || "");
+      const types = Array.isArray(row.types) ? row.types : [];
+      let r = googleLocationTypeRank(lt);
+      if (types.indexOf("street_address") >= 0 || types.indexOf("premise") >= 0 || types.indexOf("subpremise") >= 0) r += 5;
+      if (r > bestRank) {
+        bestRank = r;
+        let kind = "address";
+        if (types.indexOf("locality") >= 0 || types.indexOf("administrative_area_level_1") >= 0 || types.indexOf("country") >= 0) kind = "city";
+        else if (types.indexOf("route") >= 0) kind = "street";
+        best = { lat: lat, lng: lng, name: String(row.formatted_address || q), kind: kind, source: "google", locationType: lt };
+      }
+    }
+    return best;
+  }
+
+
+  function settleTimeout(promise, ms, fallback) {
+    return new Promise(function (resolve) {
+      var done = false;
+      var timer = global.setTimeout(function () {
+        if (done) return;
+        done = true;
+        resolve(fallback);
+      }, ms);
+      Promise.resolve(promise).then(function (value) {
+        if (done) return;
+        done = true;
+        global.clearTimeout(timer);
+        resolve(value);
+      }, function () {
+        if (done) return;
+        done = true;
+        global.clearTimeout(timer);
+        resolve(fallback);
+      });
+    });
+  }
+
+  function ensureGoogleMapsJs() {
+    if (global.google && global.google.maps && global.google.maps.Geocoder) return Promise.resolve(true);
+    const key = (typeof readGoogleTilesKey === "function" && readGoogleTilesKey()) || "";
+    if (!key) return Promise.resolve(false);
+    if (ensureGoogleMapsJs._p) return ensureGoogleMapsJs._p;
+    ensureGoogleMapsJs._p = new Promise(function (resolve) {
+      var settled = false;
+      function finish(ok) {
+        if (settled) return;
+        settled = true;
+        resolve(!!ok);
+      }
+      var timer = global.setTimeout(function () { finish(false); }, 2500);
+      const s = document.createElement("script");
+      s.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(key) + "&libraries=places";
+      s.async = true;
+      s.onload = function () {
+        global.clearTimeout(timer);
+        finish(!!(global.google && global.google.maps && global.google.maps.Geocoder));
+      };
+      s.onerror = function () {
+        global.clearTimeout(timer);
+        finish(false);
+      };
+      document.head.appendChild(s);
+    });
+    return ensureGoogleMapsJs._p;
+  }
+
+  async function geocodeGoogleJs(query) {
+    const q = String(query || "").trim();
     if (!q) return null;
+    return settleTimeout((async function () {
+    const ok = await ensureGoogleMapsJs();
+    if (!ok) return null;
+    return new Promise(function (resolve) {
+      try {
+        const geo = new global.google.maps.Geocoder();
+        geo.geocode({ address: q }, function (results, status) {
+          if (String(status) !== "OK" || !results || !results.length) return resolve(null);
+          const mapped = [];
+          for (let i = 0; i < results.length; i++) {
+            const r = results[i];
+            const loc = r && r.geometry && r.geometry.location;
+            const lat = loc && (typeof loc.lat === "function" ? loc.lat() : loc.lat);
+            const lng = loc && (typeof loc.lng === "function" ? loc.lng() : loc.lng);
+            mapped.push({
+              formatted_address: r.formatted_address,
+              types: r.types,
+              geometry: {
+                location: { lat: lat, lng: lng },
+                location_type: r.geometry && r.geometry.location_type,
+              },
+            });
+          }
+          resolve(pickGoogleGeocode({ results: mapped }, q));
+        });
+      } catch (e) { resolve(null); }
+    });
+    })(), 2500, null);
+  }
+
+  async function geocodeGoogle(query) {
+    const q = String(query || "").trim();
+    if (!q) return null;
+    const key = (typeof readGoogleTilesKey === "function" && readGoogleTilesKey()) || "";
+    const qs = "address=" + encodeURIComponent(q) + (key ? "&key=" + encodeURIComponent(key) : "");
     try {
-      const res = await fetchWithTimeout('https://photon.komoot.io/api/?limit=1&q=' + encodeURIComponent(q), { headers: { Accept: 'application/json' } }, 8000);
+      const res = await fetchWithTimeout("https://maps.googleapis.com/maps/api/geocode/json?" + qs, { headers: { Accept: "application/json" } }, 8000);
       if (res && res.ok) {
-        const data = await res.json();
-        const hit = data && data.features && data.features[0];
-        const coords = hit && hit.geometry && hit.geometry.coordinates;
-        if (coords && coords.length >= 2 && Number.isFinite(Number(coords[1])) && Number.isFinite(Number(coords[0]))) {
-          const props = hit.properties || {};
-          const name = props.name || props.street || q;
-          const bits = [props.city || props.town || props.village, props.state, props.country].filter(Boolean);
-          return { lat: Number(coords[1]), lng: Number(coords[0]), name: bits.length ? (name + ', ' + bits.join(', ')) : name };
-        }
+        const hit = pickGoogleGeocode(await res.json(), q);
+        if (hit) return hit;
       }
     } catch (e) {}
     try {
-      const res = await fetchWithTimeout('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=' + encodeURIComponent(q), { headers: { Accept: 'application/json' } }, 8000);
-      if (res && res.ok) {
-        const rows = await res.json();
-        const hit = Array.isArray(rows) ? rows[0] : null;
-        const lat = Number(hit && hit.lat);
-        const lng = Number(hit && hit.lon);
-        if (Number.isFinite(lat) && Number.isFinite(lng)) {
-          return { lat: lat, lng: lng, name: String((hit && (hit.display_name || hit.name)) || q) };
-        }
-      }
+      const hit = await geocodeGoogleJs(q);
+      if (hit) return hit;
     } catch (e) {}
     try {
-      const city = q.split(',')[0].trim();
-      const res = await fetchWithTimeout('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(city) + '&count=1&language=en&format=json', {}, 8000);
-      if (res && res.ok) {
-        const data = await res.json();
-        const hit = Array.isArray(data && data.results) ? data.results[0] : null;
-        if (hit && Number.isFinite(hit.latitude)) {
-          return { lat: hit.latitude, lng: hit.longitude, name: [hit.name, hit.admin1, hit.country].filter(Boolean).join(', ') || q };
+      if (typeof fetchGodModeProxy === "function") {
+        const data = await fetchGodModeProxy("/god-mode/google-geocode?address=" + encodeURIComponent(q), 10000);
+        const hit = pickGoogleGeocode(data, q);
+        if (hit) return hit;
+        if (data && Number.isFinite(Number(data.lat)) && Number.isFinite(Number(data.lng))) {
+          return { lat: Number(data.lat), lng: Number(data.lng), name: data.name || q, kind: data.kind || "address", source: "google" };
         }
       }
     } catch (e) {}
     return null;
   }
+
+
+  function syntheticSuggestRow(q) {
+    const s = String(q || "").trim();
+    return {
+      title: s,
+      sub: "Search this address",
+      name: s,
+      kind: "address",
+      source: "typed",
+      house: parseHouseNumber(s),
+      lat: NaN,
+      lng: NaN,
+    };
+  }
+
+  function queryHasLocality(q) {
+    const parsed = parseUsStreetQuery(q);
+    if (parsed && parsed.city && String(parsed.city).trim().length > 1) return true;
+    if (parsed && parsed.state) return true;
+    if (parsed && parsed.zip) return true;
+    return false;
+  }
+
+  function hitsAreAmbiguous(hits, q) {
+    const wantHouse = parseHouseNumber(q);
+    if (!wantHouse || queryHasLocality(q)) return false;
+    const list = (hits || []).filter(function (h) { return h && Number.isFinite(Number(h.lat)) && Number.isFinite(Number(h.lng)); });
+    if (list.length < 2) return false;
+    let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+    for (let i = 0; i < list.length; i++) {
+      minLat = Math.min(minLat, Number(list[i].lat));
+      maxLat = Math.max(maxLat, Number(list[i].lat));
+      minLng = Math.min(minLng, Number(list[i].lng));
+      maxLng = Math.max(maxLng, Number(list[i].lng));
+    }
+    return (maxLat - minLat) > 0.12 || (maxLng - minLng) > 0.12;
+  }
+
+  function suggestKey(r) {
+    if (!r) return "";
+    if (Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lng))) {
+      return Number(r.lat).toFixed(5) + "," + Number(r.lng).toFixed(5);
+    }
+    return "typed:" + String(r.name || r.title || "").toLowerCase();
+  }
+
+  function mergeSuggestRows(syn, rows) {
+    const out = [];
+    const seen = {};
+    const push = function (r) {
+      if (!r) return;
+      const key = suggestKey(r);
+      if (seen[key]) return;
+      seen[key] = 1;
+      out.push(r);
+    };
+    if (syn) push(syn);
+    const list = Array.isArray(rows) ? rows : [];
+    for (let i = 0; i < list.length; i++) push(list[i]);
+    return out.slice(0, 8);
+  }
+
+  function googleRowFromResult(row, q) {
+    if (!row) return null;
+    const loc = row.geometry && row.geometry.location;
+    if (!loc) return null;
+    const lat = Number(typeof loc.lat === "function" ? loc.lat() : loc.lat);
+    const lng = Number(typeof loc.lng === "function" ? loc.lng() : loc.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    const types = Array.isArray(row.types) ? row.types : [];
+    let kind = "address";
+    if (types.indexOf("locality") >= 0 || types.indexOf("administrative_area_level_1") >= 0 || types.indexOf("country") >= 0) kind = "city";
+    else if (types.indexOf("route") >= 0) kind = "street";
+    const name = String(row.formatted_address || q);
+    const parts = name.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+    const title = parts[0] || String(q);
+    const sub = parts.slice(1, 3).join(", ");
+    const hn = parseHouseNumber(title) || parseHouseNumber(q);
+    return {
+      lat: lat, lng: lng, title: title, sub: sub, name: name,
+      kind: kind, source: "google", house: hn,
+      locationType: String((row.geometry && row.geometry.location_type) || ""),
+    };
+  }
+
+  function googleRowsFromResults(results, q) {
+    const list = Array.isArray(results) ? results : [];
+    const out = [];
+    for (let i = 0; i < list.length; i++) {
+      const row = googleRowFromResult(list[i], q);
+      if (row) out.push(row);
+    }
+    return out;
+  }
+
+  function photonSuggestRow(feat, q) {
+    const coords = feat && feat.geometry && feat.geometry.coordinates;
+    if (!coords || coords.length < 2) return null;
+    const lat = Number(coords[1]);
+    const lng = Number(coords[0]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    const p = (feat && feat.properties) || {};
+    const title = p.housenumber && p.street ? (p.housenumber + " " + p.street) : (p.name || p.street || q);
+    const city = p.city || p.town || p.village || "";
+    const state = p.state || "";
+    const sub = [city, state].filter(Boolean).join(", ");
+    const bits = [title, sub, p.country].filter(Boolean);
+    return {
+      lat: lat, lng: lng, title: String(title || q), sub: sub,
+      name: bits.join(", "), kind: geocodeKindFromPhoton(p), source: "photon", house: p.housenumber || "",
+    };
+  }
+
+  function nominatimSuggestRow(hit, q) {
+    if (!hit) return null;
+    const lat = Number(hit.lat);
+    const lng = Number(hit.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    const addr = hit.address || {};
+    const title = addr.house_number && addr.road ? (addr.house_number + " " + addr.road) : (hit.name || addr.road || "");
+    const city = addr.city || addr.town || addr.village || addr.hamlet || "";
+    const state = addr.state || "";
+    const sub = [city, state].filter(Boolean).join(", ");
+    return {
+      lat: lat, lng: lng, title: String(title || hit.display_name || q), sub: sub,
+      name: String(hit.display_name || title || q), kind: geocodeKindFromNominatim(hit), source: "nominatim", house: addr.house_number || "",
+    };
+  }
+
+  async function fetchGoogleSuggests(query) {
+    const q = String(query || "").trim();
+    if (!q) return [];
+    try {
+      const rows = await geocodeGoogleJsAll(q);
+      if (rows && rows.length) return rows;
+    } catch (e) {}
+    try {
+      const hit = await geocodeGoogle(q);
+      if (hit) return [hit];
+    } catch (e2) {}
+    return [];
+  }
+
+  async function geocodeGoogleJsAll(query) {
+    const q = String(query || "").trim();
+    if (!q) return [];
+    return settleTimeout((async function () {
+      const ok = await ensureGoogleMapsJs();
+      if (!ok) return [];
+      return new Promise(function (resolve) {
+        try {
+          const geo = new global.google.maps.Geocoder();
+          geo.geocode({ address: q }, function (results, status) {
+            if (String(status) !== "OK" || !results || !results.length) return resolve([]);
+            resolve(googleRowsFromResults(results, q));
+          });
+        } catch (e) { resolve([]); }
+      });
+    })(), 2500, []);
+  }
+
+  async function fetchSearchSuggests(query) {
+    const q = String(query || "").trim();
+    if (q.length < 3) return [];
+    const wantHouse = parseHouseNumber(q);
+    const syn = syntheticSuggestRow(q);
+    const googleP = (async function () {
+      try { return await settleTimeout(fetchGoogleSuggests(q), 2500, []); } catch (e) { return []; }
+    })();
+    const photonP = (async function () {
+      try {
+        const res = await fetchWithTimeout("https://photon.komoot.io/api/?q=" + encodeURIComponent(q) + "&limit=6&lang=en", { headers: { Accept: "application/json" } }, 1800);
+        if (!(res && res.ok)) return [];
+        const data = await res.json();
+        const feats = (data && data.features) || [];
+        const rows = [];
+        for (let i = 0; i < feats.length; i++) {
+          const row = photonSuggestRow(feats[i], q);
+          if (row) rows.push(row);
+        }
+        return rows;
+      } catch (e) { return []; }
+    })();
+    const nomP = (async function () {
+      try {
+        const noms = await settleTimeout(fetchNominatim({ q: q, limit: "6" }), 1800, []);
+        const rows = [];
+        for (let i = 0; i < (noms || []).length; i++) {
+          const row = nominatimSuggestRow(noms[i], q);
+          if (row) rows.push(row);
+        }
+        return rows;
+      } catch (e) { return []; }
+    })();
+    const osm = await Promise.all([photonP, nomP]);
+    var gRows = [];
+    try {
+      var marker = { __gmPending: 1 };
+      var raced = await Promise.race([googleP, Promise.resolve(marker)]);
+      if (!(raced && raced.__gmPending)) gRows = raced || [];
+    } catch (eG) { gRows = []; }
+    const buckets = [gRows, osm[0], osm[1]];
+    let rows = [];
+    for (let b = 0; b < buckets.length; b++) {
+      const part = buckets[b] || [];
+      for (let i = 0; i < part.length; i++) rows.push(part[i]);
+    }
+    if (wantHouse) {
+      rows.sort(function (a, b) {
+        const ah = housesEqual(a.house, wantHouse) ? 1 : 0;
+        const bh = housesEqual(b.house, wantHouse) ? 1 : 0;
+        const ag = a.source === "google" ? 1 : 0;
+        const bg = b.source === "google" ? 1 : 0;
+        return (bh - ah) || (bg - ag);
+      });
+      var diverse = [];
+      var rest = [];
+      var seenCity = {};
+      for (var di = 0; di < rows.length; di++) {
+        var cityKey = String(rows[di].sub || "").toLowerCase() || suggestKey(rows[di]);
+        if (!seenCity[cityKey]) { seenCity[cityKey] = 1; diverse.push(rows[di]); }
+        else rest.push(rows[di]);
+      }
+      rows = diverse.concat(rest);
+    } else {
+      rows.sort(function (a, b) {
+        const ag = a.source === "google" ? 1 : 0;
+        const bg = b.source === "google" ? 1 : 0;
+        return bg - ag;
+      });
+    }
+    return mergeSuggestRows(syn, rows);
+  }
+
+  async function fetchOsmHits(q, parsed, noCity) {
+    const nomP = (async function () {
+      const rows = [];
+      try {
+        let noms;
+        if (!noCity && parsed && parsed.street) {
+          const params = { street: parsed.street, country: "US" };
+          if (parsed.city) params.city = parsed.city;
+          if (parsed.state) params.state = parsed.state;
+          if (parsed.zip) params.postalcode = parsed.zip;
+          noms = await fetchNominatim(params);
+        } else {
+          noms = await fetchNominatim({ q: q, limit: "6" });
+        }
+        for (let i = 0; i < (noms || []).length; i++) {
+          const row = nominatimSuggestRow(noms[i], q);
+          if (row) rows.push(row);
+        }
+      } catch (e) {}
+      return rows;
+    })();
+    const phoP = (async function () {
+      const rows = [];
+      try {
+        const res = await fetchWithTimeout("https://photon.komoot.io/api/?limit=8&lang=en&q=" + encodeURIComponent(q), { headers: { Accept: "application/json" } }, 2500);
+        if (res && res.ok) {
+          const data = await res.json();
+          const feats = (data && data.features) || [];
+          for (let i = 0; i < feats.length; i++) {
+            const row = photonSuggestRow(feats[i], q);
+            if (row) rows.push(row);
+          }
+        }
+      } catch (e) {}
+      return rows;
+    })();
+    const pair = await Promise.all([settleTimeout(nomP, 2500, []), settleTimeout(phoP, 2500, [])]);
+    return [].concat(pair[0] || [], pair[1] || []);
+  }
+
+  function firstLatLngHits(aP, bP) {
+    return new Promise(function (resolve) {
+      var pending = 2;
+      var acc = [];
+      var sent = false;
+      function one(rows) {
+        var list = Array.isArray(rows) ? rows : [];
+        if (!sent && list.length) {
+          sent = true;
+          resolve(list);
+          return;
+        }
+        acc = acc.concat(list);
+        pending -= 1;
+        if (!sent && pending <= 0) {
+          sent = true;
+          resolve(acc);
+        }
+      }
+      aP.then(one, function () { one([]); });
+      bP.then(one, function () { one([]); });
+    });
+  }
+
+  async function geocodeAddressAll(query) {
+    const q = String(query || "").trim();
+    if (!q) return [];
+    const wantHouse = parseHouseNumber(q);
+    const looksAddr = !!wantHouse || /\d/.test(q);
+    const parsed = parseUsStreetQuery(q);
+    const noCity = !!(wantHouse && !queryHasLocality(q));
+    const googleP = settleTimeout(geocodeGoogleJsAll(q).catch(function () { return []; }), 2500, []);
+    const osmP = settleTimeout(fetchOsmHits(q, parsed, noCity).catch(function () { return []; }), 2500, []);
+    let rows = [];
+    if (noCity) {
+      const pair = await Promise.all([googleP, osmP]);
+      rows = [].concat(pair[0] || [], pair[1] || []);
+      if (hitsAreAmbiguous(rows, q)) return mergeSuggestRows(syntheticSuggestRow(q), rows);
+    } else {
+      rows = await firstLatLngHits(googleP, osmP);
+    }
+    if (!rows.length && !looksAddr) {
+      try {
+        if (typeof geocodeDealCity === "function") {
+          const city = q.split(",")[0].trim();
+          const geo = await geocodeDealCity(city, {});
+          if (geo) rows.push({ lat: geo.lat, lng: geo.lng, name: geo.name || q, kind: "city", title: geo.name || q, source: "city" });
+        }
+      } catch (e) {}
+    }
+    return mergeSuggestRows(null, rows);
+  }
+
+  async function geocodeAddress(query) {
+    const q = String(query || "").trim();
+    if (!q) return null;
+    const rows = await geocodeAddressAll(q);
+    const real = (rows || []).filter(function (r) { return r && Number.isFinite(Number(r.lat)); });
+    if (!real.length) return null;
+    if (hitsAreAmbiguous(real, q)) return { ambiguous: true, rows: mergeSuggestRows(syntheticSuggestRow(q), real) };
+    return real[0];
+  }
+
 
   function V4GodModeEarth(props) {
     const open = !!(props && props.open);
@@ -3056,6 +4034,10 @@
     const [searchQ, setSearchQ] = React.useState('');
     const [searchMsg, setSearchMsg] = React.useState('');
     const [searching, setSearching] = React.useState(false);
+    const [searchSuggests, setSearchSuggests] = React.useState([]);
+    const [suggestHi, setSuggestHi] = React.useState(-1);
+    const suggestGenRef = React.useRef(0);
+    const searchingSinceRef = React.useRef(0);
     const [streetMode, setStreetMode] = React.useState(false);
     const focusRef = React.useRef(null);
     const globeRef = React.useRef(null);
@@ -3080,6 +4062,16 @@
       if (!open) return undefined;
       injectPhoneCss();
       const onKey = function (e) {
+        const active = (typeof document !== 'undefined' && document.activeElement) || (e && e.target);
+        const tag = String((active && active.tagName) || (e && e.target && e.target.tagName) || '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+          if (e.key !== 'Escape') return;
+        } else {
+          try {
+            if (active && (active.isContentEditable || String(active.contentEditable || '').toLowerCase() === 'true')) { if (e.key !== 'Escape') return; }
+            if (e.target && e.target.closest && e.target.closest('.v4-gm2-search, .v4-gm-phone-search')) { if (e.key !== 'Escape') return; }
+          } catch (eType) {}
+        }
         if (e.key === 'Escape') {
           if (selectedRef.current) { setSelected(null); return; }
           if (onClose) onClose();
@@ -3121,8 +4113,9 @@
         const lng = Number(item.lng);
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
         if (allow && allow.indexOf(item.type) === -1) return;
-        if (item.alt == null && item.altM != null) item.alt = Math.min(0.05, (Number(item.altM) || 0) / 100000);
-        if (item.size == null) item.size = item.type === 'starlink' ? 0.14 : 0.28;
+        var craftPt = item.type === 'flight' || item.type === 'military' || item.type === 'ship';
+        if (item.alt == null && item.altM != null) item.alt = craftPt ? Math.min(0.0022, (Number(item.altM) || 0) / 6371000) : Math.min(0.02, (Number(item.altM) || 0) / 100000);
+        if (item.size == null) item.size = item.type === 'starlink' ? STARLINK_POINT_SIZE : (craftPt ? 0.035 : 0.10);
         if (!item.color) item.color = '#d0d6e0';
         rows.push(item);
       };
@@ -3153,14 +4146,21 @@
       pointsFpRef.current = fp;
       try {
         globe.pointsData(rows).pointLat("lat").pointLng("lng")
-          .pointAltitude(function (d) { return Number(d.alt) || 0.01; })
-          .pointRadius(function (d) { return Number(d.size) || 0.22; })
+          .pointAltitude(function (d) {
+            if (d.type === 'flight' || d.type === 'military' || d.type === 'ship') return 0.0012;
+            return Math.min(0.02, Number(d.alt) || 0.008);
+          })
+          .pointRadius(function (d) {
+            if (d.type === 'starlink') return STARLINK_POINT_SIZE;
+            if (d.type === 'flight' || d.type === 'military' || d.type === 'ship') return 0.035;
+            return Number(d.size) || 0.10;
+          })
           .pointColor(function (d) {
             const g = globeInstRef.current;
             if (g && !isNearSide(g, d.lat, d.lng)) return "rgba(0,0,0,0)";
             return d.color || "#d0d6e0";
           })
-          .pointResolution(6).pointsMerge(false).pointsTransitionDuration(0)
+          .pointResolution(12).pointsMerge(false).pointsTransitionDuration(0)
           .pointLabel(function (d) { return d.label || d.name || ""; })
           .onPointClick(function (pt) {
             setSelected(pt || null);
@@ -3352,30 +4352,200 @@
       if (onLayerChange) onLayerChange(id);
       setSelected(null);
     };
+    let _mobileSearchPinDataUrl = null;
+    const mobileSearchPinDataUrl = function () {
+      if (_mobileSearchPinDataUrl) return _mobileSearchPinDataUrl;
+      const c = document.createElement('canvas');
+      c.width = 56;
+      c.height = 80;
+      const ctx = c.getContext('2d');
+      const cx = 28;
+      const cy = 24;
+      const r = 18;
+      ctx.beginPath();
+      ctx.moveTo(cx, 76);
+      ctx.bezierCurveTo(cx - 6, 56, cx - r, cy + r, cx - r, cy);
+      ctx.arc(cx, cy, r, Math.PI, 0, false);
+      ctx.bezierCurveTo(cx + r, cy + r, cx + 6, 56, cx, 76);
+      ctx.closePath();
+      ctx.fillStyle = '#ffbf00';
+      ctx.fill();
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 2.25;
+      ctx.strokeStyle = '#3a2a00';
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy, 4.5, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      _mobileSearchPinDataUrl = c.toDataURL('image/png');
+      return _mobileSearchPinDataUrl;
+    };
+    const clearMobileSearchPin = function (g) {
+      g = g || globeInstRef.current;
+      try {
+        if (g && g._searchPinEntity && g._viewer) g._viewer.entities.remove(g._searchPinEntity);
+      } catch (e) {}
+      try { if (g && g._viewer && g._viewer.entities && g._viewer.entities.removeById) g._viewer.entities.removeById('gm2-search-pin'); } catch (e1) {}
+      try { if (g && typeof g.htmlElementsData === 'function') g.htmlElementsData([]); } catch (eH) {}
+      try { if (g) { g._searchPinEntity = null; g._searchPin = null; } } catch (e2) {}
+    };
+    const setMobileSearchPin = function (g, hit) {
+      g = g || globeInstRef.current;
+      clearMobileSearchPin(g);
+      if (!g || !hit || !Number.isFinite(Number(hit.lat))) return;
+      g._searchPin = { lat: Number(hit.lat), lng: Number(hit.lng), name: hit.name || '' };
+      if (g.__cesium && g._viewer && g._cesium) {
+        try {
+          const Cesium = g._cesium;
+          const ent = g._viewer.entities.add({
+            id: 'gm2-search-pin',
+            position: Cesium.Cartesian3.fromDegrees(Number(hit.lng), Number(hit.lat), 36),
+            billboard: {
+              image: mobileSearchPinDataUrl(),
+              verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+              horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+              disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              heightReference: Cesium.HeightReference.NONE,
+              pixelOffset: new Cesium.Cartesian2(0, 0),
+              eyeOffset: new Cesium.Cartesian3(0, 0, -80),
+              scale: 1.35,
+              sizeInMeters: false,
+              scaleByDistance: new Cesium.NearFarScalar(80, 1.55, 6.0e6, 0.95),
+            },
+            point: {
+              pixelSize: 16,
+              color: Cesium.Color.fromCssColorString('#ffbf00'),
+              outlineColor: Cesium.Color.fromCssColorString('#1a1200'),
+              outlineWidth: 3,
+              disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              heightReference: Cesium.HeightReference.NONE,
+            },
+          });
+          ent.__gm2Decor = true;
+          try { ent.show = true; } catch (eS) {}
+          g._searchPinEntity = ent;
+          try { if (g._viewer.scene && g._viewer.scene.requestRender) g._viewer.scene.requestRender(); } catch (eR) {}
+        } catch (e) {}
+      } else {
+        try {
+          if (typeof g.htmlElementsData === 'function') {
+            g.htmlElementsData([{ lat: Number(hit.lat), lng: Number(hit.lng), alt: 0.0012 }])
+              .htmlLat('lat').htmlLng('lng').htmlAltitude('alt')
+              .htmlElement(function () {
+                const wrap = document.createElement('div');
+                wrap.style.cssText = 'pointer-events:none;transform:translate(-50%,-100%);';
+                const img = document.createElement('img');
+                img.src = mobileSearchPinDataUrl();
+                img.width = 36;
+                img.height = 52;
+                img.alt = '';
+                wrap.appendChild(img);
+                return wrap;
+              });
+          }
+        } catch (eH) {}
+      }
+    };
+
     const flyTo = function (lat, lng, altitude) {
       const g = globeInstRef.current;
       if (!g || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) return;
       try { const c = g.controls(); if (c) c.autoRotate = false; } catch (e) {}
       try { g.pointOfView({ lat: Number(lat), lng: Number(lng), altitude: altitude == null ? SEARCH_ALT_RADII : altitude }, 900); } catch (e) {}
     };
-    const runSearch = function () {
+    const applyMobileHit = function (hit) {
+      if (!hit || !Number.isFinite(Number(hit.lat))) return;
+      focusRef.current = hit;
+      setSearchMsg(hit.name || searchQ);
+      setSelected({ type: 'place', name: hit.name || searchQ, lat: hit.lat, lng: hit.lng, label: hit.name || searchQ, source: 'Search' });
+      const altM = (hit.kind === 'city' || hit.kind === 'region') ? SEARCH_CAMERA_ALT_M : SEARCH_ADDRESS_ALT_M;
+      setMobileSearchPin(globeInstRef.current, hit);
+      flyTo(hit.lat, hit.lng, altM / EARTH_RADIUS_M);
+    };
+    const pickSuggest = function (row) {
+      if (!row) return;
+      const typed = String(searchQ || '').trim();
+      const q = String(row.name || row.title || typed).trim();
+      if (Number.isFinite(Number(row.lat)) && Number.isFinite(Number(row.lng))) {
+        const refineQ = (parseHouseNumber(typed) && !housesEqual(row.house, parseHouseNumber(typed))) ? typed : q;
+        setSearchQ(refineQ);
+        setSearchSuggests([]);
+        setSuggestHi(-1);
+        applyMobileHit(Object.assign({}, row, { name: refineQ }));
+        return;
+      }
+      setSearchQ(q);
+      setSearchMsg('Searching…');
+      geocodeAddressAll(q).then(function (rows) {
+        const real = (rows || []).filter(function (r) { return r && Number.isFinite(Number(r.lat)); });
+        if (hitsAreAmbiguous(real, q) || (parseHouseNumber(q) && !queryHasLocality(q) && real.length > 1)) {
+          setSearchSuggests(mergeSuggestRows(syntheticSuggestRow(q), real));
+          setSuggestHi(0);
+          setSearchMsg('Pick a city — several matches');
+          return;
+        }
+        if (real[0]) applyMobileHit(real[0]);
+        else setSearchMsg('No match');
+      }).catch(function () { setSearchMsg('Search failed'); });
+    };
+    React.useEffect(function () {
       const q = String(searchQ || '').trim();
-      if (!q || searching) return;
+      if (q.length < 3) {
+        setSearchSuggests([]);
+        setSuggestHi(-1);
+        return undefined;
+      }
+      const syn = syntheticSuggestRow(q);
+      setSearchSuggests([syn]);
+      setSuggestHi(0);
+      const tmr = window.setTimeout(function () {
+        const gen = ++suggestGenRef.current;
+        fetchSearchSuggests(q).then(function (rows) {
+          if (gen !== suggestGenRef.current) return;
+          const list = mergeSuggestRows(syn, Array.isArray(rows) ? rows : []);
+          setSearchSuggests(list);
+          setSuggestHi(list.length ? 0 : -1);
+        }).catch(function () {
+          if (gen !== suggestGenRef.current) return;
+          setSearchSuggests([syn]);
+          setSuggestHi(0);
+        });
+      }, 60);
+      return function () { window.clearTimeout(tmr); };
+    }, [searchQ]);
+    const runSearch = async function () {
+      const q = String(searchQ || '').trim();
+      if (!q) return;
+      if (searching) {
+        const since = searchingSinceRef.current || 0;
+        if (since && (Date.now() - since) < 5000) return;
+      }
+      searchingSinceRef.current = Date.now();
       setSearching(true);
       setSearchMsg('Searching…');
-      geocodeAddress(q).then(function (hit) {
-        setSearching(false);
-        if (!hit) { setSearchMsg('No match'); return; }
-        focusRef.current = hit;
-        setSearchMsg(hit.name || q);
-        setSelected({ type: 'place', name: hit.name || q, lat: hit.lat, lng: hit.lng, label: hit.name || q, source: 'Search' });
-        flyTo(hit.lat, hit.lng, SEARCH_ALT_RADII);
-      }).catch(function () {
-        setSearching(false);
+      try {
+        const rows = await settleTimeout(geocodeAddressAll(q), 4000, []);
+        const real = (rows || []).filter(function (r) { return r && Number.isFinite(Number(r.lat)); });
+        if (hitsAreAmbiguous(real, q) || (parseHouseNumber(q) && !queryHasLocality(q) && real.length > 1)) {
+          setSearchSuggests(mergeSuggestRows(syntheticSuggestRow(q), real));
+          setSuggestHi(0);
+          setSearchMsg('Pick a city — several matches');
+          return;
+        }
+        if (!real[0]) { setSearchMsg('No match'); return; }
+        setSearchSuggests([]);
+        applyMobileHit(real[0]);
+      } catch (e) {
         setSearchMsg('Search failed');
-      });
+      } finally {
+        searchingSinceRef.current = 0;
+        setSearching(false);
+      }
     };
     const currentFocus = function () {
+      const g = globeInstRef.current;
+      if (g && g._searchPin && Number.isFinite(g._searchPin.lat)) return g._searchPin;
       if (focusRef.current && Number.isFinite(focusRef.current.lat)) return focusRef.current;
       if (selected && Number.isFinite(Number(selected.lat))) return { lat: Number(selected.lat), lng: Number(selected.lng) };
       try {
@@ -3398,13 +4568,23 @@
         try { g._streetPrev = viewer.camera.position.clone(); } catch (e) {}
         try {
           viewer.scene.screenSpaceCameraController.minimumZoomDistance = MIN_CAMERA_ALT_M;
-          viewer.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(b, a, STREET_CAMERA_ALT_M),
-            orientation: { heading: 0, pitch: Cesium.Math.toRadians(-38), roll: 0 },
-            duration: 1.55,
-          });
+          let heading = 0;
+          try { heading = viewer.camera.heading; } catch (eH) {}
+          const target = Cesium.Cartesian3.fromDegrees(b, a, 8);
+          if (Cesium.BoundingSphere && viewer.camera.flyToBoundingSphere) {
+            viewer.camera.flyToBoundingSphere(new Cesium.BoundingSphere(target, 12), {
+              offset: new Cesium.HeadingPitchRange(heading, Cesium.Math.toRadians(-35), 190),
+              duration: 1.55,
+            });
+          } else {
+            viewer.camera.flyTo({
+              destination: Cesium.Cartesian3.fromDegrees(b, a, STREET_CAMERA_ALT_M),
+              orientation: { heading: heading, pitch: Cesium.Math.toRadians(-35), roll: 0 },
+              duration: 1.55,
+            });
+          }
         } catch (e) {}
-        enablePhonePhotoreal(Cesium, viewer, g._state);
+        enablePhonePhotoreal(Cesium, viewer, g._state, { show: true, force: true });
       } else {
         try { g.pointOfView({ lat: a, lng: b, altitude: STREET_ALT_RADII }, 1100); } catch (e) {}
         syncGlobeCameraNear(g);
@@ -3499,12 +4679,67 @@
           enterKeyHint: 'search',
           autoComplete: 'off',
           autoCorrect: 'off',
+          autoCapitalize: 'off',
+          name: 'gm-addr-no-fill',
           placeholder: 'Search address or city',
           value: searchQ,
-          onChange: function (e) { setSearchQ(e.target.value); }
+          onChange: function (e) {
+            const v = e.target.value;
+            setSearchQ(v);
+            const qv = String(v || '').trim();
+            if (!qv) {
+              setSearchMsg('');
+              setSearchSuggests([]);
+              setSuggestHi(-1);
+              clearMobileSearchPin(globeInstRef.current);
+            } else if (qv.length >= 3) {
+              setSearchSuggests([syntheticSuggestRow(qv)]);
+              setSuggestHi(0);
+            }
+          },
+          onKeyDown: function (e) {
+            if (e && e.key === 'Escape') {
+              setSearchQ('');
+              setSearchMsg('');
+              setSearchSuggests([]);
+              setSuggestHi(-1);
+              clearMobileSearchPin(globeInstRef.current);
+              return;
+            }
+            if (searchSuggests.length) {
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setSuggestHi(function (i) { return (i + 1) % searchSuggests.length; });
+                return;
+              }
+              if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setSuggestHi(function (i) { return (i - 1 + searchSuggests.length) % searchSuggests.length; });
+                return;
+              }
+              if (e.key === 'Enter' && suggestHi >= 0 && searchSuggests[suggestHi]) {
+                e.preventDefault();
+                pickSuggest(searchSuggests[suggestHi]);
+              }
+            }
+          }
         }),
         el('button', goProps, searching ? '…' : 'Go'),
-        el('button', svProps, 'SV')
+        el('button', svProps, 'SV'),
+        searchSuggests.length ? el('div', { className: 'v4-gm-phone-suggest', role: 'listbox' },
+          searchSuggests.map(function (row, idx) {
+            return el('button', {
+              key: (row.name || '') + idx,
+              type: 'button',
+              className: idx === suggestHi ? 'is-active' : '',
+              role: 'option',
+              onMouseDown: function (ev) { if (ev && ev.preventDefault) ev.preventDefault(); pickSuggest(row); }
+            },
+              el('span', { className: 'v4-gm-phone-suggest-name' }, row.title || row.name),
+              row.sub ? el('span', { className: 'v4-gm-phone-suggest-sub' }, row.sub) : null
+            );
+          })
+        ) : null
       ),
       globeError ? el('div', { className: 'v4-gm-phone-err' }, globeError) : null,
       el('div', { className: 'v4-gm-phone-sheet' },

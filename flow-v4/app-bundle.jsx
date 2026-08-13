@@ -16207,7 +16207,7 @@ const V4_COMPANY_OS_TOOLKIT = [
     useFor: 'Turn a sold deal into a clean one-page Robert brief PDF.',
     trigger: 'Make a brief. Create a campaign brief. Brief for Robert.',
     output: 'One-page PDF saved to Desktop/UNALIGNED',
-    note: 'Best for sponsorship launches where Robert needs exact posting instructions, facts, and copy options in under 60 seconds.',
+    note: 'Best for sponsorship launches where Robert needs exact posting instructions, facts, and one paste ready post in under 60 seconds.',
   },
   {
     id: 'x-signal',
@@ -16215,9 +16215,9 @@ const V4_COMPANY_OS_TOOLKIT = [
     status: 'New',
     kind: 'Signal',
     useFor: 'Score post drafts against the live X conversation before Robert posts.',
-    trigger: 'Run reach signal. Score these drafts. Find the strongest X angle.',
+    trigger: 'Run reach signal. Score this draft against live X.',
     output: 'Relative reach score, live terms, anchor thread, and ranked draft guidance',
-    note: 'This is a wave-stack tool. It helps pick the strongest option right now. It is not an impressions guarantee.',
+    note: 'This is a wave-stack tool. It scores the post against live X. It is not an impressions guarantee.',
   },
   {
     id: 'manual-lead',
@@ -17055,11 +17055,11 @@ function V4BriefMakerDefaultState() {
     tag: '',
     link: '',
     hashtags: '',
-    draft_1_label: 'Option 1. The Angle. Recommended',
+    draft_1_label: 'THE POST',
     draft_1_text: '',
-    draft_2_label: 'Option 2. Enterprise angle',
+    draft_2_label: '',
     draft_2_text: '',
-    draft_3_label: 'Option 3. Operator angle',
+    draft_3_label: '',
     draft_3_text: '',
     submit_url: '',
     source_url: '',
@@ -19008,7 +19008,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                   <div className="brief-maker-hero">
                     <div className="brief-maker-hero-kicker">Wave stack</div>
                     <h3>Score the post before Robert publishes</h3>
-                    <p>Pull live X conversation data, rank the draft options, and show the strongest current angle.</p>
+                    <p>Pull live X conversation data and score the post against the current wave.</p>
                   </div>
                   <div className="brief-maker-field-grid">
                     <label className="brief-maker-field">
@@ -19040,7 +19040,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
                       className="brief-maker-input"
                       value={xSignalForm.drafts_text}
                       onChange={e => updateXSignalField('drafts_text', e.target.value)}
-                      placeholder={'Option 1. Recommended\\nPaste draft copy here\\n\\nOption 2. Technical angle\\nPaste draft copy here'}
+                      placeholder={'Paste the post here'}
                       rows={8}
                     />
                   </label>
@@ -28296,9 +28296,9 @@ function V4LoadGodModeModule() {
   }
   window.__godModeModuleEngine = want;
   window.__godModeModulePromise = new Promise((resolve, reject) => {
-    let src = 'flow-v4/god-mode-cesium.js?v=20260813-gm2-cesium-v15';
+    let src = 'flow-v4/god-mode-cesium.js?v=20260813-gm2-cesium-v25';
     if (want === 'legacy') src = 'flow-v4/god-mode-earth.js?v=20260718-godmode-sats-v1';
-    else if (want === 'phone') src = 'flow-v4/god-mode-mobile.js?v=20260813-gm-phone-v15';
+    else if (want === 'phone') src = 'flow-v4/god-mode-mobile.js?v=20260813-gm-phone-v25';
     const s = document.createElement('script');
     s.src = src;
     s.async = true;
