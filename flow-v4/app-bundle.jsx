@@ -28225,24 +28225,182 @@ class V4GodModeErrorBoundary extends React.Component {
   }
 }
 
+function isMacDesktopGodMode() {
+  const ua = String(navigator.userAgent || '');
+  const platform = String(navigator.platform || '');
+  if (!(/Macintosh|Mac OS X/i.test(ua) || /MacIntel|MacPPC|Mac68K/i.test(platform))) return false;
+  // iPadOS 13+ can spoof Macintosh. Real Mac trackpad/mouse always gets Cesium.
+  const touchPoints = Number(navigator.maxTouchPoints || 0);
+  let coarse = false;
+  let hoverNone = false;
+  let fineHover = false;
+  try { coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); } catch (e) {}
+  try { hoverNone = !!(window.matchMedia && window.matchMedia('(hover: none)').matches); } catch (e) {}
+  try { fineHover = !!(window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches); } catch (e) {}
+  const ipadSpoof = touchPoints > 1 && (coarse || hoverNone) && !fineHover;
+  return !ipadSpoof;
+}
+
+function isPhoneGodMode() {
+  // Macintosh + trackpad is always desktop Cesium. Ignore leftover ?god=phone.
+  if (isMacDesktopGodMode()) return false;
+  try {
+    const g = new URLSearchParams(location.search).get('god');
+    if (g === 'phone') return true;
+    if (g === 'legacy' || g === 'desktop' || g === 'cesium') return false;
+  } catch (e) {}
+  try {
+    if (navigator.userAgentData && navigator.userAgentData.mobile) return true;
+  } catch (e) {}
+  const ua = String(navigator.userAgent || '');
+  const platform = String(navigator.platform || '');
+  // Real phones/tablets by UA. Do NOT treat Macintosh + ontouchstart / maxTouchPoints
+  // as iPad — Safari on Mac reports those for the trackpad and would load globe.gl marble.
+  if (/iPhone|iPod|iPad/i.test(ua) || /iPhone|iPod|iPad/i.test(platform)) return true;
+  if (/Android/i.test(ua)) return true;
+  if (/Macintosh|Mac OS X/i.test(ua) || /MacIntel|MacPPC|Mac68K/i.test(platform)) return false;
+  const coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  const minDim = Math.min(
+    Number(window.innerWidth) || 9999,
+    Number(window.innerHeight) || 9999
+  );
+  return coarse && minDim <= 720;
+}
+
+function V4DesiredGodModeEngine() {
+  // Macintosh + trackpad always loads Cesium. Never honor leftover ?god=phone on Mac.
+  if (isMacDesktopGodMode()) {
+    try {
+      const g = new URLSearchParams(location.search).get('god');
+      if (g === 'legacy') return 'legacy';
+    } catch (e) {}
+    return 'cesium';
+  }
+  try {
+    const g = new URLSearchParams(location.search).get('god');
+    if (g === 'legacy') return 'legacy';
+    if (g === 'desktop' || g === 'cesium') return 'cesium';
+    if (g === 'phone') return 'phone';
+  } catch (e) {}
+  return isPhoneGodMode() ? 'phone' : 'cesium';
+}
+
 function V4LoadGodModeModule() {
-  if (window.__godModeModulePromise) return window.__godModeModulePromise;
+  const want = V4DesiredGodModeEngine();
+  const existing = window.V4GodModeEarth;
+  if (typeof existing === 'function' && existing.engine === want) {
+    return Promise.resolve(existing);
+  }
+  if (window.__godModeModulePromise && window.__godModeModuleEngine === want) {
+    return window.__godModeModulePromise;
+  }
+  window.__godModeModuleEngine = want;
   window.__godModeModulePromise = new Promise((resolve, reject) => {
-    if (typeof window.V4GodModeEarth === 'function') {
-      resolve(window.V4GodModeEarth);
-      return;
-    }
+    let src = 'flow-v4/god-mode-cesium.js?v=20260813-gm2-cesium-v15';
+    if (want === 'legacy') src = 'flow-v4/god-mode-earth.js?v=20260718-godmode-sats-v1';
+    else if (want === 'phone') src = 'flow-v4/god-mode-mobile.js?v=20260813-gm-phone-v15';
     const s = document.createElement('script');
-    s.src = 'flow-v4/god-mode-earth.js?v=20260718-godmode-sats-v1';
+    s.src = src;
     s.async = true;
     s.onload = () => {
-      if (typeof window.V4GodModeEarth === 'function') resolve(window.V4GodModeEarth);
-      else reject(new Error('God mode module loaded but V4GodModeEarth missing'));
+      if (typeof window.V4GodModeEarth === 'function') {
+        if (!window.V4GodModeEarth.engine) window.V4GodModeEarth.engine = want;
+        resolve(window.V4GodModeEarth);
+      } else reject(new Error('God mode module loaded but V4GodModeEarth missing'));
     };
     s.onerror = () => reject(new Error('God mode script failed to load'));
     document.head.appendChild(s);
   });
   return window.__godModeModulePromise;
+}
+
+
+function V4PhoneGodModeFallbackHud({ error, layer, onClose, onLayerChange }) {
+  const [utc, setUtc] = React.useState(() => {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())} UTC`;
+  });
+  React.useEffect(() => {
+    const id = window.setInterval(() => {
+      const d = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      setUtc(`${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())} UTC`);
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  React.useEffect(() => {
+    let style = document.getElementById('v4-gm-phone-css');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'v4-gm-phone-css';
+      document.head.appendChild(style);
+    }
+    style.textContent = [
+      '.v4-gm-phone{position:fixed;inset:0;z-index:12000;background:#05070c;color:#e8edf5;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;overflow:hidden;}',
+      'body.v4-godmode-phone .hd,body.v4-godmode-phone .v6-gnav,body.v4-godmode-phone .mobile-nav-layer{visibility:hidden!important;pointer-events:none!important;}',
+      '.v4-gm-phone-top{position:absolute;top:env(safe-area-inset-top,0px);left:env(safe-area-inset-left,0px);right:env(safe-area-inset-right,0px);z-index:2;isolation:isolate;transform:translateZ(0);-webkit-transform:translateZ(0);display:flex;align-items:center;justify-content:space-between;padding:8px 10px;pointer-events:none;}',
+      '.v4-gm-phone-live{display:flex;align-items:center;gap:8px;background:#0b0d12;border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:7px 12px;font-size:12px;letter-spacing:.08em;font-weight:700;color:#f2f5fa;pointer-events:none;}',
+      '.v4-gm-phone-dot{width:7px;height:7px;border-radius:50%;background:#34c759;box-shadow:0 0 8px #34c759;}',
+      '.v4-gm-phone-utc{opacity:.9;font-variant-numeric:tabular-nums;pointer-events:none;}',
+      '.v4-gm-phone-close{pointer-events:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent;min-width:44px;min-height:44px;width:44px;height:44px;border:1px solid rgba(255,255,255,.22);border-radius:50%;background:#0b0d12;color:#fff;font-size:22px;line-height:1;}',
+      '.v4-gm-phone-err{position:absolute;top:calc(env(safe-area-inset-top,0px) + 64px);left:12px;right:12px;z-index:2;pointer-events:none;text-align:center;padding:8px 12px;background:#1a0c0c;border:1px solid rgba(255,80,80,.45);border-radius:10px;color:#ffd0d0;font-size:13px;font-weight:600;}',
+      '.v4-gm-phone-sheet{position:absolute;left:0;right:0;bottom:0;z-index:2;isolation:isolate;transform:translateZ(0);-webkit-transform:translateZ(0);pointer-events:auto;padding-bottom:env(safe-area-inset-bottom,0px);background:#0b0d12;}',
+      '.v4-gm-phone-chips{display:flex;flex-wrap:wrap;justify-content:center;align-items:stretch;gap:8px;padding:10px 12px 12px;background:#0b0d12;border-top:1px solid rgba(255,255,255,.16);}',
+      '.v4-gm-phone-chip{flex:1 1 calc(33.33% - 8px);min-width:96px;min-height:44px;padding:0 14px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:#161c28;color:#f2f5fa;font-size:14px;font-weight:700;pointer-events:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}',
+      '.v4-gm-phone-chip.is-on{background:#e8edf5;color:#0b0d12;border-color:#e8edf5;}',
+    ].join('');
+    document.body.classList.add('v4-godmode-open');
+    document.body.classList.add('v4-godmode-phone');
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.classList.remove('v4-godmode-open');
+      document.body.classList.remove('v4-godmode-phone');
+      document.body.style.overflow = prevOverflow;
+    };
+  }, []);
+  function bindTap(fn) {
+    return {
+      onPointerUp: (e) => { e.preventDefault(); e.stopPropagation(); fn(); },
+      onClick: (e) => { e.preventDefault(); e.stopPropagation(); fn(); },
+    };
+  }
+  const chips = [
+    { id: 'all', label: 'All' },
+    { id: 'weather', label: 'Wx' },
+    { id: 'flights', label: 'Flights' },
+    { id: 'satellites', label: 'Sats' },
+    { id: 'ships', label: 'Ships' },
+    { id: 'events', label: 'Events' },
+  ];
+  return (
+    <div className="v4-gm-phone" role="dialog" aria-label="God Mode">
+      <div className="v4-gm-phone-top">
+        <div className="v4-gm-phone-live">
+          <span className="v4-gm-phone-dot" />
+          <span>LIVE</span>
+          <span className="v4-gm-phone-utc">{utc}</span>
+        </div>
+        <button type="button" className="v4-gm-phone-close" aria-label="Close" {...bindTap(() => { if (onClose) onClose(); })}>×</button>
+      </div>
+      {error ? <div className="v4-gm-phone-err">{error}</div> : null}
+      <div className="v4-gm-phone-sheet">
+        <div className="v4-gm-phone-chips">
+          {chips.map((row) => (
+            <button
+              key={row.id}
+              type="button"
+              className={'v4-gm-phone-chip' + (layer === row.id ? ' is-on' : '')}
+              {...bindTap(() => { if (onLayerChange) onLayerChange(row.id); })}
+            >
+              {row.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function V4GodModeGate({ open, layer, viewer, onClose, onLayerChange }) {
@@ -28262,6 +28420,16 @@ function V4GodModeGate({ open, layer, viewer, onClose, onLayerChange }) {
   if (!open) return null;
 
   if (loadError) {
+    if (isPhoneGodMode()) {
+      return (
+        <V4PhoneGodModeFallbackHud
+          error={loadError}
+          layer={layer}
+          onClose={onClose}
+          onLayerChange={onLayerChange}
+        />
+      );
+    }
     return (
       <div className="v4-godmode" role="alert">
         <div className="v4-godmode-backdrop" onClick={onClose} />
