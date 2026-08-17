@@ -685,3 +685,76 @@ textarea:focus {
 }
 
 .ua-form-feedback .ua-foot { color: #71717a; }
+/* Team Intake — sleek.design × motion.so palette, with subtle ReactiveGrid */
+.ua-form-connect {
+  --ua-bg: #0D0F14;
+  --ua-bg-elevated: #14171d;
+  --ua-card: rgba(13, 15, 20, 0.88);
+  --ua-text: #F0EFEC;
+  --ua-muted: #8C9297;
+  --ua-line: rgba(240, 239, 236, 0.11);
+  --ua-line-strong: rgba(217, 204, 172, 0.32);
+  --ua-accent: #D9CCAC;
+}
+.ua-form-connect .ua-scene {
+  min-height: 100svh;
+  padding-top: max(32px, env(safe-area-inset-top));
+  padding-bottom: max(64px, env(safe-area-inset-bottom));
+  background: radial-gradient(720px 360px at 50% -5%, rgba(217, 204, 172, 0.12), transparent 68%), linear-gradient(180deg, #11141A 0%, #0D0F14 44%, #0A0C10 100%);
+}
+.ua-form-connect .ua-reactive-grid {
+  position: fixed; inset: 0; width: 100%; height: min(720px, 84vh); pointer-events: none; opacity: .72;
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, rgba(0,0,0,.95) 42%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, rgba(0,0,0,.95) 42%, transparent 100%);
+}
+.ua-form-connect .ua-grain { opacity: .08; }
+.ua-form-connect .ua-vignette { background: radial-gradient(ellipse at center top, transparent 25%, rgba(5, 7, 10, .66) 100%); }
+.ua-form-connect .ua-wrap { max-width: 680px; }
+.ua-form-connect .ua-hero { margin-bottom: 24px; }
+.ua-form-connect .ua-logo-frame { max-width: min(86vw, 460px); }
+.ua-form-connect .ua-tagline { color: #D9CCAC; opacity: .82; }
+.ua-form-connect .ua-card {
+  overflow: hidden; padding: 30px 28px 28px; background: rgba(13, 15, 20, .88);
+  border-color: rgba(217, 204, 172, .2);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, .44), inset 0 1px 0 rgba(240, 239, 236, .05);
+  -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+}
+.ua-form-connect .ua-card::after {
+  content: ''; position: absolute; inset: 0 auto auto 0; width: 100%; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(217,204,172,.62), transparent);
+}
+.ua-form-connect .eyebrow, .ua-form-connect .rates-eyebrow { color: #D9CCAC; }
+.ua-form-connect h2, .ua-form-connect .field label { color: #F0EFEC; }
+.ua-form-connect .lead { color: #AEB2B5; }
+.ua-form-connect .promise { color: #D5D4D0; background: rgba(217, 204, 172, .055); border-color: rgba(217, 204, 172, .15); }
+.ua-form-connect .hint, .ua-form-connect .ua-foot { color: #8C9297; }
+.ua-form-connect input[type="text"], .ua-form-connect input[type="email"], .ua-form-connect input[type="tel"], .ua-form-connect input[type="url"], .ua-form-connect textarea {
+  color: #F0EFEC; background: rgba(8, 10, 14, .72); border-color: rgba(140, 146, 151, .28);
+}
+.ua-form-connect input:focus, .ua-form-connect textarea:focus {
+  border-color: #D9CCAC; box-shadow: 0 0 0 3px rgba(217, 204, 172, .13); background: #0D0F14;
+}
+.ua-form-connect .lane-tabs { border-color: rgba(217,204,172,.14); background: rgba(240,239,236,.025); }
+.ua-form-connect .lane-tab.is-on, .ua-form-connect .choice button.is-on, .ua-form-connect .scale button.is-on {
+  color: #0D0F14; background: #D9CCAC; border-color: #D9CCAC;
+}
+.ua-form-connect .submit { color: #0D0F14; background: #F0EFEC; box-shadow: 0 10px 26px rgba(0,0,0,.28); }
+.ua-form-connect .submit:hover:not(:disabled) { background: #D9CCAC; transform: translateY(-1px); }
+.ua-form-connect .rates-panel { border-color: rgba(217,204,172,.15); background: rgba(217,204,172,.045); }
+.ua-form-connect .ua-credit {
+  display: block; margin-top: 8px; color: #575860; font: 500 10px/1.4 var(--ua-mono);
+  letter-spacing: .09em; text-transform: uppercase;
+}
+@media (max-width: 560px) {
+  .ua-form-connect .ua-scene {
+    padding: max(20px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(44px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  }
+  .ua-form-connect .ua-card { padding: 24px 18px; border-radius: 18px; }
+  .ua-form-connect .ua-logo-frame { max-width: min(84vw, 340px); margin-bottom: 10px; }
+  .ua-form-connect .lane-tab { min-height: 46px; padding-inline: 8px; }
+  .ua-form-connect .choice button { min-height: 44px; }
+  .ua-form-connect input[type="text"], .ua-form-connect input[type="email"], .ua-form-connect input[type="tel"], .ua-form-connect input[type="url"], .ua-form-connect textarea { min-height: 48px; font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ua-form-connect .ua-reactive-grid { opacity: .48; }
+}
