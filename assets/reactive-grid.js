@@ -8,12 +8,14 @@
   let reduced = reducedMq.matches;
   let hoverFine = hoverMq.matches;
   const pointer = { x: -9999, y: -9999, active: false };
-  const idle = { x: 0, y: 0, t0: performance.now() };
   const particles = [];
   let width = 0, height = 0, raf = 0;
 
   function useCursorBloom() {
-    return !reduced && hoverFine;
+    // Touch / coarse pointer / no hover / phone layout: even idle grid only.
+    // Narrow viewports also drop tracking so a leftover desktop cursor cannot
+    // land as a static off-center glow (Chrome device mode, Playwright, etc.).
+    return !reduced && hoverFine && innerWidth >= 560;
   }
 
   function roundedSquare(x, y, size) {
@@ -23,35 +25,27 @@
     ctx.fill();
   }
 
-  function wander(now) {
-    const t = (now - idle.t0) / 1000;
-    idle.x = width * .5 + Math.sin(t * .17) * width * .22 + Math.sin(t * .07 + .8) * width * .08;
-    idle.y = Math.min(height * .34, 250) + Math.sin(t * .11 + 1.15) * Math.min(height * .14, 72);
-  }
-
-  function bloomAt(now) {
-    if (reduced) return { x: -9999, y: -9999, active: false, radius: 210, gain: 16, glow: .34 };
-    if (useCursorBloom()) return { x: pointer.x, y: pointer.y, active: pointer.active, radius: 210, gain: 16, glow: .34 };
-    wander(now);
-    return { x: idle.x, y: idle.y, active: true, radius: 186, gain: 12, glow: .24 };
-  }
-
-  function draw(now) {
+  function draw() {
     ctx.clearRect(0, 0, width, height);
-    const bloom = bloomAt(now || performance.now());
+    const bloom = useCursorBloom();
     let moving = false;
     for (const p of particles) {
-      const distance = Math.hypot(bloom.x - p.x, bloom.y - p.y);
-      const strength = bloom.active ? Math.max(0, 1 - distance / bloom.radius) : 0;
-      const target = 2 + bloom.gain * strength * strength;
+      const distance = Math.hypot(pointer.x - p.x, pointer.y - p.y);
+      const strength = bloom && pointer.active ? Math.max(0, 1 - distance / 210) : 0;
+      const target = 2 + 16 * strength * strength;
       const next = reduced ? 2 : p.size + (target - p.size) * .12;
       moving ||= Math.abs(next - p.size) > .05;
       p.size = next;
-      ctx.fillStyle = 'rgba(217, 204, 172, ' + (.16 + strength * bloom.glow) + ')';
+      ctx.fillStyle = 'rgba(217, 204, 172, ' + (.16 + strength * .34) + ')';
       roundedSquare(p.x, p.y, Math.max(1.5, p.size));
     }
-    const keep = !reduced && (useCursorBloom() ? (moving || pointer.active) : true);
-    raf = keep && !document.hidden ? requestAnimationFrame(draw) : 0;
+    raf = bloom && (moving || pointer.active) ? requestAnimationFrame(draw) : 0;
+  }
+
+  function clearPointer() {
+    pointer.active = false;
+    pointer.x = -9999;
+    pointer.y = -9999;
   }
 
   function resize() {
@@ -62,18 +56,14 @@
     canvas.height = Math.max(1, Math.round(height * dpr));
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     particles.length = 0;
-    const cell = width < 560 ? 34 : 30;
+    const cell = useCursorBloom() ? 30 : 48;
     for (let y = cell / 2; y < height; y += cell)
       for (let x = cell / 2; x < width; x += cell) particles.push({ x, y, size: 2 });
-    if (!useCursorBloom()) {
-      pointer.active = false;
-      pointer.x = -9999;
-      pointer.y = -9999;
-    }
+    if (!useCursorBloom()) clearPointer();
     draw();
   }
 
-  function wake() { if (!raf && !document.hidden) raf = requestAnimationFrame(draw); }
+  function wake() { if (!raf) raf = requestAnimationFrame(draw); }
 
   addEventListener('pointermove', event => {
     if (!useCursorBloom()) return;
@@ -82,15 +72,18 @@
   }, { passive: true });
   document.addEventListener('pointerleave', () => { pointer.active = false; wake(); });
   addEventListener('blur', () => { pointer.active = false; wake(); });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) raf = 0; else wake(); });
+  addEventListener('resize', () => {
+    hoverFine = hoverMq.matches;
+    if (!useCursorBloom()) clearPointer();
+  });
   hoverMq.addEventListener('change', () => {
     hoverFine = hoverMq.matches;
-    if (!useCursorBloom()) { pointer.active = false; pointer.x = -9999; pointer.y = -9999; }
+    if (!useCursorBloom()) clearPointer();
     wake();
   });
   reducedMq.addEventListener('change', () => {
     reduced = reducedMq.matches;
-    if (reduced) { pointer.active = false; pointer.x = -9999; pointer.y = -9999; }
+    if (reduced) clearPointer();
     wake();
   });
   new ResizeObserver(resize).observe(canvas);

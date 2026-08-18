@@ -754,9 +754,11 @@ textarea:focus {
   .ua-form-connect .lane-tab { min-height: 46px; padding-inline: 8px; }
   .ua-form-connect .choice button { min-height: 44px; }
   .ua-form-connect input[type="text"], .ua-form-connect input[type="email"], .ua-form-connect input[type="tel"], .ua-form-connect input[type="url"], .ua-form-connect textarea { min-height: 48px; font-size: 16px; }
+  .ua-form-connect .ua-reactive-grid { opacity: .32; }
 }
+
 @media (hover: none), (pointer: coarse) {
-  .ua-form-connect .ua-reactive-grid { opacity: .58; }
+  .ua-form-connect .ua-reactive-grid { opacity: .32; }
 }
 @media (prefers-reduced-motion: reduce) {
   .ua-form-connect .ua-reactive-grid { opacity: .48; }
