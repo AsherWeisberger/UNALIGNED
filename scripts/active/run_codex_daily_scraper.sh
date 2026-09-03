@@ -69,28 +69,9 @@ else
   fi
 fi
 
-if [ -f "$ASHER_TOKEN" ]; then
-  echo "Using Asher Gmail token for Company OS sync: $ASHER_TOKEN"
-  if GMAIL_TOKEN_FILE="$ASHER_TOKEN" /opt/homebrew/bin/python3 scripts/active/gmail_delta_sync.py; then
-    echo "Asher Gmail delta sync complete."
-  else
-    echo "⚠️  Asher Gmail delta sync failed (continuing to full export)."
-  fi
-  if GMAIL_TOKEN_FILE="$ASHER_TOKEN" /opt/homebrew/bin/python3 export_gmail_dump.py \
-       --days=14 --out "$ASHER_DUMP" --candidates-out "$ASHER_CANDIDATES"; then
-    ASHER_OK=1
-  else
-    echo "⚠️  Asher Gmail export FAILED (token expired/revoked?). Skipping Asher this run. Re-auth: python3 scripts/active/reauth_gmail.py --account asher"
-  fi
-else
-  echo "Asher Gmail token not found; Company OS thread sync will stay on the default mailbox."
-fi
-
-# Sync the email chains for whichever mailboxes refreshed cleanly.
-if [ "$ASHER_OK" = 1 ]; then
-  /opt/homebrew/bin/python3 sync_existing_threads_from_dump.py --dump "$ASHER_DUMP" || echo "⚠️  Asher thread sync failed (continuing)."
-  /opt/homebrew/bin/python3 write_asher_candidate_cards.py --candidates "$ASHER_CANDIDATES" || echo "⚠️  Asher candidate-card write failed (continuing)."
-fi
+# Asher Gmail → Company OS thread refresh runs on its own schedule
+# (com.unaligned.gmail-thread-refresh at 7:00 AM + 10:00 PM Eastern).
+echo "Asher Gmail thread refresh: handled by com.unaligned.gmail-thread-refresh (7 AM / 10 PM)."
 if [ "$ROBERT_OK" = 1 ]; then
   /opt/homebrew/bin/python3 sync_existing_threads_from_dump.py --dump "$DUMP" || echo "⚠️  Robert thread sync failed (continuing)."
   /opt/homebrew/bin/python3 write_split_thread_cards.py --dump "$DUMP" || echo "⚠️  Robert split-card write failed (continuing)."
@@ -158,7 +139,7 @@ echo "Deal brain sync complete."
 date +"%Y/%m/%d" > "$HOME/.config/google-credentials/scraper_v4_last_run.txt"
 
 export PIPELINE_ROBERT_OK="$ROBERT_OK"
-export PIPELINE_ASHER_OK="$ASHER_OK"
+# Asher ok is derived inside pipeline_health from thread-refresh status files.
 /opt/homebrew/bin/python3 scripts/active/pipeline_health.py cron_end || true
 
 echo "Codex Gmail dump and existing-thread sync complete."

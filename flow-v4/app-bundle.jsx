@@ -17980,6 +17980,74 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
         briefTargetCardIdRef.current = String(pendingCard || '') || null;
       }
     } catch (err) {}
+    try {
+      const raw = window.__uaOpenBriefMaker ? window.sessionStorage.getItem('collabs-brief-handoff') : null;
+      if (raw) {
+        const handoff = JSON.parse(raw) || {};
+        window.sessionStorage.removeItem('collabs-brief-handoff');
+        const sourceUrl = String(handoff.source_url || handoff.sourceUrl || handoff.link || '').trim();
+        const asked = String(handoff.asked || '').trim();
+        const summary = String(handoff.summary || '').trim();
+        const title = String(handoff.title || '').trim();
+        const sources = Array.isArray(handoff.sources) ? handoff.sources.filter(Boolean).join(', ') : '';
+        const emailBits = [summary, asked ? ('Asked for: ' + asked) : '', sources ? ('Sources: ' + sources) : ''].filter(Boolean);
+        setBriefForm((curr) => ({
+          ...curr,
+          source_url: sourceUrl || curr.source_url,
+          notion_url: sourceUrl || curr.notion_url,
+          email_context: emailBits.join('\n\n') || curr.email_context,
+          title: title || curr.title,
+          calendar_title: title || curr.calendar_title,
+        }));
+        if (handoff.leadId) briefTargetCardIdRef.current = String(handoff.leadId);
+        if (window.__uaOpenBriefMaker || isPhoneOpsUi()) setBriefMakerOpen(true);
+      }
+    } catch (err) {}
+    try {
+      if (window.__uaOpenBriefMaker) {
+        window.__uaOpenBriefMaker = undefined;
+        setBriefMakerOpen(true);
+      }
+    } catch (err) {}
+  }, []);
+
+  React.useEffect(() => {
+    const onLaunch = () => {
+      try {
+        const raw = window.sessionStorage.getItem('collabs-brief-handoff');
+        if (raw) {
+          const handoff = JSON.parse(raw) || {};
+          window.sessionStorage.removeItem('collabs-brief-handoff');
+          const sourceUrl = String(handoff.source_url || handoff.sourceUrl || handoff.link || '').trim();
+          const asked = String(handoff.asked || '').trim();
+          const summary = String(handoff.summary || '').trim();
+          const title = String(handoff.title || '').trim();
+          const sources = Array.isArray(handoff.sources) ? handoff.sources.filter(Boolean).join(', ') : '';
+          const emailBits = [summary, asked ? ('Asked for: ' + asked) : '', sources ? ('Sources: ' + sources) : ''].filter(Boolean);
+          setBriefForm((curr) => ({
+            ...curr,
+            source_url: sourceUrl || curr.source_url,
+            notion_url: sourceUrl || curr.notion_url,
+            email_context: emailBits.join('\n\n') || curr.email_context,
+            title: title || curr.title,
+            calendar_title: title || curr.calendar_title,
+          }));
+          if (handoff.leadId) briefTargetCardIdRef.current = String(handoff.leadId);
+        }
+      } catch (err) {}
+      try {
+        const pending = window.__uaPendingBriefSource;
+        if (pending !== undefined && pending !== null) {
+          window.__uaPendingBriefSource = undefined;
+          const link = String(pending || '').trim();
+          if (link) setBriefForm((curr) => ({ ...curr, source_url: link, notion_url: link }));
+        }
+      } catch (err) {}
+      try { window.__uaOpenBriefMaker = undefined; } catch (err) {}
+      setBriefMakerOpen(true);
+    };
+    window.addEventListener('v4:launch-brief-maker', onLaunch);
+    return () => window.removeEventListener('v4:launch-brief-maker', onLaunch);
   }, []);
 
   // When a brief doc is produced for a specific deal, remember the link locally so
@@ -18557,6 +18625,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
           setBriefForm(curr => ({ ...curr, deliverable_type: inferredDeliverable }));
         }
       }
+      try { window.dispatchEvent(new CustomEvent('v4:launch-brief-maker')); } catch (e) {}
       setBriefMakerOpen(true);
       return;
     }
@@ -18785,7 +18854,7 @@ function V4CosToolkit({ onNavigateView, onActivateSplit }) {
 
       {briefMakerOpen && (
         <div className="brief-modal-backdrop" onClick={() => setBriefMakerOpen(false)}>
-          <div className="brief-maker-panel" onClick={e => e.stopPropagation()}>
+          <div className={'brief-maker-panel' + (isPhoneOpsUi() ? ' is-phone' : '')} onClick={e => e.stopPropagation()}>
             <div className="brief-modal-hd">
               <div>
                 <h2 className="brief-modal-title">Brief Maker</h2>
@@ -21013,7 +21082,7 @@ function V4CosDeskIntakePage({ onOpenLead }) {
   const { copied, copy } = V4CopyPublicConnectLink();
   const onMacOps = typeof window !== 'undefined' && String(window.location.hostname || '').includes('mac-studio.tail');
   return (
-    <div className="cosov cos-desk-intake-page">
+    <div className={'cosov cos-desk-intake-page' + (isPhoneOpsUi() ? ' is-phone' : '')}>
       <header className="cos-desk-intake-hero">
         <div className="cos-desk-intake-hero-copy">
           <span className="cos-eyebrow">Robert&apos;s desk</span>
@@ -26576,7 +26645,7 @@ function V4UnifyDotWordmark({ compact = false }) {
   return <canvas ref={canvasRef} className={'collabs-dot-wordmark' + (compact ? ' is-compact' : '')} role="img" aria-label="UNIFY" />;
 }
 
-function V4UnifyView({ leads, query, user, onNavigateView }) {
+function V4UnifyView({ leads, query, user, onNavigateView, onLaunchBriefMaker }) {
   const [selectedKey, setSelectedKey] = React.useState(null);
   const [visible, setVisible] = React.useState(40);
   const [draft, setDraft] = React.useState({ status: 'idle', body: '', note: '', kind: 'reply' });
@@ -26970,6 +27039,14 @@ function V4UnifyView({ leads, query, user, onNavigateView }) {
   const makeBriefHandoff = () => {
     if (!selected) return;
     const lead = selected.primary;
+    const attachmentUrl = (Array.isArray(selected.attachments) ? selected.attachments : [])
+      .map((item) => (typeof item === 'string' ? item : (item && (item.url || item.href || item.webUrl)) || ''))
+      .map((item) => String(item || '').trim())
+      .find((item) => /^https?:/i.test(item)) || '';
+    const sourceUrl = String(
+      lead.sourceUrl || lead.source_url || lead.briefUrl || lead.brief_url ||
+      lead.notionUrl || lead.notion_url || lead.clientBriefUrl || attachmentUrl || ''
+    ).trim();
     try {
       window.sessionStorage.setItem('collabs-brief-handoff', JSON.stringify({
         leadId: lead.id,
@@ -26977,15 +27054,28 @@ function V4UnifyView({ leads, query, user, onNavigateView }) {
         sources: selected.sources,
         asked: lead.operatorSummary?.asked_for || lead.deliverables || '',
         summary: lead.operatorSummary?.lead_summary || '',
+        source_url: sourceUrl,
         at: new Date().toISOString(),
       }));
     } catch (e) {}
+    if (sourceUrl) {
+      try { window.__uaPendingBriefSource = sourceUrl; } catch (e) {}
+    }
+    if (lead.id) {
+      try { window.__uaPendingBriefCardId = lead.id; } catch (e) {}
+    }
     setDraft({
       status: 'limited',
       body: '',
-      note: 'Brief handoff saved for this lead. Open Briefs / Brief Maker to complete. Nothing auto-created.',
+      note: typeof onLaunchBriefMaker === 'function'
+        ? 'Opening Brief Maker with this lead’s context.'
+        : 'Brief handoff saved for this lead. Open Briefs / Brief Maker to complete. Nothing auto-created.',
       kind: 'brief',
     });
+    if (typeof onLaunchBriefMaker === 'function') {
+      try { window.__uaOpenBriefMaker = true; } catch (e) {}
+      onLaunchBriefMaker();
+    }
   };
 
   const createInvoiceHandoff = () => {
@@ -27362,7 +27452,7 @@ function V4UnifyView({ leads, query, user, onNavigateView }) {
   );
 }
 
-const V4_VALID_VIEWS = ['today', 'board', 'new-leads', 'company-os', 'unify', 'organs', 'leads', 'inbox', 'invoices', 'calendar', 'sandbox'];
+const V4_VALID_VIEWS = ['today', 'board', 'new-leads', 'company-os', 'unify', 'organs', 'leads', 'inbox', 'invoices', 'calendar', 'sandbox', 'gods-eye'];
 
 // ─── Sandbox Test — guided demo for pitching Company OS ─────
 const V4_SANDBOX_STORAGE = 'v4-sandbox-demo-v1';
@@ -28267,6 +28357,18 @@ function isPhoneGodMode() {
   return coarse && minDim <= 720;
 }
 
+function isPhoneOpsUi() {
+  if (typeof window === 'undefined') return false;
+  const ua = String(navigator.userAgent || '');
+  if (/iPhone|iPod/i.test(ua)) return true;
+  if (/Android/i.test(ua) && /Mobile/i.test(ua)) return true;
+  const width = Number(window.innerWidth) || 9999;
+  if (width >= 900) return false;
+  let coarse = false;
+  try { coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); } catch (e) {}
+  return coarse && width <= 820;
+}
+
 function V4DesiredGodModeEngine() {
   // Macintosh + trackpad always loads Cesium. Never honor leftover ?god=phone on Mac.
   if (isMacDesktopGodMode()) {
@@ -28296,9 +28398,9 @@ function V4LoadGodModeModule() {
   }
   window.__godModeModuleEngine = want;
   window.__godModeModulePromise = new Promise((resolve, reject) => {
-    let src = 'flow-v4/god-mode-cesium.js?v=20260813-gm2-cesium-v25';
+    let src = 'flow-v4/god-mode-cesium.js?v=20260826-gm2-cesium-v92';
     if (want === 'legacy') src = 'flow-v4/god-mode-earth.js?v=20260718-godmode-sats-v1';
-    else if (want === 'phone') src = 'flow-v4/god-mode-mobile.js?v=20260813-gm-phone-v25';
+    else if (want === 'phone') src = 'flow-v4/god-mode-mobile.js?v=20260826-gm-phone-v92';
     const s = document.createElement('script');
     s.src = src;
     s.async = true;
@@ -28349,6 +28451,11 @@ function V4PhoneGodModeFallbackHud({ error, layer, onClose, onLayerChange }) {
       '.v4-gm-phone-chips{display:flex;flex-wrap:wrap;justify-content:center;align-items:stretch;gap:8px;padding:10px 12px 12px;background:#0b0d12;border-top:1px solid rgba(255,255,255,.16);}',
       '.v4-gm-phone-chip{flex:1 1 calc(33.33% - 8px);min-width:96px;min-height:44px;padding:0 14px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:#161c28;color:#f2f5fa;font-size:14px;font-weight:700;pointer-events:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}',
       '.v4-gm-phone-chip.is-on{background:#e8edf5;color:#0b0d12;border-color:#e8edf5;}',
+      '.v4-gm-phone-settings{position:relative;z-index:6;isolation:isolate;transform:translateZ(0);pointer-events:auto;margin:0 12px 8px;min-height:88px;max-height:min(52vh,420px);overflow:auto;background:rgba(11,13,18,.96);border:1px solid rgba(255,255,255,.22);border-radius:16px;box-shadow:0 18px 40px rgba(0,0,0,.55);}',
+      '.v4-gm-phone-settings-row{display:flex;align-items:center;justify-content:space-between;min-height:44px;width:100%;padding:0 16px;border:0;border-bottom:1px solid rgba(255,255,255,.08);background:transparent;color:#e8edf5;font:inherit;font-size:15px;font-weight:600;text-align:left;pointer-events:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}',
+      '.v4-gm-phone-settings-row:last-child{border-bottom:0;}',
+      '.v4-gm-phone-settings-row.is-on{background:rgba(232,237,245,.12);}',
+      '.v4-gm-phone-settings-mark{font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.7;}',
     ].join('');
     document.body.classList.add('v4-godmode-open');
     document.body.classList.add('v4-godmode-phone');
@@ -28360,12 +28467,26 @@ function V4PhoneGodModeFallbackHud({ error, layer, onClose, onLayerChange }) {
       document.body.style.overflow = prevOverflow;
     };
   }, []);
+  const tapGuard = { at: 0 };
   function bindTap(fn) {
     return {
-      onPointerUp: (e) => { e.preventDefault(); e.stopPropagation(); fn(); },
-      onClick: (e) => { e.preventDefault(); e.stopPropagation(); fn(); },
+      onPointerUp: (e) => {
+        e.preventDefault(); e.stopPropagation();
+        const now = Date.now();
+        if (now - tapGuard.at < 450) return;
+        tapGuard.at = now;
+        fn();
+      },
+      onClick: (e) => {
+        e.preventDefault(); e.stopPropagation();
+        const now = Date.now();
+        if (now - tapGuard.at < 450) return;
+        tapGuard.at = now;
+        fn();
+      },
     };
   }
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
   const chips = [
     { id: 'all', label: 'All' },
     { id: 'weather', label: 'Wx' },
@@ -28373,6 +28494,22 @@ function V4PhoneGodModeFallbackHud({ error, layer, onClose, onLayerChange }) {
     { id: 'satellites', label: 'Sats' },
     { id: 'ships', label: 'Ships' },
     { id: 'events', label: 'Events' },
+  ];
+  const extraChips = [
+    { id: 'deals', label: 'Deals' },
+    { id: 'launches', label: 'Launches' },
+    { id: 'gpsjam', label: 'GPS jam' },
+  ];
+  const settingsLayers = [
+    { id: 'all', label: 'All' },
+    { id: 'deals', label: 'Deals' },
+    { id: 'weather', label: 'Weather' },
+    { id: 'events', label: 'Events' },
+    { id: 'flights', label: 'Flights' },
+    { id: 'satellites', label: 'Satellites' },
+    { id: 'launches', label: 'Launches' },
+    { id: 'ships', label: 'Ships' },
+    { id: 'gpsjam', label: 'GPS jam' },
   ];
   return (
     <div className="v4-gm-phone" role="dialog" aria-label="God Mode">
@@ -28386,8 +28523,24 @@ function V4PhoneGodModeFallbackHud({ error, layer, onClose, onLayerChange }) {
       </div>
       {error ? <div className="v4-gm-phone-err">{error}</div> : null}
       <div className="v4-gm-phone-sheet">
+        {settingsOpen ? (
+          <div className="v4-gm-phone-settings" role="listbox" aria-label="Layers">
+            {settingsLayers.map((row) => (
+              <button
+                key={row.id}
+                type="button"
+                className={'v4-gm-phone-settings-row' + (layer === row.id ? ' is-on' : '')}
+                aria-pressed={layer === row.id ? 'true' : 'false'}
+                {...bindTap(() => { if (onLayerChange) onLayerChange(row.id); })}
+              >
+                <span>{row.label}</span>
+                {layer === row.id ? <span className="v4-gm-phone-settings-mark">On</span> : null}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <div className="v4-gm-phone-chips">
-          {chips.map((row) => (
+          {chips.concat(extraChips).map((row) => (
             <button
               key={row.id}
               type="button"
@@ -28397,6 +28550,15 @@ function V4PhoneGodModeFallbackHud({ error, layer, onClose, onLayerChange }) {
               {row.label}
             </button>
           ))}
+          <button
+            type="button"
+            className={'v4-gm-phone-chip' + (settingsOpen ? ' is-on' : '')}
+            aria-label="Settings"
+            aria-pressed={settingsOpen ? 'true' : 'false'}
+            {...bindTap(() => { setSettingsOpen((v) => !v); })}
+          >
+            Settings
+          </button>
         </div>
       </div>
     </div>
@@ -28743,6 +28905,57 @@ function V4WireClickTelemetry(getPane) {
   }, true);
 }
 
+function V4OrgansPhoneHub({
+  unreadCount = 0,
+  newLeadCount = 0,
+  onHome,
+  onCommand,
+  onBriefMaker,
+  onDesk,
+  onBriefs,
+  onNewLeads,
+  onPeople,
+  onInvoices,
+  onToolkit,
+  onPartnerFeedback,
+  onScopeForms,
+}) {
+  const rows = [
+    { id: 'command', label: 'Organs command', hint: 'Approvals, gates, halt', icon: 'network', run: onCommand },
+    { id: 'brief-maker', label: 'Brief Maker', hint: 'Source link → Google Doc', icon: 'doc', run: onBriefMaker },
+    { id: 'desk', label: "Robert's desk", hint: 'Connect-link ledger + relay', icon: 'leads', run: onDesk },
+    { id: 'briefs', label: 'Briefs', hint: 'Robert posting briefs', icon: 'inbox', run: onBriefs, badge: unreadCount },
+    { id: 'new-leads', label: 'New Leads', hint: 'Robert Gmail and X intake', icon: 'plus', run: onNewLeads, badge: newLeadCount },
+    { id: 'people', label: 'People', hint: 'Directory and history', icon: 'network', run: onPeople },
+    { id: 'invoices', label: 'Invoices', hint: 'Paid, outstanding, Stripe', icon: 'invoice', run: onInvoices },
+    { id: 'toolkit', label: 'Toolkit', hint: 'Brief Maker, X signal, manual lead', icon: 'bolt', run: onToolkit },
+    { id: 'partner', label: 'Partner feedback', hint: 'Score completed collabs', icon: 'star', run: onPartnerFeedback },
+    { id: 'scope', label: 'Scope forms', hint: 'Package and scope submissions', icon: 'table', run: onScopeForms },
+  ];
+  return (
+    <div className="organs-phone-hub">
+      <header className="organs-phone-hub-hd">
+        <h1>Organs</h1>
+        <button type="button" className="organs-phone-hub-home" onClick={onHome}>Home</button>
+      </header>
+      <nav className="organs-phone-hub-list" aria-label="Organs tools">
+        {rows.map((row) => (
+          <button type="button" key={row.id} className="organs-phone-hub-row" onClick={() => { if (typeof row.run === 'function') row.run(); }}>
+            <span className="organs-phone-hub-ic"><V3Icon name={row.icon} w={18} /></span>
+            <span className="organs-phone-hub-copy">
+              <strong>{row.label}</strong>
+              <em>{row.hint}</em>
+            </span>
+            {row.badge > 0
+              ? <span className="organs-phone-hub-badge">{row.badge > 99 ? '99+' : row.badge}</span>
+              : <span className="organs-phone-hub-chev" aria-hidden="true">›</span>}
+          </button>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
 function V4App() {
   const [, setConfigVersion] = React.useState(0);
   const { USERS, STAGE_BY_ID, ACTIVE_STAGE_IDS } = window.V3;
@@ -28783,6 +28996,7 @@ function V4App() {
     'company-os': '',
 
     organs: '',
+    'gods-eye': '',
   });
   const [toast, setToast] = React.useState(null);
   const [toastTone, setToastTone] = React.useState('ok');
@@ -28792,6 +29006,8 @@ function V4App() {
   const organsMenuRef = React.useRef(null);
   const [organsMenuOpen, setOrgansMenuOpen] = React.useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const [phoneOpsUi, setPhoneOpsUi] = React.useState(() => isPhoneOpsUi());
+  const [organsPhoneCommandOpen, setOrgansPhoneCommandOpen] = React.useState(false);
   const [cosToolkitOpen, setCosToolkitOpen] = React.useState(false);
   const [cosPartnerFeedbackOpen, setCosPartnerFeedbackOpen] = React.useState(false);
   const [cosDeskIntakeOpen, setCosDeskIntakeOpen] = React.useState(false);
@@ -28801,6 +29017,8 @@ function V4App() {
   const [godModeOpen, setGodModeOpen] = React.useState(false);
   const [godModeLayer, setGodModeLayer] = React.useState('weather');
   const [godModeViewer, setGodModeViewer] = React.useState({});
+  const [godsEyeOpen, setGodsEyeOpen] = React.useState(false);
+  const V4_GODS_EYE_SRC = '/gods-eye/index.html?v=atmoff4';
 
   React.useEffect(() => {
     const onSurface = (e) => {
@@ -28811,6 +29029,17 @@ function V4App() {
     };
     window.addEventListener('v4:cos-surface', onSurface);
     return () => window.removeEventListener('v4:cos-surface', onSurface);
+  }, []);
+  React.useEffect(() => {
+    const sync = () => {
+      if (/#gods-eye/i.test(String(location.hash || ''))) {
+        setView('gods-eye');
+        setGodsEyeOpen(false);
+      }
+    };
+    sync();
+    window.addEventListener('hashchange', sync);
+    return () => window.removeEventListener('hashchange', sync);
   }, []);
   const [pendingReplies, setPendingReplies] = React.useState([]);
 
@@ -28860,7 +29089,26 @@ function V4App() {
   React.useEffect(() => {
     setOrgansMenuOpen(false);
     setMobileMenuOpen(false);
+    if (view !== 'organs') setOrgansPhoneCommandOpen(false);
   }, [view]);
+
+  React.useEffect(() => {
+    const update = () => setPhoneOpsUi(isPhoneOpsUi());
+    window.addEventListener('resize', update);
+    let mql;
+    try {
+      mql = window.matchMedia('(max-width: 820px)');
+      if (mql.addEventListener) mql.addEventListener('change', update);
+      else if (mql.addListener) mql.addListener(update);
+    } catch (e) {}
+    return () => {
+      window.removeEventListener('resize', update);
+      try {
+        if (mql && mql.removeEventListener) mql.removeEventListener('change', update);
+        else if (mql && mql.removeListener) mql.removeListener(update);
+      } catch (e) {}
+    };
+  }, []);
 
   React.useEffect(() => {
     const h = (e) => setBriefId(e.detail.leadId);
@@ -29016,6 +29264,7 @@ function V4App() {
     if (view === 'board') return 'Search pipeline…';
     if (view === 'company-os') return 'Search Company OS…';
     if (view === 'unify') return 'Search Unify…';
+    if (view === 'gods-eye') return 'Search God’s Eye…';
 
     return 'Search calendar…';
   }, [view]);
@@ -29031,6 +29280,18 @@ function V4App() {
 
   React.useEffect(() => {
     if (view === 'machine-room') setView('organs');
+  }, [view]);
+
+  React.useEffect(() => {
+    try {
+      if (view === 'gods-eye') {
+        if (!/#gods-eye/i.test(String(location.hash || ''))) {
+          history.replaceState(null, '', location.pathname + location.search + '#gods-eye');
+        }
+      } else if (/#gods-eye/i.test(String(location.hash || ''))) {
+        history.replaceState(null, '', location.pathname + location.search);
+      }
+    } catch (e) {}
   }, [view]);
 
   const [paletteOpen, setPaletteOpen] = React.useState(false);
@@ -29158,6 +29419,7 @@ function V4App() {
     if (id !== 'inbox' && id !== 'leads') setOpenId(null);
     setOrgansMenuOpen(false);
     setMobileMenuOpen(false);
+    if (id !== 'organs') setOrgansPhoneCommandOpen(false);
   };
   const setCosSurface = (splitId) => {
     setCosToolkitOpen(splitId === 'toolkit');
@@ -29201,6 +29463,11 @@ function V4App() {
   const cosCompanyOsHomeActive = view === 'company-os' && !cosToolkitOpen && !cosPartnerFeedbackOpen && !cosDeskIntakeOpen && !cosScopeIntakeOpen;
   const organsToolViews = ['organs', 'inbox', 'invoices', 'new-leads', 'leads'];
   const organsMenuActive = organsToolViews.includes(view) || (view === 'company-os' && (cosToolkitOpen || cosPartnerFeedbackOpen || cosDeskIntakeOpen || cosScopeIntakeOpen));
+  React.useEffect(() => {
+    const on = !!(phoneOpsUi && organsMenuActive);
+    try { document.body.classList.toggle('v4-organs-phone', on); } catch (e) {}
+    return () => { try { document.body.classList.remove('v4-organs-phone'); } catch (e) {} };
+  }, [phoneOpsUi, organsMenuActive]);
   const goToOrgansToolkit = () => {
     activateCosSplit('toolkit');
     goView('company-os');
@@ -29217,6 +29484,15 @@ function V4App() {
     activateCosSplit('scope-intake');
     goView('company-os');
   };
+  const launchPhoneBriefMaker = () => {
+    try { window.__uaOpenBriefMaker = true; } catch (e) {}
+    goToOrgansToolkit();
+    try { window.dispatchEvent(new CustomEvent('v4:launch-brief-maker')); } catch (e) {}
+  };
+  const openOrgansPhoneHub = () => {
+    setOrgansPhoneCommandOpen(false);
+    goView('organs');
+  };
   const runMobileCommand = (fn) => {
     setMobileMenuOpen(false);
     if (typeof fn === 'function') fn();
@@ -29224,9 +29500,26 @@ function V4App() {
   const mobileMoreActive = mobileMenuOpen || ['calendar', 'inbox', 'invoices', 'new-leads', 'leads'].includes(view) ||
     (view === 'company-os' && (cosPartnerFeedbackOpen || cosDeskIntakeOpen || cosScopeIntakeOpen));
   const openGodModeMobile = () => {
-    setGodModeViewer({});
+    setGodModeViewer({ leads: mergedLeads });
     setGodModeLayer('weather');
     setGodModeOpen(true);
+  };
+  const openGodsEye = () => {
+    goView('gods-eye');
+    try {
+      if (!/#gods-eye/i.test(String(location.hash || ''))) {
+        history.replaceState(null, '', location.pathname + location.search + '#gods-eye');
+      }
+    } catch (e) {}
+  };
+  const closeGodsEye = () => {
+    setGodsEyeOpen(false);
+    goView('unify');
+    try {
+      if (/#gods-eye/i.test(String(location.hash || ''))) {
+        history.replaceState(null, '', location.pathname + location.search);
+      }
+    } catch (e) {}
   };
   const mobileCommandGroups = [
     {
@@ -29242,6 +29535,7 @@ function V4App() {
       label: 'Tools',
       items: [
         { label: 'God Mode', hint: '3D earth · weather, flights, storms', icon: 'network', run: openGodModeMobile },
+        { label: "God's Eye", hint: 'Sidhu · photoreal 3D globe', icon: 'network', run: openGodsEye },
         { label: 'Toolkit', hint: 'Brief Maker, X signal, manual lead', icon: 'bolt', run: goToOrgansToolkit },
         { label: 'People', hint: 'People directory and history', icon: 'network', run: () => goView('leads') },
         { label: 'Partner Feedback', hint: 'Score completed collabs', icon: 'star', run: goToPartnerFeedback },
@@ -29268,6 +29562,7 @@ function V4App() {
         setGodModeOpen(true);
       },
     },
+    { label: "God's Eye", hint: 'Sidhu · photoreal 3D globe', run: openGodsEye },
     { label: 'Go to Calendar', run: () => goView('calendar') },
     { label: 'Go to Briefs', run: () => goView('inbox') },
     { label: 'Go to Invoices', run: () => goView('invoices') },
@@ -29298,6 +29593,14 @@ function V4App() {
           </button>
           <button className="hd-nav-btn" aria-current={cosCompanyOsHomeActive ? 'page' : undefined} onClick={goToCompanyOsHome}>Company OS</button>
           <button className="hd-nav-btn" aria-current={view === 'leads' ? 'page' : undefined} onClick={() => goView('leads')}>People</button>
+          <button
+            className="hd-nav-btn"
+            type="button"
+            aria-current={view === 'gods-eye' ? 'page' : undefined}
+            aria-label="God's Eye"
+            title="God's Eye"
+            onClick={() => goView('gods-eye')}
+          >God&apos;s Eye</button>
           <div className="hd-nav-menu" ref={organsMenuRef}>
             <button
               className="hd-nav-btn hd-nav-menu-btn"
@@ -29414,17 +29717,55 @@ function V4App() {
         <div className="hd-right">
           <V4LocalWeatherClock
             onOpenGodMode={(detail) => {
-              setGodModeViewer(detail || {});
-              setGodModeLayer(String(detail?.layer || 'weather'));
-              setGodModeOpen(true);
+              setGodModeOpen((was) => {
+                if (!was) {
+                  setGodModeViewer(Object.assign({}, detail || {}, { leads: mergedLeads }));
+                  setGodModeLayer(String(detail?.layer || 'weather'));
+                }
+                return true;
+              });
             }}
           />
           <button className="hd-icon-btn" title="Notifications"><V3Icon name="bell" /></button>
         </div>
+        <button
+          type="button"
+          className="hd-god-btn"
+          aria-label="God Mode"
+          title="God Mode"
+          style={{
+            display: 'flex',
+            position: 'absolute',
+            right: 8,
+            top: 0,
+            zIndex: 5000,
+            width: 44,
+            height: 44,
+            minWidth: 44,
+            minHeight: 44,
+            margin: 0,
+            padding: 0,
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 9999,
+            border: '2px solid #15171c',
+            background: '#15171c',
+            color: '#f7f5f2',
+            fontSize: 20,
+            lineHeight: 1,
+            boxShadow: '0 1px 6px rgba(21,23,28,.35)',
+            pointerEvents: 'auto',
+            visibility: 'visible',
+            opacity: 1,
+            touchAction: 'manipulation',
+          }}
+          onPointerUp={(e) => { try { e.preventDefault(); e.stopPropagation(); } catch (err) {} openGodModeMobile(); }}
+          onClick={(e) => { try { e.preventDefault(); e.stopPropagation(); } catch (err) {} openGodModeMobile(); }}
+        >◎</button>
       </header>
 
       {/* ─── Main area ─── */}
-      <main className={'main' + (view === 'unify' ? ' main--collabs' : '')}>
+      <main className={'main' + (view === 'unify' ? ' main--collabs' : '') + (view === 'gods-eye' ? ' main--gods-eye' : '')}>
         {/* Filter strip — only on Pipeline/Network */}
         {(view === 'board' || view === 'leads') && (
           <div className="filter-strip">
@@ -29545,6 +29886,7 @@ function V4App() {
             leads={mergedLeads}
             query={search}
             user={user}
+            onLaunchBriefMaker={phoneOpsUi ? launchPhoneBriefMaker : undefined}
             onNavigateView={(nextView, nextOpenId = null) => {
               setView(nextView);
               setOpenId(nextOpenId);
@@ -29552,7 +29894,30 @@ function V4App() {
           />
         )}
         {view === 'organs' && (
+          phoneOpsUi && !organsPhoneCommandOpen ? (
+            <V4OrgansPhoneHub
+              unreadCount={unreadCount}
+              newLeadCount={newLeadCount}
+              onHome={() => goView('unify')}
+              onCommand={() => setOrgansPhoneCommandOpen(true)}
+              onBriefMaker={launchPhoneBriefMaker}
+              onDesk={goToDeskIntake}
+              onBriefs={() => goView('inbox')}
+              onNewLeads={() => goView('new-leads')}
+              onPeople={() => goView('leads')}
+              onInvoices={() => goView('invoices')}
+              onToolkit={goToOrgansToolkit}
+              onPartnerFeedback={goToPartnerFeedback}
+              onScopeForms={goToScopeIntake}
+            />
+          ) : (
           <div className="body body-organs" style={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+            {phoneOpsUi ? (
+              <div className="organs-phone-command-bar">
+                <button type="button" onClick={() => setOrgansPhoneCommandOpen(false)}>← Organs</button>
+                <strong>Command</strong>
+              </div>
+            ) : null}
             <V4OrgansView
               leads={mergedLeads}
               query={search}
@@ -29565,6 +29930,19 @@ function V4App() {
                 setView('company-os');
                 setOpenId(null);
               }}
+            />
+          </div>
+          )
+        )}
+
+        {view === 'gods-eye' && (
+          <div className="body body-gods-eye">
+            <iframe
+              className="gods-eye-frame"
+              title="God's Eye"
+              src={V4_GODS_EYE_SRC}
+              allow="geolocation; microphone; clipboard-read; clipboard-write; fullscreen; accelerometer; gyroscope"
+              allowFullScreen
             />
           </div>
         )}
@@ -29594,7 +29972,7 @@ function V4App() {
           {newLeadCount > 0 && <span className="ft-tab-badge">{newLeadCount > 99 ? '99+' : newLeadCount}</span>}
         </button>
         <button className="ft-tab" aria-current={!mobileMenuOpen && view === 'organs' ? 'page' : undefined}
-                onClick={() => goView('organs')}>
+                onClick={() => phoneOpsUi ? openOrgansPhoneHub() : goView('organs')}>
           <V3Icon name="network" w={18} />
           Organs
           {unreadCount > 0 && <span className="ft-tab-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>}
@@ -29694,7 +30072,7 @@ function V4App() {
                     onChange={v => setTweak('viewAs', v)} />
         <TweakSection label="View" />
         <TweakSelect label="Page" value={view}
-                    options={['today','board','new-leads','company-os','organs','leads','inbox','invoices','calendar']}
+                    options={['today','board','new-leads','company-os','organs','gods-eye','leads','inbox','invoices','calendar']}
                     onChange={v => { setView(v); setOpenId(null); }} />
         <TweakSection label="Appearance" />
         <TweakRadio label="Theme" value={t.theme}

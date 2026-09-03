@@ -13,7 +13,11 @@ import httpx
 # Default: local Qwen on Mac Studio. Set LLM_BACKEND=anthropic only for explicit API fallback.
 LLM_BACKEND = os.environ.get("LLM_BACKEND", "local").strip().lower()
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434/api/chat")
-LOCAL_MODEL = os.environ.get("LOCAL_MODEL", "qwen2.5:32b-instruct")
+LOCAL_MODEL = os.environ.get("LOCAL_MODEL", "qwen3.8:27b-mlx")
+# Unload the model this long after the last call so it stops holding ~21GB idle.
+# Per-request keep_alive overrides the server default (which was set to -1 = never
+# unload). Raise OLLAMA_KEEP_ALIVE (e.g. "10m") if cold-load latency bothers you.
+OLLAMA_KEEP_ALIVE = os.environ.get("OLLAMA_KEEP_ALIVE", "60s")
 
 OPERATOR_FRAMEWORK = """\
 OPERATOR FRAMEWORK (apply before writing — this is Asher's own voice and judgment):
@@ -30,6 +34,27 @@ TONE — write in the tone given on the TONE line below:
 - friendship: warm rapport or repeat contact. Personable but firm on value.
 - long_standing: proven history (e.g. OMANE, EchonLab). Appreciative, fast, trust based, less
   re-explaining. Skip the cold intro and talk like you already know them.
+
+RESPONSE STRUCTURE (how to lay the reply out — this is the house style):
+- Open with one or two warm sentences: confirm fit and that we want to do it. Get to business by
+  the second paragraph.
+- When the reply carries scope, pricing, payment terms, or several inputs, break it into short
+  labeled sections so it is scannable on a phone. Use a plain capitalized label on its own line,
+  then bullet lines under it starting with "- ". Do NOT use markdown asterisks or bold; this is a
+  plain text email, asterisks show up literally.
+- Typical sections, in this order, include only the ones that apply:
+    Scope — one bullet per deliverable, named plainly (e.g. "- Thread 1: LingBot-VLA 2.0").
+    Pricing — one bullet per deliverable WITH its rate, then a bullet for the total. Note if media
+      is client provided so there is no production add on.
+    How we work — payment in full before content goes live; fastest is Stripe, bank transfer at a
+      flat $5 fee or card at a 3% processing fee; draft goes over for approval before it posts.
+    To move forward — the short list of what you need back from them (confirm the price, send go
+      live timing, send billing details or assets). One bullet each.
+- Never split a rate from its deliverable. Every price names what it buys.
+- Close with one short forward motion line, then the signature. No long marketing wrap up.
+- Keep it tight: one idea per paragraph, bullets for any list of two or more, readable on a phone.
+- For a simple reply (a payment thank you, a quick yes, a scheduling confirmation) skip the sections
+  and keep it to a few short sentences. Only structure when there is real scope or pricing to lay out.
 """
 
 LONG_STANDING_PARTNERS = {
@@ -112,6 +137,7 @@ def ollama_chat(
         "model": LOCAL_MODEL,
         "messages": [{"role": "user", "content": content}],
         "stream": False,
+        "keep_alive": OLLAMA_KEEP_ALIVE,
         "options": {
             "temperature": temperature,
             "num_ctx": num_ctx,
@@ -137,6 +163,7 @@ async def ollama_chat_async(
         "model": LOCAL_MODEL,
         "messages": [{"role": "user", "content": content}],
         "stream": False,
+        "keep_alive": OLLAMA_KEEP_ALIVE,
         "options": {
             "temperature": temperature,
             "num_ctx": num_ctx,

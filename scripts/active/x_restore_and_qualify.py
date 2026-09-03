@@ -17,11 +17,18 @@ ACTIVE_DIR = Path(__file__).resolve().parent
 if str(ACTIVE_DIR) not in sys.path:
     sys.path.insert(0, str(ACTIVE_DIR))
 
-from x_lead_qualification import is_qualified_card, is_qualified_intake_row
+from x_lead_qualification import is_qualified_card, is_qualified_intake_row, is_x_spam_text
 
 ENV_FILE = Path.home() / ".config/google-credentials/unaligned-scraper.env"
 STATUS_FILE = Path.home() / ".config/google-credentials/x_restore_and_qualify_status.json"
 INTAKE = Path("/Users/asherweisberger/Desktop/UNALIGNED/MASTER FILES/flow-v4/assets/x_dm_daily_intake.json")
+
+
+def normalize_open_dm(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    return text.split("#")[0].rstrip("/")
 
 CARD_SELECT = (
     "id,title,contact_name,business_name,email,list_id,lead_source,x_open_dm,"
@@ -98,14 +105,29 @@ def main() -> int:
     args = parser.parse_args()
 
     load_env()
+    intake = json.loads(INTAKE.read_text(encoding="utf-8")) if INTAKE.exists() else []
+    user_trashed_open_dm = {
+        normalize_open_dm(row.get("openDm"))
+        for row in intake
+        if isinstance(row, dict) and row.get("userTrashed") is True and normalize_open_dm(row.get("openDm"))
+    }
+
     cards = load_x_cards()
     trashed = [c for c in cards if str(c.get("list_id") or "") == "trash" and c.get("x_open_dm")]
     active = [c for c in cards if str(c.get("list_id") or "") not in {"trash", "dead-leads", "done", "paid-out"}]
 
     restored = []
     demoted = []
+    skipped_user_trash = []
 
     for card in trashed:
+        card_dm = normalize_open_dm(card.get("x_open_dm"))
+        if card_dm and card_dm in user_trashed_open_dm:
+            skipped_user_trash.append({"id": card["id"], "business": card.get("business_name"), "reason": "userTrashed"})
+            continue
+        if is_x_spam_text(card.get("description"), card.get("title"), card.get("business_name")):
+            skipped_user_trash.append({"id": card["id"], "business": card.get("business_name"), "reason": "spam"})
+            continue
         qualified = is_qualified_card(card)
         target = "new" if qualified else "dead-leads"
         if not args.dry_run:
@@ -121,22 +143,18 @@ def main() -> int:
             supabase_patch(card["id"], {"list_id": "dead-leads"})
         demoted.append({"id": card["id"], "business": card.get("business_name")})
 
-    intake = json.loads(INTAKE.read_text(encoding="utf-8")) if INTAKE.exists() else []
-    qualified_intake = [row for row in intake if is_qualified_intake_row(row)]
-    if not args.dry_run and INTAKE.exists():
-        INTAKE.write_text(json.dumps(qualified_intake, indent=2, ensure_ascii=False), encoding="utf-8")
-
     summary = {
         "ran_at": datetime.now().isoformat(),
         "dry_run": args.dry_run,
         "trashed_x_seen": len(trashed),
         "restored_to_new": sum(1 for r in restored if r["to"] == "new"),
         "restored_to_dead_leads": sum(1 for r in restored if r["to"] == "dead-leads"),
+        "skipped_user_trash": len(skipped_user_trash),
         "active_demoted": len(demoted),
-        "intake_before": len(intake),
-        "intake_after": len(qualified_intake),
+        "intake_rows": len(intake),
         "samples_restored": restored[:25],
         "samples_demoted": demoted[:25],
+        "samples_skipped": skipped_user_trash[:25],
     }
     STATUS_FILE.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(json.dumps(summary, indent=2))

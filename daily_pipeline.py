@@ -39,6 +39,7 @@ from lead_blocklist import is_blocked_card
 _SCRIPT_ACTIVE = Path(__file__).resolve().parent / "scripts" / "active"
 if str(_SCRIPT_ACTIVE) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_ACTIVE))
+from x_lead_qualification import is_qualified_card, is_x_spam_text  # noqa: E402
 from draft_staleness import (  # noqa: E402
     inbound_needs_payment_ack,
     should_regenerate_draft,
@@ -226,6 +227,54 @@ def latest_thread_timestamp(card):
         except Exception:
             return None
     return None
+
+
+def is_x_card(card: dict) -> bool:
+    return bool(str(card.get("x_open_dm") or "").strip()) or str(card.get("lead_source") or "").strip().lower() == "x"
+
+
+def x_card_text_blob(card: dict) -> str:
+    raw = card.get("description")
+    if isinstance(raw, dict):
+        desc = " ".join(str(v) for v in raw.values())
+    elif isinstance(raw, str) and raw.strip().startswith("{"):
+        try:
+            desc = " ".join(str(v) for v in json.loads(raw).values())
+        except Exception:
+            desc = raw
+    else:
+        desc = str(raw or "")
+    return " ".join(
+        part
+        for part in [
+            desc,
+            card.get("title") or "",
+            card.get("business_name") or "",
+            card.get("contact_name") or "",
+            card.get("intent") or "",
+        ]
+        if part
+    )
+
+
+def auto_trash_x_spam_cards(cards):
+    """Trash X cards that fail shared spam/qualify rules before drafting."""
+    keep = []
+    trashed = []
+    for card in cards:
+        if not is_x_card(card):
+            keep.append(card)
+            continue
+        blob = x_card_text_blob(card)
+        if is_x_spam_text(blob) or not is_qualified_card(card):
+            if DRY_RUN or patch_card(card["id"], {
+                "list_id": "trash",
+                "moved_at": datetime.now(timezone.utc).isoformat(),
+            }):
+                trashed.append(card)
+            continue
+        keep.append(card)
+    return keep, trashed
 
 
 def auto_trash_blocked_cards(cards):
@@ -788,6 +837,10 @@ def main():
     if blocked_trashed:
         print(f"Auto-trashed {len(blocked_trashed)} blocked sender card(s).")
 
+    cards, x_spam_trashed = auto_trash_x_spam_cards(cards)
+    if x_spam_trashed:
+        print(f"Auto-trashed {len(x_spam_trashed)} X spam/unqualified card(s).")
+
     cards, auto_trashed = auto_trash_stale_cards(cards)
     if auto_trashed:
         print(f"Auto-trashed {len(auto_trashed)} stale card(s) older than 50 days.")
@@ -873,42 +926,56 @@ def main():
         if needs_reply and reply_type and not already_has_draft:
             final_stage = new_stage if new_stage else stage
             if final_stage in REPLY_STAGES or reply_type == "fulfillment-fix":
-                scam_level, scam_reasons = scam_gate(card)
-                why = scam_reasons[0] if scam_reasons else ""
-                if scam_level == "scam":
-                    # Clearly a scam -> AVOID: disengage, no draft, flag for human review
-                    print(f"  ⛔ Scam gate AVOID ({why}) — flagged for review, no draft")
-                    patch["draft_reply_status"] = "review"
-                    flagged.append(("scam", f"{name} @ {biz}", why))
-                    activity_entries.append({
-                        "time": datetime.now(timezone.utc).isoformat(),
-                        "user": "Scam gate",
-                        "action": f"AVOID. Looks like a scam ({why}). Disengage, do not commit.",
-                    })
-                elif scam_level == "suspicious":
-                    # Suspicious -> keep qualifying lightly: cautious reply, do not commit
-                    print(f"  ⚠ Scam gate qualify ({why}) — drafting cautious qualify reply")
-                    reply = draft_reply(card, "qualify-suspicious", client, tone="direct")
-                    if reply:
-                        patch["draft_reply"] = reply
-                    patch["draft_reply_status"] = "review"
-                    flagged.append(("suspicious", f"{name} @ {biz}", why))
-                    activity_entries.append({
-                        "time": datetime.now(timezone.utc).isoformat(),
-                        "user": "Scam gate",
-                        "action": f"Suspicious ({why}). Cautious qualify reply drafted. Verify before committing.",
-                    })
-                else:
-                    if analysis.get("local_holding_reply"):
-                        reply = analysis["local_holding_reply"]
-                        print(f"  ✍ Using local holding reply (fulfillment-fix)...")
+                if is_x_card(card):
+                    blob = x_card_text_blob(card)
+                    if is_x_spam_text(blob) or not is_qualified_card(card):
+                        why = "X spam/unqualified gate"
+                        print(f"  ⛔ {why} — no draft")
+                        patch["draft_reply_status"] = "review"
+                        flagged.append(("x-spam", f"{name} @ {biz}", why))
+                        activity_entries.append({
+                            "time": datetime.now(timezone.utc).isoformat(),
+                            "user": "X gate",
+                            "action": f"Blocked draft ({why}). Move to trash if confirmed spam.",
+                        })
+                        needs_reply = False
+                if needs_reply:
+                    scam_level, scam_reasons = scam_gate(card)
+                    why = scam_reasons[0] if scam_reasons else ""
+                    if scam_level == "scam":
+                        # Clearly a scam -> AVOID: disengage, no draft, flag for human review
+                        print(f"  ⛔ Scam gate AVOID ({why}) — flagged for review, no draft")
+                        patch["draft_reply_status"] = "review"
+                        flagged.append(("scam", f"{name} @ {biz}", why))
+                        activity_entries.append({
+                            "time": datetime.now(timezone.utc).isoformat(),
+                            "user": "Scam gate",
+                            "action": f"AVOID. Looks like a scam ({why}). Disengage, do not commit.",
+                        })
+                    elif scam_level == "suspicious":
+                        # Suspicious -> keep qualifying lightly: cautious reply, do not commit
+                        print(f"  ⚠ Scam gate qualify ({why}) — drafting cautious qualify reply")
+                        reply = draft_reply(card, "qualify-suspicious", client, tone="direct")
+                        if reply:
+                            patch["draft_reply"] = reply
+                        patch["draft_reply_status"] = "review"
+                        flagged.append(("suspicious", f"{name} @ {biz}", why))
+                        activity_entries.append({
+                            "time": datetime.now(timezone.utc).isoformat(),
+                            "user": "Scam gate",
+                            "action": f"Suspicious ({why}). Cautious qualify reply drafted. Verify before committing.",
+                        })
                     else:
-                        tone = resolve_tone(card)
-                        print(f"  ✍ Drafting reply ({reply_type}, tone={tone})...")
-                        reply = draft_reply(card, reply_type, client, tone=tone)
-                    if reply:
-                        patch["draft_reply"] = reply
-                        patch["draft_reply_status"] = "pending"
+                        if analysis.get("local_holding_reply"):
+                            reply = analysis["local_holding_reply"]
+                            print(f"  ✍ Using local holding reply (fulfillment-fix)...")
+                        else:
+                            tone = resolve_tone(card)
+                            print(f"  ✍ Drafting reply ({reply_type}, tone={tone})...")
+                            reply = draft_reply(card, reply_type, client, tone=tone)
+                        if reply:
+                            patch["draft_reply"] = reply
+                            patch["draft_reply_status"] = "pending"
                         drafted.append(f"{name} @ {biz} ({reply_type})")
                         print(f"  ✓ Reply drafted")
 

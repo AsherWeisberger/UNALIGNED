@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 UNALIGNED Heartbeat — local email classifier for Hermes.
-Targets qwen3.6:35b-a3b via Ollama. 100% local. Reasoning-first, strict JSON.
+Targets qwen3.8:27b-mlx via Ollama. 100% local. Reasoning-first, strict JSON.
 
 Usage:
   echo "<email text>" | python3 heartbeat_qwen.py
@@ -13,7 +13,7 @@ Returns one JSON object on stdout. Nothing auto-sends. "suggest only" mode.
 
 import sys, json, urllib.request
 
-MODEL = "qwen3.6:35b-a3b"
+MODEL = "qwen3.8:27b-mlx"
 OLLAMA_URL = "http://localhost:11434/api/chat"
 
 SYSTEM = """You are the intake classifier ("Heartbeat") for Unaligned, the team managing tech creator Robert Scoble's paid collaborations. Asher is Client Services Manager; Sam Levin is Business Partner. You read one inbound email (with prior thread context if provided) and decide (1) is it safe to engage, and (2) how to talk to them. You NEVER send anything. You classify and recommend only.

@@ -168,6 +168,7 @@ async function sendViaSmtp(sender, to, subject, body, cc, attachments, replyHead
     text: body,
     attachments: attachments || [],
   };
+  if (replyHeaders?.replyTo) mail.replyTo = replyHeaders.replyTo;
   if (replyHeaders?.inReplyTo) mail.inReplyTo = replyHeaders.inReplyTo;
   if (replyHeaders?.references) mail.references = replyHeaders.references;
   await t.sendMail(mail);
@@ -352,12 +353,14 @@ function threadHeaderLines(replyHeaders) {
 }
 
 function makeMime(to, cc, subject, body, sender, attachments, replyHeaders) {
+  const replyTo = replyHeaders?.replyTo ? String(replyHeaders.replyTo).trim() : '';
   if (attachments && attachments.length) {
     const boundary = `unaligned_${Date.now()}`;
     const lines = [
       `From: "${sender.name}" <${sender.email}>`,
       `To: ${to}`,
       cc ? `Cc: ${cc}` : null,
+      replyTo ? `Reply-To: ${replyTo}` : null,
       `Subject: ${subject}`,
       ...threadHeaderLines(replyHeaders),
       'MIME-Version: 1.0',
@@ -391,6 +394,7 @@ function makeMime(to, cc, subject, body, sender, attachments, replyHeaders) {
     `From: "${sender.name}" <${sender.email}>`,
     `To: ${to}`,
     cc ? `Cc: ${cc}` : null,
+    replyTo ? `Reply-To: ${replyTo}` : null,
     `Subject: ${subject}`,
     ...threadHeaderLines(replyHeaders),
     'MIME-Version: 1.0',
@@ -1078,6 +1082,259 @@ function deskIntakeUnavailableDetail(status, detail) {
   return '';
 }
 
+// Connect form auto-notify: From Robert → AsherUnaligned, CC UnalignedX only.
+const DESK_INTAKE_NOTIFY = {
+  to: process.env.DESK_INTAKE_NOTIFY_TO || 'AsherUnaligned@gmail.com',
+  cc: process.env.DESK_INTAKE_NOTIFY_CC || 'UnalignedX@gmail.com',
+};
+
+function deskIntakeLaneLabel(topicType) {
+  const t = String(topicType || '').toLowerCase();
+  if (t === 'collaboration' || t === 'partnership') return 'Collaboration';
+  if (t === 'general_outreach' || t === 'sync') return 'General conversation';
+  return 'Other';
+}
+
+function deskIntakeSubject(row) {
+  // Format: COMPANY X UNALIGNED X Scoble  (UNALIGNED always all caps)
+  const responses = row?.responses && typeof row.responses === 'object' ? row.responses : {};
+  const company = deskCleanText(responses.company || row?.company || '', 80);
+  const name = deskCleanText(row?.name || '', 80);
+  const who = (company || name || 'NEW LEAD').toUpperCase().replace(/\s+/g, ' ').trim();
+  return `${who} X UNALIGNED X Scoble`;
+}
+
+function deskIntakeContactPreferenceLabel(value) {
+  const map = {
+    email: 'Email',
+    x: 'X / Twitter',
+    whatsapp: 'WhatsApp',
+    signal: 'Signal',
+    phone: 'Phone',
+    other: 'Other',
+  };
+  const key = String(value || 'email').toLowerCase();
+  return map[key] || key;
+}
+
+function deskIntakeFields(row) {
+  const responses = row?.responses && typeof row.responses === 'object' ? row.responses : {};
+  const first = deskCleanText(responses.first_name || '', 80);
+  const last = deskCleanText(responses.last_name || '', 80);
+  const name = deskCleanText(row?.name || '', 120) || [first, last].filter(Boolean).join(' ') || 'Someone';
+  const company = deskCleanText(responses.company || '', 120);
+  const email = deskCleanText(row?.email || '', 160);
+  const pref = deskCleanText(row?.contact_preference || responses.contact_preference || 'email', 40);
+  const contactDetail = deskCleanText(responses.contact_detail || '', 160)
+    || deskCleanText(row?.x_handle || '', 80)
+    || deskCleanText(row?.whatsapp || '', 80)
+    || email;
+  const brief = deskCleanText(responses.brief_link || '', 500);
+  const message = String(row?.message || '').trim() || '(No message included.)';
+  const lane = deskIntakeLaneLabel(row?.topic_type);
+  return {
+    name,
+    first,
+    company,
+    email,
+    pref,
+    prefLabel: deskIntakeContactPreferenceLabel(pref),
+    contactDetail,
+    brief,
+    message,
+    lane,
+    xHandle: deskCleanText(row?.x_handle || '', 80),
+    phone: deskCleanText(row?.whatsapp || '', 80),
+    referrer: deskCleanText(row?.referrer || '', 300),
+  };
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** Clean plain-text body — reads like a real email. */
+function deskIntakeNotifyBody(row, savedId) {
+  const f = deskIntakeFields(row);
+  const companyLine = f.company ? ` at ${f.company}` : '';
+  const lines = [
+    `Hi Asher,`,
+    ``,
+    `${f.name}${companyLine} just reached out.`,
+    ``,
+    `Looking for: ${f.lane}`,
+    `Email: ${f.email || 'not provided'}`,
+    `Preferred contact: ${f.prefLabel}${f.contactDetail && f.contactDetail !== f.email ? ` · ${f.contactDetail}` : ''}`,
+  ];
+  if (f.xHandle) lines.push(`X: ${f.xHandle}`);
+  if (f.phone && f.pref !== 'x') lines.push(`Phone: ${f.phone}`);
+  if (f.brief) lines.push(`Brief / link: ${f.brief}`);
+  lines.push(
+    ``,
+    `Their message:`,
+    ``,
+    f.message,
+    ``,
+    `Thanks,`,
+    `Robert`,
+  );
+  return lines.join('\n');
+}
+
+/** HTML version for Gmail — same content, easier to scan. */
+function deskIntakeNotifyHtml(row, savedId) {
+  const f = deskIntakeFields(row);
+  const companyBit = f.company ? ` at <strong>${escapeHtml(f.company)}</strong>` : '';
+  const rows = [
+    ['Looking for', f.lane],
+    ['Email', f.email || 'not provided'],
+    ['Preferred contact', f.prefLabel + (f.contactDetail && f.contactDetail !== f.email ? ` · ${f.contactDetail}` : '')],
+  ];
+  if (f.xHandle) rows.push(['X', f.xHandle]);
+  if (f.phone && f.pref !== 'x') rows.push(['Phone', f.phone]);
+  if (f.brief) rows.push(['Brief / link', f.brief]);
+
+  const detailRows = rows.map(([label, value]) => {
+    const isLink = /^https?:\/\//i.test(String(value || ''));
+    const display = isLink
+      ? `<a href="${escapeHtml(value)}" style="color:#1a5cff;text-decoration:none;">${escapeHtml(value)}</a>`
+      : escapeHtml(value);
+    return `
+      <tr>
+        <td style="padding:6px 14px 6px 0;color:#667085;font-size:13px;vertical-align:top;white-space:nowrap;">${escapeHtml(label)}</td>
+        <td style="padding:6px 0;color:#101828;font-size:14px;vertical-align:top;">${display}</td>
+      </tr>`;
+  }).join('');
+
+  const messageHtml = escapeHtml(f.message).replace(/\n/g, '<br>');
+
+  return `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#101828;">
+  <div style="max-width:560px;margin:24px auto;padding:0 16px;">
+    <div style="background:#ffffff;border:1px solid #e4e7ec;border-radius:12px;overflow:hidden;">
+      <div style="padding:20px 24px 8px 24px;">
+        <h1 style="margin:0 0 16px 0;font-size:18px;font-weight:600;line-height:1.35;color:#101828;">New note from ${escapeHtml(f.name)}</h1>
+        <p style="margin:0 0 18px 0;font-size:15px;line-height:1.55;color:#344054;">
+          Hi Asher — ${escapeHtml(f.name)}${companyBit} just reached out.
+        </p>
+        <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:0 0 18px 0;">
+          ${detailRows}
+        </table>
+      </div>
+      <div style="margin:0 24px 20px 24px;padding:16px 18px;background:#f9fafb;border:1px solid #eef0f3;border-radius:10px;">
+        <p style="margin:0 0 8px 0;font-size:12px;font-weight:600;letter-spacing:0.03em;text-transform:uppercase;color:#667085;">Their message</p>
+        <p style="margin:0;font-size:15px;line-height:1.6;color:#101828;">${messageHtml}</p>
+      </div>
+      <div style="padding:0 24px 22px 24px;">
+        <p style="margin:0;font-size:14px;color:#344054;">Thanks,<br><strong>Robert</strong></p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+function makeMimeHtmlAlternative(to, cc, subject, textBody, htmlBody, sender, replyHeaders) {
+  const replyTo = replyHeaders?.replyTo ? String(replyHeaders.replyTo).trim() : '';
+  const boundary = `unaligned_alt_${Date.now()}`;
+  const lines = [
+    `From: "${sender.name}" <${sender.email}>`,
+    `To: ${to}`,
+    cc ? `Cc: ${cc}` : null,
+    replyTo ? `Reply-To: ${replyTo}` : null,
+    `Subject: ${subject}`,
+    ...threadHeaderLines(replyHeaders),
+    'MIME-Version: 1.0',
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    'Content-Transfer-Encoding: 7bit',
+    '',
+    textBody,
+    '',
+    `--${boundary}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    'Content-Transfer-Encoding: 7bit',
+    '',
+    htmlBody,
+    '',
+    `--${boundary}--`,
+  ].filter((line) => line !== null);
+  return { raw: Buffer.from(lines.join('\r\n')).toString('base64url') };
+}
+
+async function sendDeskIntakeNotifyEmail(sender, to, subject, textBody, htmlBody, cc, replyHeaders, retried = false) {
+  if (sender.id !== 'robert') {
+    // SMTP path: nodemailer can send both
+    const t = await getSmtpTransporter(sender);
+    const snap = await getDb().collection('_secrets').doc(sender.secretDoc).get();
+    const { email } = snap.data();
+    const mail = {
+      from: `"${sender.name}" <${email || sender.email}>`,
+      to,
+      cc: cc || undefined,
+      subject,
+      text: textBody,
+      html: htmlBody,
+      replyTo: replyHeaders?.replyTo || undefined,
+    };
+    await t.sendMail(mail);
+    return 'sent via SMTP';
+  }
+  try {
+    const auth = await getRobertGmailAuth(retried);
+    const gmail = getGoogle().gmail({ version: 'v1', auth });
+    const raw = makeMimeHtmlAlternative(to, cc, subject, textBody, htmlBody, sender, replyHeaders);
+    const result = await gmail.users.messages.send({
+      userId: 'me',
+      resource: raw,
+    });
+    return result.data.id;
+  } catch (err) {
+    console.warn(`Desk intake HTML send failed for ${sender.id}:`, err.message);
+    if (!retried) {
+      cachedRobertAuth = null;
+      return sendDeskIntakeNotifyEmail(sender, to, subject, textBody, htmlBody, cc, replyHeaders, true);
+    }
+    // Last resort: plain text via existing path
+    return sendViaGmail(sender, to, subject, textBody, cc, [], null, replyHeaders);
+  }
+}
+
+async function notifyDeskIntakeTeam(row, savedId) {
+  const subject = deskIntakeSubject(row);
+  const textBody = deskIntakeNotifyBody(row, savedId);
+  const htmlBody = deskIntakeNotifyHtml(row, savedId);
+  // From Robert → AsherUnaligned@gmail.com, CC UnalignedX only.
+  const sender = SENDERS.robert;
+  const to = DESK_INTAKE_NOTIFY.to;
+  // Exact CC list only — do not call effectiveCc() (it injects default team addresses).
+  const cc = String(DESK_INTAKE_NOTIFY.cc || '').trim() || undefined;
+  const replyHeaders = {};
+  if (row.email && deskEmail(row.email)) {
+    replyHeaders.replyTo = row.email;
+  }
+  if (hasSenderRecipient(to, sender)) {
+    throw new Error(`Desk intake notify refused: From ${sender.email} cannot also be To`);
+  }
+  const messageId = await sendDeskIntakeNotifyEmail(
+    sender,
+    to,
+    subject,
+    textBody,
+    htmlBody,
+    cc,
+    replyHeaders,
+  );
+  return { messageId, subject, to, cc: cc || '' };
+}
+
 async function submitDeskIntakeRow(sb, row) {
   const rpc = await sb('rpc/robert_desk_intake_submit', {
     method: 'POST',
@@ -1216,6 +1473,11 @@ exports.robertDeskIntake = functions.https.onRequest(async (req, res) => {
         link: ROBERT_CONNECT_BASE,
         headline: "Reach Robert's team",
         subhead: 'Partnerships, projects, and ideas worth a look.',
+        notify: {
+          subject_format: 'COMPANY X UNALIGNED X Scoble',
+          to: DESK_INTAKE_NOTIFY.to,
+          cc: DESK_INTAKE_NOTIFY.cc || null,
+        },
       });
     }
     if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'GET or POST only' });
@@ -1225,7 +1487,26 @@ exports.robertDeskIntake = functions.https.onRequest(async (req, res) => {
 
     const sb = await getSupabaseService();
     const saved = await submitDeskIntakeRow(sb, parsed.row);
-    return res.json({ ok: true, submitted: true, id: saved.id || null });
+
+    // Email the team immediately so submissions never only sit on the desk tab.
+    // Never fail the public form if mail is down — form data is already stored.
+    let notify = { ok: false };
+    try {
+      const sent = await notifyDeskIntakeTeam(parsed.row, saved.id || null);
+      notify = { ok: true, ...sent };
+      console.log('robertDeskIntake notify sent:', sent.subject, 'to', sent.to, 'cc', sent.cc);
+    } catch (mailErr) {
+      notify = { ok: false, error: mailErr.message };
+      console.error('robertDeskIntake notify failed (submission still saved):', mailErr.message);
+    }
+
+    return res.json({
+      ok: true,
+      submitted: true,
+      id: saved.id || null,
+      notify_ok: notify.ok,
+      notify_subject: notify.subject || deskIntakeSubject(parsed.row),
+    });
   } catch (err) {
     console.error('robertDeskIntake error:', err.message);
     return res.status(500).json({ ok: false, error: err.message });

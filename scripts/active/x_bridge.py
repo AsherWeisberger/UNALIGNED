@@ -25,7 +25,7 @@ ACTIVE_DIR = Path(__file__).resolve().parent
 if str(ACTIVE_DIR) not in sys.path:
     sys.path.insert(0, str(ACTIVE_DIR))
 
-from x_lead_qualification import is_qualified_intake_row
+from x_lead_qualification import is_qualified_intake_row, is_x_spam_text
 from x_gmail_merge import (
     absorb_gmail_patch,
     enrich_gmail_card_patch,
@@ -48,6 +48,15 @@ CARD_SELECT = (
     "email_thread,original_email,new_reply_at,updated_at,lead_source,x_open_dm,"
     "description,priority,intent"
 )
+
+INACTIVE_STAGES = {"done", "paid-out", "trash", "dead-leads"}
+
+
+def normalize_open_dm(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    return text.split("#")[0].rstrip("/")
 
 
 def load_env() -> None:
@@ -135,7 +144,7 @@ def index_cards(cards: list[dict[str, Any]]) -> tuple[dict[str, dict[str, Any]],
     by_open_dm: dict[str, dict[str, Any]] = {}
     by_email: dict[str, list[dict[str, Any]]] = {}
     for card in cards:
-        odm = str(card.get("x_open_dm") or "").strip()
+        odm = normalize_open_dm(card.get("x_open_dm"))
         if odm:
             by_open_dm[odm] = card
         email_addr = normalize_email(card.get("email"))
@@ -250,23 +259,58 @@ def main() -> int:
     cards = load_cards()
     by_open_dm, cards_by_email = index_cards(cards)
 
-    inserted = updated = enriched = skipped = 0
+    inserted = updated = enriched = skipped = trashed = 0
     merge_events: list[dict[str, Any]] = []
 
+    def trash_existing_card(card: dict[str, Any]) -> bool:
+        nonlocal trashed
+        if str(card.get("list_id") or "") in INACTIVE_STAGES:
+            return False
+        if args.dry_run:
+            trashed += 1
+            return True
+        status = supabase_patch(
+            f"/rest/v1/cards?id=eq.{card['id']}",
+            {"list_id": "trash"},
+        )
+        if status in (200, 204):
+            card["list_id"] = "trash"
+            trashed += 1
+            return True
+        return False
+
     for lead in leads:
-        odm = str(lead.get("openDm") or "").strip()
+        odm = normalize_open_dm(lead.get("openDm"))
         if not odm:
-            skipped += 1
-            continue
-        if not is_qualified_intake_row(lead):
             skipped += 1
             continue
 
         email_addr = first_external_email(lead.get("contactEmails"))
         existing = by_open_dm.get(odm)
 
+        if lead.get("userTrashed") is True:
+            if existing:
+                trash_existing_card(existing)
+            skipped += 1
+            continue
+
+        spam = is_x_spam_text(
+            lead.get("lastLeadMessage"),
+            lead.get("summaryForTeam"),
+            lead.get("xName"),
+        )
+        qualified = is_qualified_intake_row(lead)
+        if spam or not qualified:
+            if existing:
+                trash_existing_card(existing)
+            skipped += 1
+            continue
+
         if existing:
-            patch = refresh_fields(lead)
+            if str(existing.get("list_id") or "") in INACTIVE_STAGES:
+                skipped += 1
+                continue
+            patch = refresh_fields(lead, existing)
             if not args.dry_run:
                 status = supabase_patch(
                     f"/rest/v1/cards?x_open_dm=eq.{urllib.parse.quote(odm, safe='')}",
@@ -325,6 +369,7 @@ def main() -> int:
         "updated": updated,
         "enriched": enriched,
         "skipped": skipped,
+        "trashed": trashed,
         "merged_gmail_cards": len(merge_events),
         "merge_events": merge_events[:50],
         "dry_run": args.dry_run,
@@ -333,7 +378,7 @@ def main() -> int:
     print(
         "X bridge: "
         f"{inserted} new, {updated} refreshed, {enriched} enriched, "
-        f"{len(merge_events)} gmail merges, {skipped} skipped (no openDm)"
+        f"{trashed} trashed, {len(merge_events)} gmail merges, {skipped} skipped"
     )
     return 0
 

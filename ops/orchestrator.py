@@ -151,12 +151,7 @@ def process_card(card, pricing, *, dry_run):
             log("routed_to_review", card=cid, who=label, status="review", draft="none")
         return
 
-    # 3. Deal Desk draft (Claude, the 10%). Needs the API key.
-    if not config.ANTHROPIC_API_KEY:
-        log("draft_blocked_no_key", card=cid, who=label,
-            note="ANTHROPIC_API_KEY empty in ops/.env; triage+gate proven, paste a key to draft")
-        return
-
+    # 3. Deal Desk draft (local Qwen 3.8). Approval console still gates sends.
     if _writes_live(dry_run):
         set_handling(f"deal_desk → {label}")
     d = agents.deal_desk_draft(card, recency=recency_of(card), pricing=pricing)

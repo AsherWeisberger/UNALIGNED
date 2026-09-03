@@ -452,6 +452,7 @@ def format_message(msg: dict[str, Any]) -> dict[str, Any]:
     attachments = extract_attachments(payload)
     rfc822_message_id = header_value(payload, "Message-ID")
     references = header_value(payload, "References")
+    label_ids = [str(x) for x in (msg.get("labelIds") or []) if x]
     formatted = {
         "from": from_name,
         "email": from_email,
@@ -467,10 +468,25 @@ def format_message(msg: dict[str, Any]) -> dict[str, Any]:
         "message_id": msg.get("id", ""),
         "rfc822_message_id": rfc822_message_id,
         "references": references,
+        "label_ids": label_ids,
+        "gmail_unread": "UNREAD" in label_ids,
     }
     if attachments:
         formatted["attachments"] = attachments
     return formatted
+
+
+def thread_has_gmail_unread(messages: list[dict[str, Any]] | None) -> bool:
+    """True when any message in the Gmail thread still has the UNREAD label."""
+    for msg in messages or []:
+        if not isinstance(msg, dict):
+            continue
+        if msg.get("gmail_unread") is True:
+            return True
+        labels = msg.get("label_ids") or msg.get("labelIds") or []
+        if any(str(x).upper() == "UNREAD" for x in labels):
+            return True
+    return False
 
 
 def message_key(msg: dict[str, Any]) -> str:
@@ -533,6 +549,34 @@ def normalize_thread_list(raw: Any) -> list[dict[str, Any]]:
     return [m for m in raw if isinstance(m, dict)]
 
 
+def stored_thread_is_stale_fork(card: dict[str, Any], stored_fresh: list[dict[str, Any]]) -> bool:
+    """Detect Robert/Asher fork threads where the saved id is a short stub, not the live chain."""
+    stored_rows = normalize_thread_list(card.get("email_thread") or card.get("original_email"))
+    live_count = len(stored_fresh or [])
+    stored_count = len(stored_rows)
+    if stored_count < 5:
+        return False
+    if live_count == 0:
+        return True
+    return live_count < max(3, int(stored_count * 0.45))
+
+
+def thread_gained_messages(existing: Any, merged: list[dict[str, Any]]) -> bool:
+    """True when merged contains messages or timestamps we do not already have stored."""
+    prev = normalize_thread_list(existing)
+    if not merged:
+        return False
+    if not prev:
+        return True
+    prev_keys = {message_key(m) for m in prev}
+    merged_keys = {message_key(m) for m in merged}
+    if merged_keys - prev_keys:
+        return True
+    prev_latest = max((date_sort_value(m.get("date")) for m in prev), default=0.0)
+    merged_latest = max((date_sort_value(m.get("date")) for m in merged), default=0.0)
+    return merged_latest > prev_latest
+
+
 def fresh_inbound_tail(existing: Any, merged: list[dict[str, Any]]) -> bool:
     """True when the merged thread ends with inbound we have not stored yet."""
     if not merged:
@@ -546,6 +590,36 @@ def fresh_inbound_tail(existing: Any, merged: list[dict[str, Any]]) -> bool:
     return message_key(last) != message_key(prev[-1])
 
 
+NEGOTIATE_PROMOTE_STAGES = frozenset({"new", "first-touch", "engaged", "rates-sent"})
+_NEGOTIATE_RE = re.compile(
+    r"\b("
+    r"too (high|expensive)|out of (our )?budget|budget|"
+    r"discount|50\s*/\s*50|half now|split payment|net\s*\d+|"
+    r"payment terms|counter[- ]?offer|best (price|rate)|"
+    r"can you (do|come down)|lower (the )?(price|rate)|"
+    r"negotiate|push back|too much"
+    r")\b",
+    re.I,
+)
+
+
+def thread_looks_like_negotiating(merged: list[dict[str, Any]]) -> bool:
+    """Price/terms pushback in the recent thread → promote to Negotiating."""
+    rows = [m for m in (merged or []) if isinstance(m, dict)]
+    if not rows:
+        return False
+    recent = rows[-8:]
+    blob = " ".join(
+        str(m.get("subject") or "")
+        + " "
+        + str(m.get("snippet") or "")
+        + " "
+        + str(m.get("body") or "")[:1200]
+        for m in recent
+    )
+    return bool(_NEGOTIATE_RE.search(blob))
+
+
 def build_card_thread_patch(
     card: dict[str, Any],
     merged: list[dict[str, Any]],
@@ -556,6 +630,7 @@ def build_card_thread_patch(
 
     Closed deals (paid-out / done) resurface to invoice-sent when a new inbound
     lands in the chain. Trash and dead-leads are never auto-touched.
+    Early stages auto-promote to negotiating when the thread shows price/terms pushback.
     """
     list_id = str(card.get("list_id") or "")
     existing = card.get("email_thread") or card.get("original_email") or []
@@ -565,7 +640,7 @@ def build_card_thread_patch(
         "email_thread": merged,
         "original_email": merged[:1],
     }
-    meta = {"resurfaced": False, "latest_inbound": False}
+    meta = {"resurfaced": False, "latest_inbound": False, "promoted_negotiating": False}
 
     if list_id in NEVER_TOUCH_STAGES:
         stale_patch = stale_draft_clear_patch({**card, **payload}, merged)
@@ -577,6 +652,7 @@ def build_card_thread_patch(
         inbound_at = last.get("date") or now_iso()
         payload["new_reply_at"] = inbound_at
         payload["needs_reply"] = True
+        payload["needs_human_read"] = True
         payload["last_inbound_at"] = inbound_at
         meta["latest_inbound"] = True
         if list_id in CLOSED_RESURFACE_STAGES:
@@ -588,8 +664,25 @@ def build_card_thread_patch(
             )
             meta["resurfaced"] = True
             meta["resurfaced_from"] = list_id
-    elif list_id not in INACTIVE_STAGES:
-        payload["new_reply_at"] = None
+    elif thread_has_gmail_unread(merged) and list_id not in INACTIVE_STAGES:
+        # Mirror Gmail UNREAD (Apple Mail / Gmail UI) onto the board when we
+        # refresh. Do not clear here — operator mark-read owns the clear path.
+        inbound_at = last.get("date") or now_iso()
+        if not card.get("new_reply_at"):
+            payload["new_reply_at"] = inbound_at
+        payload["needs_human_read"] = True
+        meta["gmail_unread"] = True
+    # Do NOT auto-clear new_reply_at when the latest message is from the team.
+    # Unread/unseen is operator memory (Asher) — only the dashboard mark-read /
+    # open-card path clears it. Auto-clear hid new Gmail/X activity without a
+    # human actually opening the thread.
+
+    # Company doctrine: price/terms pushback lives in Negotiating — no hunting.
+    effective_stage = str(payload.get("list_id") or list_id)
+    if effective_stage in NEGOTIATE_PROMOTE_STAGES and thread_looks_like_negotiating(merged):
+        payload["list_id"] = "negotiating"
+        payload["moved_at"] = now_iso()
+        meta["promoted_negotiating"] = True
 
     stale_patch = stale_draft_clear_patch({**card, **payload}, merged)
     if stale_patch:
@@ -635,7 +728,8 @@ def fetch_thread(service: Any, thread_id: str, *, mailbox: str = "") -> list[dic
             userId="me",
             id=thread_id,
             format="full",
-            fields="messages(id,threadId,snippet,payload(headers,mimeType,body,parts))",
+            # labelIds: UNREAD / INBOX so operator-unseen can mirror Gmail read state
+            fields="messages(id,threadId,snippet,labelIds,payload(headers,mimeType,body,parts))",
         ).execute()
     except HttpError as exc:
         if gmail_http_status(exc) == 404:
@@ -758,9 +852,11 @@ def lookup_thread_id_by_email_multi(
             if tid and tid not in seen:
                 seen.add(tid)
                 thread_ids.append(tid)
-        for tid in thread_ids:
+        for tid in thread_ids[:12]:
             try:
                 fresh = fetch_thread(service, tid, mailbox=label)
+            except GmailRateLimited:
+                raise
             except Exception:
                 continue
             involved = [m for m in fresh if addr in message_contact_set(m)]
@@ -779,7 +875,10 @@ def fetch_thread_from_mailboxes(
     mailboxes: list[tuple[str, Any]],
     thread_id: str,
 ) -> tuple[list[dict[str, Any]], str, Any | None]:
-    """Return (messages, mailbox_label, service) from the first mailbox that has this thread."""
+    """Return merged messages from every mailbox that can see this Gmail thread."""
+    merged: list[dict[str, Any]] = []
+    labels: list[str] = []
+    primary_service: Any | None = None
     for label, service in mailboxes:
         try:
             fresh = fetch_thread(service, thread_id, mailbox=label)
@@ -787,9 +886,91 @@ def fetch_thread_from_mailboxes(
             raise
         except HttpError:
             continue
-        if fresh:
-            return fresh, label, service
-    return [], "", None
+        if not fresh:
+            continue
+        merged = merge_threads(merged, fresh)
+        labels.append(label)
+        if primary_service is None:
+            primary_service = service
+    primary_label = "+".join(labels) if len(labels) > 1 else (labels[0] if labels else "")
+    return merged, primary_label, primary_service
+
+
+def fetch_recent_sent_to_contact(
+    mailboxes: list[tuple[str, Any]],
+    contact_email: str,
+    *,
+    days: int = 21,
+    max_per_mailbox: int = 10,
+) -> list[dict[str, Any]]:
+    """Pull recent team outbound to a contact from every mailbox (Asher Sent, Robert Sent, etc.)."""
+    email = normalize_email(contact_email)
+    if not email or "@" not in email:
+        return []
+    merged: list[dict[str, Any]] = []
+    for label, service in mailboxes:
+        try:
+            hits = (
+                service.users()
+                .messages()
+                .list(
+                    userId="me",
+                    q=f"in:sent to:{email} newer_than:{int(days)}d",
+                    maxResults=max_per_mailbox,
+                )
+                .execute()
+                .get("messages", [])
+            )
+        except GmailRateLimited:
+            raise
+        except HttpError as exc:
+            if gmail_http_status(exc) == 429:
+                raise_if_rate_limited(exc, label)
+            continue
+        for hit in hits or []:
+            msg_id = str(hit.get("id") or "").strip()
+            if not msg_id:
+                continue
+            try:
+                msg = (
+                    service.users()
+                    .messages()
+                    .get(
+                        userId="me",
+                        id=msg_id,
+                        format="full",
+                        fields="id,threadId,snippet,payload(headers,mimeType,body,parts)",
+                    )
+                    .execute()
+                )
+            except GmailRateLimited:
+                raise
+            except HttpError:
+                continue
+            merged = merge_threads(merged, [format_message(msg)])
+    return merged
+
+
+def pull_card_thread(
+    mailboxes: list[tuple[str, Any]],
+    card: dict[str, Any],
+    thread_id: str,
+    *,
+    include_stored: bool = True,
+) -> tuple[list[dict[str, Any]], str]:
+    """Fetch a card's fullest Gmail view: linked thread + every mailbox's Sent lane."""
+    fresh, mailbox, _service = fetch_thread_from_mailboxes(mailboxes, thread_id)
+    card_email = card_external_email(card) or str(card.get("email") or "").strip()
+    sent_extra: list[dict[str, Any]] = []
+    if card_email:
+        sent_extra = fetch_recent_sent_to_contact(mailboxes, card_email)
+    seed = (card.get("email_thread") or card.get("original_email") or []) if include_stored else []
+    merged = merge_threads(seed, fresh)
+    if sent_extra:
+        merged = merge_threads(merged, sent_extra)
+    if card_email:
+        merged = slice_thread_for_contact(merged, card_email)
+    return merged, mailbox
 
 
 def match_cards_for_thread(
@@ -877,8 +1058,8 @@ def refresh_active_card_threads(
         if not thread_id:
             continue
         try:
-            fresh, mailbox, _service = fetch_thread_from_mailboxes(mailboxes, thread_id)
-            if not fresh:
+            merged, mailbox = pull_card_thread(mailboxes, card, thread_id)
+            if not merged:
                 continue
         except GmailRateLimited:
             raise
@@ -889,7 +1070,7 @@ def refresh_active_card_threads(
                 "error": str(exc)[:160],
             })
             continue
-        if not thread_matches_card(fresh, card):
+        if not thread_matches_card(merged, card):
             touched.append({
                 "id": card["id"],
                 "thread_id": thread_id,
@@ -897,10 +1078,6 @@ def refresh_active_card_threads(
                 "skipped": "identity_mismatch",
             })
             continue
-        merged = merge_threads(card.get("email_thread") or card.get("original_email") or [], fresh)
-        card_email = str(card.get("email") or "").strip()
-        if card_email:
-            merged = slice_thread_for_contact(merged, card_email)
         existing = normalize_thread_list(card.get("email_thread") or card.get("original_email"))
         existing_latest = latest_thread_timestamp(card)
         merged_latest = max((date_sort_value(m.get("date")) for m in merged), default=0.0)
@@ -1154,20 +1331,41 @@ def resolve_thread_id_for_card_multi(
     card: dict[str, Any],
     *,
     allow_email_lookup: bool = True,
+    all_mailboxes: list[tuple[str, Any]] | None = None,
 ) -> tuple[str, str, bool, str]:
     """Return (thread_id, source, stale_cleared, mailbox_label)."""
     stored_raw = str(card.get("gmail_thread_id") or "").strip()
     stored = normalize_stored_thread_id(stored_raw)
+    active_labels = {label for label, _service in mailboxes}
+    paused_labels = [
+        label for label, _service in (all_mailboxes or mailboxes)
+        if label not in active_labels
+    ]
+    stored_rows = normalize_thread_list(card.get("email_thread") or card.get("original_email"))
     stored_fresh, stored_mailbox, _ = fetch_thread_from_mailboxes(mailboxes, stored)
-    stored_matches = bool(stored_fresh and thread_matches_card(stored_fresh, card))
-    stale_cleared = bool(stored_raw and (stored_raw != stored or not stored_fresh or not stored_matches))
+    if stored and paused_labels and len(stored_rows) >= 5:
+        if stored_thread_is_stale_fork({**card, "email_thread": stored_rows}, stored_fresh):
+            return stored, "stored_paused_mailbox", False, paused_labels[0]
+        if not stored_fresh:
+            return stored, "stored_paused_mailbox", False, paused_labels[0]
+    stored_valid = bool(stored_fresh and thread_matches_card(stored_fresh, card))
+    stored_fork = stored_valid and stored_thread_is_stale_fork(card, stored_fresh)
+    stale_cleared = bool(
+        stored_raw
+        and (
+            stored_raw != stored
+            or not stored_fresh
+            or not stored_valid
+            or stored_fork
+        )
+    )
 
     best_tid = ""
     best_source = ""
     best_mailbox = ""
     best_score = (-1.0, -1)
 
-    if stored_matches:
+    if stored_valid and not stored_fork:
         latest = max(date_sort_value(m.get("date")) for m in stored_fresh)
         best_tid = stored
         best_source = "stored"
@@ -1175,7 +1373,7 @@ def resolve_thread_id_for_card_multi(
         best_score = (latest, len(stored_fresh))
 
     email = card_external_email(card)
-    if allow_email_lookup and email:
+    if allow_email_lookup and email and (not best_tid or stored_fork):
         discovered, discovered_mailbox = lookup_thread_id_by_email_multi(mailboxes, email)
         if discovered:
             fresh, _, _ = fetch_thread_from_mailboxes(mailboxes, discovered)
@@ -1187,6 +1385,13 @@ def resolve_thread_id_for_card_multi(
                     best_source = "email_lookup"
                     best_mailbox = discovered_mailbox
                     best_score = score
+
+    if not best_tid and stored_valid:
+        latest = max(date_sort_value(m.get("date")) for m in stored_fresh)
+        best_tid = stored
+        best_source = "stored_fork"
+        best_mailbox = stored_mailbox
+        best_score = (latest, len(stored_fresh))
 
     return best_tid, best_source, stale_cleared, best_mailbox
 
@@ -1504,7 +1709,12 @@ def _sync_single_card_patch(
 
 
 def _sync_single_card_impl(card_id: str | int) -> dict[str, Any]:
-    mailboxes, blocked_retries = filter_available_mailboxes(load_gmail_mailboxes(interactive=False))
+    all_mailboxes = load_gmail_mailboxes(interactive=False)
+    mailboxes, blocked_retries = filter_available_mailboxes(all_mailboxes)
+    blocked_labels = [
+        label for label, _service in all_mailboxes
+        if label not in {active_label for active_label, _ in mailboxes}
+    ]
     if not mailboxes:
         return rate_limited_result(min(blocked_retries) if blocked_retries else "")
     rows = supabase_get(
@@ -1521,7 +1731,25 @@ def _sync_single_card_impl(card_id: str | int) -> dict[str, Any]:
         mailboxes,
         card,
         allow_email_lookup=True,
+        all_mailboxes=all_mailboxes,
     )
+    if source == "stored_paused_mailbox" and blocked_retries:
+        retry_after = min(blocked_retries)
+        blocked_note = f" ({', '.join(blocked_labels)})" if blocked_labels else ""
+        return {
+            **rate_limited_result(retry_after),
+            "error": (
+                "This thread lives in a paused inbox"
+                + blocked_note
+                + " — try again"
+                + (f" after {retry_after}" if retry_after else " in a few minutes")
+                + "."
+            ),
+            "card_id": card["id"],
+            "thread_id": thread_id,
+            "thread_source": source,
+            "mailboxes_blocked": blocked_labels,
+        }
     if stale_cleared and not thread_id:
         supabase_patch(card["id"], {
             "gmail_thread_id": "",
@@ -1539,8 +1767,11 @@ def _sync_single_card_impl(card_id: str | int) -> dict[str, Any]:
         }
     if not thread_id:
         return {"ok": False, "error": "No Gmail thread linked to this lead yet. Run a full Gmail sync first."}
-    fresh, mailbox, _service = fetch_thread_from_mailboxes(mailboxes, thread_id)
-    if not fresh:
+    try:
+        merged, mailbox = pull_card_thread(mailboxes, card, thread_id)
+    except GmailRateLimited as exc:
+        return rate_limited_result(exc.retry_after)
+    if not merged:
         if source == "stored":
             supabase_patch(card["id"], {"gmail_thread_id": ""})
         return {
@@ -1549,10 +1780,40 @@ def _sync_single_card_impl(card_id: str | int) -> dict[str, Any]:
             "stale_thread_cleared": source == "stored",
             "previous_thread_id": stored_thread,
         }
-    merged = merge_threads(card.get("email_thread") or card.get("original_email") or [], fresh)
-    card_email = str(card.get("email") or "").strip()
-    if card_email:
-        merged = slice_thread_for_contact(merged, card_email)
+    existing_thread = card.get("email_thread") or card.get("original_email") or []
+    gained = thread_gained_messages(existing_thread, merged)
+    if not gained and blocked_retries:
+        retry_after = min(blocked_retries)
+        blocked_note = f" ({', '.join(blocked_labels)})" if blocked_labels else ""
+        return {
+            **rate_limited_result(retry_after),
+            "error": (
+                "Gmail refresh could not reach all inboxes"
+                + blocked_note
+                + ". New messages may only be in a paused mailbox — try again"
+                + (f" after {retry_after}" if retry_after else " in a few minutes")
+                + "."
+            ),
+            "unchanged": True,
+            "card_id": card["id"],
+            "thread_id": thread_id,
+            "thread_source": source,
+            "messages": len(merged),
+            "mailboxes_blocked": blocked_labels,
+        }
+    if not gained:
+        return {
+            "ok": True,
+            "unchanged": True,
+            "card_id": card["id"],
+            "thread_id": thread_id,
+            "thread_source": source,
+            "mailbox": mailbox,
+            "stale_thread_cleared": stale_cleared,
+            "business": card.get("business_name") or card.get("title"),
+            "messages": len(merged),
+            "note": "Thread already matches the mailboxes we could reach.",
+        }
     return _sync_single_card_patch(
         card,
         merged,

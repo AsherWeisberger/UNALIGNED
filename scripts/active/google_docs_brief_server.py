@@ -33,7 +33,7 @@ from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from urllib import request, error
-from urllib.parse import parse_qs, quote, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlencode, urlparse
 
 import google.auth.transport.requests
 from google.oauth2.credentials import Credentials
@@ -68,11 +68,11 @@ OPENCODE_CONFIG_FILE = Path.home() / ".config" / "opencode" / "opencode.json"
 HERMES_ENV_FILE = Path.home() / ".hermes" / ".env"
 DEFAULT_LLM_TARGETS = [
     {"base_url": "http://127.0.0.1:8642/v1", "model": "hermes-agent", "label": "Hermes API Qwen 3.6 35B", "auth": "hermes"},
-    {"base_url": "http://127.0.0.1:11434/v1", "model": "qwen2.5:32b-instruct", "label": "Ollama Qwen 2.5 32B Instruct"},
+    {"base_url": "http://127.0.0.1:11434/v1", "model": "qwen3.8:27b-mlx", "label": "Ollama Qwen 3.8 27B Q8 MTP"},
 ]
 PREFERRED_LOCAL_MODELS = [
     ("http://127.0.0.1:8642/v1", "hermes-agent"),
-    ("http://127.0.0.1:11434/v1", "qwen2.5:32b-instruct"),
+    ("http://127.0.0.1:11434/v1", "qwen3.8:27b-mlx"),
 ]
 ALLOWED_ORIGINS = {
     "https://asherweisberger.github.io",
@@ -92,7 +92,7 @@ LOCAL_BRIEF_SKIP_DRAFTS = str(os.environ.get("LOCAL_BRIEF_SKIP_DRAFTS") or "0").
 # time to read a long source doc and write 1800-2200 tokens of JSON. When it timed
 # out the brief fell back to mechanically stitching the source doc's own sentences
 # (repetitive, source-leaking drafts). 150s gives cold-start + long-output headroom.
-LOCAL_BRIEF_LLM_TIMEOUT_SEC = max(15, int(os.environ.get("LOCAL_BRIEF_LLM_TIMEOUT_SEC") or "150"))
+LOCAL_BRIEF_LLM_TIMEOUT_SEC = max(15, int(os.environ.get("LOCAL_BRIEF_LLM_TIMEOUT_SEC") or "360"))
 NOTION_BRIEF_CACHE_TTL_SEC = max(60, int(os.environ.get("NOTION_BRIEF_CACHE_TTL_SEC") or "3600"))
 NOTION_CACHE_DIR = STATE_DIR / "notion-brief-cache"
 
@@ -113,7 +113,7 @@ from robert_handoff_operator import (  # type: ignore
     mark_x_asset_sent as mark_robert_x_asset_sent,
 )
 from x_dm_draft import draft_x_dm_reply_for_lead  # type: ignore
-from x_dm_send import send_x_dm_request  # type: ignore
+from x_dm_send import read_x_dm_outbound_audit, send_x_dm_request  # type: ignore
 from brief_draft_rewrite import (  # type: ignore
     MEDIA_PRODUCTION_MIN_PRICE,
     PRODUCTION_ADDON_NAME,
@@ -405,6 +405,15 @@ def safe_static_path(request_path: str) -> Path | None:
         resolved.relative_to(WEB_ROOT.resolve())
     except ValueError:
         return None
+    if resolved.is_dir():
+        index = (resolved / "index.html").resolve()
+        try:
+            index.relative_to(WEB_ROOT.resolve())
+        except ValueError:
+            return None
+        if index.is_file():
+            return index
+        return None
     if not resolved.is_file():
         return None
     return resolved
@@ -507,12 +516,7 @@ def load_drive_service(interactive: bool = True):
 
 
 def _docx_bytes_to_lines(data: bytes) -> list[str]:
-    """Extract readable text from a .docx (a zip of XML) without extra dependencies.
-
-    Handles tables and structured-document-tag fields cleanly by turning paragraph
-    and row boundaries into line breaks, then stripping every XML tag so only the
-    text nodes remain (no leaked markup).
-    """
+    """Legacy .docx extractor (zip/XML). Prefer _anydoc_bytes_to_lines when available."""
     import io
     import zipfile
 
@@ -536,6 +540,20 @@ def _docx_bytes_to_lines(data: bytes) -> list[str]:
     return lines
 
 
+def _anydoc_bytes_to_lines(data: bytes, name: str = "", mime: str = "") -> list[str] | None:
+    """Convert office/PDF bytes → clean text lines via Firecrawl anydoc (Rust).
+
+    Shared implementation: scripts/active/anydoc_intake.py
+    https://github.com/firecrawl/anydoc
+    """
+    try:
+        from anydoc_intake import bytes_to_lines as _anydoc_lines
+    except Exception as exc:
+        brief_log(f"anydoc_intake import failed: {exc}")
+        return None
+    return _anydoc_lines(data, name=name, mime=mime, log=brief_log)
+
+
 def _public_drive_download(file_id: str) -> bytes:
     """Download a link-shared Drive file with no auth, the same way a browser would."""
     url = f"https://drive.google.com/uc?export=download&id={file_id}"
@@ -557,7 +575,22 @@ def _public_drive_download(file_id: str) -> bytes:
 
 
 def _bytes_to_lines(data: bytes, name: str = "", mime: str = "") -> list[str]:
-    if data[:2] == b"PK" or "wordprocessingml" in mime or name.lower().endswith(".docx"):
+    """Bytes → text lines for brief source intake.
+
+    Prefer Firecrawl anydoc (PDF/DOCX/PPTX/XLSX/ODT/RTF/EPUB/CSV, sub-5ms).
+    Fall back to legacy docx XML stripper, then plain UTF-8.
+    """
+    anydoc_lines = _anydoc_bytes_to_lines(data, name=name, mime=mime)
+    if anydoc_lines:
+        return anydoc_lines
+    lower = (name or "").lower()
+    mime_l = (mime or "").lower()
+    if (
+        data[:2] == b"PK"
+        or "wordprocessingml" in mime_l
+        or lower.endswith(".docx")
+        or lower.endswith(".docm")
+    ):
         return _docx_bytes_to_lines(data)
     try:
         return [line(item) for item in data.decode("utf-8", "ignore").splitlines() if line(item)]
@@ -570,7 +603,7 @@ def drive_file_to_source(file_id: str) -> dict:
 
     Tries the authorized Drive API first (works for files shared to the account),
     then a public link download (works for 'anyone with the link' files). Handles
-    uploaded Word files (.docx) without extra dependencies.
+    uploaded Word/PDF/PPT/Excel via anydoc when installed.
     """
     name = "Robert Brief"
     mime = ""
@@ -929,6 +962,8 @@ def load_local_llm_targets() -> list[dict]:
     hermes_model = ""
     if "hermes-agent" in hermes_models:
         hermes_model = "hermes-agent"
+    elif "qwen3.8:27b-mlx" in hermes_models:
+        hermes_model = "qwen3.8:27b-mlx"
     elif "qwen3.6:35b-a3b" in hermes_models:
         hermes_model = "qwen3.6:35b-a3b"
 
@@ -1014,6 +1049,8 @@ House rules:
 - Match locked client accuracy language word for word.
 - Every draft must be fully written. No empty drafts. No placeholders.
 - Extract 8 to 14 source facts before writing. Keep company claims and paper reported results qualified.
+- Prefer concrete mechanics, numbers, named products, contrasts, and audience claims over vague marketing.
+- Each source fact should be one complete sentence a writer can drop into a post without rewriting.
 - Set creator_experience_confirmed true only when the source explicitly says Robert personally tested, used, built, tried, watched, or attended it. Suggested first person copy is not proof.
 - Record a missing critical field instead of inventing it.
 - Missing critical fields are only items required to execute the selected deliverable. Optional assets, repositories, weights, secondary links, and claims Robert can omit belong in open questions, not missing critical fields.
@@ -1076,7 +1113,7 @@ FOLLOW THE SOURCE. If the brief or the sponsor email states a tone, a style, or 
 
 Hard bans (not his voice, and most briefs ban them too): "excited to share", "game-changer", exclamation-heavy hype, PR speak, slogans, and feature bullet lists that read like a product sheet.
 
-Vary the metaphor and the angle across the three options so they never blur together.
+Write one post. Not three options.
 
 Return valid JSON only. No markdown fence. No explanation.
 No hyphens or em dashes anywhere.
@@ -1090,9 +1127,7 @@ Return exactly this JSON:
 {{
   "why_alignednews": "",
   "drafts": [
-    {{"label": "Option 1. Recommended", "text": ""}},
-    {{"label": "Option 2. Technical angle", "text": ""}},
-    {{"label": "Option 3. Market angle", "text": ""}}
+    {{"label": "THE POST", "text": ""}}
   ]
 }}
 
@@ -1101,8 +1136,7 @@ Rules:
   Main post:
   Reply 1:
   Reply 2:
-- Option 1 should be the strongest and most post ready.
-- Each option must use a genuinely different framing AND different proof points. The three must not blur together.
+- One framing. One tell. Finished copy Robert can paste.
 - Do not lean on a single recurring image or prop across the options. Never reuse the same physical hook (for example a laptop sleeping, closing the lid, the screen, or wifi) in more than one option, and prefer not to use that tired laptop framing at all. Reach for the real distinction instead: session bound vs persistent, babysat vs unattended, one machine vs dedicated per agent, forgets vs remembers, runs only when watched vs runs on its own.
 - Default to tight copy: a few short lines per option, not several long paragraphs, unless the deliverable is explicitly a long thread.
 - Do not mention AlignedNews.com in any draft option.
@@ -1173,7 +1207,7 @@ Source text:
 
 
 def llm_prompt_for_drafts_v2(source: dict, base_payload: dict) -> str:
-    """Universal writer prompt. The selected deliverable controls the output shape."""
+    """One paste ready Robert post. Thread only when that is the deliverable."""
     company = line(base_payload.get("company_name")) or "the company"
     product = line(base_payload.get("product_name")) or company
     deliverable = line(base_payload.get("deliverable_type"))
@@ -1181,7 +1215,7 @@ def llm_prompt_for_drafts_v2(source: dict, base_payload: dict) -> str:
     must = base_payload.get("must_include") or {}
     facts = source_facts_for_drafting(base_payload, limit=14)
     fact_lines = "\n".join(f"F{idx + 1}: {fact}" for idx, fact in enumerate(facts))
-    source_text = str(source.get("source_text") or "")[:24000]
+    source_text = str(source.get("source_text") or "")[:9000]
     accuracy = "\n".join(
         f"- {line(item)}"
         for item in (base_payload.get("accuracy_requirements") or base_payload.get("angles_or_accuracy_requirements") or [])[:10]
@@ -1194,98 +1228,110 @@ def llm_prompt_for_drafts_v2(source: dict, base_payload: dict) -> str:
     ])
     format_rules = {
         "quote_repost": (
-            "Write an original QRT reaction of 35 to 90 words. Add a thesis or category insight. "
-            "Do not summarize the launch post and do not include Main post or Reply labels."
+            "Write ONE original QRT reaction. 35 to 90 words. Add a thesis. "
+            "Do not summarize the launch post. Do not include Main post or Reply labels."
         ),
         "custom_x": (
-            "Write a substantive standalone X post of 65 to 130 words. Use at least two source facts. "
-            "Build one clear thesis, proof, why it matters, then a natural CTA."
+            "Write ONE standalone X post Robert can paste. Short paragraphs. One tell. "
+            "Required handle and link in a natural close."
         ),
         "narrative_thread": (
-            "Write a complete three part X thread. Use exactly these labels: Main post:, Reply 1:, Reply 2:. "
-            "The main post states the thesis. Reply 1 explains the mechanism or proof. Reply 2 gives the implication and CTA."
+            "Write ONE complete X thread of 3 tweets. Put 1/ 2/ 3/ on their own lines, the way Robert actually posts. "
+            "1/ is the tell. 2/ is the mechanism in spoken English. 3/ is what it can do plus required tag and link. Do not use Main post or Reply labels. Those look like a brief."
         ),
         "linkedin": (
-            "Write a finished LinkedIn post of 110 to 220 words. Use short paragraphs, a clear thesis, "
-            "at least two source facts, the market or operator implication, and a natural close. Do not write X shorthand."
+            "Write ONE finished LinkedIn post. Short paragraphs, a clear thesis, "
+            "at least two source facts, and a natural close. Do not write X shorthand."
         ),
         "amplification_x": (
-            "Write a concise Amplification X reaction of 35 to 85 words for the supplied launch post. "
-            "Add Robert's source grounded take rather than repeating the announcement. Do not invent an anchor URL."
+            "Write ONE concise Amplification X reaction of 35 to 85 words. "
+            "Add Robert's source grounded take. Do not invent an anchor URL."
         ),
         "founder_video": (
-            "Write a 30 to 60 second on camera plan. Use exactly these labels: On camera hook:, Talking points:, "
-            "Closing line:, Caption:. The spoken section needs at least two source facts. The caption carries required links and handles."
+            "Write ONE 30 to 60 second on camera plan. Use exactly these labels: On camera hook:, Talking points:, "
+            "Closing line:, Caption:. The caption carries required links and handles."
         ),
         "x_space": (
-            "Write host notes for an X Space, not social post copy. Use exactly these labels: Opening:, Question arc:, Closing:. "
-            "Include six specific questions grounded in the source, including mechanism, limits, adoption, and what comes next."
+            "Write ONE set of host notes for an X Space. Use exactly these labels: Opening:, Question arc:, Closing:."
         ),
         "interview": (
-            "Write a one hour interview run of show, not social post copy. Use exactly these labels: Opening:, Question arc:, Closing:. "
-            "Include eight specific questions covering founder story, product mechanism, evidence, limitations, market impact, and next steps."
+            "Write ONE interview run of show. Use exactly these labels: Opening:, Question arc:, Closing:."
         ),
-        "retweet": "Return no social copy. The deterministic Brief Maker creates the three retweet steps.",
-        "unknown": "Do not draft. The deliverable must be selected or reliably detected first.",
+        "retweet": "Return no social copy. The deterministic Brief Maker creates the retweet steps.",
+        "unknown": "Do not draft. The deliverable must be selected first.",
     }[profile["key"]]
-    return f"""You write campaign deliverables for Robert Scoble from an approved source fact set.
+    experience = str(bool(base_payload.get("creator_experience_confirmed") or (base_payload.get("sender_intelligence") or {}).get("creator_experience_confirmed"))).lower()
+    demo_story = line((source.get("sender_intelligence") or {}).get("demo_story")) or line((base_payload.get("sender_intelligence") or {}).get("demo_story"))
+    return f"""You write ONE paste ready post in Robert Scoble's real X voice as @scobleizer.
 
 Selected deliverable: {profile['label']}
 Company: {company}
 Product or release: {product}
 
-FORMAT CONTRACT
+FORMAT
 {format_rules}
 
-ROBERT HOUSE STYLE
-- Lead with a high information observation, contrast, or market signal.
-- Name the larger category shift, then explain the mechanism that makes it credible.
-- Sound curious, technically literate, direct, and willing to take a position.
-- Use short paragraphs and clean sentences.
-- Specific first, excited second. Never sound like a press release.
-- Use structural moves like "The interesting part is" or "The bigger story is" only when they fit. They are not required catchphrases.
+VOICE (this is the job)
+The output must look like Robert dashed it off himself. Not a bot. Not an agency brief. Not UNALIGNED scaffolding.
+Gold standard paid post: "The tell is non-verbal audio. Laughing, crying, yawning. Every other avatar model tries to lip-sync through a laugh. That's the difference between an avatar and a twin."
+How he actually talks:
+- First person, in scene, present tense. Diary entry.
+- Lead with ONE concrete tell: a number, a contrast, a behavior. "The part that got me is..."
+- Short paragraphs. One idea per line. Punchy last line.
+- Slightly messy is good. Spoken, not edited for brand.
+- Tags people and products as if they are in the room. No hashtag soup.
+- Words he uses: magic, stunning, bullish, blessed, iPhone moment, nerdy.
+- Words he never uses: excited to announce, game changer, let's dive in, 3 reasons, here's why this matters, super excited to partner, that system is.
+
+HOW TO EXPLAIN A PRODUCT (depth without a spec dump)
+- Tweet or beat 1: the tell. One demo. One number. Why it got him.
+- Tweet or beat 2: the mechanism in spoken English. If they named a method, write "They call that NAME." then translate it. Example: "They call that TEMPO. One model playing both actor and critic. It pauses mid thought and asks if it is actually making progress."
+- Do NOT unpack paper acronyms. TEMPO stays TEMPO. Never write the expansion.
+- Tweet or beat 3: what it can actually do in the world, then the required tag and link.
+- Hit every real capability in the source (critic, learning, tools, multimodal), not just the wow demo plus a parameter list.
+- Specs (280B, 16B, 512K) belong in one spoken sentence, not as their own tweet.
+- If the client pasted an 8 tweet brand example, rewrite it into 3 tweets in his voice. Never paste their script.
+- If the brief has stills or charts, write as if those stills sit under the matching tweet. Talk about what the still shows. Do not write "see image 2" or "use the stills from the brief" inside the post.
 
 HARD RULES
-- Use only the source facts below. Preserve numbers, names, technical terms, and qualifications exactly.
-- Every option must use the minimum number of source facts required by the format.
-- Never invent facts, links, handles, dates, numbers, repositories, rankings, customers, comparisons, or consensus.
-- Never say I tried, I used, I asked, I built, I tested, I saw, or equivalent unless creator_experience_confirmed is true.
-- Suggested first person hooks in a creator brief are not proof of experience.
-- No recycled Robert templates, empty rhetorical questions, generic hype, PR language, feature dumps, or source headings.
-- Do not use: game changer, revolutionary, everyone is talking about this, must see, the future is here.
-- No hyphens or em dashes as punctuation.
-- Include each required handle, link, disclosure phrase, and hashtag exactly when supplied.
-- Keep logistics, dates, posting windows, and approval notes out of publishable copy.
-- Make the options genuinely different in thesis and fact combination, not synonym swaps.
+- Write exactly ONE draft. Not three. Not options. Not a menu.
+- Use only the source facts. Preserve numbers, names, and qualifications.
+- Never invent facts, links, handles, dates, customers, or rankings.
+- Never say I tried, I used, I tested, I built, I was at the launch, unless CREATOR EXPERIENCE CONFIRMED is true.
+- "I went through the demos" or "I watched two runs" is allowed when the source has demos. That is watching, not fake hands on.
+- If SENDER DEMO CONTEXT is present, that story is the lead.
+- No hyphens, em dashes, or en dashes as punctuation. Official product names that already contain a hyphen may keep that spelling. Write "mid thought" not "mid-thought".
+- Include each required handle and link in a natural close. No hashtag soup unless the source requires a specific hashtag.
+- Keep logistics, dates, posting windows, approval notes, Format, Must include, Media note, Go live, and Verify Y/N out of the post.
+- Do not mention AlignedNews.
+- Do not write Paid Partnership, sponsored, ad disclosure, or toggle instructions anywhere in the post. Never. That is not his voice and it is not for the client doc.
+- Do not write "hey zoe" or account manager notes into the post body. The post is what goes on X.
+
+CREATOR EXPERIENCE CONFIRMED
+{experience}
+
+SENDER DEMO CONTEXT
+{demo_story or "(none)"}
 
 REQUIRED ITEMS
 {required}
 
 ACCURACY AND GUARDRAILS
-{accuracy or '- None supplied'}
-
-CREATOR EXPERIENCE CONFIRMED
-{str(bool(base_payload.get('creator_experience_confirmed') or (base_payload.get('sender_intelligence') or {}).get('creator_experience_confirmed'))).lower()}
+{accuracy or "- None supplied"}
 
 SOURCE FACT SET
-{fact_lines or 'No usable source facts were extracted. Return missing_source_facts instead of drafting.'}
+{fact_lines or "No usable source facts were extracted. Return missing_source_facts true instead of drafting."}
 
 RAW SOURCE BACKUP
 {source_text}
 
-Return valid JSON only:
+Return valid JSON only. No markdown fence.
 {{
   "missing_source_facts": false,
   "drafts": [
-    {{"label": "Option 1. Recommended", "angle": "", "facts_used": ["F1", "F2"], "text": ""}},
-    {{"label": "Option 2. Technical angle", "angle": "", "facts_used": ["F2", "F3"], "text": ""}},
-    {{"label": "Option 3. Market angle", "angle": "", "facts_used": ["F3", "F4"], "text": ""}},
-    {{"label": "Candidate 4", "angle": "", "facts_used": [], "text": ""}},
-    {{"label": "Candidate 5", "angle": "", "facts_used": [], "text": ""}}
+    {{"label": "THE POST", "angle": "the tell", "facts_used": ["F1", "F2"], "text": ""}}
   ]
 }}
-
-Put the strongest candidate first. Return five candidates so the quality gate can reject weak ones and still keep three.
 """
 
 
@@ -1305,7 +1351,10 @@ def query_local_brief_json(
         if not base_url or not model:
             continue
         try:
-            request_timeout = LOCAL_BRIEF_LLM_TIMEOUT_SEC if "127.0.0.1:8642" in base_url else min(LOCAL_BRIEF_LLM_TIMEOUT_SEC + 15, 60)
+            # Every local backend gets the full budget. The old 60s cap on the
+            # Ollama fallback guaranteed a timeout for long draft generations,
+            # which silently produced source-stitched briefs.
+            request_timeout = LOCAL_BRIEF_LLM_TIMEOUT_SEC
             brief_log(f"{stage_label}: calling {target.get('label') or model}")
             payload = {
                 "model": model,
@@ -1346,7 +1395,7 @@ def query_local_brief_model(source: dict) -> dict | None:
 
 
 def query_local_brief_drafts(source: dict, base_payload: dict) -> dict | None:
-    set_brief_job_stage("writing_drafts", "Writing draft options")
+    set_brief_job_stage("writing_drafts", "Writing the post")
     profile = deliverable_profile(line(base_payload.get("deliverable_type")))
     if profile["key"] in {"retweet", "unknown"}:
         return None
@@ -1354,10 +1403,10 @@ def query_local_brief_drafts(source: dict, base_payload: dict) -> dict | None:
     return query_local_brief_json(
         prompt=prompt,
         system_prompt=(
-            "You are the format aware Robert Scoble campaign writer. Use only the supplied "
-            "source fact set, obey the selected deliverable contract exactly, and return strict JSON only."
+            "You are Robert Scoble's campaign writer. Return ONE paste ready post in his real X voice. "
+            "Use only the supplied source fact set. Strict JSON only. Never return three options."
         ),
-        max_tokens=4200,
+        max_tokens=3200,
         stage_label="brief-drafts",
     )
 
@@ -1369,35 +1418,136 @@ def query_local_brief_draft_repair(
     *,
     repair_round: int,
 ) -> dict | None:
-    failures = [
-        {
-            "label": line(item.get("label")),
-            "failures": item.get("failures") or [],
-            "word_count": item.get("word_count"),
-            "fact_hits": item.get("fact_hits"),
+    """Rewrite only failed options. Passing drafts stay untouched (faster, less drift)."""
+    drafts = [item for item in (base_payload.get("drafts") or []) if isinstance(item, dict)]
+    failed: list[dict] = []
+    kept: list[dict] = []
+    for idx, report in enumerate(reports):
+        draft = drafts[idx] if idx < len(drafts) else {}
+        label = line(report.get("label")) or line(draft.get("label")) or f"Option {idx + 1}"
+        entry = {
+            "index": idx,
+            "label": label,
+            "text": clean_draft_text(draft.get("text") or ""),
+            "failures": report.get("failures") or [],
+            "word_count": report.get("word_count"),
+            "fact_hits": report.get("fact_hits"),
         }
-        for item in reports
-        if not item.get("ok")
-    ]
-    if not failures:
+        if report.get("ok"):
+            kept.append({"index": idx, "label": label, "text": entry["text"]})
+        else:
+            failed.append(entry)
+    # Also treat missing slots as failures when we have fewer drafts than needed.
+    profile = deliverable_profile(line(base_payload.get("deliverable_type")))
+    expected = 1
+    while len(drafts) + len([f for f in failed if f["index"] >= len(drafts)]) < expected and len(failed) < expected:
+        idx = len(drafts) + sum(1 for f in failed if f["index"] >= len(drafts))
+        if any(f["index"] == idx for f in failed):
+            break
+        failed.append({
+            "index": idx,
+            "label": f"Option {idx + 1}",
+            "text": "",
+            "failures": ["missing option"],
+            "word_count": 0,
+            "fact_hits": 0,
+        })
+    if not failed:
         return None
-    set_brief_job_stage("repairing_drafts", f"Repairing weak drafts, pass {repair_round}")
+    set_brief_job_stage(
+        "polishing_drafts",
+        f"Polishing the post",
+    )
     prompt = llm_prompt_for_drafts_v2(source, base_payload)
     prompt += (
-        "\n\nQUALITY GATE FAILURES FROM THE PREVIOUS ATTEMPT\n"
-        + json.dumps(failures, ensure_ascii=False, indent=2)
-        + "\n\nRewrite the candidate set completely. Fix every listed failure. "
-          "Do not explain the repairs. Return the same JSON shape with five new candidates."
+        "\n\nTARGETED REPAIR — DO NOT REWRITE PASSING OPTIONS\n"
+        "The quality gate already accepted these. Leave them alone:\n"
+        + json.dumps(kept, ensure_ascii=False, indent=2)
+        + "\n\nREWRITE ONLY THE FAILED OPTIONS BELOW.\n"
+          "Fix every listed failure for that option. Keep the same label when provided. "
+          "Return ONLY the repaired options (not the full set).\n"
+        + json.dumps(failed, ensure_ascii=False, indent=2)
+        + "\n\nReturn valid JSON only:\n"
+          "{\n"
+          '  "drafts": [\n'
+          '    {"index": 0, "label": "Option N", "angle": "", "facts_used": ["F1"], "text": ""}\n'
+          "  ]\n"
+          "}\n"
+          "Return one repaired candidate per failed index. You may add one extra spare candidate "
+          "with index -1 if helpful."
     )
     return query_local_brief_json(
         prompt=prompt,
         system_prompt=(
-            "You repair campaign drafts against deterministic failures. Use only the supplied source facts, "
-            "obey the selected deliverable format, and return strict JSON only."
+            "You surgically repair the one failed post. Never invent extra options. "
+            "Use only the supplied source facts, obey the selected deliverable format, "
+            "and return strict JSON only with the repaired options."
         ),
-        max_tokens=4200,
+        max_tokens=2200,
         stage_label=f"brief-draft-repair-{repair_round}",
     )
+
+
+def merge_repaired_drafts(base: dict, repaired_payload: dict | None, reports: list[dict]) -> dict:
+    """Keep passing drafts; replace failed slots with repaired candidates."""
+    if not repaired_payload:
+        return base
+    merged = dict(base)
+    existing = [dict(item) for item in (merged.get("drafts") or []) if isinstance(item, dict)]
+    profile = deliverable_profile(line(merged.get("deliverable_type")))
+    expected = 1
+    # Pad existing to cover report indices.
+    while len(existing) < max(len(reports), expected):
+        existing.append({"label": f"Option {len(existing) + 1}", "text": ""})
+
+    repaired_items = [
+        item for item in (repaired_payload.get("drafts") or [])
+        if isinstance(item, dict) and clean_draft_text(item.get("text") or "")
+    ]
+    by_index: dict[int, dict] = {}
+    spares: list[dict] = []
+    for item in repaired_items:
+        text_value = clean_draft_text(item.get("text") or "")
+        if not text_value or draft_looks_instructional(text_value):
+            continue
+        candidate = {
+            "label": line(item.get("label")) or "Option",
+            "text": text_value,
+            "angle": line(item.get("angle")),
+            "facts_used": [line(value) for value in (item.get("facts_used") or []) if line(value)],
+        }
+        raw_idx = item.get("index")
+        try:
+            idx = int(raw_idx)
+        except (TypeError, ValueError):
+            idx = -1
+        if idx >= 0:
+            by_index[idx] = candidate
+        else:
+            spares.append(candidate)
+
+    for idx, report in enumerate(reports):
+        if report.get("ok") and line((existing[idx] if idx < len(existing) else {}).get("text")):
+            continue
+        if idx in by_index:
+            existing[idx] = by_index[idx]
+        elif spares:
+            existing[idx] = spares.pop(0)
+
+    # Drop empty trailing slots, keep order, fill gaps with any leftover spares.
+    cleaned: list[dict] = []
+    for item in existing:
+        if line(item.get("text")):
+            cleaned.append(item)
+    while len(cleaned) < expected and spares:
+        cleaned.append(spares.pop(0))
+    if cleaned:
+        merged["drafts"] = cleaned[: max(expected + 1, len(cleaned))]
+        merged["drafts_source"] = "llm_drafts_targeted_repair"
+    local_model = repaired_payload.get("_local_model")
+    if local_model:
+        merged["local_model"] = local_model
+    return merged
 
 
 def merge_brief_payload(base: dict, llm_payload: dict | None) -> dict:
@@ -1767,12 +1917,29 @@ def strip_hyphens_from_label(text: str) -> str:
     return out
 
 
+# Source-brief and internal URLs that must NEVER appear in published draft copy.
+_FORBIDDEN_COPY_URL_RE = re.compile(
+    r"https?://\S*(?:notion\.(?:so|site|com)|docs\.google\.com|drive\.google\.com|fillout\.com)\S*",
+    re.I,
+)
+
+
+def strip_source_urls_from_copy(text: str) -> str:
+    """Remove Notion/Docs/Drive/Fillout links (the source brief) from post copy."""
+    cleaned = _FORBIDDEN_COPY_URL_RE.sub("", str(text or ""))
+    # tidy the whitespace/punctuation the removed URL leaves behind
+    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    cleaned = re.sub(r"[ \t]+\n", "\n", cleaned)
+    return cleaned.strip()
+
+
 def polish_robert_draft_item(draft: dict) -> dict:
     if not isinstance(draft, dict):
         return draft
     out = dict(draft)
     if line(out.get("text")):
-        out["text"] = strip_hyphens_from_copy(str(out.get("text") or ""))
+        out["text"] = strip_hyphens_from_copy(strip_source_urls_from_copy(str(out.get("text") or "")))
     if line(out.get("label")):
         out["label"] = strip_hyphens_from_label(line(out.get("label")))
     if line(out.get("reach_reason")):
@@ -1843,7 +2010,7 @@ def rewrite_standalone_draft_text(text: str, *, company: str = "", topic: str = 
     out = re.sub(r"\(\s*" + re.escape(topic) + r"\s*\)\s*$", "", out, flags=re.I)
     out = re.sub(r"\s+", " ", out).strip()
     if len(out) < 40:
-        out = f"The interesting part of {company} is the underlying {topic} mechanism, not the launch headline."
+        out = f"{company} is doing something more specific than the launch line suggests around {topic}."
     if reply_note:
         out = f"{out}\n\n{reply_note}".strip()
     return out
@@ -1932,12 +2099,10 @@ def finalize_drafts_for_agency(payload: dict) -> dict:
             "anchor": line(top_scored.get("anchor")),
             "plain_summary": plain_reach_summary(top_scored),
         }
-    for idx, draft in enumerate(drafts[:3], start=1):
-        rest = normalize_draft_option_label(line(draft.get("label")), idx)
-        suffix = " (Recommended)" if idx == 1 else ""
-        draft["label"] = f"Option {idx}. {rest}{suffix}"
     if drafts:
-        merged["drafts"] = [polish_robert_draft_item(item) for item in drafts[:3]]
+        draft = dict(drafts[0])
+        draft["label"] = "THE POST"
+        merged["drafts"] = [polish_robert_draft_item(draft)]
         if merged.get("drafts_source") == "x_signal_partnership":
             top = drafts[0]
             merged["recommended_reach"] = {
@@ -4605,12 +4770,14 @@ def build_structured_brief_payload(
         limit=5,
     )
     asset_lines = [item for item in asset_lines if "guardrails" not in item.lower()]
+    # The link that goes in published copy is a clean external website only.
+    # NEVER fall back to source_url — that is the Notion/Docs brief link, which
+    # must never appear in a post. If there is no real site link, leave it empty.
+    _SOURCE_URL_HOSTS = ("notion.", "docs.google.com", "drive.google.com",
+                         "x.com", "twitter.com", "fillout.com", "forms.")
     site_link = next(
-        (
-            u for u in deduped_urls
-            if all(x not in u.lower() for x in ("notion.", "docs.google.com"))
-        ),
-        source_url,
+        (u for u in deduped_urls if all(x not in u.lower() for x in _SOURCE_URL_HOSTS)),
+        "",
     )
     company_handle, founder_handle = resolve_brief_x_handles(tags, deduped_urls, joined_lines)
     quote_post = (
@@ -4793,7 +4960,7 @@ def build_structured_brief_payload(
         elif go_live:
             status.append(f"Go live: {go_live}.")
         if campaign_platform == "X":
-            status.append("Use native disclosure settings on X if this is sponsored.")
+            pass
         if campaign_platform == "Teams":
             status.append("Keep the story Teams first. Do not drift into a generic AI tools post.")
         if reply_line:
@@ -5014,9 +5181,7 @@ def build_structured_brief_payload(
         drafts_source = "notion_angles"
     else:
         draft_entries = [
-            {"label": "Option 1 (recommended)", "text": draft_one},
-            {"label": "Option 2 (technical angle)", "text": draft_two},
-            {"label": "Option 3 (market angle)", "text": draft_three},
+            {"label": "THE POST", "text": draft_one},
         ]
         drafts_source = ""
 
@@ -5167,36 +5332,40 @@ def build_structured_brief_payload(
     usable_facts = source_facts_for_drafting(merged, limit=14)
     if selected_profile["key"] != "retweet" and len(usable_facts) < 2:
         raise ValueError(
-            "The source brief does not contain enough usable facts to write accurate options. Add product facts or paste the AM email context, then try again."
+            "The source brief does not contain enough usable facts to write a post. Add product facts or paste the AM email context, then try again."
         )
-    try:
-        from brief_draft_rewrite import payload_has_creator_content_pack
-    except ImportError:
-        from scripts.active.brief_draft_rewrite import payload_has_creator_content_pack
-    skip_llm_drafts = payload_has_creator_content_pack(merged) or bool(thread_sections)
-    if LOCAL_BRIEF_LLM_ENABLED and not LOCAL_BRIEF_SKIP_DRAFTS and not skip_llm_drafts:
+    # Draft options are ALWAYS written by the model in Robert's voice. The old
+    # "creator content pack" skip pasted the sponsor's own copy as the drafts —
+    # sponsor voice, hyphens, dragged-out text. Pack angles still reach the
+    # model as source context; if the model truly fails, the source-angle
+    # fallback below still applies and the polish pass strips hyphens.
+    if LOCAL_BRIEF_LLM_ENABLED and not LOCAL_BRIEF_SKIP_DRAFTS:
         draft_payload = query_local_brief_drafts(source_payload, merged)
         merged = merge_draft_payload(merged, draft_payload)
-        expected_passes = 1 if selected_profile["key"] == "retweet" else 3
-        for repair_round in range(1, 3):
-            quality_reports = drafts_quality_report(merged)
-            passing = [item for item in quality_reports if item.get("ok")]
-            if len(passing) >= expected_passes:
-                break
+        expected_passes = 1
+        # One targeted repair pass only. Full-set rewrites were slow, often timed out,
+        # and replaced already-good options. Deterministic ensure_publishable fills gaps.
+        quality_reports = drafts_quality_report(merged)
+        passing = [item for item in quality_reports if item.get("ok")]
+        if len(passing) < expected_passes:
+            brief_log(
+                f"brief-drafts: {len(passing)}/{expected_passes} cleared gate — "
+                f"targeted repair for the post"
+            )
             repaired_payload = query_local_brief_draft_repair(
                 source_payload,
                 merged,
                 quality_reports,
-                repair_round=repair_round,
+                repair_round=1,
             )
-            if not repaired_payload:
-                break
-            merged = merge_draft_payload(merged, repaired_payload)
-    else:
-        if skip_llm_drafts:
-            brief_log("brief-drafts: skipped (creator content pack — using source angles)")
+            if repaired_payload:
+                merged = merge_repaired_drafts(merged, repaired_payload, quality_reports)
+            else:
+                brief_log("brief-drafts: targeted repair unavailable — using source-grounded fill")
         else:
-            brief_log("brief-drafts: skipped (building campaign drafts from source)")
+            brief_log(f"brief-drafts: {len(passing)}/{expected_passes} cleared gate on first pass")
+    else:
+        brief_log("brief-drafts: skipped (local LLM disabled — building campaign drafts from source)")
     merged = apply_agency_constraints_to_payload(merged)
     company_name = resolve_company_name(title, lines, line(merged.get("company_name")) or company)
     merged["company_name"] = company_name
@@ -5206,6 +5375,19 @@ def build_structured_brief_payload(
     if deliverable_override:
         merged = apply_deliverable_override(merged, deliverable_override)
         merged = ensure_publishable_drafts(merged)
+    live_drafts = [
+        item for item in (merged.get("drafts") or [])
+        if isinstance(item, dict) and line(item.get("text"))
+    ]
+    if selected_profile["key"] != "retweet" and not live_drafts:
+        raise ValueError(
+            "Could not write a post-ready draft. The local model did not clear the quality gate. Rerun, or add product facts."
+        )
+    if live_drafts:
+        top = dict(live_drafts[0])
+        if "recommended" in line(top.get("label")).lower() or line(top.get("label")).lower().startswith("option"):
+            top["label"] = "THE POST"
+        merged["drafts"] = [top]
     set_brief_job_stage("scoring_reach", "Pulling live X signal")
     merged = attach_x_signal_to_brief_payload(merged, joined_lines=joined_lines)
     merged = apply_agency_constraints_to_payload(merged)
@@ -5261,7 +5443,7 @@ def notion_to_brief_payload(notion: dict, notion_url: str, email_context: str = 
     title = line(notion.get("title")) or "Robert Brief"
     payload = build_structured_brief_payload(
         title=title,
-        subtitle="For Robert. Built from the Notion campaign brief.",
+        subtitle="",
         source_url=notion_url,
         lines=lines,
         links=notion.get("links") or [],
@@ -5321,7 +5503,7 @@ def source_to_brief_payload(source: dict, source_url: str, email_context: str = 
     title = line(source.get("title")) or "Robert Brief"
     payload = build_structured_brief_payload(
         title=title,
-        subtitle="For Robert. Built from the source brief.",
+        subtitle="",
         source_url=source_url,
         lines=lines,
         links=source.get("links") or [],
@@ -5806,11 +5988,30 @@ def save_cached_notion_brief(notion_url: str, notion: dict) -> None:
     cache_path.write_text(json.dumps(notion, ensure_ascii=False), encoding="utf-8")
 
 
+def extract_source_url_and_context(raw: str) -> tuple[str, str]:
+    """Pull the first real URL out of a pasted string (users paste whole emails).
+    Returns (clean_url, leftover_text). Leftover becomes email context so the
+    model still sees the note, but the URL alone goes to the extractor."""
+    raw = str(raw or "").strip()
+    match = re.search(r"https?://[^\s<>()\[\]]+", raw)
+    if not match:
+        return "", raw
+    url = match.group(0).rstrip(".,;:!?)”’\"'")
+    leftover = (raw[:match.start()] + " " + raw[match.end():]).strip()
+    return url, leftover
+
+
 def import_notion_brief(notion_url: str, email_context: str = "", deliverable_type: str = "") -> dict:
-    notion_url = line(notion_url)
-    if not notion_url:
+    raw = line(notion_url)
+    if not raw:
         raise ValueError("Notion URL is required.")
-    if not any(h in notion_url for h in ("notion.so", "notion.site", "notion.com")):
+    # Users paste the whole email ("Here's the brief doc: <url> Please send payment...").
+    # Extract the URL; keep the rest as context so it never lands in the URL arg.
+    extracted, leftover = extract_source_url_and_context(raw)
+    notion_url = extracted or raw
+    if leftover and not line(email_context):
+        email_context = leftover
+    if not any(h in notion_url.lower() for h in ("notion.so", "notion.site", "notion.com")):
         raise ValueError("Paste a Notion page link (notion.so, notion.site, or app.notion.com).")
     set_brief_job_stage("reading_source", "Reading source brief")
     brief_log(f"Importing Notion source {notion_url}")
@@ -5837,13 +6038,17 @@ def import_notion_brief(notion_url: str, email_context: str = "", deliverable_ty
 
 
 def import_source_brief(source_url: str, email_context: str = "", deliverable_type: str = "") -> dict:
-    source_url = line(source_url)
-    if not source_url:
+    raw = line(source_url)
+    if not raw:
         raise ValueError("Source URL is required.")
+    extracted, leftover = extract_source_url_and_context(raw)
+    source_url = extracted or raw
+    if leftover and not line(email_context):
+        email_context = leftover
     set_brief_job_stage("reading_source", "Reading source brief")
     brief_log(f"Importing source {source_url}")
 
-    if any(h in source_url for h in ("notion.so", "notion.site", "notion.com")):
+    if any(h in source_url.lower() for h in ("notion.so", "notion.site", "notion.com")):
         return import_notion_brief(source_url, email_context=email_context, deliverable_type=deliverable_type)
 
     if "docs.google.com/document" in source_url:
@@ -5902,6 +6107,118 @@ def split_draft_paragraphs(value: str) -> list[str]:
     return groups or ([normalized] if normalized else [])
 
 
+BRIEF_DOC_SUBTITLE = ""
+
+
+def compose_about_the_collab(payload: dict) -> str:
+    """Short plain-English description of what this collab actually is."""
+    company = line(payload.get("company_name")) or "the partner"
+    product = line(payload.get("product_name")) or company
+    deliverable_raw = line(payload.get("deliverable_type"))
+    profile = deliverable_profile(deliverable_raw)
+    key = profile["key"]
+    go_live = line(payload.get("go_live"))
+    must = payload.get("must_include") or {}
+    tag = line(must.get("tag"))
+    link = line(must.get("link"))
+    core = polish_brief_section(line(payload.get("core_idea")), max_sentences=1, max_chars=160)
+    announcement = polish_brief_section(line(payload.get("announcement")), max_sentences=1, max_chars=140)
+
+    action_by_key = {
+        "quote_repost": (
+            f"The deliverable is a quote repost: Robert quote-tweets the partner launch post "
+            f"with an original reaction about {product}, not a cold standalone post."
+        ),
+        "amplification_x": (
+            f"The deliverable is an Amplification X post: Robert reacts to the partner launch "
+            f"with a short original take on {product}."
+        ),
+        "narrative_thread": (
+            f"The deliverable is a narrative thread: one main post and two replies about {product}."
+        ),
+        "custom_x": (
+            f"The deliverable is a dedicated Custom X post: one original standalone post about {product}."
+        ),
+        "linkedin": (
+            f"The deliverable is a LinkedIn post: one original professional post about {product}."
+        ),
+        "founder_video": (
+            f"The deliverable is a founder video post: Robert records short on-camera talking points about {product}."
+        ),
+        "x_space": (
+            f"The deliverable is a hosted X Space conversation about {product}."
+        ),
+        "interview": (
+            f"The deliverable is a long-form interview conversation about {product}."
+        ),
+        "retweet": (
+            f"The deliverable is a retweet of the partner post for {product}, with no added commentary."
+        ),
+    }
+    action = action_by_key.get(
+        key,
+        f"The deliverable is a {profile.get('label') or deliverable_raw or 'sponsored post'} featuring {product}.",
+    )
+
+    sentences = [
+        f"This is a paid collaboration between UNALIGNED and {company}.",
+        action,
+    ]
+    focus = core or announcement
+    if focus:
+        sentences.append(f"The story to land: {focus.rstrip('.')}." if not focus.endswith(".") else f"The story to land: {focus}")
+    close_bits: list[str] = []
+    if go_live:
+        close_bits.append(f"Go live is {go_live}")
+    if tag:
+        close_bits.append(f"tag {tag}")
+    if link:
+        close_bits.append(f"include {link}")
+    if close_bits:
+        sentences.append(
+            ("Timing and must-includes: " + "; ".join(close_bits) + ".")
+            if go_live
+            else ("Must include: " + "; ".join(close_bits) + ".")
+        )
+    else:
+        sentences.append(
+            "Stay accurate to the partner brief and do not invent claims beyond the source."
+        )
+    # Cap at four sentences.
+    return " ".join(sentences[:4])
+
+
+def pick_primary_draft_for_doc(payload: dict, drafts: list[dict]) -> list[dict]:
+    """Ship one draft on the brief. X scoring still runs upstream and picks the best."""
+    valid = [
+        item for item in drafts
+        if isinstance(item, dict) and (line(item.get("label")) or line(item.get("text")))
+    ]
+    if not valid:
+        return []
+    if len(valid) == 1:
+        return valid
+
+    recommended = payload.get("recommended_reach") or {}
+    rec_label = line(recommended.get("label")).lower()
+    if rec_label:
+        for item in valid:
+            label = line(item.get("label")).lower()
+            if rec_label in label or label in rec_label:
+                return [item]
+
+    def reach_key(item: dict) -> int:
+        try:
+            return int(item.get("reach_score") or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    ranked = sorted(valid, key=reach_key, reverse=True)
+    if reach_key(ranked[0]) > 0:
+        return [ranked[0]]
+    return [valid[0]]
+
+
 def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
     payload = ensure_publishable_drafts(
         polish_robert_drafts(
@@ -5923,21 +6240,30 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
         cleaned_entries = [(line(label), line(value)) for label, value in entries if line(value)]
         if not cleaned_entries:
             return
-        push("spacer")
         push("section_heading", heading)
-        for label, value in cleaned_entries:
+        for idx, (label, value) in enumerate(cleaned_entries):
             push("body", value, shaded=True, lead_label=label)
-            push("blank")
+            if idx != len(cleaned_entries) - 1:
+                push("blank")
+
+    def push_bullet_section(heading: str, items: list[str]) -> None:
+        cleaned = [line(item) for item in items if line(item)]
+        if not cleaned:
+            return
+        push("section_heading", heading)
+        for item in cleaned:
+            text = item if item.startswith(("•", "-", "–")) else f"• {item}"
+            push("body", text, shaded=True)
 
     def push_logistics_rows(rows: list[tuple[str, str]]) -> None:
         cleaned = [(line(label), line(value)) for label, value in rows if line(value)]
         if not cleaned:
             return
-        push("spacer")
         push("section_heading", "Important Logistics")
-        for label, value in cleaned:
+        for idx, (label, value) in enumerate(cleaned):
             push("body", value, shaded=True, lead_label=label)
-            push("blank")
+            if idx != len(cleaned) - 1:
+                push("blank")
 
     def combine_values(label: str, values: list[str], *, split_values: bool = True) -> list[tuple[str, str]]:
         cleaned_values: list[str] = []
@@ -5958,14 +6284,14 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
     push("title", title)
     deliverable = line(payload.get("deliverable_type")).lower()
     selected_profile = deliverable_profile(deliverable)
-    is_qrt = "quote" in deliverable or "qrt" in deliverable
-    if is_qrt:
-        push("subtitle", f"Robert brief · QRT · {company_name or 'Campaign'}")
-    elif line(payload.get("subtitle")):
-        push("subtitle", line(payload.get("subtitle")))
-    push("blank")
+    # Always brand the brief clearly — no "built from the source brief" clutter.
+    if BRIEF_DOC_SUBTITLE:
+        push("subtitle", BRIEF_DOC_SUBTITLE)
 
     overview_entries: list[tuple[str, str]] = []
+    about_collab = compose_about_the_collab(payload)
+    if about_collab:
+        overview_entries.extend(combine_values("About the Collab", [about_collab], split_values=False))
     about_text = polish_brief_section(line(payload.get("about_company")))
     if about_text:
         label = f"About {company_name}" if company_name else "About the Company"
@@ -5982,19 +6308,14 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
 
     agency_lines = agency_requirement_lines(payload.get("agency_constraints") or {})
     if agency_lines:
-        push_section("Agency Requirements", combine_values("Must follow", agency_lines[:4]))
+        push_bullet_section("Agency Requirements", agency_lines[:5])
 
     combined_angle_items = [
         line(item)
         for item in (payload.get("angles_or_accuracy_requirements") or [])
         if line(item)
     ]
-    if payload.get("content_angle_points") is not None:
-        content_angles = [
-            line(item) for item in (payload.get("content_angle_points") or []) if line(item)
-        ]
-    else:
-        content_angles, _ = split_content_angles_and_accuracy(combined_angle_items)
+    # Content angles are intentionally omitted from the client-facing brief.
     if payload.get("accuracy_requirements") is not None:
         accuracy_reqs = clean_points(
             [line(item) for item in (payload.get("accuracy_requirements") or []) if line(item)],
@@ -6002,17 +6323,16 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
         )
     else:
         _, accuracy_reqs = split_content_angles_and_accuracy(combined_angle_items)
-    if content_angles and not is_qrt:
-        push_section("Potential Content Angles", combine_values("Pick a lane", content_angles[:4]))
-    if accuracy_reqs and not is_qrt:
-        push_section("Accuracy & Guardrails", combine_values("Get these right", accuracy_reqs[:5]))
+    must_include = payload.get("must_include") or {}
+    if accuracy_reqs:
+        push_bullet_section("Accuracy & Compliance", accuracy_reqs[:6])
 
     part2 = polish_brief_section(line(payload.get("part2_direction")), max_sentences=2, max_chars=260)
     structure_steps = [line(item) for item in (payload.get("x_post_structure") or []) if line(item)]
-    if (part2 or structure_steps) and not is_qrt:
+    if (part2 or structure_steps) and selected_profile["key"] not in {"quote_repost", "retweet"}:
         playbook_entries: list[tuple[str, str]] = []
         if part2:
-            playbook_entries.extend(combine_values("Part 2: Your Own Take on Brain²", [part2]))
+            playbook_entries.extend(combine_values("Part 2 direction", [part2]))
         media_guidance = line(payload.get("notion_media_guidance"))
         agency_media = bool((payload.get("agency_constraints") or {}).get("media_allowed"))
         if media_guidance or agency_media:
@@ -6022,7 +6342,7 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
                     "Agency: media is optional. You may attach a video under 15 seconds or one image. Not required."
                 )
             if media_guidance:
-                media_lines.append(f"Notion (recommended for reach): {media_guidance}")
+                media_lines.append(f"Recommended for reach: {media_guidance}")
             playbook_entries.extend(combine_values("Media", media_lines))
         if structure_steps:
             standalone_fmt = bool((payload.get("agency_constraints") or {}).get("standalone_post"))
@@ -6038,11 +6358,11 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
             playbook_entries.extend(combine_values("Format note", [structure_note]))
             playbook_entries.extend(
                 combine_values(
-                    "X Post Structure (from Notion, for story arc)",
+                    "Story arc (from source)",
                     [f"{idx}. {step}" for idx, step in enumerate(structure_steps, start=1)],
                 )
             )
-        push_section("Creative Playbook (from Notion brief)", playbook_entries)
+        push_section("Creative Playbook", playbook_entries)
 
     logistics_rows: list[tuple[str, str]] = []
     for item in (payload.get("where_it_lives") or []):
@@ -6059,10 +6379,9 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
                 if not is_valid_quote_anchor_url(value_v):
                     continue
             logistics_rows.append((label_v or "Link", value_v))
-    must_include = payload.get("must_include") or {}
     if line(must_include.get("link")) and not any(label == "Website" for label, _ in logistics_rows):
         logistics_rows.append(("Website", line(must_include.get("link"))))
-    if line(must_include.get("hashtags")):
+    if line(must_include.get("hashtags")) and not any(label == "Hashtags" for label, _ in logistics_rows):
         logistics_rows.append(("Hashtags", line(must_include.get("hashtags"))))
 
     status_bits: list[str] = []
@@ -6087,64 +6406,28 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
         line(item) for item in (payload.get("open_questions") or []) if line(item)
     ]
     if open_questions:
-        push_section(
-            "Open Items Before Posting",
-            combine_values("Verify or omit", open_questions[:5]),
-        )
+        push_bullet_section("Open Items Before Posting", open_questions[:5])
 
     demo_media = payload.get("demo_media") if isinstance(payload.get("demo_media"), dict) else {}
     checklist_entries = format_demo_media_checklist_rows(demo_media)
     if checklist_entries:
         push_section("Media checklist", checklist_entries)
 
-    drafts = payload.get("drafts") or []
-    valid_drafts = [item for item in drafts if isinstance(item, dict) and (line(item.get("label")) or line(item.get("text")))]
+    # X scoring still runs in the pipeline and chooses the strongest draft.
+    # The client-facing doc only shows that one draft — no reach scores or X Signal clutter.
+    valid_drafts = pick_primary_draft_for_doc(payload, payload.get("drafts") or [])
     if valid_drafts:
-        push("spacer")
         push(
             "section_heading",
-            line(payload.get("draft_output_heading")) or selected_profile["output_heading"],
+            line(payload.get("draft_output_heading")) or selected_profile["output_heading"] or "Draft",
         )
-        output_instruction = (
-            line(payload.get("draft_output_instruction"))
-            or selected_profile["output_instruction"]
-        )
-        if output_instruction:
-            push("body", output_instruction, shaded=True)
-        push("blank")
-        for idx, draft in enumerate(valid_drafts):
-            label = line(draft.get("label"))
-            if draft.get("reach_score") not in (None, ""):
-                reach_meta = f"Reach {draft.get('reach_score')}/100"
-                if line(draft.get("reach_tier")):
-                    reach_meta += f" · {line(draft.get('reach_tier'))}"
-                label = f"{label}. {reach_meta}" if label else reach_meta
-            text_value = normalize_alignednews_copy(str(draft.get("text") or "").strip())
-            if label:
-                push("draft_label", label, bold=True, shaded=True)
-            draft_paragraphs = split_draft_paragraphs(text_value)
-            for paragraph_index, paragraph in enumerate(draft_paragraphs):
-                push("body", paragraph, shaded=True)
-                if paragraph_index != len(draft_paragraphs) - 1:
-                    push("blank")
-            if idx != len(valid_drafts) - 1:
+        draft = valid_drafts[0]
+        text_value = normalize_alignednews_copy(str(draft.get("text") or "").strip())
+        draft_paragraphs = split_draft_paragraphs(text_value)
+        for paragraph_index, paragraph in enumerate(draft_paragraphs):
+            push("body", paragraph, shaded=True)
+            if paragraph_index != len(draft_paragraphs) - 1:
                 push("blank")
-
-        push("spacer")
-        push("section_heading", "Verify")
-        if len(valid_drafts) == 1:
-            push("body", "Approve Y/N:  (  ) Yes  (  ) No — or write edits on the line below.", shaded=True)
-        else:
-            option_labels = "        ".join(f"Option {idx} (  )" for idx in range(1, len(valid_drafts) + 1))
-            pick_label = (
-                "Pick ONE run of show"
-                if selected_profile["key"] in {"x_space", "interview"}
-                else "Pick ONE script"
-                if selected_profile["key"] == "founder_video"
-                else "Pick ONE to post"
-            )
-            push("body", f"{pick_label}:        {option_labels}", shaded=True)
-        push("body", "Edit / what to change:  ______________________________________________", shaded=True)
 
     asset_rows = []
     seen_asset_urls: set[str] = set()
@@ -6159,114 +6442,15 @@ def build_doc_blocks(payload: dict) -> tuple[str, list[dict]]:
                 asset_rows.append((label_v or "Asset", url_v))
                 seen_asset_urls.add(url_v.lower())
     if asset_rows:
-        push("spacer")
         push("section_heading", "Assets to include")
         push("body", "Attach before go live if the client sent them.", shaded=True)
         push("blank")
-        for label_v, url_v in asset_rows:
+        for idx, (label_v, url_v) in enumerate(asset_rows):
             push("body", url_v, shaded=True, lead_label=label_v)
-            push("blank")
-
-    x_signal = payload.get("x_signal_result") or {}
-    recommended_reach = payload.get("recommended_reach") or {}
-    if isinstance(x_signal, dict) and x_signal:
-        push("spacer")
-        push("section_heading", "X Signal")
-        if x_signal.get("ok") is False:
-            push("body", f"X Signal skipped: {line(x_signal.get('error'))}", shaded=True)
-        else:
-            quality = line(x_signal.get("signal_quality")) or "thin"
-            company = line(payload.get("company_name")) or "this brand"
-            push(
-                "body",
-                f"Searches X for conversation around {company} and this product — "
-                "so you can sharpen the first line of the draft options above.",
-                shaded=True,
-            )
-            signal_note = line(x_signal.get("signal_note"))
-            if signal_note:
-                push("body", signal_note, shaded=True, lead_label="Signal")
-            anchors = [line(item) for item in (x_signal.get("campaign_anchors") or []) if line(item)]
-            if anchors:
-                push(
-                    "body",
-                    ", ".join(anchors[:6]),
-                    shaded=True,
-                    lead_label="Searched for",
-                )
-            timing = line(x_signal.get("timing_window")) or line((x_signal.get("audience_play") or {}).get("timing_window"))
-            if timing:
-                push("body", timing, shaded=True, lead_label="Timing")
-            primary_move = line(x_signal.get("primary_move")) or line((x_signal.get("audience_play") or {}).get("primary_move"))
-            if primary_move:
-                push("body", primary_move, shaded=True, lead_label="Best move")
-            elif quality in {"thin", "off_topic"}:
-                push(
-                    "body",
-                    "No reliable live thread for this brand right now. Use the draft options as written.",
-                    shaded=True,
-                    lead_label="Best move",
-                )
-            robert_moves = [
-                line(item) for item in (x_signal.get("robert_moves") or []) if line(item)
-            ]
-            seen_moves: set[str] = set()
-            for move in robert_moves[:2]:
-                key = move.lower()[:72]
-                if key in seen_moves or move == primary_move:
-                    continue
-                seen_moves.add(key)
-                push("body", move, shaded=True, lead_label="Tip")
-            keywords = [line(item) for item in (x_signal.get("keywords") or []) if line(item)]
-            if keywords:
-                push(
-                    "body",
-                    f"Mirror one in your first line if it fits: {', '.join(keywords[:6])}",
-                    shaded=True,
-                    lead_label="Campaign terms",
-                )
-            show_threads = quality in {"strong", "usable"}
-            top_posts = x_signal.get("top_conversation") or [] if show_threads else []
-            if top_posts:
-                top = top_posts[0] if isinstance(top_posts[0], dict) else {}
-                if top:
-                    post_line = f"@{line(top.get('username'))}: {line(top.get('text'))[:180]}"
-                    if top.get("engagement") not in (None, ""):
-                        post_line = f"{top.get('engagement')} eng · {post_line}"
-                    push("body", post_line, shaded=True, lead_label="On-topic thread")
-            if line(recommended_reach.get("label")) and int(recommended_reach.get("reach_score") or 0) > 0:
-                plain = (
-                    line(recommended_reach.get("plain_summary"))
-                    or line(x_signal.get("plain_pick_summary"))
-                    or plain_reach_summary(recommended_reach)
-                )
-                pick_line = f"Highest fit among your drafts: {line(recommended_reach.get('label'))}"
-                if plain and "weak term match" not in plain.lower():
-                    pick_line = f"{pick_line}. {plain}"
-                push("body", pick_line, shaded=True, lead_label="Draft pick")
-                anchor = line(recommended_reach.get("anchor"))
-                standalone = bool((payload.get("agency_constraints") or {}).get("standalone_post"))
-                is_thread = _deliverable_is_thread(line(payload.get("deliverable_type")).lower())
-                if anchor and not standalone and not is_thread and show_threads:
-                    push("body", anchor, shaded=True, lead_label="QRT target")
-                elif is_thread and top_posts:
-                    push(
-                        "body",
-                        "Narrative thread for this deal — borrow language only, do not QRT.",
-                        shaded=True,
-                        lead_label="Format",
-                    )
-            push(
-                "body",
-                line(x_signal.get("scoring_note"))
-                or "Fit score ranks your draft options against on-topic X conversation. Not an impressions guarantee.",
-                shaded=True,
-                lead_label="How to read this",
-            )
-        push("blank")
+            if idx != len(asset_rows) - 1:
+                push("blank")
 
     if line(payload.get("submit_url")):
-        push("spacer")
         push("body", f"After posting, submit the live post URL here: {line(payload.get('submit_url'))}", shaded=False)
 
     lines: list[str] = []
@@ -6303,8 +6487,12 @@ def build_requests(text: str, blocks: list[dict]) -> list[dict]:
             requests.append({
                 "updateParagraphStyle": {
                     "range": {"startIndex": start, "endIndex": end},
-                    "paragraphStyle": {"namedStyleType": "TITLE"},
-                    "fields": "namedStyleType",
+                    "paragraphStyle": {
+                        "namedStyleType": "TITLE",
+                        "spaceAbove": {"magnitude": 0, "unit": "PT"},
+                        "spaceBelow": {"magnitude": 2, "unit": "PT"},
+                    },
+                    "fields": "namedStyleType,spaceAbove,spaceBelow",
                 }
             })
             continue
@@ -6312,8 +6500,12 @@ def build_requests(text: str, blocks: list[dict]) -> list[dict]:
             requests.append({
                 "updateParagraphStyle": {
                     "range": {"startIndex": start, "endIndex": end},
-                    "paragraphStyle": {"namedStyleType": "SUBTITLE"},
-                    "fields": "namedStyleType",
+                    "paragraphStyle": {
+                        "namedStyleType": "SUBTITLE",
+                        "spaceAbove": {"magnitude": 0, "unit": "PT"},
+                        "spaceBelow": {"magnitude": 10, "unit": "PT"},
+                    },
+                    "fields": "namedStyleType,spaceAbove,spaceBelow",
                 }
             })
             continue
@@ -6321,8 +6513,12 @@ def build_requests(text: str, blocks: list[dict]) -> list[dict]:
             requests.append({
                 "updateParagraphStyle": {
                     "range": {"startIndex": start, "endIndex": end},
-                    "paragraphStyle": {"namedStyleType": "HEADING_2"},
-                    "fields": "namedStyleType",
+                    "paragraphStyle": {
+                        "namedStyleType": "HEADING_2",
+                        "spaceAbove": {"magnitude": 8, "unit": "PT"},
+                        "spaceBelow": {"magnitude": 4, "unit": "PT"},
+                    },
+                    "fields": "namedStyleType,spaceAbove,spaceBelow",
                 }
             })
             requests.append({
@@ -6343,8 +6539,8 @@ def build_requests(text: str, blocks: list[dict]) -> list[dict]:
                     "range": {"startIndex": start, "endIndex": end},
                     "paragraphStyle": {
                         "namedStyleType": "HEADING_1",
-                        "spaceAbove": {"magnitude": 12, "unit": "PT"},
-                        "spaceBelow": {"magnitude": 4, "unit": "PT"},
+                        "spaceAbove": {"magnitude": 14, "unit": "PT"},
+                        "spaceBelow": {"magnitude": 6, "unit": "PT"},
                     },
                     "fields": "namedStyleType,spaceAbove,spaceBelow",
                 }
@@ -6365,9 +6561,11 @@ def build_requests(text: str, blocks: list[dict]) -> list[dict]:
                 "range": {"startIndex": start, "endIndex": end},
                 "paragraphStyle": {
                     "namedStyleType": "NORMAL_TEXT",
+                    "spaceAbove": {"magnitude": 2, "unit": "PT"},
+                    "spaceBelow": {"magnitude": 2, "unit": "PT"},
                     "shading": {"backgroundColor": muted} if block.get("shaded") else {},
                 },
-                "fields": "namedStyleType,shading.backgroundColor",
+                "fields": "namedStyleType,spaceAbove,spaceBelow,shading.backgroundColor",
             }
         })
         requests.append({
@@ -6777,6 +6975,18 @@ SUPABASE_PROXY_PREFIXES = (
 )
 
 
+def board_uses_sqlite() -> bool:
+    """True when BOARD_BACKEND=sqlite (or BOARD_DB_PATH points at an existing DB)."""
+    load_unaligned_ops_env()
+    try:
+        import local_board_db as _local_board_db
+    except ImportError:
+        import sys as _sys
+        _sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import local_board_db as _local_board_db
+    return bool(_local_board_db.use_sqlite_backend())
+
+
 def supabase_proxy_allowed(rest_path: str) -> bool:
     path_only = str(rest_path or "").split("?", 1)[0]
     return any(path_only.startswith(prefix) for prefix in SUPABASE_PROXY_PREFIXES)
@@ -6788,6 +6998,9 @@ def supabase_proxy_forward(method: str, rest_path: str, body: bytes | None = Non
     rest_path = str(rest_path or "")
     if not rest_path.startswith("/"):
         rest_path = "/" + rest_path
+    if board_uses_sqlite():
+        import local_board_db as _local_board_db
+        return _local_board_db.handle_request(method, rest_path, body=body, prefer=prefer)
     url = SUPABASE_REST_BASE + rest_path
     headers = supabase_rest_headers()
     if prefer:
@@ -6805,6 +7018,9 @@ def supabase_proxy_forward(method: str, rest_path: str, body: bytes | None = Non
 
 
 def supabase_fetch_cards(query: str) -> list:
+    if board_uses_sqlite():
+        import local_board_db as _local_board_db
+        return _local_board_db.fetch_cards(query)
     url = f"{SUPABASE_REST_BASE}/rest/v1/cards?{query}"
     req = request.Request(url, headers=supabase_rest_headers(), method="GET")
     with request.urlopen(req, timeout=25) as response:
@@ -6831,6 +7047,9 @@ def supabase_service_headers(*, prefer: str = "return=representation") -> dict:
 
 
 def supabase_service_request(method: str, path: str, body: dict | None = None, *, prefer: str = "return=representation") -> tuple[int, object]:
+    if board_uses_sqlite():
+        import local_board_db as _local_board_db
+        return _local_board_db.service_request(method, path, body, prefer=prefer)
     url = f"{SUPABASE_REST_BASE}/rest/v1/{path.lstrip('/')}"
     data = json.dumps(body).encode("utf-8") if body is not None else None
     req = request.Request(url, data=data, headers=supabase_service_headers(prefer=prefer), method=method.upper())
@@ -7146,6 +7365,52 @@ def god_mode_location_payload() -> dict:
     }
 
 
+
+def god_mode_census_geocode_payload(address: str) -> dict:
+    addr = line(address)
+    if not addr or len(addr) > 300:
+        raise ValueError("address required")
+    url = "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?" + urlencode({
+        "address": addr,
+        "benchmark": "Public_AR_Current",
+        "format": "json",
+    })
+    data = god_mode_upstream_json(url, timeout=12)
+    if not isinstance(data, dict):
+        raise RuntimeError("census geocode failed")
+    return data
+
+
+
+def god_mode_google_maps_key() -> str:
+    env = line(os.environ.get("UNALIGNED_GOOGLE_MAPS_TILES_KEY"))
+    if env:
+        return env
+    key_path = WEB_ROOT / "flow-v4" / ".god-mode-google-tiles.key"
+    try:
+        raw = key_path.read_text(encoding="utf-8").strip().splitlines()
+        if raw and line(raw[0]):
+            return line(raw[0])
+    except Exception:
+        pass
+    return "AIzaSyAdikDP3IFcWhm-p-FVq49GHUoLqg18s64"
+
+
+def god_mode_google_geocode_payload(address: str) -> dict:
+    addr = line(address)
+    if not addr or len(addr) > 300:
+        raise ValueError("address required")
+    key = god_mode_google_maps_key()
+    url = "https://maps.googleapis.com/maps/api/geocode/json?" + urlencode({
+        "address": addr,
+        "key": key,
+    })
+    data = god_mode_upstream_json(url, timeout=12)
+    if not isinstance(data, dict):
+        raise RuntimeError("google geocode failed")
+    return data
+
+
 def god_mode_flights_payload() -> dict:
     cached = god_mode_cache_get("flights", 45)
     if cached:
@@ -7197,23 +7462,346 @@ def god_mode_satellites_payload() -> dict:
     return {"ok": True, "satellites": satellites}
 
 
-def god_mode_starlink_tle_payload() -> dict:
-    """Proxy the Starlink TLE catalog — Celestrak 403s browser (CORS/Origin) requests."""
-    cached = god_mode_cache_get("starlink_tle", 6 * 3600)
+GOD_MODE_TLE_GROUPS = {
+    "starlink", "gps-ops", "weather", "stations",
+    "oneweb", "geo", "visual", "military", "kuiper",
+}
+
+
+def god_mode_upstream_bytes(url: str, timeout: int = 45) -> tuple[int, bytes]:
+    """GET bytes; decompress gzip. Returns (status, body). HTTP errors return (code, body)."""
+    import gzip as _gzip
+    req = request.Request(
+        url,
+        headers={
+            "User-Agent": "UNALIGNED-GodMode/2.0",
+            "Accept": "*/*",
+            "Accept-Encoding": "gzip",
+        },
+    )
+    try:
+        with request.urlopen(req, timeout=timeout) as response:
+            raw = response.read()
+            enc = (response.headers.get("Content-Encoding") or "").lower()
+            if enc == "gzip" or raw[:2] == b"\x1f\x8b":
+                raw = _gzip.decompress(raw)
+            return int(getattr(response, "status", 200) or 200), raw
+    except error.HTTPError as exc:
+        raw = exc.read() or b""
+        enc = ""
+        try:
+            enc = (exc.headers.get("Content-Encoding") or "").lower()
+        except Exception:
+            enc = ""
+        if enc == "gzip" or raw[:2] == b"\x1f\x8b":
+            try:
+                raw = _gzip.decompress(raw)
+            except Exception:
+                pass
+        return int(exc.code), raw
+
+
+def god_mode_tle_payload(group: str) -> dict:
+    """Proxy a Celestrak TLE group — browsers often get 403 from Origin headers."""
+    group = str(group or "").strip().lower()
+    if group not in GOD_MODE_TLE_GROUPS:
+        raise ValueError("unsupported TLE group")
+    cache_key = group.replace("-", "_") + "_tle"
+    cached = god_mode_cache_get(cache_key, 6 * 3600)
     if cached:
         return cached
-    url = "https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle"
-    req = request.Request(url, headers={"User-Agent": "UNALIGNED-GodMode/1.0"})
-    with request.urlopen(req, timeout=45) as response:
-        text = response.read().decode("utf-8", errors="replace")
-    if "\n1 " not in text:
-        stale = god_mode_cache_get("starlink_tle", 48 * 3600)
+    urls = ["https://celestrak.org/NORAD/elements/gp.php?GROUP=" + group + "&FORMAT=tle"]
+    if group == "starlink":
+        urls.append("https://celestrak.org/NORAD/elements/supplemental/sup-gp.php?FILE=starlink&FORMAT=tle")
+    text = ""
+    last_err = None
+    for url in urls:
+        try:
+            req = request.Request(url, headers={"User-Agent": "UNALIGNED-GodMode/2.0"})
+            with request.urlopen(req, timeout=45) as response:
+                text = response.read().decode("utf-8", errors="replace")
+            if "\n1 " in text or text.lstrip().startswith("1 "):
+                last_err = None
+                break
+            last_err = ValueError("unexpected payload")
+            text = ""
+        except Exception as exc:
+            last_err = exc
+            text = ""
+            continue
+    if not text:
+        stale = god_mode_cache_get(cache_key, 48 * 3600)
         if stale:
             return stale
-        raise ValueError("Celestrak returned an unexpected payload.")
-    payload = {"ok": True, "tle": text, "fetched_at": time.time()}
-    god_mode_cache_set("starlink_tle", payload)
+        raise last_err or ValueError("Celestrak returned an unexpected payload for " + group)
+    payload = {"ok": True, "tle": text, "group": group, "fetched_at": time.time()}
+    god_mode_cache_set(cache_key, payload)
     return payload
+
+
+def god_mode_starlink_tle_payload() -> dict:
+    """Proxy the Starlink TLE catalog — Celestrak 403s browser (CORS/Origin) requests."""
+    return god_mode_tle_payload("starlink")
+
+
+def god_mode_gpsjam_payload() -> dict:
+    """Daily GPSJam H3-4 NACp hexes. Manifest + latest date whose CSV is 200. Cache 6h."""
+    cached = god_mode_cache_get("gpsjam", 6 * 3600)
+    if cached:
+        return cached
+    status, raw = god_mode_upstream_bytes("https://gpsjam.org/data/manifest.csv", timeout=30)
+    if status != 200 or not raw:
+        stale = god_mode_cache_get("gpsjam", 48 * 3600)
+        if stale:
+            return stale
+        raise RuntimeError("gpsjam manifest HTTP " + str(status))
+    dates: list[str] = []
+    for line in raw.decode("utf-8", errors="replace").splitlines()[1:]:
+        date = (line.split(",")[0] if line else "").strip()
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", date):
+            dates.append(date)
+    dates.sort(reverse=True)
+    chosen = ""
+    csv_text = ""
+    last_status = 0
+    for date in dates[:21]:
+        st, body = god_mode_upstream_bytes(
+            "https://gpsjam.org/data/" + date + "-h3_4.csv", timeout=45
+        )
+        last_status = st
+        if st == 200 and body:
+            chosen = date
+            csv_text = body.decode("utf-8", errors="replace")
+            break
+    if not chosen or not csv_text:
+        stale = god_mode_cache_get("gpsjam", 48 * 3600)
+        if stale:
+            return stale
+        raise RuntimeError("gpsjam h3_4 csv unavailable (last HTTP " + str(last_status) + ")")
+    rows: list[dict] = []
+    for i, line in enumerate(csv_text.splitlines()):
+        if i == 0:
+            continue
+        parts = line.split(",")
+        if len(parts) < 3:
+            continue
+        hx = parts[0].strip()
+        if not hx:
+            continue
+        try:
+            good = int(float(parts[1]))
+            bad = int(float(parts[2]))
+        except (TypeError, ValueError):
+            continue
+        total = good + bad
+        pct = (100.0 * bad / total) if total else 0.0
+        rows.append({"hex": hx, "good": good, "bad": bad, "pct": round(pct, 2)})
+    payload = {
+        "ok": True,
+        "date": chosen,
+        "rows": rows,
+        "count": len(rows),
+        "source": "gpsjam.org",
+        "attribution": "Data derived from ADS-B Exchange via gpsjam.org",
+        "fetched_at": time.time(),
+    }
+    god_mode_cache_set("gpsjam", payload)
+    return payload
+
+
+def god_mode_storms_payload() -> dict:
+    """Proxy NHC CurrentStorms.json — browser has no CORS. Returns the JSON list as-is."""
+    cached = god_mode_cache_get("nhc_storms", 120)
+    if cached:
+        return cached
+    status, raw = god_mode_upstream_bytes("https://www.nhc.noaa.gov/CurrentStorms.json", timeout=20)
+    if status != 200 or not raw:
+        stale = god_mode_cache_get("nhc_storms", 1800)
+        if stale:
+            return stale
+        raise RuntimeError("NHC CurrentStorms HTTP " + str(status))
+    data = json.loads(raw.decode("utf-8", errors="replace") or "{}")
+    storms = data.get("activeStorms") if isinstance(data, dict) else None
+    if not isinstance(storms, list):
+        storms = []
+    payload = {
+        "ok": True,
+        "activeStorms": storms,
+        "count": len(storms),
+        "source": "https://www.nhc.noaa.gov/CurrentStorms.json",
+        "fetched_at": time.time(),
+    }
+    god_mode_cache_set("nhc_storms", payload)
+    return payload
+
+
+def _god_mode_adsb_ac_list(data) -> list:
+    if not isinstance(data, dict):
+        return []
+    ac = data.get("ac")
+    if ac is None:
+        ac = data.get("aircraft")
+    return ac if isinstance(ac, list) else []
+
+
+def _god_mode_adsb_is_military(ac: dict) -> bool:
+    """readsb dbFlags bit 0 = military. Also honor explicit mil/military booleans."""
+    if not isinstance(ac, dict):
+        return False
+    if ac.get("mil") is True or ac.get("military") is True:
+        return True
+    flags = ac.get("dbFlags")
+    if flags is None:
+        return False
+    try:
+        return bool(int(flags) & 1)
+    except (TypeError, ValueError):
+        return False
+
+
+def _god_mode_fetch_adsb_json(url: str, timeout: int = 20) -> tuple[int, dict | None]:
+    req = request.Request(
+        url,
+        headers={"User-Agent": "UNALIGNED-GodMode/2.0", "Accept": "application/json"},
+    )
+    try:
+        with request.urlopen(req, timeout=timeout) as response:
+            data = json.loads(response.read().decode("utf-8", errors="replace") or "{}")
+            return int(getattr(response, "status", 200) or 200), data if isinstance(data, dict) else None
+    except error.HTTPError as exc:
+        return int(exc.code), None
+    except Exception:
+        return 0, None
+
+
+def god_mode_flights_mil_payload() -> dict:
+    """Military ADS-B. Prefer /v2/mil; else filter hub JSON on dbFlags/mil. Never invent aircraft."""
+    cached = god_mode_cache_get("flights_mil", 20)
+    if cached:
+        return cached
+    sources = (
+        ("airplanes.live", "https://api.airplanes.live/v2/mil"),
+        ("adsb.lol", "https://api.adsb.lol/v2/mil"),
+        ("adsb.fi", "https://opendata.adsb.fi/api/v2/mil"),
+    )
+    last_status = 0
+    for source, url in sources:
+        status, data = _god_mode_fetch_adsb_json(url)
+        last_status = status or last_status
+        ac = [row for row in _god_mode_adsb_ac_list(data) if isinstance(row, dict)]
+        if not ac:
+            continue
+        payload = {
+            "ok": True,
+            "ac": ac,
+            "aircraft": ac,
+            "count": len(ac),
+            "source": source,
+            "stale": False,
+            "fetched_at": time.time(),
+        }
+        god_mode_cache_set("flights_mil", payload)
+        return payload
+
+    # airplanes.live / adsb.lol /mil empty or 403: reuse flight-hub point JSON and keep mil-flagged rows only.
+    filtered: list = []
+    seen: set[str] = set()
+    hub_source = ""
+    hub_bases = (
+        ("adsb.fi", "https://opendata.adsb.fi/api/v2/lat/{lat}/lon/{lng}/dist/200"),
+        ("airplanes.live", "https://api.airplanes.live/v2/point/{lat}/{lng}/200"),
+        ("adsb.lol", "https://api.adsb.lol/v2/lat/{lat}/lon/{lng}/dist/200"),
+    )
+    for source, tmpl in hub_bases:
+        got_any = False
+        for lat, lng in GOD_MODE_FLIGHT_HUBS:
+            status, data = _god_mode_fetch_adsb_json(tmpl.format(lat=lat, lng=lng), timeout=12)
+            last_status = status or last_status
+            for row in _god_mode_adsb_ac_list(data):
+                if not isinstance(row, dict) or not _god_mode_adsb_is_military(row):
+                    continue
+                key = str(row.get("hex") or row.get("flight") or "").strip()
+                if key and key in seen:
+                    continue
+                if key:
+                    seen.add(key)
+                filtered.append(row)
+                got_any = True
+        if got_any:
+            hub_source = source + " hubs/dbFlags"
+            break
+
+    if filtered:
+        payload = {
+            "ok": True,
+            "ac": filtered,
+            "aircraft": filtered,
+            "count": len(filtered),
+            "source": hub_source,
+            "stale": False,
+            "fetched_at": time.time(),
+        }
+        god_mode_cache_set("flights_mil", payload)
+        return payload
+
+    stale = god_mode_cache_get("flights_mil", 900)
+    if stale and isinstance(stale, dict):
+        out = dict(stale)
+        out["stale"] = True
+        return out
+    return {
+        "ok": True,
+        "ac": [],
+        "aircraft": [],
+        "count": 0,
+        "source": "none",
+        "stale": True,
+        "error": "military ADS-B upstream HTTP " + str(last_status or "failed"),
+    }
+
+
+def god_mode_ships_payload() -> dict:
+    """Proxy Finnish Digitraffic AIS. Upstream 406s unless Accept-Encoding includes gzip."""
+    cached = god_mode_cache_get("ships_ais", 25)
+    if cached:
+        return cached
+    loc_url = "https://meri.digitraffic.fi/api/ais/v1/locations"
+    ves_url = "https://meri.digitraffic.fi/api/ais/v1/vessels"
+    headers = {
+        "User-Agent": "UNALIGNED-GodMode/2.0",
+        "Accept": "application/geo+json, application/json;q=0.9, */*;q=0.8",
+        "Accept-Encoding": "gzip",
+        "Digitraffic-User": "UNALIGNED/GodMode 2.0",
+    }
+
+    def _get(url: str):
+        req = request.Request(url, headers=headers)
+        with request.urlopen(req, timeout=25) as response:
+            raw = response.read()
+            enc = (response.headers.get("Content-Encoding") or "").lower()
+            if enc == "gzip" or raw[:2] == b"\x1f\x8b":
+                import gzip as _gzip
+                raw = _gzip.decompress(raw)
+            return json.loads(raw.decode("utf-8", errors="replace") or "{}")
+
+    loc = _get(loc_url)
+    try:
+        vessels = _get(ves_url)
+    except Exception:
+        vessels = []
+    feats = loc.get("features") if isinstance(loc, dict) else []
+    payload = {
+        "ok": True,
+        "source": "digitraffic",
+        "coverage": "Baltic / Finland AIS",
+        "count": len(feats) if isinstance(feats, list) else 0,
+        "locations": loc,
+        "vessels": vessels if isinstance(vessels, list) else [],
+        "fetched_at": time.time(),
+    }
+    god_mode_cache_set("ships_ais", payload)
+    return payload
+
 
 
 def god_mode_events_payload() -> dict:
@@ -7389,6 +7977,15 @@ def create_collab_feedback_link_request(payload: dict) -> dict:
 
 
 def supabase_patch_card(card_id: str, fields: dict) -> dict:
+    if board_uses_sqlite():
+        status, rows = supabase_service_request(
+            "PATCH", f"cards?id=eq.{card_id}", fields, prefer="return=representation"
+        )
+        if status >= 400:
+            raise RuntimeError(f"local sqlite card patch failed ({status}): {rows}")
+        if isinstance(rows, list) and rows:
+            return rows[0]
+        return rows if isinstance(rows, dict) else {}
     url = f"https://hbnpwphxjurvtydezwgh.supabase.co/rest/v1/cards?id=eq.{card_id}"
     data = json.dumps(fields).encode("utf-8")
     headers = supabase_rest_headers()
@@ -7436,7 +8033,7 @@ def card_to_robert_brief(row: dict) -> dict:
         disc.append(line(desc.get("partner")) or line(row.get("brief_partner")))
     if line(desc.get("x_handle")):
         disc.append(line(desc.get("x_handle")))
-    disc.extend(["Paid Partnership"])
+    # Disclosure is a native X toggle. Never print it on the brief.
     links = desc.get("links") or row.get("brief_links") or []
     doc_url = ""
     if isinstance(links, list):
@@ -7542,6 +8139,13 @@ def robert_review_decision(payload: dict) -> dict:
 
 def create_manual_lead_card(card: dict) -> dict:
     load_unaligned_ops_env()
+    if board_uses_sqlite():
+        status, rows = supabase_service_request("POST", "cards", card, prefer="return=representation")
+        if status >= 400:
+            raise RuntimeError(f"local sqlite card create failed ({status}): {rows}")
+        if isinstance(rows, list) and rows:
+            return rows[0]
+        return rows if isinstance(rows, dict) else {}
     url = "https://hbnpwphxjurvtydezwgh.supabase.co/rest/v1/cards"
     anon = os.environ.get("SUPABASE_ANON_KEY", "")
     service = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
@@ -7892,14 +8496,14 @@ def create_calendar_hold(payload: dict) -> dict:
     doc_url = line(payload.get("doc_url"))
     # Lean calendar note. The detail lives on the brief; the calendar just points
     # Robert there and reminds him to choose + disclose before posting.
-    note_lines = ["VERIFY OPTIONS ON BRIEF"]
-    note_lines.append("Open the brief, pick one option (or request an edit), and approve it. Nothing goes live until you do.")
+    note_lines = ["VERIFY THE POST ON THE BRIEF"]
+    note_lines.append("Open the brief, approve the post (or write the edit). Nothing goes live until you do.")
     go_live = line(payload.get("go_live"))
     if go_live:
         note_lines.extend(["", f"GO LIVE: {go_live}"])
     if mode == "all_day" and start_value:
         note_lines.append(f"Target time: {start_at.strftime('%I:%M %p').lstrip('0')}")
-    note_lines.extend(["", "Turn on the native Paid Partnership label. Everything else you need is on the brief."])
+    note_lines.extend(["", "Everything you need is on the brief."])
     if doc_url:
         note_lines.extend(["", f"Brief doc: {doc_url}"])
     description = "\n".join([part for part in note_lines if part is not None]).strip()
@@ -7986,12 +8590,18 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
     def do_HEAD(self) -> None:
         parsed = urlparse(self.path or "/")
         if parsed.path == "/health":
+            try:
+                from anydoc_intake import anydoc_available
+                anydoc_meta = anydoc_available()
+            except Exception as exc:
+                anydoc_meta = {"ok": False, "error": str(exc)}
             body = json.dumps({
                 "ok": True,
                 "service": "google-docs-brief-server",
                 "host": HOST,
                 "port": PORT,
                 "time": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "anydoc": anydoc_meta,
             }).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -8020,12 +8630,18 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
                     llm_meta.update({"model": LOCAL_MODEL, "backend": backend_label()})
                 except Exception as exc:
                     llm_meta["llm_error"] = str(exc)
+            try:
+                from anydoc_intake import anydoc_available
+                anydoc_meta = anydoc_available()
+            except Exception as exc:
+                anydoc_meta = {"ok": False, "error": str(exc)}
             send_json(self, 200, {
                 "ok": True,
                 "service": "google-docs-brief-server",
                 "host": HOST,
                 "port": PORT,
                 "time": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "anydoc": anydoc_meta,
                 **llm_meta,
             })
             return
@@ -8072,9 +8688,65 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
             except Exception as exc:
                 send_json(self, 502, {"ok": False, "error": str(exc)})
             return
-        if parsed.path == "/god-mode/starlink-tle":
+        if parsed.path == "/god-mode/gpsjam":
             try:
-                send_json(self, 200, god_mode_starlink_tle_payload())
+                send_json(self, 200, god_mode_gpsjam_payload())
+            except Exception as exc:
+                send_json(self, 502, {"ok": False, "error": str(exc)})
+            return
+        if parsed.path == "/god-mode/storms":
+            try:
+                send_json(self, 200, god_mode_storms_payload())
+            except Exception as exc:
+                send_json(self, 502, {"ok": False, "error": str(exc)})
+            return
+        if parsed.path == "/god-mode/flights-mil":
+            try:
+                send_json(self, 200, god_mode_flights_mil_payload())
+            except Exception as exc:
+                send_json(self, 502, {"ok": False, "error": str(exc)})
+            return
+        tle_m = re.fullmatch(r"/god-mode/([a-z0-9-]+)-tle", parsed.path or "")
+        if tle_m:
+            try:
+                send_json(self, 200, god_mode_tle_payload(tle_m.group(1)))
+            except ValueError as exc:
+                send_json(self, 400, {"ok": False, "error": str(exc)})
+            except Exception as exc:
+                send_json(self, 502, {"ok": False, "error": str(exc)})
+            return
+        if parsed.path == "/god-mode/tle":
+            group = (parse_qs(parsed.query or "").get("group") or [""])[0]
+            try:
+                send_json(self, 200, god_mode_tle_payload(group))
+            except ValueError as exc:
+                send_json(self, 400, {"ok": False, "error": str(exc)})
+            except Exception as exc:
+                send_json(self, 502, {"ok": False, "error": str(exc)})
+            return
+        if parsed.path == "/god-mode/census-geocode":
+            query = parse_qs(parsed.query or "")
+            address = line((query.get("address") or query.get("q") or [""])[0])
+            try:
+                send_json(self, 200, god_mode_census_geocode_payload(address))
+            except ValueError as exc:
+                send_json(self, 400, {"ok": False, "error": str(exc)})
+            except Exception as exc:
+                send_json(self, 502, {"ok": False, "error": str(exc)})
+            return
+        if parsed.path == "/god-mode/google-geocode":
+            query = parse_qs(parsed.query or "")
+            address = line((query.get("address") or query.get("q") or [""])[0])
+            try:
+                send_json(self, 200, god_mode_google_geocode_payload(address))
+            except ValueError as exc:
+                send_json(self, 400, {"ok": False, "error": str(exc)})
+            except Exception as exc:
+                send_json(self, 502, {"ok": False, "error": str(exc)})
+            return
+        if parsed.path == "/god-mode/ships":
+            try:
+                send_json(self, 200, god_mode_ships_payload())
             except Exception as exc:
                 send_json(self, 502, {"ok": False, "error": str(exc)})
             return
@@ -8083,6 +8755,17 @@ class DocsBriefHandler(BaseHTTPRequestHandler):
                 send_json(self, 401, {"ok": False, "error": "Missing or invalid brief API token."})
                 return
             send_json(self, 200, read_robert_handoff_preview())
+            return
+        if parsed.path == "/x-dm-outbound-audit":
+            if not require_api_token(self):
+                send_json(self, 401, {"ok": False, "error": "Missing or invalid brief API token."})
+                return
+            query = parse_qs(parsed.query or "")
+            conversation_id = line((query.get("conversation_id") or [""])[0])
+            if conversation_id and not re.fullmatch(r"\d+-\d+", conversation_id):
+                send_json(self, 400, {"ok": False, "error": "Invalid X conversation ID."})
+                return
+            send_json(self, 200, {"ok": True, "records": read_x_dm_outbound_audit(conversation_id)})
             return
         if parsed.path == "/brief-jobs":
             if not require_api_token(self):

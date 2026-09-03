@@ -5,7 +5,7 @@
   <link rel="canonical" href="https://agentdashboard.cloud/connect/collab" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>UNALIGNED · Collaborate with Robert</title>
-  <!-- form build: 20260817-idle-wander-v4 -->
+  <!-- form build: 20260903-collab-only-v1 -->
   <meta name="description" content="Paid collaborations and sponsorships with Robert Scoble. Rate card on the page. The general contact form is unchanged at /connect." />
   <meta name="theme-color" content="#000000" />
   <meta name="color-scheme" content="dark" />
@@ -42,7 +42,7 @@
   })();
   </script>
   <link rel="icon" href="../../favicon.ico" />
-  <link rel="stylesheet" href="../../assets/unaligned-form.css?v=20260817-idle-wander-v4" />
+  <link rel="stylesheet" href="../../assets/unaligned-form.css?v=20260903-collab-only-v1" />
 </head>
 <body class="ua-form-page ua-form-connect">
   <div class="ua-scene">
@@ -65,23 +65,12 @@
   <script>
     const API = 'https://us-central1-unaligned-fc556.cloudfunctions.net/robertDeskIntake';
 
-    const COLLAB_ONLY = (function () {
-      var path = String(location.pathname || '').replace(/\/+$/, '');
-      if (/\/connect\/collab$/i.test(path)) return true;
-      return /(?:^|[?&])lane=collab(?:oration)?(?:&|$)/i.test(String(location.search || ''));
-    })();
+    const COLLAB_ONLY = true;
 
     // Lane order matters: General Conversation is first and the default selection
     // so partnership pricing only appears when they deliberately choose Collaboration.
     const LANES = [
-      {
-        label: 'General Conversation',
-        value: 'general_outreach',
-        lead: 'Partnerships, intros, syncs, and anything else worth routing to Robert\'s desk.',
-        messageHint: 'What you want to explore, why now, and how Robert fits in.',
-        briefHint: 'Optional — link to a deck, site, or doc if it helps.',
-      },
-      {
+{
         label: 'Collaboration',
         value: 'collaboration',
         lead: 'Paid collabs, sponsorships, brand deals, and project ideas with Robert.',

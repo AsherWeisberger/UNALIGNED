@@ -61,3 +61,10 @@ docs/*.html
 
 # loose token file — never commit
 lead-ingest-token.txt
+
+# Local SQLite board DB
+data/*.sqlite
+data/*.sqlite-*
+
+# Local Google Photorealistic 3D Tiles key — never commit
+flow-v4/.god-mode-google-tiles.key

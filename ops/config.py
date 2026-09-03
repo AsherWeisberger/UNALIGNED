@@ -14,7 +14,7 @@ SUPABASE_ANON_KEY = os.environ["SUPABASE_ANON_KEY"]
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
 LOCAL_MODEL_BASE = os.environ.get("LOCAL_MODEL_BASE", "http://127.0.0.1:8080/v1")
-LOCAL_MODEL_NAME = os.environ.get("LOCAL_MODEL_NAME", "qwen3-32b")
+LOCAL_MODEL_NAME = os.environ.get("LOCAL_MODEL_NAME", "qwen3.8:27b-mlx")
 POLL_SECONDS = int(os.environ.get("POLL_SECONDS", "120"))
 
 # Claude price per MILLION tokens, for the ops_health spend counter (the 10%).

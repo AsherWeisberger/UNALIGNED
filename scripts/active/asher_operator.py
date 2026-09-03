@@ -50,6 +50,7 @@ _ACTIVE_DIR = Path(__file__).resolve().parent
 if str(_ACTIVE_DIR) not in sys.path:
     sys.path.insert(0, str(_ACTIVE_DIR))
 from draft_staleness import inbound_needs_payment_ack, should_regenerate_draft  # noqa: E402
+from brief_draft_rewrite import build_media_supply_reply_guidance  # noqa: E402
 
 POLICY_FILE = ROOT / "scripts" / "active" / "asher_operator_policy.json"
 STATE_DIR = Path.home() / ".config" / "google-credentials"
@@ -512,6 +513,16 @@ def draft_prompt(pol: dict[str, Any], card: dict[str, Any], analysis: dict[str, 
     avoids = ", ".join(pol.get("voice", {}).get("phrases_to_avoid", []))
     sig = pol.get("senders", {}).get("default", {}).get("signature", "")
     tone = resolve_tone(card)
+    media_guidance = build_media_supply_reply_guidance(
+        thread_text=thread_text,
+        deal_value=card.get("estimated_value"),
+        deliverable_type=str(card.get("intent") or ""),
+        tier_name=str(card.get("agent_tier") or ""),
+        agent_tier=str(card.get("agent_tier") or ""),
+    )
+    media_block = ""
+    if media_guidance.get("active"):
+        media_block = f"\n{media_guidance.get('prompt_block')}\n"
     return f"""Write an email reply as Asher Weisberger for UNALIGNED.
 
 {OPERATOR_FRAMEWORK}
@@ -547,7 +558,7 @@ Rules:
 - If details are missing, ask for them directly.
 - Do not mention internal systems or AI.
 - Do not hallucinate dates or deliverables.
-- End with this exact signature:
+{media_block}- End with this exact signature:
 
 {sig}
 

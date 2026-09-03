@@ -15,6 +15,11 @@ from urllib.parse import parse_qs, urlparse
 
 
 REPO_ROOT = Path("/Users/asherweisberger/Desktop/UNALIGNED/MASTER FILES")
+ACTIVE_SCRIPTS = REPO_ROOT / "scripts" / "active"
+if str(ACTIVE_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(ACTIVE_SCRIPTS))
+from x_gmail_merge import apply_live_dm_truth
+from x_lead_qualification import is_qualified_intake_row, is_qualified_x_text, is_x_spam_text
 X_ROOT = Path("/Users/asherweisberger/Documents/Codex/2026-06-05/most-efficient-way-to-get-leads")
 X_OUT = X_ROOT / "outputs"
 GOOGLE_STATE_DIR = Path.home() / ".config" / "google-credentials"
@@ -25,6 +30,7 @@ DAILY_NEW_THREADS_PATH = X_OUT / "robert_x_dm_live_inbox_new_threads.json"
 INTAKE_BUILDER = X_ROOT / "work" / "build_daily_x_lead_intake.py"
 NEW_LEADS_CSV = X_OUT / "x_dm_daily_new_leads.csv"
 COMPANY_OS_X_ASSET = REPO_ROOT / "flow-v4" / "assets" / "x_dm_daily_intake.json"
+COMPANY_OS_X_THREAD_CONTEXTS = REPO_ROOT / "flow-v4" / "assets" / "x_dm_thread_contexts.json"
 COMPANY_OS_X_HEALTH = REPO_ROOT / "flow-v4" / "assets" / "x_scraper_health.json"
 ROBERT_HANDOFF_STATE = GOOGLE_STATE_DIR / "robert_handoff_operator_state.json"
 
@@ -155,8 +161,35 @@ INBOX_EXTRACT_JS = r"""
 
     const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
     let title = lines[0] || '';
-    let timestamp = lines.find(line => timeRe.test(line)) || '';
-    let preview = lines.slice(1).filter(line => line !== timestamp).join(' ');
+    let timestamp = '';
+    let preview = lines.slice(1).join(' ');
+
+    const timeLine = lines.find(line => timeRe.test(line));
+    if (timeLine) {
+      const match = timeLine.match(timeRe);
+      if (match) {
+        timestamp = match[0];
+        if (timeLine === timestamp) {
+          // Clean multiline: timestamp is its own line — preserve existing behavior.
+          preview = lines.slice(1).filter(line => line !== timestamp).join(' ');
+        } else {
+          // Glued line like "Name5hYou: …" — never assign the whole line as timestamp.
+          const idx = timeLine.indexOf(timestamp);
+          const before = clean(timeLine.slice(0, idx));
+          const after = clean(timeLine.slice(idx + timestamp.length));
+          if (timeLine === lines[0]) {
+            title = before || title;
+            preview = [after, ...lines.slice(1)].filter(Boolean).join(' ');
+          } else {
+            preview = lines
+              .slice(1)
+              .map((line) => (line === timeLine ? after : line))
+              .filter(Boolean)
+              .join(' ');
+          }
+        }
+      }
+    }
 
     if (!timestamp) {
       const match = text.match(timeRe);
@@ -406,6 +439,7 @@ def close_automated_chrome_profiles() -> None:
 
 
 INBOX_ROOT_URL = "https://x.com/i/chat"
+REQUESTS_ROOT_URL = "https://x.com/i/chat/requests"
 
 
 def is_inbox_root_url(url: str) -> bool:
@@ -420,6 +454,72 @@ def is_x_inbox_url(url: str) -> bool:
         or "x.com/messages" in haystack
         or "twitter.com/messages" in haystack
     )
+
+
+def alternate_thread_keys(url: str) -> list[str]:
+    """Main inbox and Message Requests use different path prefixes for the same thread."""
+    key = thread_url_key(url or "")
+    if not key:
+        return []
+    keys = [key]
+    if "/i/chat/requests/" in key:
+        keys.append(key.replace("/i/chat/requests/", "/i/chat/"))
+    elif "/i/chat/" in key and "/i/chat/requests/" not in key and "/i/chat/g" not in key:
+        keys.append(key.replace("/i/chat/", "/i/chat/requests/"))
+    # de-dupe preserve order
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in keys:
+        if item and item not in seen:
+            seen.add(item)
+            out.append(item)
+    return out
+
+
+def lookup_processed(processed_threads: dict, url: str) -> dict | None:
+    for key in alternate_thread_keys(url):
+        prior = processed_threads.get(key)
+        if isinstance(prior, dict):
+            return prior
+    return None
+
+
+def click_chat_filter_tab(tab_index: int, label: str) -> bool:
+    """Click Priority / Hidden (or similar) filter tabs inside Message Requests."""
+    label_l = (label or "").strip().lower()
+    js = f"""
+(() => {{
+  const want = {label_l!r};
+  const nodes = Array.from(document.querySelectorAll('button, a, [role="tab"], [role="button"], span, div'));
+  const score = (text) => {{
+    const t = (text || '').trim().toLowerCase();
+    if (!t || t.length > 48) return -1;
+    if (t === want) return 100;
+    if (t.startsWith(want + ' ') || t.startsWith(want + '(') || t.startsWith(want + '\\n')) return 90;
+    if (t.includes(want) && t.length < 24) return 50;
+    return -1;
+  }};
+  let best = null;
+  let bestScore = -1;
+  for (const el of nodes) {{
+    const text = (el.innerText || el.getAttribute('aria-label') || '').trim();
+    const s = score(text);
+    if (s > bestScore) {{
+      bestScore = s;
+      best = el;
+    }}
+  }}
+  if (!best || bestScore < 50) return false;
+  best.click();
+  return true;
+}})()
+"""
+    try:
+        raw = str(chrome_js(tab_index, js) or "").strip().lower()
+        return raw in ("true", "1")
+    except Exception as exc:
+        print(f"click_chat_filter_tab({label!r}) failed: {exc}", flush=True)
+        return False
 
 
 def list_chrome_tabs() -> list[dict]:
@@ -741,6 +841,16 @@ def inbox_signature(candidate: dict) -> str:
     )
 
 
+def inbox_shows_team_sent_last(title: str = "", preview: str = "") -> bool:
+    """X inbox prefixes outbound DMs with You: — re-scrape even if signature matched."""
+    text = f"{title or ''} {preview or ''}".strip()
+    if not text:
+        return False
+    if re.search(r"you accepted this message request", text, flags=re.I):
+        return False
+    return bool(re.search(r"\bYou\s*:", text, flags=re.I))
+
+
 def is_group_chat_candidate(candidate: dict) -> bool:
     url = thread_url_key(candidate.get("url") or "")
     text = " ".join(
@@ -764,11 +874,12 @@ def is_business_candidate(candidate: dict, thread: dict | None = None) -> bool:
     ]
     if thread:
         text_parts.extend(msg.get("text") or "" for msg in (thread.get("messages") or [])[-8:])
-    haystack = " ".join(text_parts).lower()
-    if any(signal in haystack for signal in NON_BUSINESS_SIGNALS):
-        if not any(signal in haystack for signal in BUSINESS_SIGNALS):
-            return False
-    return any(signal in haystack for signal in BUSINESS_SIGNALS)
+    haystack = " ".join(text_parts)
+    if is_x_spam_text(haystack):
+        return False
+    if any(signal in haystack.lower() for signal in GROUP_CHAT_SIGNALS):
+        return False
+    return is_qualified_x_text(haystack)
 
 
 def load_state() -> dict:
@@ -811,6 +922,57 @@ def scrape_thread(worker_tab: int, candidate: dict, wait: float) -> dict:
     return data
 
 
+def write_thread_context_asset(live_contexts: dict[str, dict]) -> None:
+    rows = []
+    for url, thread in (live_contexts or {}).items():
+        messages = [
+            {
+                "sender": str(msg.get("sender") or "").strip() or "Lead",
+                "text": str(msg.get("text") or "").strip(),
+            }
+            for msg in (thread.get("messages") or [])[-12:]
+            if str(msg.get("text") or "").strip()
+        ]
+        if not messages:
+            continue
+        header = str(thread.get("header") or "").strip()
+        thread_blob = " ".join(msg["text"] for msg in messages)
+        if is_x_spam_text(thread_blob, header):
+            continue
+        rows.append(
+            {
+                "openDm": str(url).strip(),
+                "chatUrl": str(thread.get("url") or "").strip(),
+                "xName": str(thread.get("header") or "").strip(),
+                "messageCount": int(thread.get("message_count") or len(messages)),
+                "newestDmDate": str(thread.get("newest_dm_date") or "").strip(),
+                "dmMessages": messages,
+            }
+        )
+    rows.sort(key=lambda item: (item.get("xName") or "").lower())
+    write_json(COMPANY_OS_X_THREAD_CONTEXTS, rows)
+
+
+def dm_messages_lookup(live_contexts: dict[str, dict]) -> dict[str, list[dict]]:
+    lookup: dict[str, list[dict]] = {}
+    for url, thread in (live_contexts or {}).items():
+        messages = [
+            {
+                "sender": str(msg.get("sender") or "").strip() or "Lead",
+                "text": str(msg.get("text") or "").strip(),
+            }
+            for msg in (thread.get("messages") or [])[-12:]
+            if str(msg.get("text") or "").strip()
+        ]
+        if not messages:
+            continue
+        lookup[str(url).strip()] = messages
+        chat_url = str(thread.get("url") or "").strip()
+        if chat_url:
+            lookup[chat_url] = messages
+    return lookup
+
+
 def sync_company_os_x_asset() -> None:
     queue_rows = read_json(X_OUT / "robert_x_dm_safe_manual_queue.json", [])
     rank_by_dm = {row.get("Open DM"): row.get("Rank") for row in queue_rows if row.get("Open DM")}
@@ -819,13 +981,17 @@ def sync_company_os_x_asset() -> None:
     sent_x = handoff_state.get("x") if isinstance(handoff_state, dict) else {}
     if not isinstance(sent_x, dict):
         sent_x = {}
+    live_contexts = load_live_contexts()
+    write_thread_context_asset(live_contexts)
+    dm_lookup = dm_messages_lookup(live_contexts)
 
     rows = []
     with NEW_LEADS_CSV.open(newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
             dm = row.get("Open DM", "")
             sent_from_robert = dm in sent_x
-            rows.append(
+            dm_messages = dm_lookup.get(dm) or dm_lookup.get(dm.rstrip("/")) or []
+            intake_row = apply_live_dm_truth(
                 {
                     "rank": int(rank_by_dm.get(dm) or 0),
                     "newLead": str(row.get("New Lead") or "").upper() == "YES",
@@ -850,10 +1016,22 @@ def sync_company_os_x_asset() -> None:
                     "bestNextStep": row.get("Best Next Step", ""),
                     "recommendedOwner": row.get("Recommended Owner", ""),
                     "messageCount": int_or_zero(row.get("Message Count") or 0),
+                    "dmMessages": dm_messages,
                 }
             )
+            rows.append(intake_row)
     rows.sort(key=lambda item: ((item.get("rank") or 10**9), -(item.get("leadScore") or 0), item.get("xName", "").lower()))
-    write_json(COMPANY_OS_X_ASSET, rows)
+    filtered = []
+    for row in rows:
+        name = str(row.get("xName") or "")
+        msg = str(row.get("lastLeadMessage") or "")
+        summary = str(row.get("summaryForTeam") or "")
+        spam = is_x_spam_text(msg, summary, name)
+        qualified = is_qualified_intake_row(row)
+        if spam or not qualified:
+            row = {**row, "newLead": False, "spamBlocked": spam, "qualifyBlocked": not qualified}
+        filtered.append(row)
+    write_json(COMPANY_OS_X_ASSET, filtered)
 
 
 def rebuild_intake() -> None:
@@ -882,28 +1060,37 @@ def write_company_os_x_health(summary: dict) -> None:
     write_json(COMPANY_OS_X_HEALTH, health)
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Newest-first daily live scrape for Robert's X inbox.")
-    parser.add_argument("--wait", type=float, default=4.5, help="Seconds to wait after each X navigation.")
-    parser.add_argument("--between-min", type=float, default=1.5, help="Minimum pause between scraped threads.")
-    parser.add_argument("--between-max", type=float, default=3.0, help="Maximum pause between scraped threads.")
-    parser.add_argument("--recent-days", type=int, default=1, help="Stop once visible inbox rows are older than this many days.")
-    parser.add_argument("--max-candidates", type=int, default=80, help="Hard cap on inbox rows to inspect per run.")
-    parser.add_argument("--max-irrelevant-streak", type=int, default=25, help="Stop after this many non-business threads in a row.")
-    parser.add_argument("--known-stop-streak", type=int, default=3, help="Stop once this many already-processed rows appear in a row.")
-    parser.add_argument("--scroll-step", type=int, default=900, help="Pixels to scroll between inbox batches.")
-    parser.add_argument("--max-scrolls", type=int, default=8, help="How many inbox scroll batches to inspect.")
-    parser.add_argument("--rebuild-intake", action="store_true", help="Rebuild the X intake and sync Company OS after scraping.")
-    args = parser.parse_args()
-
-    close_automated_chrome_profiles()
-    state = load_state()
-    inbox_tab, worker_tab = ensure_chrome_tabs(state)
-    live_contexts = load_live_contexts()
-    processed_threads = state["processed_threads"]
-    today = datetime.now()
-
-    open_url(inbox_tab, "https://x.com/i/chat", args.wait)
+def scrape_inbox_section(
+    *,
+    section_name: str,
+    start_url: str,
+    inbox_tab: int,
+    worker_tab: int,
+    live_contexts: dict,
+    processed_threads: dict,
+    today: datetime,
+    wait: float,
+    between_min: float,
+    between_max: float,
+    recent_days: int,
+    max_candidates: int,
+    max_irrelevant_streak: int,
+    known_stop_streak: int,
+    scroll_step: int,
+    max_scrolls: int,
+    filter_tab: str | None = None,
+    hard_stop_on_old: bool = True,
+    hard_stop_on_known: bool = True,
+    source_folder: str | None = None,
+) -> dict:
+    """Walk one X chat list (All, Message Requests Priority, Hidden, etc.)."""
+    print(f"\n===== section: {section_name} =====", flush=True)
+    open_url(inbox_tab, start_url, wait)
+    time.sleep(1.0)
+    if filter_tab:
+        clicked = click_chat_filter_tab(inbox_tab, filter_tab)
+        print(f"filter tab {filter_tab!r} clicked={clicked}", flush=True)
+        time.sleep(2.0)
 
     seen_candidates: set[str] = set()
     scraped_new_threads: list[dict] = []
@@ -911,31 +1098,42 @@ def main() -> None:
     relevant_count = 0
     irrelevant_streak = 0
     known_streak = 0
+    old_streak = 0
     stop_reason = "max_scrolls_reached"
     stop_signature = None
+    folder = source_folder or section_name
+    payload: dict = {"threads": []}
 
-    for scroll_index in range(args.max_scrolls):
+    for scroll_index in range(max_scrolls):
         if scroll_index == 0:
             payload = extract_inbox_payload(inbox_tab)
+            print(f"initial threads visible: {len(payload.get('threads') or [])}", flush=True)
         else:
             prior_marker = inbox_batch_marker(payload)
-            payload = wait_for_inbox_batch_change(inbox_tab, payload, args.scroll_step)
+            payload = wait_for_inbox_batch_change(inbox_tab, payload, scroll_step)
             if inbox_batch_marker(payload) == prior_marker:
                 stop_reason = "stalled_after_scroll"
                 break
         candidates = payload.get("threads") or []
 
         for candidate in candidates:
-            url = thread_url_key(candidate.get("url") or "")
+            raw_url = candidate.get("url") or ""
+            if raw_url.startswith("/"):
+                raw_url = "https://x.com" + raw_url
+            url = thread_url_key(raw_url)
             if not url or url in seen_candidates:
                 continue
-            seen_candidates.add(url)
+            # also skip if we already walked the alternate key this run
+            if any(k in seen_candidates for k in alternate_thread_keys(url)):
+                continue
+            for k in alternate_thread_keys(url):
+                seen_candidates.add(k)
             inspected += 1
 
             candidate["url"] = url
             candidate["parsedDate"] = parse_inbox_timestamp(candidate.get("timestamp") or "", today)
             signature = inbox_signature(candidate)
-            prior = processed_threads.get(url)
+            prior = lookup_processed(processed_threads, url)
 
             if is_group_chat_candidate(candidate):
                 processed_threads[url] = {
@@ -948,38 +1146,110 @@ def main() -> None:
                     "business_candidate": False,
                     "skipped_as": "group_chat",
                     "message_count": 0,
+                    "source_folder": folder,
                 }
                 irrelevant_streak += 1
                 print(
-                    f"[{inspected}] {candidate.get('title') or 'Untitled'} | "
+                    f"[{section_name}:{inspected}] {candidate.get('title') or 'Untitled'} | "
                     f"{candidate.get('timestamp') or 'no-time'} | group-skip",
                     flush=True,
                 )
-                if irrelevant_streak >= args.max_irrelevant_streak:
+                if irrelevant_streak >= max_irrelevant_streak:
                     stop_reason = "irrelevant_streak"
                     stop_signature = signature
                     break
                 continue
 
             if prior and prior.get("inbox_signature") == signature:
-                known_streak += 1
-                if known_streak >= args.known_stop_streak:
-                    stop_reason = "known_streak"
-                    stop_signature = signature
-                    break
-                continue
+                if inbox_shows_team_sent_last(candidate.get("title") or "", candidate.get("preview") or ""):
+                    known_streak = 0
+                else:
+                    known_streak += 1
+                    print(
+                        f"[{section_name}:{inspected}] {candidate.get('title') or 'Untitled'} | "
+                        f"{candidate.get('timestamp') or 'no-time'} | known",
+                        flush=True,
+                    )
+                    if hard_stop_on_known and known_streak >= known_stop_streak:
+                        stop_reason = "known_streak"
+                        stop_signature = signature
+                        break
+                    continue
 
             known_streak = 0
 
             parsed_date = candidate.get("parsedDate")
             if parsed_date:
                 age_days = (today.date() - datetime.fromisoformat(parsed_date).date()).days
-                if age_days > args.recent_days:
-                    stop_reason = f"outside_recent_window:{parsed_date}"
-                    stop_signature = signature
-                    break
+                if age_days > recent_days:
+                    old_streak += 1
+                    print(
+                        f"[{section_name}:{inspected}] {candidate.get('title') or 'Untitled'} | "
+                        f"outside window {parsed_date}",
+                        flush=True,
+                    )
+                    if hard_stop_on_old:
+                        stop_reason = f"outside_recent_window:{parsed_date}"
+                        stop_signature = signature
+                        break
+                    # Requests lists are messier — skip old rows and keep walking a bit.
+                    if old_streak >= max(8, known_stop_streak):
+                        stop_reason = f"old_streak:{parsed_date}"
+                        stop_signature = signature
+                        break
+                    continue
+            old_streak = 0
 
-            thread = scrape_thread(worker_tab, candidate, args.wait)
+            try:
+                thread = scrape_thread(worker_tab, candidate, wait)
+            except Exception as exc:
+                print(
+                    f"[{section_name}:{inspected}] {candidate.get('title') or 'Untitled'} | scrape error: {exc}",
+                    flush=True,
+                )
+                continue
+
+            thread = dict(thread)
+            thread["source_folder"] = folder
+
+            # No-clobber: empty / Robert-less scrapes must not wipe known outbound DMs.
+            prior_ctx = live_contexts.get(url) or {}
+            new_msgs = list(thread.get("messages") or [])
+            prior_msgs = list(prior_ctx.get("messages") or [])
+            new_has_robert = any((m.get("sender") or "") == "Robert" for m in new_msgs)
+            prior_has_robert = any((m.get("sender") or "") == "Robert" for m in prior_msgs)
+            if (not new_msgs or not new_has_robert) and prior_msgs and (not new_msgs or prior_has_robert):
+                if not new_msgs:
+                    thread["messages"] = prior_msgs
+                    thread["message_count"] = int(prior_ctx.get("message_count") or len(prior_msgs))
+                else:
+                    prior_keys = {(m.get("sender"), m.get("text")) for m in prior_msgs}
+                    merged = list(prior_msgs)
+                    for m in new_msgs:
+                        key = (m.get("sender"), m.get("text"))
+                        if key not in prior_keys:
+                            merged.append(m)
+                    thread["messages"] = merged[-24:]
+                    thread["message_count"] = max(
+                        int(thread.get("message_count") or 0),
+                        int(prior_ctx.get("message_count") or 0),
+                        len(thread["messages"]),
+                    )
+
+            msgs = list(thread.get("messages") or [])
+            if not msgs or not any((m.get("sender") or "") == "Robert" for m in msgs):
+                blob = f"{candidate.get('title') or ''}\n{candidate.get('preview') or ''}"
+                if not re.search(r"you accepted this message request", blob, flags=re.I):
+                    you_match = re.search(r"\bYou\s*:\s*(.+)$", blob, flags=re.I | re.M)
+                    if you_match:
+                        you_text = clean(you_match.group(1))
+                        if you_text:
+                            thread["messages"] = (msgs + [{"sender": "Robert", "text": you_text}])[-24:]
+                            thread["message_count"] = max(
+                                int(thread.get("message_count") or 0),
+                                len(thread["messages"]),
+                            )
+
             live_contexts[url] = thread
             write_json(LIVE_CONTEXTS, live_contexts)
 
@@ -993,6 +1263,7 @@ def main() -> None:
                 "processed_at": now_iso(),
                 "business_candidate": business,
                 "message_count": thread.get("message_count") or 0,
+                "source_folder": folder,
             }
 
             if business:
@@ -1007,24 +1278,29 @@ def main() -> None:
                         "preview": candidate.get("preview") or "",
                         "header": thread.get("header") or "",
                         "messageCount": thread.get("message_count") or 0,
-                        "latestLeadContext": compact(" ".join(msg.get("text") or "" for msg in (thread.get("messages") or [])[-3:]), 320),
+                        "latestLeadContext": compact(
+                            " ".join(msg.get("text") or "" for msg in (thread.get("messages") or [])[-3:]),
+                            320,
+                        ),
+                        "source_folder": folder,
                     }
                 )
             else:
                 irrelevant_streak += 1
-                if irrelevant_streak >= args.max_irrelevant_streak:
+                if irrelevant_streak >= max_irrelevant_streak:
                     stop_reason = "irrelevant_streak"
                     stop_signature = signature
                     break
 
-            if inspected >= args.max_candidates:
+            if inspected >= max_candidates:
                 stop_reason = "max_candidates"
                 stop_signature = signature
                 break
 
-            pause = random.uniform(args.between_min, args.between_max)
+            pause = random.uniform(between_min, between_max)
             print(
-                f"[{inspected}] {candidate.get('title') or 'Untitled'} | {candidate.get('timestamp') or 'no-time'} | "
+                f"[{section_name}:{inspected}] {candidate.get('title') or 'Untitled'} | "
+                f"{candidate.get('timestamp') or 'no-time'} | "
                 f"{'business' if business else 'skip'} | pause {pause:.1f}s",
                 flush=True,
             )
@@ -1032,10 +1308,146 @@ def main() -> None:
 
         if stop_reason != "max_scrolls_reached":
             break
-
-        if inspected >= args.max_candidates:
+        if inspected >= max_candidates:
             stop_reason = "max_candidates"
             break
+
+    summary = {
+        "section": section_name,
+        "stop_reason": stop_reason,
+        "stop_signature": stop_signature,
+        "inspected": inspected,
+        "relevant_count": relevant_count,
+        "new_threads": len(scraped_new_threads),
+        "threads": scraped_new_threads,
+    }
+    print(
+        f"===== {section_name} done: inspected={inspected} business={relevant_count} "
+        f"new={len(scraped_new_threads)} stop={stop_reason} =====",
+        flush=True,
+    )
+    return summary
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Newest-first daily live scrape for Robert's X inbox.")
+    parser.add_argument("--wait", type=float, default=4.5, help="Seconds to wait after each X navigation.")
+    parser.add_argument("--between-min", type=float, default=1.5, help="Minimum pause between scraped threads.")
+    parser.add_argument("--between-max", type=float, default=3.0, help="Maximum pause between scraped threads.")
+    parser.add_argument("--recent-days", type=int, default=1, help="Stop once visible inbox rows are older than this many days.")
+    parser.add_argument("--max-candidates", type=int, default=80, help="Hard cap on inbox rows to inspect per run.")
+    parser.add_argument("--max-irrelevant-streak", type=int, default=25, help="Stop after this many non-business threads in a row.")
+    parser.add_argument("--known-stop-streak", type=int, default=3, help="Stop once this many already-processed rows appear in a row.")
+    parser.add_argument("--scroll-step", type=int, default=900, help="Pixels to scroll between inbox batches.")
+    parser.add_argument("--max-scrolls", type=int, default=8, help="How many inbox scroll batches to inspect.")
+    parser.add_argument("--rebuild-intake", action="store_true", help="Rebuild the X intake and sync Company OS after scraping.")
+    parser.add_argument(
+        "--include-requests",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Also scrape Message Requests Priority + Hidden (default: on).",
+    )
+    parser.add_argument(
+        "--requests-recent-days",
+        type=int,
+        default=None,
+        help="Age window for Message Requests (default: max(recent-days, 3)).",
+    )
+    parser.add_argument(
+        "--requests-max-candidates",
+        type=int,
+        default=40,
+        help="Hard cap on Message Requests rows to inspect per sub-folder.",
+    )
+    parser.add_argument(
+        "--requests-max-scrolls",
+        type=int,
+        default=10,
+        help="Scroll batches per Message Requests sub-folder.",
+    )
+    parser.add_argument(
+        "--requests-max-irrelevant-streak",
+        type=int,
+        default=40,
+        help="Irrelevant streak stop for Message Requests folders.",
+    )
+    args = parser.parse_args()
+
+    close_automated_chrome_profiles()
+    state = load_state()
+    inbox_tab, worker_tab = ensure_chrome_tabs(state)
+    live_contexts = load_live_contexts()
+    processed_threads = state["processed_threads"]
+    today = datetime.now()
+
+    section_summaries: list[dict] = []
+    scraped_new_threads: list[dict] = []
+
+    main_summary = scrape_inbox_section(
+        section_name="all",
+        start_url=INBOX_ROOT_URL,
+        inbox_tab=inbox_tab,
+        worker_tab=worker_tab,
+        live_contexts=live_contexts,
+        processed_threads=processed_threads,
+        today=today,
+        wait=args.wait,
+        between_min=args.between_min,
+        between_max=args.between_max,
+        recent_days=args.recent_days,
+        max_candidates=args.max_candidates,
+        max_irrelevant_streak=args.max_irrelevant_streak,
+        known_stop_streak=args.known_stop_streak,
+        scroll_step=args.scroll_step,
+        max_scrolls=args.max_scrolls,
+        filter_tab=None,
+        hard_stop_on_old=True,
+        hard_stop_on_known=True,
+        source_folder="all",
+    )
+    section_summaries.append({k: v for k, v in main_summary.items() if k != "threads"})
+    scraped_new_threads.extend(main_summary.get("threads") or [])
+
+    requests_recent_days = (
+        args.requests_recent_days
+        if args.requests_recent_days is not None
+        else max(int(args.recent_days), 3)
+    )
+
+    if args.include_requests:
+        for filter_name, folder in (
+            ("Priority", "message_requests:Priority"),
+            ("Hidden", "message_requests:Hidden"),
+        ):
+            req_summary = scrape_inbox_section(
+                section_name=f"requests:{filter_name.lower()}",
+                start_url=REQUESTS_ROOT_URL,
+                inbox_tab=inbox_tab,
+                worker_tab=worker_tab,
+                live_contexts=live_contexts,
+                processed_threads=processed_threads,
+                today=today,
+                wait=args.wait,
+                between_min=args.between_min,
+                between_max=args.between_max,
+                recent_days=requests_recent_days,
+                max_candidates=args.requests_max_candidates,
+                max_irrelevant_streak=args.requests_max_irrelevant_streak,
+                known_stop_streak=999,  # never early-stop requests on known rows
+                scroll_step=args.scroll_step,
+                max_scrolls=args.requests_max_scrolls,
+                filter_tab=filter_name,
+                hard_stop_on_old=False,
+                hard_stop_on_known=False,
+                source_folder=folder,
+            )
+            section_summaries.append({k: v for k, v in req_summary.items() if k != "threads"})
+            scraped_new_threads.extend(req_summary.get("threads") or [])
+
+    inspected = sum(int(s.get("inspected") or 0) for s in section_summaries)
+    relevant_count = sum(int(s.get("relevant_count") or 0) for s in section_summaries)
+    stop_reason = main_summary.get("stop_reason") or "done"
+    stop_signature = main_summary.get("stop_signature")
 
     state["updated_at"] = now_iso()
     state["last_stop_reason"] = stop_reason
@@ -1043,9 +1455,11 @@ def main() -> None:
     state["last_run_summary"] = {
         "inspected": inspected,
         "relevant_count": relevant_count,
-        "irrelevant_streak_end": irrelevant_streak,
         "known_stop_streak": args.known_stop_streak,
         "recent_days": args.recent_days,
+        "include_requests": bool(args.include_requests),
+        "requests_recent_days": requests_recent_days if args.include_requests else None,
+        "sections": section_summaries,
     }
     state["processed_threads"] = processed_threads
     write_json(STATE_PATH, state)
@@ -1058,6 +1472,8 @@ def main() -> None:
         "inspected": inspected,
         "relevant_count": relevant_count,
         "new_threads": len(scraped_new_threads),
+        "include_requests": bool(args.include_requests),
+        "sections": section_summaries,
     }
     append_run_log(run_summary)
     write_company_os_x_health(run_summary)

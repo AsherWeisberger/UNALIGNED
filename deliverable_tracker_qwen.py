@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 UNALIGNED Deliverable Tracker — local fulfillment classifier for Hermes.
-Companion to heartbeat_qwen.py. Targets qwen3.6:35b-a3b via Ollama. 100% local.
+Companion to heartbeat_qwen.py. Targets qwen3.8:27b-mlx via Ollama. 100% local.
 
 The Heartbeat answers "how do we talk to this person?" (intake).
 The Tracker answers "did we deliver what we sold?" (fulfillment).
@@ -30,7 +30,7 @@ spec.json example (one per booked deal, stored on the Kanban card):
 
 import sys, json, urllib.request
 
-MODEL = "qwen3.6:35b-a3b"
+MODEL = "qwen3.8:27b-mlx"
 OLLAMA_URL = "http://localhost:11434/api/chat"
 
 SYSTEM = """You are the Deliverable Tracker for Unaligned, managing fulfillment of tech creator Robert Scoble's PAID, already-booked collaborations. You are given (a) the deal SPEC (what was sold and agreed) and (b) an inbound email from the client on that active deal. You decide whether the email reports a fulfillment problem, what Robert must do to fix it, and a short holding reply for the client. You NEVER send anything.

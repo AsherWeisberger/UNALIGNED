@@ -151,13 +151,24 @@ def main():
     s.SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", s.SERVICE_ROLE_KEY)
 
     data = json.loads(Path(args.candidates).read_text())
-    resp = httpx.get(
-        f"{s.SUPABASE_URL}/rest/v1/cards?select=id,email,gmail_thread_id,list_id&limit=1000",
-        headers=s._sb_headers(),
-        timeout=30,
-    )
-    resp.raise_for_status()
-    existing = resp.json()
+    existing = []
+    offset = 0
+    page_size = 1000
+    while True:
+        resp = httpx.get(
+            f"{s.SUPABASE_URL}/rest/v1/cards?select=id,email,gmail_thread_id,list_id"
+            f"&limit={page_size}&offset={offset}",
+            headers=s._sb_headers(),
+            timeout=30,
+        )
+        resp.raise_for_status()
+        chunk = resp.json()
+        if not chunk:
+            break
+        existing.extend(chunk)
+        if len(chunk) < page_size:
+            break
+        offset += page_size
     existing_threads = {str(c.get("gmail_thread_id") or "") for c in existing if c.get("gmail_thread_id")}
     active_emails = {
         str(c.get("email") or "").lower(): c

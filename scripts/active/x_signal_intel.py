@@ -57,7 +57,18 @@ ANGLE_STOPWORDS = frozenset(
 ALGO_TERM_STOPWORDS = frozenset(
     "like what your has can have more all they this that with from are was get our you "
     "just not but when who how why them their there then than also very really some "
-    "about into over after before still even".split()
+    "about into over after before still even one day site work way index many ever used "
+    "people check means opening chart number moving glance token price trading verify "
+    "winklink link have been being does include client own demo clips thread narrative "
+    "paid partnership sponsored collab brief review approval".split()
+)
+
+PARTNERSHIP_SPAM_RE = re.compile(
+    r"winklink|trading\s+price|token(?:'s)?\s+price|crypto\s+signal|forex|airdrop|"
+    r"pump\s+and\s+dump|signal\s+group|profit\s+potential|whatsapp\s+group|"
+    r"onlyfans|bet[\s-]?channel|maga\s+team|binary\s+option|"
+    r"exact\s+entry\s+and\s+exit|elite\s+trades|confidential\s+trading",
+    re.I,
 )
 
 
@@ -251,8 +262,29 @@ class XClient:
             return {"ok": False, "error": str(exc)}
 
 
+_JUNK_X_USERNAMES = frozenset({
+    "mentions",
+    "here",
+    "everyone",
+    "channel",
+    "thread",
+    "reply",
+    "username",
+})
+
+
+def is_valid_x_username(value: str) -> bool:
+    handle = str(value or "").strip().lstrip("@").rstrip(".,;:!?)")
+    if not handle or handle.lower() in _JUNK_X_USERNAMES:
+        return False
+    return bool(re.fullmatch(r"[A-Za-z0-9_]{1,15}", handle))
+
+
 def normalize_handle(handle: str) -> str:
-    return handle.strip().lstrip("@").lower()
+    cleaned = str(handle or "").strip().lstrip("@").rstrip(".,;:!?)").lower()
+    if not is_valid_x_username(cleaned):
+        return ""
+    return cleaned
 
 
 def engagement_score(tweet: dict[str, Any]) -> int:
@@ -276,6 +308,176 @@ def index_users(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 def tweet_url(username: str, tweet_id: str) -> str:
     return f"https://x.com/{username}/status/{tweet_id}"
+
+
+def build_campaign_anchors(
+    *,
+    brand: str,
+    topic: str,
+    handle: str | None = None,
+    must_tag: str | None = None,
+    link: str | None = None,
+    campaign_terms: list[str] | None = None,
+) -> set[str]:
+    anchors: set[str] = set()
+    for raw in (brand, topic, handle, must_tag, link):
+        text = str(raw or "").strip()
+        if not text:
+            continue
+        text = text.lstrip("@").strip()
+        if text.startswith("http"):
+            domain = re.sub(r"^https?://(www\.)?", "", text, flags=re.I).split("/")[0]
+            stem = domain.split(".")[0]
+            if len(stem) >= 3:
+                anchors.add(stem.lower())
+            anchors.add(domain.lower())
+        else:
+            anchors.add(text.lower())
+            for token in re.findall(r"[A-Za-z][A-Za-z0-9_]{2,}", text):
+                if token.lower() not in ALGO_TERM_STOPWORDS and token.lower() not in ANGLE_STOPWORDS:
+                    anchors.add(token.lower())
+    for raw in campaign_terms or []:
+        text = str(raw or "").strip().lower()
+        if not text or text in ALGO_TERM_STOPWORDS:
+            continue
+        anchors.add(text)
+        for token in re.findall(r"[A-Za-z][A-Za-z0-9_]{2,}", text):
+            if token.lower() not in ALGO_TERM_STOPWORDS and token.lower() not in ANGLE_STOPWORDS:
+                anchors.add(token.lower())
+    return {item for item in anchors if len(item) >= 3}
+
+
+def tweet_relevance_score(text: str, anchors: set[str]) -> int:
+    body = (text or "").strip()
+    if not body:
+        return -100
+    if PARTNERSHIP_SPAM_RE.search(body):
+        return -100
+    lower = body.lower()
+    hits = sum(1 for anchor in anchors if anchor in lower)
+    return hits
+
+
+def filter_campaign_tweets(
+    tweets: list[dict[str, Any]],
+    anchors: set[str],
+    *,
+    min_relevance: int = 1,
+) -> list[dict[str, Any]]:
+    if not anchors:
+        return list(tweets)
+    filtered: list[dict[str, Any]] = []
+    for tweet in tweets:
+        if tweet_relevance_score(tweet.get("text") or "", anchors) >= min_relevance:
+            filtered.append(tweet)
+    return filtered
+
+
+def build_partnership_search_queries(
+    *,
+    brand: str,
+    handle: str | None,
+    anchors: set[str],
+) -> list[str]:
+    queries: list[str] = []
+    handle_norm = normalize_handle(handle) if handle else ""
+    brand_clean = re.sub(r"[^\w\s]", " ", brand or "").strip()
+    if handle_norm:
+        queries.append(f"(@{handle_norm} OR \"{brand_clean}\") lang:en -is:retweet")
+    meaningful = [
+        anchor for anchor in sorted(anchors, key=len, reverse=True)
+        if len(anchor) >= 4
+        and anchor not in ALGO_TERM_STOPWORDS
+        and anchor not in ANGLE_STOPWORDS
+        and anchor != brand_clean.lower()
+    ][:5]
+    if meaningful:
+        term_bits = []
+        for term in meaningful:
+            term_bits.append(f'"{term}"' if " " in term else term)
+        queries.append(f"({' OR '.join(term_bits)}) lang:en -is:retweet")
+    if brand_clean and len(brand_clean) >= 3:
+        queries.append(f'("{brand_clean}" OR #{brand_clean.replace(" ", "")}) lang:en -is:retweet')
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for query in queries:
+        key = query.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(query)
+    return deduped[:3]
+
+
+def assess_signal_quality(
+    *,
+    top_posts: list[dict[str, Any]],
+    keywords: dict[str, Any],
+    anchors: set[str],
+) -> dict[str, Any]:
+    relevant_posts = [
+        post for post in (top_posts or [])
+        if tweet_relevance_score(post.get("text") or "", anchors) >= 1
+    ]
+    suggested = keywords.get("suggested_keywords") or []
+    usable_terms = [
+        term for term in suggested
+        if term.lower() in anchors or any(term.lower() in anchor for anchor in anchors)
+    ]
+    if relevant_posts and usable_terms:
+        quality = "strong"
+        note = "Live conversation matches this campaign. Mirror a term in your first line."
+    elif relevant_posts:
+        quality = "usable"
+        note = "On-topic threads found. Borrow the angle, keep campaign facts from the brief."
+    elif top_posts:
+        quality = "off_topic"
+        note = "Pulled threads don't match this brand — ignore attach targets and use campaign drafts."
+    else:
+        quality = "thin"
+        note = "Thin live signal for this niche. Use campaign drafts; no attach play needed."
+    return {
+        "quality": quality,
+        "note": note,
+        "relevant_post_count": len(relevant_posts),
+        "usable_term_count": len(usable_terms),
+        "top_posts": relevant_posts[:6],
+    }
+
+
+def campaign_keyword_pack(
+    tweets: list[dict[str, Any]],
+    anchors: set[str],
+    *,
+    top_n: int = 12,
+) -> dict[str, Any]:
+    relevant = filter_campaign_tweets(tweets, anchors, min_relevance=1)
+    texts = [t.get("text") or "" for t in relevant]
+    terms = extract_angle_terms(texts, top_n=top_n)
+    hashtags = extract_hashtags(relevant, top_n=8)
+    algo_terms: list[str] = []
+    for term, _count in terms:
+        if term in ALGO_TERM_STOPWORDS or term in ANGLE_STOPWORDS:
+            continue
+        if len(term) < 4:
+            continue
+        if term not in anchors and not any(term in anchor or anchor in term for anchor in anchors):
+            continue
+        algo_terms.append(term)
+        if len(algo_terms) >= 6:
+            break
+    if not algo_terms:
+        for anchor in sorted(anchors, key=len, reverse=True):
+            if len(anchor) >= 4 and anchor not in ALGO_TERM_STOPWORDS:
+                algo_terms.append(anchor)
+            if len(algo_terms) >= 4:
+                break
+    return {
+        "terms": [{"term": term, "count": count} for term, count in terms],
+        "hashtags": hashtags,
+        "suggested_keywords": algo_terms[:6],
+        "suggested_hashtags": [h["tag"] for h in hashtags[:2]],
+    }
 
 
 def extract_angle_terms(texts: list[str], *, top_n: int = 8) -> list[tuple[str, int]]:
@@ -526,10 +728,15 @@ def build_algo_playbook(
     if first_line_terms:
         steps.append(f"First line must include one of: {', '.join(first_line_terms)}.")
     steps.append("Reply to comments for 30 minutes after posting. Replies compound reach more than likes.")
-    if must_tag:
+    if must_tag and is_literal_tag_value(must_tag):
         steps.append(f"End with client tag: {must_tag}.")
-    if client_hashtags:
+    elif must_tag:
+        # Prose instruction from the contract — carry it through as its own step, verbatim.
+        steps.append(must_tag.strip())
+    if client_hashtags and is_literal_hashtag_value(client_hashtags):
         steps.append(f"Client hashtags (required): {client_hashtags}. Do not add extra tags.")
+    elif client_hashtags:
+        steps.append(client_hashtags.strip())
     else:
         steps.append("Skip hashtag stuffing. At most one signal hashtag if it already appears in the live pull.")
 
@@ -553,33 +760,58 @@ def robert_audience_play(
     keywords: dict[str, Any],
     moment: str | None = None,
     guest_handle: str | None = None,
+    attach_allowed: bool = True,
+    signal_note: str = "",
 ) -> dict[str, Any]:
     top = top_posts[0] if top_posts else None
     terms = keywords.get("suggested_keywords") or []
     tags = keywords.get("suggested_hashtags") or []
     moves: list[str] = []
 
-    if top:
-        moves.append(f"Quote or reply to the top thread now: {top['url']} ({top['engagement']} engagement).")
-        moves.append(f"Open with @{top.get('username', 'author')}'s angle, then add Robert's lived POV from the field.")
+    if signal_note:
+        moves.append(signal_note)
     if terms:
-        moves.append(f"Work these terms into the first line: {', '.join(terms[:4])}.")
+        moves.append(f"Work these campaign terms into your first line: {', '.join(terms[:4])}.")
+    if attach_allowed and top:
+        moves.append(f"QRT or reply to this on-topic thread: {top['url']} ({top['engagement']} engagement).")
+        moves.append(f"Open with @{top.get('username', 'author')}'s angle, then add Robert's field POV and the client proof.")
+    elif top and not attach_allowed:
+        moves.append(
+            f"Thread format for this deal — borrow language from @{top.get('username', 'author')}'s angle, "
+            "but do not QRT. Fold the energy into your Main post opener."
+        )
     if tags:
         moves.append(f"Hashtags in play: {' '.join(tags)} — use 1–2 max, not a tag dump.")
     if guest_handle:
         moves.append(f"DM/email hook: reference @{guest_handle}'s live conversation — moment is {moment or 'unknown'}.")
     if not moves:
-        moves.append("No strong attach point — publish a standalone Robert POV post with a sharp first-person opener.")
+        moves.append("No strong attach point — lead with a sharp first-person opener using campaign terms from the brief.")
+
+    deduped_moves: list[str] = []
+    seen_moves: set[str] = set()
+    for move in moves:
+        key = move.lower()[:80]
+        if key in seen_moves:
+            continue
+        seen_moves.add(key)
+        deduped_moves.append(move)
 
     window = "strike now" if top and top.get("engagement", 0) >= 20 else "watch 2–4h — signal is thin"
     if top and top.get("engagement", 0) >= 200:
         window = "strike in the next 60 minutes — thread is hot"
+    if not top:
+        window = "no hot attach — lead with campaign terms"
+
+    primary = next(
+        (move for move in deduped_moves if "first line" in move.lower() or "QRT" in move or "borrow" in move.lower()),
+        deduped_moves[0] if deduped_moves else "",
+    )
 
     return {
         "timing_window": window,
-        "primary_move": moves[0] if moves else "",
-        "robert_first_moves": moves[:4],
-        "attach_to": top,
+        "primary_move": primary,
+        "robert_first_moves": deduped_moves[:3],
+        "attach_to": top if attach_allowed else None,
     }
 
 
@@ -743,6 +975,17 @@ def _hook_fragment(post: dict[str, Any] | None, *, max_len: int = 90) -> str:
     return text[:max_len].rstrip(".,;:")
 
 
+def is_literal_tag_value(value: str | None) -> bool:
+    """True when a must_include tag is an actual @handle, not a prose instruction."""
+    return is_valid_x_username(str(value or "").strip())
+
+
+def is_literal_hashtag_value(value: str | None) -> bool:
+    """True when a must_include hashtags field is literal #tags, not a prose instruction."""
+    tokens = [t for t in re.split(r"[,\s]+", str(value or "").strip()) if t]
+    return bool(tokens) and all(re.fullmatch(r"#\w{1,50}", t) for t in tokens)
+
+
 def _footer(
     *,
     must_tag: str | None,
@@ -753,14 +996,15 @@ def _footer(
 ) -> str:
     """Algo-first footer: @tag + link + client-required hashtags only. Signal tags optional, max one."""
     parts: list[str] = []
-    if must_tag:
+    if must_tag and is_literal_tag_value(must_tag):
         parts.append(must_tag)
     if link:
         parts.append(link)
-    if client_hashtags:
+    if client_hashtags and is_literal_hashtag_value(client_hashtags):
         parts.append(client_hashtags.strip())
-    elif live_tags and draft_idx == 0:
+    elif not client_hashtags and live_tags and draft_idx == 0:
         # Only option 1 gets an optional single signal hashtag when client didn't require any.
+        # A prose hashtags field (e.g. "None required by contract") means add nothing at all.
         parts.append(live_tags[0])
     joined = " ".join(parts).strip()
     return f" {joined}" if joined else ""
@@ -1154,32 +1398,39 @@ def partnership_intel(
     hashtags: str | None = None,
     max_results: int = 25,
     standalone_post: bool = False,
+    campaign_terms: list[str] | None = None,
+    attach_allowed: bool = True,
 ) -> dict[str, Any]:
     handle_norm = normalize_handle(handle) if handle else ""
-    tag_handle = must_tag.lstrip("@") if must_tag and must_tag.startswith("@") else (must_tag or "")
-    if must_tag and must_tag.startswith("@"):
-        must_tag = must_tag
-    elif tag_handle:
+    tag_handle = normalize_handle(must_tag) if must_tag else ""
+    if tag_handle:
         must_tag = f"@{tag_handle}"
+    elif must_tag:
+        must_tag = ""
 
-    topic_terms = re.sub(r"[^\w\s]", " ", topic)
-    topic_terms = re.sub(r"\s+", " ", topic_terms).strip()
+    anchors = build_campaign_anchors(
+        brand=brand,
+        topic=topic,
+        handle=handle_norm or None,
+        must_tag=must_tag or None,
+        link=link,
+        campaign_terms=campaign_terms,
+    )
+    search_queries = build_partnership_search_queries(
+        brand=brand,
+        handle=handle_norm or None,
+        anchors=anchors,
+    )
     queries: dict[str, str] = {}
     all_tweets: list[dict[str, Any]] = []
     all_users: dict[str, dict[str, Any]] = {}
 
-    topic_query = f'("{topic}" OR {topic_terms}) lang:en -is:retweet'
-    queries["topic"] = topic_query
-    topic_payload = client.search_recent(topic_query, max_results=max_results)
-    all_users.update(index_users(topic_payload))
-    all_tweets.extend(topic_payload.get("data") or [])
-
-    if handle_norm:
-        brand_query = f"(@{handle_norm} OR {brand}) lang:en -is:retweet"
-        queries["brand"] = brand_query
-        brand_payload = client.search_recent(brand_query, max_results=max_results)
-        all_users.update(index_users(brand_payload))
-        all_tweets.extend(brand_payload.get("data") or [])
+    for idx, query in enumerate(search_queries or [f'("{brand}") lang:en -is:retweet'], start=1):
+        label = "brand" if idx == 1 else f"topic_{idx}"
+        queries[label] = query
+        payload = client.search_recent(query, max_results=max_results)
+        all_users.update(index_users(payload))
+        all_tweets.extend(payload.get("data") or [])
 
     brand_posts: list[dict[str, Any]] = []
     if handle_norm:
@@ -1192,10 +1443,19 @@ def partnership_intel(
     else:
         profile = {}
 
-    top_posts = summarize_tweets(all_tweets, all_users, limit=10)
+    relevant_tweets = filter_campaign_tweets(all_tweets, anchors, min_relevance=1)
+    tweet_pool = relevant_tweets or filter_campaign_tweets(all_tweets, anchors, min_relevance=0)
+    top_posts = summarize_tweets(tweet_pool, all_users, limit=10)
     brand_summaries = summarize_tweets(brand_posts, {str(profile.get("id", "")): profile} if profile else {}, limit=4)
-    keywords = keyword_pack(all_tweets)
-    audience_play = robert_audience_play(top_posts=top_posts, keywords=keywords)
+    keywords = campaign_keyword_pack(tweet_pool, anchors)
+    quality = assess_signal_quality(top_posts=top_posts, keywords=keywords, anchors=anchors)
+    top_posts = quality.get("top_posts") or top_posts
+    audience_play = robert_audience_play(
+        top_posts=top_posts,
+        keywords=keywords,
+        attach_allowed=attach_allowed and quality.get("quality") in {"strong", "usable"},
+        signal_note=quality.get("note") or "",
+    )
     opening_patterns = _opening_patterns(top_posts)
     drafts, differentiation_notes = _compose_partnership_drafts(
         brand=brand,
@@ -1241,6 +1501,8 @@ def partnership_intel(
         "topic": topic,
         "handle": handle_norm or None,
         "must_include": {"tag": must_tag, "link": link, "hashtags": hashtags},
+        "campaign_anchors": sorted(anchors),
+        "signal_quality": quality,
         "queries": queries,
         "keywords": keywords,
         "opening_patterns": opening_patterns,
@@ -1471,30 +1733,67 @@ def enrich_brief_config(config: dict[str, Any]) -> dict[str, Any]:
         enriched["x_signal_error"] = str(exc)
         return enriched
 
-    fact_hook = _first_key_fact_line(enriched)
-    brief_drafts: list[dict[str, str]] = []
-    for draft in signal.get("draft_posts") or []:
-        text = (draft.get("text") or "").strip()
-        if fact_hook and fact_hook.lower() not in text.lower():
-            text = f"{text}\n\n{fact_hook}"
-        anchor = (draft.get("anchor") or "").strip()
-        if anchor:
-            text = f"{text}\n\nAnchor: {anchor}"
-        brief_drafts.append(
-            {
-                "label": draft.get("label", "Draft"),
-                "text": text,
-                "reach_score": draft.get("reach_score"),
-                "reach_tier": draft.get("reach_tier"),
-                "reach_reason": draft.get("reach_reason"),
-                "anchor": draft.get("anchor"),
-            }
+    original_drafts = [
+        dict(item) for item in (enriched.get("drafts") or []) if isinstance(item, dict)
+    ]
+    quality = (signal.get("signal_quality") or {}).get("quality") or "thin"
+    quality_note = (signal.get("signal_quality") or {}).get("note") or ""
+    enriched["x_signal_quality"] = quality
+
+    # Score the hand-written drafts against the live pull either way, so the
+    # PDF generator can fall back to them if downstream quality gates reject
+    # the composed drafts (see generate_brief.py).
+    scored_originals: list[dict[str, Any]] = []
+    if original_drafts:
+        scored_originals = score_existing_drafts_with_signal(
+            original_drafts,
+            signal,
+            must_tag=tag if is_literal_tag_value(tag) else None,
+            attach_anchors=quality in ("strong", "usable"),
+        )
+        enriched["_original_drafts_scored"] = scored_originals
+
+    # Only replace hand-written drafts when the live conversation genuinely
+    # matches the campaign. Thin/off-topic/merely-usable signal makes the
+    # composed drafts read like template fill — keep the originals and just
+    # add live keywords + reach scores.
+    use_composed = bool(signal.get("draft_posts")) and (
+        not original_drafts or quality == "strong"
+    )
+
+    if use_composed:
+        fact_hook = _first_key_fact_line(enriched)
+        brief_drafts: list[dict[str, str]] = []
+        for draft in signal.get("draft_posts") or []:
+            text = (draft.get("text") or "").strip()
+            if fact_hook and fact_hook.lower() not in text.lower():
+                text = f"{text}\n\n{fact_hook}"
+            anchor = (draft.get("anchor") or "").strip()
+            if anchor:
+                text = f"{text}\n\nAnchor: {anchor}"
+            brief_drafts.append(
+                {
+                    "label": draft.get("label", "Draft"),
+                    "text": text,
+                    "reach_score": draft.get("reach_score"),
+                    "reach_tier": draft.get("reach_tier"),
+                    "reach_reason": draft.get("reach_reason"),
+                    "anchor": draft.get("anchor"),
+                }
+            )
+        if brief_drafts:
+            enriched["drafts"] = brief_drafts
+            enriched["drafts_source"] = "x_signal_partnership"
+    elif scored_originals:
+        enriched["drafts"] = scored_originals
+        enriched["drafts_source"] = "original_drafts_scored"
+        enriched["x_signal_drafts_note"] = (
+            f"Live X signal was {quality} for this niche — kept the hand-written drafts. {quality_note}".strip()
         )
 
-    if brief_drafts:
-        enriched["drafts"] = brief_drafts
-        enriched["drafts_source"] = "x_signal_partnership"
-        top = brief_drafts[0]
+    drafts_now = enriched.get("drafts") or []
+    if drafts_now:
+        top = max(drafts_now, key=lambda d: d.get("reach_score") or 0)
         enriched["recommended_reach"] = {
             "label": top.get("label"),
             "reach_score": top.get("reach_score"),
@@ -1508,18 +1807,26 @@ def enrich_brief_config(config: dict[str, Any]) -> dict[str, Any]:
         "headline": signal.get("headline"),
         "keywords": keywords.get("suggested_keywords") or [],
         "hashtags": keywords.get("suggested_hashtags") or [],
-        "algo_playbook": algo,
+        # When we kept the hand drafts, only surface the live keywords — the
+        # attach/QRT playbook belongs to the composed-draft flow.
+        "algo_playbook": algo if use_composed else {},
         "wording_rules": signal.get("wording_rules") or [],
         "differentiation_notes": signal.get("differentiation_notes") or [],
         "estimated_api_cost_usd": round(0.50, 2),
     }
 
-    algo_steps = list(algo.get("steps") or [])
+    algo_steps = list(algo.get("steps") or []) if use_composed else []
     if algo_steps:
-        enriched["what_to_do"] = algo_steps + [
-            step for step in (enriched.get("what_to_do") or [])
-            if not any(k in step.lower() for k in ("qrt", "quote tweet", "first line", "hashtag", "reply to comments"))
-        ]
+        seen_steps = {step.lower().strip() for step in algo_steps}
+        kept_steps = []
+        for step in enriched.get("what_to_do") or []:
+            if any(k in step.lower() for k in ("qrt", "quote", "first line", "hashtag", "reply to comments")):
+                continue
+            if step.lower().strip() in seen_steps:
+                continue
+            seen_steps.add(step.lower().strip())
+            kept_steps.append(step)
+        enriched["what_to_do"] = algo_steps + kept_steps
 
     try:
         from reach_outcomes import new_brief_id
@@ -1535,6 +1842,7 @@ def score_existing_drafts_with_signal(
     signal: dict[str, Any],
     *,
     must_tag: str | None = None,
+    attach_anchors: bool = True,
 ) -> list[dict[str, Any]]:
     """
     Add relative reach scoring to already-written Robert drafts without rewriting them.
@@ -1552,7 +1860,7 @@ def score_existing_drafts_with_signal(
         draft = dict(item)
         text = str(draft.get("text") or "")
         lower = text.lower()
-        if idx == 0 and top_conversation:
+        if idx == 0 and top_conversation and attach_anchors:
             anchor = top_conversation[0]
             draft.setdefault("angle", "qrt_reaction")
             draft.setdefault("anchor", anchor.get("url", ""))
@@ -1725,6 +2033,8 @@ def analyze_partnership_signal(
     drafts: list[dict[str, Any]] | None = None,
     max_results: int = 25,
     standalone_post: bool = False,
+    campaign_terms: list[str] | None = None,
+    attach_allowed: bool = True,
 ) -> dict[str, Any]:
     client = XClient()
     signal = partnership_intel(
@@ -1737,6 +2047,8 @@ def analyze_partnership_signal(
         hashtags=hashtags,
         max_results=max_results,
         standalone_post=standalone_post,
+        campaign_terms=campaign_terms,
+        attach_allowed=attach_allowed,
     )
     if drafts:
         signal["scored_existing_drafts"] = score_existing_drafts_with_signal(

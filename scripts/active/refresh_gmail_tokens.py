@@ -209,8 +209,15 @@ def refresh_account(name: str, cfg: dict, try_reauth: bool) -> dict:
         result["profile"] = profile
         result["ok"] = True
     except HttpError as exc:
+        status = getattr(getattr(exc, "resp", None), "status", None)
         result["error"] = f"gmail_verify_failed: {exc}"
-        result["needs_reauth"] = exc.resp.status in (401, 403) if getattr(exc, "resp", None) else False
+        if status == 429:
+            # Access token refresh succeeded; Gmail is temporarily throttling profile checks.
+            result["rate_limited"] = True
+            result["warning"] = "gmail_rate_limited"
+            result["ok"] = True
+        elif status in (401, 403):
+            result["needs_reauth"] = True
     except Exception as exc:
         result["error"] = f"verify_failed: {exc}"
 
@@ -239,13 +246,20 @@ def patch_ops_health(accounts: dict[str, dict]) -> None:
     url = os.environ.get("SUPABASE_URL", "https://hbnpwphxjurvtydezwgh.supabase.co")
     robert = accounts.get("robert", {})
     asher = accounts.get("asher", {})
+    def token_error(account: dict) -> str:
+        if account.get("rate_limited"):
+            return "gmail_rate_limited: verify skipped (token refresh OK)"
+        if account.get("ok"):
+            return ""
+        return str(account.get("error") or "")[:200]
+
     fields = {
         "updated_at": utc_now(),
         "gmail_token_checked_at": utc_now(),
         "gmail_token_robert_ok": bool(robert.get("ok")),
         "gmail_token_asher_ok": bool(asher.get("ok")),
-        "gmail_token_robert_error": str(robert.get("error") or "")[:200],
-        "gmail_token_asher_error": str(asher.get("error") or "")[:200],
+        "gmail_token_robert_error": token_error(robert),
+        "gmail_token_asher_error": token_error(asher),
     }
     try:
         httpx.patch(
@@ -279,7 +293,12 @@ def main() -> int:
         cfg = ACCOUNTS[name]
         result = refresh_account(name, cfg, args.try_reauth)
         results[name] = result
-        if not result.get("ok"):
+        if result.get("rate_limited") and not args.quiet:
+            print(
+                f"{name}: Gmail rate-limited on verify (token refresh OK — no re-auth needed)",
+                file=sys.stderr,
+            )
+        elif not result.get("ok"):
             msg = (
                 f"UNALIGNED Gmail token needs re-auth ({name})\n"
                 f"Mailbox: {cfg.get('email_hint', name)}\n"

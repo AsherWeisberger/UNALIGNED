@@ -1,10 +1,37 @@
 {
-  "ran_at": "2026-07-16T06:30:05",
-  "stop_reason": "exception:No logged-in X tab found in normal Chrome. Pin https://x.com/i/chat in Google Chrome while logged in as Robert, then run again.",
+  "ran_at": "2026-08-27T23:24:02",
+  "stop_reason": "stalled_after_scroll",
   "stop_signature": null,
-  "inspected": 0,
+  "inspected": 30,
   "relevant_count": 0,
   "new_threads": 0,
+  "include_requests": true,
+  "sections": [
+    {
+      "section": "all",
+      "stop_reason": "stalled_after_scroll",
+      "stop_signature": null,
+      "inspected": 4,
+      "relevant_count": 0,
+      "new_threads": 0
+    },
+    {
+      "section": "requests:priority",
+      "stop_reason": "stalled_after_scroll",
+      "stop_signature": null,
+      "inspected": 13,
+      "relevant_count": 0,
+      "new_threads": 0
+    },
+    {
+      "section": "requests:hidden",
+      "stop_reason": "stalled_after_scroll",
+      "stop_signature": null,
+      "inspected": 13,
+      "relevant_count": 0,
+      "new_threads": 0
+    }
+  ],
   "ok": false,
   "source": "live_x_inbox_daily_scrape.py",
   "note": "This powers the ORGANS X watcher health card."

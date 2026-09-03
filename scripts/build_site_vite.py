@@ -64,4 +64,11 @@ for name in ("favicon.ico", "unaligned_logo.png", ".nojekyll"):
     if src.exists():
         shutil.copy2(src, site / name)
 
+docs_src = root / "docs"
+docs_dest = site / "docs"
+if docs_src.exists():
+    if docs_dest.exists():
+        shutil.rmtree(docs_dest)
+    shutil.copytree(docs_src, docs_dest)
+
 print(f"build_site_vite.py: wrote _site with {entry_file}")

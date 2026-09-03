@@ -312,46 +312,23 @@ def robert_opener(
     allow_eyewitness: bool = False,
     allow_name_drop: bool = False,
 ) -> str:
-    tone = tonality_for_variant(variant)
-    patterns = tone.get("opener_patterns") or []
-    if not patterns:
-        patterns = TONALITY_DEFS[variant % len(TONALITY_DEFS)].get("opener_patterns") or [""]
-
-    def _pattern_allowed(pattern: str) -> bool:
-        lowered = pattern.lower()
-        if not allow_eyewitness and any(marker in lowered for marker in EYEWITNESS_OPENER_MARKERS):
-            return False
-        if not allow_name_drop and any(marker in lowered for marker in FABRICATED_NAME_DROP_MARKERS):
-            return False
-        return True
-
-    allowed = [pattern for pattern in patterns if _pattern_allowed(pattern)]
-    pool = allowed or [
-        pattern
-        for tone_def in TONALITY_DEFS
-        for pattern in (tone_def.get("opener_patterns") or [])
-        if _pattern_allowed(pattern)
+    company = _line(brand) or "this team"
+    grounded_hook = _line(hook)
+    if not grounded_hook:
+        return f"{company} is doing something more specific than the launch line suggests."
+    # Fact-first openers only. Formula catchphrases ("interesting part", "bigger signal")
+    # trained the model into sameness and fought the quality gate.
+    patterns = [
+        "{hook}",
+        "{brand} is worth a closer look for this reason: {hook}",
+        "The practical change: {hook}",
     ]
-    if not pool:
-        pool = ["What caught my eye with {brand} is the workflow shift, not another tool list."]
-    pattern = pool[variant % len(pool)]
+    if allow_eyewitness:
+        patterns[0] = "What stood out when I tested {brand}: {hook}"
     return fill_opener(
-        pattern,
-        brand=brand or "this team",
-        topic=topic or "AI",
-        hook=hook or topic or "this",
-        artifact=artifact,
-        quote=hook or topic,
-        frame=topic or "where this goes next",
-        a=topic or "better infrastructure",
-        b="another distraction",
-        trend=topic or "bad trends",
-        context=topic or "the stack",
-        org=brand or "the company",
-        category=topic or "model",
-        truth=f"{brand} is worth a real look" if brand else "the workflow gap is real",
-        outcome="this shipped safely" if brand else "clarity here",
-        category_share="job moves",
+        patterns[variant % len(patterns)],
+        brand=company,
+        hook=grounded_hook,
     )
 
 

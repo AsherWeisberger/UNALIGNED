@@ -111,6 +111,7 @@ function V4App() {
     calendar: '',
     'company-os': '',
     'machine-room': '',
+    'gods-eye': '',
   });
   const [toast, setToast] = React.useState(null);
   const toastTimer = React.useRef(null);
@@ -190,6 +191,7 @@ function V4App() {
     if (view === 'board') return 'Search pipeline…';
     if (view === 'company-os') return 'Search Company OS…';
     if (view === 'machine-room') return 'Search Machine Room…';
+    if (view === 'gods-eye') return 'Search God’s Eye…';
     return 'Search calendar…';
   }, [view]);
 
@@ -312,6 +314,7 @@ function V4App() {
   const paletteCommands = [
     { label: 'Go to Company OS', hint: 'workspace', run: () => { setView('company-os'); setOpenId(null); } },
     { label: 'Go to Machine Room', hint: 'workers', run: () => { setView('machine-room'); setOpenId(null); } },
+    { label: "Go to God's Eye", hint: 'Sidhu globe', run: () => { setView('gods-eye'); setOpenId(null); } },
     { label: 'Go to Today', run: () => { setView('today'); setOpenId(null); } },
     { label: 'Go to Calendar', run: () => { setView('calendar'); setOpenId(null); } },
     { label: 'Go to ' + inboxLabel, run: () => { setView('inbox'); } },
@@ -354,6 +357,7 @@ function V4App() {
           <button className="hd-nav-btn" aria-current={view === 'leads' ? 'page' : undefined} onClick={() => { setView('leads'); }}>Network</button>
           <button className="hd-nav-btn" aria-current={view === 'company-os' ? 'page' : undefined} onClick={() => { setView('company-os'); setOpenId(null); }}>Company OS</button>
           <button className="hd-nav-btn" aria-current={view === 'machine-room' ? 'page' : undefined} onClick={() => { setView('machine-room'); setOpenId(null); }}>Machine Room</button>
+          <button className="hd-nav-btn" aria-current={view === 'gods-eye' ? 'page' : undefined} onClick={() => { setView('gods-eye'); setOpenId(null); }}>God&apos;s Eye</button>
         </div>
 
         <div className="hd-search">
@@ -507,6 +511,17 @@ function V4App() {
             />
           </div>
         )}
+        {view === 'gods-eye' && (
+          <div className="body body-gods-eye">
+            <iframe
+              className="gods-eye-frame"
+              title="God's Eye"
+              src="/gods-eye/"
+              allow="geolocation; microphone; clipboard-read; clipboard-write; fullscreen; accelerometer; gyroscope"
+              allowFullScreen
+            />
+          </div>
+        )}
       </main>
 
       {/* ─── Footer ─── */}
@@ -590,7 +605,7 @@ function V4App() {
                     onChange={v => setTweak('viewAs', v)} />
         <TweakSection label="View" />
         <TweakSelect label="Page" value={view}
-                    options={['today','board','new-leads','company-os','machine-room','leads','inbox','invoices','calendar']}
+                    options={['today','board','new-leads','company-os','machine-room','gods-eye','leads','inbox','invoices','calendar']}
                     onChange={v => { setView(v); setOpenId(null); }} />
         <TweakSection label="Appearance" />
         <TweakRadio label="Theme" value={t.theme}

@@ -16,7 +16,7 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://hbnpwphxjurvtydezwgh.supa
 SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 FEEDBACK_BASE = os.environ.get(
     "COLLAB_FEEDBACK_BASE",
-    "https://asherweisberger.github.io/UNALIGNED/feedback.html",
+    "https://agentdashboard.cloud/feedback",
 )
 CREATE_API = os.environ.get(
     "CREATE_COLLAB_FEEDBACK_API",

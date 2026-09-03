@@ -32,7 +32,16 @@
       "Do not casually discount Robert's value.",
       "If a lead references old pricing, treat it as negotiation, not a reset.",
       "Custom exceptions require escalation."
-    ]
+    ],
+    "production_addons": {
+      "robert_team_demo_media": {
+        "price": 500,
+        "name": "Robert's Team Demo & Media",
+        "client_line": "Robert's team produces demo clips and screen media for the post.",
+        "internal_note": "Asher executes production. Client-facing copy always says Robert's team."
+      }
+    },
+    "production_included_from_tier": "Content Core ($3,495+)"
   },
   "hard_rules": [
     "Do not promote crypto tokens or coins.",
@@ -104,6 +113,10 @@
     {
       "situation": "Invoice is out but payment proof is missing",
       "approach": "Short, calm follow-up asking whether payment was sent and requesting receipt for records."
+    },
+    {
+      "situation": "Client wants demo clips or video on a deal below Content Core ($3,495)",
+      "approach": "Default: ask them to send their demo clips and media kit (links or files) — client supplies media at base tier. Upsell if they want production: Robert's Team Demo & Media add-on (+$500), or upgrade to Content Core ($3,495+). Do not promise Robert will record unless add-on or upgrade is confirmed and invoiced."
     }
   ]
 }

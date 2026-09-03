@@ -117,7 +117,7 @@ email_body must read as a finished email and contain zero internal reasoning. Ke
 
 
 def deal_desk_draft(card, *, recency, pricing=None, hard_pushback=False):
-    """10% job: draft the client reply. Runs on Claude.
+    """Draft the client reply. Runs on local Qwen 3.8.
     recency in {'new','lapsed','active'} drives the rate rule in the prompt.
     pricing: live pricing_tiers rows (injected so the draft uses real numbers).
 

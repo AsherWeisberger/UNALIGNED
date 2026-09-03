@@ -68,8 +68,80 @@ def get_gmail_service():
     return build('gmail', 'v1', credentials=creds)
 
 # ─── SUPABASE ──────────────────────────────────────────────────────────────
-SUPABASE_URL = "https://hbnpwphxjurvtydezwgh.supabase.co"
-SUPABASE_KEY = os.getenv('SUPABASE_ANON_KEY', 'eyJhbL...Ge4s')
+SUPABASE_URL = os.getenv('SUPABASE_URL', "https://hbnpwphxjurvtydezwgh.supabase.co")
+
+def _supabase_auth_token() -> str:
+    """Pick the best Supabase key. Service-role is preferred because the anon key
+can lose RCL read access to `cards` (2026-08-17: anon 401s while the service-role
+key still works). Probe each candidate live; if none work, load the canonical env
+file that actually holds the live service-role key and retry. This makes the run
+resilient to a broken/missing cron env source (e.g. the old CLAUDE_REWRITE/.env)."""
+    import urllib.request
+    from urllib.error import HTTPError
+    from pathlib import Path
+
+    def keylist():
+        seen = []
+        for k in [os.getenv('SUPABASE_SERVICE_ROLE_KEY', ''),
+                  os.getenv('SUPABASE_SERVICE_KEY', ''),
+                  os.getenv('SUPABASE_ANON_KEY', ''),
+                   'eyJhbL...Ge4s']:
+            if k and k not in seen:
+                seen.append(k)
+        return seen
+
+    def probe(key):
+        req = urllib.request.Request(
+            SUPABASE_URL + '/rest/v1/cards?limit=1',
+            headers={'apikey': key, 'Authorization': 'Bearer ' + key},
+        )
+        with urllib.request.urlopen(req, timeout=15):
+            return True
+
+    for key in keylist():
+        try:
+            probe(key)
+            log(f"Supabase auth OK (key prefix {key[:16]}...)")
+            return key
+        except HTTPError as e:
+            log(f"Supabase key rejected ({key[:16]}...): HTTP {e.code}")
+        except Exception as e:
+            log(f"Supabase key probe failed ({key[:16]}...): {e}")
+
+    # Last resort: load the canonical env file that holds the live service-role key.
+    env_file = Path.home() / '.config' / 'google-credentials' / 'unaligned-scraper.env'
+    if env_file.exists():
+        log(f"No in-env Supabase key worked - loading {env_file}")
+        for raw in env_file.read_text().splitlines():
+            raw = raw.strip()
+            if not raw or raw.startswith('#') or '=' not in raw:
+                continue
+            if raw.startswith('export '):
+                raw = raw[7:]
+            k, _, v = raw.partition('=')
+            v = v.strip().strip('"').strip("'")
+            if k in ('SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SERVICE_KEY',
+                      'SUPABASE_ANON_KEY', 'SUPABASE_URL'):
+                os.environ[k] = v
+        if os.environ.get('SUPABASE_URL'):
+            global SUPABASE_URL
+            SUPABASE_URL = os.environ['SUPABASE_URL']
+        for key in keylist():
+            try:
+                probe(key)
+                log(f"Supabase auth OK after env load (key prefix {key[:16]}...)")
+                return key
+            except HTTPError as e:
+                log(f"Supabase key rejected after load ({key[:16]}...): HTTP {e.code}")
+            except Exception as e:
+                log(f"Supabase key probe failed after load ({key[:16]}...): {e}")
+
+    raise RuntimeError(
+        "No working Supabase key found (all 401/403). "
+        "Check SUPABASE_SERVICE_ROLE_KEY in "
+        "~/.config/google-credentials/unaligned-scraper.env")
+
+SUPABASE_KEY = _supabase_auth_token()
 
 import urllib.request
 
@@ -187,6 +259,35 @@ def _parse_rfc_date(raw: str) -> str:
     except Exception:
         return raw
 
+def extract_attachments(payload):
+    """Filename + mime metadata only — never pulls attachment bytes."""
+    out = []
+    seen = set()
+
+    def walk(part):
+        filename = str(part.get('filename') or '').strip()
+        body = part.get('body') or {}
+        mime = str(part.get('mimeType') or '').strip()
+        attachment_id = body.get('attachmentId')
+        if filename and attachment_id:
+            size = int(body.get('size') or 0)
+            key = f'{filename}|{mime}|{size}'
+            if key not in seen:
+                seen.add(key)
+                out.append({
+                    'filename': filename[:180],
+                    'mimeType': mime[:120],
+                    'size': size,
+                })
+        for child in part.get('parts') or []:
+            if isinstance(child, dict):
+                walk(child)
+
+    if isinstance(payload, dict):
+        walk(payload)
+    return out[:12]
+
+
 def format_gmail_email(msg):
     headers = {}
     for h in msg.get('payload', {}).get('headers', []):
@@ -201,8 +302,9 @@ def format_gmail_email(msg):
     reply_to_list = extract_email_addresses(headers.get('reply-to', ''))
 
     body = decode_body(msg['payload'])
+    attachments = extract_attachments(msg.get('payload') or {})
 
-    return {
+    formatted = {
         'from': from_name or email_addr,
         'email': email_addr,
         'to': to_list,
@@ -215,6 +317,9 @@ def format_gmail_email(msg):
         'gmail_thread_id': msg.get('threadId', ''),
         'message_id': msg.get('id', ''),
     }
+    if attachments:
+        formatted['attachments'] = attachments
+    return formatted
 
 def message_key(em):
     if not isinstance(em, dict):

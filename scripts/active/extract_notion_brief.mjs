@@ -13,7 +13,11 @@ import { chromium } from "playwright";
 import os from "os";
 import path from "path";
 
-const url = process.argv[2];
+// Callers sometimes pass a whole pasted email. Extract the first real URL so
+// page.goto() never receives a sentence.
+const rawArg = process.argv[2] || "";
+const urlMatch = String(rawArg).match(/https?:\/\/[^\s<>()\[\]]+/);
+const url = urlMatch ? urlMatch[0].replace(/[.,;:!?)"'”’]+$/, "") : rawArg.trim();
 // Visible fallback is ON by default so the one-time Notion login can happen.
 const allowVisibleFallback = !["0", "false", "no", "off"].includes(
   String(process.env.SHOW_BRIEF_BROWSER || "").toLowerCase()
@@ -74,9 +78,9 @@ async function extractWithMode(headless) {
 
     let stableReads = 0;
     let lastLength = 0;
-    for (let i = 0; i < 24; i += 1) {
+    for (let i = 0; i < 14; i += 1) {
       await page.mouse.wheel(0, 2600);
-      await page.waitForTimeout(900);
+      await page.waitForTimeout(600);
       const currentLength = await page.evaluate(() => (document.body?.innerText || "").length);
       if (currentLength <= lastLength + 40) {
         stableReads += 1;
@@ -84,7 +88,7 @@ async function extractWithMode(headless) {
         stableReads = 0;
       }
       lastLength = currentLength;
-      if (stableReads >= 3) break;
+      if (stableReads >= 2) break;
     }
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.waitForTimeout(500);

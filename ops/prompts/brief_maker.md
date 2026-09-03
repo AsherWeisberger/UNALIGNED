@@ -7,20 +7,35 @@ Source first, never skip:
 2. Read the source fully before writing. Notion is JavaScript rendered, so open it in a headless browser and read the rendered text. A raw fetch of a Notion URL returns nothing usable. Google Docs read through the Docs API.
 3. Build the brief from what the page actually says, especially the draft posts. Never from headings alone.
 
-Two formats.
+One source pipeline, format specific outputs.
 
-QRT or quote brief. Title: [COMPANY] [CAMPAIGN] QRT x UNALIGNED x ROBERT SCOBLE. Sections in order:
-- About [Company]: one paragraph, what is launching and the hook
-- The Core Idea: the moat, why people share or care
-- How it Works: mechanics in plain language
-- Claimed Differentiators: bullets, label then detail
-- Where it Lives: Website, Company X handle, Founder X handle, Launch date
-- Status Note: launch timing and the first thirty minute algorithm window, disclosure rules (Paid Partnership label ON, Made with AI ON if AI used), hashtags, and a line that the account manager sends tailored creative direction separately, wait for that before publishing
-- Why it matters for AlignedNews: tie the moment to AlignedNews.com and Robert's first person angle
-- Post to QRT: the official launch post to quote (link from the AM, often TBD)
-- Quotes to choose from: three labeled options, first person recommended, reaction, short amplify
+Every selected deliverable goes through the same stages:
+1. Read the complete source. Refuse to draft from a title, preview, permission page, or partial Google Doc.
+2. Extract a campaign truth set: company, product, deliverable, timing, exact links and handles, disclosure, facts, qualifications, forbidden claims, assets, and missing fields.
+3. Generate five grounded candidates using the truth set.
+4. Run deterministic checks for format, required items, source facts, unsupported experience, repetition, and generic filler.
+5. Keep the strongest three genuinely different options. Rewrite failed candidates up to two times. Never fill an empty slot with weak copy.
 
-Retweet brief. Different on purpose: grey header (#323237), no logo, instructions in a blue box (#DCEDFC fill, #A0C3EB border, visible border). Three step instructions only. No talking points, no key hooks. One page means all required content fits on one page, not stripped.
+Selected deliverables:
+
+- Quote Repost or QRT: three concise original reactions to the launch post. Add a thesis or category insight. Do not summarize the source post. Keep the anchor URL in logistics.
+- Retweet only: one instruction block with exactly three actions. No talking points and no invented commentary.
+- Custom X Post: three substantive standalone posts. Each has a clear thesis, at least two source facts, why the facts matter, and a natural CTA. A paid custom post is not a one line caption.
+- Narrative Thread: three complete options. Every option contains exactly one Main post, Reply 1, and Reply 2.
+- LinkedIn Post: three finished LinkedIn posts with full paragraphs, at least two source facts, a professional market or operator implication, and the required CTA.
+- Amplification X: three concise, source grounded reactions that amplify the supplied launch post. Do not treat this as a generic standalone post and do not invent the live post URL.
+- Founder Video Post: three 30 to 60 second directions. Every option contains On camera hook, Talking points, Closing line, and Caption.
+- X Space live: three host run of show options. Every option contains Opening, Question arc, and Closing. These are host notes, not social copy.
+- Interview: three one hour interview arcs. Every option contains Opening, Question arc, and Closing, with founder story, mechanism, evidence, limits, market impact, and next steps.
+- Auto detect: use source and AM email evidence. If the deliverable cannot be determined confidently, stop and ask Ash to choose it. Never default silently to Custom X Post.
+
+Robert voice is a house style, not a Mad Lib. Lead with a source specific observation, category contrast, or market signal. Explain the real mechanism and proof. Never fill an unrelated old Robert tweet template with the new product name.
+
+Never claim Robert tried, used, asked, built, tested, saw, met, watched, or attended anything unless the source explicitly confirms Robert did it. A suggested first person hook in a creator brief is not confirmation.
+
+QRT title: [COMPANY] [CAMPAIGN] QRT x UNALIGNED x ROBERT SCOBLE. Include About [Company], Core Idea, How It Works, Where It Lives, Status, anchor post, and three quote options.
+
+Retweet visual format remains different on purpose: grey header (#323237), no logo, instructions in a blue box (#DCEDFC fill, #A0C3EB border, visible border). One page means all required content fits on one page, not stripped.
 
 Video summary bullets are always: Problem, Solution, Stack, Results, Why It Matters.
 

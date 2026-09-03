@@ -19,7 +19,7 @@ if [ -f "$ENV_FILE" ]; then
 fi
 
 export LLM_BACKEND="${LLM_BACKEND:-local}"
-export LOCAL_MODEL="${LOCAL_MODEL:-qwen2.5:32b-instruct}"
+export LOCAL_MODEL="${LOCAL_MODEL:-qwen3.8:27b-mlx}"
 export OLLAMA_URL="${OLLAMA_URL:-http://localhost:11434/api/chat}"
 export LOCAL_LLM_BRIDGE_PORT="${LOCAL_LLM_BRIDGE_PORT:-8787}"
 export LOCAL_LLM_BRIDGE_HOST="${LOCAL_LLM_BRIDGE_HOST:-127.0.0.1}"

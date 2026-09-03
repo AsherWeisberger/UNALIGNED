@@ -51,6 +51,8 @@ NOISE_EMAIL_FRAGMENTS = (
 GENERIC_OUTREACH_SUBJECTS = (
     "open for collaborations",
     "follow-up from robert scoble",
+    "checking back in",
+    "robert scoble x unaligned",
 )
 
 

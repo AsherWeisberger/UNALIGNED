@@ -12,10 +12,16 @@ browser can open it directly.
 
 from __future__ import annotations
 
+import base64
 import json
 import mimetypes
 import subprocess
 import tempfile
+import urllib.parse
+import urllib.request
+from email.mime.application import MIMEApplication
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote
@@ -27,6 +33,61 @@ OUTPUT_ROOT = Path("/Users/asherweisberger/Desktop/UNALIGNED").resolve()
 GENERATOR = Path("/Users/asherweisberger/.codex/skills/brief-creator/scripts/generate_brief.py").resolve()
 INVOICE_GENERATOR = Path("/Users/asherweisberger/Desktop/UNALIGNED/MASTER FILES/invoices/create_invoice.py").resolve()
 INVOICE_OUTPUT_DIR = Path("/Users/asherweisberger/Desktop/UNALIGNED/INVOICES/OUTSTANDING").resolve()
+
+_CRED = Path.home() / ".config/google-credentials"
+_COMPOSE_TOKENS = {"asher": _CRED / "asher-gmail-compose-token.json",
+                   "robert": _CRED / "robert-gmail-compose-token.json"}
+_SENDER_EMAIL = {"asher": "asherunaligned@gmail.com", "robert": "scobleizer@gmail.com"}
+
+
+def _access_token(path: Path) -> str:
+    d = json.loads(path.read_text())
+    data = urllib.parse.urlencode({
+        "client_id": d["client_id"], "client_secret": d["client_secret"],
+        "refresh_token": d["refresh_token"], "grant_type": "refresh_token"}).encode()
+    req = urllib.request.Request(d.get("token_uri", "https://oauth2.googleapis.com/token"), data=data)
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return json.loads(r.read())["access_token"]
+
+
+def create_reply_draft(payload: dict, pdf_path: Path) -> dict:
+    """Create a Gmail DRAFT (never auto-sent) replying on the deal thread with the
+    invoice PDF attached. Needs a compose token (run reauth_gmail_compose.py once)."""
+    sender_key = str(payload.get("sender") or "asher").lower()
+    if sender_key not in _COMPOSE_TOKENS:
+        sender_key = "asher"
+    tok_path = _COMPOSE_TOKENS[sender_key]
+    if not tok_path.exists():
+        raise RuntimeError(
+            "No Gmail compose token yet. Run once: "
+            f"python3 scripts/active/reauth_gmail_compose.py --account {sender_key}")
+    access = _access_token(tok_path)
+
+    msg = MIMEMultipart()
+    msg["To"] = str(payload.get("to") or payload.get("email") or "")
+    if payload.get("cc"):
+        msg["Cc"] = str(payload["cc"])
+    msg["From"] = _SENDER_EMAIL[sender_key]
+    msg["Subject"] = str(payload.get("subject") or "Invoice")
+    if payload.get("inReplyTo"):
+        msg["In-Reply-To"] = str(payload["inReplyTo"])
+        msg["References"] = str(payload["inReplyTo"])
+    msg.attach(MIMEText(str(payload.get("body") or "Please find the invoice attached."), "plain"))
+    with open(pdf_path, "rb") as f:
+        part = MIMEApplication(f.read(), _subtype="pdf")
+    part.add_header("Content-Disposition", "attachment", filename=pdf_path.name)
+    msg.attach(part)
+
+    draft = {"message": {"raw": base64.urlsafe_b64encode(msg.as_bytes()).decode()}}
+    if payload.get("threadId"):
+        draft["message"]["threadId"] = str(payload["threadId"])
+    req = urllib.request.Request(
+        "https://gmail.googleapis.com/gmail/v1/users/me/drafts",
+        data=json.dumps(draft).encode(),
+        headers={"Authorization": "Bearer " + access, "Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        res = json.loads(r.read())
+    return {"draft_id": res.get("id"), "draft_url": "https://mail.google.com/mail/u/0/#drafts"}
 
 
 def send_json(handler: BaseHTTPRequestHandler, status: int, payload: dict) -> None:
@@ -214,6 +275,20 @@ class BriefActionHandler(BaseHTTPRequestHandler):
                     "path": str(output),
                     "filename": output.name,
                     "url": f"http://{HOST}:{PORT}/invoice-files/{output.name}",
+                })
+            except Exception as exc:
+                send_json(self, 400, {"ok": False, "error": str(exc)})
+            return
+
+        if self.path == "/invoice-to-draft":
+            try:
+                output = generate_invoice(payload)
+                draft = create_reply_draft(payload, output)
+                send_json(self, 200, {
+                    "ok": True,
+                    "filename": output.name,
+                    "url": f"http://{HOST}:{PORT}/invoice-files/{output.name}",
+                    **draft,
                 })
             except Exception as exc:
                 send_json(self, 400, {"ok": False, "error": str(exc)})

@@ -68,8 +68,8 @@
     const API = 'https://us-central1-unaligned-fc556.cloudfunctions.net/robertDeskIntake';
 
     const COLLAB_ONLY = (function () {
-      var path = String(location.pathname || '').replace(/\/+$/, '');
-      if (/\/connect\/collab$/i.test(path)) return true;
+      var path = String(location.pathname || '').toLowerCase().replace(/\/index\.html$/, '').replace(/\/+$/, '');
+      if (path.indexOf('/connect/collab') >= 0) return true;
       return /(?:^|[?&])lane=collab(?:oration)?(?:&|$)/i.test(String(location.search || ''));
     })();
 

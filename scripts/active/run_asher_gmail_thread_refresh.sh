@@ -100,7 +100,6 @@ else
   /opt/homebrew/bin/python3 scripts/active/gmail_delta_sync.py || true
 fi
 
-/opt/homebrew/bin/python3 scripts/active/pipeline_health.py gmail_refresh_end || true
 
 /opt/homebrew/bin/python3 - <<PY || true
 import json
@@ -117,7 +116,7 @@ now = datetime.now(timezone.utc).isoformat()
 full = read_json(Path.home() / ".config/google-credentials/asher_gmail_sync_now_status.json")
 delta = read_json(Path.home() / ".config/google-credentials/gmail_delta_asher_status.json")
 out = {
-    "ok": bool(full.get("ok")) or bool(delta.get("ok")),
+    "ok": bool(full.get("ok")) or (bool(delta.get("ok")) and not bool(delta.get("rate_limited"))),
     "updated_at": now,
     "full_sync": full,
     "delta_sync": delta,
@@ -129,5 +128,7 @@ Path.home().joinpath(".config/google-credentials/gmail_scheduled_refresh_status.
     encoding="utf-8",
 )
 PY
+
+/opt/homebrew/bin/python3 scripts/active/pipeline_health.py gmail_refresh_end || true
 
 echo "===== $(date '+%Y-%m-%d %H:%M:%S %Z') gmail thread refresh end (ok=$OK) ====="

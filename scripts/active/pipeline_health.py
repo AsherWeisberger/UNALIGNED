@@ -119,6 +119,23 @@ def morning_telegram_summary(
     return "\n".join(lines)
 
 
+
+def asher_thread_refresh_ok() -> bool:
+    """Asher mailbox scrape truth from the dedicated thread-refresh job.
+
+    Morning daily scraper no longer dumps Asher mail; com.unaligned.gmail-thread-refresh
+    writes these status files. Prefer a successful full sync / scheduled refresh.
+    Do not treat a rate-limited delta alone as success.
+    """
+    scheduled = read_json(STATE_DIR / "gmail_scheduled_refresh_status.json")
+    full = read_json(STATE_DIR / "asher_gmail_sync_now_status.json")
+    if bool(full.get("ok")):
+        return True
+    if bool(scheduled.get("ok")):
+        return True
+    return False
+
+
 def upsert_ops_health(fields: dict) -> None:
     url = os.environ.get("SUPABASE_URL", "https://hbnpwphxjurvtydezwgh.supabase.co")
     fields["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -152,7 +169,8 @@ def main() -> int:
         send_telegram("🌅 UNALIGNED morning scraper started (Gmail + X + pipeline)")
     elif mode == "cron_end":
         robert_ok = os.environ.get("PIPELINE_ROBERT_OK", "0") == "1"
-        asher_ok = os.environ.get("PIPELINE_ASHER_OK", "0") == "1"
+        # Asher scrape moved to gmail-thread-refresh; never trust hardcoded PIPELINE_ASHER_OK=0.
+        asher_ok = asher_thread_refresh_ok()
         thread_sync = read_json(STATE_DIR / "codex_thread_sync_status.json")
         candidate_sync = read_json(STATE_DIR / "codex_asher_candidate_write_status.json")
         status = "ok" if (robert_ok or asher_ok) else "degraded"
@@ -181,6 +199,18 @@ def main() -> int:
             "gmail_delta_at": now,
             "gmail_delta_status": "ok" if delta.get("ok", True) else "failed",
             "cards_patched": int(delta.get("patched", delta.get("written", 0)) or 0),
+        }
+    elif mode == "gmail_refresh_end":
+        scheduled = read_json(STATE_DIR / "gmail_scheduled_refresh_status.json")
+        full = read_json(STATE_DIR / "asher_gmail_sync_now_status.json")
+        ok = asher_thread_refresh_ok()
+        # ops_health only has scraper_* / gmail_delta_* / cards_*; no scheduled_refresh columns.
+        fields = {
+            "scraper_asher_ok": ok,
+            "gmail_delta_at": now,
+            "gmail_delta_status": "ok" if ok else "failed",
+            "cards_patched": int(scheduled.get("threads_patched", full.get("threads_patched", 0)) or 0),
+            "cards_created": int(scheduled.get("new_cards_written", full.get("new_cards_written", 0)) or 0),
         }
     else:
         print(f"unknown mode: {mode}", file=sys.stderr)

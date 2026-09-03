@@ -1,14 +1,24 @@
 /**
- * God Mode Cesium — Phase 3f leak/glitch/perf pass for UNIFY Planetary Ops.
+ * God Mode Cesium — shared UNIFY / Aligned News overlay (one codebase).
  * Browser-loadable IIFE. Exposes window.V4GodModeEarth (React function component).
  * API: { open, layer, viewer, onClose, onLayerChange }
- * React / ReactDOM are globals (ops.html). CesiumJS loaded on demand from CDN.
+ * React / ReactDOM are globals (ops.html or boot.js). CesiumJS loaded on demand from CDN.
  */
 (function (global) {
   'use strict';
 
-  const React = global.React;
-  if (!React) return;
+  // Live React binding — never abort this IIFE. ops.html / boot.js load UMD React
+  // first, but a parse/load race must still export V4GodModeEarth for Cesium.
+  let React = global.React;
+  function bindReact() {
+    const R = global.React;
+    if (R && R.createElement && R.useRef) {
+      React = R;
+      return true;
+    }
+    return false;
+  }
+  bindReact();
 
   const CESIUM_VERSION = '1.125';
   const CESIUM_BASE = 'https://cesium.com/downloads/cesiumjs/releases/' + CESIUM_VERSION + '/Build/Cesium/';
@@ -44,8 +54,10 @@
   const TLE_GROUP_TTL_MS = 6 * 60 * 60 * 1000;
   const SHIP_META_TTL_MS = 12 * 60 * 1000;
 
-  const MAX_FLIGHT_POINTS = 280;
-  const MAX_SHIP_POINTS = 480;
+  const MAX_FLIGHT_POINTS = 1200;
+  const MAX_SHIP_POINTS = 1400;
+  const CRAFT_GLB_URI = 'flow-v4/models/cesium-air.glb';
+  const CRAFT_GLB_RANGE_M = 150000;
   const STARLINK_MAX_ALL = 400;
   const STARLINK_MAX_FOCUS = 560;
   const GPS_MAX = 64;
@@ -75,6 +87,7 @@
   const EEZ_TIMEOUT_MS = 18000;
   const SHIP_POLL_MS = 28000;
   const FLIGHT_POLL_MS = 40000;
+  const RENDER_DELAY_SEC = 30;
   const MIL_POLL_MS = 20000;
   const RADAR_ALPHA = 0.45;
   const RADAR_FRAME_MS = 1000;
@@ -212,6 +225,28 @@
     '}',
   ].join('\n');
 
+  const SHADER_SHARPEN = [
+    'uniform sampler2D colorTexture;',
+    'in vec2 v_textureCoordinates;',
+    'void main() {',
+    '  vec2 uv = v_textureCoordinates;',
+    '  vec2 px = vec2(1.0) / vec2(textureSize(colorTexture, 0));',
+    '  vec3 c = texture(colorTexture, uv).rgb;',
+    '  vec3 blur = texture(colorTexture, uv + px * vec2(-1.0, -1.0)).rgb;',
+    '  blur += texture(colorTexture, uv + px * vec2(0.0, -1.0)).rgb;',
+    '  blur += texture(colorTexture, uv + px * vec2(1.0, -1.0)).rgb;',
+    '  blur += texture(colorTexture, uv + px * vec2(-1.0, 0.0)).rgb;',
+    '  blur += c;',
+    '  blur += texture(colorTexture, uv + px * vec2(1.0, 0.0)).rgb;',
+    '  blur += texture(colorTexture, uv + px * vec2(-1.0, 1.0)).rgb;',
+    '  blur += texture(colorTexture, uv + px * vec2(0.0, 1.0)).rgb;',
+    '  blur += texture(colorTexture, uv + px * vec2(1.0, 1.0)).rgb;',
+    '  blur *= 0.111111;',
+    '  vec3 outc = c + (c - blur) * 1.08;',
+    '  out_FragColor = vec4(outc, 1.0);',
+    '}',
+  ].join('\n');
+
   let cesiumLibPromise = null;
   let satLibPromise = null;
   let stylesInjected = false;
@@ -239,13 +274,12 @@
   const trailHistory = new Map();
 
   function injectStyles() {
-    if (stylesInjected || document.getElementById('v4-gm2-styles')) { stylesInjected = true; return; }
     const css = [
       '.v4-godmode.v4-gm2{--gm2-cyan:#64d2ff;--gm2-amber:#ffd60a;--gm2-red:#ff453a;--gm2-panel:rgba(8,12,20,0.82);--gm2-border:rgba(100,210,255,0.22);--gm2-text:#e8eef8;--gm2-muted:#8b96a8;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}',
       '.v4-gm2 .v4-godmode-shell{position:relative;display:flex;flex-direction:column;width:min(100vw,100%);height:min(100vh,100%);background:#05070c;color:var(--gm2-text);overflow:hidden;border:1px solid var(--gm2-border);box-shadow:0 0 80px rgba(0,40,80,0.45)}',
       '.v4-gm2 .v4-godmode-body{position:relative;flex:1;min-height:0;display:flex}',
       '.v4-gm2 .v4-gm2-stage{position:relative;flex:1;min-width:0;min-height:0;background:#02040a}',
-      '.v4-gm2 .v4-gm2-cesium,.v4-gm2 .v4-gm2-cesium .cesium-viewer,.v4-gm2 .v4-gm2-cesium .cesium-viewer-cesiumWidgetContainer,.v4-gm2 .v4-gm2-cesium .cesium-widget,.v4-gm2 .v4-gm2-cesium canvas{width:100%!important;height:100%!important}',
+      '.v4-gm2 .v4-gm2-cesium,.v4-gm2 .v4-gm2-cesium .cesium-viewer,.v4-gm2 .v4-gm2-cesium .cesium-viewer-cesiumWidgetContainer,.v4-gm2 .v4-gm2-cesium .cesium-widget,.v4-gm2 .v4-gm2-cesium canvas{position:absolute;inset:0;width:100%!important;height:100%!important;transform:none!important;zoom:normal!important}',
       '.v4-gm2 .v4-gm2-cesium .cesium-viewer-bottom,.v4-gm2 .v4-gm2-cesium .cesium-viewer-animationContainer,.v4-gm2 .v4-gm2-cesium .cesium-viewer-timelineContainer,.v4-gm2 .v4-gm2-cesium .cesium-viewer-fullscreenContainer,.v4-gm2 .v4-gm2-cesium .cesium-viewer-vrContainer,.v4-gm2 .v4-gm2-cesium .cesium-viewer-toolbar{display:none!important}',
       '.v4-gm2 .v4-gm2-cesium .cesium-credit-logoContainer,.v4-gm2 .v4-gm2-cesium .cesium-credit-expand-link{filter:invert(1) brightness(1.2);opacity:.55}',
       '.v4-gm2 .v4-godmode-head{display:flex;align-items:center;gap:16px;padding:10px 14px;border-bottom:1px solid var(--gm2-border);background:linear-gradient(180deg,rgba(10,18,32,.95),rgba(6,10,18,.88));z-index:5}',
@@ -273,7 +307,7 @@
       '.v4-gm2 .v4-godmode-layer.is-active{border-color:rgba(100,210,255,.45);background:rgba(100,210,255,.12);color:#fff}',
       '.v4-gm2 .v4-godmode-layer-glyph{width:1.2em;text-align:center;color:var(--gm2-cyan)}',
       '.v4-gm2 .v4-gm2-keyhint{margin-left:auto;font-size:9px;letter-spacing:.14em;color:var(--gm2-muted);opacity:.7}',
-      '.v4-gm2 .v4-gm2-hud-right{position:absolute;right:12px;top:12px;z-index:6;display:flex;flex-direction:column;gap:8px;align-items:flex-end;max-width:min(360px,44vw)}',
+      '.v4-gm2 .v4-gm2-hud-right{position:absolute;right:12px;top:12px;z-index:22;display:flex;flex-direction:column;gap:8px;align-items:flex-end;max-width:min(300px,34vw);pointer-events:auto}',
       '.v4-gm2 .v4-gm2-chip{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;background:var(--gm2-panel);border:1px solid var(--gm2-border);border-radius:4px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--gm2-cyan);backdrop-filter:blur(10px)}',
       '.v4-gm2 .v4-gm2-chip.warn{border-color:rgba(255,214,10,.35);color:var(--gm2-amber)}',
       '.v4-gm2 .v4-gm2-chip.ok{border-color:rgba(52,199,89,.4);color:#34c759}',
@@ -284,6 +318,10 @@
       '.v4-gm2 .v4-gm2-skin{appearance:none;border:0;background:transparent;color:var(--gm2-muted);padding:6px 10px;font:inherit;font-size:10px;letter-spacing:.14em;cursor:pointer}',
       '.v4-gm2 .v4-gm2-skin.is-active{background:rgba(100,210,255,.16);color:#fff}',
       '.v4-gm2 .v4-gm2-inspector{width:100%;padding:10px 12px;background:var(--gm2-panel);border:1px solid var(--gm2-border);border-radius:6px;backdrop-filter:blur(12px);color:var(--gm2-text);font-variant-numeric:tabular-nums}',
+      '.v4-gm2 .v4-gm2-tapes{position:absolute;left:50%;bottom:78px;transform:translateX(-50%);display:flex;gap:14px;z-index:9;pointer-events:none}',
+      '.v4-gm2 .v4-gm2-tape{min-width:76px;padding:8px 12px;text-align:center;border:1px solid var(--gm2-border);background:var(--gm2-panel);border-radius:4px;backdrop-filter:blur(12px);font-variant-numeric:tabular-nums}',
+      '.v4-gm2 .v4-gm2-tape b{display:block;font-size:18px;line-height:1.15;color:#fff;font-weight:650}',
+      '.v4-gm2 .v4-gm2-tape span{display:block;margin-top:3px;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--gm2-muted)}',
       '.v4-gm2 .v4-gm2-inspector .v4-gm2-ins-type{margin:0 0 2px;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--gm2-cyan)}',
       '.v4-gm2 .v4-gm2-inspector .v4-gm2-ins-name{margin:0 0 8px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#fff;font-weight:600;line-height:1.25;word-break:break-word}',
       '.v4-gm2 .v4-gm2-inspector .v4-gm2-ins-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:11px;line-height:1.55}',
@@ -315,20 +353,41 @@
       '.v4-gm2 .v4-gm2-timeline button.is-active{border-color:rgba(100,210,255,.45);color:#fff;background:rgba(100,210,255,.12)}',
       '.v4-gm2 .v4-gm2-timeline .v4-gm2-clock-read{color:var(--gm2-cyan);min-width:168px;text-align:right}',
       '.v4-gm2 .v4-gm2-note{font-size:9px;letter-spacing:.08em;color:var(--gm2-amber);text-transform:uppercase}',
-      '.v4-gm2 .v4-gm2-cesium-host{position:absolute;inset:0;width:100%;height:100%;overflow:hidden}',
-      '.v4-gm2 .v4-gm2-search{position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:8;display:flex;gap:6px;align-items:center;padding:6px 8px;background:var(--gm2-panel);border:1px solid var(--gm2-border);border-radius:6px;backdrop-filter:blur(10px);max-width:min(520px,70vw);width:min(520px,70vw)}',
+      '.v4-gm2 .v4-gm2-cesium-host{position:absolute;inset:0;width:100%;height:100%;overflow:hidden;transform:none!important;zoom:normal!important}',
+      '.v4-gm2 .v4-gm2-vignette,.v4-gm2 .v4-gm2-scan,.v4-gm2 .v4-gm2-sensor-fx{pointer-events:none!important}',
+      '.v4-gm2 .v4-gm2-cesium,.v4-gm2 .v4-gm2-cesium canvas,.v4-gm2 .cesium-widget,.v4-gm2 .cesium-widget canvas{pointer-events:auto!important;touch-action:none}',
+      '.v4-gm2 .v4-godmode-layers,.v4-gm2 .v4-gm2-hud-right,.v4-gm2 .v4-gm2-timeline,.v4-gm2 .v4-gm2-search,.v4-gm2 .v4-godmode-head{pointer-events:auto}',
+      '.v4-gm2 .v4-gm2-search{position:absolute;left:168px;top:12px;transform:none;z-index:22;display:flex;gap:6px;align-items:center;padding:6px 8px;background:var(--gm2-panel);border:1px solid var(--gm2-border);border-radius:6px;backdrop-filter:blur(10px);max-width:min(380px,calc(100% - 500px));width:min(380px,calc(100% - 500px))}',
       '.v4-gm2 .v4-gm2-search input{flex:1;min-width:0;height:32px;border:1px solid var(--gm2-border);background:rgba(8,12,20,.85);color:#e8eef8;border-radius:4px;padding:0 10px;font:inherit;font-size:12px;letter-spacing:.04em}',
-      '.v4-gm2 .v4-gm2-search-msg{position:absolute;left:50%;top:52px;transform:translateX(-50%);z-index:8;padding:4px 10px;background:var(--gm2-panel);border:1px solid var(--gm2-border);border-radius:4px;font-size:11px;color:var(--gm2-cyan);pointer-events:none;white-space:nowrap}',
+      '.v4-gm2 .v4-gm2-search-msg{position:absolute;left:50%;top:52px;transform:translateX(-50%);z-index:22;padding:4px 10px;background:var(--gm2-panel);border:1px solid var(--gm2-border);border-radius:4px;font-size:11px;color:var(--gm2-cyan);pointer-events:none;white-space:nowrap}',
       '.v4-gm2 .v4-gm2-suggest{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:12;max-height:260px;overflow:auto;background:var(--gm2-panel);border:1px solid var(--gm2-border);border-radius:6px;backdrop-filter:blur(12px);padding:4px 0;box-shadow:0 12px 40px rgba(0,0,0,.45)}',
       '.v4-gm2 .v4-gm2-suggest button{display:block;width:100%;text-align:left;appearance:none;border:0;background:transparent;color:#e8eef8;padding:8px 12px;font:inherit;cursor:pointer}',
       '.v4-gm2 .v4-gm2-suggest button.is-active,.v4-gm2 .v4-gm2-suggest button:hover{background:rgba(100,210,255,.14)}',
       '.v4-gm2 .v4-gm2-suggest-name{display:block;font-size:12px;letter-spacing:.03em}',
       '.v4-gm2 .v4-gm2-suggest-sub{display:block;font-size:10px;color:var(--gm2-muted);letter-spacing:.04em;margin-top:2px}',
+      '.v4-gm2 .v4-gm2-search-msg{left:168px;transform:none}',
+      '.v4-gm2 .v4-gm2-chip.is-btn{cursor:pointer;appearance:none;font:inherit}',
+      '.v4-gm2 .v4-gm2-chip.is-btn:hover{border-color:rgba(100,210,255,.55);color:#fff}',
+      '.v4-gm2 .v4-gm2-pano{position:absolute;inset:0;z-index:18;background:#0b0d12;display:none;pointer-events:none}',
+      '.v4-gm2 .v4-gm2-empty{position:absolute;left:50%;top:16%;transform:translateX(-50%);z-index:12;padding:8px 14px;background:rgba(8,12,20,.88);border:1px solid rgba(255,214,10,.45);color:#ffd60a;font-size:11px;letter-spacing:.1em;text-transform:uppercase;pointer-events:none;white-space:nowrap}',
+      '.v4-gm2 .v4-gm2-pano.is-on{display:block;pointer-events:none}',
+      '.v4-gm2 .v4-gm2-pano.is-on.is-live{pointer-events:auto}',
+      '.v4-gm2 .v4-gm2-pano-inner,.v4-gm2 .v4-gm2-pano-frame{position:absolute;inset:0;width:100%;height:100%;border:0;background:#111}',
+      '.v4-gm2 .v4-gm2-pano-miss{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:#e8eef8;letter-spacing:.1em;font-size:13px;text-transform:uppercase;text-align:center;padding:16px}',
+      '.v4-gm2 .v4-gm2-settings-sheet{position:absolute;left:12px;right:auto;top:12px;z-index:25;width:min(280px,70vw);max-height:min(70vh,520px);overflow:auto;background:var(--gm2-panel);border:1px solid var(--gm2-border);border-radius:8px;backdrop-filter:blur(14px);padding:8px;pointer-events:auto}',
+      '.v4-gm2 .v4-gm2-settings-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 6px}',
+      '.v4-gm2 .v4-gm2-settings-sheet h4{margin:4px 8px;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--gm2-cyan)}',
+      '.v4-gm2.is-settings .v4-godmode-layers{visibility:hidden;pointer-events:none}',
+      '@media (max-width:1024px){.v4-gm2 .v4-godmode-layers{display:none}.v4-gm2 .v4-gm2-search{left:12px;top:8px;width:calc(100% - 24px);max-width:calc(100% - 24px)}.v4-gm2 .v4-gm2-search-msg{left:12px}.v4-gm2 .v4-gm2-hud-right{top:56px;max-width:min(320px,46vw)}}',
+      '@media (max-width:700px){.v4-gm2 .v4-godmode-layers{display:none}.v4-gm2 .v4-gm2-hud-right{max-width:calc(100% - 16px);align-items:stretch}.v4-gm2 .v4-gm2-search{width:calc(100% - 24px);max-width:none}}',
     ].join('\n');
-    const style = document.createElement('style');
-    style.id = 'v4-gm2-styles';
+    let style = document.getElementById('v4-gm2-styles');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'v4-gm2-styles';
+      document.head.appendChild(style);
+    }
     style.textContent = css;
-    document.head.appendChild(style);
     stylesInjected = true;
   }
 
@@ -476,17 +535,60 @@
     finally { global.clearTimeout(timer); }
   }
 
+  function corsProxyUrls(url) {
+    const u = String(url || '');
+    return [
+      u,
+      'https://corsproxy.io/?' + encodeURIComponent(u),
+      'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
+    ];
+  }
+
+  async function fetchJsonCors(url, ms) {
+    let lastErr = null;
+    const attempts = corsProxyUrls(url);
+    for (let i = 0; i < attempts.length; i++) {
+      try {
+        const res = await fetchWithTimeout(attempts[i], { headers: { Accept: 'application/json, text/plain, */*' } }, ms || FETCH_TIMEOUT_MS);
+        if (!res || !res.ok) { lastErr = new Error('http ' + (res && res.status)); continue; }
+        const body = await res.text();
+        if (!body) continue;
+        if (/^\s*[{\[]/.test(body)) {
+          try { return JSON.parse(body); } catch (e) { lastErr = e; continue; }
+        }
+      } catch (e) { lastErr = e; }
+    }
+    throw lastErr || new Error('cors json failed');
+  }
+
+  async function fetchTextCors(url, ms) {
+    let lastErr = null;
+    const attempts = corsProxyUrls(url);
+    for (let i = 0; i < attempts.length; i++) {
+      try {
+        const res = await fetchWithTimeout(attempts[i], { headers: { Accept: 'text/plain, */*' } }, ms || FETCH_TIMEOUT_MS);
+        if (!res || !res.ok) { lastErr = new Error('http ' + (res && res.status)); continue; }
+        const body = await res.text();
+        if (body) return body;
+      } catch (e) { lastErr = e; }
+    }
+    throw lastErr || new Error('cors text failed');
+  }
+
   function godModeServiceBases() {
     const bases = [];
     const host = String(global.location?.hostname || '').toLowerCase();
+    const onPublic = /github\.io$/.test(host);
     try {
       const origin = String(global.location?.origin || '').replace(/\/$/, '');
-      if (origin) bases.push(origin);
+      if (origin && !onPublic) bases.push(origin);
     } catch (e) {}
-    if (!host.includes('127.0.0.1') && !host.includes('localhost')) {
+    if (!onPublic && !host.includes('127.0.0.1') && !host.includes('localhost')) {
       bases.push('https://mac-studio.tail50d3a2.ts.net');
     }
-    bases.push('http://127.0.0.1:8767');
+    if (host.includes('127.0.0.1') || host.includes('localhost')) {
+      bases.push('http://127.0.0.1:8767');
+    }
     return [...new Set(bases.filter(Boolean))];
   }
 
@@ -657,9 +759,8 @@
       + '?latitude=' + lats + '&longitude=' + lngs
       + '&current=temperature_2m,weather_code,wind_speed_10m,wind_direction_10m'
       + '&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=UTC';
-    const res = await fetchWithTimeout(url, { headers: { Accept: 'application/json' } }, 12000);
-    if (!res.ok) throw new Error('open-meteo ' + res.status);
-    const data = await res.json();
+    const data = await fetchJsonCors(url, 12000);
+    if (!data) throw new Error('open-meteo empty');
     const rows = Array.isArray(data) ? data : [data];
     const out = [];
     rows.forEach((row, i) => {
@@ -809,6 +910,14 @@
         return rows;
       }
     } catch (e) { console.warn("[god-mode-cesium] ADS-B failed", e); }
+    try {
+      const data = await fetchJsonCors("https://opensky-network.org/api/states/all", 16000);
+      const rows = parseFlightStates(data && data.states);
+      if (rows.length) {
+        rows.forEach((r) => { r.source = "OpenSky"; });
+        return rows;
+      }
+    } catch (e) { console.warn("[god-mode-cesium] OpenSky failed", e); }
     return [];
   }
 
@@ -1075,6 +1184,20 @@
     };
   }
 
+  function inHormuzBbox(lat, lng) {
+    return Number(lat) >= 25.0 && Number(lat) <= 27.5 && Number(lng) >= 54.5 && Number(lng) <= 57.5;
+  }
+  function shipHudLabel(rows) {
+    const list = Array.isArray(rows) ? rows : [];
+    let hormuz = 0;
+    for (let i = 0; i < list.length; i++) {
+      if (inHormuzBbox(list[i] && list[i].lat, list[i] && list[i].lng)) hormuz++;
+    }
+    const n = list.length;
+    const baltic = Math.max(0, n - hormuz);
+    if (hormuz) return 'BALTIC · ' + baltic + '  HORMUZ · ' + hormuz;
+    return n ? ('BALTIC · ' + n) : 'BALTIC · 0';
+  }
   function startAisstream() {
     const key = readAisstreamKey();
     if (!key || aisstreamWs || typeof WebSocket === 'undefined') return;
@@ -1086,11 +1209,8 @@
           ws.send(JSON.stringify({
             APIKey: key,
             BoundingBoxes: [
-              [[24.8, 56.0], [27.2, 57.0]],
-              [[1.1, 103.4], [1.6, 104.2]],
-              [[50.8, -1.2], [51.6, 1.8]],
-              [[40.4, -74.3], [40.9, -73.7]],
-              [[33.6, -118.4], [34.0, -118.1]],
+              [[25.0, 54.5], [27.5, 57.5]],
+              [[53.5, 9.0], [66.2, 30.5]]
             ],
             FilterMessageTypes: ['PositionReport'],
           }));
@@ -1130,23 +1250,29 @@
   }
 
   async function fetchShips() {
-    startAisstream();
-    try {
-      const proxied = await fetchShipsFromProxy();
-      if (proxied?.rows?.length) return Object.assign({ count: proxied.rows.length }, mergeAisstream(proxied.rows, proxied.source));
-    } catch (e) {
-      console.warn('[god-mode-cesium] /god-mode/ships proxy unavailable', e);
-    }
+    try { startAisstream(); } catch (eS) {}
+    let base = { rows: [], source: 'Digitraffic AIS (Baltic / Finnish waters)', count: 0 };
     try {
       const live = await fetchDigitrafficShips();
-      const merged = mergeAisstream(live?.rows || [], live?.source || 'Digitraffic AIS');
-      if (merged.rows.length) return merged;
-      return { rows: [], source: merged.source, count: 0, error: 'AIS feed empty' };
-    } catch (e) {
-      const merged = mergeAisstream([], 'none');
-      if (merged.rows.length) return merged;
-      return { rows: [], source: 'none', count: 0, error: String(e?.message || e) };
+      if (live?.rows?.length) base = live;
+    } catch (e1) {
+      try {
+        const proxied = await fetchShipsFromProxy();
+        if (proxied?.rows?.length) {
+          base = {
+            rows: proxied.rows,
+            source: proxied.source || 'Digitraffic AIS (Baltic)',
+            count: proxied.rows.length,
+          };
+        } else {
+          base.error = String(e1 && e1.message || e1);
+        }
+      } catch (e) {
+        console.warn('[god-mode-cesium] /god-mode/ships proxy unavailable', e);
+        base.error = String(e1 && e1.message || e1);
+      }
     }
+    return mergeAisstream(base.rows, base.source);
   }
 
   function parseTleRecs(text, kind) {
@@ -1192,9 +1318,7 @@
       } catch (e) {}
     }
     if (!text) {
-      const res = await fetchWithTimeout(CELESTRAK_TLE + encodeURIComponent(group) + '&FORMAT=tle', {}, 30000);
-      if (!res.ok) throw new Error(group + ' TLE feed ' + res.status);
-      text = await res.text();
+      text = await fetchTextCors(CELESTRAK_TLE + encodeURIComponent(group) + '&FORMAT=tle', 30000);
     }
     if (!/^1 /m.test(text)) throw new Error(group + ' TLE feed malformed');
     try { global.localStorage.setItem(cacheKey, JSON.stringify({ text, savedAt: Date.now() })); } catch (e) {}
@@ -1921,9 +2045,18 @@
   }
 
   async function geocodeDealCity(query, cache) {
-    const key = query.toLowerCase();
+    const key = String(query || '').toLowerCase();
+    if (!key) return null;
     if (cache[key]) return cache[key].miss ? null : cache[key];
-    const city = query.split(',')[0].trim();
+    const city = String(query).split(',')[0].trim();
+    try {
+      const known = typeof knownCityHit === 'function' ? knownCityHit(city) : null;
+      if (known && Number.isFinite(known.lat) && Number.isFinite(known.lng)) {
+        cache[key] = { lat: known.lat, lng: known.lng, name: known.name || city };
+        try { global.localStorage.setItem(DEAL_GEO_CACHE_KEY, JSON.stringify(cache)); } catch (e) {}
+        return cache[key];
+      }
+    } catch (eK) {}
     try {
       const res = await fetchWithTimeout(
         'https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(city) + '&count=1&language=en&format=json',
@@ -1944,24 +2077,74 @@
   }
 
   async function fetchDealMarkers(viewer) {
-    const leads = (global.V3 && global.V3.LEADS) || [];
+    const seen = {};
+    const bag = [];
+    const pushAll = (arr) => {
+      (Array.isArray(arr) ? arr : []).forEach((l) => {
+        if (!l) return;
+        const id = String(l.id || l.leadId || l.brand || l.contactName || l.name || '') + '|' + String(l.location || l.loc || '');
+        if (seen[id]) return;
+        seen[id] = true;
+        bag.push(l);
+      });
+    };
+    try { pushAll(global.V3 && global.V3.LEADS); } catch (e) {}
+    try { pushAll(viewer && (viewer.leads || viewer.LEADS || viewer.deals)); } catch (e2) {}
+    let leads = bag;
+    if (!leads.length) {
+      try {
+        const proxied = await fetchGodModeProxy('/god-mode/deals', 8000);
+        if (proxied && proxied.ok !== false) {
+          const pts = proxied.points || proxied.deals || proxied.rows || [];
+          const ready = [];
+          (Array.isArray(pts) ? pts : []).forEach((p) => {
+            if (!p) return;
+            const lat = Number(p.lat);
+            const lng = Number(p.lng != null ? p.lng : p.lon);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+            ready.push({
+              lat, lng, altM: 2500,
+              label: p.label || p.name || 'Deal',
+              name: p.name || p.brand || 'Deal',
+              color: p.color || DEAL_STAGE_COLORS[String(p.stage)] || '#8e9dff',
+              type: 'deal', id: 'deal-' + String(p.id || p.name || lat),
+              stage: p.stage, loc: p.loc || p.location, source: 'UNIFY deals',
+            });
+          });
+          if (ready.length) return { points: ready, count: ready.length };
+          leads = proxied.leads || [];
+        }
+      } catch (eP) {}
+    }
     const hqLat = Number(viewer?.lat);
     const hqLng = Number(viewer?.lng ?? viewer?.lon);
     const hq = { lat: Number.isFinite(hqLat) ? hqLat : 37.46, lng: Number.isFinite(hqLng) ? hqLng : -122.43 };
-    const active = leads.filter((l) =>
-      DEAL_ACTIVE_STAGES.includes(String(l.stage || '')) && String(l.location || '').trim() && !l.isRobertBrief);
+    const active = (leads || []).filter((l) => {
+      if (!l || l.isRobertBrief) return false;
+      const loc = String(l.location || l.loc || '').trim();
+      const lat = Number(l.lat);
+      const lng = Number(l.lng != null ? l.lng : l.lon);
+      const hasGeo = Number.isFinite(lat) && Number.isFinite(lng);
+      const stage = String(l.stage || '');
+      if (stage && DEAL_ACTIVE_STAGES.indexOf(stage) === -1 && !hasGeo) return false;
+      return !!(loc || hasGeo);
+    });
     const cache = readDealGeoCache();
     const points = [];
     for (const lead of active.slice(0, 80)) {
-      const loc = String(lead.location).trim();
-      const geo = await geocodeDealCity(loc, cache);
+      const loc = String(lead.location || lead.loc || '').trim();
+      let geo = null;
+      const lat = Number(lead.lat);
+      const lng = Number(lead.lng != null ? lead.lng : lead.lon);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) geo = { lat, lng };
+      else if (loc) geo = await geocodeDealCity(loc, cache);
       if (!geo) continue;
       const color = DEAL_STAGE_COLORS[String(lead.stage)] || '#d0d6e0';
       const name = lead.brand || lead.contactName || 'Deal';
       const money = typeof lead.value === 'number' && lead.value > 0 ? lead.value : 0;
       points.push({
-        lat: geo.lat, lng: geo.lng, altM: 0,
-        label: name + ' · ' + loc + ' · ' + String(lead.stage).replace(/-/g, ' ') + (money ? ' · $' + money.toLocaleString() : ''),
+        lat: geo.lat, lng: geo.lng, altM: 2500,
+        label: name + (loc ? ' · ' + loc : '') + ' · ' + String(lead.stage || '').replace(/-/g, ' ') + (money ? ' · $' + money.toLocaleString() : ''),
         name, color, type: 'deal', leadId: lead.id, id: 'deal-' + String(lead.id || name),
         stage: lead.stage, money, loc, hqLat: hq.lat, hqLng: hq.lng, source: 'UNIFY deals',
       });
@@ -1971,9 +2154,8 @@
 
   async function fetchRadarMeta() {
     try {
-      const res = await fetchWithTimeout('https://api.rainviewer.com/public/weather-maps.json');
-      if (!res.ok) return null;
-      const data = await res.json();
+      const data = await fetchJsonCors('https://api.rainviewer.com/public/weather-maps.json', 12000);
+      if (!data) return null;
       const host = String(data?.host || 'https://tilecache.rainviewer.com');
       const past = Array.isArray(data?.radar?.past) ? data.radar.past : [];
       const nowcast = Array.isArray(data?.radar?.nowcast) ? data.radar.nowcast : [];
@@ -2624,12 +2806,23 @@
         g.moveTo(24, 4); g.lineTo(40, 52); g.lineTo(24, 42); g.lineTo(8, 52);
         g.closePath(); g.fill();
       } else {
-        c.width = 64; c.height = 64;
+        c.width = 32; c.height = 48;
+        g.strokeStyle = '#ffffff';
+        g.fillStyle = '#ffffff';
+        g.lineWidth = 2.4;
+        g.lineCap = 'round';
+        g.lineJoin = 'round';
         g.beginPath();
-        g.moveTo(32, 4); g.lineTo(36, 28); g.lineTo(58, 36); g.lineTo(36, 34);
-        g.lineTo(36, 50); g.lineTo(44, 58); g.lineTo(32, 52); g.lineTo(20, 58);
-        g.lineTo(28, 50); g.lineTo(28, 34); g.lineTo(6, 36); g.lineTo(28, 28);
-        g.closePath(); g.fill();
+        g.moveTo(16, 42);
+        g.lineTo(16, 16);
+        g.stroke();
+        g.beginPath();
+        g.moveTo(16, 3);
+        g.lineTo(23, 16);
+        g.lineTo(16, 12);
+        g.lineTo(9, 16);
+        g.closePath();
+        g.fill();
       }
       craftIconCache[key] = c.toDataURL();
     } catch (e) { craftIconCache[key] = ''; }
@@ -2664,38 +2857,39 @@
     var ship = row.type === 'ship';
     var rot = craftHeadingRad(row);
     var icon = getCraftIcon(ship ? 'ship' : 'air');
-    var heightRef = ship ? Cesium.HeightReference.CLAMP_TO_GROUND : Cesium.HeightReference.NONE;
+    var heightRef = Cesium.HeightReference.NONE;
     var scaleNear = selected ? 1.25 : 1.0;
     try { if (ent.ellipse) ent.ellipse = undefined; } catch (e) {}
     if (ent.point) {
       try {
         ent.point.show = true;
-        ent.point.pixelSize = selected ? 4 : 2.2;
+        var orbit = state && state.lastLod === 'Orbit';
+        ent.point.pixelSize = selected ? (ship ? 18 : 4) : (ship ? (orbit ? 16 : 13) : 2.4);
         ent.point.color = color;
-        ent.point.outlineWidth = 0;
+        ent.point.outlineWidth = ship ? 1 : 0;
+        ent.point.outlineColor = Cesium.Color.BLACK.withAlpha(0.65);
         ent.point.heightReference = heightRef;
-        ent.point.disableDepthTestDistance = 0;
-        ent.point.scaleByDistance = new Cesium.NearFarScalar(2.5e5, 0.15, 1.2e7, 1.15);
-        ent.point.translucencyByDistance = new Cesium.NearFarScalar(8e6, 0.85, 2.4e7, 0.2);
+        ent.point.disableDepthTestDistance = Number.POSITIVE_INFINITY;
+        ent.point.scaleByDistance = new Cesium.NearFarScalar(8.0e5, 1.0, 4.5e7, 1.15);
+        ent.point.translucencyByDistance = new Cesium.NearFarScalar(4.0e7, 1.0, 8.0e7, 0.7);
       } catch (e) {}
     }
-    if (icon) {
+    if (icon && !(ship && state && state.lastLod === 'Orbit')) {
       var bb = {
         image: icon,
-        width: ship ? 11 : 16,
-        height: ship ? 16 : 16,
+        width: ship ? 14 : 11,
+        height: ship ? 20 : 20,
         color: color,
         rotation: rot,
-        alignedAxis: Cesium.Cartesian3.UNIT_Z,
+        alignedAxis: Cesium.Cartesian3.ZERO,
         verticalOrigin: Cesium.VerticalOrigin.CENTER,
         horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
         heightReference: heightRef,
-        disableDepthTestDistance: 0,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
         sizeInMeters: false,
         scale: scaleNear,
-        scaleByDistance: new Cesium.NearFarScalar(5.0e4, 1.12, 8.0e6, 0.16),
-        translucencyByDistance: new Cesium.NearFarScalar(5.5e6, 1.0, 1.6e7, 0.2),
-        distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 7.5e6)
+        scaleByDistance: new Cesium.NearFarScalar(8.0e4, 1.35, 5.5e7, 1.15),
+        translucencyByDistance: new Cesium.NearFarScalar(6.0e7, 1.0, 1.0e8, 0.85)
       };
       try {
         if (ent.billboard) {
@@ -2704,7 +2898,7 @@
           ent.billboard.height = bb.height;
           ent.billboard.color = color;
           ent.billboard.rotation = rot;
-          ent.billboard.alignedAxis = Cesium.Cartesian3.UNIT_Z;
+          ent.billboard.alignedAxis = Cesium.Cartesian3.ZERO;
           ent.billboard.scale = scaleNear;
           ent.billboard.heightReference = heightRef;
           ent.billboard.scaleByDistance = bb.scaleByDistance;
@@ -2713,7 +2907,10 @@
         } else {
           ent.billboard = new Cesium.BillboardGraphics(bb);
         }
+        try { if (ent.billboard) ent.billboard.show = true; } catch (eS) {}
       } catch (e) {}
+    } else {
+      try { if (ent.billboard) ent.billboard.show = false; } catch (eH) {}
     }
     var trail = craftTrailCartesian(Cesium, row);
     var wantTrail = !!(selected || craftTrailNearby(state, row));
@@ -2736,13 +2933,54 @@
     } else if (ent.polyline) {
       try { ent.polyline.show = false; } catch (e) {}
     }
+    applyCraftModel(Cesium, state, ent, row, color, selected);
+  }
+
+  function applyCraftModel(Cesium, state, ent, row, color, selected) {
+    if (!ent || !row) return;
+    var air = row.type === 'flight' || row.type === 'military';
+    var h = Number(state && state._cameraH);
+    var close = Number.isFinite(h) && h < CRAFT_GLB_RANGE_M;
+    var want = !!(air && close && (selected || (state && state.follow && state.selectedId === row.id)));
+    if (!want) {
+      try { if (ent.model) ent.model.show = false; } catch (e) {}
+      try { if (ent.billboard) ent.billboard.show = true; } catch (e) {}
+      return;
+    }
+    var hdg = Number(row.heading);
+    if (!Number.isFinite(hdg)) hdg = Number(row.cog);
+    if (!Number.isFinite(hdg)) hdg = 0;
+    try {
+      var pos = Cesium.Cartesian3.fromDegrees(Number(row.lng), Number(row.lat), Number(row.altM) || 8000);
+      var hpr = new Cesium.HeadingPitchRoll(Cesium.Math.toRadians(hdg + 180), 0, 0);
+      var ori = Cesium.Transforms.headingPitchRollQuaternion(pos, hpr);
+      if (ent.model) {
+        ent.model.show = true;
+        try { ent.model.uri = CRAFT_GLB_URI; } catch (eU) {}
+        try { ent.model.color = color; } catch (eC) {}
+      } else {
+        ent.model = new Cesium.ModelGraphics({
+          uri: CRAFT_GLB_URI,
+          minimumPixelSize: 48,
+          maximumScale: 20000,
+          scale: 1,
+          color: color,
+          colorBlendMode: Cesium.ColorBlendMode.MIX,
+          colorBlendAmount: 0.35,
+          runAnimations: true
+        });
+      }
+      ent.orientation = ori;
+      try { if (ent.billboard) ent.billboard.show = false; } catch (eB) {}
+      try { if (ent.point) ent.point.show = false; } catch (eP) {}
+    } catch (e) {}
   }
 
   function defaultPointSize(type) {
     if (type === 'starlink' || type === 'oneweb' || type === 'kuiper') return 3;
     if (type === 'flight') return 2.4;
     if (type === 'military') return 2.6;
-    if (type === 'ship') return 2.2;
+    if (type === 'ship') return 8;
     if (type === 'gps') return 5;
     if (type === 'wxsat' || type === 'visual') return 6;
     if (type === 'geo') return 5;
@@ -2853,8 +3091,21 @@
   function isPointFacing(Cesium, viewer, state, pos) {
     if (!pos) return true;
     try {
+      const h = cameraHeightM(viewer);
+      if (Number.isFinite(h) && h > 9e5) {
+        const cam = viewer.camera.positionWC;
+        if (!cam) return true;
+        const nPos = Cesium.Cartesian3.normalize(pos, new Cesium.Cartesian3());
+        const nCam = Cesium.Cartesian3.normalize(cam, new Cesium.Cartesian3());
+        return Cesium.Cartesian3.dot(nPos, nCam) > 0.08;
+      }
       const occ = cameraOccluder(Cesium, viewer, state);
-      return !occ || occ.isPointVisible(pos);
+      if (!occ) return true;
+      if (occ.isPointVisible(pos)) return true;
+      const mag = Cesium.Cartesian3.magnitude(pos);
+      const n = Cesium.Cartesian3.normalize(pos, new Cesium.Cartesian3());
+      const raised = Cesium.Cartesian3.multiplyByScalar(n, mag + 80000, new Cesium.Cartesian3());
+      return occ.isPointVisible(raised);
     } catch (e) { return true; }
   }
 
@@ -2904,12 +3155,60 @@
     run();
   }
 
+  function craftPollSec(type) {
+    if (type === 'military') return MIL_POLL_MS / 1000;
+    if (type === 'ship') return SHIP_POLL_MS / 1000;
+    return FLIGHT_POLL_MS / 1000;
+  }
+
+  function applyCraftSampledPosition(Cesium, viewer, state, ent, id, dest, type) {
+    if (!ent || !dest) return;
+    if (!state._craftPrev) state._craftPrev = Object.create(null);
+    const destClone = Cesium.Cartesian3.clone(dest);
+    const prev = state._craftPrev[id];
+    if (!prev || !prev.pos) {
+      try { ent.position = destClone; } catch (e) {}
+      state._craftPrev[id] = { pos: destClone };
+      return;
+    }
+    try {
+      if (Cesium.Cartesian3.distance(prev.pos, destClone) < 1.5) return;
+    } catch (eD) {}
+    const delay = (type === 'flight' || type === 'military') ? RENDER_DELAY_SEC : craftPollSec(type);
+    try {
+      let now;
+      try {
+        now = (viewer && viewer.clock && viewer.clock.currentTime)
+          ? Cesium.JulianDate.clone(viewer.clock.currentTime)
+          : Cesium.JulianDate.now();
+      } catch (eN) { now = Cesium.JulianDate.now(); }
+      const prop = new Cesium.SampledPositionProperty();
+      try { prop.forwardExtrapolationType = Cesium.ExtrapolationType.LINEAR; } catch (eX) {}
+      try { prop.forwardExtrapolationDuration = delay * 1.25; } catch (eDur) {}
+      try {
+        prop.setInterpolationOptions({
+          interpolationDegree: 1,
+          interpolationAlgorithm: Cesium.LinearApproximation
+        });
+      } catch (eI) {}
+      prop.addSample(now, prev.pos);
+      const t1 = new Cesium.JulianDate();
+      Cesium.JulianDate.addSeconds(now, delay, t1);
+      prop.addSample(t1, destClone);
+      ent.position = prop;
+    } catch (e) {
+      try { ent.position = destClone; } catch (e2) {}
+    }
+    state._craftPrev[id] = { pos: destClone };
+  }
+
   function upsertPointEntity(Cesium, viewer, state, row, opts) {
     const lat = Number(row.lat);
     const lng = Number(row.lng);
     if (!validLatLng(lat, lng)) return null;
     const alt = Number(row.altM);
-    const height = Number.isFinite(alt) ? alt : 0;
+    let height = Number.isFinite(alt) ? alt : 0;
+    if (row.type === 'ship' && height < 80) height = 80;
     const id = String(row.id || (row.type + '-' + lat + '-' + lng));
     row.id = id;
     const color = cesiumColor(Cesium, row.color || opts?.color || '#64d2ff', opts?.alpha);
@@ -2918,7 +3217,7 @@
     const pos = Cesium.Cartesian3.fromDegrees(lng, lat, height);
     if (!cartesianFinite(Cesium, pos)) return null;
     let ent = state.entityById.get(id);
-    if ((!ent || isDestroyedEnt(ent)) && id !== state.selectedId && !isPointFacing(Cesium, viewer, state, pos)) {
+    if ((!ent || isDestroyedEnt(ent)) && id !== state.selectedId && !isCraftType(row.type) && row.type !== 'deal' && row.type !== 'launch' && !isPointFacing(Cesium, viewer, state, pos)) {
       return null;
     }
     const lod = state.lastLod || 'Orbit';
@@ -2926,7 +3225,10 @@
     const labelOpts = makeLabelOpts(Cesium, row, lod, layer, state);
     const heightRef = height > 50 ? Cesium.HeightReference.NONE : Cesium.HeightReference.CLAMP_TO_GROUND;
     if (ent && !isDestroyedEnt(ent)) {
-      try { ent.position = pos; } catch (e) {}
+      try {
+        if (isCraftType(row.type)) applyCraftSampledPosition(Cesium, viewer, state, ent, id, pos, row.type);
+        else ent.position = pos;
+      } catch (e) {}
       ent.__gm2 = row;
       try {
         if (isCraftType(row.type)) {
@@ -2944,7 +3246,7 @@
         if (row.type === 'satellite' && ent.billboard && issIconUrl) {
           ent.billboard.position = pos;
         }
-        if (ent.ellipse && opts?.ellipseM) {
+        if (!isCraftType(row.type) && ent.ellipse && opts?.ellipseM) {
           ent.ellipse.semiMajorAxis = opts.ellipseM;
           ent.ellipse.semiMinorAxis = opts.ellipseM;
           ent.ellipse.material = color.withAlpha(0.28);
@@ -2956,17 +3258,21 @@
       id: 'gm2-' + id,
       position: pos,
       point: {
-        pixelSize: selected ? pixelSize + 5 : pixelSize,
+        pixelSize: selected ? pixelSize + 5 : (row.type === 'ship' ? Math.max(pixelSize, 12) : pixelSize),
         color,
         outlineColor: Cesium.Color.BLACK.withAlpha(0.65),
         outlineWidth: opts?.outline === false ? 0 : 1,
-        heightReference: heightRef,
-        disableDepthTestDistance: 0,
-        scaleByDistance: new Cesium.NearFarScalar(8.0e5, 1.15, 2.2e7, 0.28),
-        translucencyByDistance: new Cesium.NearFarScalar(1.2e7, 1.0, 3.2e7, 0.15),
+        heightReference: (row.type === 'ship' || isCraftType(row.type)) ? Cesium.HeightReference.NONE : heightRef,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        scaleByDistance: row.type === 'ship'
+          ? new Cesium.NearFarScalar(1.0e6, 1.2, 5.5e7, 1.05)
+          : new Cesium.NearFarScalar(8.0e5, 1.15, 2.2e7, 0.28),
+        translucencyByDistance: row.type === 'ship'
+          ? new Cesium.NearFarScalar(5.5e7, 1.0, 9.0e7, 0.65)
+          : new Cesium.NearFarScalar(1.2e7, 1.0, 3.2e7, 0.15),
       },
     };
-    if (opts?.ellipseM && Number.isFinite(opts.ellipseM) && opts.ellipseM > 0) {
+    if (!isCraftType(row.type) && opts?.ellipseM && Number.isFinite(opts.ellipseM) && opts.ellipseM > 0) {
       entityDef.ellipse = {
         semiMajorAxis: opts.ellipseM,
         semiMinorAxis: opts.ellipseM,
@@ -2994,7 +3300,10 @@
       ent = viewer.entities.add(entityDef);
     } catch (e) { return null; }
     ent.__gm2 = row;
-    if (isCraftType(row.type)) applyCraftVisual(Cesium, state, ent, row, color, selected);
+    if (isCraftType(row.type)) {
+      applyCraftSampledPosition(Cesium, viewer, state, ent, id, pos, row.type);
+      applyCraftVisual(Cesium, state, ent, row, color, selected);
+    }
     state.entityById.set(id, ent);
     return ent;
   }
@@ -3004,6 +3313,7 @@
     if (!ent) return;
     try { viewer.entities.remove(ent); } catch (e) {}
     state.entityById.delete(id);
+    try { if (state._craftPrev) delete state._craftPrev[id]; } catch (eP) {}
   }
 
   function syncGroup(Cesium, viewer, state, groupKey, rows, optsFn, prune) {
@@ -3043,7 +3353,7 @@
       if (ent && !isDestroyedEnt(ent)) {
         try {
           ent.__gm2LayerOn = !!visible;
-          if (!visible) ent.show = false;
+          ent.show = !!visible;
         } catch (e) {}
       }
     });
@@ -3185,8 +3495,40 @@
     upsertPolyline(Cesium, viewer, state, 'issOrbitEntity', cartesianPath(Cesium, pts || []), '#5ac8fa', 1.8);
   }
 
+  function flyToDealSet(Cesium, viewer, state, deals) {
+    const pts = (deals || []).filter((d) => d && validLatLng(d.lat, d.lng));
+    if (!pts.length || !viewer || !Cesium) return false;
+    try { pauseIdleSpinState(state); } catch (eP) {}
+    if (pts.length === 1) {
+      try {
+        viewer.camera.flyTo({
+          destination: Cesium.Cartesian3.fromDegrees(pts[0].lng, pts[0].lat, 2.8e6),
+          duration: 1.15,
+          complete: function () { try { enableDesktopRotate(Cesium, viewer); } catch (e) {} requestSceneRender(viewer); },
+        });
+      } catch (e) { return false; }
+      return true;
+    }
+    const cartesians = [];
+    for (let i = 0; i < pts.length; i++) {
+      const c = Cesium.Cartesian3.fromDegrees(pts[i].lng, pts[i].lat, 0);
+      if (cartesianFinite(Cesium, c)) cartesians.push(c);
+    }
+    if (cartesians.length < 2) return false;
+    try {
+      const bs = Cesium.BoundingSphere.fromPoints(cartesians);
+      const range = Math.max((bs && bs.radius ? bs.radius * 4.5 : 0), 1.6e6);
+      viewer.camera.flyToBoundingSphere(bs, {
+        duration: 1.25,
+        offset: new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-89), range),
+        complete: function () { try { enableDesktopRotate(Cesium, viewer); } catch (e) {} requestSceneRender(viewer); },
+      });
+    } catch (e) { return false; }
+    return true;
+  }
+
   function syncDeals(Cesium, viewer, state, deals) {
-    syncGroup(Cesium, viewer, state, 'deal', deals, () => ({ pixelSize: 9 }));
+    syncGroup(Cesium, viewer, state, 'deal', deals, () => ({ pixelSize: 14, label: true }));
     const keep = new Set();
     (deals || []).forEach((d) => {
       if (!validLatLng(d.hqLat, d.hqLng) || !validLatLng(d.lat, d.lng)) return;
@@ -3435,7 +3777,7 @@
     else { setGroupShow(state, 'deal', false); setGroupShow(state, 'deal-arc', false); }
 
     if (showShips) {
-      if ((data.ships || []).length) syncGroup(Cesium, viewer, state, 'ship', capCraftRows(Cesium, viewer, state, 'ship', data.ships), () => ({ pixelSize: 7 }));
+      if ((data.ships || []).length) syncGroup(Cesium, viewer, state, 'ship', capCraftRows(Cesium, viewer, state, 'ship', data.ships), () => ({ pixelSize: 12 }));
     } else setGroupShow(state, 'ship', false);
 
     if (state.selectedId) {
@@ -3445,22 +3787,32 @@
     if (typeof state.runHorizonCull === 'function') state.runHorizonCull();
   }
 
+  function addUrlImagery(Cesium, viewer, url, credit, maxLevel) {
+    try {
+      return viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
+        url: url,
+        maximumLevel: maxLevel || 19,
+        enablePickFeatures: false,
+        credit: credit || '',
+      }));
+    } catch (e) { return null; }
+  }
+
   function createImageryLayers(Cesium, viewer, state) {
     try { if (viewer.imageryLayers) viewer.imageryLayers.removeAll(true); } catch (e) {}
-    let esri = null;
-    try {
-      esri = viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
-        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        maximumLevel: 19, credit: 'Esri World Imagery',
-      }));
-    } catch (e) {}
+    let esri = addUrlImagery(Cesium, viewer,
+      'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      'Esri World Imagery', 19);
     if (!esri) {
-      try {
-        esri = viewer.imageryLayers.addImageryProvider(new Cesium.UrlTemplateImageryProvider({
-          url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          maximumLevel: 19, credit: 'OpenStreetMap',
-        }));
-      } catch (e) {}
+      esri = addUrlImagery(Cesium, viewer,
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        'Esri World Imagery', 19);
+    }
+    if (!esri) {
+      esri = addUrlImagery(Cesium, viewer, 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', 'OpenStreetMap', 19);
+    }
+    if (!esri) {
+      esri = addUrlImagery(Cesium, viewer, 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', 'Carto', 19);
     }
     state.esriLayer = esri;
     try {
@@ -3501,6 +3853,15 @@
     } catch (e) {}
   }
 
+  function isSafariWebKit() {
+    try {
+      var ua = String((global.navigator && global.navigator.userAgent) || '');
+      return /Safari/i.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR/i.test(ua);
+    } catch (e) {
+      return false;
+    }
+  }
+
   function killSkyAtmosphere(viewer) {
     try {
       const scene = viewer && viewer.scene;
@@ -3508,12 +3869,14 @@
       try {
         if (scene.skyAtmosphere) scene.skyAtmosphere.show = false;
       } catch (e) {}
-      try {
-        if (scene.globe) {
-          scene.globe.showGroundAtmosphere = false;
-          scene.globe.atmosphereLightIntensity = 0;
-        }
-      } catch (e) {}
+      if (isSafariWebKit()) {
+        try {
+          if (scene.globe) {
+            scene.globe.showGroundAtmosphere = false;
+            scene.globe.atmosphereLightIntensity = 0;
+          }
+        } catch (e) {}
+      }
       try { if (scene.fog) { scene.fog.enabled = false; scene.fog.density = 0; } } catch (e) {}
     } catch (e) {}
   }
@@ -3522,18 +3885,25 @@
     try {
       const scene = viewer.scene;
       const globe = scene.globe;
+      const safari = isSafariWebKit();
       killSkyAtmosphere(viewer);
       globe.enableLighting = true;
       try { globe.dynamicAtmosphereLighting = true; } catch (e) {}
       try { globe.dynamicAtmosphereLightingFromSun = true; } catch (e) {}
-      try { globe.showGroundAtmosphere = false; } catch (e) {}
-      try { globe.atmosphereLightIntensity = 0; } catch (e) {}
-      try { globe.lambertDiffuseMultiplier = 1.65; } catch (e) {}
+      if (safari) {
+        try { globe.showGroundAtmosphere = false; } catch (e) {}
+        try { globe.atmosphereLightIntensity = 0; } catch (e) {}
+        try { globe.lambertDiffuseMultiplier = 2.0; } catch (e) {}
+      } else {
+        try { globe.showGroundAtmosphere = true; } catch (e) {}
+        try { globe.atmosphereLightIntensity = 10; } catch (e) {}
+        try { globe.lambertDiffuseMultiplier = 1.75; } catch (e) {}
+      }
       try { globe.lightingFadeOutDistance = 6.0e7; } catch (e) {}
       try { globe.lightingFadeInDistance = 9.0e7; } catch (e) {}
       try { globe.nightFadeOutDistance = 8.0e6; } catch (e) {}
       try { globe.nightFadeInDistance = 5.5e7; } catch (e) {}
-      try { globe.vertexShadowDarkness = 0.18; } catch (e) {}
+      try { globe.vertexShadowDarkness = 0.08; } catch (e) {}
       try { globe.baseColor = Cesium.Color.fromCssColorString('#0b1422'); } catch (e) {}
       if (scene.skyAtmosphere) {
         scene.skyAtmosphere.show = false;
@@ -3547,13 +3917,13 @@
         }
       } catch (e) {}
       try {
-        if (Cesium.SunLight) scene.light = new Cesium.SunLight({ intensity: 1.55 });
+        if (Cesium.SunLight) scene.light = new Cesium.SunLight({ intensity: 1.75 });
       } catch (e) {}
       if (scene.sun) scene.sun.show = true;
       if (scene.moon) scene.moon.show = true;
       scene.fog.enabled = false;
       try { scene.fog.density = 0; } catch (e) {}
-      scene.backgroundColor = Cesium.Color.fromCssColorString('#02040a');
+      scene.backgroundColor = Cesium.Color.fromCssColorString('#000000');
       try { scene.highDynamicRange = true; } catch (e) {}
     } catch (e) {}
   }
@@ -3579,18 +3949,12 @@
       if (state) {
         try { if (state.bloomStage) state.bloomStage.enabled = false; } catch (e) {}
         try { if (state.fxaaStage) state.fxaaStage.enabled = true; } catch (e) {}
-        const sensors = state.sensorStages || {};
-        ['nvg', 'flir', 'crt'].forEach(function (k) {
-          if (sensors[k]) {
-            try { sensors[k].enabled = false; } catch (e2) {}
-          }
-        });
       }
     } catch (e) {}
   }
 
-  const GOOGLE_TILES_CACHE_BYTES = 1024 * 1024 * 1024;
-  const GOOGLE_TILES_SSE = 1;
+  const GOOGLE_TILES_CACHE_BYTES = 1536 * 1024 * 1024;
+  const GOOGLE_TILES_SSE = 2;
   const PHOTOREAL_PREFETCH_M = 12000;
   const PHOTOREAL_UNLOAD_M = 25000;
   const PHOTOREAL_SHOW_M = 1200;
@@ -3605,7 +3969,7 @@
       loadSiblings: false,
       preloadWhenHidden: false,
       cullRequestsWhileMoving: true,
-      enableCollision: false,
+      enableCollision: true,
       cacheBytes: GOOGLE_TILES_CACHE_BYTES,
       maximumCacheOverflowBytes: GOOGLE_TILES_CACHE_BYTES,
       showCreditsOnScreen: true,
@@ -3652,18 +4016,18 @@
   function tuneGoogleTileset(tileset, heightM) {
     if (!tileset) return;
     const street = Number.isFinite(Number(heightM)) && Number(heightM) < 2500;
-    try { tileset.maximumScreenSpaceError = Math.max(1, Number(GOOGLE_TILES_SSE) || 1); } catch (e) {}
+    try { tileset.maximumScreenSpaceError = street ? 1.0 : (Number(GOOGLE_TILES_SSE) || 2); } catch (e) {}
     try { tileset.dynamicScreenSpaceError = false; } catch (e) {}
-    try { tileset.skipLevelOfDetail = false; } catch (e) {}
+    try { if ('skipLevelOfDetail' in tileset) tileset.skipLevelOfDetail = false; } catch (e) {}
     try { tileset.immediatelyLoadDesiredLevelOfDetail = true; } catch (e) {}
     try { tileset.loadSiblings = !!street; } catch (e) {}
     try { tileset.preloadWhenHidden = !street; } catch (e) {}
     try { tileset.cullRequestsWhileMoving = !street; } catch (e) {}
     try { tileset.immediatelyLoadDesiredLevelOfDetail = !!street; } catch (e) {}
-    try { tileset.enableCollision = false; } catch (e) {}
+    try { tileset.enableCollision = true; } catch (e) {}
     try { tileset.cacheBytes = GOOGLE_TILES_CACHE_BYTES; } catch (e) {}
     try { tileset.maximumCacheOverflowBytes = GOOGLE_TILES_CACHE_BYTES; } catch (e) {}
-    try { tileset.maximumMemoryUsage = 1024; } catch (e) {}
+    try { tileset.maximumMemoryUsage = 1536; } catch (e) {}
     try {
       const C = global.Cesium;
       if (C && C.ShadowMode && tileset.shadows !== undefined) tileset.shadows = C.ShadowMode.DISABLED;
@@ -3688,7 +4052,6 @@
 
 
   function photorealWantShow(state, heightM) {
-    if (state && state._streetMode) return true;
     const h = Number(heightM);
     if (!Number.isFinite(h)) return false;
     const hideAt = (state && state._photorealShown) ? PHOTOREAL_HIDE_M : PHOTOREAL_SHOW_M;
@@ -3827,16 +4190,22 @@
     if (!Cesium || !viewer || !state || state.destroyed || viewer.isDestroyed?.()) return false;
     const h = Number(heightM);
     state._cameraH = h;
+    try {
+      if (state.googleTileset && !state.googleTileset.isDestroyed?.()) {
+        tuneGoogleTileset(state.googleTileset, h);
+      }
+    } catch (eTune) {}
+    if (state._photorealShown) setEllipsoidGlobeVisible(viewer, state, false);
     const wantShow = photorealWantShow(state, h);
-    const wantPrefetch = photorealWantPrefetch(h) || wantShow || !!(state && state._streetMode);
+    const wantPrefetch = photorealWantPrefetch(h) || wantShow;
     if (wantShow) {
       applyStreetClarity(Cesium, viewer, 'City', state);
-      try { applySensorSkin(state, 'eo'); } catch (e) {}
       const ok = await tryEnableGooglePhotoreal(Cesium, viewer, state, { show: true });
       if (!ok) {
         state._photorealShown = false;
         keepEsriGround(viewer, state);
       }
+      try { applySensorSkin(state, state._skin || 'eo'); } catch (e) {}
       return ok;
     }
     if (wantPrefetch) {
@@ -3857,6 +4226,7 @@
     if (state.googleTiles === 'active') state.googleTiles = 'prefetch';
     keepEsriGround(state && state.viewer, state);
     setOsmContrast(state, false);
+    try { applySensorSkin(state, state._skin || 'eo'); } catch (e) {}
   }
 
   function tilesChipFromState(state, lod) {
@@ -3893,6 +4263,10 @@
     if (!state.sensorStages.nvg) state.sensorStages.nvg = addCustom('nvg', SHADER_NVG);
     state.sensorStages.flir = addCustom('flir', SHADER_FLIR);
     state.sensorStages.crt = addCustom('crt', SHADER_CRT);
+    try {
+      const sharp = addCustom('sharpen', SHADER_SHARPEN);
+      if (sharp) { sharp.enabled = false; state.sensorStages.sharpen = sharp; }
+    } catch (eSh) {}
     if (!state.sensorStages.nvg && !state.sensorStages.flir && !state.sensorStages.crt) state.sensorCssOnly = true;
   }
 
@@ -3918,13 +4292,13 @@
     if (!stages) return;
     try {
       if (stages.bloom) {
-        stages.bloom.enabled = true;
+        stages.bloom.enabled = false;
         tuneBloomUniforms(stages.bloom);
         state.bloomStage = stages.bloom;
         state.bloomApi = 'postProcessStages.bloom';
       } else if (lib && typeof lib.createBloomStage === 'function') {
         const bloom = stages.add(lib.createBloomStage());
-        bloom.enabled = true;
+        bloom.enabled = false;
         tuneBloomUniforms(bloom);
         state.bloomStage = bloom;
         state.bloomAdded = true;
@@ -3954,26 +4328,36 @@
   }
 
   function applySensorSkin(state, skin) {
-    const street = streetClarityActive(state);
+    if (state) state._skin = skin;
     const stages = state.sensorStages || {};
     Object.keys(stages).forEach((k) => {
-      if (k === 'bloom' || k === 'fxaa') return;
+      if (k === 'bloom' || k === 'fxaa' || k === 'sharpen') return;
       if (stages[k]) {
-        try { stages[k].enabled = street ? false : (k === skin); } catch (e) {}
+        const on = (k === skin);
+        try { stages[k].enabled = on; } catch (e) {}
+        if (on) {
+          try {
+            const u = stages[k].uniforms;
+            if (u && ('intensity' in u)) u.intensity = Math.max(Number(u.intensity) || 0, 1);
+          } catch (eU) {}
+        }
       }
     });
     if (state.bloomStage) {
-      try { state.bloomStage.enabled = !street; } catch (e) {}
+      try { state.bloomStage.enabled = false; } catch (e) {}
     }
     try {
       const pps = state.viewer && state.viewer.scene && state.viewer.scene.postProcessStages;
-      if (pps && pps.bloom) pps.bloom.enabled = !street;
+      if (pps && pps.bloom) pps.bloom.enabled = false;
       if (pps && pps.fxaa) pps.fxaa.enabled = true;
       try { if (pps && typeof pps.fxaaEnabled !== 'undefined') pps.fxaaEnabled = true; } catch (eFx) {}
     } catch (e) {}
     if (state.fxaaStage) {
       try { state.fxaaStage.enabled = true; } catch (e) {}
     }
+    try {
+      if (stages.sharpen) stages.sharpen.enabled = !!(state && state._photorealShown);
+    } catch (eS) {}
   }
 
   function applyClock(Cesium, viewer, mode, speed) {
@@ -4073,20 +4457,29 @@
       try { ssc.enableRotate = true; } catch (e) {}
       try { ssc.enableTilt = true; } catch (e) {}
       try { ssc.enableLook = true; } catch (e) {}
-      try { ssc.enableTranslate = true; } catch (e) {}
+      try { ssc.enableTranslate = false; } catch (e) {}
       try { ssc.enableZoom = true; } catch (e) {}
       try { ssc.enableCollisionDetection = false; } catch (e) {}
-      try { ssc.inertiaTranslate = 0.7; } catch (e) {}
       const CET = Cesium && Cesium.CameraEventType;
-      const KEM = Cesium && Cesium.KeyboardEventModifier;
       if (CET) {
-        try { ssc.translateEventTypes = CET.LEFT_DRAG; } catch (e) {}
-        try { ssc.zoomEventTypes = [CET.PINCH]; } catch (e) {}
-        try { ssc.rotateEventTypes = CET.RIGHT_DRAG; } catch (e) {}
+        try { ssc.rotateEventTypes = CET.LEFT_DRAG; } catch (e) {}
         try {
-          ssc.tiltEventTypes = CET.PINCH;
+          const zoomTypes = [];
+          if (CET.WHEEL) zoomTypes.push(CET.WHEEL);
+          if (CET.PINCH) zoomTypes.push(CET.PINCH);
+          ssc.zoomEventTypes = zoomTypes.length ? zoomTypes : CET.WHEEL;
         } catch (e) {}
-        try { ssc.lookEventTypes = CET.MIDDLE_DRAG; } catch (e) {}
+        try {
+          const tiltTypes = [];
+          if (CET.RIGHT_DRAG) tiltTypes.push(CET.RIGHT_DRAG);
+          if (CET.PINCH) tiltTypes.push(CET.PINCH);
+          ssc.tiltEventTypes = tiltTypes.length ? tiltTypes : CET.PINCH;
+        } catch (e) {}
+        try {
+          ssc.translateEventTypes = CET.MIDDLE_DRAG ? CET.MIDDLE_DRAG : [];
+        } catch (e) {
+          try { ssc.translateEventTypes = []; } catch (e2) {}
+        }
       }
       try {
         const canvas = scene.canvas;
@@ -4100,6 +4493,8 @@
             const dx = Number(ev.deltaX) || 0;
             const dy = Number(ev.deltaY) || 0;
             const horiz = Math.abs(dx) > Math.abs(dy) * 1.15;
+            if (!horiz) return;
+            try { ev.preventDefault(); } catch (eP) {}
             try {
               const cam = viewer && viewer.camera;
               if (!cam) return;
@@ -4108,61 +4503,12 @@
               if (!Number.isFinite(h) || h < 80) h = 80;
               const mode = Number(ev.deltaMode) || 0;
               const unit = mode === 1 ? 16 : (mode === 2 ? 800 : 1);
-              if (horiz) {
-                try { ev.preventDefault(); } catch (eP) {}
-                const mag = h * 0.0012 * unit;
-                cam.moveRight(dx * mag);
-                cam.moveUp(-dy * mag);
-              } else if (Math.abs(dy) > 0.01) {
-                try { ev.preventDefault(); } catch (eP2) {}
-                const zoom = dy * unit * Math.max(h, 120) * 0.0022;
-                if (zoom > 0) cam.zoomOut(zoom);
-                else cam.zoomIn(-zoom);
-              }
+              const mag = h * 0.0012 * unit;
+              cam.moveRight(dx * mag);
+              cam.moveUp(-dy * mag);
             } catch (eW) {}
             try { if (viewer && viewer.scene && viewer.scene.requestRender) viewer.scene.requestRender(); } catch (eR) {}
           }, { passive: false });
-        }
-        if (canvas && !canvas.__gm2LeftPan) {
-          canvas.__gm2LeftPan = true;
-          let armed = false;
-          let panning = false;
-          let lastX = 0;
-          let lastY = 0;
-          canvas.addEventListener("pointerdown", function (ev) {
-            if (ev.button !== 0) return;
-            if (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey) return;
-            armed = true;
-            panning = false;
-            lastX = ev.clientX;
-            lastY = ev.clientY;
-            try { canvas.setPointerCapture(ev.pointerId); } catch (eC) {}
-          });
-          canvas.addEventListener("pointermove", function (ev) {
-            if (!armed) return;
-            const dx = ev.clientX - lastX;
-            const dy = ev.clientY - lastY;
-            if (!panning) {
-              if ((dx * dx + dy * dy) < 9) return;
-              panning = true;
-            }
-            lastX = ev.clientX;
-            lastY = ev.clientY;
-            try {
-              const cam = viewer && viewer.camera;
-              if (!cam) return;
-              let h = 1000;
-              try { h = cam.positionCartographic.height; } catch (eH) {}
-              if (!Number.isFinite(h) || h < 80) h = 80;
-              const mag = h * 0.0015;
-              cam.moveRight(-dx * mag);
-              cam.moveUp(dy * mag);
-            } catch (eM) {}
-            try { if (viewer && viewer.scene && viewer.scene.requestRender) viewer.scene.requestRender(); } catch (eR) {}
-          });
-          const endPan = function () { armed = false; panning = false; };
-          canvas.addEventListener("pointerup", endPan);
-          canvas.addEventListener("pointercancel", endPan);
         }
       } catch (e) {}
     } catch (e) {}
@@ -4171,8 +4517,9 @@
   function searchFlyAltM(hit) {
     const kind = String((hit && hit.kind) || "");
     if (kind === "city" || kind === "region") return 12000;
-    if (kind === "street") return 1400;
-    return 900;
+    if (kind === "street") return 900;
+    if (kind === "address") return 400;
+    return 500;
   }
 
   function parseHouseNumber(q) {
@@ -4379,7 +4726,9 @@
     }
     const match = pickCensusMatch(data, wantHouse);
     if (!match) return null;
-    const pt = censusPoint(match);
+    let pt = null;
+    try { pt = await offsetCensusToParcel(match); } catch (eOff) { pt = null; }
+    if (!pt) pt = censusPoint(match);
     if (!pt) return null;
     return {
       lat: pt.lat,
@@ -4387,6 +4736,7 @@
       name: String(match.matchedAddress || query),
       kind: "address",
       source: "census",
+      house: parseHouseNumber(String(match.matchedAddress || query)) || wantHouse,
     };
   }
 
@@ -4431,12 +4781,15 @@
     const wantHouse = parseHouseNumber(q);
     let best = null;
     let bestRank = -1;
-    const rank = { address: 4, street: 3, place: 2, city: 1 };
+    const rank = wantHouse ? { address: 4, street: 3, place: 2, city: 1 } : { city: 10, place: 6, street: 2, address: 1 };
+    const qn = String(q || "").trim().toLowerCase();
     for (let i = 0; i < list.length; i++) {
       const hit = list[i];
       const k = geocodeKindFromNominatim(hit);
       const hn = ((hit && hit.address) || {}).house_number;
       let r = rank[k] || 2;
+      const nm = String((hit && (hit.name || (hit.address && (hit.address.city || hit.address.town)))) || "").toLowerCase();
+      if (!wantHouse && qn && (nm === qn || String(hit.display_name || "").toLowerCase().indexOf(qn) === 0)) r += 6;
       if (wantHouse) {
         if (housesEqual(hn, wantHouse)) r = 20;
         else if (k === "address" || k === "place") r = 8 + r;
@@ -4466,7 +4819,8 @@
     const wantHouse = parseHouseNumber(q);
     let best = null;
     let bestRank = -1;
-    const rank = { address: 4, street: 3, place: 2, city: 1 };
+    const rank = wantHouse ? { address: 4, street: 3, place: 2, city: 1 } : { city: 10, place: 6, street: 2, address: 1 };
+    const qn = String(q || "").trim().toLowerCase();
     for (let i = 0; i < feats.length; i++) {
       const hit = feats[i];
       const coords = hit && hit.geometry && hit.geometry.coordinates;
@@ -4474,6 +4828,9 @@
       const props = hit.properties || {};
       const kind = geocodeKindFromPhoton(props);
       let r = rank[kind] || 2;
+      const nm = String(props.name || props.city || "").toLowerCase();
+      if (!wantHouse && qn && nm === qn) r += 8;
+      if (!wantHouse && qn === "tokyo" && /japan|東京/i.test(String(props.country || props.state || ""))) r += 12;
       if (wantHouse) {
         if (housesEqual(props.housenumber, wantHouse)) r = 20;
         else if (kind === "address" || kind === "place") r = 8 + r;
@@ -4508,7 +4865,7 @@
     ctx.arc(cx, cy, r, Math.PI, 0, false);
     ctx.bezierCurveTo(cx + r, cy + r, cx + 6, 56, cx, 76);
     ctx.closePath();
-    ctx.fillStyle = "#ffbf00";
+    ctx.fillStyle = "#ffd60a";
     ctx.fill();
     ctx.lineJoin = "round";
     ctx.lineWidth = 3;
@@ -4541,7 +4898,7 @@
     const lat = Number(hit.lat);
     const lng = Number(hit.lng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-    const pinH = 36;
+    const pinH = 90;
     let ent = null;
     try {
       const billboard = {
@@ -4551,13 +4908,13 @@
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
         heightReference: Cesium.HeightReference.NONE,
         pixelOffset: new Cesium.Cartesian2(0, 0),
-        eyeOffset: new Cesium.Cartesian3(0, 0, -80),
-        scale: 1.35,
+        eyeOffset: new Cesium.Cartesian3(0, 0, -140),
+        scale: 1.75,
         sizeInMeters: false,
-        scaleByDistance: new Cesium.NearFarScalar(80, 1.55, 6.0e6, 0.95),
+        scaleByDistance: new Cesium.NearFarScalar(80, 1.8, 6.0e6, 1.05),
       };
       const point = {
-        pixelSize: 16,
+        pixelSize: 18,
         color: Cesium.Color.fromCssColorString("#ffbf00"),
         outlineColor: Cesium.Color.fromCssColorString("#1a1200"),
         outlineWidth: 3,
@@ -4565,12 +4922,28 @@
         heightReference: Cesium.HeightReference.NONE,
         scaleByDistance: new Cesium.NearFarScalar(80, 1.4, 6.0e6, 0.85),
       };
-      ent = viewer.entities.add({
+      const pinName = String(hit.name || "").trim();
+      const entityOpts = {
         id: "gm2-search-pin",
         position: Cesium.Cartesian3.fromDegrees(lng, lat, pinH),
         billboard: billboard,
         point: point,
-      });
+      };
+      if (pinName) {
+        entityOpts.label = {
+          text: pinName,
+          fillColor: Cesium.Color.fromCssColorString("#ffd60a"),
+          outlineColor: Cesium.Color.fromCssColorString("#1a1200"),
+          outlineWidth: 3,
+          style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+          font: "14px sans-serif",
+          verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+          pixelOffset: new Cesium.Cartesian2(0, -86),
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          show: true,
+        };
+      }
+      ent = viewer.entities.add(entityOpts);
       ent.__gm2Decor = true;
       try { ent.show = true; } catch (eS) {}
     } catch (e) { ent = null; }
@@ -4593,8 +4966,8 @@
     const list = Array.isArray(rows) ? rows : [];
     const lod = (state && state.lastLod) || "Orbit";
     let cap = type === "ship" ? MAX_SHIP_POINTS : MAX_FLIGHT_POINTS;
-    if (lod === "Orbit") cap = type === "ship" ? 240 : 200;
-    else if (lod === "Regional") cap = type === "ship" ? 480 : 300;
+    if (lod === "Orbit") cap = type === "ship" ? MAX_SHIP_POINTS : 800;
+    else if (lod === "Regional") cap = type === "ship" ? MAX_SHIP_POINTS : 1000;
     if (list.length <= cap) return list;
     const rect = viewRectDeg(Cesium, viewer);
     const sel = state && state.selectedId;
@@ -4623,7 +4996,8 @@
       const lng = C.Math.toDegrees(cam.longitude);
       const dlat = Number(row.lat) - lat;
       const dlng = Number(row.lng) - lng;
-      return (dlat * dlat + dlng * dlng) < (2.8 * 2.8);
+      const ang2 = h > 1e6 ? (8 * 8) : (2.8 * 2.8);
+      return (dlat * dlat + dlng * dlng) < ang2;
     } catch (e) { return false; }
   }
 
@@ -4645,6 +5019,7 @@
       if (!globe) return;
       if (Number.isFinite(h) && h > 1.5e6) globe.maximumScreenSpaceError = 3.2;
       else if (Number.isFinite(h) && h > 2e4) globe.maximumScreenSpaceError = 2.2;
+      else if (Number.isFinite(h) && h < 2500) globe.maximumScreenSpaceError = 1.0;
       else globe.maximumScreenSpaceError = 1.6;
     } catch (e) {}
   }
@@ -4660,6 +5035,7 @@
     state._photorealShown = false;
     keepEsriGround(viewer || (state && state.viewer), state);
     setOsmContrast(state, false);
+    try { applySensorSkin(state, state._skin || 'eo'); } catch (e) {}
   }
 
   function tuneCameraFeel(viewer) {
@@ -4680,64 +5056,322 @@
     } catch (e) {}
   }
 
-  function enterStreetView(Cesium, viewer, state, lat, lng) {
+  var IDLE_SPIN_ORBIT_M = 2.0e6;
+  var IDLE_SPIN_STREET_M = 2500;
+  var IDLE_SPIN_RESUME_MS = 4000;
+  var IDLE_SPIN_RAD_PER_S = 0.058;
+
+  function pauseIdleSpinState(state) {
+    try { if (state && typeof state.pauseIdleSpin === 'function') state.pauseIdleSpin(); } catch (e) {}
+  }
+
+  function installIdleOrbitSpin(Cesium, viewer, state) {
+    if (!Cesium || !viewer || !state) return;
+    try { if (viewer.clock) viewer.clock.shouldAnimate = true; } catch (e) {}
+    try { if (viewer.scene && viewer.scene.requestRenderMode) viewer.scene.requestRender(); } catch (e) {}
+    state._idleSpinHeld = 0;
+    state._idleSpinPaused = false;
+    state._idleSpinLastTs = 0;
+    var resumeTimer = 0;
+    var canvas = null;
+    try { canvas = viewer.scene && viewer.scene.canvas; } catch (eC) {}
+    var clearResume = function () {
+      if (resumeTimer) {
+        try { global.clearTimeout(resumeTimer); } catch (e) {}
+        resumeTimer = 0;
+      }
+    };
+    var scheduleResume = function () {
+      clearResume();
+      resumeTimer = global.setTimeout(function () {
+        resumeTimer = 0;
+        state._idleSpinPaused = false;
+        state._idleSpinLastTs = 0;
+      }, IDLE_SPIN_RESUME_MS);
+    };
+    var pause = function () {
+      state._idleSpinPaused = true;
+      state._idleSpinLastTs = 0;
+      if (state._idleSpinHeld > 0) {
+        clearResume();
+        return;
+      }
+      scheduleResume();
+    };
+    state.pauseIdleSpin = pause;
+    var onDown = function () {
+      state._idleSpinHeld = (state._idleSpinHeld || 0) + 1;
+      pause();
+    };
+    var onUp = function () {
+      state._idleSpinHeld = Math.max(0, (state._idleSpinHeld || 0) - 1);
+      pause();
+    };
+    var onWheel = function () { pause(); };
+    var listeners = [];
+    var add = function (target, type, fn, opts) {
+      if (!target || !target.addEventListener) return;
+      try {
+        target.addEventListener(type, fn, opts);
+        listeners.push([target, type, fn, opts]);
+      } catch (e) {}
+    };
+    if (canvas) {
+      add(canvas, 'pointerdown', onDown, true);
+      add(canvas, 'pointerup', onUp, true);
+      add(canvas, 'pointercancel', onUp, true);
+      add(canvas, 'wheel', onWheel, { capture: true, passive: true });
+      add(canvas, 'gesturestart', onWheel, true);
+    }
+    var onTick = function () {
+      if (state.destroyed) return;
+      try { if (viewer.isDestroyed && viewer.isDestroyed()) return; } catch (eD) { return; }
+      if (state._streetMode || state._streetFlying) {
+        state._idleSpinLastTs = 0;
+        return;
+      }
+      if (state.follow || viewer.trackedEntity) {
+        state._idleSpinLastTs = 0;
+        return;
+      }
+      var h = 0;
+      try {
+        h = viewer.camera.positionCartographic && viewer.camera.positionCartographic.height;
+      } catch (eH) { h = 0; }
+      if (!(h > IDLE_SPIN_ORBIT_M) || h < IDLE_SPIN_STREET_M) {
+        state._idleSpinLastTs = 0;
+        return;
+      }
+      if (state._idleSpinPaused || (state._idleSpinHeld || 0) > 0) {
+        state._idleSpinLastTs = 0;
+        return;
+      }
+      var now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      var last = state._idleSpinLastTs;
+      if (last && now === last) return;
+      if (!last) last = now;
+      var dt = (now - last) / 1000;
+      state._idleSpinLastTs = now;
+      if (!(dt > 0) || dt > 0.25) dt = 1 / 60;
+      try {
+        viewer.camera.rotate(Cesium.Cartesian3.UNIT_Z, -dt * IDLE_SPIN_RAD_PER_S);
+      } catch (eR) { return; }
+      try { if (viewer.scene && viewer.scene.requestRender) viewer.scene.requestRender(); } catch (eRend) {}
+    };
+    var spinInterval = 0;
+    try { spinInterval = global.setInterval(onTick, 150); } catch (eI) { spinInterval = 0; }
+    state._idleSpinTick = onTick;
+    state._idleSpinInterval = spinInterval;
+    state.stopIdleOrbitSpin = function () {
+      clearResume();
+      if (spinInterval) {
+        try { global.clearInterval(spinInterval); } catch (e) {}
+        spinInterval = 0;
+      }
+      try { state._idleSpinInterval = null; } catch (e) {}
+      listeners.forEach(function (row) {
+        try { row[0].removeEventListener(row[1], row[2], row[3]); } catch (e2) {}
+      });
+      listeners.length = 0;
+      state.pauseIdleSpin = null;
+      state._idleSpinTick = null;
+      state.stopIdleOrbitSpin = null;
+    };
+  }
+
+  function streetPanoEl(viewer) {
+    let el = document.getElementById('v4-gm2-pano');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'v4-gm2-pano';
+      el.className = 'v4-gm2-pano';
+      el.setAttribute('aria-label', 'Street View panorama');
+    }
+    try { el.style.pointerEvents = 'none'; } catch (ePe) {}
+    var stage = null;
+    try { stage = document.querySelector('.v4-gm2-stage'); } catch (eS) { stage = null; }
+    var host = stage || (document.body || document.documentElement);
+    try {
+      if (host) host.appendChild(el);
+    } catch (e) {
+      try { (document.body || document.documentElement).appendChild(el); } catch (e2) {}
+    }
+    return el;
+  }
+
+  function hideStreetPanorama(state) {
+    const el = document.getElementById('v4-gm2-pano');
+    if (el) {
+      try { el.classList.remove('is-on'); } catch (e) {}
+      try { el.classList.remove('is-live'); } catch (eL) {}
+      try { el.style.pointerEvents = 'none'; } catch (eP) {}
+      try { el.innerHTML = ''; } catch (e2) {}
+    }
+    if (state) {
+      try { if (state._streetTimer) { global.clearTimeout(state._streetTimer); state._streetTimer = 0; } } catch (eT) {}
+      try { if (state._streetPano && state._streetPano.setVisible) state._streetPano.setVisible(false); } catch (e3) {}
+      state._streetPano = null;
+      state._streetMode = false;
+      state._streetFlying = false;
+      state._streetInflight = false;
+    }
+  }
+
+  function fillStreetPanorama(el, lat, lng, state, onSettled) {
+    const gen = (state._streetGen = (state._streetGen || 0) + 1);
+    try { if (state._streetTimer) { global.clearTimeout(state._streetTimer); state._streetTimer = 0; } } catch (eT0) {}
+    el.innerHTML = '';
+    const inner = document.createElement('div');
+    inner.className = 'v4-gm2-pano-inner';
+    el.appendChild(inner);
+    const miss = function (msg) {
+      inner.innerHTML = '';
+      const d = document.createElement('div');
+      d.className = 'v4-gm2-pano-miss';
+      d.textContent = msg || 'No Street View here';
+      inner.appendChild(d);
+    };
+    miss('Loading Street View…');
+    var settled = false;
+    const done = function (ok, msg) {
+      if (settled) return;
+      settled = true;
+      try { if (state && state._streetTimer) { global.clearTimeout(state._streetTimer); state._streetTimer = 0; } } catch (eT) {}
+      if (state && state._streetGen !== gen) return;
+      try { if (state) state._streetInflight = false; } catch (eInf) {}
+      if (!ok) {
+        try { miss(msg || 'No Street View imagery'); } catch (eM) {}
+      }
+      if (onSettled) onSettled(ok, msg);
+    };
+    ensureGoogleMapsJs().then(function (ok) {
+      if (state && state._streetGen !== gen) return;
+      const g = global.google;
+      if (!(ok && g && g.maps && g.maps.StreetViewPanorama && g.maps.StreetViewService)) {
+        done(false, 'No Street View imagery');
+        return;
+      }
+      state._streetTimer = global.setTimeout(function () {
+        if (state && state._streetGen !== gen) return;
+        done(false, 'Street View timed out');
+      }, 10000);
+      if (state && state._streetGen !== gen) return;
+      try {
+        const sv = new g.maps.StreetViewService();
+        const outdoor = (g.maps.StreetViewSource && g.maps.StreetViewSource.OUTDOOR) || 'outdoor';
+        const radii = [200, 500, 1200];
+        function ask(i) {
+          if (state && state._streetGen !== gen) return;
+          if (i >= radii.length) {
+            done(false, 'No Street View coverage');
+            return;
+          }
+          sv.getPanorama({
+            location: { lat: lat, lng: lng },
+            radius: radii[i],
+            source: outdoor,
+          }, function (data, status) {
+            if (state && state._streetGen !== gen) return;
+            if (String(status) !== 'OK' || !data || !data.location) {
+              ask(i + 1);
+              return;
+            }
+            try {
+              inner.innerHTML = '';
+              const pano = new g.maps.StreetViewPanorama(inner, {
+                pano: data.location.pano,
+                position: data.location.latLng,
+                pov: { heading: 0, pitch: 0 },
+                zoom: 1,
+                visible: true,
+                addressControl: true,
+                fullscreenControl: false,
+                motionTracking: false,
+                motionTrackingControl: false,
+                enableCloseButton: false,
+              });
+              try { el.classList.add('is-live'); } catch (eLive) {}
+              if (state) state._streetPano = pano;
+              done(true, '');
+            } catch (eP) {
+              done(false, 'Street View failed');
+            }
+          });
+        }
+        ask(0);
+      } catch (eS) {
+        done(false, 'Street View failed');
+      }
+    }, function () {
+      done(false, 'No Street View imagery');
+    });
+  }
+
+  function enterStreetView(Cesium, viewer, state, lat, lng, onSettled) {
     const a = Number(lat);
     const b = Number(lng);
-    if (!Cesium || !viewer || !Number.isFinite(a) || !Number.isFinite(b)) return false;
-    try {
-      state._streetPrev = viewer.camera.position.clone();
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
+    if (state && state._streetInflight) return true;
+    if (state) {
       state._streetMode = true;
-      state._streetFlying = true;
-    } catch (e) {}
-    try { state.lastLod = 'City'; } catch (e) {}
-    try { viewer.scene.screenSpaceCameraController.minimumZoomDistance = 80; } catch (e) {}
-    try { if (viewer.scene.fog) { viewer.scene.fog.enabled = false; viewer.scene.fog.density = 0; } } catch (e) {}
-    try { if (viewer.scene.skyAtmosphere) viewer.scene.skyAtmosphere.show = false; } catch (e) {}
-    try { if (viewer.scene.globe) { viewer.scene.globe.showGroundAtmosphere = false; viewer.scene.globe.atmosphereLightIntensity = 0; } } catch (e) {}
-    const finishStreet = function () {
-      try { state._streetFlying = false; } catch (e) {}
-      enableDesktopRotate(Cesium, viewer);
-      tryEnableGooglePhotoreal(Cesium, viewer, state);
-      applyStreetClarity(Cesium, viewer, 'City', state);
-      applySensorSkin(state, 'eo');
-    };
-    try {
-      const look = streetViewLookAt(Cesium, viewer, a, b);
-      const finish = function () { finishStreet(); requestSceneRender(viewer); };
-      const ease = streetFlyEasing(Cesium);
-      if (Cesium.BoundingSphere && typeof viewer.camera.flyToBoundingSphere === "function") {
-        const bsOpts = {
-          offset: new Cesium.HeadingPitchRange(look.heading, look.pitch, look.range),
-          duration: 2.4,
-          complete: finish,
-        };
-        if (ease) bsOpts.easingFunction = ease;
-        viewer.camera.flyToBoundingSphere(new Cesium.BoundingSphere(look.target, 12), bsOpts);
-      } else {
-        const flyOpts = {
-          destination: Cesium.Cartesian3.fromDegrees(b, a, 120),
-          orientation: { heading: look.heading, pitch: look.pitch, roll: 0 },
-          duration: 2.4,
-          complete: finish,
-        };
-        if (ease) flyOpts.easingFunction = ease;
-        viewer.camera.flyTo(flyOpts);
-      }
-    } catch (e) {
-      finishStreet();
+      state._streetFlying = false;
+      state._streetInflight = true;
     }
+    try { pauseIdleSpinState(state); } catch (e) {}
+    try { if (viewer && viewer.scene && viewer.scene.fog) { viewer.scene.fog.enabled = false; viewer.scene.fog.density = 0; } } catch (eF) {}
+    const el = streetPanoEl(viewer);
+    el.classList.add('is-on');
+    fillStreetPanorama(el, a, b, state, function (ok, msg) {
+      try { if (state) state._streetInflight = false; } catch (eInf) {}
+      if (!ok) {
+        try { exitStreetView(Cesium, viewer, state); } catch (eX) {}
+      }
+      if (onSettled) onSettled(ok, msg);
+    });
     return true;
   }
 
   function exitStreetView(Cesium, viewer, state) {
-    if (!viewer || !state) return;
-    const prev = state._streetPrev;
-    state._streetMode = false;
-    state._streetFlying = false;
-    state._streetPrev = null;
-    if (prev && Cesium) {
-      try { viewer.camera.flyTo({ destination: prev, duration: 1.25, complete: function () { enableDesktopRotate(Cesium, viewer); } }); } catch (e) {}
+    try { if (state) state._streetGen = (state._streetGen || 0) + 1; } catch (eG0) {}
+    hideStreetPanorama(state);
+    if (viewer && Cesium) {
+      try { enableDesktopRotate(Cesium, viewer); } catch (e) {}
+      try { unloadGooglePhotoreal(state, viewer); } catch (eU) {}
+      try { keepEsriGround(viewer, state); } catch (eK) {}
+      try { if (viewer.scene && viewer.scene.globe) viewer.scene.globe.show = true; } catch (eG) {}
+      try { if (viewer.scene && viewer.scene.fog) { viewer.scene.fog.enabled = false; viewer.scene.fog.density = 0; } } catch (eF) {}
+      try { pauseIdleSpinState(state); } catch (eP) {}
+      try {
+        var cam = viewer.camera.positionCartographic;
+        var lat = cam ? Cesium.Math.toDegrees(cam.latitude) : 35.68;
+        var lng = cam ? Cesium.Math.toDegrees(cam.longitude) : 139.69;
+        var dest = Cesium.Cartesian3.fromDegrees(lng, lat, 2.8e6);
+        try { viewer.camera.setView({ destination: dest }); } catch (eSet) {}
+        try { if (state) { state._streetMode = false; state._streetFlying = false; } } catch (eFl) {}
+        try { setEllipsoidGlobeVisible(viewer, state, true); } catch (eEll) {}
+        viewer.camera.flyTo({
+          destination: dest,
+          duration: 0.85,
+          complete: function () {
+            try { keepEsriGround(viewer, state); } catch (e2) {}
+            try { setEllipsoidGlobeVisible(viewer, state, true); } catch (e3) {}
+            try { pauseIdleSpinState(state); } catch (e4) {}
+            try { if (state) { state._streetMode = false; state._streetFlying = false; } } catch (e5) {}
+            requestSceneRender(viewer);
+          }
+        });
+      } catch (eFly) {
+        try { setEllipsoidGlobeVisible(viewer, state, true); } catch (eE2) {}
+      }
+      requestSceneRender(viewer);
     }
+  }
+
+  function openStreetView(lat, lng) {
+    const Cesium = global.Cesium;
+    const state = (global.__gmCesiumStreetState && global.__gmCesiumStreetState()) || null;
+    const viewer = state && state.viewer;
+    enterStreetView(Cesium, viewer, state || {}, lat, lng);
   }
 
   function googleLocationTypeRank(t) {
@@ -4798,8 +5432,14 @@
     });
   }
 
+  function mapsJsReady() {
+    try {
+      const g = global.google && global.google.maps;
+      return !!(g && g.StreetViewService && g.StreetViewPanorama);
+    } catch (e) { return false; }
+  }
   function ensureGoogleMapsJs() {
-    if (global.google && global.google.maps && global.google.maps.Geocoder) return Promise.resolve(true);
+    if (mapsJsReady()) return Promise.resolve(true);
     const key = (typeof readGoogleTilesKey === "function" && readGoogleTilesKey()) || "";
     if (!key) return Promise.resolve(false);
     if (ensureGoogleMapsJs._p) return ensureGoogleMapsJs._p;
@@ -4810,14 +5450,29 @@
         settled = true;
         resolve(!!ok);
       }
-      var timer = global.setTimeout(function () { finish(false); }, 2500);
-      const s = document.createElement("script");
-      s.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(key) + "&libraries=places";
-      s.async = true;
-      s.onload = function () {
-        global.clearTimeout(timer);
-        finish(!!(global.google && global.google.maps && global.google.maps.Geocoder));
+      function afterLoad() {
+        var g = global.google && global.google.maps;
+        if (g && typeof g.importLibrary === "function") {
+          Promise.all([g.importLibrary("streetView"), g.importLibrary("core")]).then(function (libs) {
+            try {
+              var sv = libs && libs[0];
+              if (sv && sv.StreetViewService && !g.StreetViewService) g.StreetViewService = sv.StreetViewService;
+              if (sv && sv.StreetViewPanorama && !g.StreetViewPanorama) g.StreetViewPanorama = sv.StreetViewPanorama;
+            } catch (eImp) {}
+            finish(mapsJsReady());
+          }).catch(function () { finish(mapsJsReady()); });
+          return;
+        }
+        finish(mapsJsReady());
+      }
+      global.__gm2MapsReady = function () {
+        try { delete global.__gm2MapsReady; } catch (e) {}
+        afterLoad();
       };
+      var timer = global.setTimeout(function () { afterLoad(); }, 15000);
+      const s = document.createElement("script");
+      s.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(key) + "&callback=__gm2MapsReady&v=weekly&loading=async";
+      s.async = true;
       s.onerror = function () {
         global.clearTimeout(timer);
         finish(false);
@@ -4902,6 +5557,57 @@
       lat: NaN,
       lng: NaN,
     };
+  }
+
+
+  function knownCityCountry(name) {
+    const n = String(name || "").toLowerCase().replace("são", "sao");
+    const map = {
+      stockholm: "Sweden", tokyo: "Japan", london: "United Kingdom", paris: "France",
+      berlin: "Germany", dubai: "United Arab Emirates", mumbai: "India", singapore: "Singapore",
+      seoul: "South Korea", sydney: "Australia", moscow: "Russia", cairo: "Egypt",
+      lagos: "Nigeria", johannesburg: "South Africa", nairobi: "Kenya", beijing: "China",
+      shanghai: "China", "hong kong": "China", bangkok: "Thailand", toronto: "Canada",
+      "sao paulo": "Brazil", "mexico city": "Mexico", chicago: "United States",
+      "new york": "United States", "los angeles": "United States"
+    };
+    return map[n] || "";
+  }
+  function dropConflictingUsTowns(rows, known) {
+    if (!known) return rows || [];
+    const country = knownCityCountry(known.name || known.title);
+    const intl = country && country !== "United States";
+    const usRe = /\b(alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming)\b/;
+    return (rows || []).filter(function (r) {
+      if (!r || r.source === "known-city") return !!r;
+      const blob = (String(r.sub || "") + " " + String(r.title || "") + " " + String(r.name || "")).toLowerCase();
+      if (/\btexas\b|\btx\b|, tx\b/.test(blob)) return false;
+      if (intl && usRe.test(blob) && !/sweden|japan|united kingdom|france|germany|sweden/.test(blob)) return false;
+      return true;
+    });
+  }
+
+  function knownCityHit(q) {
+    const s = String(q || "").trim().toLowerCase().replace(/\s+/g, " ");
+    if (!s || parseHouseNumber(s)) return null;
+    let best = null;
+    for (let i = 0; i < WEATHER_CITIES.length; i++) {
+      const name = String(WEATHER_CITIES[i][0] || "");
+      const n = name.toLowerCase().replace("são", "sao");
+      if (n === s || n.split(",")[0] === s) {
+        return {
+          lat: WEATHER_CITIES[i][1], lng: WEATHER_CITIES[i][2],
+          name: name, title: name, sub: (function(){ var c = knownCityCountry(name); return c && c !== "United States" ? ("City · " + c) : "City"; })(), kind: "city", source: "known-city", house: "",
+        };
+      }
+      if (!best && s.length >= 4 && (n.indexOf(s) === 0 || s.indexOf(n) === 0)) {
+        best = {
+          lat: WEATHER_CITIES[i][1], lng: WEATHER_CITIES[i][2],
+          name: name, title: name, sub: (function(){ var c = knownCityCountry(name); return c && c !== "United States" ? ("City · " + c) : "City"; })(), kind: "city", source: "known-city", house: "",
+        };
+      }
+    }
+    return best;
   }
 
   function queryHasLocality(q) {
@@ -5115,10 +5821,25 @@
       rows = diverse.concat(rest);
     } else {
       rows.sort(function (a, b) {
+        const ac = a.kind === "city" ? 1 : 0;
+        const bc = b.kind === "city" ? 1 : 0;
         const ag = a.source === "google" ? 1 : 0;
         const bg = b.source === "google" ? 1 : 0;
-        return bg - ag;
+        const ak = a.source === "known-city" ? 1 : 0;
+        const bk = b.source === "known-city" ? 1 : 0;
+        return (bk - ak) || (bc - ac) || (bg - ag);
       });
+    }
+    const known = knownCityHit(q);
+    if (known) {
+      rows = dropConflictingUsTowns(rows, known);
+      rows = (rows || []).filter(function (r) {
+        const nm = String((r && (r.name || r.title)) || '').toLowerCase();
+        if (/woods of alon/.test(nm)) return false;
+        if (/san antonio/.test(nm) && !/sweden|japan|finland|norway|denmark/.test(nm)) return false;
+        return true;
+      });
+      rows.unshift(known);
     }
     return mergeSuggestRows(syn, rows);
   }
@@ -5187,6 +5908,18 @@
     });
   }
 
+  function preferCensusAddress(rows) {
+    const list = Array.isArray(rows) ? rows.slice() : [];
+    const census = [];
+    const rest = [];
+    for (let i = 0; i < list.length; i++) {
+      const r = list[i];
+      if (r && r.source === "census" && r.kind === "address" && Number.isFinite(Number(r.lat))) census.push(r);
+      else rest.push(r);
+    }
+    return census.concat(rest);
+  }
+
   async function geocodeAddressAll(query) {
     const q = String(query || "").trim();
     if (!q) return [];
@@ -5196,11 +5929,14 @@
     const noCity = !!(wantHouse && !queryHasLocality(q));
     const googleP = settleTimeout(geocodeGoogleJsAll(q).catch(function () { return []; }), 2500, []);
     const osmP = settleTimeout(fetchOsmHits(q, parsed, noCity).catch(function () { return []; }), 2500, []);
+    const censusP = (looksAddr || wantHouse)
+      ? settleTimeout(geocodeCensus(q, wantHouse).then(function (hit) { return hit ? [hit] : []; }).catch(function () { return []; }), 2500, [])
+      : Promise.resolve([]);
     let rows = [];
-    if (noCity) {
-      const pair = await Promise.all([googleP, osmP]);
-      rows = [].concat(pair[0] || [], pair[1] || []);
-      if (hitsAreAmbiguous(rows, q)) return mergeSuggestRows(syntheticSuggestRow(q), rows);
+    if (noCity || looksAddr) {
+      const triple = await Promise.all([googleP, osmP, censusP]);
+      rows = preferCensusAddress([].concat(triple[0] || [], triple[1] || [], triple[2] || []));
+      if (noCity && hitsAreAmbiguous(rows, q)) return mergeSuggestRows(syntheticSuggestRow(q), rows);
     } else {
       rows = await firstLatLngHits(googleP, osmP);
     }
@@ -5213,12 +5949,14 @@
         }
       } catch (e) {}
     }
-    return mergeSuggestRows(null, rows);
+    return mergeSuggestRows(null, preferCensusAddress(rows));
   }
 
   async function geocodeAddress(query) {
     const q = String(query || "").trim();
     if (!q) return null;
+    const known = knownCityHit(q);
+    if (known && !parseHouseNumber(q)) return known;
     const rows = await geocodeAddressAll(q);
     const real = (rows || []).filter(function (r) { return r && Number.isFinite(Number(r.lat)); });
     if (!real.length) return null;
@@ -5235,12 +5973,38 @@
     const alt = Number(row.altM);
     const range = isSatType(row.type) ? 2.2e6
       : ((row.type === 'flight' || row.type === 'military') ? 2.5e5 : (row.type === 'ship' ? 1.2e5 : 4.5e5));
+    pauseIdleSpinState(state);
     try {
       viewer.camera.flyTo({
         destination: Cesium.Cartesian3.fromDegrees(lng, lat, (Number.isFinite(alt) ? alt : 0) + range),
         duration: 1.35,
+        complete: function () { pauseIdleSpinState(state); },
       });
     } catch (e) {}
+  }
+
+  function clampCamAboveTerrain(Cesium, viewer, cartesian) {
+    if (!cartesianFinite(Cesium, cartesian)) return cartesian;
+    try {
+      const carto = Cesium.Cartographic.fromCartesian(cartesian);
+      if (!carto) return cartesian;
+      let th = null;
+      try {
+        if (viewer.scene && viewer.scene.globe && typeof viewer.scene.globe.getHeight === 'function') {
+          th = viewer.scene.globe.getHeight(carto);
+        }
+      } catch (eH) {}
+      if (!Number.isFinite(th) && viewer.scene && typeof viewer.scene.sampleHeight === 'function') {
+        try { th = viewer.scene.sampleHeight(carto); } catch (eS) {}
+      }
+      if (Number.isFinite(th) && carto.height < th + 12) {
+        carto.height = th + 12;
+        return Cesium.Cartesian3.fromRadians(carto.longitude, carto.latitude, carto.height);
+      }
+      return cartesian;
+    } catch (e) {
+      return cartesian;
+    }
   }
 
   function lerpFollow(Cesium, viewer, state) {
@@ -5252,7 +6016,50 @@
       pos = ent.position?.getValue ? ent.position.getValue(viewer.clock.currentTime) : ent.position;
     } catch (e) { return; }
     if (!cartesianFinite(Cesium, pos)) return;
+    const row = ent.__gm2 || {};
+    if (isCraftType(row.type)) {
+      try {
+        const nowMs = Date.now();
+        if (state._followWriteAt && (nowMs - state._followWriteAt) < 50) return;
+        let hdg = Number(row.heading);
+        if (!Number.isFinite(hdg)) hdg = Number(row.cog);
+        if (!Number.isFinite(hdg)) hdg = 0;
+        const carto = Cesium.Cartographic.fromCartesian(pos);
+        const alt = (carto && Number.isFinite(carto.height)) ? carto.height : 0;
+        const back = row.type === 'ship' ? 240 : Math.max(180, Math.min(760, alt * 0.35 + 220));
+        const up = row.type === 'ship' ? 72 : Math.max(90, Math.min(260, alt * 0.12 + 110));
+        const hdgRad = (hdg * Math.PI) / 180;
+        const transform = Cesium.Transforms.eastNorthUpToFixedFrame(pos);
+        const offset = new Cesium.Cartesian3(-Math.sin(hdgRad) * back, -Math.cos(hdgRad) * back, up);
+        viewer.camera.lookAtTransform(transform, offset);
+        const camCarto = viewer.camera.positionCartographic;
+        if (camCarto) {
+          let th = null;
+          try {
+            if (viewer.scene && viewer.scene.globe && typeof viewer.scene.globe.getHeight === 'function') {
+              th = viewer.scene.globe.getHeight(camCarto);
+            }
+          } catch (eH) {}
+          if (!Number.isFinite(th) && viewer.scene && typeof viewer.scene.sampleHeight === 'function') {
+            try { th = viewer.scene.sampleHeight(camCarto); } catch (eS) {}
+          }
+          if (Number.isFinite(th) && camCarto.height < th + 12) {
+            const raised = Cesium.Cartesian3.fromRadians(camCarto.longitude, camCarto.latitude, th + 12);
+            const inv = Cesium.Matrix4.inverseTransformation(transform, new Cesium.Matrix4());
+            const local = Cesium.Matrix4.multiplyByPoint(inv, raised, new Cesium.Cartesian3());
+            viewer.camera.lookAtTransform(transform, local);
+          }
+        }
+        state._followId = state.selectedId;
+        state._followLast = Cesium.Cartesian3.clone(pos);
+        state._followWriteAt = nowMs;
+      } catch (e) {}
+      return;
+    }
     try {
+      try {
+        if (viewer.camera && Cesium.Matrix4) viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+      } catch (eU) {}
       const carto = Cesium.Cartographic.fromCartesian(pos);
       if (!carto) return;
       const cam = viewer.camera.positionCartographic;
@@ -5313,6 +6120,7 @@
   }
 
   function destroyViewer(state) {
+    try { if (state && state.stopIdleOrbitSpin) state.stopIdleOrbitSpin(); } catch (eSpin) {}
     try { stopSafeRenderLoop(state); } catch (eStop) {}
     stopRadarAnim(state);
     try { if (state._moveEndTimer) { global.clearTimeout(state._moveEndTimer); state._moveEndTimer = null; } } catch (e) {}
@@ -5353,6 +6161,7 @@
     } catch (e) {}
     state.bloomStage = null;
     state.fxaaStage = null;
+    try { if (state._resizeObserver) { state._resizeObserver.disconnect(); state._resizeObserver = null; } } catch (e) {}
     try { if (state.viewer && !state.viewer.isDestroyed?.()) state.viewer.destroy(); } catch (e) {}
     state.viewer = null;
     state.entityById = new Map();
@@ -5379,6 +6188,7 @@
   }
 
   function V4GodModeEarth(props) {
+    bindReact();
     const open = !!props.open;
     const activeLayer = String(props.layer || 'all');
     const viewerProp = props.viewer || {};
@@ -5410,6 +6220,7 @@
     const clockRef = React.useRef({ mode: 'live', speed: 1 });
     const followRef = React.useRef(false);
     const keysOpenRef = React.useRef(false);
+    const settingsOpenRef = React.useRef(false);
     const skinRef = React.useRef('eo');
     const lastSatPropRef = React.useRef(0);
 
@@ -5443,14 +6254,56 @@
     const [searchSuggests, setSearchSuggests] = React.useState([]);
     const [suggestHi, setSuggestHi] = React.useState(-1);
     const suggestGenRef = React.useRef(0);
+    const suppressSuggestsRef = React.useRef(false);
     const searchingSinceRef = React.useRef(0);
     const [streetMode, setStreetMode] = React.useState(false);
+    const [settingsOpen, setSettingsOpen] = React.useState(false);
 
-    React.useEffect(() => { setLayer(activeLayer); layerRef.current = activeLayer; }, [activeLayer]);
+    React.useEffect(() => {
+      if (String(activeLayer || '') === String(layerRef.current || '')) return;
+      // Parent layer wins only when it actually changed (open, or a real HUD pick).
+      setLayer(activeLayer);
+      layerRef.current = activeLayer;
+    }, [activeLayer]);
     React.useEffect(() => { injectStyles(); }, []);
-    React.useEffect(() => { followRef.current = follow; stateRef.current.follow = follow; }, [follow]);
+    React.useEffect(() => {
+      if (!selected) return;
+      suppressSuggestsRef.current = true;
+      setSearchSuggests([]);
+      setSuggestHi(-1);
+    }, [selected]);
+    React.useEffect(() => {
+      followRef.current = follow;
+      stateRef.current.follow = follow;
+      if (!follow) {
+        try {
+          const Cesium = global.Cesium;
+          const viewer = stateRef.current.viewer;
+          stateRef.current._followId = '';
+          if (viewer) {
+            try { viewer.trackedEntity = undefined; } catch (eT) {}
+            if (Cesium && Cesium.Matrix4 && viewer.camera) viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+          }
+        } catch (e) {}
+      }
+    }, [follow]);
     React.useEffect(() => { keysOpenRef.current = keysOpen; }, [keysOpen]);
-    React.useEffect(() => { if (!open) setKeysOpen(false); }, [open]);
+    React.useEffect(() => { settingsOpenRef.current = settingsOpen; }, [settingsOpen]);
+    React.useEffect(() => {
+      if (!open || !settingsOpen) return undefined;
+      const onDown = (e) => {
+        const t = e.target;
+        if (!t || !t.closest) return;
+        try {
+          if (t.closest('.v4-gm2-settings-sheet')) return;
+          if (t.closest('[data-gm-settings-toggle]')) return;
+        } catch (eC) { return; }
+        setSettingsOpen(false);
+      };
+      document.addEventListener('pointerdown', onDown, true);
+      return () => document.removeEventListener('pointerdown', onDown, true);
+    }, [open, settingsOpen]);
+    React.useEffect(() => { if (!open) { setKeysOpen(false); setSettingsOpen(false); } }, [open]);
     React.useEffect(() => { skinRef.current = skin; }, [skin]);
     React.useEffect(() => { clockRef.current = { mode: clockMode, speed: clockSpeed }; }, [clockMode, clockSpeed]);
 
@@ -5473,6 +6326,10 @@
       if (!Cesium || !viewer || !hit) return;
       if (!Number.isFinite(Number(hit.lat)) || !Number.isFinite(Number(hit.lng))) return;
       setSearchPin(Cesium, viewer, state, hit);
+      suppressSuggestsRef.current = true;
+      setSearchSuggests([]);
+      setSuggestHi(-1);
+      setSearchMsg('');
       try {
         setSelected({
           type: 'place',
@@ -5485,13 +6342,24 @@
         });
       } catch (eSel) {}
       const alt = searchFlyAltM(hit);
+      const precise = alt >= 250 && alt <= 500;
+      pauseIdleSpinState(state);
       try {
-        viewer.camera.flyTo({
-          destination: Cesium.Cartesian3.fromDegrees(hit.lng, hit.lat, alt),
-          orientation: { heading: 0, pitch: Cesium.Math.toRadians(alt <= 2500 ? -72 : -89), roll: 0 },
-          duration: 1.55,
-          complete: function () { enableDesktopRotate(Cesium, viewer); requestSceneRender(viewer); },
-        });
+        if (precise) {
+          const target = Cesium.Cartesian3.fromDegrees(hit.lng, hit.lat, 8);
+          viewer.camera.flyToBoundingSphere(new Cesium.BoundingSphere(target, 1), {
+            offset: new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-30), alt),
+            duration: 1.55,
+            complete: function () { enableDesktopRotate(Cesium, viewer); pauseIdleSpinState(state); requestSceneRender(viewer); },
+          });
+        } else {
+          viewer.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(hit.lng, hit.lat, alt),
+            orientation: { heading: 0, pitch: Cesium.Math.toRadians(alt <= 2500 ? -72 : -89), roll: 0 },
+            duration: 1.55,
+            complete: function () { enableDesktopRotate(Cesium, viewer); pauseIdleSpinState(state); requestSceneRender(viewer); },
+          });
+        }
       } catch (e) {}
       requestSceneRender(viewer);
     }, []);
@@ -5510,7 +6378,7 @@
       if (real[0]) {
         setSearchSuggests([]);
         setSuggestHi(-1);
-        setSearchMsg(real[0].name || q);
+        setSearchMsg('');
         flySearchHit(real[0]);
         return true;
       }
@@ -5524,9 +6392,10 @@
       if (Number.isFinite(Number(row.lat)) && Number.isFinite(Number(row.lng))) {
         const refineQ = (parseHouseNumber(typed) && !housesEqual(row.house, parseHouseNumber(typed))) ? typed : q;
         setSearchQ(refineQ);
+        suppressSuggestsRef.current = true;
         setSearchSuggests([]);
         setSuggestHi(-1);
-        setSearchMsg(refineQ);
+        setSearchMsg('');
         flySearchHit(row);
         return;
       }
@@ -5544,6 +6413,11 @@
         setSuggestHi(-1);
         return undefined;
       }
+      if (suppressSuggestsRef.current) {
+        setSearchSuggests([]);
+        setSuggestHi(-1);
+        return undefined;
+      }
       const syn = syntheticSuggestRow(q);
       setSearchSuggests([syn]);
       setSuggestHi(0);
@@ -5551,11 +6425,21 @@
         const gen = ++suggestGenRef.current;
         fetchSearchSuggests(q).then(function (rows) {
           if (gen !== suggestGenRef.current) return;
+          if (suppressSuggestsRef.current) {
+            setSearchSuggests([]);
+            setSuggestHi(-1);
+            return;
+          }
           const list = mergeSuggestRows(syn, Array.isArray(rows) ? rows : []);
           setSearchSuggests(list);
           setSuggestHi(list.length ? 0 : -1);
         }).catch(function () {
           if (gen !== suggestGenRef.current) return;
+          if (suppressSuggestsRef.current) {
+            setSearchSuggests([]);
+            setSuggestHi(-1);
+            return;
+          }
           setSearchSuggests([syn]);
           setSuggestHi(0);
         });
@@ -5582,7 +6466,7 @@
         }
         if (!hit) { setSearchMsg('No match'); return; }
         setSearchSuggests([]);
-        setSearchMsg(hit.name || q);
+        setSearchMsg('');
         flySearchHit(hit);
       } catch (e) {
         setSearchMsg('Search failed');
@@ -5592,10 +6476,15 @@
       }
     }, [searchQ, searching, flySearchHit, applySearchRows]);
 
+    global.__gmCesiumStreetState = function () { return stateRef.current; };
     const goStreetView = React.useCallback(() => {
       const Cesium = global.Cesium;
       const state = stateRef.current;
       const viewer = state.viewer;
+      try { suppressSuggestsRef.current = true; } catch (eSup) {}
+      setSearchSuggests([]);
+      setSuggestHi(-1);
+      if (state && state._streetInflight) return;
       let lat = null, lng = null;
       const pin = state._searchPin;
       if (pin && Number.isFinite(Number(pin.lat)) && Number.isFinite(Number(pin.lng))) {
@@ -5611,7 +6500,20 @@
           }
         } catch (e) {}
       }
-      if (enterStreetView(Cesium, viewer, state, lat, lng)) setStreetMode(true);
+      if (enterStreetView(Cesium, viewer, state, lat, lng, function (ok, msg) {
+        if (!ok) {
+          setStreetMode(false);
+          setSearchMsg(msg || 'Street View unavailable');
+        } else {
+          setSearchMsg('');
+        }
+      })) {
+        setStreetMode(true);
+        setSearchMsg('Loading Street View…');
+      } else {
+        setStreetMode(false);
+        setSearchMsg('Street View unavailable');
+      }
     }, [selected]);
     const leaveStreetViewHud = React.useCallback(() => {
       exitStreetView(global.Cesium, stateRef.current.viewer, stateRef.current);
@@ -5643,6 +6545,7 @@
         }
         if (e.key === 'Escape') {
           e.preventDefault();
+          if (settingsOpenRef.current) { setSettingsOpen(false); return; }
           if (keysOpenRef.current) { setKeysOpen(false); return; }
           if (stateRef.current._searchPin) {
             setSearchQ('');
@@ -5735,14 +6638,27 @@
         try {
           const Cesium = await ensureCesium();
           if (cancelled || bootGen !== state._bootGen || !stageRef.current) return;
-          try { if (Cesium.Ion && !Cesium.Ion.defaultAccessToken) Cesium.Ion.defaultAccessToken = ''; } catch (e) {}
+          try { if (Cesium.Ion && !Cesium.Ion.defaultAccessToken) Cesium.Ion.defaultAccessToken = 'not-used'; } catch (e) {}
           try { if (!global.UNALIGNED_GOOGLE_MAPS_TILES_KEY) global.UNALIGNED_GOOGLE_MAPS_TILES_KEY = readGoogleTilesKey(); } catch (e) {}
+          try { ensureGoogleMapsJs(); } catch (eMaps) {}
 
           const container = stageRef.current;
           container.innerHTML = '';
           const cesiumDiv = document.createElement('div');
           cesiumDiv.className = 'v4-gm2-cesium';
+          cesiumDiv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;transform:none;zoom:normal;';
           container.appendChild(cesiumDiv);
+
+          let esriBase = false;
+          try {
+            const esriProvider = new Cesium.UrlTemplateImageryProvider({
+              url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+              maximumLevel: 19,
+              enablePickFeatures: false,
+              credit: 'Esri World Imagery',
+            });
+            esriBase = new Cesium.ImageryLayer(esriProvider);
+          } catch (e) { esriBase = false; }
 
           const viewerOpts = {
             animation: false, timeline: false, baseLayerPicker: false,
@@ -5752,18 +6668,24 @@
             creditContainer: document.createElement('div'),
             terrainProvider: new Cesium.EllipsoidTerrainProvider(),
             shouldAnimate: true,
+            requestRenderMode: true,
+            maximumRenderTimeChange: 2.0,
+            scene3DOnly: true,
             skyAtmosphere: false,
             useDefaultRenderLoop: false,
+            baseLayer: esriBase,
           };
-          try { viewerOpts.baseLayer = false; } catch (e) {}
-          try { viewerOpts.imageryProvider = false; } catch (e) {}
 
           try {
             viewer = new Cesium.Viewer(cesiumDiv, viewerOpts);
           } catch (e) {
-            delete viewerOpts.baseLayer;
-            delete viewerOpts.imageryProvider;
-            viewer = new Cesium.Viewer(cesiumDiv, viewerOpts);
+            try {
+              viewerOpts.baseLayer = false;
+              viewer = new Cesium.Viewer(cesiumDiv, viewerOpts);
+            } catch (e2) {
+              delete viewerOpts.baseLayer;
+              viewer = new Cesium.Viewer(cesiumDiv, viewerOpts);
+            }
           }
           if (cancelled || bootGen !== state._bootGen || state.destroyed) {
             try { if (viewer && !viewer.isDestroyed?.()) viewer.destroy(); } catch (e2) {}
@@ -5784,12 +6706,38 @@
           applySensorSkin(state, skinRef.current);
           applyClock(Cesium, viewer, clockRef.current.mode, clockRef.current.speed);
           try {
+            viewer.scene.globe.show = true;
             viewer.scene.globe.depthTestAgainstTerrain = false;
+            try { viewer.scene.requestRenderMode = true; viewer.scene.maximumRenderTimeChange = 2.0; } catch (e2) {}
+            const ssc = viewer.scene.screenSpaceCameraController;
+            ssc.enableInputs = true;
+            ssc.enableZoom = true;
+            ssc.enableRotate = true;
+            ssc.enableTilt = true;
+            ssc.enableLook = true;
+            ssc.enableTranslate = false;
+            ssc.minimumZoomDistance = 80;
+            ssc.maximumZoomDistance = 4.5e7;
             tuneCameraFeel(viewer);
-          } catch (e) {}
-          try {
-            viewer.scene.requestRenderMode = true;
-            viewer.scene.maximumRenderTimeChange = 2.0;
+            try { viewer.scene.canvas.style.pointerEvents = 'auto'; } catch (e2) {}
+            try { viewer.scene.canvas.style.touchAction = 'none'; } catch (e2) {}
+            try {
+              viewer.scene.canvas.addEventListener('wheel', function (e) {
+                try { e.preventDefault(); } catch (eP) {}
+              }, { passive: false });
+            } catch (eW) {}
+            try { viewer.scene.canvas.style.transform = 'none'; } catch (e2) {}
+            try { viewer.resize(); } catch (e2) {}
+            try { viewer.scene.requestRender(); } catch (e2) {}
+            try {
+              if (typeof ResizeObserver === 'function') {
+                const ro = new ResizeObserver(function () {
+                  try { viewer.resize(); viewer.scene.requestRender(); } catch (e3) {}
+                });
+                ro.observe(cesiumDiv);
+                state._resizeObserver = ro;
+              }
+            } catch (e2) {}
             if (viewer.scene.globe) {
               try { viewer.scene.globe.preloadSiblings = false; } catch (eG) {}
               try { viewer.scene.globe.loadingDescendantLimit = 6; } catch (eG2) {}
@@ -5802,8 +6750,18 @@
           const destLat = Number.isFinite(vLat) ? vLat : 20;
           const destLng = Number.isFinite(vLng) ? vLng : -30;
           viewer.camera.setView({
-            destination: Cesium.Cartesian3.fromDegrees(destLng, destLat, 1.8e7),
+            destination: Cesium.Cartesian3.fromDegrees(destLng, destLat, 1.37e7),
           });
+          try { viewer.resize(); } catch (e2) {}
+          try { if (viewer.scene && viewer.scene.requestRender) viewer.scene.requestRender(); } catch (e2) {}
+          try {
+            global.setTimeout(function () {
+              try { viewer.resize(); if (viewer.scene && viewer.scene.requestRender) viewer.scene.requestRender(); } catch (eR) {}
+            }, 0);
+            global.setTimeout(function () {
+              try { viewer.resize(); if (viewer.scene && viewer.scene.requestRender) viewer.scene.requestRender(); } catch (eR) {}
+            }, 300);
+          } catch (eT) {}
 
           const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
           handler.setInputAction((click) => {
@@ -5822,13 +6780,11 @@
               setSelected(row);
               showSelectionTrail(Cesium, viewer, state, row);
               try {
-                if (isCraftType(row.type) && picked && picked.id) {
-                  viewer.trackedEntity = picked.id;
+                viewer.trackedEntity = undefined;
+                if (isCraftType(row.type)) {
                   state.follow = true;
                   followRef.current = true;
                   setFollow(true);
-                } else {
-                  viewer.trackedEntity = undefined;
                 }
               } catch (eT) {}
             } else {
@@ -5857,6 +6813,10 @@
             followRef.current = false;
             state.follow = false;
             state._followId = '';
+            try { viewer.trackedEntity = undefined; } catch (eT) {}
+            try {
+              if (viewer.camera && Cesium.Matrix4) viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
+            } catch (eL) {}
             setFollow(false);
           };
           try { handler.setInputAction(stopFollow, Cesium.ScreenSpaceEventType.WHEEL); } catch (e) {}
@@ -5887,9 +6847,7 @@
               await syncPhotorealForHeight(Cesium, viewer, state, h);
               if (state.destroyed || bootGen !== state._bootGen || viewer.isDestroyed?.()) return;
               if (band !== prevLod) {
-                if (band !== 'City' && !photorealWantShow(state, h)) {
-                  applySensorSkin(state, skinRef.current);
-                }
+                applySensorSkin(state, skinRef.current);
                 setTilesChip(tilesChipFromState(state, band));
                 refreshCityLabels(Cesium, state, band, layerRef.current);
               } else {
@@ -5975,6 +6933,7 @@
           };
           viewer.clock.onTick.addEventListener(onTick);
           state._onTick = onTick;
+          try { installIdleOrbitSpin(Cesium, viewer, state); } catch (eSpin) {}
 
           if (!cancelled && bootGen === state._bootGen && !state.destroyed) setReady(true);
           else {
@@ -6034,9 +6993,7 @@
             dataRef.current.shipError = v.error || (v.rows?.length ? '' : 'AIS empty');
             setShipHud((() => {
               const n = (v.rows || []).length;
-              const src = String(v.source || '');
-              const cov = /baltic|digitraffic/i.test(src) ? 'BALTIC' : (src ? src.slice(0, 18) : 'AIS');
-              return n ? (cov + ' · ' + n) : (cov + ' · 0');
+              return shipHudLabel(v.rows || dataRef.current.ships);
             })());
           }),
           loadFeed('tle', ensureAllTles, () => {
@@ -6110,10 +7067,7 @@
           dataRef.current.shipSource = v.source || '';
           dataRef.current.shipError = v.error || '';
           setShipHud((() => {
-            const n = (v.rows || []).length;
-            const src = String(v.source || '');
-            const cov = /baltic|digitraffic/i.test(src) ? 'BALTIC' : (src ? src.slice(0, 18) : 'AIS');
-            return n ? (cov + ' · ' + n) : (cov + ' · 0');
+            return shipHudLabel(v.rows);
           })());
           const Cesium = global.Cesium;
           const st = stateRef.current;
@@ -6166,6 +7120,14 @@
       applyLayerVisibility(state, layer);
       paint();
       refreshCityLabels(global.Cesium, state, state.lastLod || lod, layer);
+      if (layer === 'deals') {
+        if (state._dealsFlyFor !== 'deals') {
+          state._dealsFlyFor = 'deals';
+          try { flyToDealSet(global.Cesium, state.viewer, state, dataRef.current.deals); } catch (eFly) {}
+        }
+      } else {
+        state._dealsFlyFor = '';
+      }
     }, [layer, ready, paint, lod]);
 
     React.useEffect(() => {
@@ -6195,7 +7157,7 @@
 
     return React.createElement(
       'div',
-      { className: 'v4-godmode v4-gm2 v4-gm2-skin-' + ((streetMode || lod === 'City') ? 'eo' : skin), role: 'dialog', 'aria-label': 'God mode earth view' },
+      { className: 'v4-godmode v4-gm2 v4-gm2-skin-' + skin + (settingsOpen ? ' is-settings' : ''), role: 'dialog', 'aria-label': 'God mode earth view' },
       React.createElement('div', { className: 'v4-godmode-backdrop', onClick: onClose }),
       React.createElement(
         'div',
@@ -6242,10 +7204,47 @@
               )
             )
           ),
+          settingsOpen ? React.createElement('div', { className: 'v4-gm2-settings-sheet', role: 'dialog', 'aria-label': 'Settings' },
+            React.createElement('div', { className: 'v4-gm2-settings-head' },
+              React.createElement('h4', null, 'Layers'),
+              React.createElement('button', {
+                type: 'button', className: 'v4-gm2-btn', 'aria-label': 'Close settings',
+                onClick: function () { setSettingsOpen(false); },
+              }, 'Close')
+            ),
+            LAYERS.map((row) =>
+              React.createElement('button', {
+                key: 'set-' + row.id, type: 'button',
+                className: 'v4-godmode-layer' + (layer === row.id ? ' is-active' : ''),
+                onClick: () => pickLayer(row.id),
+              },
+                React.createElement('span', { className: 'v4-godmode-layer-glyph' }, row.glyph),
+                React.createElement('span', null, row.label)
+              )
+            )
+          ) : null,
           React.createElement(
             'div',
             { className: 'v4-gm2-stage' },
             React.createElement('div', { ref: stageRef, className: 'v4-gm2-cesium-host', style: { width: '100%', height: '100%' } }),
+            (follow && selected && (selected.type === 'flight' || selected.type === 'military' || selected.type === 'ship')) ? (function () {
+              const live = (stateRef.current.entityById.get(selected.id) && stateRef.current.entityById.get(selected.id).__gm2) || selected;
+              let hdg = Number(live.heading);
+              if (!Number.isFinite(hdg)) hdg = Number(live.cog);
+              const hdgTxt = Number.isFinite(hdg) ? String(((Math.round(hdg) % 360) + 360) % 360).padStart(3, '0') : '---';
+              let altTxt = '---';
+              if (live.altitudeFt != null && Number.isFinite(Number(live.altitudeFt))) altTxt = Math.round(Number(live.altitudeFt)).toLocaleString();
+              else if (Number.isFinite(Number(live.altM)) && Number(live.altM) > 50) altTxt = Math.round(Number(live.altM) * 3.28084).toLocaleString();
+              let spdTxt = '---';
+              if (live.speedKts != null && Number.isFinite(Number(live.speedKts))) spdTxt = String(Math.round(Number(live.speedKts)));
+              else if (live.sog != null && Number.isFinite(Number(live.sog))) spdTxt = Number(live.sog).toFixed(0);
+              return React.createElement('div', { className: 'v4-gm2-tapes', 'aria-label': 'Cockpit tapes' },
+                React.createElement('div', { className: 'v4-gm2-tape' }, React.createElement('b', null, hdgTxt), React.createElement('span', null, 'HDG')),
+                React.createElement('div', { className: 'v4-gm2-tape' }, React.createElement('b', null, altTxt), React.createElement('span', null, 'ALT FT')),
+                React.createElement('div', { className: 'v4-gm2-tape' }, React.createElement('b', null, spdTxt), React.createElement('span', null, 'KTS'))
+              );
+            }()) : null,
+            (layer === 'deals' && !stats.deals) ? React.createElement('div', { className: 'v4-gm2-empty' }, 'No deal markers · pipeline has no geocoded locations') : null,
             React.createElement('form', {
               className: 'v4-gm2-search',
               onSubmit: (e) => { e.preventDefault(); runSearch(); },
@@ -6263,6 +7262,7 @@
                   const v = e.target.value;
                   setSearchQ(v);
                   const q = String(v || '').trim();
+                  suppressSuggestsRef.current = false;
                   if (!q) {
                     setSearchMsg('');
                     setSearchSuggests([]);
@@ -6279,6 +7279,7 @@
                   if (e.key === 'Escape') {
                     e.preventDefault();
                     e.stopPropagation();
+                    if (settingsOpenRef.current) { setSettingsOpen(false); return; }
                     setSearchQ('');
                     setSearchMsg('');
                     setSearchSuggests([]);
@@ -6331,7 +7332,7 @@
                 )
               ) : null
             ),
-            (searchMsg && !searchSuggests.length) ? React.createElement('div', { className: 'v4-gm2-search-msg' }, searchMsg) : null,
+            searchMsg ? React.createElement('div', { className: 'v4-gm2-search-msg' }, searchMsg) : null,
             React.createElement('div', { className: 'v4-gm2-vignette', 'aria-hidden': 'true' }),
             React.createElement('div', { className: 'v4-gm2-scan', 'aria-hidden': 'true' }),
             React.createElement('div', { className: 'v4-gm2-sensor-fx', 'aria-hidden': 'true' }),
@@ -6353,17 +7354,34 @@
                   }, s.label, s.key ? React.createElement('span', { className: 'v4-gm2-skinkey' }, s.key) : null)
                 )
               ),
-              shipHud ? React.createElement('div', {
-                className: 'v4-gm2-chip ' + (stats.ships ? '' : 'warn'),
+              React.createElement('button', {
+                type: 'button',
+                className: 'v4-gm2-chip is-btn ' + (stats.deals ? '' : 'warn'),
+                onClick: function () { pickLayer(layer === 'deals' ? 'all' : 'deals'); },
+              }, stats.deals ? ('DEALS · ' + stats.deals) : 'DEALS · NONE'),
+              shipHud ? React.createElement('button', {
+                type: 'button',
+                className: 'v4-gm2-chip is-btn ' + (stats.ships ? '' : 'warn'),
+                onClick: function () { pickLayer(layer === 'ships' ? 'all' : 'ships'); },
               }, 'SHIPS · ' + shipHud) : null,
-              jamHud ? React.createElement('div', {
-                className: 'v4-gm2-chip ' + (dataRef.current.gpsjam.length ? '' : 'warn'),
+              jamHud ? React.createElement('button', {
+                type: 'button',
+                className: 'v4-gm2-chip is-btn ' + (dataRef.current.gpsjam.length ? '' : 'warn'),
                 title: dataRef.current.gpsjamAttribution || 'Data derived from ADS-B Exchange via gpsjam.org',
+                onClick: function () { pickLayer(layer === 'gpsjam' ? 'all' : 'gpsjam'); },
               }, jamHud) : null,
-              milHud ? React.createElement('div', {
-                className: 'v4-gm2-chip ' + ((dataRef.current.milFlights || []).length ? '' : 'warn'),
+              milHud ? React.createElement('button', {
+                type: 'button',
+                className: 'v4-gm2-chip is-btn ' + ((dataRef.current.milFlights || []).length ? '' : 'warn'),
+                onClick: function () { pickLayer(layer === 'flights' ? 'all' : 'flights'); },
               }, milHud) : null,
-              readAisstreamKey() ? React.createElement('div', { className: 'v4-gm2-chip warn' }, 'AISSTREAM KEY · IDLE') : null,
+              React.createElement('button', {
+                type: 'button',
+                className: 'v4-gm2-chip is-btn' + (settingsOpen ? ' ok' : ''),
+                'data-gm-settings-toggle': '1',
+                onClick: function () { setSettingsOpen(function (v) { return !v; }); },
+              }, settingsOpen ? 'SETTINGS · ON' : 'SETTINGS'),
+              null,
               selected && fields ? React.createElement('div', { className: 'v4-gm2-inspector' },
                 React.createElement('div', { className: 'v4-gm2-ins-type' }, fields.type),
                 React.createElement('div', { className: 'v4-gm2-ins-name' }, fields.name),
@@ -6395,11 +7413,8 @@
                   }, 'TRACK'),
                   React.createElement('button', {
                     type: 'button', className: 'v4-gm2-btn',
-                    onClick: () => {
-                      const Cesium = global.Cesium;
-                      const st = stateRef.current;
-                      if (enterStreetView(Cesium, st.viewer, st, selected && selected.lat, selected && selected.lng)) setStreetMode(true);
-                    },
+                    onMouseDown: (ev) => { ev.preventDefault(); ev.stopPropagation(); },
+                    onClick: (ev) => { ev.stopPropagation(); goStreetView(); },
                   }, 'STREET VIEW'),
                   React.createElement('button', {
                     type: 'button', className: 'v4-gm2-btn',
@@ -6458,5 +7473,7 @@
 
   V4GodModeEarth.engine = 'cesium';
   global.V4GodModeEarth = V4GodModeEarth;
+  global.V4GodMode = V4GodModeEarth;
+  global.GodModeEarth = V4GodModeEarth;
   if (typeof module !== 'undefined' && module.exports) module.exports = V4GodModeEarth;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -9,6 +9,14 @@ PYTHON_BIN="/opt/homebrew/bin/python3"
 mkdir -p "$LOG_DIR"
 cd "$ROOT"
 
+# Ensure Firecrawl anydoc is importable (document intake for PDF/DOCX/PPTX/…)
+# https://github.com/firecrawl/anydoc
+if ! "$PYTHON_BIN" -c "import anydoc" >/dev/null 2>&1; then
+  echo "$(date '+%Y-%m-%d %H:%M:%S') anydoc missing — installing firecrawl-anydoc" >> "$LOG_DIR/google_docs_brief_server.log"
+  "$PYTHON_BIN" -m pip install --user --break-system-packages firecrawl-anydoc \
+    >> "$LOG_DIR/google_docs_brief_server.log" 2>> "$LOG_DIR/google_docs_brief_server.error.log" || true
+fi
+
 if lsof -iTCP:8767 -sTCP:LISTEN -n -P >/dev/null 2>&1; then
   echo "$(date '+%Y-%m-%d %H:%M:%S') Brief Maker server already running on 127.0.0.1:8767" >> "$LOG_DIR/google_docs_brief_server.log"
   exit 0
