@@ -376,6 +376,18 @@ textarea:focus {
 
 .choice, .scale, .row { display: flex; flex-wrap: wrap; gap: 8px; }
 
+.choice.collab-kinds button {
+  border-radius: 12px;
+  min-height: 42px;
+  padding: 8px 12px;
+  white-space: normal;
+  text-align: left;
+  line-height: 1.25;
+}
+.collab-kind-field[hidden] {
+  display: none !important;
+}
+
 .choice button,
 .scale button,
 .btn {

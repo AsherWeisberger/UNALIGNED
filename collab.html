@@ -5,7 +5,7 @@
   <link rel="canonical" href="https://agentdashboard.cloud/collab.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>UNALIGNED · Collaborate with Robert</title>
-  <!-- form build: 20260903-rates-rollup-v1 -->
+  <!-- form build: 20260903-collab-kind-v1 -->
   <meta name="description" content="Paid partnerships with Robert Scoble. Rate card on the page." />
   <meta name="theme-color" content="#0D0F14" />
   <meta name="color-scheme" content="dark" />
@@ -42,7 +42,7 @@
   })();
   </script>
   <link rel="icon" href="favicon.ico" />
-  <link rel="stylesheet" href="assets/unaligned-form.css?v=20260903-rates-rollup-v1" />
+  <link rel="stylesheet" href="assets/unaligned-form.css?v=20260903-collab-kind-v1" />
 </head>
 <body class="ua-form-page ua-form-connect">
   <div class="ua-scene">
@@ -63,7 +63,7 @@
       <p class="ua-foot">This form is for paid partnerships only. General contact is agentdashboard.cloud/connect.<span class="ua-credit">A custom app by Asher Weisberger</span></p>
     </div>
   </div>
-  <script src="assets/reactive-grid.js?v=20260903-collab-root-v1"></script>
+  <script src="assets/reactive-grid.js?v=20260903-collab-kind-v1"></script>
   <script>
     const API = 'https://us-central1-unaligned-fc556.cloudfunctions.net/robertDeskIntake';
 
@@ -182,6 +182,7 @@
       topic_type: COLLAB_ONLY ? 'collaboration' : 'general_outreach',
       brief_link: '',
       message: '',
+      collab_kinds: [],
       company_website: '',
     };
 
@@ -193,6 +194,7 @@
     let briefHintEl = null;
     let briefFieldWrap = null;
     let ratesPanelEl = null;
+    let collabKindWrap = null;
 
     function el(tag, attrs, children) {
       const node = document.createElement(tag);
@@ -291,6 +293,50 @@
       return '$' + num.toLocaleString('en-US');
     }
 
+
+    function collabKindOptions() {
+      const opts = [];
+      (RATE_CARD.packages || []).forEach((pkg) => {
+        opts.push({ label: pkg.name + ' · ' + money(pkg.price), value: pkg.name });
+      });
+      const listPkgs = (RATE_CARD.listPlacement && RATE_CARD.listPlacement.packages) || [];
+      listPkgs.forEach((pkg) => {
+        opts.push({ label: pkg.name + ' · ' + money(pkg.price), value: pkg.name });
+      });
+      opts.push({ label: 'Not sure yet', value: 'not_sure' });
+      return opts;
+    }
+
+    function collabKindField() {
+      const field = el('div', { className: 'field collab-kind-field' });
+      field.appendChild(el('label', { text: 'What kind of collab *' }));
+      const row = el('div', { className: 'choice collab-kinds' });
+      collabKindOptions().forEach((opt) => {
+        const btn = el('button', { type: 'button', text: opt.label, 'data-kind': opt.value });
+        btn.addEventListener('click', () => {
+          if (opt.value === 'not_sure') {
+            state.collab_kinds = ['not_sure'];
+          } else {
+            const set = new Set((state.collab_kinds || []).filter((v) => v !== 'not_sure'));
+            if (set.has(opt.value)) set.delete(opt.value);
+            else set.add(opt.value);
+            state.collab_kinds = Array.from(set);
+          }
+          row.querySelectorAll('button').forEach((b) => {
+            b.classList.toggle('is-on', (state.collab_kinds || []).indexOf(b.getAttribute('data-kind')) >= 0);
+          });
+        });
+        row.appendChild(btn);
+      });
+      field.appendChild(row);
+      field.appendChild(el('span', {
+        className: 'hint',
+        text: 'Pick one or more. Open Partnership packages above for what each one includes.',
+      }));
+      collabKindWrap = field;
+      return field;
+    }
+
     function ratesPanel() {
       const panel = el('details', {
         className: 'rates-panel',
@@ -376,8 +422,8 @@
     }
 
     function syncRatesVisibility() {
-      if (!ratesPanelEl) return;
-      ratesPanelEl.hidden = state.intake_lane !== 'collaboration';
+      if (ratesPanelEl) ratesPanelEl.hidden = state.intake_lane !== 'collaboration';
+      if (collabKindWrap) collabKindWrap.hidden = state.intake_lane !== 'collaboration';
     }
 
     function applyLane(value) {
@@ -438,6 +484,8 @@
       nameRow.appendChild(textField('first_name', 'First name', { required: true, placeholder: 'Jane', autocomplete: 'given-name' }));
       nameRow.appendChild(textField('last_name', 'Last name', { required: true, placeholder: 'Doe', autocomplete: 'family-name' }));
       form.appendChild(nameRow);
+      form.appendChild(collabKindField());
+      syncRatesVisibility();
 
       form.appendChild(choiceField('contact_preference', 'Best way to reach you', CONTACT_PREFS, syncContactDetailField));
       form.appendChild(contactDetailField());
@@ -494,6 +542,15 @@
           if (state.brief_link && !/^https?:\/\/.+/i.test(state.brief_link)) {
             throw new Error('Brief link must start with http:// or https://');
           }
+          const wantsCollab = COLLAB_ONLY || state.intake_lane === 'collaboration';
+          const kinds = (state.collab_kinds || []).slice();
+          if (wantsCollab && !kinds.length) {
+            throw new Error('Pick what kind of collab you want to do');
+          }
+          const kindLine = kinds.map((v) => v === 'not_sure' ? 'Not sure yet' : v).join(', ');
+          const message = kindLine
+            ? ('Package: ' + kindLine + '\n\n' + (state.message || ''))
+            : state.message;
           const payload = {
             company: state.company,
             first_name: state.first_name,
@@ -505,7 +562,8 @@
             intake_lane: state.intake_lane,
             topic_type: state.topic_type,
             brief_link: state.brief_link,
-            message: state.message,
+            collab_kind: kindLine,
+            message: message,
             company_website: state.company_website,
             referrer: document.referrer || '',
             source: COLLAB_ONLY ? 'connect_form_collab' : 'connect_form',
