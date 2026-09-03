@@ -67,6 +67,12 @@
   <script>
     const API = 'https://us-central1-unaligned-fc556.cloudfunctions.net/robertDeskIntake';
 
+    const COLLAB_ONLY = (function () {
+      var path = String(location.pathname || '').replace(/\/+$/, '');
+      if (/\/connect\/collab$/i.test(path)) return true;
+      return /(?:^|[?&])lane=collab(?:oration)?(?:&|$)/i.test(String(location.search || ''));
+    })();
+
     // Lane order matters: General Conversation is first and the default selection
     // so partnership pricing only appears when they deliberately choose Collaboration.
     const LANES = [
@@ -92,6 +98,7 @@
       note: 'All packages are USD and paid in full before any content goes live. Existing clients may be invoiced on go-live day. Every paid post carries a clear paid partnership disclosure.',
       packages: [
         { name: 'Retweet', price: 1295, items: ['1 retweet'] },
+        { name: 'Like, Comment & Bookmark', price: 1895, items: ['1 like', '1 comment', '1 bookmark'] },
         { name: 'Quote Repost', price: 2195, items: ['1 quote repost', "Robert's original quote (up to 3 sentences)"] },
         { name: 'Custom X Post', price: 2495, items: ['1 custom-written X post'] },
         { name: 'Narrative Thread', price: 2995, items: ['1 thread (main post + 2 attached replies)'] },
@@ -184,8 +191,8 @@
       contact_detail: '',
       contact_preference: '',
       // Default: general conversation so rates are not in their face on load.
-      intake_lane: 'general_outreach',
-      topic_type: 'general_outreach',
+      intake_lane: COLLAB_ONLY ? 'collaboration' : 'general_outreach',
+      topic_type: COLLAB_ONLY ? 'collaboration' : 'general_outreach',
       brief_link: '',
       message: '',
       company_website: '',
@@ -412,9 +419,9 @@
     function renderForm() {
       const app = document.getElementById('app');
       app.innerHTML = '';
-      app.appendChild(el('div', { className: 'eyebrow', text: "Robert's desk" }));
-      app.appendChild(el('h2', { text: "Reach Robert's team" }));
-      app.appendChild(laneTabs());
+      app.appendChild(el('div', { className: 'eyebrow', text: COLLAB_ONLY ? 'Paid partnerships' : "Robert's desk" }));
+      app.appendChild(el('h2', { text: COLLAB_ONLY ? 'Start a collaboration' : "Reach Robert's team" }));
+      if (!COLLAB_ONLY) app.appendChild(laneTabs());
       laneLeadEl = el('p', { className: 'lead', text: laneConfig(state.intake_lane).lead });
       app.appendChild(laneLeadEl);
       app.appendChild(ratesPanel());
@@ -504,7 +511,7 @@
             message: state.message,
             company_website: state.company_website,
             referrer: document.referrer || '',
-            source: 'connect_form',
+            source: COLLAB_ONLY ? 'connect_form_collab' : 'connect_form',
           };
           if (state.contact_preference === 'x') payload.x_handle = state.contact_detail;
           if (['whatsapp', 'signal', 'phone'].includes(state.contact_preference)) {

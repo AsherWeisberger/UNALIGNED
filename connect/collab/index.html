@@ -2,38 +2,38 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <link rel="canonical" href="https://agentdashboard.cloud/connect" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>UNALIGNED · Reach Robert's team</title>
+  <link rel="canonical" href="https://agentdashboard.cloud/connect/collab" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>UNALIGNED · Collaborate with Robert</title>
   <!-- form build: 20260817-idle-wander-v4 -->
-  <meta name="description" content="Share your idea with Robert Scoble's team. We read everything and route the best fits to Robert's desk." />
-  <meta name="theme-color" content="#0D0F14" />
+  <meta name="description" content="Paid collaborations and sponsorships with Robert Scoble. Rate card on the page. The general contact form is unchanged at /connect." />
+  <meta name="theme-color" content="#000000" />
   <meta name="color-scheme" content="dark" />
   <!-- Open Graph / X card — static meta first; crawlers do not run JS -->
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="UNALIGNED" />
-  <meta property="og:url" content="https://agentdashboard.cloud/connect" />
+  <meta property="og:url" content="https://agentdashboard.cloud/connect/collab" />
   <meta property="og:title" content="UNALIGNED" />
-  <meta property="og:description" content="Reach Robert's team" />
+  <meta property="og:description" content="Collaborate with Robert" />
   <meta property="og:image" content="https://agentdashboard.cloud/assets/unaligned-og-connect.jpg" />
   <meta property="og:image:secure_url" content="https://agentdashboard.cloud/assets/unaligned-og-connect.jpg" />
   <meta property="og:image:type" content="image/jpeg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="UNALIGNED — Reach Robert's team" />
+  <meta property="og:image:alt" content="UNALIGNED — Collaborate with Robert" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:site" content="@Scobleizer" />
   <meta name="twitter:domain" content="agentdashboard.cloud" />
-  <meta name="twitter:url" content="https://agentdashboard.cloud/connect" />
+  <meta name="twitter:url" content="https://agentdashboard.cloud/connect/collab" />
   <meta name="twitter:title" content="UNALIGNED" />
-  <meta name="twitter:description" content="Reach Robert's team" />
+  <meta name="twitter:description" content="Collaborate with Robert" />
   <meta name="twitter:image" content="https://agentdashboard.cloud/assets/unaligned-og-connect.jpg" />
-  <meta name="twitter:image:alt" content="UNALIGNED — Reach Robert's team" />
+  <meta name="twitter:image:alt" content="UNALIGNED — Collaborate with Robert" />
   <script>
   // Ops dashboard hosts must not be the shareable link — send visitors to the public form.
   (function () {
     var host = String(location.hostname || '');
-    var publicUrl = 'https://agentdashboard.cloud/connect';
+    var publicUrl = 'https://agentdashboard.cloud/connect/collab';
     if (host.indexOf('mac-studio.tail') >= 0) {
       var target = publicUrl + String(location.search || '') + String(location.hash || '');
       var here = location.href.split('?')[0].split('#')[0].replace(/\/$/, '');
@@ -41,29 +41,27 @@
     }
   })();
   </script>
-  <link rel="icon" href="../favicon.ico" />
-  <link rel="stylesheet" href="../assets/unaligned-form.css?v=20260817-idle-wander-v4" />
+  <link rel="icon" href="../../favicon.ico" />
+  <link rel="stylesheet" href="../../assets/unaligned-form.css?v=20260817-idle-wander-v4" />
 </head>
 <body class="ua-form-page ua-form-connect">
   <div class="ua-scene">
-    <canvas class="ua-reactive-grid" aria-hidden="true"></canvas>
     <div class="ua-grain" aria-hidden="true"></div>
     <div class="ua-vignette" aria-hidden="true"></div>
     <div class="ua-wrap">
       <header class="ua-hero">
         <div class="ua-logo-frame">
-          <img src="../assets/unaligned-form-logo.png" alt="UNALIGNED" class="ua-logo" width="800" height="199" />
+          <img src="../../assets/unaligned-form-logo.png" alt="UNALIGNED" class="ua-logo" width="800" height="199" />
           <div class="ua-logo-glow" aria-hidden="true"></div>
         </div>
-        <p class="ua-tagline">Robert Scoble · team intake</p>
+        <p class="ua-tagline">Robert Scoble · collaborations</p>
       </header>
       <div class="ua-card" id="app">
         <p class="lead">Loading…</p>
       </div>
-      <p class="ua-foot">Every note is read by the UNALIGNED team. Strong fits get a direct line to Robert's desk.<span class="ua-credit">A custom app by Asher Weisberger</span></p>
+      <p class="ua-foot">This form is for paid collaborations only. For everything else use agentdashboard.cloud/connect.</p>
     </div>
   </div>
-  <script src="../assets/reactive-grid.js?v=20260817-idle-wander-v4"></script>
   <script>
     const API = 'https://us-central1-unaligned-fc556.cloudfunctions.net/robertDeskIntake';
 
@@ -420,7 +418,7 @@
       const app = document.getElementById('app');
       app.innerHTML = '';
       app.appendChild(el('div', { className: 'eyebrow', text: COLLAB_ONLY ? 'Paid partnerships' : "Robert's desk" }));
-      app.appendChild(el('h2', { text: COLLAB_ONLY ? 'Start a collaboration' : "Reach Robert's team" }));
+      app.appendChild(el('h2', { text: COLLAB_ONLY ? 'Start a collaboration' : "Collaborate with Robert" }));
       if (!COLLAB_ONLY) app.appendChild(laneTabs());
       laneLeadEl = el('p', { className: 'lead', text: laneConfig(state.intake_lane).lead });
       app.appendChild(laneLeadEl);
