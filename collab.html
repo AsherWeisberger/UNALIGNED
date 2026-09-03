@@ -5,7 +5,7 @@
   <link rel="canonical" href="https://agentdashboard.cloud/collab.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>UNALIGNED · Collaborate with Robert</title>
-  <!-- form build: 20260903-collab-root-v1 -->
+  <!-- form build: 20260903-rates-rollup-v1 -->
   <meta name="description" content="Paid partnerships with Robert Scoble. Rate card on the page." />
   <meta name="theme-color" content="#0D0F14" />
   <meta name="color-scheme" content="dark" />
@@ -42,7 +42,7 @@
   })();
   </script>
   <link rel="icon" href="favicon.ico" />
-  <link rel="stylesheet" href="assets/unaligned-form.css?v=20260903-collab-root-v1" />
+  <link rel="stylesheet" href="assets/unaligned-form.css?v=20260903-rates-rollup-v1" />
 </head>
 <body class="ua-form-page ua-form-connect">
   <div class="ua-scene">
@@ -292,15 +292,24 @@
     }
 
     function ratesPanel() {
-      const panel = el('div', {
+      const panel = el('details', {
         className: 'rates-panel',
         id: 'collab-rates',
         hidden: state.intake_lane !== 'collaboration',
         'aria-label': 'Partnership pricing',
       });
 
-      panel.appendChild(el('div', { className: 'rates-eyebrow', text: 'Partnership packages' }));
-      panel.appendChild(el('p', {
+      const summary = el('summary', { className: 'rates-summary' });
+      summary.appendChild(el('span', { className: 'rates-eyebrow', text: 'Partnership packages' }));
+      summary.appendChild(el('span', { className: 'rates-summary-hint', text: 'View rates' }));
+      panel.appendChild(summary);
+      panel.addEventListener('toggle', () => {
+        const hint = summary.querySelector('.rates-summary-hint');
+        if (hint) hint.textContent = panel.open ? 'Hide rates' : 'View rates';
+      });
+
+      const body = el('div', { className: 'rates-body' });
+      body.appendChild(el('p', {
         className: 'rates-intro',
         text: RATE_CARD.note,
       }));
@@ -319,7 +328,7 @@
         li.appendChild(bullets);
         list.appendChild(li);
       });
-      panel.appendChild(list);
+      body.appendChild(list);
 
       if (RATE_CARD.addon) {
         const add = el('div', { className: 'rates-addon' });
@@ -332,14 +341,14 @@
           bullets.appendChild(el('li', { text: line }));
         });
         add.appendChild(bullets);
-        panel.appendChild(add);
+        body.appendChild(add);
       }
 
       if (RATE_CARD.listPlacement) {
         const lp = RATE_CARD.listPlacement;
-        panel.appendChild(el('div', { className: 'rates-eyebrow rates-eyebrow-list', text: lp.eyebrow }));
+        body.appendChild(el('div', { className: 'rates-eyebrow rates-eyebrow-list', text: lp.eyebrow }));
         if (lp.subtitle) {
-          panel.appendChild(el('p', { className: 'rates-intro', text: lp.subtitle }));
+          body.appendChild(el('p', { className: 'rates-intro', text: lp.subtitle }));
         }
         const list2 = el('ul', { className: 'rates-list' });
         (lp.packages || []).forEach((pkg) => {
@@ -355,12 +364,13 @@
           li.appendChild(bullets);
           list2.appendChild(li);
         });
-        panel.appendChild(list2);
+        body.appendChild(list2);
         if (lp.note) {
-          panel.appendChild(el('p', { className: 'rates-intro', text: lp.note }));
+          body.appendChild(el('p', { className: 'rates-intro', text: lp.note }));
         }
       }
 
+      panel.appendChild(body);
       ratesPanelEl = panel;
       return panel;
     }
