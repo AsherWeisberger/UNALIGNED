@@ -10,6 +10,10 @@
     var isCustom = host === 'agentdashboard.cloud' || host === 'www.agentdashboard.cloud';
     var path = String(location.pathname || '/').replace(/\/$/, '') || '/';
     var base = /^\/UNALIGNED(\/|$)/i.test(location.pathname || '/') ? '/UNALIGNED' : '';
+    if (path === '/collab.html' || path === '/UNALIGNED/collab.html' || path === '/collab' || path === '/UNALIGNED/collab') {
+      location.replace(base + '/collab.html' + location.search + location.hash);
+      return;
+    }
     if (path === '/connect/collab' || path === '/UNALIGNED/connect/collab') {
       location.replace(base + '/connect/collab/' + location.search + location.hash);
       return;

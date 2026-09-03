@@ -2,17 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <link rel="canonical" href="https://agentdashboard.cloud/connect/collab" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="canonical" href="https://agentdashboard.cloud/collab.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>UNALIGNED · Collaborate with Robert</title>
-  <!-- form build: 20260903-collab-only-v1 -->
-  <meta name="description" content="Paid collaborations and sponsorships with Robert Scoble. Rate card on the page. The general contact form is unchanged at /connect." />
-  <meta name="theme-color" content="#000000" />
+  <!-- form build: 20260903-collab-root-v1 -->
+  <meta name="description" content="Paid partnerships with Robert Scoble. Rate card on the page." />
+  <meta name="theme-color" content="#0D0F14" />
   <meta name="color-scheme" content="dark" />
   <!-- Open Graph / X card — static meta first; crawlers do not run JS -->
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="UNALIGNED" />
-  <meta property="og:url" content="https://agentdashboard.cloud/connect/collab" />
+  <meta property="og:url" content="https://agentdashboard.cloud/collab.html" />
   <meta property="og:title" content="UNALIGNED" />
   <meta property="og:description" content="Collaborate with Robert" />
   <meta property="og:image" content="https://agentdashboard.cloud/assets/unaligned-og-connect.jpg" />
@@ -24,7 +24,7 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:site" content="@Scobleizer" />
   <meta name="twitter:domain" content="agentdashboard.cloud" />
-  <meta name="twitter:url" content="https://agentdashboard.cloud/connect/collab" />
+  <meta name="twitter:url" content="https://agentdashboard.cloud/collab.html" />
   <meta name="twitter:title" content="UNALIGNED" />
   <meta name="twitter:description" content="Collaborate with Robert" />
   <meta name="twitter:image" content="https://agentdashboard.cloud/assets/unaligned-og-connect.jpg" />
@@ -33,7 +33,7 @@
   // Ops dashboard hosts must not be the shareable link — send visitors to the public form.
   (function () {
     var host = String(location.hostname || '');
-    var publicUrl = 'https://agentdashboard.cloud/connect/collab';
+    var publicUrl = 'https://agentdashboard.cloud/collab.html';
     if (host.indexOf('mac-studio.tail') >= 0) {
       var target = publicUrl + String(location.search || '') + String(location.hash || '');
       var here = location.href.split('?')[0].split('#')[0].replace(/\/$/, '');
@@ -41,17 +41,18 @@
     }
   })();
   </script>
-  <link rel="icon" href="../../favicon.ico" />
-  <link rel="stylesheet" href="../../assets/unaligned-form.css?v=20260903-collab-only-v1" />
+  <link rel="icon" href="favicon.ico" />
+  <link rel="stylesheet" href="assets/unaligned-form.css?v=20260903-collab-root-v1" />
 </head>
 <body class="ua-form-page ua-form-connect">
   <div class="ua-scene">
+    <canvas class="ua-reactive-grid" aria-hidden="true"></canvas>
     <div class="ua-grain" aria-hidden="true"></div>
     <div class="ua-vignette" aria-hidden="true"></div>
     <div class="ua-wrap">
       <header class="ua-hero">
         <div class="ua-logo-frame">
-          <img src="../../assets/unaligned-form-logo.png" alt="UNALIGNED" class="ua-logo" width="800" height="199" />
+          <img src="assets/unaligned-form-logo.png" alt="UNALIGNED" class="ua-logo" width="800" height="199" />
           <div class="ua-logo-glow" aria-hidden="true"></div>
         </div>
         <p class="ua-tagline">Robert Scoble · collaborations</p>
@@ -59,16 +60,17 @@
       <div class="ua-card" id="app">
         <p class="lead">Loading…</p>
       </div>
-      <p class="ua-foot">This form is for paid collaborations only. For everything else use agentdashboard.cloud/connect.</p>
+      <p class="ua-foot">This form is for paid partnerships only. General contact is agentdashboard.cloud/connect.<span class="ua-credit">A custom app by Asher Weisberger</span></p>
     </div>
   </div>
+  <script src="assets/reactive-grid.js?v=20260903-collab-root-v1"></script>
   <script>
     const API = 'https://us-central1-unaligned-fc556.cloudfunctions.net/robertDeskIntake';
 
     const COLLAB_ONLY = true;
 
     const LANES = [
-{
+      {
         label: 'Collaboration',
         value: 'collaboration',
         lead: 'Paid collabs, sponsorships, brand deals, and project ideas with Robert.',
